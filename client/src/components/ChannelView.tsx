@@ -1,21 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
-import { Channel, Message } from '../types';
+import { Channel, Message, Server, Role } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon } from './Icons';
 import './ChannelView.css';
 import './Attachments.css';
 
 interface ChannelViewProps {
   channel: Channel;
+  server: Server;
   messages: Message[];
   socket: Socket | null;
+  onUserClick: (userId: string) => void;
 }
 
-const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) => {
+const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, socket, onUserClick }) => {
   const { user } = useAuth();
+  const { hasPermission } = usePermissions(user!, server);
   const [message, setMessage] = useState('');
+
+  const canSend = hasPermission('SEND_MESSAGES');
+  const canManageMessages = hasPermission('MANAGE_MESSAGES');
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -110,6 +118,22 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) 
     }, 3000);
   };
 
+  const handleDeleteMessage = (messageId: string) => {
+    if (window.confirm('Удалить это сообщение?')) {
+      socket?.emit('delete-message', { messageId, channelId: channel._id });
+    }
+  };
+
+  const getAuthorColor = (authorId: string) => {
+    const member = server.members.find(m => String(m.user._id) === String(authorId));
+    if (!member) return 'inherit';
+
+    const sortedRoles = [...(member.roles || [])] as any[];
+    sortedRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
+    const colorRole = sortedRoles.find(r => r.color && r.color !== '#99AAB5');
+    return colorRole ? colorRole.color : 'inherit';
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -143,7 +167,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) 
     <div className="channel-view">
       <div className="channel-header">
         <div className="channel-header-info">
-          <span className="channel-icon">#</span>
+          <span className="channel-icon">
+            <HashtagIcon size={24} color="#8e9297" />
+          </span>
           <h3>{channel.name}</h3>
         </div>
         {channel.topic && (
@@ -165,7 +191,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) 
                   </div>
                 )}
                 <div className="message with-author">
-                  <div className="message-author-avatar">
+                  <div className="message-author-avatar" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>
                     {getAvatarUrl(msg.author.avatar) ? (
                       <img src={getAvatarUrl(msg.author.avatar)!} alt={msg.author.username} />
                     ) : (
@@ -174,8 +200,24 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) 
                   </div>
                   <div className="message-content">
                     <div className="message-header">
-                      <span className="message-author">{msg.author.username}</span>
-                      <span className="message-time">{formatDate(msg.createdAt)}</span>
+                      <div className="message-author-info">
+                        <span
+                          className="message-author"
+                          onClick={() => onUserClick(msg.author._id)}
+                          style={{ cursor: 'pointer', color: getAuthorColor(msg.author._id) }}
+                        >
+                          {msg.author.username}
+                        </span>
+                        <span className="message-time">{formatDate(msg.createdAt)}</span>
+                      </div>
+
+                      <div className="message-actions-hover">
+                        {(canManageMessages || msg.author._id === user?._id) && (
+                          <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}>
+                            <TrashIcon size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="message-text">{msg.content}</div>
                     {msg.attachments && msg.attachments.length > 0 && (
@@ -188,7 +230,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) 
                               <video src={getFullUrl(att.url)!} controls className="attachment-video" />
                             ) : (
                               <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                                📄 {att.filename}
+                                <DocumentIcon size={18} />
+                                <span>{att.filename}</span>
                               </a>
                             )}
                           </div>
@@ -224,7 +267,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) 
             className="attachment-button"
             onClick={() => fileInputRef.current?.click()}
           >
-            +
+            <PlusIcon />
           </button>
           <input
             type="file"
@@ -235,10 +278,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, messages, socket }) 
           />
           <input
             type="text"
-            placeholder={`Написать в #${channel.name}`}
+            placeholder={canSend ? `Написать в #${channel.name}` : "У вас нет прав для отправки сообщений"}
             value={message}
             onChange={handleTyping}
             className="message-input"
+            disabled={!canSend}
           />
           <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>
             Отправить

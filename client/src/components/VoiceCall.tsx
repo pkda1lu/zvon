@@ -3,174 +3,272 @@ import { Socket } from 'socket.io-client';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
+import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon } from './Icons';
 import './VoiceCall.css';
 
 interface VoiceCallProps {
   socket: Socket | null;
   otherUser: User;
+  dmId: string;
   onEndCall: () => void;
   initialIncomingCall?: boolean;
-  initialOffer?: { fromUserId: string; offer: RTCSessionDescriptionInit };
+  initialOffer?: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string };
 }
 
-const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, onEndCall, initialIncomingCall = false, initialOffer }) => {
+const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false, initialOffer }) => {
   const { user } = useAuth();
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isIncomingCall, setIsIncomingCall] = useState(initialIncomingCall);
-  const [callerId, setCallerId] = useState<string | null>(initialOffer?.fromUserId || null);
+  const [isRinging, setIsRinging] = useState(!initialIncomingCall);
+  const [isWaitingInRoom, setIsWaitingInRoom] = useState(false);
+  const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const ringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(initialOffer?.offer || null);
 
+  // Effect to handle join room for CALLER immediately
   useEffect(() => {
-    if (initialOffer) {
-      (window as any).pendingOffer = { fromUserId: initialOffer.fromUserId, offer: initialOffer.offer };
+    if (!socket || !dmId) return;
+
+    if (!initialIncomingCall) {
+      console.log('VoiceCall: Caller joining room immediately');
+      joinCallRoom();
+
+      // Notify them
+      socket.emit('call-offer', {
+        targetUserId: String(otherUser._id),
+        dmId: String(dmId),
+        offer: null
+      });
+
+      ringTimeoutRef.current = setTimeout(() => {
+        setIsRinging(false);
+        setIsWaitingInRoom(true);
+      }, 60000);
     }
 
-    if (socket) {
-      socket.on('call-offer', handleIncomingCall);
-      socket.on('call-answer', handleCallAnswer);
-      socket.on('call-ice-candidate', handleIceCandidate);
-      socket.on('call-end', handleCallEnd);
+    // Signaling listeners
+    socket.on('call-offer', handleIncomingOffer);
+    socket.on('call-answer', handleCallAnswer);
+    socket.on('call-ice-candidate', handleIceCandidate);
+    socket.on('call-end', handleCallEnd);
+    socket.on('dm-call-user-joined', handleOtherUserJoined);
+    socket.on('dm-call-existing-users', handleExistingUsers);
 
-      return () => {
-        socket.off('call-offer');
-        socket.off('call-answer');
-        socket.off('call-ice-candidate');
-        socket.off('call-end');
-      };
+    return () => {
+      console.log('VoiceCall: Cleaning up');
+      if (dmId) socket.emit('leave-dm-call', { dmId });
+      socket.off('call-offer');
+      socket.off('call-answer');
+      socket.off('call-ice-candidate');
+      socket.off('call-end');
+      socket.off('dm-call-user-joined');
+      socket.off('dm-call-existing-users');
+      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+      cleanupStreams();
+    };
+  }, [socket, dmId]);
+
+  const joinCallRoom = () => {
+    if (socket && dmId) {
+      socket.emit('join-dm-call', { dmId });
+      setHasJoinedRoom(true);
     }
-  }, [socket, initialOffer]);
-
-  const handleIncomingCall = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit }) => {
-    setIsIncomingCall(true);
-    setCallerId(data.fromUserId);
-    // Store offer for later use
-    (window as any).pendingOffer = { fromUserId: data.fromUserId, offer: data.offer };
   };
 
-  const answerCall = async () => {
-    if (!callerId || !(window as any).pendingOffer) return;
+  const handleOtherUserJoined = (data: { userId: string }) => {
+    if (data.userId === otherUser._id) {
+      console.log('Other user joined room. Checking if I should initiate WebRTC...');
+      setIsRinging(false);
+      setIsWaitingInRoom(false);
+      // Logic: smaller ID initiates to avoid collision
+      if (user && user._id < otherUser._id) {
+        initiateWebRTC();
+      }
+    }
+  };
 
-    const { fromUserId, offer } = (window as any).pendingOffer;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: isVideoEnabled
-      });
-      setLocalStream(stream);
+  const handleExistingUsers = (users: string[]) => {
+    if (users.includes(otherUser._id)) {
+      console.log('Other user is already in room. Checking if I should initiate WebRTC...');
+      setIsRinging(false);
+      setIsWaitingInRoom(false);
+      if (user && user._id < otherUser._id) {
+        initiateWebRTC();
+      }
+    }
+  };
 
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      });
+  const acceptCall = async () => {
+    console.log('VoiceCall: Accept clicked. Pending offer exists:', !!pendingOfferRef.current);
+    setIsIncomingCall(false);
+    setIsRinging(false);
 
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
-      });
+    // Process pending offer if it exists
+    if (pendingOfferRef.current) {
+      const offer = pendingOfferRef.current;
+      pendingOfferRef.current = null; // Clear it
+      await handleIncomingOffer({ offer });
+    } else {
+      // No offer yet, just join and wait for one or initiate if it's our turn
+      joinCallRoom();
+    }
+  };
 
-      pc.ontrack = (event) => {
-        setRemoteStream(event.streams[0]);
-      };
+  const cleanupStreams = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+  };
 
-      pc.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          socket.emit('call-ice-candidate', {
-            targetUserId: fromUserId,
-            candidate: event.candidate
-          });
+  const processIceQueue = async (pc: RTCPeerConnection) => {
+    while (iceCandidatesQueue.current.length > 0) {
+      const candidate = iceCandidatesQueue.current.shift();
+      if (candidate) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error('Error adding queued ICE candidate', e);
         }
-      };
+      }
+    }
+  };
 
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+  const setupPeerConnection = async () => {
+    console.log('VoiceCall: Setting up local media and PC');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: isVideoEnabled
+    });
+    setLocalStream(stream);
 
-      if (socket) {
-        socket.emit('call-answer', {
-          targetUserId: fromUserId,
-          answer: answer
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    stream.getTracks().forEach(track => {
+      pc.addTrack(track, stream);
+    });
+
+    pc.ontrack = (event) => {
+      console.log('VoiceCall: Remote track received');
+      setRemoteStream(event.streams[0]);
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socket) {
+        socket.emit('call-ice-candidate', {
+          targetUserId: otherUser._id,
+          candidate: event.candidate
         });
       }
+    };
 
-      peerConnectionRef.current = pc;
-      setIsCallActive(true);
-      setIsIncomingCall(false);
-    } catch (error) {
-      console.error('Error answering call:', error);
-      setIsIncomingCall(false);
-    }
+    peerConnectionRef.current = pc;
+    return pc;
   };
 
-  useEffect(() => {
-    if (localStream && localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
-    }
-    if (remoteStream && remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [localStream, remoteStream]);
-
-  const startCall = async () => {
+  const initiateWebRTC = async () => {
+    if (isCallActive) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: isVideoEnabled
-      });
-      setLocalStream(stream);
-
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      });
-
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
-      });
-
-      pc.ontrack = (event) => {
-        setRemoteStream(event.streams[0]);
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          socket.emit('call-ice-candidate', {
-            targetUserId: otherUser._id,
-            candidate: event.candidate
-          });
-        }
-      };
-
-      peerConnectionRef.current = pc;
-
+      const pc = await setupPeerConnection();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
       if (socket) {
         socket.emit('call-offer', {
           targetUserId: otherUser._id,
+          dmId,
           offer: offer
         });
       }
-
       setIsCallActive(true);
-    } catch (error) {
-      console.error('Error starting call:', error);
-      alert('Не удалось начать звонок. Проверьте разрешения на доступ к микрофону и камере.');
+    } catch (err) {
+      console.error('Failed to initiate WebRTC:', err);
+    }
+  };
+
+  const handleIncomingOffer = async (data: { offer: RTCSessionDescriptionInit | null }) => {
+    if (!data.offer) {
+      console.log('VoiceCall: Received ping/notification');
+      // If we are the recipient and haven't seen the incoming call screen yet, ensure it shows
+      if (!isCallActive && initialIncomingCall) {
+        setIsIncomingCall(true);
+      }
+      return;
+    }
+
+    // IMPORTANT: don't automatically answer if we haven't accepted yet
+    if (isIncomingCall) {
+      console.log('VoiceCall: Offer received, storing in pendingOfferRef');
+      pendingOfferRef.current = data.offer;
+      return;
+    }
+
+    // If we are the caller and received an offer (collision), handle it if we are the polite one
+    if (!initialIncomingCall && !isCallActive && data.offer) {
+      console.log('VoiceCall: Received offer while being a caller (collision check)');
+    }
+
+    try {
+      console.log('VoiceCall: Handling incoming offer');
+      const pc = peerConnectionRef.current || await setupPeerConnection();
+      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      if (socket) {
+        socket.emit('call-answer', {
+          targetUserId: otherUser._id,
+          answer: answer
+        });
+      }
+      setIsCallActive(true);
+      setIsWaitingInRoom(false);
+      await processIceQueue(pc);
+    } catch (err) {
+      console.error('Failed to handle incoming offer:', err);
     }
   };
 
   const handleCallAnswer = async (data: { answer: RTCSessionDescriptionInit }) => {
-    if (peerConnectionRef.current) {
-      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+    if (peerConnectionRef.current && peerConnectionRef.current.signalingState === 'have-local-offer') {
+      try {
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        setIsCallActive(true);
+        await processIceQueue(peerConnectionRef.current);
+      } catch (e) {
+        console.error('Error setting remote answer:', e);
+      }
     }
   };
 
   const handleIceCandidate = async (data: { candidate: RTCIceCandidateInit }) => {
-    if (peerConnectionRef.current && data.candidate) {
-      await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+    if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
+      try {
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (e) {
+        console.error('Error adding ICE candidate:', e);
+      }
+    } else {
+      iceCandidatesQueue.current.push(data.candidate);
     }
   };
 
@@ -179,18 +277,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, onEndCall, ini
   };
 
   const endCall = () => {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
-    }
-    if (remoteStream) {
-      remoteStream.getTracks().forEach(track => track.stop());
-      setRemoteStream(null);
-    }
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
+    cleanupStreams();
     if (socket) {
       socket.emit('call-end', { targetUserId: otherUser._id });
     }
@@ -208,13 +295,89 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, onEndCall, ini
   };
 
   const toggleVideo = async () => {
-    if (localStream) {
-      localStream.getVideoTracks().forEach(track => {
-        track.enabled = isVideoEnabled;
+    setIsVideoEnabled(!isVideoEnabled);
+  };
+
+  const toggleScreenShare = async () => {
+    if (isScreenSharing) {
+      // Stop screen share -> revert to camera if it was enabled, or just audio
+      if (localStream) {
+        localStream.getTracks().forEach(t => {
+          if (t.kind === 'video') t.stop();
+        });
+      }
+      setIsScreenSharing(false);
+      // Re-acquire original stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: isVideoEnabled
       });
-      setIsVideoEnabled(!isVideoEnabled);
+      setLocalStream(stream);
+
+      // Update peer connection
+      if (peerConnectionRef.current) {
+        const senders = peerConnectionRef.current.getSenders();
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        const audioSender = senders.find(s => s.track?.kind === 'audio');
+
+        stream.getTracks().forEach(track => {
+          if (track.kind === 'video') {
+            if (videoSender) videoSender.replaceTrack(track);
+            else peerConnectionRef.current?.addTrack(track, stream);
+          }
+          if (track.kind === 'audio' && audioSender) {
+            audioSender.replaceTrack(track);
+          }
+        });
+      }
+    } else {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+
+        screenTrack.onended = () => {
+          toggleScreenShare(); // Revert when user stops sharing via browser UI
+        };
+
+        setLocalStream(prev => {
+          // Keep audio track, replace video
+          if (!prev) return screenStream;
+          const newStream = new MediaStream([
+            ...prev.getAudioTracks(),
+            screenTrack
+          ]);
+          return newStream;
+        });
+        setIsScreenSharing(true);
+
+        // Update peer connection
+        if (peerConnectionRef.current) {
+          const senders = peerConnectionRef.current.getSenders();
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          if (videoSender) {
+            videoSender.replaceTrack(screenTrack);
+          } else {
+            peerConnectionRef.current.addTrack(screenTrack, localStream!);
+          }
+        }
+      } catch (err) {
+        console.error("Error starting screen share:", err);
+      }
     }
   };
+
+  useEffect(() => {
+    if (localStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = localStream;
+    }
+    if (remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [localStream, remoteStream]);
 
   return (
     <div className="voice-call-container">
@@ -230,31 +393,21 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, onEndCall, ini
           <div className="call-user-details">
             <div className="call-username">{otherUser.username}</div>
             <div className="call-status">
-              {isCallActive ? 'Идет звонок...' : 'Ожидание...'}
+              {isCallActive ? 'В разговоре' :
+                isIncomingCall ? 'Входящий звонок' :
+                  isRinging ? 'Звонок...' :
+                    isWaitingInRoom ? 'Ожидание собеседника...' :
+                      'Подключение...'}
             </div>
           </div>
         </div>
         <button className="end-call-button" onClick={endCall} title="Завершить звонок">
-          ✕
+          <CloseIcon size={18} />
         </button>
       </div>
 
       <div className="voice-call-content">
-        {!isCallActive && !isIncomingCall ? (
-          <div className="call-pending">
-            <div className="call-avatar-large">
-              {getAvatarUrl(otherUser.avatar) ? (
-                <img src={getAvatarUrl(otherUser.avatar)!} alt={otherUser.username} />
-              ) : (
-                <span>{otherUser.username.charAt(0).toUpperCase()}</span>
-              )}
-            </div>
-            <button className="start-call-button" onClick={startCall}>
-              <span className="call-icon">📞</span>
-              Начать звонок
-            </button>
-          </div>
-        ) : isIncomingCall ? (
+        {isIncomingCall ? (
           <div className="call-pending">
             <div className="call-avatar-large">
               {getAvatarUrl(otherUser.avatar) ? (
@@ -264,14 +417,32 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, onEndCall, ini
               )}
             </div>
             <div className="incoming-call-actions">
-              <button className="accept-call-button" onClick={answerCall}>
-                <span className="call-icon">✓</span>
+              <button className="accept-call-button" onClick={acceptCall}>
+                <span className="call-icon"><CheckIcon color="white" /></span>
                 Принять
               </button>
               <button className="reject-call-button" onClick={endCall}>
-                <span className="call-icon">✕</span>
+                <span className="call-icon"><CloseIcon color="white" size={24} /></span>
                 Отклонить
               </button>
+            </div>
+          </div>
+        ) : !isCallActive ? (
+          <div className="call-pending">
+            <div className="call-avatar-large">
+              {getAvatarUrl(otherUser.avatar) ? (
+                <img src={getAvatarUrl(otherUser.avatar)!} alt={otherUser.username} />
+              ) : (
+                <span>{otherUser.username.charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+            <div className="waiting-indicator">
+              {initialIncomingCall ? (
+                isCallActive ? 'В разговоре' : 'Подключение к звонку...'
+              ) : (
+                isRinging ? 'Вызываем...' :
+                  (isCallActive ? 'В разговоре' : 'Собеседник не ответил, вы в комнате ожидания')
+              )}
             </div>
           </div>
         ) : (
@@ -301,21 +472,28 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, onEndCall, ini
                 onClick={toggleMute}
                 title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
               >
-                {isMuted ? '🔇' : '🎤'}
+                {isMuted ? <MicMutedIcon /> : <MicIcon />}
               </button>
               <button
                 className={`control-button ${!isVideoEnabled ? 'disabled' : ''}`}
                 onClick={toggleVideo}
                 title={isVideoEnabled ? 'Выключить камеру' : 'Включить камеру'}
               >
-                {isVideoEnabled ? '📹' : '📷'}
+                {isVideoEnabled ? <VideoIcon /> : <CameraIcon />}
+              </button>
+              <button
+                className={`control-button ${isScreenSharing ? 'active' : ''}`}
+                onClick={toggleScreenShare}
+                title={isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
+              >
+                <ScreenShareIcon />
               </button>
               <button
                 className="control-button end-call"
                 onClick={endCall}
                 title="Завершить звонок"
               >
-                📞
+                <PhoneIcon color="white" />
               </button>
             </div>
           </div>
@@ -326,4 +504,3 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, onEndCall, ini
 };
 
 export default VoiceCall;
-

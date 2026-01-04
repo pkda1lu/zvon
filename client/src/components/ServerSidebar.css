@@ -11,28 +11,67 @@
 .server-header {
   height: 48px;
   padding: 0 16px;
-  display: flex;
-  align-items: center;
   border-bottom: 1px solid #202225;
   box-shadow: 0 1px 0 rgba(4, 4, 5, 0.2), 0 1.5px 0 rgba(6, 6, 7, 0.05), 0 2px 0 rgba(4, 4, 5, 0.05);
+  display: flex;
+  align-items: center;
   justify-content: space-between;
 }
 
-.invite-button {
+.server-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.server-header-icon,
+.server-header-icon-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #36393f;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.server-header-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.invite-button,
+.settings-button {
   background: transparent;
   border: none;
   color: #b9bbbe;
   cursor: pointer;
-  font-size: 16px;
   padding: 4px;
   border-radius: 4px;
   line-height: 1;
-  transition: color 0.1s;
+  transition: all 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.invite-button:hover {
+.invite-button:hover,
+.settings-button:hover {
   color: #dcddde;
   background-color: rgba(79, 84, 92, 0.32);
+}
+
+.server-header-actions {
+  display: flex;
+  gap: 4px;
 }
 
 .server-header h2 {
@@ -116,6 +155,7 @@
   color: #dcddde;
 }
 
+
 .channel-item.active {
   background: #393c43;
   color: #fff;
@@ -123,12 +163,22 @@
 
 .channel-icon {
   margin-right: 6px;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8e9297;
+}
+
+.channel-item.active .channel-icon {
+  color: #fff;
 }
 
 .channel-name {
   font-size: 16px;
   font-weight: 500;
+  line-height: 1.2;
+  margin-top: -1px;
+  /* Slight adjustment to bring text up */
 }
 
 .server-members {
@@ -219,5 +269,29 @@
 }
 
 .member-item:hover .member-name {
-  color: #dcddde;
+  color: #fff;
+}
+
+/* This might be overridden by inline styles for colors, but ok for now */
+
+.member-group {
+  margin-bottom: 24px;
+}
+
+.group-header {
+  padding: 0 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #96989d;
+  letter-spacing: 0.5px;
+}
+
+.member-item.offline {
+  opacity: 0.5;
+}
+
+.member-item.offline:hover {
+  opacity: 1;
 }

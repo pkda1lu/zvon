@@ -21,7 +21,9 @@
 }
 
 .channel-icon {
-  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #8e9297;
 }
 
@@ -29,6 +31,9 @@
   color: #fff;
   font-size: 16px;
   font-weight: 600;
+  margin: 0;
+  margin-top: -1px;
+  /* Bring text up */
 }
 
 .channel-topic {
@@ -117,9 +122,46 @@
 
 .message-header {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 4px;
+}
+
+.message-author-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-actions-hover {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.message:hover .message-actions-hover {
+  opacity: 1;
+}
+
+.msg-action-btn {
+  background: #36393f;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  border-radius: 4px;
+  color: #b9bbbe;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.msg-action-btn:hover {
+  background: #40444b;
+  color: #fff;
+}
+
+.msg-action-btn.danger:hover {
+  background: #ed4245;
+  color: #fff;
 }
 
 .message-author {

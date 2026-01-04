@@ -1,6 +1,7 @@
 import React from 'react';
 import { useVoice } from '../contexts/VoiceContext';
 import { Channel } from '../types';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon } from './Icons';
 import './VoiceCall.css'; // Reuse styles
 
 interface ActiveVoiceOverlayProps {
@@ -14,6 +15,8 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
         isDeafened,
         toggleMute,
         toggleDeafen,
+        isScreenSharing,
+        toggleScreenShare,
         connectedUsers
     } = useVoice();
 
@@ -75,7 +78,7 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
             >
                 <div className="call-user-info" style={{ pointerEvents: 'none' }}>
                     <div className="call-avatar">
-                        <span>🔊</span>
+                        <SpeakerIcon size={24} />
                     </div>
                     <div className="call-user-details">
                         <div className="call-username">{channel.name}</div>
@@ -90,7 +93,7 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
                     title="Отключиться"
                     onMouseDown={(e) => e.stopPropagation()}
                 >
-                    📞
+                    <PhoneIcon color="white" />
                 </button>
             </div>
 
@@ -101,14 +104,21 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
                         onClick={toggleMute}
                         title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
                     >
-                        {isMuted ? '🔇' : '🎤'}
+                        {isMuted ? <MicMutedIcon /> : <MicIcon />}
                     </button>
                     <button
                         className={`control-button ${isDeafened ? 'deafened' : ''}`}
                         onClick={toggleDeafen}
                         title={isDeafened ? 'Включить звук' : 'Выключить звук'}
                     >
-                        {isDeafened ? '🚫' : '🔊'}
+                        {isDeafened ? <DeafenedIcon /> : <SpeakerIcon />}
+                    </button>
+                    <button
+                        className={`control-button ${isScreenSharing ? 'active' : ''}`}
+                        onClick={toggleScreenShare}
+                        title={isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
+                    >
+                        <ScreenShareIcon />
                     </button>
                 </div>
             </div>

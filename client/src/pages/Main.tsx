@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
 import axios from 'axios';
-import { Server, Channel, Message, DirectMessage, Group } from '../types';
+import { Server, Channel, Message, DirectMessage } from '../types';
 import Sidebar from '../components/Sidebar';
 import ServerSidebar from '../components/ServerSidebar';
 import ChannelView from '../components/ChannelView';
@@ -12,6 +12,9 @@ import ActiveVoiceOverlay from '../components/ActiveVoiceOverlay';
 import FriendsPanel from '../components/FriendsPanel';
 import DMView from '../components/DMView';
 import VoiceCall from '../components/VoiceCall';
+import UserProfileCard from '../components/UserProfileCard';
+import ServerSettingsModal from '../components/ServerSettingsModal';
+import ServerProfileCard from '../components/ServerProfileCard';
 import { User } from '../types';
 import './Main.css';
 
@@ -30,33 +33,108 @@ const Main: React.FC = () => {
   const [activeCall, setActiveCall] = useState<{
     user: User;
     isIncoming: boolean;
-    offer?: { fromUserId: string; offer: RTCSessionDescriptionInit };
+    dmId: string;
+    offer?: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string };
   } | null>(null);
+  const [showProfileUserId, setShowProfileUserId] = useState<string | null>(null);
+  const [showServerSettings, setShowServerSettings] = useState(false);
+  const [showServerProfile, setShowServerProfile] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const isResizingRef = useRef(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = e.clientX - 72; // Subtracting the first fixed sidebar width
+      if (newWidth > 200 && newWidth < 500) {
+        setSidebarWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      isResizingRef.current = false;
+      document.body.style.cursor = 'default';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  const startResizing = () => {
+    isResizingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+  };
 
   useEffect(() => {
     fetchServers();
   }, []);
 
   useEffect(() => {
+    console.log('Main component useEffect for socket events. Socket connected:', socket?.connected);
     if (socket) {
-      const handleCallOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit }) => {
+      const handleCallOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string }) => {
+        console.log('Received call-offer event on client:', data);
+        console.log('Current activeCall state:', activeCall ? 'Active' : 'Null');
+
         if (!activeCall) {
           try {
+            const dmId = data.dmId || '';
+            console.log('Fetching caller info for ID:', data.fromUserId);
             const response = await axios.get<User>(`/api/users/${data.fromUserId}`);
+            console.log('Caller info fetched:', response.data.username);
+
             setActiveCall({
               user: response.data,
               isIncoming: true,
+              dmId: dmId,
               offer: data
             });
+            console.log('activeCall state updated with incoming call');
           } catch (err) {
-            console.error("Error fetching caller info", err);
+            console.error("Error handling incoming call offer:", err);
           }
+        } else {
+          console.log('Ignoring call-offer: activeCall already exists');
         }
       };
 
       socket.on('call-offer', handleCallOffer);
+
+      socket.on('server-roles-updated', (data: { serverId: string; roles: any[] }) => {
+        setServers(prev => prev.map(s => s._id === data.serverId ? { ...s, roles: data.roles } : s));
+        setSelectedServer(prev => (prev && prev._id === data.serverId) ? { ...prev, roles: data.roles } : prev);
+      });
+
+      socket.on('server-member-updated', (data: { serverId: string; member: any }) => {
+        setServers(prev => prev.map(s => {
+          if (s._id === data.serverId) {
+            return {
+              ...s,
+              members: s.members.map(m => m.user._id === data.member.user._id ? data.member : m)
+            };
+          }
+          return s;
+        }));
+        setSelectedServer(prev => {
+          if (prev && prev._id === data.serverId) {
+            return {
+              ...prev,
+              members: prev.members.map(m => m.user._id === data.member.user._id ? data.member : m)
+            };
+          }
+          return prev;
+        });
+      });
+
       return () => {
+        console.log('Removing call-offer listener');
         socket.off('call-offer', handleCallOffer);
+        socket.off('server-roles-updated');
+        socket.off('server-member-updated');
       };
     }
   }, [socket, activeCall]);
@@ -74,11 +152,17 @@ const Main: React.FC = () => {
         }
       };
 
+      const handleMessageDeleted = (messageId: string) => {
+        setMessages((prev) => prev.filter(m => m._id !== messageId));
+      };
+
       socket.on('new-message', handleNewMessage);
+      socket.on('message-deleted', handleMessageDeleted);
 
       return () => {
         socket.emit('leave-channel', selectedChannel._id);
         socket.off('new-message', handleNewMessage);
+        socket.off('message-deleted', handleMessageDeleted);
       };
     }
   }, [selectedChannel, socket]);
@@ -95,10 +179,16 @@ const Main: React.FC = () => {
         }
       };
 
+      const handleMessageDeleted = (messageId: string) => {
+        setDmMessages((prev) => prev.filter(m => m._id !== messageId));
+      };
+
       socket.on('new-message', handleNewMessage);
+      socket.on('message-deleted', handleMessageDeleted);
 
       return () => {
         socket.off('new-message', handleNewMessage);
+        socket.off('message-deleted', handleMessageDeleted);
       };
     }
   }, [selectedDM, socket]);
@@ -172,11 +262,27 @@ const Main: React.FC = () => {
     }
   };
 
-  const handleStartDirectCall = (user: User) => {
+  const handleStartDirectCall = (user: User, dmId: string) => {
     setActiveCall({
       user,
-      isIncoming: false
+      isIncoming: false,
+      dmId
     });
+  };
+
+  const handleServerUpdate = (updatedServer: Server) => {
+    setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
+    if (selectedServer?._id === updatedServer._id) {
+      setSelectedServer(updatedServer);
+    }
+  };
+
+  const handleServerDelete = (serverId: string) => {
+    setServers(prev => prev.filter(s => s._id !== serverId));
+    if (selectedServer?._id === serverId) {
+      setSelectedServer(null);
+      setSelectedChannel(null);
+    }
   };
 
   if (loading) {
@@ -211,26 +317,39 @@ const Main: React.FC = () => {
         }}
       />
       {showFriends && (
-        <FriendsPanel onStartDM={handleStartDM} />
+        <FriendsPanel
+          onStartDM={handleStartDM}
+          onUserClick={setShowProfileUserId}
+        />
       )}
       {selectedServer && !showFriends && (
-        <ServerSidebar
-          server={selectedServer}
-          selectedChannel={selectedChannel}
-          onChannelSelect={handleChannelSelect}
-          onChannelCreated={fetchServers}
-        />
+        <>
+          <ServerSidebar
+            server={selectedServer}
+            selectedChannel={selectedChannel}
+            onChannelSelect={handleChannelSelect}
+            onChannelCreated={fetchServers}
+            onUserClick={setShowProfileUserId}
+            onOpenSettings={() => setShowServerSettings(true)}
+            onServerClick={() => setShowServerProfile(true)}
+            style={{ width: `${sidebarWidth}px` }}
+          />
+          <div className="sidebar-resizer" onMouseDown={startResizing} />
+        </>
       )}
       {selectedChannel && !showFriends && (
         selectedChannel.type === 'text' ? (
           <ChannelView
             channel={selectedChannel}
+            server={selectedServer!}
             messages={messages}
             socket={socket}
+            onUserClick={setShowProfileUserId}
           />
         ) : (
           <VoiceChannelView
             channel={selectedChannel}
+            onUserClick={setShowProfileUserId}
           />
         )
       )}
@@ -241,6 +360,7 @@ const Main: React.FC = () => {
           socket={socket}
           onClose={() => setSelectedDM(null)}
           onStartCall={handleStartDirectCall}
+          onUserClick={setShowProfileUserId}
         />
       )}
       {!selectedChannel && !selectedDM && !showFriends && (
@@ -270,9 +390,34 @@ const Main: React.FC = () => {
         <VoiceCall
           socket={socket}
           otherUser={activeCall.user}
+          dmId={activeCall.dmId}
           initialIncomingCall={activeCall.isIncoming}
           initialOffer={activeCall.offer}
           onEndCall={() => setActiveCall(null)}
+        />
+      )}
+      {showProfileUserId && (
+        <UserProfileCard
+          userId={showProfileUserId}
+          onClose={() => setShowProfileUserId(null)}
+          serverId={selectedServer?._id}
+          currentUser={user}
+          currentServer={selectedServer}
+        />
+      )}
+      {selectedServer && showServerSettings && (
+        <ServerSettingsModal
+          isOpen={showServerSettings}
+          onClose={() => setShowServerSettings(false)}
+          server={selectedServer}
+          onServerUpdate={handleServerUpdate}
+          onServerDelete={handleServerDelete}
+        />
+      )}
+      {selectedServer && showServerProfile && (
+        <ServerProfileCard
+          server={selectedServer}
+          onClose={() => setShowServerProfile(false)}
         />
       )}
     </div>

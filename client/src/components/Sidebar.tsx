@@ -3,6 +3,7 @@ import { User, Server } from '../types';
 import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
 import { getAvatarUrl } from '../utils/avatar';
+import { UsersIcon, PlusIcon, SettingsIcon } from './Icons';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -33,10 +34,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className="sidebar">
       <div className="sidebar-servers">
         <div className="server-icon home-icon" onClick={onShowFriends} title="Друзья">
-          <span>👥</span>
+          <UsersIcon size={28} />
         </div>
         <div className="server-icon home-icon" onClick={() => setShowJoinModal(true)} title="Добавить сервер">
-          <span>+</span>
+          <PlusIcon size={28} color="#43b581" />
         </div>
         {servers.map((server) => (
           <div
@@ -46,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             title={server.name}
           >
             {server.icon ? (
-              <img src={server.icon} alt={server.name} />
+              <img src={getAvatarUrl(server.icon)!} alt={server.name} />
             ) : (
               <span>{server.name.charAt(0).toUpperCase()}</span>
             )}
@@ -63,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
         <button className="logout-button" onClick={() => setShowSettingsModal(true)} title="Настройки">
-          ⚙️
+          <SettingsIcon size={20} />
         </button>
       </div>
 

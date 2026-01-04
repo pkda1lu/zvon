@@ -37,3 +37,16 @@
   font-size: 16px;
 }
 
+.sidebar-resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer:active {
+  background: #5865f2;
+}

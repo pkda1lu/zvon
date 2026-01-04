@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { CloseIcon } from './Icons';
 import './InviteModal.css';
 
 interface InviteModalProps {
@@ -14,14 +15,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId }) 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Auto-generate invite when opened
-    useEffect(() => {
-        if (isOpen && !inviteLink) {
-            generateInvite();
-        }
-    }, [isOpen, serverId]);
-
-    const generateInvite = async () => {
+    const generateInvite = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
@@ -34,7 +28,14 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId }) 
         } finally {
             setLoading(false);
         }
-    };
+    }, [serverId]);
+
+    // Auto-generate invite when opened
+    useEffect(() => {
+        if (isOpen && !inviteLink) {
+            generateInvite();
+        }
+    }, [isOpen, inviteLink, generateInvite]);
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(inviteLink);
@@ -49,7 +50,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId }) 
             <div className="modal-content invite-modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3>Пригласить друзей</h3>
-                    <button className="close-button" onClick={onClose}>✕</button>
+                    <button className="close-button" onClick={onClose}><CloseIcon /></button>
                 </div>
 
                 <div className="modal-body">

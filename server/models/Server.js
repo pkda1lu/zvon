@@ -15,6 +15,14 @@ const serverSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  banner: {
+    type: String,
+    default: null
+  },
+  bannerColor: {
+    type: String,
+    default: '#5865f2'
+  },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -49,7 +57,3 @@ const serverSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Server', serverSchema);
-
-
-
-

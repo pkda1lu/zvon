@@ -4,6 +4,7 @@ import { DirectMessage, Message, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import { PhoneIcon, DocumentIcon, PlusIcon } from './Icons';
 import VoiceCall from './VoiceCall';
 import './DMView.css';
 import './Attachments.css';
@@ -13,10 +14,11 @@ interface DMViewProps {
   messages: Message[];
   socket: Socket | null;
   onClose: () => void;
-  onStartCall: (user: User) => void;
+  onStartCall: (user: User, dmId: string) => void;
+  onUserClick: (userId: string) => void;
 }
 
-const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartCall }) => {
+const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartCall, onUserClick }) => {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -104,7 +106,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
     <div className="dm-view">
       <div className="dm-header">
         <button className="back-button" onClick={onClose}>←</button>
-        <div className="dm-header-info">
+        <div className="dm-header-info" onClick={() => otherUser && onUserClick(otherUser._id)} style={{ cursor: 'pointer' }}>
           <div className="dm-avatar">
             {getAvatarUrl(otherUser?.avatar) ? (
               <img src={getAvatarUrl(otherUser?.avatar)!} alt={otherUser?.username} />
@@ -117,10 +119,10 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
         </div>
         <button
           className="voice-call-button"
-          onClick={() => otherUser && onStartCall(otherUser)}
+          onClick={() => otherUser && onStartCall(otherUser, dm._id)}
           title="Начать голосовой звонок"
         >
-          📞
+          <PhoneIcon />
         </button>
       </div>
 
@@ -138,7 +140,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                   </div>
                 )}
                 <div className="message with-author">
-                  <div className="message-author-avatar">
+                  <div className="message-author-avatar" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>
                     {getAvatarUrl(msg.author.avatar) ? (
                       <img src={getAvatarUrl(msg.author.avatar)!} alt={msg.author.username} />
                     ) : (
@@ -147,7 +149,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                   </div>
                   <div className="message-content">
                     <div className="message-header">
-                      <span className="message-author">{msg.author.username}</span>
+                      <span className="message-author" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
                       <span className="message-time">{formatDate(msg.createdAt)}</span>
                     </div>
                     <div className="message-text">{msg.content}</div>
@@ -161,7 +163,8 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                               <video src={getFullUrl(att.url)!} controls className="attachment-video" />
                             ) : (
                               <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                                📄 {att.filename}
+                                <DocumentIcon size={18} />
+                                <span>{att.filename}</span>
                               </a>
                             )}
                           </div>
@@ -189,7 +192,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
             className="attachment-button"
             onClick={() => fileInputRef.current?.click()}
           >
-            +
+            <PlusIcon />
           </button>
           <input
             type="file"

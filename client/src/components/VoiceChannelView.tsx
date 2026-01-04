@@ -1,16 +1,21 @@
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useVoice } from '../contexts/VoiceContext';
-import { Channel } from '../types';
+import { Channel, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { getAvatarUrl } from '../utils/avatar';
+import { useSocket } from '../contexts/SocketContext';
+import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon } from './Icons';
+import axios from 'axios';
 import './VoiceChannelView.css';
 
 interface VoiceChannelViewProps {
   channel: Channel;
+  onUserClick: (userId: string) => void;
 }
 
-const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel }) => {
-  const { user } = useAuth();
+const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClick }) => {
+  const { user: currentUser } = useAuth();
+  const { socket } = useSocket();
   const {
     isConnected,
     activeChannelId,
@@ -20,12 +25,42 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel }) => {
     isDeafened,
     toggleMute,
     toggleDeafen,
-    connectedUsers
+    isScreenSharing,
+    toggleScreenShare,
+    connectedUsers: activeConnectedUsers,
+    remoteStreams
   } = useVoice();
 
-  // If connected to THIS channel, show the "connected" UI
-  // If connected to ANOTHER channel, allow joining this one (which will switch)
+  const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
+
   const isConnectedToThisChannel = isConnected && activeChannelId === channel._id;
+
+  // Fetch participants if not connected or to keep it updated
+  useEffect(() => {
+    const fetchParticipants = async () => {
+      try {
+        const response = await axios.get(`/api/channels/${channel._id}/voice-participants`);
+        setExternalParticipants(response.data);
+      } catch (err) {
+        console.error('Error fetching voice participants:', err);
+      }
+    };
+
+    fetchParticipants();
+
+    if (socket) {
+      const handleUpdate = (data: { channelId: string; users: User[] }) => {
+        if (data.channelId === channel._id) {
+          setExternalParticipants(data.users);
+        }
+      };
+
+      socket.on('voice-channel-users-update', handleUpdate);
+      return () => {
+        socket.off('voice-channel-users-update', handleUpdate);
+      };
+    }
+  }, [channel._id, socket]);
 
   const handleConnect = () => {
     joinChannel(channel._id);
@@ -35,11 +70,34 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel }) => {
     leaveChannel();
   };
 
+  // Combine current user and other participants for the grid
+  const allParticipants = useMemo(() => {
+    // If we are connected to THIS channel, use VoiceContext's data for real-time states
+    if (isConnectedToThisChannel && currentUser) {
+      const me = {
+        ...currentUser,
+        isMe: true,
+        isMuted,
+        isDeafened
+      };
+      return [me, ...activeConnectedUsers.map(u => ({ ...u, isMe: false }))];
+    } else {
+      // If not connected, use the fetched participants list
+      return externalParticipants.map(u => ({
+        ...u,
+        isMe: u._id === currentUser?._id,
+        // We don't have real-time states for others easily yet without additional signaling
+      }));
+    }
+  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, externalParticipants]);
+
+  const gridClass = `participants-grid count-${allParticipants.length > 4 ? 'more' : allParticipants.length}`;
+
   return (
     <div className="voice-channel-view">
       <div className="voice-channel-header">
         <div className="voice-channel-info">
-          <span className="voice-channel-icon">🔊</span>
+          <span className="voice-channel-icon"><SpeakerIcon /></span>
           <h3>{channel.name}</h3>
         </div>
         {channel.topic && (
@@ -48,59 +106,85 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel }) => {
       </div>
 
       <div className="voice-channel-content">
-        {!isConnectedToThisChannel ? (
-          <div className="voice-channel-disconnected">
-            <div className="voice-channel-icon-large">🔊</div>
-            {isConnected ? (
-              <>
-                <h2>Вы подключены к другому каналу</h2>
-                <p>Нажмите "Подключиться", чтобы перейти в этот канал</p>
-              </>
-            ) : (
-              <>
-                <h2>Вы не подключены к голосовому каналу</h2>
-                <p>Нажмите кнопку ниже, чтобы подключиться</p>
-              </>
-            )}
+        <div className={gridClass}>
+          {allParticipants.length > 0 ? (
+            allParticipants.map((participant: any) => {
+              // Check implementation for video track
+              const remoteStream = !participant.isMe ? remoteStreams.get(participant._id) : null;
+              const hasVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
 
-            <button className="connect-voice-button" onClick={handleConnect}>
-              <span className="button-icon">📞</span>
-              Подключиться
-            </button>
-          </div>
-        ) : (
-          <div className="voice-channel-connected">
-            <div className="connected-users-list">
-              <h4>Участники ({connectedUsers.length + 1})</h4>
-
-              {/* Me */}
-              <div className="user-item">
-                <div className="user-avatar-small">
-                  {getAvatarUrl(user?.avatar) ? (
-                    <img src={getAvatarUrl(user?.avatar)!} alt={user?.username} />
+              return (
+                <div
+                  key={participant._id}
+                  className="participant-card"
+                  onClick={() => onUserClick(participant._id)}
+                >
+                  {hasVideo ? (
+                    <video
+                      autoPlay
+                      playsInline
+                      muted={participant.isMe} // Should not happen for remote, but safety
+                      className="participant-video"
+                      ref={el => {
+                        if (el && el.srcObject !== remoteStream) {
+                          el.srcObject = remoteStream!;
+                        }
+                      }}
+                    />
                   ) : (
-                    <span>{user?.username.charAt(0).toUpperCase()}</span>
-                  )}
-                  {isMuted && <div className="mute-indicator">🔇</div>}
-                  {isDeafened && <div className="mute-indicator">🚫</div>}
-                </div>
-                <span className="user-name">{user?.username} (Вы)</span>
-              </div>
+                    <>
+                      {participant.banner && (
+                        <div
+                          className="participant-banner"
+                          style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }}
+                        />
+                      )}
 
-              {/* Others */}
-              {connectedUsers.map((connectedUser) => (
-                <div key={connectedUser._id} className="user-item">
-                  <div className="user-avatar-small">
-                    {getAvatarUrl(connectedUser.avatar) ? (
-                      <img src={getAvatarUrl(connectedUser.avatar)!} alt={connectedUser.username} />
-                    ) : (
-                      <span>{connectedUser.username.charAt(0).toUpperCase()}</span>
+                      <div className="participant-info">
+                        <div className="participant-avatar">
+                          {getAvatarUrl(participant.avatar) ? (
+                            <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
+                          ) : (
+                            <span>{participant.username.charAt(0).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div className="participant-name">
+                          {participant.username}{participant.isMe ? ' (Вы)' : ''}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="participant-status-icons">
+                    {(participant.isMuted || participant.isDeafened) && (
+                      <div className="status-icon">
+                        {participant.isDeafened ? <DeafenedIcon size={12} /> : <MicMutedIcon size={12} />}
+                      </div>
+                    )}
+                    {hasVideo && (
+                      <div className="status-icon">
+                        <ScreenShareIcon size={12} />
+                      </div>
                     )}
                   </div>
-                  <span className="user-name">{connectedUser.username}</span>
                 </div>
-              ))}
+              );
+            })
+          ) : (
+            <div className="voice-channel-disconnected" style={{ gridColumn: '1 / -1' }}>
+              <div className="voice-channel-icon-large"><SpeakerIcon size={80} /></div>
+              <h2>Здесь пока никого нет</h2>
+              <p>Будьте первым, кто подключится к этому каналу!</p>
             </div>
+          )}
+        </div>
+
+        {!isConnectedToThisChannel && (
+          <div className="voice-channel-actions">
+            <button className="connect-voice-button" onClick={handleConnect}>
+              <span className="button-icon"><PhoneIcon /></span>
+              Подключиться
+            </button>
           </div>
         )}
       </div>
@@ -113,28 +197,35 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel }) => {
               onClick={toggleMute}
               title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
             >
-              {isMuted ? '🔇' : '🎤'}
+              {isMuted ? <MicMutedIcon /> : <MicIcon />}
             </button>
             <button
               className={`control-button ${isDeafened ? 'deafened' : ''}`}
               onClick={toggleDeafen}
               title={isDeafened ? 'Включить звук' : 'Выключить звук'}
             >
-              {isDeafened ? '🚫' : '🔊'}
+              {isDeafened ? <DeafenedIcon size={20} /> : <SpeakerIcon size={20} />}
+            </button>
+            <button
+              className={`control-button ${isScreenSharing ? 'active' : ''}`}
+              onClick={toggleScreenShare}
+              title={isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
+            >
+              <ScreenShareIcon size={20} />
             </button>
             <button
               className="control-button disconnect"
               onClick={handleDisconnect}
               title="Отключиться"
             >
-              📞
+              <PhoneIcon color="white" />
             </button>
           </>
         ) : (
           <div className="disconnected-message">
             {isConnected
-              ? 'Нажмите "Подключиться" выше, чтобы сменить канал'
-              : 'Нажмите "Подключиться" выше, чтобы присоединиться к голосовому каналу'
+              ? 'Вы находитесь в другом канале'
+              : 'Вы не подключены к голосовому чату'
             }
           </div>
         )}

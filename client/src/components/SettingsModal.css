@@ -188,6 +188,42 @@
   font-size: 14px;
 }
 
+.banner-upload {
+  display: flex;
+  flex-direction: column;
+}
 
+.banner-preview {
+  height: 100px;
+  border-radius: 4px;
+  background-color: #2f3136;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #b9bbbe;
+  font-size: 12px;
+  background-size: cover;
+  background-position: center;
+}
 
+.banner-upload.has-banner .banner-preview {
+  border: none;
+}
 
+textarea.bio-input {
+  width: 100%;
+  padding: 10px;
+  background: #202225;
+  border: none;
+  border-radius: 4px;
+  color: #dcddde;
+  font-size: 15px;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+}
+
+textarea.bio-input:focus {
+  background: #1e1f22;
+}

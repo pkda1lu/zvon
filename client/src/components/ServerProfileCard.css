@@ -1,0 +1,171 @@
+.server-profile-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.server-profile-card {
+    width: 340px;
+    border-radius: 8px;
+    background-color: #18191c;
+    overflow: hidden;
+    color: #dcddde;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    animation: profileReveal 0.2s ease-out;
+}
+
+@keyframes profileReveal {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.server-profile-banner {
+    height: 120px;
+    background-color: #5865f2;
+    position: relative;
+    background-size: cover;
+    background-position: center;
+}
+
+.server-profile-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.server-profile-close:hover {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.server-profile-header {
+    padding: 0 16px;
+    position: relative;
+    margin-bottom: 50px;
+}
+
+.server-profile-icon-container {
+    position: absolute;
+    top: -40px;
+    left: 16px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #18191c;
+    padding: 6px;
+}
+
+.server-profile-icon {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #36393f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 700;
+    color: white;
+    overflow: hidden;
+}
+
+.server-profile-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.server-profile-body {
+    padding: 16px;
+    background: #18191c;
+}
+
+.server-profile-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.server-profile-divider {
+    height: 1px;
+    background: #4f545c;
+    opacity: 0.2;
+    margin: 16px 0;
+}
+
+.server-profile-section h4 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #b9bbbe;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.server-profile-section p {
+    font-size: 14px;
+    line-height: 18px;
+    color: #dcddde;
+    white-space: pre-wrap;
+}
+
+.server-profile-stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 16px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #b9bbbe;
+}
+
+.owner-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.owner-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+}

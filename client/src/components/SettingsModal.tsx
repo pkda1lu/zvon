@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl } from '../utils/avatar';
+import { CloseIcon } from './Icons';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -13,17 +14,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user, refreshUser } = useAuth();
   const [username, setUsername] = useState(user?.username || '');
   const [status, setStatus] = useState(user?.status || 'offline');
+  const [bio, setBio] = useState(user?.bio || '');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(getAvatarUrl(user?.avatar) || null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(getAvatarUrl(user?.banner) || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user?.avatar) {
-      setAvatarPreview(getAvatarUrl(user.avatar));
+    if (user) {
+      if (user.avatar) setAvatarPreview(getAvatarUrl(user.avatar));
+      if (user.banner) setBannerPreview(getAvatarUrl(user.banner));
+      setUsername(user.username);
+      setStatus(user.status);
+      setBio(user.bio || '');
     }
-  }, [user?.avatar]);
+  }, [user]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -32,6 +41,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBannerFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBannerPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -62,11 +83,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         }
       }
 
+      // Upload banner if changed
+      if (bannerFile) {
+        try {
+          const formData = new FormData();
+          formData.append('banner', bannerFile);
+          await axios.post('/api/users/banner', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+        } catch (bannerError: any) {
+          console.error('Banner upload error:', bannerError);
+          throw new Error(bannerError.response?.data?.message || 'Ошибка загрузки баннера');
+        }
+      }
+
       // Update profile
       try {
-        const response = await axios.put('/api/users/profile', {
+        await axios.put('/api/users/profile', {
           username,
-          status
+          status,
+          bio
         });
 
         // Update auth context
@@ -91,7 +127,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       <div className="settings-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="settings-modal-header">
           <h2>Настройки профиля</h2>
-          <button className="close-button" onClick={onClose}>×</button>
+          <button className="close-button" onClick={onClose}><CloseIcon /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="settings-form">
@@ -138,6 +174,45 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="settings-section">
+            <label htmlFor="bio">О себе</label>
+            <textarea
+              id="bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={300}
+              placeholder="Расскажите немного о себе..."
+              rows={3}
+              className="bio-input"
+            />
+          </div>
+
+          <div className="settings-section">
+            <label>Баннер профиля</label>
+            <div className={`banner-upload ${bannerPreview ? 'has-banner' : ''}`}>
+              <div
+                className="banner-preview"
+                style={{ backgroundImage: bannerPreview ? `url(${bannerPreview})` : 'none' }}
+              >
+                {!bannerPreview && 'Рекомендуемый размер 600x240'}
+              </div>
+              <button
+                type="button"
+                className="upload-button"
+                onClick={() => bannerInputRef.current?.click()}
+              >
+                Изменить баннер
+              </button>
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleBannerChange}
+                style={{ display: 'none' }}
+              />
+            </div>
+          </div>
+
+          <div className="settings-section">
             <label htmlFor="status">Статус</label>
             <select
               id="status"
@@ -160,8 +235,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

@@ -13,8 +13,11 @@ interface VoiceContextType {
     isDeafened: boolean;
     toggleMute: () => void;
     toggleDeafen: () => void;
+    isScreenSharing: boolean;
+    toggleScreenShare: () => void;
     connectedUsers: User[];
     localStream: MediaStream | null; // For visualization
+    remoteStreams: Map<string, MediaStream>; // Export remote streams
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -37,6 +40,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const [isMuted, setIsMuted] = useState(false);
     const [isDeafened, setIsDeafened] = useState(false);
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
 
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
@@ -146,7 +150,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
                 video: false
             });
             setLocalStream(stream);
@@ -292,6 +300,118 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsDeafened(!isDeafened);
     };
 
+    const toggleScreenShare = async () => {
+        if (isScreenSharing) {
+            // Stop sharing
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(t => {
+                    if (t.kind === 'video') t.stop();
+                });
+            }
+            setIsScreenSharing(false);
+
+            // Revert to audio only
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
+                video: false
+            });
+            setLocalStream(stream);
+            localStreamRef.current = stream;
+
+            // Remove video track from peers and renegotiate (Switch back to audio only)
+            peersRef.current.forEach((pc, targetUserId) => {
+                const senders = pc.getSenders();
+                const videoSender = senders.find(s => s.track?.kind === 'video');
+                if (videoSender) {
+                    pc.removeTrack(videoSender);
+                }
+
+                // Update audio track to point to new stream
+                const audioSender = senders.find(s => s.track?.kind === 'audio');
+                if (audioSender) {
+                    const audioTrack = stream.getAudioTracks()[0];
+                    audioSender.replaceTrack(audioTrack);
+                }
+
+                // Renegotiate to tell remote that video is gone
+                pc.createOffer()
+                    .then(offer => pc.setLocalDescription(offer))
+                    .then(() => {
+                        if (socket) {
+                            socket.emit('voice-offer', {
+                                targetUserId,
+                                offer: pc.localDescription
+                            });
+                        }
+                    })
+                    .catch(e => console.error("Renegotiation error (stop share):", e));
+            });
+
+        } else {
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+                const screenTrack = screenStream.getVideoTracks()[0];
+
+                screenTrack.onended = () => {
+                    toggleScreenShare();
+                };
+
+                setIsScreenSharing(true);
+
+                setLocalStream(prev => {
+                    if (!prev) return screenStream;
+                    const newStream = new MediaStream([
+                        ...prev.getAudioTracks(),
+                        screenTrack
+                    ]);
+                    localStreamRef.current = newStream;
+                    return newStream;
+                });
+
+                // Add video track to peers and renegotiate
+                Array.from(peersRef.current.entries()).forEach(([targetUserId, pc]) => {
+                    // Check if we already have a video sender? 
+                    // Since we created a new stream, let's just addTrack. 
+                    // But if we used replaceTrack before, we might have a sender.
+
+                    const senders = pc.getSenders();
+                    const videoSender = senders.find(s => s.track?.kind === 'video');
+
+                    if (videoSender) {
+                        videoSender.replaceTrack(screenTrack);
+                    } else {
+                        // Add track if no sender exists. WARNING: adding a track to an existing PC that is already negotiated might require care.
+                        // But since we are renegotiating immediately, it should be fine.
+                        try {
+                            pc.addTrack(screenTrack, localStreamRef.current!);
+                        } catch (e) {
+                            console.warn("Track already added or invalid access:", e);
+                        }
+                    }
+
+                    pc.createOffer()
+                        .then(offer => pc.setLocalDescription(offer))
+                        .then(() => {
+                            if (socket) {
+                                socket.emit('voice-offer', {
+                                    targetUserId,
+                                    offer: pc.localDescription
+                                });
+                            }
+                        })
+                        .catch(e => console.error("Renegotiation error (start share):", e));
+                });
+
+            } catch (err) {
+                console.error("Error sharing screen:", err);
+            }
+        }
+    };
+
     useEffect(() => {
         if (localStreamRef.current) {
             const audioTrackEnabled = !isMuted && !isDeafened;
@@ -311,8 +431,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             isDeafened,
             toggleMute,
             toggleDeafen,
+            isScreenSharing,
+            toggleScreenShare,
             connectedUsers,
-            localStream
+            localStream,
+            remoteStreams
         }}>
             {children}
             {/* Hidden Audio Elements for Remote Streams */}

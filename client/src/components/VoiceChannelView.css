@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column;
   background: #36393f;
+  overflow: hidden;
 }
 
 .voice-channel-header {
@@ -13,6 +14,7 @@
   gap: 12px;
   border-bottom: 1px solid #202225;
   box-shadow: 0 1px 0 rgba(4, 4, 5, 0.2), 0 1.5px 0 rgba(6, 6, 7, 0.05), 0 2px 0 rgba(4, 4, 5, 0.05);
+  flex-shrink: 0;
 }
 
 .voice-channel-info {
@@ -22,7 +24,9 @@
 }
 
 .voice-channel-icon {
-  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #8e9297;
 }
 
@@ -31,6 +35,7 @@
   font-size: 16px;
   font-weight: 600;
   margin: 0;
+  margin-top: -1px;
 }
 
 .voice-channel-topic {
@@ -43,12 +48,18 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
+  padding: 24px;
+  overflow-y: auto;
+  min-height: 0;
+  position: relative;
 }
 
 .voice-channel-disconnected {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   color: #dcddde;
 }
@@ -56,6 +67,7 @@
 .voice-channel-icon-large {
   font-size: 80px;
   margin-bottom: 24px;
+  color: #4f545c;
 }
 
 .voice-channel-disconnected h2 {
@@ -70,96 +82,191 @@
   margin-bottom: 24px;
 }
 
+/* Participants Grid */
+.participants-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-auto-rows: min-content;
+  gap: 16px;
+  width: 100%;
+  flex: 1;
+  align-content: center;
+  /* Center cards vertically in the view */
+  justify-content: center;
+}
+
+/* Specific layouts for small counts */
+.participants-grid.count-1 {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.participants-grid.count-2 {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.participants-grid.count-3,
+.participants-grid.count-4 {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (min-width: 800px) {
+  .participants-grid.count-1 {
+    grid-template-columns: 1fr;
+  }
+
+  .participants-grid.count-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .participants-grid.count-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .participants-grid.count-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.voice-channel-actions {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+  width: 100%;
+}
+
 .connect-voice-button {
   background: #43b581;
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: 12px 24px;
+  padding: 12px 32px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: background-color 0.2s;
-  margin: 0 auto;
+  gap: 10px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 15px rgba(67, 181, 129, 0.3);
 }
 
 .connect-voice-button:hover {
   background: #3ca374;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(67, 181, 129, 0.4);
+}
+
+.connect-voice-button:active {
+  transform: translateY(0);
 }
 
 .button-icon {
+  display: flex;
+  align-items: center;
   font-size: 20px;
 }
 
-.voice-channel-connected {
-  width: 100%;
-  max-width: 600px;
-}
-
-.connected-users-list h4 {
-  color: #fff;
-  font-size: 18px;
-  margin-bottom: 16px;
-  font-weight: 600;
-}
-
-.user-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  margin-bottom: 4px;
-}
-
-.user-item:hover {
-  background: #393c43;
-}
-
-.user-avatar-small {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #5865f2;
+.participant-card {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #2f3136;
+  border-radius: 12px;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-weight: 600;
-  font-size: 14px;
-  position: relative;
-  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
-.user-avatar-small img {
+.participant-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.participant-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(8px) brightness(0.4);
+  opacity: 0.6;
+  z-index: 1;
+}
+
+.participant-info {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.participant-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #5865f2;
+  border: 4px solid #2f3136;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: bold;
+  color: white;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.2s;
+}
+
+.participant-card:hover .participant-avatar {
+  border-color: #5865f2;
+}
+
+.participant-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.mute-indicator {
+.participant-name {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 12px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.participant-status-icons {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
+  bottom: 8px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+}
+
+.status-icon {
   background: #f04747;
+  color: white;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  width: 16px;
-  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  border: 2px solid #2f3136;
-}
-
-.user-name {
-  color: #dcddde;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 12px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .voice-channel-controls {
@@ -169,6 +276,7 @@
   display: flex;
   justify-content: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .control-button {
@@ -183,11 +291,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
 }
 
 .control-button:hover {
   background: #5d6269;
+  transform: translateY(-2px);
 }
 
 .control-button.muted {
@@ -219,7 +328,3 @@
   font-size: 14px;
   text-align: center;
 }
-
-
-
-

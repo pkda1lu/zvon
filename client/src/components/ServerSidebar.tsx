@@ -3,6 +3,9 @@ import { Server, Channel, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import CreateChannelModal from './CreateChannelModal';
+import { HashtagIcon, SpeakerIcon, PlusIcon, SettingsIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import './ServerSidebar.css';
 
 import InviteModal from './InviteModal';
@@ -12,15 +15,49 @@ interface ServerSidebarProps {
   selectedChannel: Channel | null;
   onChannelSelect: (channel: Channel) => void;
   onChannelCreated?: () => void;
+  onUserClick: (userId: string) => void;
+  onOpenSettings: () => void;
+  onServerClick: () => void;
+  style?: React.CSSProperties;
 }
 
 const ServerSidebar: React.FC<ServerSidebarProps> = ({
   server,
   selectedChannel,
   onChannelSelect,
-  onChannelCreated
+  onChannelCreated,
+  onUserClick,
+  onOpenSettings,
+  onServerClick,
+  style
 }) => {
+  const { user: currentUser } = useAuth();
   const { socket } = useSocket();
+
+  const ownerId = typeof server.owner === 'object' ? (server.owner as any)._id : server.owner;
+  const currentUserId = currentUser?._id;
+  const isOwner = String(ownerId) === String(currentUserId);
+  const { hasPermission } = usePermissions(currentUser!, server);
+
+  const canManageServer = hasPermission('MANAGE_SERVER');
+  const canManageChannels = hasPermission('MANAGE_CHANNELS');
+  const canInvite = true; // For now assume everyone can invite or add more logic later
+
+  console.log('ServerSidebar Debug:', {
+    serverName: server.name,
+    ownerId,
+    currentUserId,
+    isOwner,
+    serverIcon: server.icon
+  });
+
+  console.log('ServerSidebar Debug:', {
+    serverName: server.name,
+    ownerId,
+    currentUserId: currentUser?._id,
+    isOwner
+  });
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
@@ -59,16 +96,38 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   };
 
   return (
-    <div className="server-sidebar">
+    <div className="server-sidebar" style={style}>
       <div className="server-header">
-        <h2>{server.name}</h2>
-        <button
-          className="invite-button"
-          onClick={() => setShowInviteModal(true)}
-          title="Пригласить друзей"
-        >
-          👤+
-        </button>
+        <div className="server-header-left" onClick={onServerClick} style={{ cursor: 'pointer' }}>
+          {server.icon ? (
+            <div className="server-header-icon">
+              <img src={getAvatarUrl(server.icon)!} alt={server.name} />
+            </div>
+          ) : (
+            <div className="server-header-icon-placeholder">
+              {server.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <h2>{server.name}</h2>
+        </div>
+        <div className="server-header-actions">
+          <button
+            className="invite-button"
+            onClick={() => setShowInviteModal(true)}
+            title="Пригласить друзей"
+          >
+            <PlusIcon size={18} />
+          </button>
+          {canManageServer && (
+            <button
+              className="settings-button"
+              onClick={onOpenSettings}
+              title="Настройки сервера"
+            >
+              <SettingsIcon size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="channels-list">
@@ -76,13 +135,15 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           <div className="channel-category">
             <div className="category-header">
               <span>ТЕКСТОВЫЕ КАНАЛЫ</span>
-              <button
-                className="add-channel-button"
-                onClick={() => setShowCreateModal(true)}
-                title="Создать канал"
-              >
-                +
-              </button>
+              {canManageChannels && (
+                <button
+                  className="add-channel-button"
+                  onClick={() => setShowCreateModal(true)}
+                  title="Создать канал"
+                >
+                  <PlusIcon size={18} />
+                </button>
+              )}
             </div>
             {textChannels.map((channel) => (
               <div
@@ -90,7 +151,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                 className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`}
                 onClick={() => onChannelSelect(channel)}
               >
-                <span className="channel-icon">#</span>
+                <span className="channel-icon"><HashtagIcon size={18} /></span>
                 <span className="channel-name">{channel.name}</span>
               </div>
             ))}
@@ -101,13 +162,15 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           <div className="channel-category">
             <div className="category-header">
               <span>ГОЛОСОВЫЕ КАНАЛЫ</span>
-              <button
-                className="add-channel-button"
-                onClick={() => setShowCreateModal(true)}
-                title="Создать канал"
-              >
-                +
-              </button>
+              {canManageChannels && (
+                <button
+                  className="add-channel-button"
+                  onClick={() => setShowCreateModal(true)}
+                  title="Создать канал"
+                >
+                  <PlusIcon size={18} />
+                </button>
+              )}
             </div>
             {voiceChannels.map((channel) => (
               <div key={channel._id}>
@@ -115,14 +178,14 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                   className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`}
                   onClick={() => onChannelSelect(channel)}
                 >
-                  <span className="channel-icon">🔊</span>
+                  <span className="channel-icon"><SpeakerIcon size={18} /></span>
                   <span className="channel-name">{channel.name}</span>
                 </div>
                 {/* Voice Users List */}
                 {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
                   <div className="voice-channel-users">
                     {voiceStates[channel._id].map(user => (
-                      <div key={user._id} className="voice-user-item">
+                      <div key={user._id} className="voice-user-item" onClick={(e) => { e.stopPropagation(); onUserClick(user._id); }}>
                         <div className="voice-user-avatar">
                           {getAvatarUrl(user.avatar) ? (
                             <img src={getAvatarUrl(user.avatar)!} alt={user.username} />
@@ -169,23 +232,114 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
       )}
 
       <div className="server-members">
-        <div className="members-header">
-          <span>УЧАСТНИКИ — {server.members.length}</span>
-        </div>
         <div className="members-list">
-          {server.members.map((member) => (
-            <div key={member.user._id} className="member-item">
-              <div className="member-avatar">
-                {getAvatarUrl(member.user.avatar) ? (
-                  <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
-                ) : (
-                  <span>{member.user.username.charAt(0).toUpperCase()}</span>
+          {(() => {
+            // Group members by highest role
+            const onlineMembers = server.members.filter(m => m.user.status !== 'offline');
+            const offlineMembers = server.members.filter(m => m.user.status === 'offline');
+
+            // Get all server roles sorted by position
+            const serverRoles = [...(server.roles || [])].sort((a, b) => (b.position || 0) - (a.position || 0));
+
+            // Map role ID to members
+            const roleGroups: Record<string, typeof server.members> = {};
+            const noRoleMembers: typeof server.members = [];
+
+            onlineMembers.forEach(member => {
+              const memberRoles = (member.roles || []).filter((r: any) => typeof r === 'object') as any[];
+              memberRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
+
+              if (memberRoles.length > 0) {
+                const highestRole = memberRoles[0];
+                if (!roleGroups[highestRole._id]) {
+                  roleGroups[highestRole._id] = [];
+                }
+                roleGroups[highestRole._id].push(member);
+              } else {
+                noRoleMembers.push(member);
+              }
+            });
+
+            return (
+              <>
+                {serverRoles.map(role => {
+                  const membersInRole = roleGroups[role._id];
+                  if (!membersInRole || membersInRole.length === 0) return null;
+
+                  return (
+                    <div key={role._id} className="member-group">
+                      <div className="group-header">{role.name.toUpperCase()} — {membersInRole.length}</div>
+                      {membersInRole.map(member => {
+                        const sortedRoles = [...(member.roles || [])] as any[];
+                        sortedRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
+                        const colorRole = sortedRoles.find(r => r.color && r.color !== '#99AAB5');
+                        const memberColor = colorRole ? colorRole.color : 'inherit';
+
+                        return (
+                          <div key={member.user._id} className="member-item" onClick={() => onUserClick(member.user._id)}>
+                            <div className="member-avatar">
+                              {getAvatarUrl(member.user.avatar) ? (
+                                <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
+                              ) : (
+                                <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                              )}
+                              <div className={`status-indicator ${member.user.status}`}></div>
+                            </div>
+                            <span className="member-name" style={{ color: memberColor }}>{member.user.username}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {noRoleMembers.length > 0 && (
+                  <div className="member-group">
+                    <div className="group-header">ОНЛАЙН — {noRoleMembers.length}</div>
+                    {noRoleMembers.map(member => (
+                      <div key={member.user._id} className="member-item" onClick={() => onUserClick(member.user._id)}>
+                        <div className="member-avatar">
+                          {getAvatarUrl(member.user.avatar) ? (
+                            <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
+                          ) : (
+                            <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                          )}
+                          <div className={`status-indicator ${member.user.status}`}></div>
+                        </div>
+                        <span className="member-name">{member.user.username}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-                <div className={`status-indicator ${member.user.status}`}></div>
-              </div>
-              <span className="member-name">{member.user.username}</span>
-            </div>
-          ))}
+
+                {offlineMembers.length > 0 && (
+                  <div className="member-group">
+                    <div className="group-header">ОФФЛАЙН — {offlineMembers.length}</div>
+                    {offlineMembers.map(member => {
+                      const sortedRoles = [...(member.roles || [])] as any[];
+                      sortedRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
+                      const colorRole = sortedRoles.find(r => r.color && r.color !== '#99AAB5');
+                      const memberColor = colorRole ? colorRole.color : 'inherit';
+
+                      return (
+                        <div key={member.user._id} className="member-item offline" onClick={() => onUserClick(member.user._id)}>
+                          <div className="member-avatar">
+                            {getAvatarUrl(member.user.avatar) ? (
+                              <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
+                            ) : (
+                              <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                            )}
+                            <div className={`status-indicator ${member.user.status}`}></div>
+                          </div>
+                          <span className="member-name" style={{ color: memberColor }}>{member.user.username}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -193,4 +347,3 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 };
 
 export default ServerSidebar;
-

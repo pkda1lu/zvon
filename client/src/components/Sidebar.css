@@ -47,13 +47,18 @@
 }
 
 .server-icon:hover {
-  border-radius: 16px;
+  border-radius: 12px;
   background: #5865f2;
 }
 
 .server-icon.active {
-  border-radius: 16px;
+  border-radius: 12px;
   background: #5865f2;
+}
+
+.server-icon:hover img,
+.server-icon.active img {
+  border-radius: 12px;
 }
 
 .server-icon img {
@@ -61,6 +66,7 @@
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+  transition: border-radius 0.2s;
 }
 
 .home-icon {
@@ -83,6 +89,23 @@
   gap: 4px;
   flex-shrink: 0;
   margin-top: auto;
+}
+
+.server-header-icon,
+.server-header-icon-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  /* Made circular as requested */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #4f545c;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
 }
 
 .user-avatar {
@@ -210,4 +233,3 @@
 .modal-buttons button[type="submit"]:hover {
   background: #4752c4;
 }
-

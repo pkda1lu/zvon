@@ -3,8 +3,11 @@ export interface User {
   username: string;
   email: string;
   avatar: string | null;
+  banner: string | null;
+  bio: string;
   status: 'online' | 'offline' | 'away' | 'busy';
   servers?: string[];
+  createdAt: string;
 }
 
 export interface Server {
@@ -12,10 +15,12 @@ export interface Server {
   name: string;
   description?: string;
   icon?: string;
+  banner?: string;
+  bannerColor?: string;
   owner: User;
   members: Array<{
     user: User;
-    roles: string[];
+    roles: (Role | string)[];
     joinedAt: string;
   }>;
   channels: Channel[];

@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User, Friendship } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
+import { ChatIcon, CloseIcon } from './Icons';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
   onStartDM: (userId: string) => void;
+  onUserClick: (userId: string) => void;
 }
 
-const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM }) => {
+const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) => {
   const [friends, setFriends] = useState<User[]>([]);
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,7 +119,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM }) => {
             ) : (
               friends.map((friend) => (
                 <div key={friend._id} className="friend-item">
-                  <div className="friend-avatar">
+                  <div className="friend-avatar" onClick={() => onUserClick(friend._id)} style={{ cursor: 'pointer' }}>
                     {getAvatarUrl(friend.avatar) ? (
                       <img src={getAvatarUrl(friend.avatar)!} alt={friend.username} />
                     ) : (
@@ -125,7 +127,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM }) => {
                     )}
                     <div className={`status-indicator ${friend.status}`}></div>
                   </div>
-                  <div className="friend-info">
+                  <div className="friend-info" onClick={() => onUserClick(friend._id)} style={{ cursor: 'pointer' }}>
                     <div className="friend-name">{friend.username}</div>
                     <div className="friend-status">{friend.status}</div>
                   </div>
@@ -135,14 +137,14 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM }) => {
                       onClick={() => onStartDM(friend._id)}
                       title="Написать сообщение"
                     >
-                      💬
+                      <ChatIcon size={20} />
                     </button>
                     <button
                       className="remove-button"
                       onClick={() => removeFriend((friend as any).friendshipId)}
                       title="Удалить из друзей"
                     >
-                      ✕
+                      <CloseIcon size={20} />
                     </button>
                   </div>
                 </div>
@@ -158,14 +160,14 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM }) => {
             ) : (
               pendingRequests.map((request) => (
                 <div key={request._id} className="request-item">
-                  <div className="request-avatar">
+                  <div className="request-avatar" onClick={() => onUserClick(request.requester._id)} style={{ cursor: 'pointer' }}>
                     {getAvatarUrl(request.requester.avatar) ? (
                       <img src={getAvatarUrl(request.requester.avatar)!} alt={request.requester.username} />
                     ) : (
                       <span>{request.requester.username.charAt(0).toUpperCase()}</span>
                     )}
                   </div>
-                  <div className="request-info">
+                  <div className="request-info" onClick={() => onUserClick(request.requester._id)} style={{ cursor: 'pointer' }}>
                     <div className="request-name">{request.requester.username}</div>
                     <div className="request-text">хочет добавить вас в друзья</div>
                   </div>
@@ -201,14 +203,14 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM }) => {
             <div className="search-results">
               {searchResults.map((user) => (
                 <div key={user._id} className="search-result-item">
-                  <div className="result-avatar">
+                  <div className="result-avatar" onClick={() => onUserClick(user._id)} style={{ cursor: 'pointer' }}>
                     {getAvatarUrl(user.avatar) ? (
                       <img src={getAvatarUrl(user.avatar)!} alt={user.username} />
                     ) : (
                       <span>{user.username.charAt(0).toUpperCase()}</span>
                     )}
                   </div>
-                  <div className="result-info">
+                  <div className="result-info" onClick={() => onUserClick(user._id)} style={{ cursor: 'pointer' }}>
                     <div className="result-name">{user.username}</div>
                     <div className="result-email">{user.email}</div>
                   </div>

@@ -2,21 +2,110 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const User = require('../models/User');
+const Friendship = require('../models/Friendship');
+const Server = require('../models/Server');
 const upload = require('../middleware/upload');
 const path = require('path');
 
-// Get user by ID
+// Get basic user info
 router.get('/:id', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select('-password')
-      .populate('servers');
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
+// Get user profile with mutuals
+router.get('/profile/:id', auth, async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+    const currentUserId = req.user._id;
+
+    const user = await User.findById(targetUserId).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json(user);
+    // Mutual Servers
+    const mutualServers = await Server.find({
+      'members.user': { $all: [currentUserId, targetUserId] }
+    }).select('name icon');
+
+    // Mutual Friends
+    // 1. Get current user's friends
+    const currentUserFriendships = await Friendship.find({
+      $or: [{ requester: currentUserId }, { recipient: currentUserId }],
+      status: 'accepted'
+    });
+    const currentUserFriendIds = currentUserFriendships.map(f =>
+      f.requester.toString() === currentUserId.toString() ? f.recipient : f.requester
+    );
+
+    // 2. Get target user's friends
+    const targetUserFriendships = await Friendship.find({
+      $or: [{ requester: targetUserId }, { recipient: targetUserId }],
+      status: 'accepted'
+    });
+    const targetUserFriendIds = targetUserFriendships.map(f =>
+      f.requester.toString() === targetUserId.toString() ? f.recipient : f.requester
+    );
+
+    // 3. Find intersection
+    const mutualFriendIds = currentUserFriendIds.filter(id =>
+      targetUserFriendIds.some(tid => tid.toString() === id.toString())
+    );
+
+    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status');
+
+    res.json({
+      user,
+      mutualServers,
+      mutualFriends
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update user profile
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { username, status, bio } = req.body;
+
+    if (username) {
+      const existingUser = await User.findOne({ username });
+      if (existingUser && existingUser._id.toString() !== req.user._id.toString()) {
+        return res.status(400).json({ message: 'Username already taken' });
+      }
+      req.user.username = username;
+    }
+
+    if (status) {
+      req.user.status = status;
+    }
+
+    if (bio !== undefined) {
+      req.user.bio = bio;
+    }
+
+    await req.user.save();
+
+    res.json({
+      id: req.user._id,
+      username: req.user.username,
+      email: req.user.email,
+      avatar: req.user.avatar,
+      banner: req.user.banner,
+      bio: req.user.bio,
+      status: req.user.status
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -76,35 +165,43 @@ router.post('/avatar', auth, (req, res, next) => {
   }
 });
 
-// Update user profile
-router.put('/profile', auth, async (req, res) => {
+// Upload banner
+router.post('/banner', auth, (req, res, next) => {
+  upload.single('banner')(req, res, (err) => {
+    if (err) {
+      console.error('Upload error:', err);
+      return res.status(400).json({ message: err.message || 'File upload failed' });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
-    const { username, status } = req.body;
-
-    if (username) {
-      const existingUser = await User.findOne({ username });
-      if (existingUser && existingUser._id.toString() !== req.user._id.toString()) {
-        return res.status(400).json({ message: 'Username already taken' });
-      }
-      req.user.username = username;
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    if (status) {
-      req.user.status = status;
+    const bannerUrl = `/api/uploads/${req.file.filename}`;
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    await req.user.save();
+    user.banner = bannerUrl;
+    await user.save();
 
     res.json({
-      id: req.user._id,
-      username: req.user.username,
-      email: req.user.email,
-      avatar: req.user.avatar,
-      status: req.user.status
+      banner: bannerUrl,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        banner: user.banner
+      }
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Banner upload error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
   }
 });
 

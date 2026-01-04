@@ -6,6 +6,13 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+const Server = require('./models/Server');
+const Channel = require('./models/Channel');
+const Role = require('./models/Role');
+const Message = require('./models/Message');
+const User = require('./models/User');
+const { hasPermission } = require('./utils/permissions');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -33,6 +40,51 @@ app.use('/api/invites', require('./routes/invites'));
 app.use('/api/upload-files', require('./routes/uploads'));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const getVoiceChannelUsers = async (channelId) => {
+  const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
+  if (!room) return [];
+
+  const users = [];
+  const User = require('./models/User');
+
+  for (const socketId of room) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && socket.userId) {
+      const user = await User.findById(socket.userId).select('username avatar status banner');
+      if (user) {
+        users.push(user);
+      }
+    }
+  }
+  return users;
+};
+
+const notifyVoiceChannelUpdate = async (channelId) => {
+  try {
+    const channel = await Channel.findById(channelId);
+    if (channel) {
+      const users = await getVoiceChannelUsers(channelId);
+      io.to(`server-${channel.server}`).emit('voice-channel-users-update', {
+        channelId,
+        users
+      });
+    }
+  } catch (err) {
+    console.error('Error notifying voice update:', err);
+  }
+};
+
+// New route for voice channel participants
+app.get('/api/channels/:id/voice-participants', async (req, res) => {
+  try {
+    const users = await getVoiceChannelUsers(req.params.id);
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching voice participants:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Socket.io connection handling
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
@@ -54,7 +106,9 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.userId);
 
   // Join user room for DM notifications
-  socket.join(`user-${socket.userId}`);
+  const userRoom = `user-${String(socket.userId)}`;
+  socket.join(userRoom);
+  console.log(`Socket ${socket.id} joined room ${userRoom}`);
 
   // Join server room
   socket.on('join-server', async (serverId) => {
@@ -151,6 +205,44 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('delete-message', async (data) => {
+    try {
+      const { messageId, channelId } = data;
+      const Message = require('./models/Message');
+      const msg = await Message.findById(messageId);
+      if (!msg) return;
+
+      let canDelete = String(msg.author) === String(socket.userId);
+
+      if (!canDelete && channelId) {
+        const channel = await Channel.findById(channelId);
+        if (channel && channel.server) {
+          canDelete = await hasPermission(socket.userId, channel.server, 'MANAGE_MESSAGES');
+        }
+      }
+
+      if (canDelete) {
+        await Message.findByIdAndDelete(messageId);
+        if (channelId) {
+          io.to(`channel-${channelId}`).emit('message-deleted', messageId);
+        } else if (msg.directMessage) {
+          // Notify both participants in DM
+          const DirectMessage = require('./models/DirectMessage');
+          const dm = await DirectMessage.findById(msg.directMessage);
+          if (dm) {
+            dm.participants.forEach(p => {
+              io.to(`user-${p}`).emit('message-deleted', messageId);
+            });
+          }
+        }
+      } else {
+        socket.emit('error', { message: 'Insufficient permissions' });
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  });
+
   // Typing indicator
   socket.on('typing-start', (data) => {
     socket.to(`channel-${data.channelId}`).emit('user-typing', {
@@ -168,9 +260,14 @@ io.on('connection', (socket) => {
 
   // Voice call events
   socket.on('call-offer', (data) => {
-    io.to(`user-${data.targetUserId}`).emit('call-offer', {
-      fromUserId: socket.userId,
-      offer: data.offer
+    const targetRoom = `user-${String(data.targetUserId)}`;
+    const clients = io.sockets.adapter.rooms.get(targetRoom);
+    console.log(`Call offer from ${socket.userId} to ${data.targetUserId}. Target room ${targetRoom} has ${clients ? clients.size : 0} clients.`);
+
+    io.to(targetRoom).emit('call-offer', {
+      fromUserId: String(socket.userId),
+      offer: data.offer,
+      dmId: data.dmId
     });
   });
 
@@ -190,42 +287,43 @@ io.on('connection', (socket) => {
     io.to(`user-${data.targetUserId}`).emit('call-end');
   });
 
-  // Voice channel events
-  const getVoiceChannelUsers = async (channelId) => {
-    const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
+  // DM call events
+  const getDMCallUsers = (dmId) => {
+    const room = io.sockets.adapter.rooms.get(`dm-call-${dmId}`);
     if (!room) return [];
 
-    const users = [];
-    const User = require('./models/User');
-
+    const userIds = [];
     for (const socketId of room) {
-      const socket = io.sockets.sockets.get(socketId);
-      if (socket && socket.userId) {
-        const user = await User.findById(socket.userId).select('username avatar status');
-        if (user) {
-          users.push(user);
-        }
-      }
+      const s = io.sockets.sockets.get(socketId);
+      if (s && s.userId) userIds.push(String(s.userId));
     }
-    return users;
+    return userIds;
   };
 
-  const notifyVoiceChannelUpdate = async (channelId) => {
-    try {
-      const Channel = require('./models/Channel');
-      const channel = await Channel.findById(channelId);
-      if (channel) {
-        const users = await getVoiceChannelUsers(channelId);
-        io.to(`server-${channel.server}`).emit('voice-channel-users-update', {
-          channelId,
-          users
-        });
-      }
-    } catch (err) {
-      console.error('Error notifying voice update:', err);
-    }
-  };
+  socket.on('join-dm-call', (data) => {
+    const { dmId } = data;
+    socket.join(`dm-call-${dmId}`);
+    socket.dmCallId = dmId;
 
+    // Notify others in DM
+    socket.to(`dm-call-${dmId}`).emit('dm-call-user-joined', { userId: socket.userId });
+
+    // Let the joiner know who is already there
+    const existingUsers = getDMCallUsers(dmId).filter(id => id !== socket.userId);
+    socket.emit('dm-call-existing-users', existingUsers);
+
+    console.log(`User ${socket.userId} joined DM call ${dmId}`);
+  });
+
+  socket.on('leave-dm-call', (data) => {
+    const { dmId } = data;
+    socket.leave(`dm-call-${dmId}`);
+    socket.dmCallId = null;
+    socket.to(`dm-call-${dmId}`).emit('dm-call-user-left', { userId: socket.userId });
+    console.log(`User ${socket.userId} left DM call ${dmId}`);
+  });
+
+  // Voice channel events
   socket.on('join-voice-channel', async (data) => {
     const channelId = data.channelId;
     const User = require('./models/User');
@@ -253,7 +351,8 @@ io.on('connection', (socket) => {
       user: {
         _id: user._id,
         username: user.username,
-        avatar: user.avatar
+        avatar: user.avatar,
+        banner: user.banner
       }
     });
 

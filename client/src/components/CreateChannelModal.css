@@ -105,7 +105,9 @@
 }
 
 .type-icon {
-  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .input-wrapper {
@@ -117,8 +119,12 @@
 .input-prefix {
   position: absolute;
   left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   color: #8e9297;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 1;
 }
 
@@ -196,7 +202,3 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-
-
-

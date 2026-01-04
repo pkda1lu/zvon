@@ -26,6 +26,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  banner: {
+    type: String,
+    default: null
+  },
+  bio: {
+    type: String,
+    maxlength: 300,
+    default: ''
+  },
   status: {
     type: String,
     enum: ['online', 'offline', 'away', 'busy'],
@@ -41,13 +50,13 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { CloseIcon, HashtagIcon, SpeakerIcon } from './Icons';
 import './CreateChannelModal.css';
 
 interface CreateChannelModalProps {
@@ -55,7 +56,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       <div className="create-channel-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="create-channel-modal-header">
           <h2>Создать канал</h2>
-          <button className="close-button" onClick={onClose}>×</button>
+          <button className="close-button" onClick={onClose}><CloseIcon /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="create-channel-form">
@@ -69,7 +70,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 className={`type-button ${channelType === 'text' ? 'active' : ''}`}
                 onClick={() => setChannelType('text')}
               >
-                <span className="type-icon">#</span>
+                <span className="type-icon"><HashtagIcon size={24} /></span>
                 <span>Текстовый</span>
               </button>
               <button
@@ -77,7 +78,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 className={`type-button ${channelType === 'voice' ? 'active' : ''}`}
                 onClick={() => setChannelType('voice')}
               >
-                <span className="type-icon">🔊</span>
+                <span className="type-icon"><SpeakerIcon size={24} /></span>
                 <span>Голосовой</span>
               </button>
             </div>
@@ -88,8 +89,8 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               {channelType === 'text' ? 'Название текстового канала' : 'Название голосового канала'}
             </label>
             <div className="input-wrapper">
-              {channelType === 'text' && <span className="input-prefix">#</span>}
-              {channelType === 'voice' && <span className="input-prefix">🔊</span>}
+              {channelType === 'text' && <span className="input-prefix"><HashtagIcon size={20} /></span>}
+              {channelType === 'voice' && <span className="input-prefix"><SpeakerIcon size={20} /></span>}
               <input
                 type="text"
                 id="channel-name"
@@ -102,7 +103,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               />
             </div>
             <p className="input-hint">
-              {channelType === 'text' 
+              {channelType === 'text'
                 ? 'Текстовые каналы используются для обмена сообщениями, файлами и изображениями.'
                 : 'Голосовые каналы используются для общения в реальном времени.'}
             </p>
