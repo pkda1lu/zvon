@@ -1,0 +1,225 @@
+.voice-channel-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #36393f;
+}
+
+.voice-channel-header {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #202225;
+  box-shadow: 0 1px 0 rgba(4, 4, 5, 0.2), 0 1.5px 0 rgba(6, 6, 7, 0.05), 0 2px 0 rgba(4, 4, 5, 0.05);
+}
+
+.voice-channel-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-channel-icon {
+  font-size: 20px;
+  color: #8e9297;
+}
+
+.voice-channel-header h3 {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.voice-channel-topic {
+  margin-left: 16px;
+  color: #b9bbbe;
+  font-size: 14px;
+}
+
+.voice-channel-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.voice-channel-disconnected {
+  text-align: center;
+  color: #dcddde;
+}
+
+.voice-channel-icon-large {
+  font-size: 80px;
+  margin-bottom: 24px;
+}
+
+.voice-channel-disconnected h2 {
+  color: #fff;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.voice-channel-disconnected p {
+  color: #b9bbbe;
+  font-size: 16px;
+  margin-bottom: 24px;
+}
+
+.connect-voice-button {
+  background: #43b581;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+  margin: 0 auto;
+}
+
+.connect-voice-button:hover {
+  background: #3ca374;
+}
+
+.button-icon {
+  font-size: 20px;
+}
+
+.voice-channel-connected {
+  width: 100%;
+  max-width: 600px;
+}
+
+.connected-users-list h4 {
+  color: #fff;
+  font-size: 18px;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  margin-bottom: 4px;
+}
+
+.user-item:hover {
+  background: #393c43;
+}
+
+.user-avatar-small {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #5865f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.user-avatar-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mute-indicator {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: #f04747;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border: 2px solid #2f3136;
+}
+
+.user-name {
+  color: #dcddde;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.voice-channel-controls {
+  padding: 16px;
+  background: #2f3136;
+  border-top: 1px solid #202225;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.control-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: #4f545c;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.control-button:hover {
+  background: #5d6269;
+}
+
+.control-button.muted {
+  background: #f04747;
+}
+
+.control-button.muted:hover {
+  background: #d84040;
+}
+
+.control-button.deafened {
+  background: #f04747;
+}
+
+.control-button.deafened:hover {
+  background: #d84040;
+}
+
+.control-button.disconnect {
+  background: #f04747;
+}
+
+.control-button.disconnect:hover {
+  background: #d84040;
+}
+
+.disconnected-message {
+  color: #8e9297;
+  font-size: 14px;
+  text-align: center;
+}
+
+
+
+

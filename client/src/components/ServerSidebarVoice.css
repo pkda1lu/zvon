@@ -1,0 +1,58 @@
+.voice-channel-users {
+    margin-left: 32px;
+    margin-top: 2px;
+    margin-bottom: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.voice-user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #8e9297;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.1s, color 0.1s;
+}
+
+.voice-user-item:hover {
+    background: rgba(79, 84, 92, 0.16);
+    color: #dcddde;
+}
+
+.voice-user-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #5865f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.voice-user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.voice-user-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #8e9297;
+}
+
+.voice-user-item:hover .voice-user-name {
+    color: #dcddde;
+}

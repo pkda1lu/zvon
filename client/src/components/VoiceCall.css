@@ -1,0 +1,265 @@
+.voice-call-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 400px;
+  background: #2f3136;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
+}
+
+.voice-call-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #202225;
+  background: #36393f;
+  border-radius: 8px 8px 0 0;
+}
+
+.call-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.call-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #5865f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  overflow: hidden;
+}
+
+.call-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.call-user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.call-username {
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.call-status {
+  color: #b9bbbe;
+  font-size: 12px;
+}
+
+.end-call-button {
+  background: #f04747;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: background-color 0.2s;
+}
+
+.end-call-button:hover {
+  background: #d84040;
+}
+
+.voice-call-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.call-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 40px 20px;
+}
+
+.call-avatar-large {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #5865f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 48px;
+  overflow: hidden;
+}
+
+.call-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.start-call-button {
+  background: #43b581;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+}
+
+.start-call-button:hover {
+  background: #3ca374;
+}
+
+.incoming-call-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.accept-call-button {
+  background: #43b581;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+}
+
+.accept-call-button:hover {
+  background: #3ca374;
+}
+
+.reject-call-button {
+  background: #f04747;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+}
+
+.reject-call-button:hover {
+  background: #d84040;
+}
+
+.call-icon {
+  font-size: 20px;
+}
+
+.call-active {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  background: #1e1f22;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.local-video {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 120px;
+  height: 90px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid #36393f;
+  background: #2f3136;
+}
+
+.call-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.control-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: #4f545c;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.control-button:hover {
+  background: #5d6269;
+}
+
+.control-button.muted {
+  background: #f04747;
+}
+
+.control-button.muted:hover {
+  background: #d84040;
+}
+
+.control-button.disabled {
+  background: #2f3136;
+  opacity: 0.5;
+}
+
+.control-button.end-call {
+  background: #f04747;
+}
+
+.control-button.end-call:hover {
+  background: #d84040;
+}
+

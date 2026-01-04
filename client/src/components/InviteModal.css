@@ -1,0 +1,102 @@
+.invite-modal {
+  width: 440px;
+  background-color: #313338;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(32,34,37,.6), 0 2px 10px 0 rgba(0,0,0,.2);
+}
+
+.modal-header {
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #b9bbbe;
+  cursor: pointer;
+  font-size: 24px;
+  padding: 0;
+  line-height: 1;
+}
+
+.close-button:hover {
+  color: #dcddde;
+}
+
+.modal-body {
+  padding: 0 24px 24px;
+}
+
+.invite-label {
+  color: #b9bbbe;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.invite-input-wrapper {
+  display: flex;
+  background-color: #1e1f22;
+  border: 1px solid #1e1f22;
+  border-radius: 3px;
+  padding: 4px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.invite-link-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #dcddde;
+  font-size: 16px;
+  padding: 8px;
+  outline: none;
+  width: 100%;
+}
+
+.copy-button {
+  background-color: #5865f2;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  min-width: 75px;
+}
+
+.copy-button:hover {
+  background-color: #4752c4;
+}
+
+.copy-button.copied {
+  background-color: #248046;
+}
+
+.invite-hint {
+  color: #b9bbbe;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.error-message {
+  color: #f23f42;
+  font-size: 12px;
+  margin-top: 8px;
+}
