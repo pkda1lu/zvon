@@ -189,26 +189,42 @@ sudo nano /etc/nginx/sites-available/zvon
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;  # Замените на ваш домен или IP
+    server_name zvon.duckdns.org;  # Замените на ваш домен или IP
 
     # Увеличение размера загружаемых файлов
     client_max_body_size 50M;
 
     # API и WebSocket прокси
     location / {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        
-        # Таймауты для WebSocket
-        proxy_read_timeout 86400;
+    # Обработка OPTIONS запросов БЕЗ редиректа
+    if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
+        add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Max-Age' '86400' always;
+        add_header 'Content-Length' '0';
+        add_header 'Content-Type' 'text/plain';
+        return 204;
     }
+
+    proxy_pass http://localhost:5000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 86400;
+    
+    # CORS headers для обычных запросов
+    add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
+    add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+}
 
     # Статические файлы (загрузки)
     location /api/uploads {
@@ -278,7 +294,7 @@ nano /var/www/zvon/server/.env
 
 Измените `CLIENT_URL`:
 ```env
-CLIENT_URL=https://your-domain.com
+CLIENT_URL=https://zvon.duckdns.org
 ```
 
 Перезапустите приложение:
