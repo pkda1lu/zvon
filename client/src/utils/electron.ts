@@ -13,20 +13,62 @@ export const isElectron = (): boolean => {
 // Get Electron API if available
 export const getElectronAPI = () => {
     const win = window as any;
-    if (win.electron) {
-        console.log('Electron API found:', Object.keys(win.electron));
-        return win.electron;
+    
+    if (!win.electron) {
+        console.log('Electron API not found immediately. Checking...');
+        console.log('Window properties:', {
+            hasElectron: !!win.electron,
+            hasProcess: !!win.process,
+            userAgent: win.navigator?.userAgent,
+            allKeys: Object.keys(win).filter(k => k.includes('electron') || k.includes('Electron'))
+        });
+        return null;
     }
-    console.log('Electron API not found. Available:', {
-        hasElectron: !!win.electron,
-        hasProcess: !!win.process,
-        userAgent: win.navigator?.userAgent
-    });
-    return null;
+    
+    const electronAPI = win.electron;
+    console.log('Electron API found:', Object.keys(electronAPI));
+    
+    // Validate that the API has the expected structure
+    if (!electronAPI.desktopCapturer && !electronAPI.ipc) {
+        console.warn('Electron API found but missing both desktopCapturer and ipc');
+        console.warn('Available keys:', Object.keys(electronAPI));
+    }
+    
+    return electronAPI;
+};
+
+// Get available screen sources
+export const getScreenSources = async (): Promise<any[]> => {
+    const electronAPI = getElectronAPI();
+    
+    if (!electronAPI) {
+        return [];
+    }
+
+    try {
+        const desktopCapturer = electronAPI.desktopCapturer;
+        if (desktopCapturer && typeof desktopCapturer.getSources === 'function') {
+            return await desktopCapturer.getSources({
+                types: ['window', 'screen'],
+                thumbnailSize: { width: 200, height: 150 }
+            });
+        }
+        
+        if (electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
+            return await electronAPI.ipc.invoke('get-desktop-sources', {
+                types: ['window', 'screen'],
+                thumbnailSize: { width: 200, height: 150 }
+            });
+        }
+    } catch (error) {
+        console.error('Error getting screen sources:', error);
+    }
+    
+    return [];
 };
 
 // Request screen sources using Electron desktopCapturer
-export const getElectronDisplayMedia = async (): Promise<MediaStream | null> => {
+export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaStream | null> => {
     const electronAPI = getElectronAPI();
     
     if (!electronAPI) {
@@ -48,30 +90,64 @@ export const getElectronDisplayMedia = async (): Promise<MediaStream | null> => 
 
     let sources;
     try {
-        // Try direct desktopCapturer first
-        if (electronAPI.desktopCapturer && electronAPI.desktopCapturer.getSources) {
+        // Try direct desktopCapturer first - with extra safety checks
+        const desktopCapturer = electronAPI.desktopCapturer;
+        if (desktopCapturer && typeof desktopCapturer.getSources === 'function') {
             console.log('Using Electron desktopCapturer API (direct)');
-            sources = await electronAPI.desktopCapturer.getSources({
-                types: ['window', 'screen']
-            });
-        } else if (electronAPI.ipc) {
-            // Fallback to IPC
+            try {
+                sources = await desktopCapturer.getSources({
+                    types: ['window', 'screen']
+                });
+            } catch (directError) {
+                console.error('Direct desktopCapturer.getSources failed:', directError);
+                // Fall through to IPC fallback
+                throw directError;
+            }
+        }
+        
+        // If direct method didn't work or wasn't available, try IPC
+        if (!sources && electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
             console.log('Using IPC for desktopCapturer');
-            sources = await electronAPI.ipc.invoke('get-desktop-sources', {
-                types: ['window', 'screen']
-            });
-        } else {
-            console.error('desktopCapturer not available in Electron API. Available keys:', Object.keys(electronAPI));
+            try {
+                sources = await electronAPI.ipc.invoke('get-desktop-sources', {
+                    types: ['window', 'screen']
+                });
+            } catch (ipcError) {
+                console.error('IPC get-desktop-sources failed:', ipcError);
+                throw ipcError;
+            }
+        }
+        
+        // If still no sources, log diagnostic info
+        if (!sources) {
+            console.error('desktopCapturer not available in Electron API');
+            console.error('Available keys:', Object.keys(electronAPI));
+            console.error('desktopCapturer type:', typeof electronAPI.desktopCapturer);
+            console.error('desktopCapturer value:', electronAPI.desktopCapturer);
+            console.error('ipc type:', typeof electronAPI.ipc);
+            console.error('ipc value:', electronAPI.ipc);
             return null;
         }
     } catch (error) {
         console.error('Error getting sources:', error);
-        return null;
+        // Try IPC as last resort if we haven't tried it yet
+        if (electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
+            try {
+                console.log('Attempting IPC fallback after error');
+                sources = await electronAPI.ipc.invoke('get-desktop-sources', {
+                    types: ['window', 'screen']
+                });
+            } catch (fallbackError) {
+                console.error('IPC fallback also failed:', fallbackError);
+                return null;
+            }
+        } else {
+            return null;
+        }
     }
 
     try {
-
-        return await createStreamFromSources(sources);
+        return await createStreamFromSources(sources, sourceId);
     } catch (error: any) {
         console.error('Error getting Electron display media:', error);
         console.error('Error details:', {
@@ -84,49 +160,96 @@ export const getElectronDisplayMedia = async (): Promise<MediaStream | null> => 
 };
 
 // Helper function to create stream from sources
-async function createStreamFromSources(sources: any[]): Promise<MediaStream | null> {
+async function createStreamFromSources(sources: any[], sourceId?: string): Promise<MediaStream | null> {
     console.log('Available sources:', sources.length);
     if (sources.length === 0) {
         console.error('No sources available');
         return null;
     }
 
-    // Find screen sources (prefer full screen over windows)
-    const screenSource = sources.find((s: any) => s.id.startsWith('screen:'));
-    if (!screenSource) {
-        console.error('No screen source found. Available sources:', sources.map((s: any) => ({ id: s.id, name: s.name })));
-        // Try to use first available source as fallback
-        const firstSource = sources[0];
-        if (firstSource) {
-            console.log('Using first available source as fallback:', firstSource.id, firstSource.name);
-            return await createStreamFromSource(firstSource);
+    let selectedSource: any;
+    
+    if (sourceId) {
+        // Use the specified source
+        selectedSource = sources.find((s: any) => s.id === sourceId);
+        if (!selectedSource) {
+            console.warn('Specified source not found, using first available');
+            selectedSource = sources[0];
         }
+    } else {
+        // Find screen sources (prefer full screen over windows)
+        selectedSource = sources.find((s: any) => s.id.startsWith('screen:'));
+        if (!selectedSource) {
+            console.log('No screen source found. Available sources:', sources.map((s: any) => ({ id: s.id, name: s.name })));
+            // Try to use first available source as fallback
+            selectedSource = sources[0];
+        }
+    }
+
+    if (!selectedSource) {
         return null;
     }
 
-    console.log('Using screen source:', screenSource.id, screenSource.name);
-    return await createStreamFromSource(screenSource);
+    console.log('Using source:', selectedSource.id, selectedSource.name);
+    return await createStreamFromSource(selectedSource);
 }
 
 // Helper function to create stream from a single source
 async function createStreamFromSource(source: any): Promise<MediaStream> {
     // Use navigator.mediaDevices.getUserMedia with electron's sourceId
-    const stream = await navigator.mediaDevices.getUserMedia({
+    // Include system audio capture - this is crucial for capturing system audio
+    // NOTE: Cannot mix mandatory with other properties - must use only mandatory for Electron
+    const constraints: any = {
         audio: {
             mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: source.id
             }
-        } as any,
+        },
         video: {
             mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: source.id
             }
-        } as any
+        }
+    };
+
+    console.log('Requesting stream with constraints:', {
+        sourceId: source.id,
+        sourceName: source.name,
+        hasAudio: !!constraints.audio,
+        hasVideo: !!constraints.video
     });
 
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
     console.log('Successfully got Electron display media stream');
+    console.log('Audio tracks:', stream.getAudioTracks().length);
+    console.log('Video tracks:', stream.getVideoTracks().length);
+    
+    // Log audio track info
+    stream.getAudioTracks().forEach((track, index) => {
+        console.log(`Audio track ${index}:`, {
+            id: track.id,
+            label: track.label,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+            settings: track.getSettings()
+        });
+    });
+    
+    // Log video track info
+    stream.getVideoTracks().forEach((track, index) => {
+        console.log(`Video track ${index}:`, {
+            id: track.id,
+            label: track.label,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState
+        });
+    });
+    
     return stream;
 }
 

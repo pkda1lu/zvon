@@ -3,37 +3,24 @@
 console.log('Preload script loading...');
 
 const { contextBridge, ipcRenderer } = require('electron');
-const { desktopCapturer } = require('electron');
 
 console.log('Preload: Electron modules loaded');
 
 // Expose protected methods that allow the renderer process to use
-// the desktopCapturer API
+// the desktopCapturer API via IPC (desktopCapturer is not available in renderer process)
 try {
-    // Always use IPC for better compatibility
+    // Use IPC for desktopCapturer (required in renderer process with context isolation)
     const getSourcesFn = (options) => {
         console.log('Preload: getSources called via IPC with options:', options);
         return ipcRenderer.invoke('get-desktop-sources', options);
     };
 
-    // Also try direct access as primary method
-    let directGetSourcesFn;
-    try {
-        directGetSourcesFn = (options) => {
-            console.log('Preload: getSources called directly with options:', options);
-            return desktopCapturer.getSources(options);
-        };
-    } catch (e) {
-        console.log('Preload: Direct desktopCapturer access failed, using IPC only');
-        directGetSourcesFn = getSourcesFn;
-    }
-
     const electronAPI = {
         desktopCapturer: {
-            getSources: directGetSourcesFn
+            getSources: getSourcesFn
         },
         isElectron: true,
-        // Also expose IPC for fallback
+        // Also expose IPC for direct access
         ipc: {
             invoke: (channel, ...args) => {
                 console.log('Preload: IPC invoke:', channel, args);
@@ -43,9 +30,14 @@ try {
     };
 
     contextBridge.exposeInMainWorld('electron', electronAPI);
-    console.log('Preload: Electron API exposed successfully', Object.keys(electronAPI));
+    console.log('Preload: Electron API exposed successfully');
+    console.log('Preload: API keys:', Object.keys(electronAPI));
+    console.log('Preload: desktopCapturer type:', typeof electronAPI.desktopCapturer);
+    console.log('Preload: desktopCapturer.getSources type:', typeof electronAPI.desktopCapturer?.getSources);
+    console.log('Preload: ipc type:', typeof electronAPI.ipc);
 } catch (error) {
     console.error('Preload: Error exposing Electron API:', error);
+    console.error('Preload: Error stack:', error.stack);
     // Fallback: expose IPC only
     try {
         const fallbackAPI = {
@@ -64,8 +56,9 @@ try {
         console.log('Preload: Electron API exposed via IPC fallback', Object.keys(fallbackAPI));
     } catch (fallbackError) {
         console.error('Preload: Failed to expose Electron API even with IPC:', fallbackError);
+        console.error('Preload: Fallback error stack:', fallbackError.stack);
     }
 }
 
-console.log('Preload script loaded');
+console.log('Preload script loaded and executed');
 

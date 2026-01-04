@@ -55,11 +55,24 @@ function createWindow() {
 
     mainWindow.webContents.on('did-finish-load', () => {
         console.log('Window loaded, checking Electron API availability...');
-        mainWindow.webContents.executeJavaScript(`
-            console.log('Window electron API:', typeof window.electron);
-            console.log('Window electron keys:', window.electron ? Object.keys(window.electron) : 'undefined');
-            console.log('Window process:', typeof window.process);
-        `).catch(console.error);
+        // Wait a bit for preload to execute
+        setTimeout(() => {
+            mainWindow.webContents.executeJavaScript(`
+                console.log('=== Electron API Check ===');
+                console.log('Window electron API type:', typeof window.electron);
+                console.log('Window electron exists:', !!window.electron);
+                if (window.electron) {
+                    console.log('Window electron keys:', Object.keys(window.electron));
+                    console.log('Window electron.desktopCapturer:', typeof window.electron.desktopCapturer);
+                    console.log('Window electron.ipc:', typeof window.electron.ipc);
+                } else {
+                    console.log('Window electron is undefined!');
+                    console.log('Available window properties:', Object.keys(window).filter(k => k.toLowerCase().includes('electron')));
+                }
+                console.log('Window process:', typeof window.process);
+                console.log('========================');
+            `).catch(console.error);
+        }, 500); // Wait 500ms for preload to execute
     });
 
     mainWindow.loadURL(
