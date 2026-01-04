@@ -18,6 +18,8 @@ interface VoiceContextType {
     connectedUsers: User[];
     localStream: MediaStream | null; // For visualization
     remoteStreams: Map<string, MediaStream>; // Export remote streams
+    userVolumes: Map<string, number>;
+    setUserVolume: (userId: string, volume: number) => void;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -47,9 +49,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const micGainNodeRef = useRef<GainNode | null>(null);
+    const mixedStreamRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
     // Keep ref synced
     useEffect(() => {
@@ -300,6 +307,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsDeafened(!isDeafened);
     };
 
+    const setUserVolume = useCallback((userId: string, volume: number) => {
+        setUserVolumes(prev => new Map(prev).set(userId, volume));
+    }, []);
+
     const toggleScreenShare = async () => {
         if (isScreenSharing) {
             // Stop sharing
@@ -310,7 +321,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
             setIsScreenSharing(false);
 
-            // Revert to audio only
+            // Switch back to audio only (restore mic)
+            // Cleanup mixing if exists
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+                audioContextRef.current = null;
+                micGainNodeRef.current = null;
+                mixedStreamRef.current = null;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
@@ -322,50 +341,155 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setLocalStream(stream);
             localStreamRef.current = stream;
 
+            // Apply current mute state to new stream
+            stream.getAudioTracks().forEach(t => t.enabled = !isMuted && !isDeafened);
+
             // Remove video track from peers and renegotiate (Switch back to audio only)
-            peersRef.current.forEach((pc, targetUserId) => {
-                const senders = pc.getSenders();
-                const videoSender = senders.find(s => s.track?.kind === 'video');
-                if (videoSender) {
-                    pc.removeTrack(videoSender);
-                }
+            peersRef.current.forEach(async (pc, targetUserId) => {
+                try {
+                    const senders = pc.getSenders();
+                    const videoSender = senders.find(s => s.track?.kind === 'video');
+                    if (videoSender) {
+                        pc.removeTrack(videoSender);
+                    }
 
-                // Update audio track to point to new stream
-                const audioSender = senders.find(s => s.track?.kind === 'audio');
-                if (audioSender) {
-                    const audioTrack = stream.getAudioTracks()[0];
-                    audioSender.replaceTrack(audioTrack);
-                }
+                    // Update audio track to point to new stream
+                    const audioSender = senders.find(s => s.track?.kind === 'audio');
+                    if (audioSender) {
+                        const audioTrack = stream.getAudioTracks()[0];
+                        await audioSender.replaceTrack(audioTrack).catch(e => console.error("Error replacing audio track:", e));
+                    }
 
-                // Renegotiate to tell remote that video is gone
-                pc.createOffer()
-                    .then(offer => pc.setLocalDescription(offer))
-                    .then(() => {
-                        if (socket) {
-                            socket.emit('voice-offer', {
-                                targetUserId,
-                                offer: pc.localDescription
-                            });
-                        }
-                    })
-                    .catch(e => console.error("Renegotiation error (stop share):", e));
+                    // Renegotiate to tell remote that video is gone
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    
+                    if (socket) {
+                        socket.emit('voice-offer', {
+                            targetUserId,
+                            offer: pc.localDescription
+                        });
+                    }
+                } catch (e) {
+                    console.error("Renegotiation error (stop share):", e);
+                }
             });
 
         } else {
             try {
-                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+                let screenStream: MediaStream | null = null;
+                
+                // Try Electron desktopCapturer API first (for packaged Electron apps)
+                const { getElectronDisplayMedia, isElectron, getElectronAPI } = await import('../utils/electron');
+                const isElectronEnv = isElectron();
+                console.log('Is Electron environment:', isElectronEnv);
+                
+                if (isElectronEnv) {
+                    console.log('Detected Electron environment, trying desktopCapturer API');
+                    const electronAPI = getElectronAPI();
+                    console.log('Electron API check:', {
+                        hasAPI: !!electronAPI,
+                        hasDesktopCapturer: !!(electronAPI?.desktopCapturer),
+                        apiKeys: electronAPI ? Object.keys(electronAPI) : []
+                    });
+                    screenStream = await getElectronDisplayMedia();
+                }
+                
+                // Fallback to standard getDisplayMedia if Electron API didn't work
+                if (!screenStream && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                    console.log('Trying standard getDisplayMedia API');
+                    try {
+                        screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+                            video: {
+                                displaySurface: 'monitor' // Prefer full screen
+                            } as MediaTrackConstraints,
+                            audio: {
+                                echoCancellation: false,
+                                noiseSuppression: false,
+                                autoGainControl: false,
+                                suppressLocalAudioPlayback: false
+                            } as MediaTrackConstraints
+                        });
+                    } catch (err) {
+                        console.error('getDisplayMedia failed:', err);
+                    }
+                }
+                
+                if (!screenStream) {
+                    console.error("Failed to get screen stream");
+                    alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
+                    return;
+                }
+                
                 const screenTrack = screenStream.getVideoTracks()[0];
+                
+                if (!screenTrack) {
+                    console.error("No video track in screen stream");
+                    alert('Не удалось получить видео поток экрана.');
+                    return;
+                }
+                
+                const screenAudioTrack = screenStream.getAudioTracks()[0];
 
                 screenTrack.onended = () => {
-                    toggleScreenShare();
+                    if (isScreenSharing) {
+                        toggleScreenShare();
+                    }
                 };
 
                 setIsScreenSharing(true);
 
+                let audioTrackToUse: MediaStreamTrack;
+
+                // 2. Mix Audio if system audio is present
+                if (screenAudioTrack) {
+                    console.log("System audio detected, setting up mixing...");
+
+                    // We need a fresh mic stream to mix
+                    const micStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+
+                    // Setup Web Audio
+                    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    const dest = ctx.createMediaStreamDestination();
+
+                    // Mic Path
+                    const micSource = ctx.createMediaStreamSource(micStream);
+                    const micGain = ctx.createGain();
+                    micGain.gain.value = !isMuted && !isDeafened ? 1 : 0;
+                    micSource.connect(micGain);
+                    micGain.connect(dest);
+
+                    // Screen Audio Path
+                    const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
+                    // Maybe add a gain for system audio too? Usually 1.0 is fine.
+                    screenSource.connect(dest);
+
+                    // References
+                    audioContextRef.current = ctx;
+                    micGainNodeRef.current = micGain;
+                    mixedStreamRef.current = dest;
+
+                    audioTrackToUse = dest.stream.getAudioTracks()[0];
+                } else {
+                    // No system audio, just reuse existing mic track (or get new one)
+                    if (localStreamRef.current) {
+                        audioTrackToUse = localStreamRef.current.getAudioTracks()[0];
+                    } else {
+                        // Fallback logic
+                        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        audioTrackToUse = s.getAudioTracks()[0];
+                    }
+                }
+
                 setLocalStream(prev => {
-                    if (!prev) return screenStream;
                     const newStream = new MediaStream([
-                        ...prev.getAudioTracks(),
+                        audioTrackToUse,
                         screenTrack
                     ]);
                     localStreamRef.current = newStream;
@@ -373,51 +497,80 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 });
 
                 // Add video track to peers and renegotiate
-                Array.from(peersRef.current.entries()).forEach(([targetUserId, pc]) => {
-                    // Check if we already have a video sender? 
-                    // Since we created a new stream, let's just addTrack. 
-                    // But if we used replaceTrack before, we might have a sender.
+                Array.from(peersRef.current.entries()).forEach(async ([targetUserId, pc]) => {
+                    try {
+                        const senders = pc.getSenders();
 
-                    const senders = pc.getSenders();
-                    const videoSender = senders.find(s => s.track?.kind === 'video');
-
-                    if (videoSender) {
-                        videoSender.replaceTrack(screenTrack);
-                    } else {
-                        // Add track if no sender exists. WARNING: adding a track to an existing PC that is already negotiated might require care.
-                        // But since we are renegotiating immediately, it should be fine.
-                        try {
-                            pc.addTrack(screenTrack, localStreamRef.current!);
-                        } catch (e) {
-                            console.warn("Track already added or invalid access:", e);
+                        // Update Audio Track (Replace with mixed or existing)
+                        const audioSender = senders.find(s => s.track?.kind === 'audio');
+                        if (audioSender) {
+                            await audioSender.replaceTrack(audioTrackToUse).catch(e => console.error("Error replacing audio track:", e));
                         }
-                    }
 
-                    pc.createOffer()
-                        .then(offer => pc.setLocalDescription(offer))
-                        .then(() => {
-                            if (socket) {
-                                socket.emit('voice-offer', {
-                                    targetUserId,
-                                    offer: pc.localDescription
-                                });
+                        // Update/Add Video Track
+                        const videoSender = senders.find(s => s.track?.kind === 'video');
+                        if (videoSender) {
+                            await videoSender.replaceTrack(screenTrack).catch(e => console.error("Error replacing video track:", e));
+                        } else {
+                            try {
+                                // Use the current stream reference
+                                const currentStream = localStreamRef.current;
+                                if (currentStream) {
+                                    pc.addTrack(screenTrack, currentStream);
+                                }
+                            } catch (e) {
+                                console.warn("Track already added or invalid access:", e);
                             }
-                        })
-                        .catch(e => console.error("Renegotiation error (start share):", e));
+                        }
+
+                        // Renegotiate to notify remote peer about new video track
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        
+                        if (socket) {
+                            socket.emit('voice-offer', {
+                                targetUserId,
+                                offer: pc.localDescription
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Renegotiation error (start share):", e);
+                    }
                 });
 
             } catch (err) {
                 console.error("Error sharing screen:", err);
+                setIsScreenSharing(false);
+                // If user cancelled, don't show error
+                if (err instanceof Error && err.name === 'NotAllowedError') {
+                    console.log("Screen sharing permission denied");
+                } else if (err instanceof Error && err.name === 'AbortError') {
+                    console.log("Screen sharing cancelled by user");
+                } else {
+                    alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
+                }
             }
         }
     };
 
     useEffect(() => {
-        if (localStreamRef.current) {
-            const audioTrackEnabled = !isMuted && !isDeafened;
-            localStreamRef.current.getAudioTracks().forEach(track => {
-                track.enabled = audioTrackEnabled;
-            });
+        // Handle Mute Logic
+        const audioTrackEnabled = !isMuted && !isDeafened;
+
+        // If we are mixing (screen share with audio), control the Mic Gain Node
+        if (micGainNodeRef.current) {
+            micGainNodeRef.current.gain.value = audioTrackEnabled ? 1 : 0;
+            // Ensure the mixed track itself is always enabled so system audio can pass
+            if (localStreamRef.current) {
+                localStreamRef.current.getAudioTracks().forEach(t => t.enabled = true); // Output track always on
+            }
+        } else {
+            // Standard behavior: separate tracks or single mic track
+            if (localStreamRef.current) {
+                localStreamRef.current.getAudioTracks().forEach(track => {
+                    track.enabled = audioTrackEnabled;
+                });
+            }
         }
     }, [isMuted, isDeafened]);
 
@@ -435,7 +588,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             toggleScreenShare,
             connectedUsers,
             localStream,
-            remoteStreams
+            remoteStreams,
+            userVolumes,
+            setUserVolume
         }}>
             {children}
             {/* Hidden Audio Elements for Remote Streams */}
@@ -444,9 +599,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     <audio
                         key={userId}
                         ref={el => {
-                            if (el && el.srcObject !== stream) {
-                                el.srcObject = stream;
-                                el.play().catch(e => console.error('Error playing audio:', e));
+                            if (el) {
+                                if (el.srcObject !== stream) {
+                                    el.srcObject = stream;
+                                    el.play().catch(e => console.error('Error playing audio:', e));
+                                }
+                                el.volume = userVolumes.has(userId) ? userVolumes.get(userId)! : 1;
                             }
                         }}
                         autoPlay

@@ -3,7 +3,7 @@ import { Socket } from 'socket.io-client';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
-import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon } from './Icons';
+import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon } from './Icons';
 import './VoiceCall.css';
 
 interface VoiceCallProps {
@@ -168,7 +168,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     });
 
     pc.ontrack = (event) => {
-      console.log('VoiceCall: Remote track received');
+      console.log('VoiceCall: Remote track received', event.streams[0].id, event.track.kind);
+      // Create a specific side-effect to force video element update if stream is same
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = event.streams[0];
+        remoteVideoRef.current.play().catch(e => console.error("Auto-play error", e));
+      }
       setRemoteStream(event.streams[0]);
     };
 
@@ -230,7 +235,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     try {
       console.log('VoiceCall: Handling incoming offer');
       const pc = peerConnectionRef.current || await setupPeerConnection();
+      
+      // Set remote description (handles both initial offer and renegotiation)
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      
+      // Create and set local answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -245,6 +254,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       await processIceQueue(pc);
     } catch (err) {
       console.error('Failed to handle incoming offer:', err);
+      // If it's a renegotiation error, try to recover
+      if (err instanceof Error && err.message.includes('InvalidStateError')) {
+        console.log('VoiceCall: Attempting to recover from renegotiation error');
+        // The peer connection might be in an invalid state, but WebRTC should handle it
+      }
     }
   };
 
@@ -318,7 +332,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       });
       setLocalStream(stream);
 
-      // Update peer connection
+      // Update peer connection and renegotiate
       if (peerConnectionRef.current) {
         const senders = peerConnectionRef.current.getSenders();
         const videoSender = senders.find(s => s.track?.kind === 'video');
@@ -326,46 +340,160 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
 
         stream.getTracks().forEach(track => {
           if (track.kind === 'video') {
-            if (videoSender) videoSender.replaceTrack(track);
-            else peerConnectionRef.current?.addTrack(track, stream);
+            if (videoSender) {
+              videoSender.replaceTrack(track).catch(e => console.error("Error replacing video track:", e));
+            } else if (isVideoEnabled) {
+              peerConnectionRef.current?.addTrack(track, stream);
+            }
           }
           if (track.kind === 'audio' && audioSender) {
-            audioSender.replaceTrack(track);
+            audioSender.replaceTrack(track).catch(e => console.error("Error replacing audio track:", e));
           }
         });
+
+        // Renegotiate to notify remote peer about track changes
+        try {
+          const offer = await peerConnectionRef.current.createOffer();
+          await peerConnectionRef.current.setLocalDescription(offer);
+          
+          if (socket) {
+            socket.emit('call-offer', {
+              targetUserId: otherUser._id,
+              dmId,
+              offer: offer
+            });
+          }
+        } catch (e) {
+          console.error("Error renegotiating after stopping screen share:", e);
+        }
       }
     } else {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        let screenStream: MediaStream | null = null;
+        
+        // Try Electron desktopCapturer API first (for packaged Electron apps)
+        const { getElectronDisplayMedia, isElectron, getElectronAPI } = await import('../utils/electron');
+        const isElectronEnv = isElectron();
+        console.log('Is Electron environment:', isElectronEnv);
+        
+        if (isElectronEnv) {
+          console.log('Detected Electron environment, trying desktopCapturer API');
+          const electronAPI = getElectronAPI();
+          console.log('Electron API check:', {
+            hasAPI: !!electronAPI,
+            hasDesktopCapturer: !!(electronAPI?.desktopCapturer),
+            apiKeys: electronAPI ? Object.keys(electronAPI) : []
+          });
+          screenStream = await getElectronDisplayMedia();
+        }
+        
+        // Fallback to standard getDisplayMedia if Electron API didn't work
+        if (!screenStream && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+          console.log('Trying standard getDisplayMedia API');
+          try {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+              video: {
+                displaySurface: 'monitor' // Prefer full screen
+              } as MediaTrackConstraints,
+              audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                suppressLocalAudioPlayback: false
+              } as MediaTrackConstraints
+            });
+          } catch (err) {
+            console.error('getDisplayMedia failed:', err);
+          }
+        }
+        
+        if (!screenStream) {
+          console.error("Failed to get screen stream");
+          alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
+          setIsScreenSharing(false);
+          return;
+        }
+        
         const screenTrack = screenStream.getVideoTracks()[0];
+        
+        if (!screenTrack) {
+          console.error("No video track in screen stream");
+          alert('Не удалось получить видео поток экрана.');
+          setIsScreenSharing(false);
+          return;
+        }
+        
+        const screenAudioTrack = screenStream.getAudioTracks()[0];
 
         screenTrack.onended = () => {
-          toggleScreenShare(); // Revert when user stops sharing via browser UI
+          if (isScreenSharing) {
+            toggleScreenShare(); // Revert when user stops sharing via browser UI
+          }
         };
 
-        setLocalStream(prev => {
-          // Keep audio track, replace video
-          if (!prev) return screenStream;
-          const newStream = new MediaStream([
-            ...prev.getAudioTracks(),
-            screenTrack
-          ]);
-          return newStream;
-        });
+        // Create new stream with audio from localStream and video from screen
+        const newStream = new MediaStream();
+        
+        // Add audio track from existing local stream or screen audio
+        if (localStream && localStream.getAudioTracks().length > 0) {
+          newStream.addTrack(localStream.getAudioTracks()[0]);
+        } else if (screenAudioTrack) {
+          newStream.addTrack(screenAudioTrack);
+        }
+        
+        // Add screen video track
+        newStream.addTrack(screenTrack);
+        
+        setLocalStream(newStream);
         setIsScreenSharing(true);
 
-        // Update peer connection
+        // Update peer connection and renegotiate
         if (peerConnectionRef.current) {
           const senders = peerConnectionRef.current.getSenders();
+          
+          // Update/Add video track
           const videoSender = senders.find(s => s.track?.kind === 'video');
           if (videoSender) {
-            videoSender.replaceTrack(screenTrack);
+            videoSender.replaceTrack(screenTrack).catch(e => console.error("Error replacing video track:", e));
           } else {
-            peerConnectionRef.current.addTrack(screenTrack, localStream!);
+            peerConnectionRef.current.addTrack(screenTrack, newStream);
+          }
+
+          // Update audio track if screen has audio
+          if (screenAudioTrack) {
+            const audioSender = senders.find(s => s.track?.kind === 'audio');
+            if (audioSender) {
+              audioSender.replaceTrack(screenAudioTrack).catch(e => console.error("Error replacing audio track:", e));
+            }
+          }
+
+          // Renegotiate to notify remote peer about new video track
+          try {
+            const offer = await peerConnectionRef.current.createOffer();
+            await peerConnectionRef.current.setLocalDescription(offer);
+            
+            if (socket) {
+              socket.emit('call-offer', {
+                targetUserId: otherUser._id,
+                dmId,
+                offer: offer
+              });
+            }
+          } catch (e) {
+            console.error("Error renegotiating after starting screen share:", e);
           }
         }
       } catch (err) {
         console.error("Error starting screen share:", err);
+        setIsScreenSharing(false);
+        // If user cancelled, don't show error
+        if (err instanceof Error && err.name === 'NotAllowedError') {
+          console.log("Screen sharing permission denied");
+        } else if (err instanceof Error && err.name === 'AbortError') {
+          console.log("Screen sharing cancelled by user");
+        } else {
+          alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
+        }
       }
     }
   };
@@ -482,11 +610,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
                 {isVideoEnabled ? <VideoIcon /> : <CameraIcon />}
               </button>
               <button
-                className={`control-button ${isScreenSharing ? 'active' : ''}`}
+                className={`control-button ${isScreenSharing ? 'active screen-sharing' : ''}`}
                 onClick={toggleScreenShare}
                 title={isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
               >
-                <ScreenShareIcon />
+                {isScreenSharing ? <StopScreenShareIcon /> : <ScreenShareIcon />}
               </button>
               <button
                 className="control-button end-call"
