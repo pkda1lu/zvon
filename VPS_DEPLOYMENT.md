@@ -133,7 +133,7 @@ MONGODB_URI=mongodb://localhost:27017/zvon
 JWT_SECRET=your-super-secret-jwt-key-change-this-to-random-string-min-32-chars
 
 # URL клиента (ваш домен или IP)
-CLIENT_URL=http://your-domain.com
+CLIENT_URL=http://vlyne.online
 # или для разработки:
 # CLIENT_URL=http://localhost:3000
 
@@ -188,51 +188,103 @@ sudo nano /etc/nginx/sites-available/zvon
 
 ```nginx
 server {
-    listen 80;
-    server_name zvon.duckdns.org;  # Замените на ваш домен или IP
+    listen 443 ssl http2;
+    server_name serverzvon.duckdns.org;
 
-    # Увеличение размера загружаемых файлов
+    ssl_certificate     /etc/letsencrypt/live/serverzvon.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/serverzvon.duckdns.org/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:le_nginx_SSL:10m;
+    ssl_session_timeout 1440m;
+    ssl_session_tickets off;
+
     client_max_body_size 50M;
+    proxy_read_timeout 86400s;
+    proxy_connect_timeout 86400s;
 
-    # API и WebSocket прокси
-    location / {
-    # Обработка OPTIONS запросов БЕЗ редиректа
-    if ($request_method = 'OPTIONS') {
-        add_header 'Access-Control-Allow-Origin' '$http_origin' always;
-        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
-        add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
-        add_header 'Access-Control-Allow-Credentials' 'true' always;
-        add_header 'Access-Control-Max-Age' '86400' always;
-        add_header 'Content-Length' '0';
-        add_header 'Content-Type' 'text/plain';
-        return 204;
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
     }
 
-    proxy_pass http://localhost:5000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection 'upgrade';
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_cache_bypass $http_upgrade;
-    proxy_read_timeout 86400;
-    
-    # CORS headers для обычных запросов
-    add_header 'Access-Control-Allow-Origin' '$http_origin' always;
-    add_header 'Access-Control-Allow-Credentials' 'true' always;
-    add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
-    add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
-}
+    # ===== API /api/* СЃ CORS =====
+    location ^~ /api/ {
 
-    # Статические файлы (загрузки)
-    location /api/uploads {
-        alias /var/www/zvon/server/uploads;
+        # Preflight OPTIONS
+        if ($request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin      $http_origin always;
+            add_header Access-Control-Allow-Methods     "GET, POST, PUT, DELETE, OPTIONS, PATCH" always;
+            add_header Access-Control-Allow-Headers     "Authorization, Content-Type, X-Requested-With" always;
+            add_header Access-Control-Allow-Credentials "true" always;
+            add_header Access-Control-Max-Age           86400 always;
+            add_header Content-Type   "text/plain; charset=utf-8" always;
+            add_header Content-Length 0 always;
+            return 204;
+        }
+
+        # Proxy Рє backend
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        upgrade;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $server_name;
+
+        # РЈР±РёСЂР°РµРј CORS РѕС‚ backend, С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ РґСѓР±Р»РµР№
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Access-Control-Allow-Credentials;
+        proxy_hide_header Access-Control-Allow-Methods;
+        proxy_hide_header Access-Control-Allow-Headers;
+
+        # CORS РѕС‚ nginx
+        add_header Access-Control-Allow-Origin      $http_origin always;
+        add_header Access-Control-Allow-Credentials "true" always;
+        add_header Access-Control-Expose-Headers    "Content-Length" always;
+    }
+
+    # РЎС‚Р°С‚РёРєР° uploads
+    location /api/uploads/ {
+        alias /var/www/zvon/server/uploads/;
         expires 30d;
         add_header Cache-Control "public, immutable";
+        autoindex off;
+        try_files $uri $uri/ =404;
     }
+
+    # Fallback РґР»СЏ РІСЃРµРіРѕ РѕСЃС‚Р°Р»СЊРЅРѕРіРѕ
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        upgrade;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Security headers
+    add_header X-Frame-Options           "SAMEORIGIN" always;
+    add_header X-XSS-Protection          "1; mode=block" always;
+    add_header X-Content-Type-Options    "nosniff" always;
+    add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
+
+    access_log /var/log/nginx/serverzvon.access.log;
+    error_log  /var/log/nginx/serverzvon.error.log;
 }
+
+server {
+    listen 80;
+    server_name serverzvon.duckdns.org;
+    return 301 https://$server_name$request_uri;
+}
+
 ```
 
 ### Активация конфигурации
@@ -276,7 +328,7 @@ sudo ufw status
 sudo apt install -y certbot python3-certbot-nginx
 
 # Получение SSL сертификата
-sudo certbot --nginx -d your-domain.com
+sudo certbot --nginx -d serverzvon.duckdns.org
 
 # Автоматическое обновление (настроено автоматически)
 sudo certbot renew --dry-run
@@ -294,7 +346,7 @@ nano /var/www/zvon/server/.env
 
 Измените `CLIENT_URL`:
 ```env
-CLIENT_URL=https://zvon.duckdns.org
+CLIENT_URL=https://serverzvon.duckdns.org
 ```
 
 Перезапустите приложение:
@@ -482,4 +534,6 @@ sudo dpkg-reconfigure -plow unattended-upgrades
 API будет доступно на том же адресе, например:
 - `http://your-domain.com/api/auth/register`
 - `http://your-domain.com/api/servers`
+
+
 
