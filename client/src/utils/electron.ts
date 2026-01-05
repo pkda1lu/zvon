@@ -198,7 +198,7 @@ async function createStreamFromSources(sources: any[], sourceId?: string): Promi
 async function createStreamFromSource(source: any): Promise<MediaStream> {
     // Use navigator.mediaDevices.getUserMedia with electron's sourceId
     // Include system audio capture - this is crucial for capturing system audio
-    // NOTE: Cannot mix mandatory with other properties - must use only mandatory for Electron
+    // For Electron, we need to use the correct constraints format
     const constraints: any = {
         audio: {
             mandatory: {
@@ -221,11 +221,65 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
         hasVideo: !!constraints.video
     });
 
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    let stream: MediaStream;
+    try {
+        // Try with getUserMedia first (works in Electron with proper constraints)
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error: any) {
+        console.error('getUserMedia failed, trying alternative method:', error);
+        // Fallback: try without mandatory (some Electron versions)
+        try {
+            const fallbackConstraints: any = {
+                audio: {
+                    chromeMediaSource: 'desktop',
+                    chromeMediaSourceId: source.id
+                } as any,
+                video: {
+                    chromeMediaSource: 'desktop',
+                    chromeMediaSourceId: source.id
+                } as any
+            };
+            stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        } catch (fallbackError: any) {
+            console.error('Fallback getUserMedia also failed:', fallbackError);
+            // Last resort: try video only
+            const videoOnlyConstraints: any = {
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: source.id
+                    }
+                } as any
+            };
+            stream = await navigator.mediaDevices.getUserMedia(videoOnlyConstraints);
+        }
+    }
 
     console.log('Successfully got Electron display media stream');
     console.log('Audio tracks:', stream.getAudioTracks().length);
     console.log('Video tracks:', stream.getVideoTracks().length);
+    
+    // Verify video track is working
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+        console.log('Video track settings:', videoTrack.getSettings());
+        console.log('Video track constraints:', videoTrack.getConstraints());
+        // Ensure track is enabled
+        videoTrack.enabled = true;
+        
+        // Monitor track state
+        videoTrack.onended = () => {
+            console.log('Video track ended');
+        };
+        videoTrack.onmute = () => {
+            console.log('Video track muted');
+        };
+        videoTrack.onunmute = () => {
+            console.log('Video track unmuted');
+        };
+    } else {
+        console.error('No video track in stream!');
+    }
     
     // Log audio track info
     stream.getAudioTracks().forEach((track, index) => {
@@ -246,7 +300,8 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
             label: track.label,
             enabled: track.enabled,
             muted: track.muted,
-            readyState: track.readyState
+            readyState: track.readyState,
+            settings: track.getSettings()
         });
     });
     

@@ -20,8 +20,16 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId }) 
         setError('');
         try {
             const response = await axios.post('/api/invites', { serverId });
-            // Construct full URL (assuming client is running where window.location is)
-            const link = `${window.location.protocol}//${window.location.host}/invite/${response.data.code}`;
+            // Construct full URL - handle Electron file:// protocol
+            let baseUrl: string;
+            if (window.location.protocol === 'file:') {
+                // In Electron, use the server URL from environment or default
+                const serverUrl = process.env.REACT_APP_SERVER_URL || 'https://serverzvon.duckdns.org';
+                baseUrl = serverUrl.replace(/\/$/, ''); // Remove trailing slash
+            } else {
+                baseUrl = `${window.location.protocol}//${window.location.host}`;
+            }
+            const link = `${baseUrl}/invite/${response.data.code}`;
             setInviteLink(link);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Не удалось создать приглашение');

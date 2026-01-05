@@ -21,6 +21,7 @@ interface VoiceContextType {
     remoteStreams: Map<string, MediaStream>; // Export remote streams
     userVolumes: Map<string, number>;
     setUserVolume: (userId: string, volume: number) => void;
+    userStates: Map<string, { isMuted: boolean; isDeafened: boolean }>;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -52,6 +53,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
+    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean }>>(new Map());
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -59,6 +61,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const audioContextRef = useRef<AudioContext | null>(null);
     const micGainNodeRef = useRef<GainNode | null>(null);
     const mixedStreamRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+    const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
     // Keep ref synced
     useEffect(() => {
@@ -282,12 +285,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
         };
 
+        const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean }) => {
+            setUserStates(prev => new Map(prev).set(data.userId, {
+                isMuted: data.isMuted,
+                isDeafened: data.isDeafened
+            }));
+        };
+
         socket.on('voice-existing-users', handleExistingUsers);
         socket.on('voice-user-joined', handleUserJoined);
         socket.on('voice-user-left', handleUserLeft);
         socket.on('voice-offer', handleOffer);
         socket.on('voice-answer', handleAnswer);
         socket.on('voice-ice-candidate', handleCandidate);
+        socket.on('voice-user-state-update', handleUserStateUpdate);
 
         socket.emit('join-voice-channel', { channelId: activeChannelId });
 
@@ -298,15 +309,34 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-offer', handleOffer);
             socket.off('voice-answer', handleAnswer);
             socket.off('voice-ice-candidate', handleCandidate);
+            socket.off('voice-user-state-update', handleUserStateUpdate);
         };
     }, [socket, isConnected, activeChannelId, createPeer, user]);
 
     const toggleMute = () => {
-        setIsMuted(!isMuted);
+        const newMuted = !isMuted;
+        setIsMuted(newMuted);
+        // Notify server about state change
+        if (socket && activeChannelId) {
+            socket.emit('voice-state-update', {
+                channelId: activeChannelId,
+                isMuted: newMuted,
+                isDeafened: isDeafened
+            });
+        }
     };
 
     const toggleDeafen = () => {
-        setIsDeafened(!isDeafened);
+        const newDeafened = !isDeafened;
+        setIsDeafened(newDeafened);
+        // Notify server about state change
+        if (socket && activeChannelId) {
+            socket.emit('voice-state-update', {
+                channelId: activeChannelId,
+                isMuted: isMuted,
+                isDeafened: newDeafened
+            });
+        }
     };
 
     const setUserVolume = useCallback((userId: string, volume: number) => {
@@ -603,7 +633,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             localStream,
             remoteStreams,
             userVolumes,
-            setUserVolume
+            setUserVolume,
+            userStates
         }}>
             {children}
             {/* Screen Source Selector Modal */}
@@ -620,16 +651,46 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         key={userId}
                         ref={el => {
                             if (el) {
-                                if (el.srcObject !== stream) {
+                                const existingEl = audioElementsRef.current.get(userId);
+                                if (existingEl !== el) {
+                                    audioElementsRef.current.set(userId, el);
                                     el.srcObject = stream;
-                                    el.play().catch(e => console.error('Error playing audio:', e));
+                                    // Force play with multiple attempts for Electron compatibility
+                                    const attemptPlay = async () => {
+                                        try {
+                                            await el.play();
+                                            console.log(`Audio playing for user ${userId}`);
+                                        } catch (error) {
+                                            console.error(`Error playing audio for user ${userId}:`, error);
+                                            // Retry after a short delay
+                                            setTimeout(() => {
+                                                el.play().catch(e => console.error('Retry play failed:', e));
+                                            }, 100);
+                                        }
+                                    };
+                                    attemptPlay();
+                                    // Also try on user interaction
+                                    const handleInteraction = () => {
+                                        el.play().catch(e => console.error('Interaction play failed:', e));
+                                        document.removeEventListener('click', handleInteraction);
+                                        document.removeEventListener('keydown', handleInteraction);
+                                    };
+                                    document.addEventListener('click', handleInteraction, { once: true });
+                                    document.addEventListener('keydown', handleInteraction, { once: true });
                                 }
                                 el.volume = userVolumes.has(userId) ? userVolumes.get(userId)! : 1;
+                                el.muted = isDeafened;
+                            } else {
+                                audioElementsRef.current.delete(userId);
                             }
                         }}
                         autoPlay
                         playsInline
                         muted={isDeafened}
+                        onLoadedMetadata={(e) => {
+                            const el = e.currentTarget;
+                            el.play().catch(err => console.error('Metadata loaded play failed:', err));
+                        }}
                     />
                 ))}
             </div>

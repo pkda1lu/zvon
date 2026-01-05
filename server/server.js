@@ -142,7 +142,7 @@ io.on('connection', (socket) => {
     socket.join(`server-${serverId}`);
     console.log(`User ${socket.userId} joined server ${serverId}`);
 
-    // Auto-send voice states
+    // Auto-send voice states immediately
     try {
       const Server = require('./models/Server');
       const server = await Server.findById(serverId).populate('channels');
@@ -154,6 +154,9 @@ io.on('connection', (socket) => {
           }
         }
         socket.emit('server-voice-states', voiceStates);
+        
+        // Also broadcast to all server members to ensure they see the new user
+        io.to(`server-${serverId}`).emit('server-voice-states', voiceStates);
       }
     } catch (err) {
       console.error(err);
@@ -386,8 +389,30 @@ io.on('connection', (socket) => {
     // Send existing users to the joiner
     socket.emit('voice-existing-users', existingUsers);
 
-    // Notify server (Sidebar)
+    // Notify server (Sidebar) - ensure this happens immediately
     await notifyVoiceChannelUpdate(channelId);
+    
+    // Also send immediate update to all server members
+    const channel = await Channel.findById(channelId);
+    if (channel && channel.server) {
+      io.to(`server-${channel.server}`).emit('voice-channel-users-update', {
+        channelId,
+        users: await getVoiceChannelUsers(channelId)
+      });
+    }
+  });
+
+  // Voice state updates (mute/deafen)
+  socket.on('voice-state-update', async (data) => {
+    const { channelId, isMuted, isDeafened } = data;
+    if (!socket.voiceChannelId || socket.voiceChannelId !== channelId) return;
+
+    // Broadcast state to others in the channel
+    socket.to(`voice-channel-${channelId}`).emit('voice-user-state-update', {
+      userId: socket.userId,
+      isMuted: isMuted || false,
+      isDeafened: isDeafened || false
+    });
   });
 
   socket.on('leave-voice-channel', async (data) => {

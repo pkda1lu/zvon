@@ -31,7 +31,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     localStream,
     remoteStreams,
     userVolumes,
-    setUserVolume
+    setUserVolume,
+    userStates
   } = useVoice();
 
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
@@ -77,13 +78,21 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     if (isConnectedToThisChannel && currentUser) {
       participants = [
         { ...currentUser, isMe: true, isMuted, isDeafened },
-        ...activeConnectedUsers.map(u => ({ ...u, isMe: false }))
+        ...activeConnectedUsers.map(u => {
+          const state = userStates.get(u._id) || { isMuted: false, isDeafened: false };
+          return { ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened };
+        })
       ];
     } else {
-      participants = externalParticipants.map(u => ({
-        ...u,
-        isMe: u._id === currentUser?._id,
-      }));
+      participants = externalParticipants.map(u => {
+        const state = userStates.get(u._id) || { isMuted: false, isDeafened: false };
+        return {
+          ...u,
+          isMe: u._id === currentUser?._id,
+          isMuted: state.isMuted,
+          isDeafened: state.isDeafened
+        };
+      });
     }
 
     const items: any[] = [];
@@ -114,7 +123,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     });
 
     return items;
-  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, externalParticipants, localStream, remoteStreams]);
+  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, externalParticipants, localStream, remoteStreams, userStates]);
 
   // Handle auto-closing of stage view if stream removes
   useEffect(() => {
