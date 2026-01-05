@@ -14,11 +14,28 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError('');
 
+    // Валидация на клиенте
+    if (!email || !email.includes('@')) {
+      setError('Пожалуйста, введите корректный email адрес');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setError('Пароль должен содержать минимум 6 символов');
+      return;
+    }
+
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка входа');
+      // Обработка ошибок валидации
+      if (err.response?.data?.errors) {
+        const validationErrors = err.response.data.errors.map((e: any) => e.msg).join(', ');
+        setError(validationErrors);
+      } else {
+        setError(err.response?.data?.message || 'Ошибка входа. Проверьте email и пароль.');
+      }
     }
   };
 

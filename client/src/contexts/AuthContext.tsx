@@ -26,6 +26,8 @@ export const useAuth = () => {
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 axios.defaults.baseURL = API_URL;
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+axios.defaults.headers.post['Content-Type'] = 'application/json';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -59,12 +61,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
-    const response = await axios.post('/api/auth/login', { email, password });
-    const { token: newToken, user: newUser } = response.data;
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    try {
+      const response = await axios.post('/api/auth/login', { email, password }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const { token: newToken, user: newUser } = response.data;
+      setToken(newToken);
+      setUser(newUser);
+      localStorage.setItem('token', newToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    } catch (error: any) {
+      console.error('Login error:', error.response?.data || error.message);
+      // Пробрасываем ошибку дальше для обработки в компоненте
+      throw error;
+    }
   };
 
   const register = async (username: string, email: string, password: string) => {
