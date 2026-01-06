@@ -18,7 +18,11 @@ const hasPermission = async (userId, serverId, permission) => {
         const ownerId = server.owner._id ? server.owner._id.toString() : server.owner.toString();
         if (ownerId === userId.toString()) return true;
 
-        const member = server.members.find(m => m && m.user && m.user.toString() === userId.toString());
+        const member = server.members.find(m => {
+            if (!m || !m.user) return false;
+            const mUserId = m.user._id ? m.user._id.toString() : m.user.toString();
+            return mUserId === userId.toString();
+        });
         if (!member) return false;
 
         // Get all roles for this member
