@@ -51,9 +51,12 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         if (!serverId) return;
 
         const hasRole = memberRoles.some(r => r._id === roleId);
+        const roleToAdd = allServerRoles.find(r => r._id === roleId);
+        if (!hasRole && !roleToAdd) return;
+
         const newRolesArr = hasRole
             ? memberRoles.filter(r => r._id !== roleId)
-            : [...memberRoles, allServerRoles.find(r => r._id === roleId)!];
+            : [...memberRoles, roleToAdd!];
 
         setMemberRoles(newRolesArr);
 

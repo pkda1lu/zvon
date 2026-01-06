@@ -14,7 +14,7 @@ const hasPermission = async (userId, serverId, permission) => {
         if (!server) return false;
 
         // Owner has all permissions
-        // Handle potentially populated owner (though findById usually doesn't populate unless asked)
+        if (!server.owner) return false;
         const ownerId = server.owner._id ? server.owner._id.toString() : server.owner.toString();
         if (ownerId === userId.toString()) return true;
 
@@ -36,6 +36,7 @@ const hasPermission = async (userId, serverId, permission) => {
         }
 
         for (const role of rolesToCheck) {
+            if (!role || !role.permissions || !Array.isArray(role.permissions)) continue;
             // Administrator permission grants everything
             if (role.permissions.includes('ADMINISTRATOR')) return true;
             if (role.permissions.includes(permission)) return true;
