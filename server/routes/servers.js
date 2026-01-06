@@ -419,9 +419,9 @@ router.put('/:id/roles/positions', auth, async (req, res) => {
       return res.status(400).json({ message: 'Invalid roles data' });
     }
 
-    const updatePromises = roles.map(r =>
-      Role.findByIdAndUpdate(r.id, { position: r.position })
-    );
+    const updatePromises = roles
+      .filter(r => r && r.id)
+      .map(r => Role.findByIdAndUpdate(r.id, { $set: { position: r.position || 0 } }));
 
     await Promise.all(updatePromises);
 
@@ -431,7 +431,7 @@ router.put('/:id/roles/positions', auth, async (req, res) => {
     // Notify clients
     const io = req.app.get('io');
     if (io) {
-      io.to(req.params.id).emit('server-roles-updated', {
+      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
         serverId: req.params.id,
         roles: updatedRoles
       });
@@ -527,7 +527,7 @@ router.put('/:id/members/:userId/roles', auth, async (req, res) => {
 
       const io = req.app.get('io');
       if (io) {
-        io.to(req.params.id).emit('server-member-updated', {
+        io.to(`server-${req.params.id}`).emit('server-member-updated', {
           serverId: req.params.id,
           member: updatedMember
         });

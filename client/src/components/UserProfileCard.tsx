@@ -9,7 +9,7 @@ import './UserProfileCard.css';
 interface UserProfileCardProps {
     userId: string;
     onClose: () => void;
-    serverId?: string; // Optional context for roles (deprecated by currentServer but kept for compatibility)
+    serverId?: string;
     currentUser?: User | null;
     currentServer?: Server | null;
 }
@@ -27,7 +27,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [allServerRoles, setAllServerRoles] = useState<Role[]>([]);
     const [isManagingRoles, setIsManagingRoles] = useState(false);
 
-    // Check permissions
     const { hasPermission } = usePermissions(currentUser || null, currentServer || null);
     const canManageRoles = hasPermission('MANAGE_ROLES');
     const canManageServer = hasPermission('MANAGE_SERVER');
@@ -35,7 +34,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
     useEffect(() => {
         if (serverId && canEditRoles) {
-            // Check if currentServer has fully populated roles
             const hasPopulatedRoles = currentServer && currentServer.roles && currentServer.roles.length > 0 &&
                 typeof currentServer.roles[0] === 'object' && 'name' in currentServer.roles[0];
 
@@ -53,20 +51,18 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         if (!serverId) return;
 
         const hasRole = memberRoles.some(r => r._id === roleId);
-        const newRoles = hasRole
+        const newRolesArr = hasRole
             ? memberRoles.filter(r => r._id !== roleId)
             : [...memberRoles, allServerRoles.find(r => r._id === roleId)!];
 
-        // Optimistic update
-        setMemberRoles(newRoles);
+        setMemberRoles(newRolesArr);
 
         try {
             await axios.put(`/api/servers/${serverId}/members/${userId}/roles`, {
-                roles: newRoles.map(r => r._id)
+                roles: newRolesArr.map(r => r._id)
             });
         } catch (err) {
             console.error('Failed to update roles', err);
-            // In a real app, we should revert on error
         }
     };
 
@@ -78,16 +74,13 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             setError('');
 
             try {
-                // Fetch basic user profile
                 const response = await axios.get(`/api/users/profile/${userId}`);
                 setProfileData(response.data);
 
-                // Load member data if in server (for roles)
                 if (serverId) {
                     try {
                         const memberRes = await axios.get(`/api/servers/${serverId}/members/${userId}`);
                         if (memberRes.data.roles) {
-                            // Ensure we only keep valid role objects and sort them
                             const validRoles = memberRes.data.roles.filter((r: any) => r && typeof r === 'object' && r._id);
                             validRoles.sort((a: Role, b: Role) => (b.position || 0) - (a.position || 0));
                             setMemberRoles(validRoles);
@@ -159,7 +152,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     </div>
 
                     <div className="profile-badge-container">
-                        {/* Badges could go here */}
                     </div>
                 </div>
 
@@ -239,7 +231,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                                         {allServerRoles
                                                             .filter(r => {
                                                                 if (!r || !r._id) return false;
-                                                                // Check if member already has this role (handle both object and ID comparison)
                                                                 return !memberRoles.some(mr => {
                                                                     const mrId = typeof mr === 'string' ? mr : mr?._id;
                                                                     return mrId === r._id;

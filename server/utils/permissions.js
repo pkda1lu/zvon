@@ -18,16 +18,16 @@ const hasPermission = async (userId, serverId, permission) => {
         const ownerId = server.owner._id ? server.owner._id.toString() : server.owner.toString();
         if (ownerId === userId.toString()) return true;
 
-        const member = server.members.find(m => m.user.toString() === userId.toString());
+        const member = server.members.find(m => m && m.user && m.user.toString() === userId.toString());
         if (!member) return false;
 
         // Get all roles for this member
         const roleIds = member.roles ? member.roles.filter(r => r).map(r => r.toString()) : [];
         // Find member's assigned roles
-        const assignedRoles = server.roles.filter(r => roleIds.includes(r._id.toString()));
+        const assignedRoles = server.roles.filter(r => r && r._id && roleIds.includes(r._id.toString()));
 
         // Find default @everyone role
-        const everyoneRole = server.roles.find(r => r.name === '@everyone');
+        const everyoneRole = server.roles.find(r => r && r.name === '@everyone');
 
         // Combine them
         const rolesToCheck = [...assignedRoles];

@@ -126,6 +126,7 @@ app.get('/api/channels/:id/voice-participants', async (req, res) => {
 });
 
 // Socket.io connection handling
+app.set('io', io);
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (token) {
