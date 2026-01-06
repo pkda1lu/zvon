@@ -1,5 +1,5 @@
 {
-  "name": "zvon-discord-clone",
+  "name": "zvon-discord",
   "version": "1.0.0",
   "description": "Discord clone application",
   "main": "index.js",
