@@ -23,7 +23,11 @@ app.use(compression());
 
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: [
+      process.env.CLIENT_URL || "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:3000"
+    ],
     methods: ["GET", "POST"]
   }
 });
@@ -36,8 +40,11 @@ const corsOptions = {
     const allowedOrigins = [
       process.env.CLIENT_URL || 'http://localhost:3000',
       'http://localhost:3000',
+      'http://127.0.0.1:3000',
       'https://zvon.duckdns.com',
-      'http://zvon.duckdns.com'
+      'http://zvon.duckdns.com',
+      'https://zvonserver.ru',
+      'http://zvonserver.ru'
     ];
 
     if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
