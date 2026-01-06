@@ -24,7 +24,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId }) 
             let baseUrl: string;
             if (window.location.protocol === 'file:') {
                 // In Electron, use the server URL from environment or default
-                const serverUrl = process.env.REACT_APP_SERVER_URL || 'https://serverzvon.duckdns.org';
+                const serverUrl = process.env.REACT_APP_SERVER_URL || 'https://zvonserver.ru';
                 baseUrl = serverUrl.replace(/\/$/, ''); // Remove trailing slash
             } else {
                 baseUrl = `${window.location.protocol}//${window.location.host}`;
