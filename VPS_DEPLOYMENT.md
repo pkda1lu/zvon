@@ -382,7 +382,7 @@ pm2 monit
 cd /var/www/zvon/server
 
 # Если используете Git:
- git pull origin main
+git pull origin main
 
 # Установка новых зависимостей
 npm install --production

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useVoice } from '../contexts/VoiceContext';
 import { Channel, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -64,7 +64,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     };
   }, []);
 
-  const setFullscreenStatus = React.useCallback(async (newState: boolean) => {
+  const setFullscreenStatus = useCallback(async (newState: boolean) => {
     const container = videoContainerRef.current;
     if (!container) return;
 
@@ -107,7 +107,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     }
   };
 
-  const handleToggleFullscreen = React.useCallback((e: React.MouseEvent) => {
+  const handleToggleFullscreen = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setFullscreenStatus(!isFullscreen);
   }, [isFullscreen, setFullscreenStatus]);
