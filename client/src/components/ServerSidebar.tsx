@@ -6,6 +6,7 @@ import CreateChannelModal from './CreateChannelModal';
 import { HashtagIcon, SpeakerIcon, PlusIcon, SettingsIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { useVoice } from '../contexts/VoiceContext';
 import './ServerSidebar.css';
 
 import InviteModal from './InviteModal';
@@ -33,6 +34,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
+  const { speakingUsers } = useVoice();
 
   const ownerId = typeof server.owner === 'object' ? (server.owner as any)._id : server.owner;
   const currentUserId = currentUser?._id;
@@ -184,16 +186,16 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                 {/* Voice Users List */}
                 {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
                   <div className="voice-channel-users">
-                    {voiceStates[channel._id].map(user => (
-                      <div key={user._id} className="voice-user-item" onClick={(e) => { e.stopPropagation(); onUserClick(user._id); }}>
-                        <div className="voice-user-avatar">
-                          {getAvatarUrl(user.avatar) ? (
-                            <img src={getAvatarUrl(user.avatar)!} alt={user.username} />
+                    {voiceStates[channel._id].map(u => (
+                      <div key={u._id} className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`} onClick={(e) => { e.stopPropagation(); onUserClick(u._id); }}>
+                        <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
+                          {getAvatarUrl(u.avatar) ? (
+                            <img src={getAvatarUrl(u.avatar)!} alt={u.username} />
                           ) : (
-                            <span>{user.username.charAt(0).toUpperCase()}</span>
+                            <span>{u.username.charAt(0).toUpperCase()}</span>
                           )}
                         </div>
-                        <span className="voice-user-name">{user.username}</span>
+                        <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>{u.username}</span>
                       </div>
                     ))}
                   </div>

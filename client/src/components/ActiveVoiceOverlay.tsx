@@ -2,6 +2,7 @@ import React from 'react';
 import { useVoice } from '../contexts/VoiceContext';
 import { Channel } from '../types';
 import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
 import './VoiceCall.css'; // Reuse styles
 
 interface ActiveVoiceOverlayProps {
@@ -17,8 +18,10 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
         toggleDeafen,
         isScreenSharing,
         toggleScreenShare,
-        connectedUsers
+        connectedUsers,
+        speakingUsers
     } = useVoice();
+    const { user } = useAuth();
 
     // Initial position: bottom right corner, approximate
     const [position, setPosition] = React.useState({ x: window.innerWidth - 420, y: window.innerHeight - 150 });
@@ -77,7 +80,7 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
                 style={{ cursor: 'grab' }}
             >
                 <div className="call-user-info" style={{ pointerEvents: 'none' }}>
-                    <div className="call-avatar">
+                    <div className={`call-avatar ${user && speakingUsers.has(user._id) ? 'speaking' : ''}`}>
                         <SpeakerIcon size={24} />
                     </div>
                     <div className="call-user-details">

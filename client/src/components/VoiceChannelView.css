@@ -615,3 +615,60 @@
   font-size: 14px;
   text-align: center;
 }
+
+/* Speaking Indicator Styles */
+.participant-avatar.speaking,
+.stage-user-avatar.speaking {
+  border-color: #43b581 !important;
+  box-shadow: 0 0 15px rgba(67, 181, 129, 0.5);
+  position: relative;
+}
+
+.participant-avatar.speaking::after,
+.stage-user-avatar.speaking::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #43b581;
+  opacity: 0.6;
+  pointer-events: none;
+  animation: speaking-pulse-large 2s ease-in-out infinite;
+}
+
+.participant-name.speaking,
+.stage-user-name.speaking {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 4px rgba(67, 181, 129, 0.5);
+}
+
+@keyframes speaking-pulse-large {
+  0% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+}
+
+.participant-avatar,
+.stage-user-avatar {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.participant-name,
+.stage-user-name {
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}

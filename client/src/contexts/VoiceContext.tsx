@@ -5,6 +5,65 @@ import { useAuth } from './AuthContext';
 import { User } from '../types';
 import ScreenSourceSelector, { ScreenSource } from '../components/ScreenSourceSelector';
 
+// Remote Audio Component to handle lifecycle properly
+const RemoteAudio: React.FC<{
+    userId: string;
+    stream: MediaStream;
+    volume: number;
+    isDeafened: boolean;
+    isLocalMuted: boolean;
+}> = ({ userId, stream, volume, isDeafened, isLocalMuted }) => {
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.srcObject = stream;
+
+            const attemptPlay = async () => {
+                try {
+                    await audioRef.current?.play();
+                } catch (error) {
+                    if (error instanceof Error && error.name !== 'AbortError') {
+                        console.warn(`Audio play failed for user ${userId}, will retry on interaction:`, error);
+                    }
+                }
+            };
+            attemptPlay();
+        }
+    }, [stream, userId]);
+
+    // Handle interaction play separately if browser blocks autoplay
+    useEffect(() => {
+        const handleInteraction = () => {
+            audioRef.current?.play().catch(() => { });
+            document.removeEventListener('click', handleInteraction);
+        };
+        document.addEventListener('click', handleInteraction, { once: true });
+        return () => document.removeEventListener('click', handleInteraction);
+    }, []);
+
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.volume = Math.min(1, Math.max(0, volume));
+        }
+    }, [volume]);
+
+    return (
+        <audio
+            ref={audioRef}
+            autoPlay
+            playsInline
+            muted={isDeafened || isLocalMuted}
+            onLoadedMetadata={(e) => {
+                const el = e.currentTarget;
+                el.volume = Math.min(1, Math.max(0, volume));
+                el.play().catch(() => { });
+            }}
+            style={{ display: 'none' }}
+        />
+    );
+};
+
 interface VoiceContextType {
     isConnected: boolean;
     activeChannelId: string | null;
@@ -24,6 +83,7 @@ interface VoiceContextType {
     userStates: Map<string, { isMuted: boolean; isDeafened: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
+    speakingUsers: Set<string>;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -60,6 +120,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+    const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
+    const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+    const speakingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
     const audioContextRef = useRef<AudioContext | null>(null);
     const micGainNodeRef = useRef<GainNode | null>(null);
@@ -636,6 +699,120 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [isMuted, isDeafened]);
 
+    // Audio Analysis for Speaking Indicator
+    useEffect(() => {
+        if (!isConnected) {
+            analysersRef.current.clear();
+            setSpeakingUsers(new Set());
+            return;
+        }
+
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+        const checkSpeaking = () => {
+            const nowSpeaking = new Set<string>();
+            const threshold = 0.015; // Increased threshold slightly
+
+            analysersRef.current.forEach((analyser, userId) => {
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteTimeDomainData(dataArray);
+
+                // Calculate RMS (Volume)
+                let sumOfSquares = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    const normalized = (dataArray[i] - 128) / 128; // -1.0 to 1.0
+                    sumOfSquares += normalized * normalized;
+                }
+                const rms = Math.sqrt(sumOfSquares / dataArray.length);
+
+                if (rms > threshold) {
+                    nowSpeaking.add(userId);
+
+                    if (speakingTimeoutsRef.current.has(userId)) {
+                        clearTimeout(speakingTimeoutsRef.current.get(userId)!);
+                        speakingTimeoutsRef.current.delete(userId);
+                    }
+                }
+            });
+
+            setSpeakingUsers(prev => {
+                const newSet = new Set(prev);
+                let changed = false;
+
+                nowSpeaking.forEach(id => {
+                    if (!newSet.has(id)) {
+                        newSet.add(id);
+                        changed = true;
+                    }
+                });
+
+                prev.forEach(id => {
+                    if (!nowSpeaking.has(id) && !speakingTimeoutsRef.current.has(id)) {
+                        const timeout = setTimeout(() => {
+                            setSpeakingUsers(current => {
+                                if (!current.has(id)) return current;
+                                const updated = new Set(current);
+                                updated.delete(id);
+                                return updated;
+                            });
+                            speakingTimeoutsRef.current.delete(id);
+                        }, 250);
+                        speakingTimeoutsRef.current.set(id, timeout);
+                    }
+                });
+
+                return changed ? newSet : prev;
+            });
+        };
+
+        const interval = setInterval(checkSpeaking, 100); // 100ms is enough and lighter
+
+        const updateAnalysers = () => {
+            // Cleanup stale analysers
+            const currentParticipantIds = new Set(connectedUsers.map(u => u._id));
+            if (user?._id) currentParticipantIds.add(user._id);
+
+            analysersRef.current.forEach((_, id) => {
+                if (!currentParticipantIds.has(id)) {
+                    analysersRef.current.delete(id);
+                }
+            });
+
+            // Local
+            if (localStream && user?._id && !isMuted) {
+                if (!analysersRef.current.has(user._id)) {
+                    const source = audioCtx.createMediaStreamSource(localStream);
+                    const analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    analysersRef.current.set(user._id, analyser);
+                }
+            } else if (user?._id) {
+                analysersRef.current.delete(user._id);
+            }
+
+            // Remote
+            remoteStreams.forEach((stream, userId) => {
+                if (!analysersRef.current.has(userId) && stream.getAudioTracks().length > 0) {
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    const analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    analysersRef.current.set(userId, analyser);
+                }
+            });
+        };
+
+        updateAnalysers();
+
+        return () => {
+            clearInterval(interval);
+            audioCtx.close();
+            speakingTimeoutsRef.current.forEach(t => clearTimeout(t));
+            speakingTimeoutsRef.current.clear();
+        };
+    }, [isConnected, localStream, remoteStreams, user?._id, isMuted, connectedUsers]);
+
     const toggleLocalMute = useCallback((userId: string) => {
         setLocalMutes(prev => {
             const newMutes = new Set(prev);
@@ -667,7 +844,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setUserVolume,
             userStates,
             localMutes,
-            toggleLocalMute
+            toggleLocalMute,
+            speakingUsers
         }}>
             {children}
             {/* Screen Source Selector Modal */}
@@ -680,57 +858,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             {/* Hidden Audio Elements for Remote Streams */}
             <div style={{ display: 'none' }}>
                 {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
-                    <audio
+                    <RemoteAudio
                         key={userId}
-                        ref={el => {
-                            if (el) {
-                                const existingEl = audioElementsRef.current.get(userId);
-                                if (existingEl !== el) {
-                                    audioElementsRef.current.set(userId, el);
-                                    el.srcObject = stream;
-                                    // Force play with multiple attempts for Electron compatibility
-                                    const attemptPlay = async () => {
-                                        try {
-                                            await el.play();
-                                            console.log(`Audio playing for user ${userId}`);
-                                        } catch (error) {
-                                            console.error(`Error playing audio for user ${userId}:`, error);
-                                            // Retry after a short delay
-                                            setTimeout(() => {
-                                                el.play().catch(e => console.error('Retry play failed:', e));
-                                            }, 100);
-                                        }
-                                    };
-                                    attemptPlay();
-                                    // Also try on user interaction
-                                    const handleInteraction = () => {
-                                        el.play().catch(e => console.error('Interaction play failed:', e));
-                                        document.removeEventListener('click', handleInteraction);
-                                        document.removeEventListener('keydown', handleInteraction);
-                                    };
-                                    document.addEventListener('click', handleInteraction, { once: true });
-                                    document.addEventListener('keydown', handleInteraction, { once: true });
-                                }
-                                try {
-                                    // HTML Audio volume must be between 0 and 1. 
-                                    const vol = userVolumes.has(userId) ? userVolumes.get(userId)! : 1;
-                                    el.volume = Math.min(1, Math.max(0, vol));
-                                } catch (e) {
-                                    console.error("Error setting volume:", e);
-                                }
-                                // Apply local mute or global deafen
-                                el.muted = isDeafened || localMutes.has(userId);
-                            } else {
-                                audioElementsRef.current.delete(userId);
-                            }
-                        }}
-                        autoPlay
-                        playsInline
-                        muted={isDeafened || localMutes.has(userId)}
-                        onLoadedMetadata={(e) => {
-                            const el = e.currentTarget;
-                            el.play().catch(err => console.error('Metadata loaded play failed:', err));
-                        }}
+                        userId={userId}
+                        stream={stream}
+                        volume={userVolumes.has(userId) ? userVolumes.get(userId)! : 1}
+                        isDeafened={isDeafened}
+                        isLocalMuted={localMutes.has(userId)}
                     />
                 ))}
             </div>

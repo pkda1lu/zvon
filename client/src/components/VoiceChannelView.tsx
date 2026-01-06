@@ -35,7 +35,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     remoteStreams,
     userVolumes,
     setUserVolume,
-    userStates
+    userStates,
+    speakingUsers
   } = useVoice();
 
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
@@ -301,14 +302,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                         />
                       )}
                       <div className="stage-user-info">
-                        <div className="stage-user-avatar">
+                        <div className={`stage-user-avatar ${speakingUsers.has(focusedItem.data._id) ? 'speaking' : ''}`}>
                           {getAvatarUrl(focusedItem.data.avatar) ? (
                             <img src={getAvatarUrl(focusedItem.data.avatar)!} alt="" style={{ width: '100%', height: '100%' }} />
                           ) : (
                             <div style={{ background: '#5865f2', width: '100%', height: '100%' }}></div>
                           )}
                         </div>
-                        <span className="stage-user-name">{focusedItem.data.username}</span>
+                        <span className={`stage-user-name ${speakingUsers.has(focusedItem.data._id) ? 'speaking' : ''}`}>{focusedItem.data.username}</span>
                       </div>
 
                       <button
@@ -391,14 +392,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                                 )}
 
                                 <div className="participant-info">
-                                  <div className="participant-avatar">
+                                  <div className={`participant-avatar ${speakingUsers.has(participant._id) ? 'speaking' : ''}`}>
                                     {getAvatarUrl(participant.avatar) ? (
                                       <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
                                     ) : (
                                       <span>{participant.username.charAt(0).toUpperCase()}</span>
                                     )}
                                   </div>
-                                  <div className="participant-name">
+                                  <div className={`participant-name ${speakingUsers.has(participant._id) ? 'speaking' : ''}`}>
                                     {participant.username}{participant.isMe ? ' (Вы)' : ''}
                                   </div>
                                 </div>
@@ -474,14 +475,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                         )}
 
                         <div className="participant-info">
-                          <div className="participant-avatar">
+                          <div className={`participant-avatar ${speakingUsers.has(participant._id) ? 'speaking' : ''}`}>
                             {getAvatarUrl(participant.avatar) ? (
                               <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
                             ) : (
                               <span>{participant.username.charAt(0).toUpperCase()}</span>
                             )}
                           </div>
-                          <div className="participant-name">
+                          <div className={`participant-name ${speakingUsers.has(participant._id) ? 'speaking' : ''}`}>
                             {participant.username}{participant.isMe ? ' (Вы)' : ''}
                           </div>
                         </div>
