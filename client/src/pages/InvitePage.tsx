@@ -42,7 +42,17 @@ const InvitePage: React.FC = () => {
         }
     };
 
+    // Auto-join in Electron
+    useEffect(() => {
+        if (invite && (window as any).electron && !joining && !error) {
+            console.log('Auto-joining server in Electron...');
+            handleJoin();
+        }
+    }, [invite, joining, error]);
+
     if (loading) return <div className="invite-page-loading">Загрузка...</div>;
+
+    const isElectron = (window as any).electron;
 
     return (
         <div className="invite-page-container">
@@ -72,8 +82,19 @@ const InvitePage: React.FC = () => {
                                 onClick={handleJoin}
                                 disabled={joining}
                             >
-                                {joining ? 'Вход...' : 'Принять приглашение'}
+                                {joining ? 'Вход...' : isElectron ? 'Присоединиться к серверу' : 'Продолжить в браузере'}
                             </button>
+
+                            {!isElectron && (
+                                <button
+                                    className="open-app-button"
+                                    onClick={() => {
+                                        window.location.href = `zvon://invite/${code}`;
+                                    }}
+                                >
+                                    Открыть в приложении
+                                </button>
+                            )}
                         </div>
                     </>
                 )}

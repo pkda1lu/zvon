@@ -27,8 +27,9 @@
     "productName": "Zvon",
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "icon": "public/app_icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "Zvon Team"
     },
     "files": [
       "build/**/*",

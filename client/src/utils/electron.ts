@@ -212,11 +212,8 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
             mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: source.id,
-                minWidth: 1280,
                 maxWidth: 1920,
-                minHeight: 720,
                 maxHeight: 1080,
-                minFrameRate: 30,
                 maxFrameRate: 60
             }
         }

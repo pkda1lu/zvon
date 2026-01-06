@@ -25,7 +25,21 @@ try {
             invoke: (channel, ...args) => {
                 console.log('Preload: IPC invoke:', channel, args);
                 return ipcRenderer.invoke(channel, ...args);
+            },
+            on: (channel, func) => {
+                const subscription = (event, ...args) => func(event, ...args);
+                ipcRenderer.on(channel, subscription);
+                return () => ipcRenderer.removeListener(channel, subscription);
+            },
+            send: (channel, ...args) => {
+                ipcRenderer.send(channel, ...args);
+            },
+            removeAllListeners: (channel) => {
+                ipcRenderer.removeAllListeners(channel);
             }
+        },
+        clipboard: {
+            writeText: (text) => ipcRenderer.send('clipboard-write', text)
         }
     };
 

@@ -1,78 +1,111 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain } = require('electron');
+const { app, BrowserWindow, desktopCapturer, ipcMain, clipboard } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 
-function createWindow() {
-    const mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        webPreferences: {
-            nodeIntegration: false, // Disable for security
-            contextIsolation: true, // Enable for security with preload
-            enableRemoteModule: false,
-            webSecurity: true, // Keep web security enabled for getDisplayMedia
-            // Allow access to media devices
-            allowRunningInsecureContent: false,
-            preload: isDev 
-                ? path.join(__dirname, '../public/preload.js')
-                : path.join(__dirname, 'preload.js'), // Load preload script for desktopCapturer
-        },
-        autoHideMenuBar: true, // Hide default menu
-        icon: path.join(__dirname, 'favicon.ico'), // Ensure you have an icon if possible
-    });
+let pendingDeepLink = null;
+let mainWindow;
 
-    // Handle screen sharing permissions
-    mainWindow.webContents.on('select-bluetooth-device', (event, deviceList, callback) => {
-        event.preventDefault();
-        callback('');
-    });
+// Register the custom protocol
+if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient('zvon', process.execPath, [path.resolve(process.argv[1])]);
+    }
+} else {
+    app.setAsDefaultProtocolClient('zvon');
+}
 
-    // Request media access permissions
-    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-        const allowedPermissions = ['media', 'microphone', 'camera', 'display-capture'];
-        if (allowedPermissions.includes(permission)) {
-            callback(true); // Allow
-        } else {
-            callback(false); // Deny
+// Check if app was opened with a protocol URL on startup
+const startupUrl = process.argv.find(arg => arg.startsWith('zvon://'));
+if (startupUrl) {
+    pendingDeepLink = startupUrl;
+}
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // Someone tried to run a second instance, we should focus our window.
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+
+            // Handle deep link from second instance
+            const url = commandLine.find(arg => arg.startsWith('zvon://'));
+            if (url) {
+                mainWindow.webContents.send('deep-link', url);
+            }
         }
     });
 
-    // Handle media access check
+    app.whenReady().then(() => {
+        createWindow();
+
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) {
+                createWindow();
+            }
+        });
+    });
+}
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1280,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            enableRemoteModule: false,
+            webSecurity: true,
+            preload: isDev
+                ? path.join(__dirname, '../public/preload.js')
+                : path.join(__dirname, 'preload.js'),
+        },
+        autoHideMenuBar: true,
+        icon: path.join(__dirname, 'app_icon.ico'),
+    });
+
+    // Handle Deep Links for macOS
+    app.on('open-url', (event, url) => {
+        event.preventDefault();
+        if (mainWindow) {
+            mainWindow.webContents.send('deep-link', url);
+        } else {
+            pendingDeepLink = url;
+        }
+    });
+
+
+    // Handle screen sharing permissions
+    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        const allowedPermissions = ['media', 'microphone', 'camera', 'display-capture'];
+        if (allowedPermissions.includes(permission)) {
+            callback(true);
+        } else {
+            callback(false);
+        }
+    });
+
     mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
         const allowedPermissions = ['media', 'microphone', 'camera', 'display-capture'];
         return allowedPermissions.includes(permission);
     });
 
-    // Wait for preload to be ready and check if it loaded
-    const preloadPath = path.join(__dirname, isDev ? '../public/preload.js' : 'preload.js');
-    console.log('Preload path:', preloadPath);
-    const fs = require('fs');
-    if (fs.existsSync(preloadPath)) {
-        console.log('Preload file exists');
-    } else {
-        console.error('Preload file NOT found at:', preloadPath);
-    }
-
     mainWindow.webContents.on('did-finish-load', () => {
-        console.log('Window loaded, checking Electron API availability...');
-        // Wait a bit for preload to execute
-        setTimeout(() => {
-            mainWindow.webContents.executeJavaScript(`
-                console.log('=== Electron API Check ===');
-                console.log('Window electron API type:', typeof window.electron);
-                console.log('Window electron exists:', !!window.electron);
-                if (window.electron) {
-                    console.log('Window electron keys:', Object.keys(window.electron));
-                    console.log('Window electron.desktopCapturer:', typeof window.electron.desktopCapturer);
-                    console.log('Window electron.ipc:', typeof window.electron.ipc);
-                } else {
-                    console.log('Window electron is undefined!');
-                    console.log('Available window properties:', Object.keys(window).filter(k => k.toLowerCase().includes('electron')));
-                }
-                console.log('Window process:', typeof window.process);
-                console.log('========================');
-            `).catch(console.error);
-        }, 500); // Wait 500ms for preload to execute
+        if (pendingDeepLink) {
+            mainWindow.webContents.send('deep-link', pendingDeepLink);
+            // We usually don't clear it here but let the renderer ask for it specifically to be sure
+        }
+    });
+
+    mainWindow.on('enter-full-screen', () => {
+        mainWindow.webContents.send('fullscreen-changed', true);
+    });
+
+    mainWindow.on('leave-full-screen', () => {
+        mainWindow.webContents.send('fullscreen-changed', false);
     });
 
     mainWindow.loadURL(
@@ -81,21 +114,29 @@ function createWindow() {
             : `file://${path.join(__dirname, 'index.html')}`
     );
 
-    // Filter out non-critical console errors
-    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-        // Ignore Autofill API errors (not supported in Electron, but harmless)
-        if (message.includes('Autofill.enable') || message.includes('Autofill.setAddresses')) {
-            return; // Suppress these messages
-        }
-        // You can log other messages if needed
-    });
-
     if (isDev) {
         mainWindow.webContents.openDevTools();
     }
 }
 
-// IPC handler for desktopCapturer (fallback if preload doesn't work)
+
+// IPC handler to get pending deep link
+ipcMain.handle('get-pending-deep-link', () => {
+    const link = pendingDeepLink;
+    pendingDeepLink = null; // Clear after retrieval
+    return link;
+});
+
+// IPC handler for native clipboard write
+ipcMain.on('clipboard-write', (event, text) => {
+    try {
+        clipboard.writeText(text);
+    } catch (error) {
+        console.error('Native clipboard write failed:', error);
+    }
+});
+
+// IPC handler for desktopCapturer
 ipcMain.handle('get-desktop-sources', async (event, options) => {
     try {
         const sources = await desktopCapturer.getSources(options);
@@ -106,14 +147,13 @@ ipcMain.handle('get-desktop-sources', async (event, options) => {
     }
 });
 
-app.whenReady().then(() => {
-    createWindow();
-
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow();
-        }
-    });
+// IPC handler to toggle window fullscreen
+ipcMain.handle('toggle-fullscreen', (event, isFullscreen) => {
+    if (mainWindow) {
+        mainWindow.setFullScreen(isFullscreen);
+        return mainWindow.isFullScreen();
+    }
+    return false;
 });
 
 app.on('window-all-closed', () => {

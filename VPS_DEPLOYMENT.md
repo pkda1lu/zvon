@@ -189,10 +189,10 @@ sudo nano /etc/nginx/sites-available/zvon
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name serverzvon.duckdns.org;
+    server_name zvonserver.ru;
 
-    ssl_certificate     /etc/letsencrypt/live/serverzvon.duckdns.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/serverzvon.duckdns.org/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/zvonserver.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/zvonserver.ru/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
@@ -281,7 +281,7 @@ server {
 
 server {
     listen 80;
-    server_name serverzvon.duckdns.org;
+    server_name zvonserver.ru;
     return 301 https://$server_name$request_uri;
 }
 

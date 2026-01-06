@@ -45,11 +45,59 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId }) 
         }
     }, [isOpen, inviteLink, generateInvite]);
 
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(inviteLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const copyToClipboard = async () => {
+        // Try native Electron clipboard first if available
+        // @ts-ignore
+        const electron = window.electron;
+        if (electron && electron.clipboard && typeof electron.clipboard.writeText === 'function') {
+            try {
+                electron.clipboard.writeText(inviteLink);
+                setCopied(true);
+                return;
+            } catch (err) {
+                console.warn('Native Electron clipboard failed:', err);
+            }
+        }
+
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(inviteLink);
+                setCopied(true);
+            } else {
+                throw new Error('Clipboard API unavailable');
+            }
+        } catch (err) {
+            console.warn('Navigator clipboard failed, using fallback:', err);
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = inviteLink;
+                // Ensure the textarea is not visible
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (successful) {
+                    setCopied(true);
+                } else {
+                    console.error('Fallback copy failed');
+                }
+            } catch (fallbackErr) {
+                console.error('Both clipboard methods failed:', fallbackErr);
+            }
+        }
     };
+
+    // Use a separate useEffect to handle the 'copied' timeout since setCopied(true) might be called multiple times
+    useEffect(() => {
+        if (copied) {
+            const timer = setTimeout(() => setCopied(false), 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [copied]);
 
     if (!isOpen) return null;
 

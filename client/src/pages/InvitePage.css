@@ -117,12 +117,25 @@
     margin-bottom: 16px;
 }
 
-.invite-error button {
-    background-color: #5865f2;
+.invite-error button:hover {
+    background-color: #4752c4;
+}
+
+.open-app-button {
+    background-color: transparent;
     color: #fff;
-    border: none;
+    border: 1px solid #4f545c;
     border-radius: 3px;
-    padding: 10px 20px;
+    padding: 14px 28px;
+    font-size: 16px;
+    font-weight: 500;
     cursor: pointer;
-    margin-top: 16px;
+    width: 100%;
+    margin-top: 12px;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.open-app-button:hover {
+    background-color: rgba(79, 84, 92, 0.3);
+    border-color: #72767d;
 }

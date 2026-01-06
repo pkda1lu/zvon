@@ -17,6 +17,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
     const [sources, setSources] = useState<ScreenSource[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedSource, setSelectedSource] = useState<ScreenSource | null>(null);
+    const [activeTab, setActiveTab] = useState<'screens' | 'applications'>('applications');
 
     useEffect(() => {
         loadSources();
@@ -26,40 +27,36 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
         try {
             setLoading(true);
             const { getElectronAPI, isElectron } = await import('../utils/electron');
-            
+
             if (!isElectron()) {
-                // For non-Electron, use standard getDisplayMedia (it will show native picker)
-                onSelect(null); // null means use native picker
+                onSelect(null);
                 return;
             }
 
             const electronAPI = getElectronAPI();
             if (!electronAPI) {
-                console.error('Electron API not available');
                 onSelect(null);
                 return;
             }
 
             let sourcesList: ScreenSource[] = [];
-            
-            // Try to get sources via desktopCapturer
+
             if (electronAPI.desktopCapturer && typeof electronAPI.desktopCapturer.getSources === 'function') {
                 try {
                     sourcesList = await electronAPI.desktopCapturer.getSources({
                         types: ['window', 'screen'],
-                        thumbnailSize: { width: 200, height: 150 }
+                        thumbnailSize: { width: 300, height: 200 }
                     });
                 } catch (error) {
                     console.error('Error getting sources via desktopCapturer:', error);
                 }
             }
-            
-            // Fallback to IPC
+
             if (sourcesList.length === 0 && electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
                 try {
                     sourcesList = await electronAPI.ipc.invoke('get-desktop-sources', {
                         types: ['window', 'screen'],
-                        thumbnailSize: { width: 200, height: 150 }
+                        thumbnailSize: { width: 300, height: 200 }
                     });
                 } catch (error) {
                     console.error('Error getting sources via IPC:', error);
@@ -67,21 +64,27 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
             }
 
             if (sourcesList.length === 0) {
-                console.warn('No sources available, using native picker');
                 onSelect(null);
                 return;
             }
 
-            // Sort sources: screens first, then windows
-            const sortedSources = sourcesList.sort((a, b) => {
-                const aIsScreen = a.id.startsWith('screen:');
-                const bIsScreen = b.id.startsWith('screen:');
-                if (aIsScreen && !bIsScreen) return -1;
-                if (!aIsScreen && bIsScreen) return 1;
-                return a.name.localeCompare(b.name);
+            // Filter out system/invisible windows
+            const filteredSources = sourcesList.filter(source => {
+                const name = source.name.toLowerCase();
+                // Filter out Nvidia Geforce Overlay and other technical windows
+                if (name.includes('nvidia geforce overlay')) return false;
+                if (name.includes('geforce experience')) return false;
+                if (name === 'task manager') return false;
+                if (name === '') return false;
+                return true;
             });
 
-            setSources(sortedSources);
+            setSources(filteredSources);
+
+            // Set initial active tab based on what's available
+            const hasWindows = filteredSources.some(s => s.id.startsWith('window:'));
+            if (!hasWindows) setActiveTab('screens');
+
         } catch (error) {
             console.error('Error loading sources:', error);
             onSelect(null);
@@ -94,7 +97,6 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
         if (selectedSource) {
             onSelect(selectedSource);
         } else {
-            // Use native picker
             onSelect(null);
         }
     };
@@ -104,80 +106,91 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
             <div className="screen-source-selector-overlay">
                 <div className="screen-source-selector-modal">
                     <div className="screen-source-selector-header">
-                        <h2>Выберите источник для демонстрации</h2>
+                        <h2>Демонстрация экрана</h2>
                     </div>
                     <div className="screen-source-selector-loading">
                         <div className="loading-spinner"></div>
-                        <p>Загрузка доступных источников...</p>
+                        <p>Поиск окон и экранов...</p>
                     </div>
                 </div>
             </div>
         );
     }
 
-    if (sources.length === 0) {
-        // No sources available, use native picker
-        handleSelect();
-        return null;
-    }
+    const applicationSources = sources.filter(s => s.id.startsWith('window:'));
+    const screenSources = sources.filter(s => s.id.startsWith('screen:'));
+    const displaySources = activeTab === 'applications' ? applicationSources : screenSources;
 
     return (
         <div className="screen-source-selector-overlay" onClick={onCancel}>
             <div className="screen-source-selector-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="screen-source-selector-header">
-                    <h2>Выберите источник для демонстрации</h2>
+                    <h2>Демонстрация экрана</h2>
                     <button className="close-button" onClick={onCancel}>×</button>
                 </div>
+
+                <div className="screen-source-tabs">
+                    <button
+                        className={`tab-button ${activeTab === 'applications' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('applications')}
+                    >
+                        Приложения
+                    </button>
+                    <button
+                        className={`tab-button ${activeTab === 'screens' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('screens')}
+                    >
+                        Экраны
+                    </button>
+                </div>
+
                 <div className="screen-source-selector-content">
-                    <div className="sources-grid">
-                        {sources.map((source) => {
-                            const isScreen = source.id.startsWith('screen:');
-                            return (
+                    {displaySources.length > 0 ? (
+                        <div className="sources-grid">
+                            {displaySources.map((source) => (
                                 <div
                                     key={source.id}
-                                    className={`source-item ${selectedSource?.id === source.id ? 'selected' : ''} ${isScreen ? 'screen-source' : 'window-source'}`}
+                                    className={`source-item ${selectedSource?.id === source.id ? 'selected' : ''}`}
                                     onClick={() => setSelectedSource(source)}
+                                    onDoubleClick={handleSelect}
                                 >
-                                    {source.thumbnail && (
-                                        <img 
-                                            src={
-                                                typeof source.thumbnail === 'string' 
-                                                    ? source.thumbnail 
-                                                    : (source.thumbnail as any).toDataURL 
-                                                        ? (source.thumbnail as any).toDataURL() 
-                                                        : ''
-                                            } 
-                                            alt={source.name}
-                                            className="source-thumbnail"
-                                            onError={(e) => {
-                                                // Hide thumbnail if it fails to load
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                            }}
-                                        />
-                                    )}
+                                    <div className="source-thumbnail-container">
+                                        {source.thumbnail ? (
+                                            <img
+                                                src={typeof source.thumbnail === 'string' ? source.thumbnail : (source.thumbnail as any).toDataURL?.()}
+                                                alt={source.name}
+                                                className="source-thumbnail"
+                                            />
+                                        ) : (
+                                            <div className="source-thumbnail-placeholder">
+                                                {activeTab === 'screens' ? '🖥️' : '🪟'}
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="source-info">
-                                        <div className="source-icon">
-                                            {isScreen ? '🖥️' : '🪟'}
-                                        </div>
                                         <div className="source-name" title={source.name}>
                                             {source.name}
                                         </div>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="no-sources">
+                            Источники не найдены
+                        </div>
+                    )}
                 </div>
                 <div className="screen-source-selector-footer">
                     <button className="cancel-button" onClick={onCancel}>
                         Отмена
                     </button>
-                    <button 
-                        className="select-button" 
+                    <button
+                        className="select-button"
                         onClick={handleSelect}
-                        disabled={!selectedSource && sources.length > 0}
+                        disabled={!selectedSource}
                     >
-                        {selectedSource ? 'Продолжить' : 'Использовать системный выбор'}
+                        Поделиться
                     </button>
                 </div>
             </div>

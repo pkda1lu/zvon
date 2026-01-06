@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const DirectMessage = require('../models/DirectMessage');
@@ -25,6 +26,11 @@ router.get('/', auth, async (req, res) => {
 router.get('/user/:userId', auth, async (req, res) => {
   try {
     const { userId } = req.params;
+    console.log(`Getting/Creating DM with user: ${userId} from user: ${req.user._id}`);
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
 
     if (userId === req.user._id.toString()) {
       return res.status(400).json({ message: 'Cannot create DM with yourself' });

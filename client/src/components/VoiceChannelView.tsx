@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useVoice } from '../contexts/VoiceContext';
 import { Channel, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,7 +38,96 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
   const [focusedStreamId, setFocusedStreamId] = useState<string | null>(null);
   const [isStageFullWidth, setIsStageFullWidth] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; userId: string } | null>(null);
+
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    // Listen for Electron window fullscreen events
+    const win = window as any;
+    let cleanup: (() => void) | undefined;
+    if (win.electron && win.electron.ipc) {
+      cleanup = win.electron.ipc.on('fullscreen-changed', (_: any, state: boolean) => {
+        setIsFullscreen(state);
+      });
+    }
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (cleanup) cleanup();
+    };
+  }, []);
+
+  const setFullscreenStatus = React.useCallback(async (newState: boolean) => {
+    const container = videoContainerRef.current;
+    if (!container) return;
+
+    const win = window as any;
+    const isElectron = !!(win.electron && win.electron.ipc);
+
+    if (isElectron) {
+      try {
+        const actualState = await win.electron.ipc.invoke('toggle-fullscreen', newState);
+        setIsFullscreen(actualState);
+      } catch (err) {
+        console.error('Electron fullscreen failed:', err);
+        browserFullscreenFallback(container, newState);
+      }
+    } else {
+      browserFullscreenFallback(container, newState);
+    }
+  }, [isFullscreen]); // We need isFullscreen to know CURRENT state if we were toggling, but here we pass newState
+
+  const browserFullscreenFallback = (container: HTMLElement, newState: boolean) => {
+    if (newState) {
+      if (!document.fullscreenElement) {
+        const requestFullscreen =
+          container.requestFullscreen ||
+          (container as any).webkitRequestFullscreen ||
+          (container as any).msRequestFullscreen;
+
+        if (requestFullscreen) {
+          requestFullscreen.call(container).catch((err: any) => {
+            console.error('Browser fullscreen failed:', err);
+          });
+        }
+      }
+    } else {
+      const doc = document as any;
+      if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        const exitFullscreen = doc.exitFullscreen || doc.webkitExitFullscreen;
+        if (exitFullscreen) exitFullscreen.call(doc);
+      }
+    }
+  };
+
+  const handleToggleFullscreen = React.useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFullscreenStatus(!isFullscreen);
+  }, [isFullscreen, setFullscreenStatus]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setFullscreenStatus(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, setFullscreenStatus]);
+
+  // Exit fullscreen if focused stream is lost
+  useEffect(() => {
+    if (!focusedStreamId && isFullscreen) {
+      setFullscreenStatus(false);
+    }
+  }, [focusedStreamId, isFullscreen, setFullscreenStatus]);
 
   const handleCloseContextMenu = () => setContextMenu(null);
 
@@ -148,7 +237,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
   const gridClass = `participants-grid count-${displayItems.length > 4 ? 'more' : displayItems.length}`;
 
   return (
-    <div className="voice-channel-view">
+    <div className={`voice-channel-view ${isFullscreen ? 'app-fullscreen' : ''}`}>
       <div className="voice-channel-header">
         <div className="voice-channel-info">
           <span className="voice-channel-icon"><SpeakerIcon /></span>
@@ -190,9 +279,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
         </>
       )}
 
-      <div className="voice-channel-content">
+      <div className={`voice-channel-content ${isFullscreen ? 'is-fullscreen-mode' : ''}`}>
         {focusedStreamId ? (
-          <div className="stage-container">
+          <div className={`stage-container ${isFullscreen ? 'fullscreen' : ''}`}>
             {(() => {
               const focusedItem = displayItems.find(i => i.id === focusedStreamId);
               const otherItems = displayItems.filter(i => i.id !== focusedStreamId);
@@ -206,12 +295,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
               return (
                 <>
                   <div className="stage-main" style={{ flex: 1 }}>
-                    <div className="maximized-video-container">
+                    <div className="maximized-video-container" ref={videoContainerRef}>
                       <video
                         autoPlay
                         playsInline
                         muted={true}
-                        className="maximized-video"
+                        className={`maximized-video ${focusedItem.type === 'screen' ? 'is-screen' : 'is-camera'}`}
                         ref={el => {
                           if (el && focusedItem.stream && el.srcObject !== focusedItem.stream) {
                             el.srcObject = focusedItem.stream;
@@ -231,19 +320,19 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
 
                       <button
                         className="toggle-fullscreen-button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsStageFullWidth(!isStageFullWidth);
-                        }}
-                        title={isStageFullWidth ? "Свернуть" : "На весь экран"}
+                        onClick={handleToggleFullscreen}
+                        title={isFullscreen ? "Свернуть" : "На весь экран"}
                       >
-                        {isStageFullWidth ? <MinimizeIcon size={20} /> : <MaximizeIcon size={20} />}
+                        {isFullscreen ? <MinimizeIcon size={20} /> : <MaximizeIcon size={20} />}
                       </button>
 
                       <button
                         className="stop-watching-button"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
+                          if (isFullscreen) {
+                            await setFullscreenStatus(false);
+                          }
                           setFocusedStreamId(null);
                           setIsStageFullWidth(false);
                         }}
@@ -287,13 +376,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                                 autoPlay
                                 playsInline
                                 muted={true}
-                                className="participant-video"
+                                className="participant-video is-screen"
                                 ref={el => {
                                   if (el && el.srcObject !== item.stream) {
                                     el.srcObject = item.stream!;
                                   }
                                 }}
-                                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
                               />
                             ) : (
                               <>
@@ -366,13 +454,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                         autoPlay
                         playsInline
                         muted={true}
-                        className="participant-video"
+                        className="participant-video is-screen"
                         ref={el => {
                           if (el && el.srcObject !== item.stream) {
                             el.srcObject = item.stream!;
                           }
                         }}
-                        style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
                       />
                     ) : (
                       <>
