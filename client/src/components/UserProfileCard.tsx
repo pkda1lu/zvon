@@ -225,7 +225,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                                 {isManagingRoles && (
                                                     <div className="role-selector-dropdown">
                                                         {allServerRoles
-                                                            .filter(r => !memberRoles.some(mr => mr._id === r._id))
+                                                            .filter(r => r && r._id && !memberRoles.some(mr => mr && mr._id === r._id))
                                                             .map(role => (
                                                                 <div
                                                                     key={role._id}
@@ -236,7 +236,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                                                     {role.name}
                                                                 </div>
                                                             ))}
-                                                        {allServerRoles.filter(r => !memberRoles.some(mr => mr._id === r._id)).length === 0 && (
+                                                        {allServerRoles.filter(r => r && r._id && !memberRoles.some(mr => mr && mr._id === r._id)).length === 0 && (
                                                             <div className="no-roles-av">Нет доступных ролей</div>
                                                         )}
                                                     </div>

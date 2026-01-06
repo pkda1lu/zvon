@@ -18,6 +18,20 @@
     overflow: hidden;
     position: relative;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    height: auto;
+    max-height: 90vh;
+    /* Allow it to grow but fit screen */
+    display: flex;
+    flex-direction: column;
+}
+
+.profile-tab-content {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    /* Important for flex child scrolling */
+    padding-bottom: 15px;
+    /* Add some padding at bot */
 }
 
 .user-profile-card.loading {
@@ -340,11 +354,12 @@
     border: 1px solid #2f3136;
     border-radius: 4px;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-    z-index: 10;
-    max-height: 200px;
+    z-index: 100;
+    /* Ensure high z-index */
+    max-height: 150px;
     overflow-y: auto;
     padding: 4px 0;
-    margin-top: 8px;
+    margin-top: 4px;
 }
 
 .roles-list {

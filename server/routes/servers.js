@@ -48,6 +48,17 @@ router.post('/', auth, async (req, res) => {
 
     await server.save();
 
+    // Create default @everyone role
+    const everyoneRole = new Role({
+      name: '@everyone',
+      color: '#99AAB5',
+      permissions: ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY', 'CONNECT', 'SPEAK', 'CREATE_INSTANT_INVITE', 'VIEW_CHANNELS'],
+      server: server._id,
+      position: 0
+    });
+    await everyoneRole.save();
+    server.roles.push(everyoneRole._id);
+
     // Create default channels
     const generalChannel = new Channel({
       name: 'general',

@@ -39,9 +39,24 @@ export const hasPermission = (
         }
     });
 
+    // Add @everyone permissions
+    const everyoneRole = server.roles?.find(r => r.name === '@everyone');
+    if (everyoneRole && everyoneRole.permissions) {
+        everyoneRole.permissions.forEach(p => memberPermissions.add(p));
+    }
+
     // 3. Administrator overrides everything
     if (memberPermissions.has(PERMISSIONS.ADMINISTRATOR)) return true;
 
     // 4. Check specific permission
-    return memberPermissions.has(permission);
+    if (memberPermissions.has(permission)) return true;
+
+    // 5. Fallback for legacy servers (if no @everyone role found)
+    if (!everyoneRole) {
+        // Match server-side defaults
+        const DEFAULT_PERMISSIONS = ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY', 'CONNECT', 'SPEAK', 'CREATE_INSTANT_INVITE', 'VIEW_CHANNELS'];
+        if (DEFAULT_PERMISSIONS.includes(permission)) return true;
+    }
+
+    return false;
 };

@@ -487,28 +487,10 @@ io.on('connection', (socket) => {
   socket.on('voice-offer', async (data) => {
     if (!socket.voiceChannelId) return;
 
-    // Permission Check specifically for SPEAK
-    const Channel = require('./models/Channel');
-    const channel = await Channel.findById(socket.voiceChannelId);
-    if (channel && channel.server) {
-      // Optimization: We could cache these checks or rely on the join-time check?
-      // But permissions might change while in channel.
-      const canSpeak = await hasPermission(socket.userId, channel.server, 'SPEAK');
-      // const canVideo = await hasPermission(socket.userId, channel.server, 'VIDEO'); // If we wanted to check video
-
-      if (!canSpeak) {
-        // Logic: If they can't speak, they shouldn't send offers?
-        // But what if they just want to send video?
-        // Let's assume SPEAK is required to transmit ANY media for now, or check for either.
-        // But usually SPEAK is the primary "transmit" permission.
-        // If we block offer, they can't transmit.
-        const canVideo = await hasPermission(socket.userId, channel.server, 'VIDEO');
-        if (!canVideo) {
-          // Cant speak AND cant video -> block offer
-          return;
-        }
-      }
-    }
+    // We rely on the initial 'join-voice-channel' CONNECT permission check.
+    // Blocking 'voice-offer' prevents the P2P handshake, which stops users from even listening.
+    // Future improvement: Implement specific 'speak' vs 'listen' logic if needed,
+    // possibly by filtering SDP or using a media server, but for Mesh P2P, we allow the handshake.
 
     io.to(`user-${data.targetUserId}`).emit('voice-offer', {
       fromUserId: socket.userId,
