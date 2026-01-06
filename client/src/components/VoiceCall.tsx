@@ -31,9 +31,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const ringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ringTimeoutRef = useRef<any>(null);
   const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(initialOffer?.offer || null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const micGainNodeRef = useRef<GainNode | null>(null);
+  const mixedStreamRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const retryTimeoutRef = useRef<any>(null);
 
   // Effect to handle join room for CALLER immediately
   useEffect(() => {
@@ -102,8 +106,19 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       console.log('Other user is already in room. Checking if I should initiate WebRTC...');
       setIsRinging(false);
       setIsWaitingInRoom(false);
+
+      // If we are the one who should initiate, do it
       if (user && user._id < otherUser._id) {
         initiateWebRTC();
+      } else {
+        // Fallback: if we are NOT the initiator but nothing happens for 5s, we try anyway
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => {
+          if (!isCallActive) {
+            console.log('VoiceCall: Proactive initiation (timeout)');
+            initiateWebRTC();
+          }
+        }, 5000);
       }
     }
   };
@@ -128,10 +143,18 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
     }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(e => console.error("Error closing audio context", e));
+      audioContextRef.current = null;
+    }
     if (peerConnectionRef.current) {
+      // Remove listeners before closing
+      peerConnectionRef.current.onicecandidate = null;
+      peerConnectionRef.current.ontrack = null;
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
+    if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
   };
 
   const processIceQueue = async (pc: RTCPeerConnection) => {
@@ -169,10 +192,18 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
 
     pc.ontrack = (event) => {
       console.log('VoiceCall: Remote track received', event.streams[0].id, event.track.kind);
-      // Create a specific side-effect to force video element update if stream is same
+      // Ensure all tracks are played. We use a hidden audio element for safety if it's audio only
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = event.streams[0];
-        remoteVideoRef.current.play().catch(e => console.error("Auto-play error", e));
+        remoteVideoRef.current.play().catch(e => {
+          console.warn("Auto-play error (might need interaction)", e);
+          // If auto-play fails, we'll try again on any click
+          const retryPlay = () => {
+            remoteVideoRef.current?.play().catch(() => { });
+            window.removeEventListener('click', retryPlay);
+          };
+          window.addEventListener('click', retryPlay);
+        });
       }
       setRemoteStream(event.streams[0]);
     };
@@ -235,10 +266,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     try {
       console.log('VoiceCall: Handling incoming offer');
       const pc = peerConnectionRef.current || await setupPeerConnection();
-      
+
       // Set remote description (handles both initial offer and renegotiation)
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-      
+
       // Create and set local answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -251,6 +282,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       }
       setIsCallActive(true);
       setIsWaitingInRoom(false);
+      setIsRinging(false);
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       await processIceQueue(pc);
     } catch (err) {
       console.error('Failed to handle incoming offer:', err);
@@ -300,11 +333,18 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   };
 
   const toggleMute = () => {
+    const newMuted = !isMuted;
     if (localStream) {
       localStream.getAudioTracks().forEach(track => {
-        track.enabled = isMuted;
+        track.enabled = !newMuted;
       });
-      setIsMuted(!isMuted);
+
+      // If mixing is active, also update the gain node
+      if (micGainNodeRef.current) {
+        micGainNodeRef.current.gain.value = newMuted ? 0 : 1;
+      }
+
+      setIsMuted(newMuted);
     }
   };
 
@@ -317,9 +357,17 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       // Stop screen share -> revert to camera if it was enabled, or just audio
       if (localStream) {
         localStream.getTracks().forEach(t => {
-          if (t.kind === 'video') t.stop();
+          t.stop();
         });
       }
+
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(e => console.error("Error closing audio context", e));
+        audioContextRef.current = null;
+        micGainNodeRef.current = null;
+        mixedStreamRef.current = null;
+      }
+
       setIsScreenSharing(false);
       // Re-acquire original stream
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -355,7 +403,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         try {
           const offer = await peerConnectionRef.current.createOffer();
           await peerConnectionRef.current.setLocalDescription(offer);
-          
+
           if (socket) {
             socket.emit('call-offer', {
               targetUserId: otherUser._id,
@@ -370,12 +418,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     } else {
       try {
         let screenStream: MediaStream | null = null;
-        
+
         // Try Electron desktopCapturer API first (for packaged Electron apps)
         const { getElectronDisplayMedia, isElectron, getElectronAPI } = await import('../utils/electron');
         const isElectronEnv = isElectron();
         console.log('Is Electron environment:', isElectronEnv);
-        
+
         if (isElectronEnv) {
           console.log('Detected Electron environment, trying desktopCapturer API');
           const electronAPI = getElectronAPI();
@@ -386,12 +434,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           });
           screenStream = await getElectronDisplayMedia();
         }
-        
+
         // Fallback to standard getDisplayMedia if Electron API didn't work
         if (!screenStream && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
           console.log('Trying standard getDisplayMedia API');
           try {
-            screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
               video: {
                 displaySurface: 'monitor' // Prefer full screen
               } as MediaTrackConstraints,
@@ -406,23 +454,23 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
             console.error('getDisplayMedia failed:', err);
           }
         }
-        
+
         if (!screenStream) {
           console.error("Failed to get screen stream");
           alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
           setIsScreenSharing(false);
           return;
         }
-        
+
         const screenTrack = screenStream.getVideoTracks()[0];
-        
+
         if (!screenTrack) {
           console.error("No video track in screen stream");
           alert('Не удалось получить видео поток экрана.');
           setIsScreenSharing(false);
           return;
         }
-        
+
         const screenAudioTrack = screenStream.getAudioTracks()[0];
 
         screenTrack.onended = () => {
@@ -431,56 +479,97 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           }
         };
 
-        // Create new stream with audio from localStream and video from screen
+        // Create new stream with tracks from both
         const newStream = new MediaStream();
-        
-        // Add audio track from existing local stream or screen audio
+
+        // Add mic audio
         if (localStream && localStream.getAudioTracks().length > 0) {
           newStream.addTrack(localStream.getAudioTracks()[0]);
-        } else if (screenAudioTrack) {
+        }
+
+        // Add screen audio if available
+        if (screenAudioTrack) {
+          // If we already have mic, some browsers might struggle with 2 tracks, 
+          // but we'll try to include it.
           newStream.addTrack(screenAudioTrack);
         }
-        
+
         // Add screen video track
         newStream.addTrack(screenTrack);
-        
+
         setLocalStream(newStream);
         setIsScreenSharing(true);
 
         // Update peer connection and renegotiate
         if (peerConnectionRef.current) {
           const senders = peerConnectionRef.current.getSenders();
-          
-          // Update/Add video track
-          const videoSender = senders.find(s => s.track?.kind === 'video');
-          if (videoSender) {
-            videoSender.replaceTrack(screenTrack).catch(e => console.error("Error replacing video track:", e));
-          } else {
-            peerConnectionRef.current.addTrack(screenTrack, newStream);
-          }
 
-          // Update audio track if screen has audio
+          let audioTrackToUse = newStream.getAudioTracks()[0];
+
+          // 1. Setup Audio Mixing if screen has audio
           if (screenAudioTrack) {
-            const audioSender = senders.find(s => s.track?.kind === 'audio');
-            if (audioSender) {
-              audioSender.replaceTrack(screenAudioTrack).catch(e => console.error("Error replacing audio track:", e));
-            }
-          }
+            console.log("VoiceCall: Screen audio detected, mixing...");
+            try {
+              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const dest = ctx.createMediaStreamDestination();
 
-          // Renegotiate to notify remote peer about new video track
-          try {
-            const offer = await peerConnectionRef.current.createOffer();
-            await peerConnectionRef.current.setLocalDescription(offer);
-            
-            if (socket) {
-              socket.emit('call-offer', {
-                targetUserId: otherUser._id,
-                dmId,
-                offer: offer
-              });
+              // Mic source
+              const micSource = ctx.createMediaStreamSource(new MediaStream([localStream!.getAudioTracks()[0]]));
+              const micGain = ctx.createGain();
+              micGain.gain.value = isMuted ? 0 : 1;
+              micSource.connect(micGain);
+              micGain.connect(dest);
+
+              // Screen source
+              const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
+              const screenGain = ctx.createGain();
+              screenGain.gain.value = 1.0;
+              screenSource.connect(screenGain);
+              screenGain.connect(dest);
+
+              audioContextRef.current = ctx;
+              micGainNodeRef.current = micGain;
+              mixedStreamRef.current = dest;
+
+              // AudioContext needs a user gesture to start in some browsers
+              if (ctx.state === 'suspended') {
+                await ctx.resume();
+              }
+
+              audioTrackToUse = dest.stream.getAudioTracks()[0];
+              console.log("VoiceCall: Audio mixing setup complete. Mixed stream has audio:", !!audioTrackToUse);
+
+              // UpdateTracks
+              const videoSender = senders.find(s => s.track?.kind === 'video');
+              if (videoSender) {
+                videoSender.replaceTrack(screenTrack).catch(e => console.error("Error replacing video track:", e));
+              } else {
+                peerConnectionRef.current.addTrack(screenTrack, newStream);
+              }
+
+              const audioSender = senders.find(s => s.track?.kind === 'audio');
+              if (audioSender && audioTrackToUse) {
+                audioSender.replaceTrack(audioTrackToUse).catch(e => console.error("Error replacing audio track:", e));
+              }
+
+              // Renegotiate to notify remote peer about new video track
+              try {
+                const offer = await peerConnectionRef.current.createOffer();
+                await peerConnectionRef.current.setLocalDescription(offer);
+
+                if (socket) {
+                  socket.emit('call-offer', {
+                    targetUserId: otherUser._id,
+                    dmId,
+                    offer: offer
+                  });
+                }
+              } catch (e) {
+                console.error("Error renegotiating after starting screen share:", e);
+              }
+            } catch (err) {
+              console.error("Error setting up audio mixing", err);
             }
-          } catch (e) {
-            console.error("Error renegotiating after starting screen share:", e);
           }
         }
       } catch (err) {
@@ -593,6 +682,16 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
                   className="local-video"
                 />
               )}
+              <audio
+                ref={(el) => {
+                  if (el && remoteStream) {
+                    el.srcObject = remoteStream;
+                    el.play().catch(e => console.error("Hidden audio play error", e));
+                  }
+                }}
+                autoPlay
+                style={{ display: 'none' }}
+              />
             </div>
             <div className="call-controls">
               <button

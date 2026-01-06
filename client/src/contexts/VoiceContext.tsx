@@ -523,10 +523,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 audioContextRef.current = ctx;
                 micGainNodeRef.current = micGain;
                 mixedStreamRef.current = dest;
-                console.log("Audio mixing setup complete with system audio.");
+
+                if (ctx.state === 'suspended') {
+                    await ctx.resume();
+                }
+
+                console.log("Audio mixing setup complete with system audio. Tracks in mixed stream:", dest.stream.getAudioTracks().length);
 
                 audioTrackToUse = dest.stream.getAudioTracks()[0];
             } else {
+                console.log("No system audio track found in screen stream. Available tracks:", screenStream.getTracks().map(t => t.kind));
                 // No system audio, just reuse existing mic track (or get new one)
                 if (localStreamRef.current) {
                     audioTrackToUse = localStreamRef.current.getAudioTracks()[0];

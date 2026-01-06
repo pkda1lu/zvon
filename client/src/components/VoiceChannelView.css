@@ -93,6 +93,23 @@
   align-content: center;
   /* Center cards vertically in the view */
   justify-content: center;
+  contain: layout;
+  /* Help browser optimize recalculation */
+}
+
+/* Force layout recalculation when grid is visible again */
+.voice-channel-view:not(.app-fullscreen) .participants-grid {
+  display: grid !important;
+  opacity: 1 !important;
+}
+
+.voice-channel-view:not(.app-fullscreen) .participant-card {
+  aspect-ratio: 16 / 9 !important;
+  height: auto !important;
+}
+
+.voice-channel-view:not(.app-fullscreen) .participant-card.screen-share-card {
+  aspect-ratio: auto !important;
 }
 
 /* Specific layouts for small counts */
@@ -178,9 +195,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  cursor: pointer;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 100%;
+  flex: 0 1 auto;
 }
 
 .participant-card.screen-share-card {
@@ -192,9 +210,10 @@
 .participant-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: cover !important;
   /* Cameras look better filled */
   border-radius: inherit;
+  display: block;
 }
 
 .participant-video.is-screen {

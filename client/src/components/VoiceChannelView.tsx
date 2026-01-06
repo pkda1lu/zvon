@@ -125,10 +125,11 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
 
   // Exit fullscreen if focused stream is lost
   useEffect(() => {
-    if (!focusedStreamId && isFullscreen) {
+    if (!focusedStreamId && (isFullscreen || isStageFullWidth)) {
       setFullscreenStatus(false);
+      setIsStageFullWidth(false);
     }
-  }, [focusedStreamId, isFullscreen, setFullscreenStatus]);
+  }, [focusedStreamId, isFullscreen, isStageFullWidth, setFullscreenStatus]);
 
   const handleCloseContextMenu = () => setContextMenu(null);
 
