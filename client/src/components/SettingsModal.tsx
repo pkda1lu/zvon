@@ -11,7 +11,7 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const [username, setUsername] = useState(user?.username || '');
   const [status, setStatus] = useState(user?.status || 'offline');
   const [bio, setBio] = useState(user?.bio || '');
@@ -227,6 +227,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="settings-modal-buttons">
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                onClose();
+              }}
+              className="logout-modal-button"
+            >
+              Выйти
+            </button>
+            <div style={{ flex: 1 }} />
             <button type="button" onClick={onClose} className="cancel-button">
               Отмена
             </button>

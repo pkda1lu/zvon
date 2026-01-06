@@ -226,9 +226,19 @@ textarea.bio-input {
 
 textarea.bio-input:focus {
   background: #1e1f22;
+}.logout-modal-button {
+  padding: 10px 20px;
+  background: transparent;
+  color: #f04747;
+  border: 1px solid #f04747;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s, color 0.2s;
 }
 
-
-
-
-
+.logout-modal-button:hover {
+  background: #f04747;
+  color: #fff;
+}

@@ -328,7 +328,7 @@ sudo ufw status
 sudo apt install -y certbot python3-certbot-nginx
 
 # Получение SSL сертификата
-sudo certbot --nginx -d serverzvon.duckdns.org
+sudo certbot --nginx -d zvonserver.ru
 
 # Автоматическое обновление (настроено автоматически)
 sudo certbot renew --dry-run
