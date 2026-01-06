@@ -38,7 +38,7 @@ router.get('/user/:userId', auth, async (req, res) => {
     }
 
     let dm = await DirectMessage.findOne({
-      participants: { $all: [req.user._id, userId] }
+      participants: { $size: 2, $all: [req.user._id, userId] }
     })
       .populate('participants', 'username avatar status');
 

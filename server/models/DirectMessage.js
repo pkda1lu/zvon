@@ -20,8 +20,8 @@ const directMessageSchema = new mongoose.Schema({
   }
 });
 
-// Ensure unique DM pairs
-directMessageSchema.index({ participants: 1 }, { unique: true });
+// Index participants for faster lookup
+directMessageSchema.index({ participants: 1 });
 
 module.exports = mongoose.model('DirectMessage', directMessageSchema);
 

@@ -82,7 +82,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     } else {
       browserFullscreenFallback(container, newState);
     }
-  }, [isFullscreen]);
+  }, []);
 
   const browserFullscreenFallback = (container: HTMLElement, newState: boolean) => {
     const doc = document as any;
