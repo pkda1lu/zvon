@@ -47,6 +47,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       console.log('VoiceCall: Caller joining room immediately');
       joinCallRoom();
 
+      // Pre-warm media if we are the initiator to speed up connection
+      if (user && user._id < otherUser._id) {
+        console.log('VoiceCall: Pre-warming media');
+        setupPeerConnection().catch(e => console.error("Media pre-warm failed", e));
+      }
+
       // Notify them
       socket.emit('call-offer', {
         targetUserId: String(otherUser._id),
@@ -118,7 +124,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
             console.log('VoiceCall: Proactive initiation (timeout)');
             initiateWebRTC();
           }
-        }, 5000);
+        }, 2000);
       }
     }
   };
@@ -127,6 +133,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     console.log('VoiceCall: Accept clicked. Pending offer exists:', !!pendingOfferRef.current);
     setIsIncomingCall(false);
     setIsRinging(false);
+
+    // If we're the initiator, pre-warm media immediately
+    if (user && otherUser && user._id < otherUser._id && !pendingOfferRef.current) {
+      console.log('VoiceCall: Recipient is initiator, pre-warming media');
+      setupPeerConnection().catch(e => console.error("Media pre-warm failed", e));
+    }
 
     // Process pending offer if it exists
     if (pendingOfferRef.current) {
@@ -191,21 +203,25 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     });
 
     pc.ontrack = (event) => {
-      console.log('VoiceCall: Remote track received', event.streams[0].id, event.track.kind);
-      // Ensure all tracks are played. We use a hidden audio element for safety if it's audio only
+      const incomingStream = event.streams[0];
+      console.log('VoiceCall: Remote track received', incomingStream.id, event.track.kind);
+
+      setRemoteStream(incomingStream);
+
+      // Trigger re-render when tracks are removed or end
+      const forceUpdate = () => {
+        console.log("VoiceCall: Remote stream track changed, updating UI");
+        setRemoteStream(prev => prev ? new MediaStream(prev.getTracks()) : null);
+      };
+      incomingStream.onremovetrack = forceUpdate;
+      incomingStream.getTracks().forEach(t => t.onended = forceUpdate);
+
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
+        remoteVideoRef.current.srcObject = incomingStream;
         remoteVideoRef.current.play().catch(e => {
-          console.warn("Auto-play error (might need interaction)", e);
-          // If auto-play fails, we'll try again on any click
-          const retryPlay = () => {
-            remoteVideoRef.current?.play().catch(() => { });
-            window.removeEventListener('click', retryPlay);
-          };
-          window.addEventListener('click', retryPlay);
+          console.warn("Auto-play error", e);
         });
       }
-      setRemoteStream(event.streams[0]);
     };
 
     pc.onicecandidate = (event) => {
@@ -224,7 +240,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const initiateWebRTC = async () => {
     if (isCallActive) return;
     try {
-      const pc = await setupPeerConnection();
+      // pc or setup new one. setupPeerConnection sets peerConnectionRef.current
+      const pc = peerConnectionRef.current || await setupPeerConnection();
+
+      // If setupPeerConnection didn't finish or failed
+      if (!pc) return;
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -354,11 +374,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
 
   const toggleScreenShare = async () => {
     if (isScreenSharing) {
-      // Stop screen share -> revert to camera if it was enabled, or just audio
+      // 1. STOP SCREEN SHARING
+      console.log('VoiceCall: Stopping screen share');
       if (localStream) {
-        localStream.getTracks().forEach(t => {
-          t.stop();
-        });
+        localStream.getTracks().forEach(t => t.stop());
       }
 
       if (audioContextRef.current) {
@@ -369,220 +388,145 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       }
 
       setIsScreenSharing(false);
-      // Re-acquire original stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: isVideoEnabled
-      });
-      setLocalStream(stream);
 
-      // Update peer connection and renegotiate
-      if (peerConnectionRef.current) {
-        const senders = peerConnectionRef.current.getSenders();
-        const videoSender = senders.find(s => s.track?.kind === 'video');
-        const audioSender = senders.find(s => s.track?.kind === 'audio');
-
-        stream.getTracks().forEach(track => {
-          if (track.kind === 'video') {
-            if (videoSender) {
-              videoSender.replaceTrack(track).catch(e => console.error("Error replacing video track:", e));
-            } else if (isVideoEnabled) {
-              peerConnectionRef.current?.addTrack(track, stream);
-            }
-          }
-          if (track.kind === 'audio' && audioSender) {
-            audioSender.replaceTrack(track).catch(e => console.error("Error replacing audio track:", e));
-          }
+      // Re-acquire camera/mic stream
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: isVideoEnabled
         });
+        setLocalStream(stream);
 
-        // Renegotiate to notify remote peer about track changes
-        try {
+        // Update peer connection
+        if (peerConnectionRef.current) {
+          const senders = peerConnectionRef.current.getSenders();
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          const audioSender = senders.find(s => s.track?.kind === 'audio');
+
+          const newVideoTrack = stream.getVideoTracks()[0];
+          const newAudioTrack = stream.getAudioTracks()[0];
+
+          if (videoSender) {
+            if (newVideoTrack) {
+              await videoSender.replaceTrack(newVideoTrack).catch(e => console.error("Error replacing video track:", e));
+            } else {
+              peerConnectionRef.current.removeTrack(videoSender);
+            }
+          } else if (newVideoTrack) {
+            peerConnectionRef.current.addTrack(newVideoTrack, stream);
+          }
+
+          if (audioSender && newAudioTrack) {
+            await audioSender.replaceTrack(newAudioTrack).catch(e => console.error("Error replacing audio track:", e));
+          }
+
+          // Renegotiate
           const offer = await peerConnectionRef.current.createOffer();
           await peerConnectionRef.current.setLocalDescription(offer);
-
-          if (socket) {
-            socket.emit('call-offer', {
-              targetUserId: otherUser._id,
-              dmId,
-              offer: offer
-            });
-          }
-        } catch (e) {
-          console.error("Error renegotiating after stopping screen share:", e);
+          socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
         }
+      } catch (err) {
+        console.error("Error restoring stream after stop share:", err);
       }
     } else {
+      // 2. START SCREEN SHARING
+      console.log('VoiceCall: Starting screen share');
       try {
         let screenStream: MediaStream | null = null;
+        const { getElectronDisplayMedia, isElectron } = await import('../utils/electron');
 
-        // Try Electron desktopCapturer API first (for packaged Electron apps)
-        const { getElectronDisplayMedia, isElectron, getElectronAPI } = await import('../utils/electron');
-        const isElectronEnv = isElectron();
-        console.log('Is Electron environment:', isElectronEnv);
-
-        if (isElectronEnv) {
-          console.log('Detected Electron environment, trying desktopCapturer API');
-          const electronAPI = getElectronAPI();
-          console.log('Electron API check:', {
-            hasAPI: !!electronAPI,
-            hasDesktopCapturer: !!(electronAPI?.desktopCapturer),
-            apiKeys: electronAPI ? Object.keys(electronAPI) : []
-          });
+        if (isElectron()) {
           screenStream = await getElectronDisplayMedia();
+        } else {
+          screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true
+          });
         }
 
-        // Fallback to standard getDisplayMedia if Electron API didn't work
-        if (!screenStream && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-          console.log('Trying standard getDisplayMedia API');
-          try {
-            screenStream = await navigator.mediaDevices.getDisplayMedia({
-              video: {
-                displaySurface: 'monitor' // Prefer full screen
-              } as MediaTrackConstraints,
-              audio: {
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-                suppressLocalAudioPlayback: false
-              } as MediaTrackConstraints
-            });
-          } catch (err) {
-            console.error('getDisplayMedia failed:', err);
-          }
-        }
-
-        if (!screenStream) {
-          console.error("Failed to get screen stream");
-          alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
-          setIsScreenSharing(false);
-          return;
-        }
+        if (!screenStream) return;
 
         const screenTrack = screenStream.getVideoTracks()[0];
-
-        if (!screenTrack) {
-          console.error("No video track in screen stream");
-          alert('Не удалось получить видео поток экрана.');
-          setIsScreenSharing(false);
-          return;
-        }
-
         const screenAudioTrack = screenStream.getAudioTracks()[0];
 
         screenTrack.onended = () => {
-          if (isScreenSharing) {
-            toggleScreenShare(); // Revert when user stops sharing via browser UI
-          }
+          setIsScreenSharing(prev => {
+            if (prev) toggleScreenShare();
+            return false;
+          });
         };
 
-        // Create new stream with tracks from both
-        const newStream = new MediaStream();
+        const newStream = new MediaStream([screenTrack]);
+        let audioTrackToUse: MediaStreamTrack | null = null;
 
-        // Add mic audio
-        if (localStream && localStream.getAudioTracks().length > 0) {
-          newStream.addTrack(localStream.getAudioTracks()[0]);
+        // Setup Audio Mixing
+        if (screenAudioTrack && localStream) {
+          console.log("VoiceCall: Mixing screen audio with mic");
+          try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const dest = ctx.createMediaStreamDestination();
+
+            const micSource = ctx.createMediaStreamSource(new MediaStream([localStream.getAudioTracks()[0]]));
+            const micGain = ctx.createGain();
+            micGain.gain.value = isMuted ? 0 : 1;
+            micSource.connect(micGain);
+            micGain.connect(dest);
+
+            const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
+            const screenGain = ctx.createGain();
+            screenGain.gain.value = 1.0;
+            screenSource.connect(screenGain);
+            screenGain.connect(dest);
+
+            audioContextRef.current = ctx;
+            micGainNodeRef.current = micGain;
+            mixedStreamRef.current = dest;
+
+            if (ctx.state === 'suspended') await ctx.resume();
+            audioTrackToUse = dest.stream.getAudioTracks()[0];
+          } catch (mixErr) {
+            console.error("Mixing failed, falling back to mic only", mixErr);
+          }
         }
 
-        // Add screen audio if available
-        if (screenAudioTrack) {
-          // If we already have mic, some browsers might struggle with 2 tracks, 
-          // but we'll try to include it.
-          newStream.addTrack(screenAudioTrack);
+        if (!audioTrackToUse && localStream) {
+          audioTrackToUse = localStream.getAudioTracks()[0];
         }
 
-        // Add screen video track
-        newStream.addTrack(screenTrack);
-
+        if (audioTrackToUse) newStream.addTrack(audioTrackToUse);
         setLocalStream(newStream);
         setIsScreenSharing(true);
 
-        // Update peer connection and renegotiate
         if (peerConnectionRef.current) {
           const senders = peerConnectionRef.current.getSenders();
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          const audioSender = senders.find(s => s.track?.kind === 'audio');
 
-          let audioTrackToUse = newStream.getAudioTracks()[0];
-
-          // 1. Setup Audio Mixing if screen has audio
-          if (screenAudioTrack) {
-            console.log("VoiceCall: Screen audio detected, mixing...");
-            try {
-              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-              const dest = ctx.createMediaStreamDestination();
-
-              // Mic source
-              const micSource = ctx.createMediaStreamSource(new MediaStream([localStream!.getAudioTracks()[0]]));
-              const micGain = ctx.createGain();
-              micGain.gain.value = isMuted ? 0 : 1;
-              micSource.connect(micGain);
-              micGain.connect(dest);
-
-              // Screen source
-              const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
-              const screenGain = ctx.createGain();
-              screenGain.gain.value = 1.0;
-              screenSource.connect(screenGain);
-              screenGain.connect(dest);
-
-              audioContextRef.current = ctx;
-              micGainNodeRef.current = micGain;
-              mixedStreamRef.current = dest;
-
-              // AudioContext needs a user gesture to start in some browsers
-              if (ctx.state === 'suspended') {
-                await ctx.resume();
-              }
-
-              audioTrackToUse = dest.stream.getAudioTracks()[0];
-              console.log("VoiceCall: Audio mixing setup complete. Mixed stream has audio:", !!audioTrackToUse);
-
-              // UpdateTracks
-              const videoSender = senders.find(s => s.track?.kind === 'video');
-              if (videoSender) {
-                videoSender.replaceTrack(screenTrack).catch(e => console.error("Error replacing video track:", e));
-              } else {
-                peerConnectionRef.current.addTrack(screenTrack, newStream);
-              }
-
-              const audioSender = senders.find(s => s.track?.kind === 'audio');
-              if (audioSender && audioTrackToUse) {
-                audioSender.replaceTrack(audioTrackToUse).catch(e => console.error("Error replacing audio track:", e));
-              }
-
-              // Renegotiate to notify remote peer about new video track
-              try {
-                const offer = await peerConnectionRef.current.createOffer();
-                await peerConnectionRef.current.setLocalDescription(offer);
-
-                if (socket) {
-                  socket.emit('call-offer', {
-                    targetUserId: otherUser._id,
-                    dmId,
-                    offer: offer
-                  });
-                }
-              } catch (e) {
-                console.error("Error renegotiating after starting screen share:", e);
-              }
-            } catch (err) {
-              console.error("Error setting up audio mixing", err);
+          if (videoSender) {
+            await videoSender.replaceTrack(screenTrack);
+            if (audioSender && audioTrackToUse) {
+              await audioSender.replaceTrack(audioTrackToUse);
+            }
+          } else {
+            // If we are adding video (screen share) to a voice-only call,
+            // we must ensure both tracks are on the SAME stream for the receiver.
+            // We remove the old audio sender (bound to old stream) and add both to new stream.
+            if (audioSender) {
+              peerConnectionRef.current.removeTrack(audioSender);
+            }
+            peerConnectionRef.current.addTrack(screenTrack, newStream);
+            if (audioTrackToUse) {
+              peerConnectionRef.current.addTrack(audioTrackToUse, newStream);
             }
           }
+
+          const offer = await peerConnectionRef.current.createOffer();
+          await peerConnectionRef.current.setLocalDescription(offer);
+          socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
         }
       } catch (err) {
         console.error("Error starting screen share:", err);
         setIsScreenSharing(false);
-        // If user cancelled, don't show error
-        if (err instanceof Error && err.name === 'NotAllowedError') {
-          console.log("Screen sharing permission denied");
-        } else if (err instanceof Error && err.name === 'AbortError') {
-          console.log("Screen sharing cancelled by user");
-        } else {
-          alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
-        }
       }
     }
   };
@@ -665,7 +609,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         ) : (
           <div className="call-active">
             <div className="video-container">
-              {remoteStream && (
+              {remoteStream && remoteStream.getVideoTracks().length > 0 && (
                 <video
                   ref={remoteVideoRef}
                   autoPlay
@@ -673,7 +617,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
                   className="remote-video"
                 />
               )}
-              {localStream && (
+              {localStream && localStream.getVideoTracks().length > 0 && (
                 <video
                   ref={localVideoRef}
                   autoPlay

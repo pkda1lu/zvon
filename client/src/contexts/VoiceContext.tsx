@@ -22,6 +22,8 @@ interface VoiceContextType {
     userVolumes: Map<string, number>;
     setUserVolume: (userId: string, volume: number) => void;
     userStates: Map<string, { isMuted: boolean; isDeafened: boolean }>;
+    localMutes: Set<string>;
+    toggleLocalMute: (userId: string) => void;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -54,6 +56,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
     const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean }>>(new Map());
+    const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -70,7 +73,19 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Handle incoming audio stream
     const handleTrack = useCallback((userId: string, stream: MediaStream) => {
+        console.log(`VoiceContext: Remote track received from ${userId}`);
         setRemoteStreams(prev => new Map(prev).set(userId, stream));
+
+        // Listen for track removal or ending to trigger UI updates (remove screen share card)
+        const updateUI = () => {
+            console.log(`VoiceContext: Stream updated for ${userId}, forcing re-render`);
+            setRemoteStreams(prev => new Map(prev));
+        };
+
+        stream.onremovetrack = updateUI;
+        stream.getTracks().forEach(track => {
+            track.onended = updateUI;
+        });
     }, []);
 
     const createPeer = useCallback((targetUserId: string, initiator: boolean) => {
@@ -491,21 +506,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (screenAudioTrack) {
                 console.log("System audio detected, setting up mixing...");
 
-                // We need a fresh mic stream to mix
-                const micStream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
+                // Reuse existing mic track if available
+                let micTrack: MediaStreamTrack | null = null;
+                if (localStreamRef.current) {
+                    micTrack = localStreamRef.current.getAudioTracks()[0];
+                }
+
+                if (!micTrack) {
+                    console.log("No existing mic track, requesting fresh one for mixing");
+                    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    micTrack = micStream.getAudioTracks()[0];
+                }
 
                 // Setup Web Audio
                 const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
                 const dest = ctx.createMediaStreamDestination();
 
                 // Mic Path
-                const micSource = ctx.createMediaStreamSource(micStream);
+                const micSource = ctx.createMediaStreamSource(new MediaStream([micTrack]));
                 const micGain = ctx.createGain();
                 micGain.gain.value = !isMuted && !isDeafened ? 1 : 0;
                 micSource.connect(micGain);
@@ -543,56 +561,45 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
             }
 
-            setLocalStream(prev => {
-                const newStream = new MediaStream([
-                    audioTrackToUse,
-                    screenTrack
-                ]);
-                localStreamRef.current = newStream;
-                return newStream;
-            });
+            const newStream = new MediaStream([
+                audioTrackToUse,
+                screenTrack
+            ]);
+            localStreamRef.current = newStream;
+            setLocalStream(newStream);
 
-            // Add video track to peers and renegotiate
-            Array.from(peersRef.current.entries()).forEach(async ([targetUserId, pc]) => {
+            // 3. Update peers and renegotiate
+            const sendersToUpdate = Array.from(peersRef.current.entries());
+            for (const [targetUserId, pc] of sendersToUpdate) {
                 try {
                     const senders = pc.getSenders();
-
-                    // Update Audio Track (Replace with mixed or existing)
                     const audioSender = senders.find(s => s.track?.kind === 'audio');
-                    if (audioSender) {
-                        await audioSender.replaceTrack(audioTrackToUse).catch(e => console.error("Error replacing audio track:", e));
-                    }
-
-                    // Update/Add Video Track
                     const videoSender = senders.find(s => s.track?.kind === 'video');
+
                     if (videoSender) {
-                        await videoSender.replaceTrack(screenTrack).catch(e => console.error("Error replacing video track:", e));
+                        await videoSender.replaceTrack(screenTrack);
+                        if (audioSender && audioTrackToUse) {
+                            await audioSender.replaceTrack(audioTrackToUse);
+                        }
                     } else {
-                        try {
-                            // Use the current stream reference
-                            const currentStream = localStreamRef.current;
-                            if (currentStream) {
-                                pc.addTrack(screenTrack, currentStream);
-                            }
-                        } catch (e) {
-                            console.warn("Track already added or invalid access:", e);
+                        // Ensure both tracks are on the new stream
+                        if (audioSender) {
+                            pc.removeTrack(audioSender);
+                        }
+                        pc.addTrack(screenTrack, newStream);
+                        if (audioTrackToUse) {
+                            pc.addTrack(audioTrackToUse, newStream);
                         }
                     }
 
-                    // Renegotiate to notify remote peer about new video track
+                    // Renegotiate
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
-
-                    if (socket) {
-                        socket.emit('voice-offer', {
-                            targetUserId,
-                            offer: pc.localDescription
-                        });
-                    }
+                    socket?.emit('voice-offer', { targetUserId, offer: pc.localDescription });
                 } catch (e) {
                     console.error("Renegotiation error (start share):", e);
                 }
-            });
+            }
 
         } catch (err) {
             console.error("Error sharing screen:", err);
@@ -629,6 +636,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [isMuted, isDeafened]);
 
+    const toggleLocalMute = useCallback((userId: string) => {
+        setLocalMutes(prev => {
+            const newMutes = new Set(prev);
+            if (newMutes.has(userId)) {
+                newMutes.delete(userId);
+            } else {
+                newMutes.add(userId);
+            }
+            return newMutes;
+        });
+    }, []);
+
     return (
         <VoiceContext.Provider value={{
             isConnected,
@@ -646,7 +665,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             remoteStreams,
             userVolumes,
             setUserVolume,
-            userStates
+            userStates,
+            localMutes,
+            toggleLocalMute
         }}>
             {children}
             {/* Screen Source Selector Modal */}
@@ -692,21 +713,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                                 }
                                 try {
                                     // HTML Audio volume must be between 0 and 1. 
-                                    // If we want > 1 (e.g. 200%), we'd need a GainNode.
-                                    // For now, let's cap it at 1.0 to prevent IndexSizeError crash.
                                     const vol = userVolumes.has(userId) ? userVolumes.get(userId)! : 1;
                                     el.volume = Math.min(1, Math.max(0, vol));
                                 } catch (e) {
                                     console.error("Error setting volume:", e);
                                 }
-                                el.muted = isDeafened;
+                                // Apply local mute or global deafen
+                                el.muted = isDeafened || localMutes.has(userId);
                             } else {
                                 audioElementsRef.current.delete(userId);
                             }
                         }}
                         autoPlay
                         playsInline
-                        muted={isDeafened}
+                        muted={isDeafened || localMutes.has(userId)}
                         onLoadedMetadata={(e) => {
                             const el = e.currentTarget;
                             el.play().catch(err => console.error('Metadata loaded play failed:', err));

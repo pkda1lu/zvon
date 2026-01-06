@@ -386,6 +386,19 @@ const Main: React.FC = () => {
           <VoiceChannelView
             channel={selectedChannel}
             onUserClick={setShowProfileUserId}
+            onMessageClick={handleStartDM}
+            onCallClick={async (userId) => {
+              try {
+                const response = await axios.get(`/api/direct-messages/user/${userId}`);
+                const dm = response.data;
+                const other = dm.participants.find((p: User) => p._id !== user?._id);
+                if (other) {
+                  handleStartDirectCall(other, dm._id);
+                }
+              } catch (e) {
+                console.error("Error starting call from context", e);
+              }
+            }}
           />
         )
       )}

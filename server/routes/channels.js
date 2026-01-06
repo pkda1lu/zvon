@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Channel = require('../models/Channel');
 const Server = require('../models/Server');
+const { hasPermission } = require('../utils/permissions');
 
 // Create channel
 router.post('/', auth, async (req, res) => {
@@ -14,13 +15,8 @@ router.post('/', auth, async (req, res) => {
       return res.status(404).json({ message: 'Server not found' });
     }
 
-    // Check if user is member
-    const isMember = server.members.some(
-      member => member.user.toString() === req.user._id.toString()
-    );
-
-    if (!isMember) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (!await hasPermission(req.user._id, serverId, 'MANAGE_CHANNELS')) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
     const channel = new Channel({
@@ -111,11 +107,9 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const server = await Server.findById(channel.server);
-    const isOwner = server.owner.toString() === req.user._id.toString();
-
-    if (!isOwner) {
-      return res.status(403).json({ message: 'Only owner can update channel' });
+    const serverId = channel.server;
+    if (!await hasPermission(req.user._id, serverId, 'MANAGE_CHANNELS')) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
     const { name, topic, position } = req.body;
@@ -141,10 +135,8 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     const server = await Server.findById(channel.server);
-    const isOwner = server.owner.toString() === req.user._id.toString();
-
-    if (!isOwner) {
-      return res.status(403).json({ message: 'Only owner can delete channel' });
+    if (!await hasPermission(req.user._id, server._id, 'MANAGE_CHANNELS')) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
     await Channel.findByIdAndDelete(req.params.id);

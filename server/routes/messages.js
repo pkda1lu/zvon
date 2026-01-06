@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const Message = require('../models/Message');
 const Channel = require('../models/Channel');
 const Server = require('../models/Server');
+const { hasPermission } = require('../utils/permissions');
 
 // Get messages for channel
 router.get('/channel/:channelId', auth, async (req, res) => {
@@ -16,12 +17,8 @@ router.get('/channel/:channelId', auth, async (req, res) => {
     }
 
     const server = await Server.findById(channel.server);
-    const isMember = server.members.some(
-      member => member.user.toString() === req.user._id.toString()
-    );
-
-    if (!isMember) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (!await hasPermission(req.user._id, server._id, 'READ_MESSAGE_HISTORY')) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
     let query = { channel: req.params.channelId };
@@ -53,13 +50,13 @@ router.post('/', auth, async (req, res) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const server = await Server.findById(channel.server);
-    const isMember = server.members.some(
-      member => member.user.toString() === req.user._id.toString()
-    );
-
-    if (!isMember) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (channel.server) {
+      if (!await hasPermission(req.user._id, channel.server, 'SEND_MESSAGES')) {
+        return res.status(403).json({ message: 'Insufficient permissions' });
+      }
+    } else {
+      // Assume DM? DM messages usually don't use this route if they have channelId...
+      // Wait, DMs have a different model or use directMessage field.ChannelId implies Server Channel.
     }
 
     const message = new Message({
@@ -124,9 +121,10 @@ router.delete('/:id', auth, async (req, res) => {
     const server = await Server.findById(channel.server);
 
     const isAuthor = message.author.toString() === req.user._id.toString();
-    const isOwner = server.owner.toString() === req.user._id.toString();
+    // Use hasPermission for managing messages
+    const canManage = await hasPermission(req.user._id, server._id, 'MANAGE_MESSAGES');
 
-    if (!isAuthor && !isOwner) {
+    if (!isAuthor && !canManage) {
       return res.status(403).json({ message: 'Access denied' });
     }
 

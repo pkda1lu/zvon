@@ -12,9 +12,11 @@ import './VoiceChannelView.css';
 interface VoiceChannelViewProps {
   channel: Channel;
   onUserClick: (userId: string) => void;
+  onMessageClick: (userId: string) => void;
+  onCallClick: (userId: string) => void;
 }
 
-const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClick }) => {
+const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClick, onMessageClick, onCallClick }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
   const {
@@ -257,8 +259,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
           user={displayItems.find(i => i.id === contextMenu.userId || i.data?._id === contextMenu.userId)?.data}
           onClose={handleCloseContextMenu}
           onProfileClick={() => onUserClick(contextMenu.userId)}
-          onMessageClick={() => console.log('Message click')}
-          onCallClick={() => console.log('Call click')}
+          onMessageClick={() => onMessageClick(contextMenu.userId)}
+          onCallClick={() => onCallClick(contextMenu.userId)}
         />
       )}
 

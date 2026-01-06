@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Server, User, Role } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { CloseIcon, TrashIcon, ShieldIcon, PlusIcon, SettingsIcon } from './Icons';
-import { PERMISSIONS } from '../constants/permissions';
+import { PERMISSIONS, PERMISSION_GROUPS } from '../constants/permissions';
 import './ServerSettingsModal.css';
 
 interface ServerSettingsModalProps {
@@ -600,20 +600,25 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
                                         <div className="permissions-list">
                                             <h3>Права доступа</h3>
-                                            {PERMISSIONS.map(perm => (
-                                                <div key={perm.id} className="permission-item">
-                                                    <div className="permission-info">
-                                                        <div className="permission-name">{perm.name}</div>
-                                                        <div className="permission-description">{perm.description}</div>
-                                                    </div>
-                                                    <label className="switch">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={rolePermissions.includes(perm.id)}
-                                                            onChange={() => togglePermission(perm.id)}
-                                                        />
-                                                        <span className="slider round"></span>
-                                                    </label>
+                                            {PERMISSION_GROUPS.map((group) => (
+                                                <div key={group.name} className="permission-group">
+                                                    <h4 className="permission-group-header">{group.name}</h4>
+                                                    {group.permissions.map((perm) => (
+                                                        <div key={perm.id} className="permission-item">
+                                                            <div className="permission-info">
+                                                                <div className="permission-name">{perm.name}</div>
+                                                                <div className="permission-description">{perm.description}</div>
+                                                            </div>
+                                                            <label className="switch">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={rolePermissions.includes(perm.id)}
+                                                                    onChange={() => togglePermission(perm.id)}
+                                                                />
+                                                                <span className="slider round"></span>
+                                                            </label>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             ))}
                                         </div>

@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const Invite = require('../models/Invite');
 const Server = require('../models/Server');
 const User = require('../models/User');
+const { hasPermission } = require('../utils/permissions');
 
 // Generate random code
 const generateCode = (length = 8) => {
@@ -21,13 +22,8 @@ router.post('/', auth, async (req, res) => {
             return res.status(404).json({ message: 'Server not found' });
         }
 
-        // Check if user is a member of the server
-        const isMember = server.members.some(
-            member => member.user.toString() === req.user._id.toString()
-        );
-
-        if (!isMember) {
-            return res.status(403).json({ message: 'You must be a member of this server to create an invite' });
+        if (!await hasPermission(req.user._id, serverId, 'CREATE_INSTANT_INVITE')) {
+            return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
         let code = generateCode();
