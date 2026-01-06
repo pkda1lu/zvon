@@ -22,7 +22,7 @@ const hasPermission = async (userId, serverId, permission) => {
         if (!member) return false;
 
         // Get all roles for this member
-        const roleIds = member.roles.map(r => r.toString());
+        const roleIds = member.roles ? member.roles.filter(r => r).map(r => r.toString()) : [];
         // Find member's assigned roles
         const assignedRoles = server.roles.filter(r => roleIds.includes(r._id.toString()));
 
