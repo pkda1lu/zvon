@@ -193,33 +193,85 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         } catch (err) { console.error(err); }
     };
 
-    const handleMoveRole = async (roleId: string, direction: 'up' | 'down') => {
-        const index = roles.findIndex(r => r._id === roleId);
-        if (index === -1) return;
-        if (direction === 'up' && index === 0) return;
-        if (direction === 'down' && index === roles.length - 1) return;
+    const [draggedRoleIndex, setDraggedRoleIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-        const newRoles = [...roles];
-        const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    const getSortedRoles = (rolesArr: Role[]) => {
+        return [...rolesArr].sort((a, b) => (b.position || 0) - (a.position || 0));
+    };
 
-        // Swap locally for instant feedback
-        [newRoles[index], newRoles[swapIndex]] = [newRoles[swapIndex], newRoles[index]];
+    const handleUpdateRolePositions = async (newSortedRoles: Role[]) => {
+        // Re-calculate positions: index 0 (top) gets highest position
+        const updatedWithPositions = newSortedRoles.map((r, i) => ({
+            ...r,
+            position: newSortedRoles.length - 1 - i
+        }));
 
-        // Update positions based on new array order (index 0 is highest visually, so logical position should be descending or ascending depending on sort)
-        // Let's assume index 0 is top (highest position)
-        newRoles.forEach((r, i) => {
-            r.position = newRoles.length - 1 - i;
+        setRoles(updatedWithPositions);
+
+        // Check if anything actually changed before sending to server
+        const hasPositionsChanged = roles.some((r, i) => {
+            const oldRole = roles.find(old => old._id === updatedWithPositions[i]._id);
+            return oldRole && oldRole.position !== updatedWithPositions[i].position;
         });
 
-        setRoles(newRoles);
+        if (!hasPositionsChanged) return;
 
         try {
             await axios.put(`/api/servers/${server._id}/roles/positions`, {
-                roles: newRoles.map(r => ({ id: r._id, position: r.position }))
+                roles: updatedWithPositions.map(r => ({ id: r._id, position: r.position }))
             });
         } catch (err) {
             console.error('Failed to update role positions', err);
         }
+    };
+
+    const handleMoveRole = async (roleId: string, direction: 'up' | 'down') => {
+        const sorted = getSortedRoles(roles);
+        const index = sorted.findIndex(r => r._id === roleId);
+        if (index === -1) return;
+        if (direction === 'up' && index === 0) return;
+        if (direction === 'down' && index === sorted.length - 1) return;
+
+        const newSorted = [...sorted];
+        const swapIndex = direction === 'up' ? index - 1 : index + 1;
+        [newSorted[index], newSorted[swapIndex]] = [newSorted[swapIndex], newSorted[index]];
+
+        await handleUpdateRolePositions(newSorted);
+    };
+
+    const onDragStart = (e: React.DragEvent, index: number) => {
+        setDraggedRoleIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        // Add a class for visual feedback if needed
+    };
+
+    const onDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        if (draggedRoleIndex === null) return;
+        if (draggedRoleIndex !== index) {
+            setDragOverIndex(index);
+        }
+    };
+
+    const onDrop = async (e: React.DragEvent, dropIndex: number) => {
+        if (draggedRoleIndex === null || draggedRoleIndex === dropIndex) {
+            setDraggedRoleIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
+        const sorted = getSortedRoles(roles);
+        const newSortedList = [...sorted];
+        const draggedRole = newSortedList[draggedRoleIndex];
+
+        // Remove from old position and insert at new
+        newSortedList.splice(draggedRoleIndex, 1);
+        newSortedList.splice(dropIndex, 0, draggedRole);
+
+        setDraggedRoleIndex(null);
+        setDragOverIndex(null);
+        await handleUpdateRolePositions(newSortedList);
     };
 
     const handleUpdateMemberRoles = async (userId: string) => {
@@ -527,9 +579,20 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                         </button>
                                     </div>
                                     <div className="role-list">
-                                        {roles.sort((a, b) => (b.position || 0) - (a.position || 0)).map((role, idx) => (
-                                            <div key={role._id} className="role-item" onClick={() => startEditingRole(role)} style={{ cursor: 'pointer' }}>
+                                        {getSortedRoles(roles).map((role, idx) => (
+                                            <div
+                                                key={role._id}
+                                                className={`role-item ${dragOverIndex === idx ? 'drag-over' : ''} ${draggedRoleIndex === idx ? 'dragging' : ''}`}
+                                                onClick={() => startEditingRole(role)}
+                                                style={{ cursor: 'pointer' }}
+                                                draggable
+                                                onDragStart={(e) => onDragStart(e, idx)}
+                                                onDragOver={(e) => onDragOver(e, idx)}
+                                                onDrop={(e) => onDrop(e, idx)}
+                                                onDragEnd={() => { setDraggedRoleIndex(null); setDragOverIndex(null); }}
+                                            >
                                                 <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                    <div className="drag-handle">⋮⋮</div>
                                                     <span className="role-dot" style={{ backgroundColor: role.color }} />
                                                     <span style={{ color: '#dcddde' }}>{role.name}</span>
                                                 </div>
@@ -562,7 +625,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                     </div>
                                 </>
                             ) : (
-                                <div className="role-editor">
+                                <div className="role-editor" key={editingRole._id}>
                                     <div className="editor-header">
                                         <button className="back-button" onClick={() => setEditingRole(null)}>
                                             ← Назад к ролям
@@ -576,7 +639,11 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                             <input
                                                 className="settings-input"
                                                 value={roleName}
-                                                onChange={(e) => { setRoleName(e.target.value); setRoleHasChanges(true); }}
+                                                onChange={(e) => {
+                                                    setRoleName(e.target.value);
+                                                    setRoleHasChanges(true);
+                                                }}
+                                                autoComplete="off"
                                             />
                                         </div>
 

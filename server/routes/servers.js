@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Server = require('../models/Server');
@@ -419,9 +420,17 @@ router.put('/:id/roles/positions', auth, async (req, res) => {
       return res.status(400).json({ message: 'Invalid roles data' });
     }
 
+    // Filter out invalid items and map to update promises
+    // We update each role individually and catch errors so one failure doesn't stop the whole process
     const updatePromises = roles
-      .filter(r => r && r.id)
-      .map(r => Role.findByIdAndUpdate(r.id, { $set: { position: r.position || 0 } }));
+      .filter(r => r && r.id && mongoose.Types.ObjectId.isValid(r.id))
+      .map(r =>
+        Role.findByIdAndUpdate(r.id, { $set: { position: parseInt(r.position) || 0 } })
+          .catch(err => {
+            console.error(`Failed to update position for role ${r.id}:`, err);
+            return null;
+          })
+      );
 
     await Promise.all(updatePromises);
 

@@ -85,8 +85,8 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                         const memberRes = await axios.get(`/api/servers/${serverId}/members/${userId}`);
                         if (memberRes.data.roles) {
                             const validRoles = memberRes.data.roles.filter((r: any) => r && typeof r === 'object' && r._id);
-                            validRoles.sort((a: Role, b: Role) => (b.position || 0) - (a.position || 0));
-                            setMemberRoles(validRoles);
+                            const sortedRoles = [...validRoles].sort((a: Role, b: Role) => (b.position || 0) - (a.position || 0));
+                            setMemberRoles(sortedRoles);
                         }
                     } catch (memberErr) {
                         console.error('Failed to fetch member info:', memberErr);
