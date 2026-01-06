@@ -143,6 +143,24 @@ io.on('connection', (socket) => {
   socket.join(userRoom);
   console.log(`Socket ${socket.id} joined room ${userRoom}`);
 
+  // Automatic status update on connection
+  const updateStatusOnConnect = async () => {
+    try {
+      const user = await User.findById(socket.userId);
+      if (user && user.status === 'offline') {
+        user.status = 'online';
+        await user.save();
+        io.emit('user-updated', {
+          _id: user._id,
+          status: 'online'
+        });
+      }
+    } catch (err) {
+      console.error('Error auto-updating status on connect:', err);
+    }
+  };
+  updateStatusOnConnect();
+
   // Join server room
   socket.on('join-server', async (serverId) => {
     socket.join(`server-${serverId}`);
@@ -463,6 +481,25 @@ io.on('connection', (socket) => {
         userId: socket.userId
       });
       await notifyVoiceChannelUpdate(socket.voiceChannelId);
+    }
+
+    // Automatic status update on last disconnect
+    const userRoom = `user-${String(socket.userId)}`;
+    const connections = io.sockets.adapter.rooms.get(userRoom);
+    if (!connections || connections.size === 0) {
+      try {
+        const user = await User.findById(socket.userId);
+        if (user) {
+          user.status = 'offline';
+          await user.save();
+          io.emit('user-updated', {
+            _id: user._id,
+            status: 'offline'
+          });
+        }
+      } catch (err) {
+        console.error('Error auto-updating status on disconnect:', err);
+      }
     }
   });
 });

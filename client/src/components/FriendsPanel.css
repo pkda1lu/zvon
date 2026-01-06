@@ -1,5 +1,5 @@
 .friends-panel {
-  width: 240px;
+  flex: 1;
   background: #2f3136;
   display: flex;
   flex-direction: column;
@@ -206,18 +206,54 @@
 
 .search-input {
   width: 100%;
-  padding: 8px;
+  padding: 8px 12px;
   background: #202225;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 4px;
   color: #dcddde;
   font-size: 14px;
   margin-bottom: 8px;
   outline: none;
+  transition: border-color 0.2s;
+  z-index: 5;
 }
 
 .search-input:focus {
   background: #1e1f22;
+  border-color: #5865f2;
+}
+
+.panel-message {
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  animation: slideDown 0.2s ease-out;
+}
+
+.panel-message.success {
+  background: rgba(67, 181, 129, 0.1);
+  color: #43b581;
+  border: 1px solid rgba(67, 181, 129, 0.2);
+}
+
+.panel-message.error {
+  background: rgba(240, 71, 71, 0.1);
+  color: #f04747;
+  border: 1px solid rgba(240, 71, 71, 0.2);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .empty-state {
@@ -226,13 +262,3 @@
   padding: 32px 16px;
   font-size: 14px;
 }
-
-
-
-
-
-
-
-
-
-

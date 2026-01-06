@@ -278,17 +278,25 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                 <>
                   <div className="stage-main" style={{ flex: 1 }}>
                     <div className="maximized-video-container" ref={videoContainerRef}>
-                      <video
-                        autoPlay
-                        playsInline
-                        muted={true}
-                        className={`maximized-video ${focusedItem.type === 'screen' ? 'is-screen' : 'is-camera'}`}
-                        ref={el => {
-                          if (el && focusedItem.stream && el.srcObject !== focusedItem.stream) {
-                            el.srcObject = focusedItem.stream;
-                          }
-                        }}
-                      />
+                      {focusedItem.data.isMe && focusedItem.type === 'screen' ? (
+                        <div className="self-screen-placeholder">
+                          <ScreenShareIcon size={64} />
+                          <h3>Вы демонстрируете свой экран</h3>
+                          <p>Чтобы избежать эффекта бесконечного зеркала, предпросмотр в полный экран отключен.</p>
+                        </div>
+                      ) : (
+                        <video
+                          autoPlay
+                          playsInline
+                          muted={true}
+                          className={`maximized-video ${focusedItem.type === 'screen' ? 'is-screen' : 'is-camera'}`}
+                          ref={el => {
+                            if (el && focusedItem.stream && el.srcObject !== focusedItem.stream) {
+                              el.srcObject = focusedItem.stream;
+                            }
+                          }}
+                        />
+                      )}
                       <div className="stage-user-info">
                         <div className="stage-user-avatar">
                           {getAvatarUrl(focusedItem.data.avatar) ? (
@@ -353,7 +361,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                             }}
                             style={{ cursor: isScreen ? 'pointer' : 'pointer' }}
                           >
-                            {isScreen ? (
+                            {isScreen && participant.isMe ? (
+                              <div className="participant-video-placeholder">
+                                <ScreenShareIcon size={24} />
+                                <span>Вы делитесь экраном</span>
+                              </div>
+                            ) : isScreen ? (
                               <video
                                 autoPlay
                                 playsInline
@@ -431,7 +444,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                     }}
                     style={{ cursor: isScreen ? 'pointer' : 'pointer' }}
                   >
-                    {isScreen ? (
+                    {isScreen && participant.isMe ? (
+                      <div className="participant-video-placeholder grid-mode">
+                        <ScreenShareIcon size={32} />
+                        <span>Вы делитесь экраном</span>
+                      </div>
+                    ) : isScreen ? (
                       <video
                         autoPlay
                         playsInline

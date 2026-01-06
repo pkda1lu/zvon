@@ -16,7 +16,8 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) =
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [activeTab, setActiveTab] = useState<'friends' | 'pending' | 'add'>('friends');
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [panelMessage, setPanelMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     if (activeTab === 'friends') {
@@ -24,7 +25,13 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) =
     } else if (activeTab === 'pending') {
       fetchPendingRequests();
     }
+    setPanelMessage(null); // Clear message when switching tabs
   }, [activeTab]);
+
+  const showMessage = (text: string, type: 'success' | 'error') => {
+    setPanelMessage({ text, type });
+    setTimeout(() => setPanelMessage(null), 3000);
+  };
 
   const fetchFriends = async () => {
     try {
@@ -59,32 +66,45 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) =
   };
 
   const sendFriendRequest = async (userId: string) => {
+    if (loadingAction) return;
+    setLoadingAction(userId);
     try {
       await axios.post('/api/friends/request', { userId });
       await handleSearch(searchQuery);
-      alert('Запрос на добавление в друзья отправлен');
+      showMessage('Запрос на добавление в друзья отправлен', 'success');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Ошибка отправки запроса');
+      showMessage(error.response?.data?.message || 'Ошибка отправки запроса', 'error');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
   const acceptRequest = async (requestId: string) => {
+    if (loadingAction) return;
+    setLoadingAction(requestId);
     try {
       await axios.post(`/api/friends/accept/${requestId}`);
       await fetchPendingRequests();
       await fetchFriends();
+      showMessage('Заявка принята', 'success');
     } catch (error) {
       console.error('Error accepting request:', error);
+      showMessage('Не удалось принять заявку', 'error');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
   const removeFriend = async (friendshipId: string) => {
-    if (!window.confirm('Удалить из друзей?')) return;
+    if (!window.confirm('Вы уверены?')) return;
     try {
       await axios.delete(`/api/friends/${friendshipId}`);
       await fetchFriends();
+      await fetchPendingRequests();
+      showMessage('Выполнено', 'success');
     } catch (error) {
       console.error('Error removing friend:', error);
+      showMessage('Ошибка при удалении', 'error');
     }
   };
 
@@ -199,7 +219,15 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) =
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="search-input"
+              autoFocus
             />
+
+            {panelMessage && (
+              <div className={`panel-message ${panelMessage.type}`}>
+                {panelMessage.text}
+              </div>
+            )}
+
             <div className="search-results">
               {searchResults.map((user) => (
                 <div key={user._id} className="search-result-item">
@@ -217,8 +245,9 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) =
                   <button
                     className="add-button"
                     onClick={() => sendFriendRequest(user._id)}
+                    disabled={!!loadingAction}
                   >
-                    Добавить
+                    {loadingAction === user._id ? '...' : 'Добавить'}
                   </button>
                 </div>
               ))}

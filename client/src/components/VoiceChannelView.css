@@ -205,6 +205,60 @@
   background: transparent;
 }
 
+.participant-video-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #1e1f22;
+  color: #b9bbbe;
+  text-align: center;
+  padding: 12px;
+}
+
+.participant-video-placeholder span {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.participant-video-placeholder.grid-mode {
+  gap: 16px;
+}
+
+.participant-video-placeholder.grid-mode span {
+  font-size: 14px;
+}
+
+.self-screen-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  color: #fff;
+  text-align: center;
+  padding: 40px;
+  background: #202225;
+  width: 100%;
+  height: 100%;
+}
+
+.self-screen-placeholder h3 {
+  font-size: 24px;
+  margin: 0;
+}
+
+.self-screen-placeholder p {
+  color: #b9bbbe;
+  font-size: 16px;
+  max-width: 400px;
+  margin: 0;
+}
+
 .participant-card:hover {
   transform: scale(1.02);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
