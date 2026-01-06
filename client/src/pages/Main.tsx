@@ -19,7 +19,7 @@ import { User } from '../types';
 import './Main.css';
 
 const Main: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { socket } = useSocket();
   const { activeChannelId } = useVoice();
   const [servers, setServers] = useState<Server[]>([]);
@@ -130,11 +130,59 @@ const Main: React.FC = () => {
         });
       });
 
+      socket.on('server-updated', (updatedServer: Server) => {
+        setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
+        setSelectedServer(prev => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
+      });
+
+      socket.on('user-updated', (updatedUser: Partial<User> & { _id: string }) => {
+        // Update servers' members data
+        setServers(prev => prev.map(server => ({
+          ...server,
+          members: server.members.map(member =>
+            member.user._id === updatedUser._id
+              ? { ...member, user: { ...member.user, ...updatedUser } }
+              : member
+          )
+        })));
+
+        // Update selected server's members
+        setSelectedServer(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            members: prev.members.map(member =>
+              member.user._id === updatedUser._id
+                ? { ...member, user: { ...member.user, ...updatedUser } }
+                : member
+            )
+          };
+        });
+
+        // Update selected DM if it involves this user
+        setSelectedDM(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            participants: prev.participants.map(p =>
+              p._id === updatedUser._id ? { ...p, ...updatedUser } : p
+            )
+          };
+        });
+
+        // Update current user if it's their profile
+        if (updatedUser._id === user?._id) {
+          updateUser(updatedUser);
+        }
+      });
+
       return () => {
         console.log('Removing call-offer listener');
         socket.off('call-offer', handleCallOffer);
         socket.off('server-roles-updated');
         socket.off('server-member-updated');
+        socket.off('server-updated');
+        socket.off('user-updated');
       };
     }
   }, [socket, activeCall]);

@@ -10,7 +10,7 @@ body {
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -moz-osx-smoothing: grayscale;
   background-color: #36393f;
   color: #dcddde;
   overflow: hidden;
@@ -26,12 +26,42 @@ code {
   width: 100vw;
 }
 
+/* Global Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
 
+::-webkit-scrollbar-track {
+  background-color: transparent;
+  border: 4px solid transparent;
+}
 
+::-webkit-scrollbar-thumb {
+  background-color: #202225;
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  border-radius: 20px;
+}
 
+::-webkit-scrollbar-thumb:hover {
+  background-color: #18191c;
+}
 
+/* Thin variant for specific areas */
+.sidebar-scroll::-webkit-scrollbar,
+.settings-sidebar::-webkit-scrollbar,
+.settings-content-wrapper::-webkit-scrollbar,
+.stage-sidebar::-webkit-scrollbar,
+.voice-channel-content::-webkit-scrollbar {
+  width: 8px;
+}
 
-
-
-
-
+.sidebar-scroll::-webkit-scrollbar-thumb,
+.settings-sidebar::-webkit-scrollbar-thumb,
+.settings-content-wrapper::-webkit-scrollbar-thumb,
+.stage-sidebar::-webkit-scrollbar-thumb,
+.voice-channel-content::-webkit-scrollbar-thumb {
+  background-color: #1e1f22;
+  border: 2px solid transparent;
+}

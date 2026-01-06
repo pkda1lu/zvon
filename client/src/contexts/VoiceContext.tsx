@@ -512,14 +512,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 micGain.connect(dest);
 
                 // Screen Audio Path
+                console.log("Creating media source for screen audio track:", screenAudioTrack.label);
                 const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
-                // Maybe add a gain for system audio too? Usually 1.0 is fine.
-                screenSource.connect(dest);
+                const screenGain = ctx.createGain();
+                screenGain.gain.value = 1.0; // Ensure full volume for system audio
+                screenSource.connect(screenGain);
+                screenGain.connect(dest);
 
                 // References
                 audioContextRef.current = ctx;
                 micGainNodeRef.current = micGain;
                 mixedStreamRef.current = dest;
+                console.log("Audio mixing setup complete with system audio.");
 
                 audioTrackToUse = dest.stream.getAudioTracks()[0];
             } else {
@@ -680,7 +684,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                                     document.addEventListener('click', handleInteraction, { once: true });
                                     document.addEventListener('keydown', handleInteraction, { once: true });
                                 }
-                                el.volume = userVolumes.has(userId) ? userVolumes.get(userId)! : 1;
+                                try {
+                                    // HTML Audio volume must be between 0 and 1. 
+                                    // If we want > 1 (e.g. 200%), we'd need a GainNode.
+                                    // For now, let's cap it at 1.0 to prevent IndexSizeError crash.
+                                    const vol = userVolumes.has(userId) ? userVolumes.get(userId)! : 1;
+                                    el.volume = Math.min(1, Math.max(0, vol));
+                                } catch (e) {
+                                    console.error("Error setting volume:", e);
+                                }
                                 el.muted = isDeafened;
                             } else {
                                 audioElementsRef.current.delete(userId);

@@ -1,8 +1,23 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
-import { getAvatarUrl } from '../utils/avatar';
-import { CloseIcon } from './Icons';
+import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import {
+  CloseIcon,
+  UsersIcon,
+  ShieldIcon,
+  MonitorIcon,
+  PaletteIcon,
+  SpeakerIcon,
+  ChatIcon,
+  KeyboardIcon,
+  VideoIcon,
+  SettingsIcon,
+  LogOutIcon,
+  SmartphoneIcon,
+  EllipsisIcon,
+  CameraIcon
+} from './Icons';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -10,111 +25,101 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+type SettingsTab =
+  | 'account'
+  | 'privacy'
+  | 'devices'
+  | 'appearance'
+  | 'voice'
+  | 'chat'
+  | 'keybinds'
+  | 'windows'
+  | 'streamer'
+  | 'advanced'
+  | 'activity';
+
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user, refreshUser, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('account');
+
+  // Account Form State
   const [username, setUsername] = useState(user?.username || '');
   const [status, setStatus] = useState(user?.status || 'offline');
   const [bio, setBio] = useState(user?.bio || '');
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(getAvatarUrl(user?.avatar) || null);
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(getAvatarUrl(user?.banner) || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
-      if (user.avatar) setAvatarPreview(getAvatarUrl(user.avatar));
-      if (user.banner) setBannerPreview(getAvatarUrl(user.banner));
       setUsername(user.username);
       setStatus(user.status);
       setBio(user.bio || '');
+      setAvatarPreview(getAvatarUrl(user.avatar));
+      setBannerPreview(getAvatarUrl(user.banner));
     }
   }, [user]);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setBannerFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setBannerPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+    if (!file) return;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+    const formData = new FormData();
+    formData.append('avatar', file);
 
     try {
-      let avatarUrl = user?.avatar || null;
-
-      // Upload avatar if changed
-      if (avatarFile) {
-        try {
-          const formData = new FormData();
-          formData.append('avatar', avatarFile);
-          const avatarResponse = await axios.post('/api/users/avatar', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          avatarUrl = avatarResponse.data.avatar;
-          // Update preview with full URL
-          setAvatarPreview(getAvatarUrl(avatarUrl));
-        } catch (avatarError: any) {
-          console.error('Avatar upload error:', avatarError);
-          throw new Error(avatarError.response?.data?.message || 'Ошибка загрузки аватара');
-        }
-      }
-
-      // Upload banner if changed
-      if (bannerFile) {
-        try {
-          const formData = new FormData();
-          formData.append('banner', bannerFile);
-          await axios.post('/api/users/banner', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-        } catch (bannerError: any) {
-          console.error('Banner upload error:', bannerError);
-          throw new Error(bannerError.response?.data?.message || 'Ошибка загрузки баннера');
-        }
-      }
-
-      // Update profile
-      try {
-        await axios.put('/api/users/profile', {
-          username,
-          status,
-          bio
-        });
-
-        // Update auth context
-        await refreshUser();
-
-        onClose();
-      } catch (profileError: any) {
-        console.error('Profile update error:', profileError);
-        throw new Error(profileError.response?.data?.message || 'Ошибка обновления профиля');
-      }
+      setLoading(true);
+      const response = await axios.post('/api/users/avatar', formData);
+      await refreshUser();
+      setAvatarPreview(getAvatarUrl(response.data.avatar));
     } catch (err: any) {
-      setError(err.message || 'Ошибка обновления профиля');
+      setError(err.response?.data?.message || 'Ошибка загрузки аватара');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('banner', file);
+
+    try {
+      setLoading(true);
+      await axios.post('/api/users/banner', formData);
+      await refreshUser();
+      setBannerPreview(getAvatarUrl(user?.banner)); // This might need a refresh logic
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Ошибка загрузки баннера');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveAccount = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await axios.put('/api/users/profile', { username, bio, status });
+      await refreshUser();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Ошибка сохранения профиля');
     } finally {
       setLoading(false);
     }
@@ -122,134 +127,206 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="settings-modal-overlay" onClick={onClose}>
-      <div className="settings-modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-modal-header">
-          <h2>Настройки профиля</h2>
-          <button className="close-button" onClick={onClose}><CloseIcon /></button>
+  const renderAccountSettings = () => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Моя учётная запись</h2>
+
+      <div className="user-settings-account-card">
+        <div
+          className="account-banner"
+          style={{ background: bannerPreview ? `url(${getFullUrl(user?.banner || '')}) center/cover` : '#5865f2' }}
+        >
+          <button className="change-banner-button" onClick={() => bannerInputRef.current?.click()}>
+            Изменить баннер
+          </button>
+          <div className="account-avatar-wrapper" onClick={() => fileInputRef.current?.click()}>
+            <img src={avatarPreview || ''} alt="" />
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="settings-form">
-          {error && <div className="error-message">{error}</div>}
+        <div className="account-info-banner">
+          <div className="account-details">
+            <h3>{user?.username}</h3>
+            <p>Статус: {status === 'online' ? 'В сети' : 'Не в сети'}</p>
+          </div>
+          <button className="edit-profile-button" onClick={() => fileInputRef.current?.click()}>
+            Изменить профиль
+          </button>
+        </div>
+      </div>
 
-          <div className="settings-section">
-            <label>Аватар</label>
-            <div className="avatar-upload">
-              <div className="avatar-preview">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Avatar preview" />
-                ) : (
-                  <span>{username.charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              <button
-                type="button"
-                className="upload-button"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Изменить аватар
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                style={{ display: 'none' }}
-              />
+      <div className="settings-form-group">
+        <label>Имя пользователя</label>
+        <input
+          type="text"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+        />
+      </div>
+
+      <div className="settings-form-group">
+        <label>О себе</label>
+        <textarea
+          value={bio}
+          onChange={e => setBio(e.target.value)}
+          placeholder="Расскажите о себе..."
+          rows={3}
+        />
+      </div>
+
+      <div className="settings-form-group">
+        <label>Статус</label>
+        <select value={status} onChange={e => setStatus(e.target.value as any)}>
+          <option value="online">В сети</option>
+          <option value="away">Отошёл</option>
+          <option value="busy">Занят</option>
+          <option value="offline">Невидимый</option>
+        </select>
+      </div>
+
+      <button
+        className="save-button"
+        onClick={handleSaveAccount}
+        disabled={loading}
+      >
+        {loading ? 'Сохранение...' : 'Сохранить изменения'}
+      </button>
+
+      <input type="file" ref={fileInputRef} hidden onChange={handleAvatarChange} accept="image/*" />
+      <input type="file" ref={bannerInputRef} hidden onChange={handleBannerChange} accept="image/*" />
+    </div>
+  );
+
+  const renderPlaceholder = (title: string, icon: React.ReactNode) => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">{title}</h2>
+      <div className="placeholder-settings">
+        {icon}
+        <p>Этот раздел настроек находится в разработке и будет доступен в ближайшем обновлении.</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="settings-modal-overlay" onClick={onClose}>
+      <div className="settings-modal-container" onClick={e => e.stopPropagation()}>
+
+        {/* Sidebar */}
+        <div className="settings-sidebar">
+          <div className="settings-sidebar-content">
+
+            <div className="sidebar-header">Настройки пользователя</div>
+            <div
+              className={`sidebar-item ${activeTab === 'account' ? 'active' : ''}`}
+              onClick={() => setActiveTab('account')}
+            >
+              <UsersIcon size={18} /> Моя учётная запись
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'privacy' ? 'active' : ''}`}
+              onClick={() => setActiveTab('privacy')}
+            >
+              <ShieldIcon size={18} /> Данные и конфиденциальность
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'devices' ? 'active' : ''}`}
+              onClick={() => setActiveTab('devices')}
+            >
+              <SmartphoneIcon size={18} /> Устройства
+            </div>
+
+            <div className="sidebar-separator" />
+
+            <div className="sidebar-header">Настройки приложения</div>
+            <div
+              className={`sidebar-item ${activeTab === 'appearance' ? 'active' : ''}`}
+              onClick={() => setActiveTab('appearance')}
+            >
+              <PaletteIcon size={18} /> Внешний вид
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'voice' ? 'active' : ''}`}
+              onClick={() => setActiveTab('voice')}
+            >
+              <SpeakerIcon size={18} /> Голос и видео
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'chat' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chat')}
+            >
+              <ChatIcon size={18} /> Чат
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'keybinds' ? 'active' : ''}`}
+              onClick={() => setActiveTab('keybinds')}
+            >
+              <KeyboardIcon size={18} /> Горячие клавиши
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'windows' ? 'active' : ''}`}
+              onClick={() => setActiveTab('windows')}
+            >
+              <MonitorIcon size={18} /> Настройки Windows
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'streamer' ? 'active' : ''}`}
+              onClick={() => setActiveTab('streamer')}
+            >
+              <CameraIcon size={18} /> Режим стримера
+            </div>
+            <div
+              className={`sidebar-item ${activeTab === 'advanced' ? 'active' : ''}`}
+              onClick={() => setActiveTab('advanced')}
+            >
+              <EllipsisIcon size={18} /> Расширенные
+            </div>
+
+            <div className="sidebar-separator" />
+
+            <div className="sidebar-header">Настройки активности</div>
+            <div
+              className={`sidebar-item ${activeTab === 'activity' ? 'active' : ''}`}
+              onClick={() => setActiveTab('activity')}
+            >
+              <ShieldIcon size={18} /> Конфиденциальность активности
+            </div>
+
+            <div className="sidebar-separator" />
+
+            <div className="sidebar-item logout" onClick={() => { logout(); onClose(); }}>
+              <LogOutIcon size={18} /> Выйти
+            </div>
+
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="settings-main">
+          <div className="settings-content-wrapper">
+            <div className="settings-content-inner">
+              {activeTab === 'account' && renderAccountSettings()}
+              {activeTab === 'privacy' && renderPlaceholder('Данные и конфиденциальность', <ShieldIcon size={80} />)}
+              {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
+              {activeTab === 'appearance' && renderPlaceholder('Внешний вид', <PaletteIcon size={80} />)}
+              {activeTab === 'voice' && renderPlaceholder('Голос и видео', <SpeakerIcon size={80} />)}
+              {activeTab === 'chat' && renderPlaceholder('Чат', <ChatIcon size={80} />)}
+              {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
+              {activeTab === 'windows' && renderPlaceholder('Настройки Windows', <MonitorIcon size={80} />)}
+              {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
+              {activeTab === 'advanced' && renderPlaceholder('Расширенные', <EllipsisIcon size={80} />)}
+              {activeTab === 'activity' && renderPlaceholder('Конфиденциальность активности', <ShieldIcon size={80} />)}
             </div>
           </div>
 
-          <div className="settings-section">
-            <label htmlFor="username">Имя пользователя</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              minLength={3}
-              maxLength={20}
-              required
-            />
+          <div className="close-settings-button" onClick={onClose}>
+            <div className="close-circle"><CloseIcon size={20} /></div>
+            <div className="close-text">Esc</div>
           </div>
+        </div>
 
-          <div className="settings-section">
-            <label htmlFor="bio">О себе</label>
-            <textarea
-              id="bio"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              maxLength={300}
-              placeholder="Расскажите немного о себе..."
-              rows={3}
-              className="bio-input"
-            />
-          </div>
-
-          <div className="settings-section">
-            <label>Баннер профиля</label>
-            <div className={`banner-upload ${bannerPreview ? 'has-banner' : ''}`}>
-              <div
-                className="banner-preview"
-                style={{ backgroundImage: bannerPreview ? `url(${bannerPreview})` : 'none' }}
-              >
-                {!bannerPreview && 'Рекомендуемый размер 600x240'}
-              </div>
-              <button
-                type="button"
-                className="upload-button"
-                onClick={() => bannerInputRef.current?.click()}
-              >
-                Изменить баннер
-              </button>
-              <input
-                ref={bannerInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleBannerChange}
-                style={{ display: 'none' }}
-              />
-            </div>
-          </div>
-
-          <div className="settings-section">
-            <label htmlFor="status">Статус</label>
-            <select
-              id="status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
-            >
-              <option value="online">В сети</option>
-              <option value="offline">Не в сети</option>
-              <option value="away">Отошёл</option>
-              <option value="busy">Занят</option>
-            </select>
-          </div>
-
-          <div className="settings-modal-buttons">
-            <button
-              type="button"
-              onClick={() => {
-                logout();
-                onClose();
-              }}
-              className="logout-modal-button"
-            >
-              Выйти
-            </button>
-            <div style={{ flex: 1 }} />
-            <button type="button" onClick={onClose} className="cancel-button">
-              Отмена
-            </button>
-            <button type="submit" className="save-button" disabled={loading}>
-              {loading ? 'Сохранение...' : 'Сохранить'}
-            </button>
-          </div>
-        </form>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 };
 
 export default SettingsModal;
-

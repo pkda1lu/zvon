@@ -97,6 +97,19 @@ router.put('/profile', auth, async (req, res) => {
 
     await req.user.save();
 
+    // Broadcast update via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user-updated', {
+        _id: req.user._id,
+        username: req.user.username,
+        status: req.user.status,
+        bio: req.user.bio,
+        avatar: req.user.avatar,
+        banner: req.user.banner
+      });
+    }
+
     res.json({
       id: req.user._id,
       username: req.user.username,
@@ -118,6 +131,15 @@ router.put('/status', auth, async (req, res) => {
     const { status } = req.body;
     req.user.status = status;
     await req.user.save();
+
+    // Broadcast status update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user-updated', {
+        _id: req.user._id,
+        status: req.user.status
+      });
+    }
 
     res.json({ status: req.user.status });
   } catch (error) {
@@ -149,6 +171,15 @@ router.post('/avatar', auth, (req, res, next) => {
 
     user.avatar = avatarUrl;
     await user.save();
+
+    // Broadcast avatar update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user-updated', {
+        _id: user._id,
+        avatar: avatarUrl
+      });
+    }
 
     res.json({
       avatar: avatarUrl,
@@ -188,6 +219,15 @@ router.post('/banner', auth, (req, res, next) => {
 
     user.banner = bannerUrl;
     await user.save();
+
+    // Broadcast banner update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user-updated', {
+        _id: user._id,
+        banner: bannerUrl
+      });
+    }
 
     res.json({
       banner: bannerUrl,

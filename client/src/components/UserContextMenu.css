@@ -1,0 +1,130 @@
+.user-context-menu {
+    position: fixed;
+    width: 210px;
+    background: #18191c;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    border-radius: 4px;
+    padding: 6px 8px;
+    z-index: 5000;
+    color: #b9bbbe;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    animation: contextMenuOpen 0.1s ease-out;
+}
+
+@keyframes contextMenuOpen {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 2px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.1s, color 0.1s;
+    color: #b9bbbe;
+}
+
+.context-menu-item:hover {
+    background-color: #5865f2;
+    color: #fff;
+}
+
+.context-menu-item.destructive {
+    color: #f04747;
+}
+
+.context-menu-item.destructive:hover {
+    background-color: #f04747;
+    color: #fff;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: rgba(79, 84, 92, 0.48);
+    margin: 4px 6px;
+}
+
+.context-menu-label {
+    padding: 8px 8px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #8e9297;
+}
+
+.context-menu-label.warning {
+    color: #f04747;
+}
+
+.volume-slider-container {
+    padding: 4px 8px 8px;
+}
+
+.context-volume-slider {
+    width: 100%;
+    height: 4px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: #4f545c;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.context-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.check-item input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1px solid #4f545c;
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+    background: transparent;
+}
+
+.check-item input[type="checkbox"]:checked {
+    background: #5865f2;
+    border-color: #5865f2;
+}
+
+.check-item input[type="checkbox"]:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: 12px;
+}
+
+.submenu-arrow {
+    color: #b9bbbe;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.context-menu-item:hover .submenu-arrow {
+    color: #fff;
+}

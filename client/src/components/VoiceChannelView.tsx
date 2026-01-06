@@ -6,6 +6,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, StopScreenShareIcon, MaximizeIcon, MinimizeIcon } from './Icons';
 import axios from 'axios';
+import UserContextMenu from './UserContextMenu';
 import './VoiceChannelView.css';
 
 interface VoiceChannelViewProps {
@@ -249,34 +250,15 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
       </div>
 
       {contextMenu && (
-        <>
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} onClick={handleCloseContextMenu} />
-          <div
-            style={{
-              position: 'fixed',
-              top: contextMenu.y,
-              left: contextMenu.x,
-              background: '#18191c',
-              padding: '12px',
-              borderRadius: '4px',
-              zIndex: 1000,
-              boxShadow: '0 8px 16px rgba(0,0,0,0.24)',
-              color: '#b9bbbe',
-              minWidth: '200px'
-            }}
-          >
-            <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase' }}>Громкость пользователя</div>
-            <input
-              type="range"
-              min="0"
-              max="2"
-              step="0.05"
-              style={{ width: '100%', cursor: 'pointer' }}
-              value={userVolumes.get(contextMenu.userId) !== undefined ? userVolumes.get(contextMenu.userId) : 1}
-              onChange={(e) => setUserVolume(contextMenu.userId, parseFloat(e.target.value))}
-            />
-          </div>
-        </>
+        <UserContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          user={displayItems.find(i => i.id === contextMenu.userId || i.data?._id === contextMenu.userId)?.data}
+          onClose={handleCloseContextMenu}
+          onProfileClick={() => onUserClick(contextMenu.userId)}
+          onMessageClick={() => console.log('Message click')}
+          onCallClick={() => console.log('Call click')}
+        />
       )}
 
       <div className={`voice-channel-content ${isFullscreen ? 'is-fullscreen-mode' : ''}`}>

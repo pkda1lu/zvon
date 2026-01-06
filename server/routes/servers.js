@@ -232,6 +232,12 @@ router.put('/:id', auth, async (req, res) => {
       .populate('members.user', 'username avatar status')
       .populate('members.roles');
 
+    // Broadcast server update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${server._id}`).emit('server-updated', populatedServer);
+    }
+
     res.json(populatedServer);
   } catch (error) {
     console.error(error);
@@ -282,6 +288,17 @@ router.post('/:id/icon', auth, upload.single('icon'), async (req, res) => {
 
     await logAction(server._id, req.user._id, 'update', 'server', server._id, { icon: iconUrl }, 'Updated server icon');
 
+    // Broadcast icon update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedServer = await Server.findById(server._id)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles');
+      io.to(`server-${server._id}`).emit('server-updated', updatedServer);
+    }
+
     res.json({ icon: iconUrl });
   } catch (error) {
     console.error(error);
@@ -305,6 +322,17 @@ router.post('/:id/banner', auth, upload.single('banner'), async (req, res) => {
     await server.save();
 
     await logAction(server._id, req.user._id, 'update', 'server', server._id, { banner: bannerUrl }, 'Updated server banner');
+
+    // Broadcast banner update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedServer = await Server.findById(server._id)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles');
+      io.to(`server-${server._id}`).emit('server-updated', updatedServer);
+    }
 
     res.json({ banner: bannerUrl });
   } catch (error) {

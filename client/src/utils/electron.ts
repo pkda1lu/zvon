@@ -200,14 +200,14 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
     const isScreen = source.id.startsWith('screen:');
 
     // For Electron, we need to use the correct constraints format
-    // On Windows, system audio capture works for screen sources
+    // On Windows, system audio capture works for screen and many window sources
     const constraints: any = {
-        audio: isScreen ? {
+        audio: {
             mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: source.id
             }
-        } : false, // Audio capture for specific windows is poorly supported in many Electron versions
+        },
         video: {
             mandatory: {
                 chromeMediaSource: 'desktop',

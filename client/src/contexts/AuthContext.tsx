@@ -9,7 +9,7 @@ interface AuthContextType {
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
-  updateUser: (user: User) => void;
+  updateUser: (user: Partial<User>) => void;
   refreshUser: () => Promise<void>;
 }
 
@@ -57,8 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateUser = (updatedUser: User) => {
-    setUser(updatedUser);
+  const updateUser = (updatedUser: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...updatedUser } : (updatedUser as User));
   };
 
   const login = async (email: string, password: string) => {
@@ -99,6 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUser = async () => {
     await fetchUser();
   };
+
 
   return (
     <AuthContext.Provider value={{ user, token, login, register, logout, loading, updateUser, refreshUser }}>
