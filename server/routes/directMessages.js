@@ -26,9 +26,10 @@ router.get('/', auth, async (req, res) => {
 router.get('/user/:userId', auth, async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log(`Getting/Creating DM with user: ${userId} from user: ${req.user._id}`);
+    console.log(`[DM Route] Request from ${req.user._id} to start DM with ${userId}`);
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
+    if (!mongoose.isValidObjectId(userId)) {
+      console.warn(`[DM Route] Invalid userId provided: ${userId}`);
       return res.status(400).json({ message: 'Invalid user ID' });
     }
 
@@ -42,6 +43,7 @@ router.get('/user/:userId', auth, async (req, res) => {
       .populate('participants', 'username avatar status');
 
     if (!dm) {
+      console.log(`[DM Route] DM not found, creating new one for participants: [${req.user._id}, ${userId}]`);
       dm = new DirectMessage({
         participants: [req.user._id, userId]
       });
@@ -51,8 +53,8 @@ router.get('/user/:userId', auth, async (req, res) => {
 
     res.json(dm);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('[DM Route] Error in /user/:userId:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

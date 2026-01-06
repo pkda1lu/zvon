@@ -82,11 +82,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
     } else {
       browserFullscreenFallback(container, newState);
     }
-  }, [isFullscreen]); // We need isFullscreen to know CURRENT state if we were toggling, but here we pass newState
+  }, [isFullscreen]);
 
   const browserFullscreenFallback = (container: HTMLElement, newState: boolean) => {
+    const doc = document as any;
     if (newState) {
-      if (!document.fullscreenElement) {
+      if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
         const requestFullscreen =
           container.requestFullscreen ||
           (container as any).webkitRequestFullscreen ||
@@ -99,7 +100,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
         }
       }
     } else {
-      const doc = document as any;
       if (doc.fullscreenElement || doc.webkitFullscreenElement) {
         const exitFullscreen = doc.exitFullscreen || doc.webkitExitFullscreen;
         if (exitFullscreen) exitFullscreen.call(doc);
