@@ -2,6 +2,12 @@ const { app, BrowserWindow, desktopCapturer, ipcMain, clipboard } = require('ele
 const path = require('path');
 const isDev = require('electron-is-dev');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
+
+// Configure logging
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
+log.info('App starting...');
 
 let pendingDeepLink = null;
 let mainWindow;
