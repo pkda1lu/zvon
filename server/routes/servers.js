@@ -90,6 +90,7 @@ router.post('/', auth, async (req, res) => {
       .populate('owner', 'username avatar')
       .populate('members.user', 'username avatar status')
       .populate('members.roles')
+      .populate('roles')
       .populate('channels');
 
     res.status(201).json(populatedServer);
@@ -108,6 +109,7 @@ router.get('/me', auth, async (req, res) => {
     })
       .populate('owner', 'username avatar')
       .populate('channels')
+      .populate('roles')
       .populate('members.user', 'username avatar status')
       .populate('members.roles')
       .sort({ createdAt: -1 });
@@ -130,6 +132,7 @@ router.get('/me', auth, async (req, res) => {
     })
       .populate('owner', 'username avatar')
       .populate('channels')
+      .populate('roles')
       .populate('members.user', 'username avatar status')
       .populate('members.roles')
       .sort({ createdAt: -1 });

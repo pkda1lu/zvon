@@ -624,17 +624,21 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                         </div>
                                     </div>
 
-                                    {roleHasChanges && (
-                                        <div className="save-changes-bar relative">
-                                            <span className="save-changes-text">Несохраненные изменения!</span>
-                                            <div className="save-changes-buttons">
-                                                <button className="reset-button" onClick={() => startEditingRole(editingRole)}>Сбросить</button>
-                                                <button className="save-button" onClick={handleUpdateRole} disabled={loading}>
-                                                    {loading ? 'Сохранение...' : 'Сохранить'}
-                                                </button>
-                                            </div>
+                                    <div className={`save-changes-bar relative ${roleHasChanges ? 'visible' : 'hidden'}`} style={{
+                                        opacity: roleHasChanges ? 1 : 0,
+                                        pointerEvents: roleHasChanges ? 'auto' : 'none',
+                                        transform: roleHasChanges ? 'translateY(0)' : 'translateY(20px)',
+                                        transition: 'all 0.2s ease-out',
+                                        visibility: roleHasChanges ? 'visible' : 'hidden' // Ensure it doesn't block clicks when hidden
+                                    }}>
+                                        <span className="save-changes-text">Несохраненные изменения!</span>
+                                        <div className="save-changes-buttons">
+                                            <button className="reset-button" onClick={() => startEditingRole(editingRole)}>Сбросить</button>
+                                            <button className="save-button" onClick={handleUpdateRole} disabled={loading}>
+                                                {loading ? 'Сохранение...' : 'Сохранить'}
+                                            </button>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -693,20 +697,25 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                         </div>
                     )}
 
-                    {hasChanges && (
-                        <div className="save-changes-bar">
-                            <span className="save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
-                            <div className="save-changes-buttons">
-                                <button className="reset-button" onClick={() => {
-                                    setServerName(server.name);
-                                    setServerDescription(server.description || '');
-                                }}>Сбросить</button>
-                                <button className="save-button" onClick={handleSaveOverview} disabled={loading}>
-                                    {loading ? 'Сохранение...' : 'Сохранить изменения'}
-                                </button>
-                            </div>
+                    <div className={`save-changes-bar ${hasChanges ? 'visible' : 'hidden'}`} style={{
+                        opacity: hasChanges ? 1 : 0,
+                        pointerEvents: hasChanges ? 'auto' : 'none',
+                        transform: hasChanges ? 'translateY(0)' : 'translateY(20px)',
+                        transition: 'all 0.2s ease-out',
+                        visibility: hasChanges ? 'visible' : 'hidden'
+                    }}>
+                        <span className="save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
+                        <div className="save-changes-buttons">
+                            <button className="reset-button" onClick={() => {
+                                setServerName(server.name);
+                                setServerDescription(server.description || '');
+                                setBannerColor(server.bannerColor || '#5865f2');
+                            }}>Сбросить</button>
+                            <button className="save-button" onClick={handleSaveOverview} disabled={loading}>
+                                {loading ? 'Сохранение...' : 'Сохранить изменения'}
+                            </button>
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>

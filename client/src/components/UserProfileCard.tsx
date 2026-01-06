@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { User, Server, Role } from '../types';
+import { Server, User, Role } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { CloseIcon, PlusIcon } from './Icons';
 import { usePermissions } from '../hooks/usePermissions';
@@ -28,8 +28,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [isManagingRoles, setIsManagingRoles] = useState(false);
 
     // Check permissions
-    // We prefer currentServer if available, otherwise we might fail permission check or need to fetch it.
-    // Assuming simple check if currentServer is passed.
     const { hasPermission } = usePermissions(currentUser || null, currentServer || null);
     const canManageRoles = hasPermission('MANAGE_ROLES');
     const canManageServer = hasPermission('MANAGE_SERVER');
@@ -37,11 +35,15 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
     useEffect(() => {
         if (serverId && canEditRoles) {
-            if (currentServer && currentServer.roles) {
-                setAllServerRoles(currentServer.roles);
+            // Check if currentServer has fully populated roles
+            const hasPopulatedRoles = currentServer && currentServer.roles && currentServer.roles.length > 0 &&
+                typeof currentServer.roles[0] === 'object' && 'name' in currentServer.roles[0];
+
+            if (hasPopulatedRoles) {
+                setAllServerRoles(currentServer.roles as Role[]);
             } else {
-                axios.get(`/api/servers/${serverId}`)
-                    .then(res => setAllServerRoles(res.data.roles || []))
+                axios.get(`/api/servers/${serverId}/roles`)
+                    .then(res => setAllServerRoles(res.data))
                     .catch(err => console.error(err));
             }
         }
@@ -64,29 +66,40 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             });
         } catch (err) {
             console.error('Failed to update roles', err);
-            // Revert on error could be added here
+            // In a real app, we should revert on error
         }
     };
 
     useEffect(() => {
         const fetchProfile = async () => {
+            if (!userId) return;
+
+            setLoading(true);
+            setError('');
+
             try {
-                setLoading(true);
+                // Fetch basic user profile
                 const response = await axios.get(`/api/users/profile/${userId}`);
                 setProfileData(response.data);
 
+                // Load member data if in server (for roles)
                 if (serverId) {
                     try {
                         const memberRes = await axios.get(`/api/servers/${serverId}/members/${userId}`);
                         if (memberRes.data.roles) {
-                            const roles = memberRes.data.roles.filter((r: any) => typeof r === 'object');
-                            roles.sort((a: Role, b: Role) => (b.position || 0) - (a.position || 0));
-                            setMemberRoles(roles);
+                            // Ensure we only keep valid role objects and sort them
+                            const validRoles = memberRes.data.roles.filter((r: any) => r && typeof r === 'object' && r._id);
+                            validRoles.sort((a: Role, b: Role) => (b.position || 0) - (a.position || 0));
+                            setMemberRoles(validRoles);
                         }
                     } catch (memberErr) {
                         console.error('Failed to fetch member info:', memberErr);
+                        setMemberRoles([]);
                     }
+                } else {
+                    setMemberRoles([]);
                 }
+
             } catch (err: any) {
                 setError('Не удалось загрузить профиль');
                 console.error(err);
@@ -94,7 +107,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 setLoading(false);
             }
         };
-
         fetchProfile();
     }, [userId, serverId]);
 
@@ -225,7 +237,14 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                                 {isManagingRoles && (
                                                     <div className="role-selector-dropdown">
                                                         {allServerRoles
-                                                            .filter(r => r && r._id && !memberRoles.some(mr => mr && mr._id === r._id))
+                                                            .filter(r => {
+                                                                if (!r || !r._id) return false;
+                                                                // Check if member already has this role (handle both object and ID comparison)
+                                                                return !memberRoles.some(mr => {
+                                                                    const mrId = typeof mr === 'string' ? mr : mr?._id;
+                                                                    return mrId === r._id;
+                                                                });
+                                                            })
                                                             .map(role => (
                                                                 <div
                                                                     key={role._id}
@@ -236,9 +255,15 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                                                     {role.name}
                                                                 </div>
                                                             ))}
-                                                        {allServerRoles.filter(r => r && r._id && !memberRoles.some(mr => mr && mr._id === r._id)).length === 0 && (
-                                                            <div className="no-roles-av">Нет доступных ролей</div>
-                                                        )}
+                                                        {allServerRoles.filter(r => {
+                                                            if (!r || !r._id) return false;
+                                                            return !memberRoles.some(mr => {
+                                                                const mrId = typeof mr === 'string' ? mr : mr?._id;
+                                                                return mrId === r._id;
+                                                            });
+                                                        }).length === 0 && (
+                                                                <div className="no-roles-av">Нет доступных ролей</div>
+                                                            )}
                                                     </div>
                                                 )}
                                             </>
@@ -290,7 +315,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 
