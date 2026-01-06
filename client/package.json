@@ -2,6 +2,8 @@
   "name": "zvon-client",
   "version": "0.1.0",
   "private": true,
+  "author": "pkda1lu",
+  "description": "Zvon - Real-time communication platform",
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -29,8 +31,7 @@
     "win": {
       "target": "nsis",
       "icon": "public/app_icon.ico",
-      "requestedExecutionLevel": "asInvoker",
-      "publisherName": "Zvon Team"
+      "requestedExecutionLevel": "asInvoker"
     },
     "files": [
       "build/**/*"
