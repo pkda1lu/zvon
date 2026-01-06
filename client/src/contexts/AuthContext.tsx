@@ -26,8 +26,9 @@ export const useAuth = () => {
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 axios.defaults.baseURL = API_URL;
-axios.defaults.headers.common['Content-Type'] = 'application/json';
-axios.defaults.headers.post['Content-Type'] = 'application/json';
+// Remove explicit Content-Type headers to allow Axios to set them automatically based on data type (e.g., for FormData)
+// axios.defaults.headers.common['Content-Type'] = 'application/json';
+// axios.defaults.headers.post['Content-Type'] = 'application/json';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);

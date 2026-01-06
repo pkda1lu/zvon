@@ -13,8 +13,14 @@ const Message = require('./models/Message');
 const User = require('./models/User');
 const { hasPermission } = require('./utils/permissions');
 
+const compression = require('compression');
+
 const app = express();
 const server = http.createServer(app);
+
+// Use compression
+app.use(compression());
+
 const io = socketIo(server, {
   cors: {
     origin: process.env.CLIENT_URL || "http://localhost:3000",
@@ -25,22 +31,19 @@ const io = socketIo(server, {
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, or curl)
     if (!origin) return callback(null, true);
-    
-    // Get allowed origins from environment or use defaults
+
     const allowedOrigins = [
       process.env.CLIENT_URL || 'http://localhost:3000',
       'http://localhost:3000',
       'https://zvon.duckdns.com',
       'http://zvon.duckdns.com'
     ];
-    
-    // Check if origin is allowed
+
     if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all for now, but you can restrict this
+      callback(null, true);
     }
   },
   credentials: true,
@@ -65,7 +68,10 @@ app.use('/api/direct-messages', require('./routes/directMessages'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/upload-files', require('./routes/uploads'));
-app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '7d',
+  immutable: true
+}));
 
 const getVoiceChannelUsers = async (channelId) => {
   const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
@@ -154,7 +160,7 @@ io.on('connection', (socket) => {
           }
         }
         socket.emit('server-voice-states', voiceStates);
-        
+
         // Also broadcast to all server members to ensure they see the new user
         io.to(`server-${serverId}`).emit('server-voice-states', voiceStates);
       }
@@ -391,7 +397,7 @@ io.on('connection', (socket) => {
 
     // Notify server (Sidebar) - ensure this happens immediately
     await notifyVoiceChannelUpdate(channelId);
-    
+
     // Also send immediate update to all server members
     const channel = await Channel.findById(channelId);
     if (channel && channel.server) {

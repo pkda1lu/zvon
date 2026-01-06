@@ -130,10 +130,10 @@ MONGODB_URI=mongodb://localhost:27017/zvon
 # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/zvon?retryWrites=true&w=majority
 
 # JWT Secret (ОБЯЗАТЕЛЬНО измените на случайную строку!)
-JWT_SECRET=your-super-secret-jwt-key-change-this-to-random-string-min-32-chars
+JWT_SECRET=68f686e0d79b3413453bf5b8efa07ae4
 
 # URL клиента (ваш домен или IP)
-CLIENT_URL=http://vlyne.online
+CLIENT_URL=https://serverzvon.duckdns.org
 # или для разработки:
 # CLIENT_URL=http://localhost:3000
 
@@ -382,7 +382,7 @@ pm2 monit
 cd /var/www/zvon/server
 
 # Если используете Git:
-# git pull origin main
+ git pull origin main
 
 # Установка новых зависимостей
 npm install --production

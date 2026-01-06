@@ -3,7 +3,7 @@ export const isElectron = (): boolean => {
     // Check multiple ways to detect Electron
     const win = window as any;
     return !!(
-        win.process?.type === 'renderer' || 
+        win.process?.type === 'renderer' ||
         win.electron?.isElectron === true ||
         win.navigator?.userAgent?.includes('Electron') ||
         (typeof process !== 'undefined' && process.versions?.electron)
@@ -13,7 +13,7 @@ export const isElectron = (): boolean => {
 // Get Electron API if available
 export const getElectronAPI = () => {
     const win = window as any;
-    
+
     if (!win.electron) {
         console.log('Electron API not found immediately. Checking...');
         console.log('Window properties:', {
@@ -24,23 +24,23 @@ export const getElectronAPI = () => {
         });
         return null;
     }
-    
+
     const electronAPI = win.electron;
     console.log('Electron API found:', Object.keys(electronAPI));
-    
+
     // Validate that the API has the expected structure
     if (!electronAPI.desktopCapturer && !electronAPI.ipc) {
         console.warn('Electron API found but missing both desktopCapturer and ipc');
         console.warn('Available keys:', Object.keys(electronAPI));
     }
-    
+
     return electronAPI;
 };
 
 // Get available screen sources
 export const getScreenSources = async (): Promise<any[]> => {
     const electronAPI = getElectronAPI();
-    
+
     if (!electronAPI) {
         return [];
     }
@@ -53,7 +53,7 @@ export const getScreenSources = async (): Promise<any[]> => {
                 thumbnailSize: { width: 200, height: 150 }
             });
         }
-        
+
         if (electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
             return await electronAPI.ipc.invoke('get-desktop-sources', {
                 types: ['window', 'screen'],
@@ -63,14 +63,14 @@ export const getScreenSources = async (): Promise<any[]> => {
     } catch (error) {
         console.error('Error getting screen sources:', error);
     }
-    
+
     return [];
 };
 
 // Request screen sources using Electron desktopCapturer
 export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaStream | null> => {
     const electronAPI = getElectronAPI();
-    
+
     if (!electronAPI) {
         console.log('Electron API not available - window.electron is undefined');
         // Try IPC fallback
@@ -104,7 +104,7 @@ export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaS
                 throw directError;
             }
         }
-        
+
         // If direct method didn't work or wasn't available, try IPC
         if (!sources && electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
             console.log('Using IPC for desktopCapturer');
@@ -117,7 +117,7 @@ export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaS
                 throw ipcError;
             }
         }
-        
+
         // If still no sources, log diagnostic info
         if (!sources) {
             console.error('desktopCapturer not available in Electron API');
@@ -168,7 +168,7 @@ async function createStreamFromSources(sources: any[], sourceId?: string): Promi
     }
 
     let selectedSource: any;
-    
+
     if (sourceId) {
         // Use the specified source
         selectedSource = sources.find((s: any) => s.id === sourceId);
@@ -196,69 +196,61 @@ async function createStreamFromSources(sources: any[], sourceId?: string): Promi
 
 // Helper function to create stream from a single source
 async function createStreamFromSource(source: any): Promise<MediaStream> {
-    // Use navigator.mediaDevices.getUserMedia with electron's sourceId
-    // Include system audio capture - this is crucial for capturing system audio
+    // Determine if this is a screen source or a window source
+    const isScreen = source.id.startsWith('screen:');
+
     // For Electron, we need to use the correct constraints format
+    // On Windows, system audio capture works for screen sources
     const constraints: any = {
-        audio: {
+        audio: isScreen ? {
             mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: source.id
             }
-        },
+        } : false, // Audio capture for specific windows is poorly supported in many Electron versions
         video: {
             mandatory: {
                 chromeMediaSource: 'desktop',
-                chromeMediaSourceId: source.id
+                chromeMediaSourceId: source.id,
+                minWidth: 1280,
+                maxWidth: 1920,
+                minHeight: 720,
+                maxHeight: 1080,
+                minFrameRate: 30,
+                maxFrameRate: 60
             }
         }
     };
 
-    console.log('Requesting stream with constraints:', {
-        sourceId: source.id,
-        sourceName: source.name,
-        hasAudio: !!constraints.audio,
-        hasVideo: !!constraints.video
-    });
+    console.log('Requesting stream with constraints:', JSON.stringify(constraints, null, 2));
 
     let stream: MediaStream;
     try {
-        // Try with getUserMedia first (works in Electron with proper constraints)
+        // Try with getUserMedia
         stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (error: any) {
-        console.error('getUserMedia failed, trying alternative method:', error);
-        // Fallback: try without mandatory (some Electron versions)
+        console.error('getUserMedia failed, trying video only:', error);
         try {
-            const fallbackConstraints: any = {
-                audio: {
-                    chromeMediaSource: 'desktop',
-                    chromeMediaSourceId: source.id
-                } as any,
-                video: {
-                    chromeMediaSource: 'desktop',
-                    chromeMediaSourceId: source.id
-                } as any
-            };
-            stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-        } catch (fallbackError: any) {
-            console.error('Fallback getUserMedia also failed:', fallbackError);
-            // Last resort: try video only
             const videoOnlyConstraints: any = {
+                audio: false,
                 video: {
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: source.id
                     }
-                } as any
+                }
             };
             stream = await navigator.mediaDevices.getUserMedia(videoOnlyConstraints);
+        } catch (fallbackError: any) {
+            console.error('Fallback getUserMedia also failed:', fallbackError);
+            throw fallbackError;
         }
     }
 
     console.log('Successfully got Electron display media stream');
     console.log('Audio tracks:', stream.getAudioTracks().length);
     console.log('Video tracks:', stream.getVideoTracks().length);
-    
+
     // Verify video track is working
     const videoTrack = stream.getVideoTracks()[0];
     if (videoTrack) {
@@ -266,7 +258,7 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
         console.log('Video track constraints:', videoTrack.getConstraints());
         // Ensure track is enabled
         videoTrack.enabled = true;
-        
+
         // Monitor track state
         videoTrack.onended = () => {
             console.log('Video track ended');
@@ -280,7 +272,7 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
     } else {
         console.error('No video track in stream!');
     }
-    
+
     // Log audio track info
     stream.getAudioTracks().forEach((track, index) => {
         console.log(`Audio track ${index}:`, {
@@ -292,7 +284,7 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
             settings: track.getSettings()
         });
     });
-    
+
     // Log video track info
     stream.getVideoTracks().forEach((track, index) => {
         console.log(`Video track ${index}:`, {
@@ -304,7 +296,7 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
             settings: track.getSettings()
         });
     });
-    
+
     return stream;
 }
 

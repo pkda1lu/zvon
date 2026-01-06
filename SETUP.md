@@ -26,9 +26,9 @@ cd ../client && npm install
 ```env
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/zvon
-JWT_SECRET=your-secret-key-change-this-in-production-make-it-long-and-random
+JWT_SECRET=68f686e0d79b3413453bf5b8efa07ae4
 NODE_ENV=development
-CLIENT_URL=http://localhost:3000
+CLIENT_URL=https://serverzvon.duckdns.org
 ```
 
 **Важно:** Измените `JWT_SECRET` на случайную строку для безопасности!

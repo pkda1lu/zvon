@@ -395,7 +395,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     // Renegotiate to tell remote that video is gone
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
-                    
+
                     if (socket) {
                         socket.emit('voice-offer', {
                             targetUserId,
@@ -415,15 +415,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const startScreenShare = async (selectedSource: ScreenSource | null) => {
         setShowSourceSelector(false);
-        
+
         try {
             let screenStream: MediaStream | null = null;
-            
+
             // Try Electron desktopCapturer API first (for packaged Electron apps)
             const { getElectronDisplayMedia, isElectron, getElectronAPI } = await import('../utils/electron');
             const isElectronEnv = isElectron();
             console.log('Is Electron environment:', isElectronEnv);
-            
+
             if (isElectronEnv && selectedSource) {
                 console.log('Detected Electron environment, using selected source:', selectedSource.id);
                 const electronAPI = getElectronAPI();
@@ -438,41 +438,43 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 console.log('Using native picker in Electron');
                 screenStream = await getElectronDisplayMedia();
             }
-            
+
             // Fallback to standard getDisplayMedia if Electron API didn't work or user chose native picker
             if (!screenStream && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
                 console.log('Trying standard getDisplayMedia API');
                 try {
-                    screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-                        video: {
-                            displaySurface: 'monitor' // Prefer full screen
-                        } as MediaTrackConstraints,
-                        audio: {
-                            echoCancellation: false,
-                            noiseSuppression: false,
-                            autoGainControl: false,
-                            suppressLocalAudioPlayback: false
-                        } as MediaTrackConstraints
+                    // Try with audio first
+                    screenStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: true,
+                        audio: true
                     });
                 } catch (err) {
-                    console.error('getDisplayMedia failed:', err);
+                    console.warn('getDisplayMedia with audio failed, trying video only:', err);
+                    try {
+                        screenStream = await navigator.mediaDevices.getDisplayMedia({
+                            video: true,
+                            audio: false
+                        });
+                    } catch (secErr) {
+                        console.error('getDisplayMedia failed completely:', secErr);
+                    }
                 }
             }
-            
+
             if (!screenStream) {
                 console.error("Failed to get screen stream");
                 alert('Не удалось начать демонстрацию экрана. Проверьте разрешения браузера.');
                 return;
             }
-            
+
             const screenTrack = screenStream.getVideoTracks()[0];
-            
+
             if (!screenTrack) {
                 console.error("No video track in screen stream");
                 alert('Не удалось получить видео поток экрана.');
                 return;
             }
-            
+
             const screenAudioTrack = screenStream.getAudioTracks()[0];
 
             screenTrack.onended = () => {
@@ -570,7 +572,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     // Renegotiate to notify remote peer about new video track
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
-                    
+
                     if (socket) {
                         socket.emit('voice-offer', {
                             targetUserId,
