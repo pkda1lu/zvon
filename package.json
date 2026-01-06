@@ -9,10 +9,17 @@
     "client": "cd client && npm start",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install"
   },
-  "keywords": ["discord", "chat", "realtime"],
+  "keywords": [
+    "discord",
+    "chat",
+    "realtime"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
   }
 }

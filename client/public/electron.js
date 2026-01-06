@@ -1,9 +1,15 @@
 const { app, BrowserWindow, desktopCapturer, ipcMain, clipboard } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
+const { autoUpdater } = require('electron-updater');
 
 let pendingDeepLink = null;
 let mainWindow;
+let updaterWindow;
+
+// Basic autoUpdater configuration
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 
 // Register the custom protocol
 if (process.defaultApp) {
@@ -40,13 +46,82 @@ if (!gotTheLock) {
     });
 
     app.whenReady().then(() => {
-        createWindow();
+        if (isDev) {
+            createWindow();
+        } else {
+            createUpdaterWindow();
+        }
 
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) {
-                createWindow();
+                if (isDev) createWindow();
+                else createUpdaterWindow();
             }
         });
+    });
+}
+
+function createUpdaterWindow() {
+    updaterWindow = new BrowserWindow({
+        width: 400,
+        height: 500,
+        frame: false,
+        backgroundColor: '#1e1f22',
+        show: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    updaterWindow.loadFile(path.join(__dirname, 'updater.html'));
+
+    updaterWindow.once('ready-to-show', () => {
+        updaterWindow.show();
+        if (!isDev) {
+            autoUpdater.checkForUpdatesAndNotify();
+        } else {
+            // In dev mode, just wait a bit and open main window
+            setTimeout(() => {
+                createWindow();
+                updaterWindow.close();
+            }, 2000);
+        }
+    });
+
+    // updater events
+    autoUpdater.on('checking-for-update', () => {
+        updaterWindow.webContents.send('updater-message', 'Проверка обновлений...');
+    });
+
+    autoUpdater.on('update-available', (info) => {
+        updaterWindow.webContents.send('updater-message', 'Найдено новое обновление. Загрузка...');
+    });
+
+    autoUpdater.on('update-not-available', (info) => {
+        updaterWindow.webContents.send('updater-message', 'У вас последняя версия');
+        setTimeout(() => {
+            createWindow();
+            updaterWindow.close();
+        }, 1000);
+    });
+
+    autoUpdater.on('error', (err) => {
+        updaterWindow.webContents.send('updater-message', 'Ошибка при поиске обновлений');
+        console.error('Updater error:', err);
+        setTimeout(() => {
+            createWindow();
+            updaterWindow.close();
+        }, 2000);
+    });
+
+    autoUpdater.on('download-progress', (progressObj) => {
+        updaterWindow.webContents.send('updater-progress', progressObj.percent);
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+        updaterWindow.webContents.send('updater-message', 'Обновление скачано. Установка...');
+        autoUpdater.quitAndInstall();
     });
 }
 

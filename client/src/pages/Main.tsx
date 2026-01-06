@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
@@ -69,179 +69,7 @@ const Main: React.FC = () => {
     document.body.style.cursor = 'col-resize';
   };
 
-  useEffect(() => {
-    fetchServers();
-  }, []);
-
-  useEffect(() => {
-    console.log('Main component useEffect for socket events. Socket connected:', socket?.connected);
-    if (socket) {
-      const handleCallOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string }) => {
-        console.log('Received call-offer event on client:', data);
-        console.log('Current activeCall state:', activeCall ? 'Active' : 'Null');
-
-        if (!activeCall) {
-          try {
-            const dmId = data.dmId || '';
-            console.log('Fetching caller info for ID:', data.fromUserId);
-            const response = await axios.get<User>(`/api/users/${data.fromUserId}`);
-            console.log('Caller info fetched:', response.data.username);
-
-            setActiveCall({
-              user: response.data,
-              isIncoming: true,
-              dmId: dmId,
-              offer: data
-            });
-            console.log('activeCall state updated with incoming call');
-          } catch (err) {
-            console.error("Error handling incoming call offer:", err);
-          }
-        } else {
-          console.log('Ignoring call-offer: activeCall already exists');
-        }
-      };
-
-      socket.on('call-offer', handleCallOffer);
-
-      socket.on('server-roles-updated', (data: { serverId: string; roles: any[] }) => {
-        setServers(prev => prev.map(s => s._id === data.serverId ? { ...s, roles: data.roles } : s));
-        setSelectedServer(prev => (prev && prev._id === data.serverId) ? { ...prev, roles: data.roles } : prev);
-      });
-
-      socket.on('server-member-updated', (data: { serverId: string; member: any }) => {
-        setServers(prev => prev.map(s => {
-          if (s._id === data.serverId) {
-            return {
-              ...s,
-              members: s.members.map(m => m.user._id === data.member.user._id ? data.member : m)
-            };
-          }
-          return s;
-        }));
-        setSelectedServer(prev => {
-          if (prev && prev._id === data.serverId) {
-            return {
-              ...prev,
-              members: prev.members.map(m => m.user._id === data.member.user._id ? data.member : m)
-            };
-          }
-          return prev;
-        });
-      });
-
-      socket.on('server-updated', (updatedServer: Server) => {
-        setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
-        setSelectedServer(prev => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
-      });
-
-      socket.on('user-updated', (updatedUser: Partial<User> & { _id: string }) => {
-        // Update servers' members data
-        setServers(prev => prev.map(server => ({
-          ...server,
-          members: server.members.map(member =>
-            member.user._id === updatedUser._id
-              ? { ...member, user: { ...member.user, ...updatedUser } }
-              : member
-          )
-        })));
-
-        // Update selected server's members
-        setSelectedServer(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            members: prev.members.map(member =>
-              member.user._id === updatedUser._id
-                ? { ...member, user: { ...member.user, ...updatedUser } }
-                : member
-            )
-          };
-        });
-
-        // Update selected DM if it involves this user
-        setSelectedDM(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            participants: prev.participants.map(p =>
-              p._id === updatedUser._id ? { ...p, ...updatedUser } : p
-            )
-          };
-        });
-
-        // Update current user if it's their profile
-        if (updatedUser._id === user?._id) {
-          updateUser(updatedUser);
-        }
-      });
-
-      return () => {
-        console.log('Removing call-offer listener');
-        socket.off('call-offer', handleCallOffer);
-        socket.off('server-roles-updated');
-        socket.off('server-member-updated');
-        socket.off('server-updated');
-        socket.off('user-updated');
-      };
-    }
-  }, [socket, activeCall]);
-
-  useEffect(() => {
-    if (selectedChannel && socket) {
-      setMessages([]);
-      setSelectedDM(null);
-      socket.emit('join-channel', selectedChannel._id);
-      fetchMessages(selectedChannel._id);
-
-      const handleNewMessage = (message: Message) => {
-        if (message.channel === selectedChannel._id) {
-          setMessages((prev) => [...prev, message]);
-        }
-      };
-
-      const handleMessageDeleted = (messageId: string) => {
-        setMessages((prev) => prev.filter(m => m._id !== messageId));
-      };
-
-      socket.on('new-message', handleNewMessage);
-      socket.on('message-deleted', handleMessageDeleted);
-
-      return () => {
-        socket.emit('leave-channel', selectedChannel._id);
-        socket.off('new-message', handleNewMessage);
-        socket.off('message-deleted', handleMessageDeleted);
-      };
-    }
-  }, [selectedChannel, socket]);
-
-  useEffect(() => {
-    if (selectedDM && socket) {
-      setDmMessages([]);
-      setSelectedChannel(null);
-      fetchDMMessages(selectedDM._id);
-
-      const handleNewMessage = (message: Message) => {
-        if (message.directMessage === selectedDM._id) {
-          setDmMessages((prev) => [...prev, message]);
-        }
-      };
-
-      const handleMessageDeleted = (messageId: string) => {
-        setDmMessages((prev) => prev.filter(m => m._id !== messageId));
-      };
-
-      socket.on('new-message', handleNewMessage);
-      socket.on('message-deleted', handleMessageDeleted);
-
-      return () => {
-        socket.off('new-message', handleNewMessage);
-        socket.off('message-deleted', handleMessageDeleted);
-      };
-    }
-  }, [selectedDM, socket]);
-
-  const fetchServers = async () => {
+  const fetchServers = useCallback(async () => {
     try {
       const response = await axios.get('/api/servers/me');
       setServers(response.data);
@@ -256,16 +84,185 @@ const Main: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchMessages = async (channelId: string) => {
+  const fetchMessages = useCallback(async (channelId: string) => {
     try {
       const response = await axios.get(`/api/messages/channel/${channelId}`);
       setMessages(response.data);
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
-  };
+  }, []);
+
+  const fetchDMMessages = useCallback(async (dmId: string) => {
+    try {
+      const response = await axios.get(`/api/direct-messages/${dmId}/messages`);
+      setDmMessages(response.data);
+    } catch (error) {
+      console.error('Error fetching DM messages:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchServers();
+  }, [fetchServers]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleCallOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string }) => {
+      if (!activeCall) {
+        try {
+          const response = await axios.get<User>(`/api/users/${data.fromUserId}`);
+          setActiveCall({
+            user: response.data,
+            isIncoming: true,
+            dmId: data.dmId || '',
+            offer: data
+          });
+        } catch (err) {
+          console.error("Error handling incoming call offer:", err);
+        }
+      }
+    };
+
+    const handleServerRolesUpdate = (data: { serverId: string; roles: any[] }) => {
+      setServers(prev => prev.map(s => s._id === data.serverId ? { ...s, roles: data.roles } : s));
+      setSelectedServer(prev => (prev && prev._id === data.serverId) ? { ...prev, roles: data.roles } : prev);
+    };
+
+    const handleServerMemberUpdate = (data: { serverId: string; member: any }) => {
+      setServers(prev => prev.map(s => {
+        if (s._id === data.serverId) {
+          return {
+            ...s,
+            members: s.members.map(m => m.user._id === data.member.user._id ? data.member : m)
+          };
+        }
+        return s;
+      }));
+      setSelectedServer(prev => {
+        if (prev && prev._id === data.serverId) {
+          return {
+            ...prev,
+            members: prev.members.map(m => m.user._id === data.member.user._id ? data.member : m)
+          };
+        }
+        return prev;
+      });
+    };
+
+    const handleServerUpdate = (updatedServer: Server) => {
+      setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
+      setSelectedServer(prev => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
+    };
+
+    const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
+      setServers(prev => prev.map(server => ({
+        ...server,
+        members: server.members.map(member =>
+          member.user._id === updatedUser._id
+            ? { ...member, user: { ...member.user, ...updatedUser } }
+            : member
+        )
+      })));
+
+      setSelectedServer(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          members: prev.members.map(member =>
+            member.user._id === updatedUser._id
+              ? { ...member, user: { ...member.user, ...updatedUser } }
+              : member
+          )
+        };
+      });
+
+      setSelectedDM(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          participants: prev.participants.map(p =>
+            p._id === updatedUser._id ? { ...p, ...updatedUser } : p
+          )
+        };
+      });
+
+      if (updatedUser._id === user?._id) {
+        updateUser(updatedUser);
+      }
+    };
+
+    socket.on('call-offer', handleCallOffer);
+    socket.on('server-roles-updated', handleServerRolesUpdate);
+    socket.on('server-member-updated', handleServerMemberUpdate);
+    socket.on('server-updated', handleServerUpdate);
+    socket.on('user-updated', handleUserUpdate);
+
+    return () => {
+      socket.off('call-offer', handleCallOffer);
+      socket.off('server-roles-updated', handleServerRolesUpdate);
+      socket.off('server-member-updated', handleServerMemberUpdate);
+      socket.off('server-updated', handleServerUpdate);
+      socket.off('user-updated', handleUserUpdate);
+    };
+  }, [socket, activeCall, user, updateUser]);
+
+  useEffect(() => {
+    if (!selectedChannel || !socket) return;
+
+    setMessages([]);
+    setSelectedDM(null);
+    socket.emit('join-channel', selectedChannel._id);
+    fetchMessages(selectedChannel._id);
+
+    const handleNewMessage = (message: Message) => {
+      if (message.channel === selectedChannel._id) {
+        setMessages((prev) => [...prev, message]);
+      }
+    };
+
+    const handleMessageDeleted = (messageId: string) => {
+      setMessages((prev) => prev.filter(m => m._id !== messageId));
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('message-deleted', handleMessageDeleted);
+
+    return () => {
+      socket.emit('leave-channel', selectedChannel._id);
+      socket.off('new-message', handleNewMessage);
+      socket.off('message-deleted', handleMessageDeleted);
+    };
+  }, [selectedChannel, socket, fetchMessages]);
+
+  useEffect(() => {
+    if (!selectedDM || !socket) return;
+
+    setDmMessages([]);
+    setSelectedChannel(null);
+    fetchDMMessages(selectedDM._id);
+
+    const handleNewMessage = (message: Message) => {
+      if (message.directMessage === selectedDM._id) {
+        setDmMessages((prev) => [...prev, message]);
+      }
+    };
+
+    const handleMessageDeleted = (messageId: string) => {
+      setDmMessages((prev) => prev.filter(m => m._id !== messageId));
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('message-deleted', handleMessageDeleted);
+
+    return () => {
+      socket.off('new-message', handleNewMessage);
+      socket.off('message-deleted', handleMessageDeleted);
+    };
+  }, [selectedDM, socket, fetchDMMessages]);
 
   const handleCreateServer = async (name: string) => {
     try {
@@ -298,15 +295,6 @@ const Main: React.FC = () => {
       setShowFriends(false);
     } catch (error) {
       console.error('Error starting DM:', error);
-    }
-  };
-
-  const fetchDMMessages = async (dmId: string) => {
-    try {
-      const response = await axios.get(`/api/direct-messages/${dmId}/messages`);
-      setDmMessages(response.data);
-    } catch (error) {
-      console.error('Error fetching DM messages:', error);
     }
   };
 
