@@ -37,6 +37,18 @@ router.post('/', auth, async (req, res) => {
       .populate('server')
       .populate('category');
 
+    // Broadcast update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedServer = await Server.findById(serverId)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles')
+        .populate('roles');
+      io.to(`server-${serverId}`).emit('server-updated', updatedServer);
+    }
+
     res.status(201).json(populatedChannel);
   } catch (error) {
     console.error(error);
@@ -119,6 +131,18 @@ router.put('/:id', auth, async (req, res) => {
 
     await channel.save();
 
+    // Broadcast update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedServer = await Server.findById(serverId)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles')
+        .populate('roles');
+      io.to(`server-${serverId}`).emit('server-updated', updatedServer);
+    }
+
     res.json(channel);
   } catch (error) {
     console.error(error);
@@ -145,6 +169,18 @@ router.delete('/:id', auth, async (req, res) => {
       id => id.toString() !== req.params.id
     );
     await server.save();
+
+    // Broadcast update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedServer = await Server.findById(server._id)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles')
+        .populate('roles');
+      io.to(`server-${server._id}`).emit('server-updated', updatedServer);
+    }
 
     res.json({ message: 'Channel deleted' });
   } catch (error) {

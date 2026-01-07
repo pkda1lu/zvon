@@ -152,7 +152,21 @@ router.post('/:code/join', auth, async (req, res) => {
         const populatedServer = await Server.findById(server._id)
             .populate('owner', 'username avatar')
             .populate('channels')
-            .populate('members.user', 'username avatar status');
+            .populate('members.user', 'username avatar status')
+            .populate('members.roles')
+            .populate('roles');
+
+        // Broadcast member join
+        const io = req.app.get('io');
+        if (io) {
+            const newMember = populatedServer.members.find(m => m.user._id.toString() === req.user._id.toString());
+            io.to(`server-${server._id}`).emit('server-member-joined', {
+                serverId: server._id,
+                member: newMember,
+                server: populatedServer
+            });
+            io.to(`server-${server._id}`).emit('server-updated', populatedServer);
+        }
 
         res.json(populatedServer);
     } catch (error) {

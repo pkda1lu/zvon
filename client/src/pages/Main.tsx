@@ -195,11 +195,69 @@ const Main: React.FC = () => {
       }
     };
 
+    const handleServerMemberJoined = (data: { serverId: string; member: any }) => {
+      setServers(prev => prev.map(s => {
+        if (s._id === data.serverId) {
+          // Check if already in list to avoid duplicates
+          if (s.members.some(m => m.user._id === data.member.user._id)) return s;
+          return { ...s, members: [...s.members, data.member] };
+        }
+        return s;
+      }));
+      setSelectedServer(prev => {
+        if (prev && prev._id === data.serverId) {
+          if (prev.members.some(m => m.user._id === data.member.user._id)) return prev;
+          return { ...prev, members: [...prev.members, data.member] };
+        }
+        return prev;
+      });
+    };
+
+    const handleServerMemberLeft = (data: { serverId: string; userId: string }) => {
+      setServers(prev => prev.map(s => {
+        if (s._id === data.serverId) {
+          return { ...s, members: s.members.filter(m => m.user._id !== data.userId) };
+        }
+        return s;
+      }));
+      setSelectedServer(prev => {
+        if (prev && prev._id === data.serverId) {
+          return { ...prev, members: prev.members.filter(m => m.user._id !== data.userId) };
+        }
+        return prev;
+      });
+
+      // If the current user is the one who left/was kicked
+      if (data.userId === user?._id) {
+        setServers(prev => prev.filter(s => s._id !== data.serverId));
+        if (selectedServer?._id === data.serverId) {
+          setSelectedServer(null);
+          setSelectedChannel(null);
+        }
+      }
+    };
+
+    const handleServerKicked = (data: { serverId: string }) => {
+      setServers(prev => prev.filter(s => s._id !== data.serverId));
+      if (selectedServer?._id === data.serverId) {
+        setSelectedServer(null);
+        setSelectedChannel(null);
+      }
+    };
+
+    const handleServerDeletedSocket = (data: { serverId: string }) => {
+      handleServerDelete(data.serverId);
+    };
+
     socket.on('call-offer', handleCallOffer);
     socket.on('server-roles-updated', handleServerRolesUpdate);
     socket.on('server-member-updated', handleServerMemberUpdate);
     socket.on('server-updated', handleServerUpdate);
     socket.on('user-updated', handleUserUpdate);
+    socket.on('server-member-joined', handleServerMemberJoined);
+    socket.on('server-member-left', handleServerMemberLeft);
+    socket.on('server-kicked', handleServerKicked);
+    socket.on('server-deleted', handleServerDeletedSocket);
 
     return () => {
       socket.off('call-offer', handleCallOffer);
@@ -207,6 +265,10 @@ const Main: React.FC = () => {
       socket.off('server-member-updated', handleServerMemberUpdate);
       socket.off('server-updated', handleServerUpdate);
       socket.off('user-updated', handleUserUpdate);
+      socket.off('server-member-joined', handleServerMemberJoined);
+      socket.off('server-member-left', handleServerMemberLeft);
+      socket.off('server-kicked', handleServerKicked);
+      socket.off('server-deleted', handleServerDeletedSocket);
     };
   }, [socket, activeCall, user, updateUser]);
 

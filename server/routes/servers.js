@@ -223,7 +223,21 @@ router.post('/:id/join', auth, async (req, res) => {
       .populate('owner', 'username avatar')
       .populate('channels')
       .populate('members.user', 'username avatar status')
-      .populate('members.roles');
+      .populate('members.roles')
+      .populate('roles');
+
+    // Broadcast member join
+    const io = req.app.get('io');
+    if (io) {
+      const newMember = populatedServer.members.find(m => m.user._id.toString() === req.user._id.toString());
+      io.to(`server-${server._id}`).emit('server-member-joined', {
+        serverId: server._id,
+        member: newMember,
+        server: populatedServer // Optionally send full server update
+      });
+      // Also trigger a full server update to be safe
+      io.to(`server-${server._id}`).emit('server-updated', populatedServer);
+    }
 
     res.json(populatedServer);
   } catch (error) {
@@ -290,6 +304,12 @@ router.delete('/:id', auth, async (req, res) => {
 
     // Delete all channels
     await Channel.deleteMany({ server: server._id });
+
+    // Broadcast server deletion
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${req.params.id}`).emit('server-deleted', { serverId: req.params.id });
+    }
 
     await Server.findByIdAndDelete(req.params.id);
 
@@ -400,6 +420,17 @@ router.post('/:id/roles', auth, async (req, res) => {
     await server.save();
 
     await logAction(server._id, req.user._id, 'create', 'role', role._id, { name: role.name }, 'Created role');
+
+    // Broadcast role update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedRoles = await Role.find({ server: req.params.id }).sort('position');
+      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
+        serverId: req.params.id,
+        roles: updatedRoles
+      });
+    }
+
     res.status(201).json(role);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -416,6 +447,26 @@ router.put('/:id/roles/:roleId', auth, async (req, res) => {
 
     const role = await Role.findByIdAndUpdate(req.params.roleId, req.body, { new: true });
     await logAction(server._id, req.user._id, 'update', 'role', role._id, req.body, 'Updated role');
+
+    // Broadcast role update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedRoles = await Role.find({ server: req.params.id }).sort('position');
+      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
+        serverId: req.params.id,
+        roles: updatedRoles
+      });
+
+      // Also broadcast server update because roles affect member display
+      const updatedServer = await Server.findById(req.params.id)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles')
+        .populate('roles');
+      io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
+    }
+
     res.json(role);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -480,6 +531,25 @@ router.delete('/:id/roles/:roleId', auth, async (req, res) => {
     await server.save();
 
     await logAction(server._id, req.user._id, 'delete', 'role', req.params.roleId, null, 'Deleted role');
+
+    // Broadcast role update
+    const io = req.app.get('io');
+    if (io) {
+      const updatedRoles = await Role.find({ server: req.params.id }).sort('position');
+      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
+        serverId: req.params.id,
+        roles: updatedRoles
+      });
+
+      const updatedServer = await Server.findById(req.params.id)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles')
+        .populate('roles');
+      io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
+    }
+
     res.json({ message: 'Role deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -527,6 +597,21 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
 
     const action = req.user._id.toString() === req.params.userId ? 'leave' : 'kick';
     await logAction(server._id, req.user._id, action, 'member', req.params.userId, null, `${action === 'kick' ? 'Kicked' : 'Left'} server`);
+
+    // Broadcast member leave
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${req.params.id}`).emit('server-member-left', {
+        serverId: req.params.id,
+        userId: req.params.userId
+      });
+
+      if (action === 'kick') {
+        io.to(`user-${req.params.userId}`).emit('server-kicked', {
+          serverId: req.params.id
+        });
+      }
+    }
 
     res.json({ message: 'Member removed' });
   } catch (error) {

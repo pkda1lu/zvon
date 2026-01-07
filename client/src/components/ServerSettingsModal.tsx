@@ -57,14 +57,18 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             serverDescription !== (server.description || '') ||
             bannerColor !== (server.bannerColor || '#5865f2')
         );
-    }, [serverName, serverDescription, bannerColor, server]);
+    }, [serverName, serverDescription, bannerColor, server.name, server.description, server.bannerColor]);
 
     useEffect(() => {
-        if (activeTab === 'roles') fetchRoles();
+        setMembers(server.members);
+    }, [server.members]);
+
+    useEffect(() => {
+        if (activeTab === 'roles') setRoles(server.roles || []);
         if (activeTab === 'invites') fetchInvites();
         if (activeTab === 'bans') fetchBans();
         if (activeTab === 'audit_log') fetchAuditLogs();
-    }, [activeTab, server._id]);
+    }, [activeTab, server._id, server.roles]);
 
     const fetchRoles = async () => {
         try {
