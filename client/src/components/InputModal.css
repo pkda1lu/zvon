@@ -1,0 +1,125 @@
+.input-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.input-modal-content {
+    background-color: #313338;
+    width: 440px;
+    border-radius: 4px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.input-modal-header {
+    padding: 24px 16px;
+    text-align: center;
+}
+
+.input-modal-header h3 {
+    color: #fff;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.input-modal-body {
+    padding: 0 16px 16px 16px;
+}
+
+.input-group label {
+    display: block;
+    color: #b5bac1;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.input-modal-input {
+    width: 100%;
+    padding: 10px;
+    background-color: #1e1f22;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: #dbdee1;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.input-modal-input:focus {
+    border-color: #00a8fc;
+}
+
+.input-modal-footer {
+    padding: 16px;
+    background-color: #2b2d31;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.input-modal-cancel {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.input-modal-cancel:hover {
+    text-decoration: underline;
+}
+
+.input-modal-submit {
+    padding: 10px 24px;
+    background-color: #5865f2;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.input-modal-submit:hover {
+    background-color: #4752c4;
+}

@@ -23,7 +23,7 @@ export const useAuth = () => {
   return context;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://zvonserver.ru';
 
 axios.defaults.baseURL = API_URL;
 // Remove explicit Content-Type headers to allow Axios to set them automatically based on data type (e.g., for FormData)

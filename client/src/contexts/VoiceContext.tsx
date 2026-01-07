@@ -257,6 +257,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setIsConnected(true);
 
             // Socket join logic happens in useEffect below
+            console.log('[VoiceContext] Joined channel locally, waiting for socket events. Channel:', channelId);
         } catch (error) {
             console.error('Error connecting to voice channel:', error);
             alert('Не удалось подключиться к голосовому каналу. Проверьте разрешения на доступ к микрофону.');
@@ -269,15 +270,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!localStreamRef.current) return;
 
         const handleExistingUsers = (users: User[]) => {
+            console.log('[VoiceContext] Received existing users:', users);
             const others = users.filter(u => u._id !== user?._id);
             setConnectedUsers(others);
 
             others.forEach(u => {
+                console.log('[VoiceContext] Creating initiator peer for:', u._id);
                 createPeer(u._id, true);
             });
         };
 
         const handleUserJoined = (data: { userId: string; user: User }) => {
+            console.log('[VoiceContext] User joined:', data);
             if (data.userId === user?._id) return;
 
             setConnectedUsers(prev => {
@@ -303,12 +307,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         const handleOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit }) => {
+            console.log('[VoiceContext] Received offer from:', data.fromUserId);
             try {
                 const pc = createPeer(data.fromUserId, false);
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
 
                 const pending = pendingCandidatesRef.current.get(data.fromUserId);
                 if (pending) {
+                    console.log('[VoiceContext] Processing pending candidates for:', data.fromUserId);
                     for (const candidate of pending) {
                         await pc.addIceCandidate(new RTCIceCandidate(candidate));
                     }
@@ -318,6 +324,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
 
+                console.log('[VoiceContext] Sending answer to:', data.fromUserId);
                 socket.emit('voice-answer', {
                     targetUserId: data.fromUserId,
                     answer
@@ -370,6 +377,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }));
         };
 
+        const handleError = (error: { message: string }) => {
+            console.error('[VoiceContext] Socket error:', error);
+            alert(`Ошибка подключения к голосовому чату: ${error.message || 'Неизвестная ошибка'}`);
+            leaveChannel();
+        };
+
         socket.on('voice-existing-users', handleExistingUsers);
         socket.on('voice-user-joined', handleUserJoined);
         socket.on('voice-user-left', handleUserLeft);
@@ -377,6 +390,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         socket.on('voice-answer', handleAnswer);
         socket.on('voice-ice-candidate', handleCandidate);
         socket.on('voice-user-state-update', handleUserStateUpdate);
+        socket.on('error', handleError);
 
         socket.emit('join-voice-channel', { channelId: activeChannelId });
 
@@ -388,6 +402,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-answer', handleAnswer);
             socket.off('voice-ice-candidate', handleCandidate);
             socket.off('voice-user-state-update', handleUserStateUpdate);
+            socket.off('error', handleError);
         };
     }, [socket, isConnected, activeChannelId, createPeer, user]);
 

@@ -1,5 +1,6 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, clipboard } = require('electron');
+const { app, BrowserWindow, desktopCapturer, ipcMain, clipboard, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const isDev = require('electron-is-dev');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
@@ -12,6 +13,39 @@ log.info('App starting...');
 let pendingDeepLink = null;
 let mainWindow;
 let updaterWindow;
+let tray = null;
+let isQuitting = false;
+
+// Window state management
+const stateFilePath = path.join(app.getPath('userData'), 'window-state.json');
+
+function loadWindowState() {
+    try {
+        if (fs.existsSync(stateFilePath)) {
+            const data = fs.readFileSync(stateFilePath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('Failed to load window state:', e);
+    }
+    return { width: 1280, height: 800 };
+}
+
+function saveWindowState() {
+    if (!mainWindow) return;
+    try {
+        const bounds = mainWindow.getBounds();
+        const isMaximized = mainWindow.isMaximized();
+        const state = {
+            ...bounds,
+            isMaximized
+        };
+        fs.writeFileSync(stateFilePath, JSON.stringify(state));
+    } catch (e) {
+        console.error('Failed to save window state:', e);
+    }
+}
+
 
 // Basic autoUpdater configuration
 autoUpdater.autoDownload = true;
@@ -67,7 +101,64 @@ if (!gotTheLock) {
     });
 }
 
+function createTray() {
+    const iconPath = path.join(__dirname, 'app_icon.ico');
+    const trayIcon = nativeImage.createFromPath(iconPath);
+    tray = new Tray(trayIcon);
+
+    const contextMenu = Menu.buildFromTemplate([
+        {
+            label: 'Открыть Zvon',
+            click: () => {
+                if (mainWindow) {
+                    mainWindow.show();
+                    mainWindow.focus();
+                }
+            }
+        },
+        {
+            label: 'Выйти',
+            click: () => {
+                isQuitting = true;
+                app.quit();
+            }
+        }
+    ]);
+
+    tray.setToolTip('Zvon');
+    tray.setContextMenu(contextMenu);
+
+    tray.on('click', () => {
+        if (mainWindow) {
+            if (mainWindow.isVisible()) {
+                if (mainWindow.isFocused()) {
+                    mainWindow.hide();
+                } else {
+                    mainWindow.show();
+                    mainWindow.focus();
+                }
+            } else {
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        }
+    });
+
+    tray.on('double-click', () => {
+        if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
 function createUpdaterWindow() {
+    // Ensure no tray icon for updater
+    if (tray) {
+        tray.destroy();
+        tray = null;
+    }
+
     updaterWindow = new BrowserWindow({
         width: 400,
         height: 500,
@@ -132,9 +223,13 @@ function createUpdaterWindow() {
 }
 
 function createWindow() {
+    const windowState = loadWindowState();
+
     mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
+        width: windowState.width,
+        height: windowState.height,
+        x: windowState.x,
+        y: windowState.y,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -147,6 +242,35 @@ function createWindow() {
         autoHideMenuBar: true,
         icon: path.join(__dirname, 'app_icon.ico'),
     });
+
+    if (windowState.isMaximized) {
+        mainWindow.maximize();
+    }
+
+    // Save state on events
+    let saveTimeout;
+    const debouncedSave = () => {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(saveWindowState, 500);
+    };
+
+    mainWindow.on('resize', debouncedSave);
+    mainWindow.on('move', debouncedSave);
+
+    // Override close event to minimize to tray
+    mainWindow.on('close', (event) => {
+        if (!isQuitting) {
+            event.preventDefault();
+            saveWindowState();
+            mainWindow.hide();
+            return false;
+        }
+        saveWindowState();
+    });
+
+    // Create tray icon if it doesn't exist
+    if (!tray) createTray();
+
 
     // Handle Deep Links for macOS
     app.on('open-url', (event, url) => {

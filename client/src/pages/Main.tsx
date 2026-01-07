@@ -301,29 +301,36 @@ const Main: React.FC = () => {
   useEffect(() => {
     if (!selectedChannel || !socket) return;
 
-    setMessages([]);
-    setSelectedDM(null);
-    socket.emit('join-channel', selectedChannel._id);
-    fetchMessages(selectedChannel._id);
+    if (selectedChannel.type === 'text') {
+      setMessages([]);
+      setSelectedDM(null);
 
-    const handleNewMessage = (message: Message) => {
-      if (message.channel === selectedChannel._id) {
-        setMessages((prev) => [...prev, message]);
-      }
-    };
+      socket.emit('join-channel', selectedChannel._id);
+      fetchMessages(selectedChannel._id);
 
-    const handleMessageDeleted = (messageId: string) => {
-      setMessages((prev) => prev.filter(m => m._id !== messageId));
-    };
+      const handleNewMessage = (message: Message) => {
+        if (message.channel === selectedChannel._id) {
+          setMessages((prev) => [...prev, message]);
+        }
+      };
 
-    socket.on('new-message', handleNewMessage);
-    socket.on('message-deleted', handleMessageDeleted);
+      const handleMessageDeleted = (messageId: string) => {
+        setMessages((prev) => prev.filter(m => m._id !== messageId));
+      };
 
-    return () => {
-      socket.emit('leave-channel', selectedChannel._id);
-      socket.off('new-message', handleNewMessage);
-      socket.off('message-deleted', handleMessageDeleted);
-    };
+      socket.on('new-message', handleNewMessage);
+      socket.on('message-deleted', handleMessageDeleted);
+
+      return () => {
+        socket.emit('leave-channel', selectedChannel._id);
+        socket.off('new-message', handleNewMessage);
+        socket.off('message-deleted', handleMessageDeleted);
+      };
+    } else {
+      // Voice channel or other type - clear messages
+      setMessages([]);
+      setSelectedDM(null);
+    }
   }, [selectedChannel, socket, fetchMessages]);
 
   useEffect(() => {

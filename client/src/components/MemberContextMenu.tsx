@@ -7,6 +7,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
 import axios from 'axios';
 import './MemberContextMenu.css';
+import InputModal from './InputModal';
 
 interface MemberContextMenuProps {
     user: User;
@@ -37,6 +38,15 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const [showRolesSubmenu, setShowRolesSubmenu] = useState(false);
     const [note, setNote] = useState('');
     const menuRef = useRef<HTMLDivElement>(null);
+
+    const [showInputModal, setShowInputModal] = useState(false);
+    const [inputModalConfig, setInputModalConfig] = useState<{
+        title: string;
+        label?: string;
+        initialValue?: string;
+        type?: 'text' | 'number';
+        onSubmit: (val: string) => void;
+    }>({ title: '', onSubmit: () => { } });
 
     const currentVolume = userVolumes.get(targetUser._id) ?? 1;
     const isLocalMuted = localMutes.has(targetUser._id);
@@ -129,16 +139,20 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     onClose();
                     break;
                 case 'update-note':
-                    const newNote = prompt('Введите заметку:', note);
-                    if (newNote !== null) {
-                        try {
-                            await axios.post('/api/users/note', { userId: targetUser._id, note: newNote });
-                            setNote(newNote);
-                        } catch (err) {
-                            console.error(err);
+                    setInputModalConfig({
+                        title: 'Заметка',
+                        label: 'Заметка для ' + targetUser.username,
+                        initialValue: note,
+                        onSubmit: async (val) => {
+                            try {
+                                await axios.post('/api/users/note', { userId: targetUser._id, note: val });
+                                setNote(val);
+                            } catch (err) {
+                                console.error(err);
+                            }
                         }
-                    }
-                    onClose();
+                    });
+                    setShowInputModal(true);
                     return;
                 case 'kick':
                     await axios.delete(`/api/servers/${server._id}/members/${targetUser._id}`);
@@ -147,12 +161,20 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     await axios.post(`/api/servers/${server._id}/bans`, { userId: targetUser._id });
                     break;
                 case 'nickname':
-                    // Just prompt for now or open a small modal
-                    const newNick = prompt('Введите новый никнейм:', '');
-                    if (newNick !== null) {
-                        await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { nickname: newNick });
-                    }
-                    break;
+                    setInputModalConfig({
+                        title: 'Изменить никнейм',
+                        label: 'Никнейм',
+                        initialValue: targetMember?.nickname || '',
+                        onSubmit: async (val) => {
+                            try {
+                                await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { nickname: val });
+                            } catch (err) {
+                                console.error(err);
+                            }
+                        }
+                    });
+                    setShowInputModal(true);
+                    return;
                 case 'toggle-role':
                     const member = server.members.find(m => m.user._id === targetUser._id);
                     if (member) {
@@ -167,13 +189,25 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     }
                     break;
                 case 'timeout':
-                    const duration = prompt('Длительность тайм-аута (в минутах):', '60');
-                    if (duration) {
-                        const until = new Date(Date.now() + parseInt(duration) * 60000);
-                        // We need an endpoint for this. I'll add it to servers.js
-                        await axios.put(`/api/servers/${server._id}/members/${targetUser._id}/timeout`, { until });
-                    }
-                    break;
+                    setInputModalConfig({
+                        title: 'Тайм-аут',
+                        label: 'Длительность (минуты)',
+                        initialValue: '60',
+                        type: 'number',
+                        onSubmit: async (val) => {
+                            try {
+                                const duration = parseInt(val);
+                                if (!isNaN(duration)) {
+                                    const until = new Date(Date.now() + duration * 60000);
+                                    await axios.put(`/api/servers/${server._id}/members/${targetUser._id}/timeout`, { until });
+                                }
+                            } catch (err) {
+                                console.error(err);
+                            }
+                        }
+                    });
+                    setShowInputModal(true);
+                    return;
                 case 'server-profile':
                     window.dispatchEvent(new CustomEvent('open-server-profile-settings', {
                         detail: { serverId: server._id }
@@ -203,6 +237,36 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     // Use measured height or fallback to a reasonable estimate
     const height = menuHeight || 400;
     const adjustedY = Math.min(y, window.innerHeight - height - 20);
+
+    if (showInputModal) {
+        return (
+            <>
+                {ReactDOM.createPortal(
+                    <div
+                        className="member-context-menu"
+                        ref={menuRef}
+                        style={{ top: adjustedY, left: adjustedX, display: 'none' }}
+                    />,
+                    document.body
+                )}
+                {ReactDOM.createPortal(
+                    <InputModal
+                        isOpen={showInputModal}
+                        title={inputModalConfig.title}
+                        label={inputModalConfig.label}
+                        initialValue={inputModalConfig.initialValue}
+                        type={inputModalConfig.type}
+                        onClose={() => {
+                            setShowInputModal(false);
+                            onClose();
+                        }}
+                        onSubmit={inputModalConfig.onSubmit}
+                    />,
+                    document.body
+                )}
+            </>
+        );
+    }
 
     return ReactDOM.createPortal(
         <div
