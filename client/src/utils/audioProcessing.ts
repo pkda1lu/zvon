@@ -17,9 +17,14 @@ export const setupNoiseSuppression = async (
         const sourceNode = context.createMediaStreamSource(sourceStream);
         const destinationNode = context.createMediaStreamDestination();
 
+        // Fetch the WASM file in the main thread where fetch/XHR works
+        const response = await fetch(new URL(rnnoiseWasmPath, import.meta.url).href);
+        const wasmBuffer = await response.arrayBuffer();
+
         const rnnoiseNode = new RnnoiseWorkletNode(context, {
             // @ts-ignore
-            wasmUrl: rnnoiseWasmPath
+            wasmBinary: wasmBuffer,
+            maxChannels: 2
         });
 
         sourceNode.connect(rnnoiseNode);
