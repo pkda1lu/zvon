@@ -31,7 +31,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
     const { userVolumes, setUserVolume, localMutes, toggleLocalMute } = useVoice();
-    const { hasPermission } = usePermissions(currentUser!, server);
+    const { hasPermission, canPerformActionOn, isOwner } = usePermissions(currentUser!, server);
     const [isFriend, setIsFriend] = useState(false);
     const [friendshipId, setFriendshipId] = useState<string | null>(null);
     const [roles, setRoles] = useState<Role[]>([]);
@@ -50,12 +50,17 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     const currentVolume = userVolumes.get(targetUser._id) ?? 1;
     const isLocalMuted = localMutes.has(targetUser._id);
+    const isHigher = canPerformActionOn?.(targetUser._id) ?? false;
 
     const isSelf = currentUser?._id === targetUser._id;
-    const canManageRoles = hasPermission('MANAGE_ROLES');
-    const canKick = hasPermission('KICK_MEMBERS');
-    const canBan = hasPermission('BAN_MEMBERS');
-    const canManageNicknames = hasPermission('MANAGE_NICKNAMES');
+    const canManageRoles = hasPermission('MANAGE_ROLES') && isHigher;
+    const canKick = hasPermission('KICK_MEMBERS') && isHigher;
+    const canBan = hasPermission('BAN_MEMBERS') && isHigher;
+    const canManageNicknames = hasPermission('MANAGE_NICKNAMES') && isHigher;
+    const canChangeOwnNickname = hasPermission('CHANGE_NICKNAME') || isOwner;
+
+    // Final logic for showing nickname option
+    const showNicknameOption = isSelf ? canChangeOwnNickname : canManageNicknames;
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -304,7 +309,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
             <div className="menu-separator" />
 
             <div className="menu-group">
-                {(isSelf || canManageNicknames) && (
+                {showNicknameOption && (
                     <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
                 )}
                 <div className="menu-item has-submenu" onMouseEnter={() => setShowRolesSubmenu(false)}>

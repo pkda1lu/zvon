@@ -202,9 +202,9 @@
 }
 
 .participant-card.screen-share-card {
-  aspect-ratio: auto;
-  min-height: 180px;
-  align-self: start;
+  aspect-ratio: 16 / 9;
+  min-height: auto;
+  align-self: center;
 }
 
 .participant-video {
@@ -278,8 +278,12 @@
   margin: 0;
 }
 
-.participant-card:hover {
+.participant-card:not(.screen-share-card):hover {
   transform: scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.participant-card.screen-share-card:hover {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
@@ -701,8 +705,8 @@
   /* Hide pulse for small avatar to avoid clutter */
 }
 
-/* Ensure scale effect works even with video */
-.participant-card:hover {
+/* Ensure scale effect works even with video but EXCLUDE screen share */
+.participant-card:not(.screen-share-card):hover {
   transform: scale(1.02);
   z-index: 5;
 }

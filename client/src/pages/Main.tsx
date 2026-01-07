@@ -25,6 +25,7 @@ const Main: React.FC = () => {
   const { socket } = useSocket();
   const { activeChannelId } = useVoice();
   const { addNotification } = useNotifications();
+
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
@@ -34,6 +35,18 @@ const Main: React.FC = () => {
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
   const [dmMessages, setDmMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const userRef = useRef(user);
+  const selectedServerRef = useRef(selectedServer);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    selectedServerRef.current = selectedServer;
+  }, [selectedServer]);
+
   const [activeCall, setActiveCall] = useState<{
     user: User;
     isIncoming: boolean;
@@ -47,6 +60,7 @@ const Main: React.FC = () => {
   const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const isResizingRef = useRef(false);
+
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -277,7 +291,13 @@ const Main: React.FC = () => {
       }
     };
 
-    const handleServerMemberJoined = (data: { serverId: string; member: any }) => {
+    const handleServerMemberJoined = (data: { serverId: string; member: any; server?: Server }) => {
+      // If the full server object is provided, use it for best sync
+      if (data.server) {
+        handleServerUpdate(data.server);
+        return;
+      }
+
       const getMemberUserId = (m: any) => String(m.user?._id || m.user);
       const newUserId = getMemberUserId(data.member);
 
@@ -316,21 +336,30 @@ const Main: React.FC = () => {
       });
 
       // If the current user is the one who left/was kicked
-      if (targetUserId === String(user?._id)) {
+      const currentUserId = userRef.current?._id;
+      if (currentUserId && targetUserId === String(currentUserId)) {
         setServers(prev => prev.filter(s => s._id !== data.serverId));
-        if (selectedServer?._id === data.serverId) {
-          setSelectedServer(null);
-          setSelectedChannel(null);
-        }
+        setSelectedServer(prev => prev && prev._id === data.serverId ? null : prev);
+        setSelectedChannel(prev => {
+          if (prev) {
+            const channelServerId = typeof prev.server === 'string' ? prev.server : prev.server?._id;
+            if (String(channelServerId) === data.serverId) return null;
+          }
+          return prev;
+        });
       }
     };
 
     const handleServerKicked = (data: { serverId: string }) => {
       setServers(prev => prev.filter(s => s._id !== data.serverId));
-      if (selectedServer?._id === data.serverId) {
-        setSelectedServer(null);
-        setSelectedChannel(null);
-      }
+      setSelectedServer(prev => prev && prev._id === data.serverId ? null : prev);
+      setSelectedChannel(prev => {
+        if (prev) {
+          const channelServerId = typeof prev.server === 'string' ? prev.server : prev.server?._id;
+          if (String(channelServerId) === data.serverId) return null;
+        }
+        return prev;
+      });
     };
 
     const handleServerDeletedSocket = (data: { serverId: string }) => {
@@ -522,10 +551,11 @@ const Main: React.FC = () => {
 
   const handleServerUpdate = (updatedServer: Server) => {
     setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
-    if (selectedServer?._id === updatedServer._id) {
-      setSelectedServer(updatedServer);
-    }
+    setSelectedServer(prev => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
   };
+
+  // Functional updates are handled via socket listeners or manual triggers
+  // Removing shadowed handleServerUpdate to avoid confusion
 
   const handleServerDelete = (serverId: string) => {
     setServers(prev => prev.filter(s => s._id !== serverId));

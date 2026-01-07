@@ -77,20 +77,29 @@ const canPerformActionOn = async (actorId, targetId, serverId) => {
         if (!actor || !target) return false;
 
         const getHighestPos = (member) => {
+            if (!member || !member.roles) return 0;
             const roleIds = member.roles.map(r => (r._id || r).toString());
+
+            // Log for debugging
+            // console.log(`Checking roles for member:`, roleIds);
+
             const validRoles = (server.roles || []).filter(r => r && typeof r === 'object');
             const roles = validRoles.filter(r => roleIds.includes(r._id.toString()) || r.name === '@everyone');
             const positions = roles.map(r => r.position || 0);
+
             return positions.length > 0 ? Math.max(...positions) : 0;
         };
 
         const actorMax = getHighestPos(actor);
         const targetMax = getHighestPos(target);
 
-        console.log(`Hierarchy Check [${server.name}]: Actor(${actorMax}) vs Target(${targetMax})`);
+        // Debug line
+        console.log(`[Hierarchy Check] Server: ${server.name}, Actor: ${actorMax}, Target: ${targetMax}`);
 
-        // If target is regular member and actor has any role above @everyone, allow it.
-        // Also allow if actor position is higher than target position.
+        // IMPORTANT: In Discord, if you have MANAGE_NICKNAMES, you can change your OWN nickname
+        // regardless of hierarchy (if you have CHANGE_NICKNAME) or others' if you are STRICTLY above them.
+        // The owner bypasses everything.
+
         return actorMax > targetMax;
     } catch (err) {
         console.error('canPerformActionOn error:', err);

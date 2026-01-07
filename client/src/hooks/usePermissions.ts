@@ -5,6 +5,7 @@ export const usePermissions = (user: User | null, server: Server | null) => {
     return useMemo(() => {
         if (!user || !server) return {
             hasPermission: () => false,
+            canPerformActionOn: () => false,
             isOwner: false,
             permissions: [] as string[]
         };
@@ -62,11 +63,38 @@ export const usePermissions = (user: User | null, server: Server | null) => {
             }
         }
 
+        const getMemberMaxPos = (m: any) => {
+            if (!m) return 0;
+            const roleIds = m.roles.map((r: any) => String(r._id || r));
+            const roles = (server.roles || []).filter(r =>
+                r && typeof r === 'object' && (roleIds.includes(String(r._id)) || r.name === '@everyone')
+            );
+            const positions = roles.map(r => r.position || 0);
+            return positions.length > 0 ? Math.max(...positions) : 0;
+        };
+
+        const canPerformActionOn = (targetUserId: string) => {
+            if (isOwner) return true;
+            if (String(user._id) === String(targetUserId)) return true;
+
+            // Nobody can touch the owner
+            if (String(targetUserId) === String(ownerId)) return false;
+
+            const targetMember = server.members.find(m => String(m.user?._id || m.user) === String(targetUserId));
+            if (!targetMember) return false;
+
+            const actorMax = getMemberMaxPos(member);
+            const targetMax = getMemberMaxPos(targetMember);
+
+            return actorMax > targetMax;
+        };
+
         const permissions = Array.from(permissionsSet);
         const hasAdmin = permissions.includes('ADMINISTRATOR');
 
         return {
             hasPermission: (perm: string) => hasAdmin || permissions.includes(perm),
+            canPerformActionOn,
             isOwner,
             permissions
         };
