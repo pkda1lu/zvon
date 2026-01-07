@@ -125,7 +125,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content invite-modal-v2" onClick={e => e.stopPropagation()}>
+            <div className="invite-modal-v2" onClick={e => e.stopPropagation()}>
                 <div className="invite-header">
                     <div className="header-title">
                         <h3>Пригласить друзей в {serverName || 'на сервер'}</h3>

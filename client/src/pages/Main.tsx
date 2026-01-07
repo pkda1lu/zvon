@@ -357,6 +357,9 @@ const Main: React.FC = () => {
       const response = await axios.post('/api/servers', { name });
       setServers((prev) => [...prev, response.data]);
       setSelectedServer(response.data);
+      if (socket) {
+        socket.emit('join-server', response.data._id);
+      }
       if (response.data.channels.length > 0) {
         setSelectedChannel(response.data.channels[0]);
       }
@@ -428,6 +431,9 @@ const Main: React.FC = () => {
         onServerJoined={(server) => {
           setServers((prev) => [...prev, server]);
           setSelectedServer(server);
+          if (socket) {
+            socket.emit('join-server', server._id);
+          }
           if (server.channels.length > 0) {
             setSelectedChannel(server.channels[0]);
           }

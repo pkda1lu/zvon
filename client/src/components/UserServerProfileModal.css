@@ -40,7 +40,7 @@
     cursor: pointer;
 }
 
-.modal-content {
+.user-server-profile-content {
     padding: 0 16px 16px 16px;
     display: grid;
     grid-template-columns: 300px 1fr;

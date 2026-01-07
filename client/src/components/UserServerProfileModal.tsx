@@ -78,7 +78,7 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ server,
                     <button className="close-btn" onClick={onClose}><CloseIcon /></button>
                 </div>
 
-                <div className="modal-content">
+                <div className="user-server-profile-content">
                     <div className="profile-preview-section">
                         <div className="section-label">ПРЕДПРОСМОТР</div>
                         <div className="profile-preview-card">

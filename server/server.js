@@ -155,16 +155,26 @@ io.on('connection', (socket) => {
   const updateStatusOnConnect = async () => {
     try {
       const user = await User.findById(socket.userId);
-      if (user && user.status === 'offline') {
-        user.status = 'online';
-        await user.save();
-        io.emit('user-updated', {
-          _id: user._id,
-          status: 'online'
-        });
+      if (user) {
+        // Join all server rooms for instant updates
+        if (user.servers && user.servers.length > 0) {
+          user.servers.forEach(serverId => {
+            socket.join(`server-${serverId}`);
+          });
+          console.log(`User ${socket.userId} joined rooms for ${user.servers.length} servers`);
+        }
+
+        if (user.status === 'offline') {
+          user.status = 'online';
+          await user.save();
+          io.emit('user-updated', {
+            _id: user._id,
+            status: 'online'
+          });
+        }
       }
     } catch (err) {
-      console.error('Error auto-updating status on connect:', err);
+      console.error('Error auto-updating status/joining rooms on connect:', err);
     }
   };
   updateStatusOnConnect();
