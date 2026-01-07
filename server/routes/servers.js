@@ -73,7 +73,7 @@ router.post('/', auth, async (req, res) => {
       // Add override for @everyone to allow sending messages in general
       permissions: [{
         role: everyoneRole._id,
-        allow: ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY'],
+        allow: ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY', 'ATTACH_FILES'],
         deny: []
       }]
     });

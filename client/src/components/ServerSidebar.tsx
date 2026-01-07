@@ -221,6 +221,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                             return String(mId) === String(u._id);
                           })?.nickname || u.username}
                         </span>
+                        {(u as any).isScreenSharing && (
+                          <div className="live-badge">В ЭФИРЕ</div>
+                        )}
                       </div>
                     ))}
                   </div>

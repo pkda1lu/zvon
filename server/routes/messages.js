@@ -51,12 +51,17 @@ router.post('/', auth, async (req, res) => {
     }
 
     if (channel.server) {
-      if (!await hasPermission(req.user._id, channel.server, 'SEND_MESSAGES')) {
-        return res.status(403).json({ message: 'Insufficient permissions' });
+      // 1. Check for SEND_MESSAGES
+      if (!await hasPermission(req.user._id, channel.server, 'SEND_MESSAGES', channelId)) {
+        return res.status(403).json({ message: 'Insufficient permissions to send messages' });
       }
-    } else {
-      // Assume DM? DM messages usually don't use this route if they have channelId...
-      // Wait, DMs have a different model or use directMessage field.ChannelId implies Server Channel.
+
+      // 2. Check for ATTACH_FILES if there are attachments
+      if (attachments && attachments.length > 0) {
+        if (!await hasPermission(req.user._id, channel.server, 'ATTACH_FILES', channelId)) {
+          return res.status(403).json({ message: 'Insufficient permissions to attach files' });
+        }
+      }
     }
 
     const message = new Message({

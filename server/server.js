@@ -92,7 +92,12 @@ const getVoiceChannelUsers = async (channelId) => {
     if (socket && socket.userId) {
       const user = await User.findById(socket.userId).select('username avatar status banner');
       if (user) {
-        users.push(user);
+        // Add voice states from socket
+        const userData = user.toObject();
+        userData.isMuted = socket.isMuted || false;
+        userData.isDeafened = socket.isDeafened || false;
+        userData.isScreenSharing = socket.isScreenSharing || false;
+        users.push(userData);
       }
     }
   }
@@ -234,10 +239,18 @@ io.on('connection', (socket) => {
         const channel = await Channel.findById(data.channelId);
 
         if (channel && channel.server) {
-          const hasPerm = await hasPermission(socket.userId, channel.server, 'SEND_MESSAGES');
-          if (!hasPerm) {
+          const hasSendPerm = await hasPermission(socket.userId, channel.server, 'SEND_MESSAGES', data.channelId);
+          if (!hasSendPerm) {
             socket.emit('error', { message: 'Insufficient permissions to send messages' });
             return;
+          }
+
+          if (data.attachments && data.attachments.length > 0) {
+            const hasAttachPerm = await hasPermission(socket.userId, channel.server, 'ATTACH_FILES', data.channelId);
+            if (!hasAttachPerm) {
+              socket.emit('error', { message: 'Insufficient permissions to attach files' });
+              return;
+            }
           }
         }
       }
@@ -448,7 +461,10 @@ io.on('connection', (socket) => {
         _id: user._id,
         username: user.username,
         avatar: user.avatar,
-        banner: user.banner
+        banner: user.banner,
+        isMuted: socket.isMuted || false,
+        isDeafened: socket.isDeafened || false,
+        isScreenSharing: socket.isScreenSharing || false
       }
     });
 
@@ -468,17 +484,28 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Voice state updates (mute/deafen)
+  // Voice state updates (mute/deafen/screenshare)
   socket.on('voice-state-update', async (data) => {
-    const { channelId, isMuted, isDeafened } = data;
+    const { channelId, isMuted, isDeafened, isScreenSharing } = data;
     if (!socket.voiceChannelId || socket.voiceChannelId !== channelId) return;
+
+    // Store state on socket for retrieval by others joining
+    socket.isMuted = isMuted;
+    socket.isDeafened = isDeafened;
+    if (isScreenSharing !== undefined) {
+      socket.isScreenSharing = isScreenSharing;
+    }
 
     // Broadcast state to others in the channel
     socket.to(`voice-channel-${channelId}`).emit('voice-user-state-update', {
       userId: socket.userId,
-      isMuted: isMuted || false,
-      isDeafened: isDeafened || false
+      isMuted: socket.isMuted,
+      isDeafened: socket.isDeafened,
+      isScreenSharing: socket.isScreenSharing
     });
+
+    // Notify server (Sidebar) to update "LIVE" status
+    await notifyVoiceChannelUpdate(channelId);
   });
 
   socket.on('leave-voice-channel', async (data) => {

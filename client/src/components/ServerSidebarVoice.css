@@ -107,3 +107,16 @@
 .voice-user-name {
     transition: color 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+.live-badge {
+    background: #f23f43;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    line-height: 1.2;
+}

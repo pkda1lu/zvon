@@ -5,7 +5,7 @@ const User = require('../models/User');
 /**
  * Checks if a user has a specific permission on a server
  */
-const hasPermission = async (userId, serverId, permission) => {
+const hasPermission = async (userId, serverId, permission, channelId = null) => {
     try {
         const server = await Server.findById(serverId).populate('roles');
         if (!server) return false;
@@ -28,17 +28,51 @@ const hasPermission = async (userId, serverId, permission) => {
             memberRoleIds.includes(r._id.toString()) || r.name === '@everyone'
         );
 
-        // 3. Check for Administrator or specific permission
-        const perms = new Set();
+        // 3. Check for Administrator (Bypasses all channel overrides)
         for (const role of memberRoles) {
             if (role.permissions.includes('ADMINISTRATOR')) return true;
-            role.permissions.forEach(p => perms.add(p));
         }
 
-        // 4. Handle communication timeout (restricted permissions)
+        // 4. Handle communication timeout
         if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
-            const restricted = ['SEND_MESSAGES', 'SPEAK', 'ADD_REACTIONS', 'CONNECT'];
+            const restricted = ['SEND_MESSAGES', 'SPEAK', 'ADD_REACTIONS', 'CONNECT', 'ATTACH_FILES'];
             if (restricted.includes(permission)) return false;
+        }
+
+        // 5. Channel Overrides Logic
+        if (channelId) {
+            const Channel = require('../models/Channel');
+            const channel = await Channel.findById(channelId);
+            if (channel && channel.permissions && channel.permissions.length > 0) {
+                // Deny has higher priority than allow in some systems, 
+                // but usually it's Member Allow > Member Deny > Role Allow > Role Deny.
+                // Our system currently handles Role overrides.
+
+                let denied = false;
+                let allowed = false;
+
+                // Sort roles by position to handle hierarchy if needed, 
+                // but usually Discord combines all role overrides.
+                // If ANY role denies and NO role allows (at the same level), it's denied.
+                // If ANY role allows, it's allowed (unless member override denies).
+
+                for (const override of channel.permissions) {
+                    const sRoleOverrideId = override.role.toString();
+                    if (memberRoleIds.includes(sRoleOverrideId) || (server.roles.find(r => r._id.toString() === sRoleOverrideId)?.name === '@everyone')) {
+                        if (override.deny.includes(permission)) denied = true;
+                        if (override.allow.includes(permission)) allowed = true;
+                    }
+                }
+
+                if (denied && !allowed) return false;
+                if (allowed) return true;
+            }
+        }
+
+        // 6. Base Server Permissions
+        const perms = new Set();
+        for (const role of memberRoles) {
+            role.permissions.forEach(p => perms.add(p));
         }
 
         return perms.has(permission);

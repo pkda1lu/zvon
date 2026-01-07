@@ -25,6 +25,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
 
   const canSend = hasPermission('SEND_MESSAGES');
+  const canAttach = hasPermission('ATTACH_FILES');
   const canManageMessages = hasPermission('MANAGE_MESSAGES');
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -286,6 +287,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
             type="button"
             className="attachment-button"
             onClick={() => fileInputRef.current?.click()}
+            disabled={!canAttach}
+            title={canAttach ? "Прикрепить файл" : "Нет прав на отправку файлов"}
           >
             <PlusIcon />
           </button>

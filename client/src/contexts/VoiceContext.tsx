@@ -83,7 +83,7 @@ interface VoiceContextType {
     remoteStreams: Map<string, MediaStream>; // Export remote streams
     userVolumes: Map<string, number>;
     setUserVolume: (userId: string, volume: number) => void;
-    userStates: Map<string, { isMuted: boolean; isDeafened: boolean }>;
+    userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
     speakingUsers: Set<string>;
@@ -130,7 +130,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
-    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean }>>(new Map());
+    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }>>(new Map());
     const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -245,6 +245,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         setIsConnected(false);
         setActiveChannelId(null);
+        setIsScreenSharing(false);
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, activeChannelId]);
 
@@ -317,14 +318,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
         };
 
-        const handleUserJoined = (data: { userId: string; user: User }) => {
+        const handleUserJoined = (data: { userId: string; user: any }) => {
             console.log('[VoiceContext] User joined:', data);
             if (data.userId === user?._id) return;
 
             setConnectedUsers(prev => {
-                if (prev.find(u => u._id === data.user._id)) return prev;
+                const exists = prev.find(u => u._id === data.user._id);
+                if (exists) return prev;
                 return [...prev, data.user];
             });
+
+            // Sync user's initial state if provided
+            if (data.user.isMuted !== undefined) {
+                setUserStates(prev => new Map(prev).set(data.userId, {
+                    isMuted: data.user.isMuted,
+                    isDeafened: data.user.isDeafened,
+                    isScreenSharing: data.user.isScreenSharing
+                }));
+            }
         };
 
         const handleUserLeft = (data: { userId: string }) => {
@@ -366,6 +377,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     targetUserId: data.fromUserId,
                     answer
                 });
+
+                // If I am screen sharing, I need to push my video to this new peer 
+                // because their initial offer was likely audio-only.
+                if (isScreenSharing) {
+                    console.log(`[VoiceContext] I am sharing, triggering renegotiation for new joiner ${data.fromUserId}`);
+                    setTimeout(async () => {
+                        try {
+                            const newOffer = await pc.createOffer();
+                            await pc.setLocalDescription(newOffer);
+                            socket.emit('voice-offer', {
+                                targetUserId: data.fromUserId,
+                                offer: pc.localDescription
+                            });
+                        } catch (e) {
+                            console.error("Renegotiation error after initial handshake:", e);
+                        }
+                    }, 1000);
+                }
             } catch (err) {
                 console.error('Error handling offer:', err);
             }
@@ -407,11 +436,17 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
         };
 
-        const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean }) => {
+        const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }) => {
+            console.log('[VoiceContext] User state update:', data);
             setUserStates(prev => new Map(prev).set(data.userId, {
                 isMuted: data.isMuted,
-                isDeafened: data.isDeafened
+                isDeafened: data.isDeafened,
+                isScreenSharing: data.isScreenSharing
             }));
+
+            // Force update remote streams mapping if screen sharing changed
+            // This helps UI detect the new video track
+            setRemoteStreams(prev => new Map(prev));
         };
 
         const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
@@ -459,7 +494,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.emit('voice-state-update', {
                 channelId: activeChannelId,
                 isMuted: newMuted,
-                isDeafened: isDeafened
+                isDeafened: isDeafened,
+                isScreenSharing
             });
         }
     };
@@ -472,7 +508,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.emit('voice-state-update', {
                 channelId: activeChannelId,
                 isMuted: isMuted,
-                isDeafened: newDeafened
+                isDeafened: newDeafened,
+                isScreenSharing
             });
         }
     };
@@ -572,6 +609,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Apply current mute state to new stream
             stream.getAudioTracks().forEach(t => t.enabled = !isMuted && !isDeafened);
+
+            // Notify server
+            if (socket && activeChannelId) {
+                socket.emit('voice-state-update', {
+                    channelId: activeChannelId,
+                    isMuted: isMuted,
+                    isDeafened: isDeafened,
+                    isScreenSharing: false
+                });
+            }
 
             // Remove video track from peers and renegotiate (Switch back to audio only)
             peersRef.current.forEach(async (pc, targetUserId) => {
@@ -750,6 +797,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             ]);
             localStreamRef.current = newStream;
             setLocalStream(newStream);
+
+            // Notify server
+            if (socket && activeChannelId) {
+                socket.emit('voice-state-update', {
+                    channelId: activeChannelId,
+                    isMuted: isMuted,
+                    isDeafened: isDeafened,
+                    isScreenSharing: true
+                });
+            }
 
             // 3. Update peers and renegotiate
             const sendersToUpdate = Array.from(peersRef.current.entries());

@@ -23,7 +23,7 @@ import './Main.css';
 const Main: React.FC = () => {
   const { user, logout, updateUser } = useAuth();
   const { socket } = useSocket();
-  const { activeChannelId } = useVoice();
+  const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
 
   const [servers, setServers] = useState<Server[]>([]);
@@ -338,6 +338,9 @@ const Main: React.FC = () => {
       // If the current user is the one who left/was kicked
       const currentUserId = userRef.current?._id;
       if (currentUserId && targetUserId === String(currentUserId)) {
+        // Automatically leave voice if it was from this server
+        leaveChannel();
+
         setServers(prev => prev.filter(s => s._id !== data.serverId));
         setSelectedServer(prev => prev && prev._id === data.serverId ? null : prev);
         setSelectedChannel(prev => {
@@ -351,6 +354,9 @@ const Main: React.FC = () => {
     };
 
     const handleServerKicked = (data: { serverId: string }) => {
+      // Automatically leave voice if it was from this server
+      leaveChannel();
+
       setServers(prev => prev.filter(s => s._id !== data.serverId));
       setSelectedServer(prev => prev && prev._id === data.serverId ? null : prev);
       setSelectedChannel(prev => {
