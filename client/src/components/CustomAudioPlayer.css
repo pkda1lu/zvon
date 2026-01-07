@@ -1,0 +1,145 @@
+.custom-audio-player {
+    display: flex;
+    align-items: center;
+    background: #2f3136;
+    /* Discord dark background for embeds */
+    border-radius: 8px;
+    padding: 10px;
+    width: 100%;
+    max-width: 400px;
+    border: 1px solid #202225;
+    gap: 12px;
+    user-select: none;
+}
+
+.audio-icon-container {
+    width: 40px;
+    height: 40px;
+    background: #202225;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.audio-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    /* allows text truncation */
+}
+
+.audio-name {
+    color: #dcddde;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.audio-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.time-display {
+    font-size: 11px;
+    font-family: monospace;
+    color: #b9bbbe;
+    min-width: 32px;
+}
+
+.time-display.current {
+    text-align: right;
+}
+
+.time-display.total {
+    text-align: left;
+}
+
+.audio-seek {
+    flex: 1;
+    height: 4px;
+    background: #4f545c;
+    border-radius: 2px;
+    position: relative;
+}
+
+/* Reusing seek-bar styles from video player but ensuring consistency or overrides */
+.seek-bar {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    outline: none;
+    cursor: pointer;
+    background-image: linear-gradient(#5865F2, #5865F2);
+    background-repeat: no-repeat;
+    border-radius: 2px;
+}
+
+.seek-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 10px;
+    width: 10px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    /* Hidden by default for audio players often, or visible on hover */
+    transition: opacity 0.1s;
+}
+
+.custom-audio-player:hover .seek-bar::-webkit-slider-thumb {
+    opacity: 1;
+}
+
+.audio-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.play-btn {
+    color: #dcddde;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.1s;
+}
+
+.play-btn:hover {
+    color: #fff;
+}
+
+.audio-vol {
+    width: 80px;
+    /* Smaller than video player volume */
+    display: none;
+    /* Often hidden until hover or interaction in smaller players */
+}
+
+.custom-audio-player:hover .audio-vol {
+    display: flex;
+}
+
+/* Volume slider specific overrides for audio context */
+.audio-vol .volume-slider {
+    width: 50px;
+}

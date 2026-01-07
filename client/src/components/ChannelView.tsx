@@ -9,6 +9,9 @@ import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon } from './Icons';
 import './ChannelView.css';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
+import CustomVideoPlayer from './CustomVideoPlayer';
+import CustomAudioPlayer from './CustomAudioPlayer';
+import MediaLightbox from './MediaLightbox';
 
 interface ChannelViewProps {
   channel: Channel;
@@ -23,6 +26,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   const { hasPermission } = usePermissions(user!, server);
   const [message, setMessage] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxMedia, setLightboxMedia] = useState<any[]>([]);
 
   const canSend = hasPermission('SEND_MESSAGES');
   const canAttach = hasPermission('ATTACH_FILES');
@@ -246,9 +252,61 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                         {msg.attachments.map((att, i) => (
                           <div key={i} className="attachment-item">
                             {att.type.startsWith('image/') ? (
-                              <img src={getFullUrl(att.url)!} alt={att.filename} className="attachment-image" />
+                              <img
+                                src={getFullUrl(att.url)!}
+                                alt={att.filename}
+                                className="attachment-image"
+                                onClick={() => {
+                                  // Gather all media from all messages
+                                  const allMedia: any[] = [];
+                                  messages.forEach(m => {
+                                    if (m.attachments) {
+                                      m.attachments.forEach(a => {
+                                        if (a.type.startsWith('image/') || a.type.startsWith('video/')) {
+                                          allMedia.push(a);
+                                        }
+                                      });
+                                    }
+                                  });
+                                  const idx = allMedia.findIndex(a => a.url === att.url);
+                                  setLightboxMedia(allMedia);
+                                  setLightboxIndex(idx !== -1 ? idx : 0);
+                                  setLightboxOpen(true);
+                                }}
+                              />
                             ) : att.type.startsWith('video/') ? (
-                              <video src={getFullUrl(att.url)!} controls className="attachment-video" />
+                              <div className="attachment-video-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
+                                <CustomVideoPlayer
+                                  src={getFullUrl(att.url)!}
+                                  onExpand={(currentTime) => {
+                                    const allMedia: any[] = [];
+                                    messages.forEach(m => {
+                                      if (m.attachments) {
+                                        m.attachments.forEach(a => {
+                                          if (a.type.startsWith('image/') || a.type.startsWith('video/')) {
+                                            // Clone attachment to avoid mutating message state directly
+                                            allMedia.push({ ...a });
+                                          }
+                                        });
+                                      }
+                                    });
+                                    // Find index and set startTime for that item
+                                    const idx = allMedia.findIndex(a => a.url === att.url);
+                                    if (idx !== -1) {
+                                      allMedia[idx].startTime = currentTime;
+                                    }
+
+                                    setLightboxMedia(allMedia);
+                                    setLightboxIndex(idx !== -1 ? idx : 0);
+                                    setLightboxOpen(true);
+                                  }}
+                                />
+                              </div>
+                            ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
+                              <CustomAudioPlayer
+                                src={getFullUrl(att.url)!}
+                                filename={att.filename}
+                              />
                             ) : (
                               <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
                                 <DocumentIcon size={18} />
@@ -323,6 +381,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
           onOpenProfile={onUserClick}
         />
       )}
+
+      <MediaLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        media={lightboxMedia}
+        initialIndex={lightboxIndex}
+      />
     </div>
   );
 };

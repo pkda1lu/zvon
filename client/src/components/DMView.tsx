@@ -6,6 +6,9 @@ import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { PhoneIcon, DocumentIcon, PlusIcon } from './Icons';
 import VoiceCall from './VoiceCall';
+import CustomVideoPlayer from './CustomVideoPlayer';
+import CustomAudioPlayer from './CustomAudioPlayer';
+import MediaLightbox from './MediaLightbox';
 import './DMView.css';
 import './Attachments.css';
 
@@ -26,6 +29,9 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxMedia, setLightboxMedia] = useState<any[]>([]);
 
   const otherUser = dm.participants.find(p => p._id !== user?._id);
 
@@ -184,9 +190,60 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                           {msg.attachments.map((att, i) => (
                             <div key={i} className="attachment-item">
                               {att.type.startsWith('image/') ? (
-                                <img src={getFullUrl(att.url)!} alt={att.filename} className="attachment-image" />
+                                <img
+                                  src={getFullUrl(att.url)!}
+                                  alt={att.filename}
+                                  className="attachment-image"
+                                  onClick={() => {
+                                    // Gather all media from all messages
+                                    const allMedia: any[] = [];
+                                    messages.forEach(m => {
+                                      if (m.attachments) {
+                                        m.attachments.forEach(a => {
+                                          if (a.type.startsWith('image/') || a.type.startsWith('video/')) {
+                                            allMedia.push(a);
+                                          }
+                                        });
+                                      }
+                                    });
+                                    const idx = allMedia.findIndex(a => a.url === att.url);
+                                    setLightboxMedia(allMedia);
+                                    setLightboxIndex(idx !== -1 ? idx : 0);
+                                    setLightboxOpen(true);
+                                  }}
+                                />
                               ) : att.type.startsWith('video/') ? (
-                                <video src={getFullUrl(att.url)!} controls className="attachment-video" />
+                                <div className="attachment-video-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
+                                  <CustomVideoPlayer
+                                    src={getFullUrl(att.url)!}
+                                    onExpand={(currentTime) => {
+                                      const allMedia: any[] = [];
+                                      messages.forEach(m => {
+                                        if (m.attachments) {
+                                          m.attachments.forEach(a => {
+                                            if (a.type.startsWith('image/') || a.type.startsWith('video/')) {
+                                              // Clone to modify without affecting original data
+                                              allMedia.push({ ...a });
+                                            }
+                                          });
+                                        }
+                                      });
+                                      const idx = allMedia.findIndex(a => a.url === att.url);
+                                      if (idx !== -1) {
+                                        allMedia[idx].startTime = currentTime;
+                                      }
+
+                                      setLightboxMedia(allMedia);
+                                      setLightboxIndex(idx !== -1 ? idx : 0);
+                                      setLightboxOpen(true);
+                                    }}
+                                  />
+                                </div>
+                              ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
+                                <CustomAudioPlayer
+                                  src={getFullUrl(att.url)!}
+                                  filename={att.filename}
+                                />
                               ) : (
                                 <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
                                   <DocumentIcon size={18} />
@@ -240,6 +297,12 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
           </button>
         </form>
       </div>
+      <MediaLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        media={lightboxMedia}
+        initialIndex={lightboxIndex}
+      />
     </div>
   );
 };

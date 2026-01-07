@@ -114,6 +114,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isMuted, setIsMuted] = useState(false);
     const [isDeafened, setIsDeafened] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const isScreenSharingRef = useRef(false);
+
+    useEffect(() => {
+        isScreenSharingRef.current = isScreenSharing;
+    }, [isScreenSharing]);
+
     const [showSourceSelector, setShowSourceSelector] = useState(false);
 
     // Audio Processing State
@@ -380,8 +386,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                 // If I am screen sharing, I need to push my video to this new peer 
                 // because their initial offer was likely audio-only.
-                if (isScreenSharing) {
-                    console.log(`[VoiceContext] I am sharing, triggering renegotiation for new joiner ${data.fromUserId}`);
+                if (isScreenSharingRef.current) {
+                    console.log(`[VoiceContext] I am sharing (ref), triggering renegotiation for new joiner ${data.fromUserId}`);
                     setTimeout(async () => {
                         try {
                             const newOffer = await pc.createOffer();
