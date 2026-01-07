@@ -10,7 +10,7 @@ const AuditLog = require('../models/AuditLog');
 const Ban = require('../models/Ban');
 const Invite = require('../models/Invite');
 const upload = require('../middleware/upload');
-const { hasPermission } = require('../utils/permissions');
+const { hasPermission, canPerformActionOn } = require('../utils/permissions');
 
 // Helper for audit logging
 const logAction = async (serverId, userId, action, targetType, targetId, changes, reason) => {
@@ -50,22 +50,32 @@ router.post('/', auth, async (req, res) => {
     await server.save();
 
     // Create default @everyone role
+    // Restricted by default - can only view, not send messages globally
     const everyoneRole = new Role({
       name: '@everyone',
       color: '#99AAB5',
-      permissions: ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY', 'CONNECT', 'SPEAK', 'CREATE_INSTANT_INVITE', 'VIEW_CHANNELS'],
+      permissions: ['READ_MESSAGE_HISTORY', 'CONNECT', 'SPEAK', 'CREATE_INSTANT_INVITE', 'VIEW_CHANNELS'],
       server: server._id,
       position: 0
     });
     await everyoneRole.save();
     server.roles.push(everyoneRole._id);
 
+    // Initial member (owner) also gets the @everyone role
+    server.members[0].roles.push(everyoneRole._id);
+
     // Create default channels
     const generalChannel = new Channel({
       name: 'general',
       type: 'text',
       server: server._id,
-      position: 0
+      position: 0,
+      // Add override for @everyone to allow sending messages in general
+      permissions: [{
+        role: everyoneRole._id,
+        allow: ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY'],
+        deny: []
+      }]
     });
     await generalChannel.save();
 
@@ -193,7 +203,11 @@ router.post('/:id/join', auth, async (req, res) => {
       return res.status(400).json({ message: 'Already a member' });
     }
 
-    server.members.push({ user: req.user._id, roles: [] });
+    // Find @everyone role
+    const everyoneRole = await Role.findOne({ server: server._id, name: '@everyone' });
+    const roles = everyoneRole ? [everyoneRole._id] : [];
+
+    server.members.push({ user: req.user._id, roles });
     await server.save();
 
     const user = await User.findById(req.user._id);
@@ -493,8 +507,10 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
     const isSelf = req.user._id.toString() === req.params.userId;
     const canKick = await hasPermission(req.user._id, req.params.id, 'KICK_MEMBERS');
 
-    if (!isSelf && !canKick) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
+    const canKickAction = isSelf || (canKick && await canPerformActionOn(req.user._id, req.params.userId, req.params.id));
+
+    if (!canKickAction) {
+      return res.status(403).json({ message: 'Insufficient permissions or hierarchy' });
     }
 
     server.members = server.members.filter(m => m.user.toString() !== req.params.userId);
@@ -524,6 +540,30 @@ router.put('/:id/members/:userId/roles', auth, async (req, res) => {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
+    // Hierarchy check
+    const higherHierarchy = await canPerformActionOn(req.user._id, req.params.userId, req.params.id);
+    if (!higherHierarchy) {
+      return res.status(403).json({ message: 'Cannot modify roles of someone with higher or equal hierarchy' });
+    }
+
+    // Role level check: Cannot assign roles higher or equal to your own highest role
+    const rolesToAssign = await Role.find({ _id: { $in: roles } });
+    const actor = server.members.find(m => m.user.toString() === req.user._id.toString());
+    const actorRoleIds = actor.roles.map(r => r.toString());
+    const serverRoles = await Role.find({ server: req.params.id });
+    const actorRoles = serverRoles.filter(r => actorRoleIds.includes(r._id.toString()));
+    const actorHighest = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position)) : -1;
+
+    // Server owner bypasses this
+    const isOwner = server.owner.toString() === req.user._id.toString();
+
+    if (!isOwner) {
+      const highestAssigned = rolesToAssign.length > 0 ? Math.max(...rolesToAssign.map(r => r.position)) : -1;
+      if (highestAssigned >= actorHighest) {
+        return res.status(403).json({ message: 'Cannot assign roles higher or equal to your own highest role' });
+      }
+    }
+
     const member = server.members.find(m => m.user.toString() === req.params.userId);
     if (member) {
       member.roles = roles;
@@ -548,6 +588,53 @@ router.put('/:id/members/:userId/roles', auth, async (req, res) => {
   }
 });
 
+// Update member (nickname)
+router.put('/:id/members/:userId', auth, async (req, res) => {
+  try {
+    const { nickname } = req.body;
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const isSelf = req.user._id.toString() === req.params.userId;
+    const canManageNicknames = await hasPermission(req.user._id, req.params.id, 'MANAGE_NICKNAMES');
+
+    if (!isSelf && !canManageNicknames) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
+    }
+
+    if (!isSelf) {
+      const higherHierarchy = await canPerformActionOn(req.user._id, req.params.userId, req.params.id);
+      if (!higherHierarchy) {
+        return res.status(403).json({ message: 'Cannot change nickname of someone with higher or equal hierarchy' });
+      }
+    }
+
+    const member = server.members.find(m => m.user.toString() === req.params.userId);
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+
+    member.nickname = nickname || null;
+    await server.save();
+
+    await logAction(server._id, req.user._id, 'update-nickname', 'member', req.params.userId, { nickname }, 'Updated nickname');
+
+    const updatedServer = await Server.findById(req.params.id).populate('members.roles').populate('members.user');
+    const updatedMember = updatedServer.members.find(m => m.user._id.toString() === req.params.userId.toString());
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${req.params.id}`).emit('server-member-updated', {
+        serverId: req.params.id,
+        member: updatedMember
+      });
+    }
+
+    res.json(updatedMember);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Bans
 router.get('/:id/bans', auth, async (req, res) => {
   try {
@@ -562,8 +649,11 @@ router.post('/:id/bans', auth, async (req, res) => {
   try {
     const { userId, reason } = req.body;
     const server = await Server.findById(req.params.id);
-    if (!await hasPermission(req.user._id, req.params.id, 'BAN_MEMBERS')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
+    const canBan = await hasPermission(req.user._id, req.params.id, 'BAN_MEMBERS');
+    const higherHierarchy = await canPerformActionOn(req.user._id, userId, req.params.id);
+
+    if (!canBan || !higherHierarchy) {
+      return res.status(403).json({ message: 'Insufficient permissions or hierarchy' });
     }
 
     const ban = new Ban({

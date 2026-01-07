@@ -37,6 +37,11 @@ const serverSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Role'
     }],
+    nickname: {
+      type: String,
+      maxlength: 100,
+      default: null
+    },
     joinedAt: {
       type: Date,
       default: Date.now

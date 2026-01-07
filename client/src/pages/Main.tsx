@@ -430,7 +430,20 @@ const Main: React.FC = () => {
           }
 
           if (activeVoiceChannel) {
-            return <ActiveVoiceOverlay channel={activeVoiceChannel} />;
+            return (
+              <ActiveVoiceOverlay
+                channel={activeVoiceChannel}
+                onReturn={() => {
+                  // Find the server this channel belongs to
+                  const serverId = typeof activeVoiceChannel!.server === 'string'
+                    ? activeVoiceChannel!.server
+                    : activeVoiceChannel!.server._id;
+                  const server = servers.find(s => s._id === serverId);
+                  if (server) setSelectedServer(server);
+                  handleChannelSelect(activeVoiceChannel!);
+                }}
+              />
+            );
           }
           return null;
         })()

@@ -21,6 +21,7 @@ export interface Server {
   members: Array<{
     user: User;
     roles: (Role | string)[];
+    nickname?: string;
     joinedAt: string;
   }>;
   channels: Channel[];

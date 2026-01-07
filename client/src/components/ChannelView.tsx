@@ -206,7 +206,10 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                           onClick={() => onUserClick(msg.author._id)}
                           style={{ cursor: 'pointer', color: getAuthorColor(msg.author._id) }}
                         >
-                          {msg.author.username}
+                          {server.members.find(m => {
+                            const memberUserId = typeof m.user === 'string' ? m.user : m.user._id;
+                            return String(memberUserId) === String(msg.author._id);
+                          })?.nickname || msg.author.username}
                         </span>
                         <span className="message-time">{formatDate(msg.createdAt)}</span>
                       </div>

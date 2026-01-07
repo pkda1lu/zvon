@@ -1,15 +1,16 @@
 import React from 'react';
 import { useVoice } from '../contexts/VoiceContext';
 import { Channel } from '../types';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, MaximizeIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import './VoiceCall.css'; // Reuse styles
 
 interface ActiveVoiceOverlayProps {
     channel: Channel;
+    onReturn?: () => void;
 }
 
-const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
+const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel, onReturn }) => {
     const {
         leaveChannel,
         isMuted,
@@ -122,6 +123,13 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel }) => {
                         title={isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
                     >
                         <ScreenShareIcon />
+                    </button>
+                    <button
+                        className="control-button return-to-chat"
+                        onClick={onReturn}
+                        title="Вернуться в голосовой чат"
+                    >
+                        <MaximizeIcon />
                     </button>
                 </div>
             </div>

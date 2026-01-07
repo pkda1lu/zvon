@@ -280,3 +280,11 @@
   font-style: italic;
   padding: 0 20px;
 }
+
+.control-button.return-to-chat {
+  background: #43b581;
+}
+
+.control-button.return-to-chat:hover {
+  background: #3ca374;
+}

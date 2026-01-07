@@ -127,8 +127,12 @@ router.post('/:code/join', auth, async (req, res) => {
             return res.status(400).json({ message: 'Already a member' });
         }
 
+        // Find @everyone role
+        const everyoneRole = await Role.findOne({ server: server._id, name: '@everyone' });
+        const roles = everyoneRole ? [everyoneRole._id] : [];
+
         // Add member
-        server.members.push({ user: req.user._id, roles: [] });
+        server.members.push({ user: req.user._id, roles });
         await server.save();
 
         // Add server to user's server list
