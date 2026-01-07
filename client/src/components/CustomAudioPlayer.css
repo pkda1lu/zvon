@@ -6,7 +6,7 @@
     border-radius: 8px;
     padding: 10px;
     width: 100%;
-    max-width: 400px;
+    max-width: 600px;
     border: 1px solid #202225;
     gap: 12px;
     user-select: none;
@@ -28,8 +28,8 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 0;
-    /* allows text truncation */
+    min-width: 200px;
+    /* Ensure minimum width for controls */
 }
 
 .audio-name {
@@ -45,6 +45,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
+    /* Fill available space */
 }
 
 .time-display {
@@ -52,6 +54,8 @@
     font-family: monospace;
     color: #b9bbbe;
     min-width: 32px;
+    flex-shrink: 0;
+    /* Prevent time from squishing */
 }
 
 .time-display.current {
@@ -64,10 +68,14 @@
 
 .audio-seek {
     flex: 1;
-    height: 4px;
+    height: 8px;
+    /* Taller hit area */
     background: #4f545c;
-    border-radius: 2px;
+    border-radius: 4px;
     position: relative;
+    cursor: pointer;
+    min-width: 100px;
+    /* Ensure seek bar has minimum clickable width */
 }
 
 /* Reusing seek-bar styles from video player but ensuring consistency or overrides */
@@ -97,14 +105,12 @@
     background: #fff;
     cursor: pointer;
     box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
-    opacity: 0;
-    /* Hidden by default for audio players often, or visible on hover */
+    opacity: 1;
+    /* Always visible */
     transition: opacity 0.1s;
 }
 
-.custom-audio-player:hover .seek-bar::-webkit-slider-thumb {
-    opacity: 1;
-}
+/* Removed hover dependency for thumb visibility */
 
 .audio-actions {
     display: flex;
@@ -130,14 +136,13 @@
 
 .audio-vol {
     width: 80px;
-    /* Smaller than video player volume */
-    display: none;
-    /* Often hidden until hover or interaction in smaller players */
+    display: flex;
+    /* Always visible to prevent layout shift */
+    align-items: center;
+    gap: 4px;
 }
 
-.custom-audio-player:hover .audio-vol {
-    display: flex;
-}
+/* Removed hover dependency for volume visibility */
 
 /* Volume slider specific overrides for audio context */
 .audio-vol .volume-slider {
