@@ -6,7 +6,7 @@ export const isElectron = (): boolean => {
         win.process?.type === 'renderer' ||
         win.electron?.isElectron === true ||
         win.navigator?.userAgent?.includes('Electron') ||
-        (typeof process !== 'undefined' && process.versions?.electron)
+        (typeof win.process !== 'undefined' && win.process.versions?.electron)
     );
 };
 

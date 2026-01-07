@@ -26,7 +26,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   const canManageMessages = hasPermission('MANAGE_MESSAGES');
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

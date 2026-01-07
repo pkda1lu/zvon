@@ -24,7 +24,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   const [attachments, setAttachments] = useState<any[]>([]);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const otherUser = dm.participants.find(p => p._id !== user?._id);
