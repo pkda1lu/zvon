@@ -121,6 +121,8 @@ const canPerformActionOn = async (actorId, targetId, serverId) => {
         console.log(`Hierarchy check in ${serverId}: actorHighest=${actorHighest}, targetHighest=${targetHighest}`);
 
         // Actor must be strictly higher
+        // Special case: if actor has ADMINISTRATOR permission, allow managing people with same-level roles if target is not admin?
+        // No, keep strictly Discord rules: must be STRICTLY higher.
         return actorHighest > targetHighest;
     } catch (err) {
         console.error('Hierarchy check error:', err);

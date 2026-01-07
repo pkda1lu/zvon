@@ -23,8 +23,7 @@ const auditLogSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId
     },
     changes: {
-        type: Map,
-        of: String
+        type: mongoose.Schema.Types.Mixed
     },
     reason: String,
     createdAt: {

@@ -185,9 +185,19 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const targetMember = server.members.find(m => m.user._id === targetUser._id);
     const targetRoles = targetMember?.roles.map((r: any) => r._id || r) || [];
 
+    const [menuHeight, setMenuHeight] = useState(0);
+
+    useEffect(() => {
+        if (menuRef.current) {
+            setMenuHeight(menuRef.current.offsetHeight);
+        }
+    }, [showRolesSubmenu, roles]);
+
     // Ensure menu stays within viewport
     const adjustedX = Math.min(x, window.innerWidth - 220);
-    const adjustedY = Math.min(y, window.innerHeight - 400);
+    // Use measured height or fallback to a reasonable estimate
+    const height = menuHeight || 400;
+    const adjustedY = Math.min(y, window.innerHeight - height - 20);
 
     return ReactDOM.createPortal(
         <div
