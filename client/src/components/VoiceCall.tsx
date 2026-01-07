@@ -46,6 +46,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
   const wasCallEstablishedRef = useRef(false);
   const notificationSentRef = useRef(false);
+  const mountedAtRef = useRef<number>(Date.now());
 
   // Play ringtone for incoming calls
   useEffect(() => {
@@ -87,9 +88,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       });
 
       ringTimeoutRef.current = setTimeout(() => {
-        setIsRinging(false);
-        setIsWaitingInRoom(true);
-      }, 60000);
+        console.log('VoiceCall: Ringing timeout reached');
+        endCall();
+      }, 45000); // 45 seconds timeout
     }
 
     // Signaling listeners
@@ -104,7 +105,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       console.log('VoiceCall: Cleaning up');
 
       // Send missed call notification if unmounting before established
-      if (!initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId) {
+      // Only the caller sends this, and only if it's been ringing for a bit (avoid Strict Mode/accidental unmounts)
+      const duration = Date.now() - mountedAtRef.current;
+      if (!initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId && duration > 3000) {
         notificationSentRef.current = true;
         axios.post(`/api/direct-messages/${dmId}/messages`, {
           content: 'Пропущенный звонок',
@@ -135,6 +138,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     if (data.userId === otherUser._id) {
       console.log('Other user joined room. Checking if I should initiate WebRTC...');
       setIsRinging(false);
+      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       setIsWaitingInRoom(false);
       // Logic: smaller ID initiates to avoid collision
       if (user && user._id < otherUser._id) {
@@ -147,6 +151,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     if (users.includes(otherUser._id)) {
       console.log('Other user is already in room. Checking if I should initiate WebRTC...');
       setIsRinging(false);
+      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       setIsWaitingInRoom(false);
 
       // If we are the one who should initiate, do it
@@ -169,6 +174,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     console.log('VoiceCall: Accept clicked. Pending offer exists:', !!pendingOfferRef.current);
     setIsIncomingCall(false);
     setIsRinging(false);
+    if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
 
     // If we're the initiator, pre-warm media immediately
     if (user && otherUser && user._id < otherUser._id && !pendingOfferRef.current) {
@@ -373,6 +379,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       try {
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
         setIsCallActive(true);
+        wasCallEstablishedRef.current = true;
         await processIceQueue(peerConnectionRef.current);
       } catch (e) {
         console.error('Error setting remote answer:', e);
@@ -397,9 +404,22 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   };
 
   const endCall = async () => {
-    // If we're ending the call before it was established, send a missed call message
-    // Only the caller sends this to avoid duplicates
-    if (!initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId) {
+    console.log('VoiceCall: Ending call');
+    cleanupStreams();
+
+    if (socket) {
+      socket.emit('call-end', { targetUserId: otherUser._id });
+    }
+
+    // Capture state before closing UI
+    const duration = Date.now() - mountedAtRef.current;
+    const needsNotification = !initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId && duration > 2000;
+
+    setIsCallActive(false);
+    onEndCall(); // Close UI immediately
+
+    // Send missed call notification AFTER closing the call UI
+    if (needsNotification) {
       notificationSentRef.current = true;
       try {
         await axios.post(`/api/direct-messages/${dmId}/messages`, {
@@ -410,13 +430,6 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         console.error('Failed to send missed call notification:', err);
       }
     }
-
-    cleanupStreams();
-    if (socket) {
-      socket.emit('call-end', { targetUserId: otherUser._id });
-    }
-    setIsCallActive(false);
-    onEndCall();
   };
 
   const toggleMute = () => {
