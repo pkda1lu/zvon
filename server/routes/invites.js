@@ -5,6 +5,8 @@ const auth = require('../middleware/auth');
 const Invite = require('../models/Invite');
 const Server = require('../models/Server');
 const User = require('../models/User');
+const Ban = require('../models/Ban');
+const Role = require('../models/Role');
 const { hasPermission } = require('../utils/permissions');
 
 // Generate random code
@@ -116,6 +118,12 @@ router.post('/:code/join', auth, async (req, res) => {
         const server = await Server.findById(invite.server);
         if (!server) {
             return res.status(404).json({ message: 'Server no longer exists' });
+        }
+
+        // Check for ban
+        const isBanned = await Ban.findOne({ server: server._id, user: req.user._id });
+        if (isBanned) {
+            return res.status(403).json({ message: 'Вы заблокированы на этом сервере' });
         }
 
         // Check if already member

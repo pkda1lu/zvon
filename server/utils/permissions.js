@@ -10,34 +10,37 @@ const hasPermission = async (userId, serverId, permission) => {
         const server = await Server.findById(serverId).populate('roles');
         if (!server) return false;
 
-        // Owner bypass
-        const ownerId = server.owner._id ? server.owner._id.toString() : server.owner.toString();
-        if (ownerId === userId.toString()) return true;
+        const sUserId = userId.toString();
+        const sOwnerId = (server.owner._id || server.owner).toString();
+
+        // 1. Owner bypass
+        if (sUserId === sOwnerId) return true;
 
         const member = server.members.find(m =>
-            (m.user._id || m.user).toString() === userId.toString()
+            (m.user._id || m.user).toString() === sUserId
         );
         if (!member) return false;
 
-        // Timeout check
-        if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
-            const restricted = ['SEND_MESSAGES', 'SPEAK', 'ADD_REACTIONS', 'CONNECT'];
-            if (restricted.includes(permission)) return false;
-        }
-
-        // Get member roles + @everyone
+        // 2. Identify all roles for this member (including @everyone)
         const memberRoleIds = member.roles.map(r => (r._id || r).toString());
         const memberRoles = server.roles.filter(r =>
             memberRoleIds.includes(r._id.toString()) || r.name === '@everyone'
         );
 
-        // Administrator check
+        // 3. Check for Administrator or specific permission
+        const perms = new Set();
         for (const role of memberRoles) {
             if (role.permissions.includes('ADMINISTRATOR')) return true;
-            if (role.permissions.includes(permission)) return true;
+            role.permissions.forEach(p => perms.add(p));
         }
 
-        return false;
+        // 4. Handle communication timeout (restricted permissions)
+        if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
+            const restricted = ['SEND_MESSAGES', 'SPEAK', 'ADD_REACTIONS', 'CONNECT'];
+            if (restricted.includes(permission)) return false;
+        }
+
+        return perms.has(permission);
     } catch (err) {
         console.error('hasPermission error:', err);
         return false;
@@ -45,10 +48,9 @@ const hasPermission = async (userId, serverId, permission) => {
 };
 
 /**
- * Hierarchy check: Actor can moderate Target only if:
- * 1. Actor is Owner
- * 2. Actor has a role higher than Target's highest role
- * AND Target is NOT the Owner.
+ * Hierarchy check (Gradation): 
+ * Actor can manage Target if Actor is Owner OR Actor's highest role is STRICTLY above Target's highest role.
+ * Target can NEVER be the Owner.
  */
 const canPerformActionOn = async (actorId, targetId, serverId) => {
     try {
@@ -59,13 +61,13 @@ const canPerformActionOn = async (actorId, targetId, serverId) => {
         const sTargetId = targetId.toString();
         const sOwnerId = (server.owner._id || server.owner).toString();
 
-        // 1. Owner can do anything to anyone
+        // 1. Owner bypass
         if (sActorId === sOwnerId) return true;
 
-        // 2. target is owner? No way.
+        // 2. Nobody can touch the owner
         if (sTargetId === sOwnerId) return false;
 
-        // 3. same person? (Usually allowed for nickname changes but handled in routes)
+        // 3. Self-action (allowed for profiles, check specific route for logic)
         if (sActorId === sTargetId) return true;
 
         const actor = server.members.find(m => (m.user._id || m.user).toString() === sActorId);
@@ -73,21 +75,17 @@ const canPerformActionOn = async (actorId, targetId, serverId) => {
 
         if (!actor || !target) return false;
 
-        // Get highest role position
-        const getHighest = (member) => {
+        const getHighestPos = (member) => {
             const roleIds = member.roles.map(r => (r._id || r).toString());
-            // Include roles assigned to member + any @everyone role
-            const roles = server.roles.filter(r =>
-                roleIds.includes(r._id.toString()) || r.name === '@everyone'
-            );
+            const roles = server.roles.filter(r => roleIds.includes(r._id.toString()) || r.name === '@everyone');
             const positions = roles.map(r => r.position || 0);
-            return positions.length > 0 ? Math.max(...positions) : -1;
+            return positions.length > 0 ? Math.max(...positions) : 0;
         };
 
-        const actorMax = getHighest(actor);
-        const targetMax = getHighest(target);
+        const actorMax = getHighestPos(actor);
+        const targetMax = getHighestPos(target);
 
-        console.log(`Hierarchy: Actor ${actorMax} vs Target ${targetMax}`);
+        console.log(`Hierarchy Check [${server.name}]: Actor(${actorMax}) vs Target(${targetMax})`);
 
         return actorMax > targetMax;
     } catch (err) {
@@ -97,8 +95,8 @@ const canPerformActionOn = async (actorId, targetId, serverId) => {
 };
 
 /**
- * Can Actor modify Role? 
- * Actor must be Owner or have highest role strictly above Role position.
+ * Can Actor modify or assign a Role?
+ * Actor must be Owner OR have a higher role than the one they are touching.
  */
 const canModifyRole = async (actorId, roleId, serverId) => {
     try {
@@ -106,16 +104,20 @@ const canModifyRole = async (actorId, roleId, serverId) => {
         const role = await Role.findById(roleId);
         if (!server || !role) return false;
 
-        if (actorId.toString() === (server.owner._id || server.owner).toString()) return true;
+        const sActorId = actorId.toString();
+        const sOwnerId = (server.owner._id || server.owner).toString();
 
-        const actor = server.members.find(m => (m.user._id || m.user).toString() === actorId.toString());
+        if (sActorId === sOwnerId) return true;
+
+        const actor = server.members.find(m => (m.user._id || m.user).toString() === sActorId);
         if (!actor) return false;
 
         const roleIds = actor.roles.map(r => (r._id || r).toString());
-        const actorRoles = server.roles.filter(r => roleIds.includes(r._id.toString()));
-        const actorMax = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position)) : -1;
+        const actorRoles = server.roles.filter(r => roleIds.includes(r._id.toString()) || r.name === '@everyone');
+        const actorMax = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position || 0)) : 0;
 
-        return actorMax > role.position;
+        // Discord Rule: You can only touch roles STRICTLY BELOW yours.
+        return actorMax > (role.position || 0);
     } catch (err) {
         return false;
     }

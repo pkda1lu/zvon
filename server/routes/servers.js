@@ -481,7 +481,7 @@ router.put('/:id/roles/:roleId', auth, async (req, res) => {
 // Update role positions
 router.put('/:id/roles/positions', auth, async (req, res) => {
   try {
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_SERVER')) {
+    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
@@ -830,7 +830,22 @@ router.post('/:id/bans', auth, async (req, res) => {
     server.members = server.members.filter(m => m.user.toString() !== userId);
     await server.save();
 
+    // Remove server from user's list
+    const user = await User.findById(userId);
+    if (user) {
+      user.servers = user.servers.filter(s => s.toString() !== server._id.toString());
+      await user.save();
+    }
+
     await logAction(server._id, req.user._id, 'ban', 'member', userId, { reason }, 'Banned user');
+
+    // Broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId });
+      io.emit(`user-kicked-${userId}`, { serverId: req.params.id });
+    }
+
     res.status(201).json(ban);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });

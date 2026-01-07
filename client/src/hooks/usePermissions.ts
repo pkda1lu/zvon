@@ -43,6 +43,12 @@ export const usePermissions = (user: User | null, server: Server | null) => {
         const everyoneRole = server.roles?.find(r => r.name === '@everyone');
         if (everyoneRole && everyoneRole.permissions) {
             everyoneRole.permissions.forEach((p: string) => permissionsSet.add(p));
+        } else if (server.roles && server.roles.length > 0) {
+            // Fallback: usually the first role or one with position 0
+            const firstRole = server.roles.find(r => r.position === 0);
+            if (firstRole && firstRole.name === '@everyone' && firstRole.permissions) {
+                firstRole.permissions.forEach((p: string) => permissionsSet.add(p));
+            }
         }
 
         const permissions = Array.from(permissionsSet);

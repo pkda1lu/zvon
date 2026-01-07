@@ -1,102 +1,244 @@
-.invite-modal {
+.invite-modal-v2 {
   width: 440px;
   background-color: #313338;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(32,34,37,.6), 0 2px 10px 0 rgba(0,0,0,.2);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+  animation: modalAppear 0.2s ease-out;
 }
 
-.modal-header {
-  padding: 24px;
+@keyframes modalAppear {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.invite-header {
+  padding: 16px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
 }
 
-.modal-header h3 {
+.header-title h3 {
+  margin: 0;
   color: #fff;
   font-size: 16px;
   font-weight: 600;
-  text-transform: uppercase;
-  margin: 0;
 }
 
-.close-button {
+.close-btn {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: #b5bac1;
   cursor: pointer;
-  font-size: 24px;
-  padding: 0;
-  line-height: 1;
-}
-
-.close-button:hover {
-  color: #dcddde;
-}
-
-.modal-body {
-  padding: 0 24px 24px;
-}
-
-.invite-label {
-  color: #b9bbbe;
-  font-size: 12px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
-
-.invite-input-wrapper {
-  display: flex;
-  background-color: #1e1f22;
-  border: 1px solid #1e1f22;
-  border-radius: 3px;
   padding: 4px;
-  margin-bottom: 8px;
+  display: flex;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #fff;
+}
+
+.invite-body {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.search-container {
+  position: relative;
+  display: flex;
   align-items: center;
 }
 
-.invite-link-input {
+.search-container input {
+  width: 100%;
+  background-color: #1e1f22;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  padding-right: 36px;
+  color: #dbdee1;
+  font-size: 14px;
+  outline: none;
+}
+
+.search-container svg {
+  position: absolute;
+  right: 12px;
+  color: #b5bac1;
+  pointer-events: none;
+}
+
+.friends-invite-list {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.friends-invite-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.friends-invite-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.friends-invite-list::-webkit-scrollbar-thumb {
+  background: #1e1f22;
+  border-radius: 4px;
+}
+
+.invite-friend-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.invite-friend-item:hover {
+  background-color: rgba(78, 80, 88, 0.3);
+}
+
+.friend-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.friend-avatar img,
+.avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.avatar-placeholder {
+  background-color: #5865f2;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.friend-name {
+  color: #dbdee1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.invite-btn {
+  background-color: transparent;
+  border: 1px solid #248046;
+  color: #fff;
+  border-radius: 3px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 84px;
+}
+
+.invite-btn:hover {
+  background-color: #248046;
+}
+
+.invite-btn.sent {
+  border-color: #4e5058;
+  color: #b5bac1;
+  cursor: default;
+}
+
+.invite-btn.sent:hover {
+  background-color: transparent;
+}
+
+.invite-footer {
+  padding: 16px;
+  background-color: #2b2d31;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.footer-label {
+  color: #b5bac1;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.link-copy-container {
+  display: flex;
+  background-color: #1e1f22;
+  border-radius: 3px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.link-copy-container input {
   flex: 1;
   background: transparent;
   border: none;
-  color: #dcddde;
-  font-size: 16px;
+  color: #dbdee1;
   padding: 8px;
+  font-size: 14px;
   outline: none;
-  width: 100%;
 }
 
-.copy-button {
+.copy-btn {
   background-color: #5865f2;
   color: #fff;
   border: none;
   border-radius: 3px;
-  padding: 8px 16px;
+  padding: 0 16px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
-  min-width: 75px;
+  min-width: 100px;
 }
 
-.copy-button:hover {
+.copy-btn:hover {
   background-color: #4752c4;
 }
 
-.copy-button.copied {
+.copy-btn.success {
   background-color: #248046;
 }
 
-.invite-hint {
-  color: #b9bbbe;
+.link-expiry {
+  color: #b5bac1;
   font-size: 12px;
   margin-top: 8px;
 }
 
-.error-message {
-  color: #f23f42;
+.invite-error {
+  color: #fa777c;
   font-size: 12px;
   margin-top: 8px;
+}
+
+.no-friends {
+  color: #949ba4;
+  text-align: center;
+  padding: 20px;
+  font-size: 14px;
 }

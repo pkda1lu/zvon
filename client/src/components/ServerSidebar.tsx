@@ -247,6 +247,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           isOpen={showInviteModal}
           onClose={() => setShowInviteModal(false)}
           serverId={server._id}
+          serverName={server.name}
         />
       )}
 

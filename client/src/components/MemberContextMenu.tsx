@@ -131,10 +131,15 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 case 'update-note':
                     const newNote = prompt('Введите заметку:', note);
                     if (newNote !== null) {
-                        await axios.post('/api/users/note', { userId: targetUser._id, note: newNote });
-                        setNote(newNote);
+                        try {
+                            await axios.post('/api/users/note', { userId: targetUser._id, note: newNote });
+                            setNote(newNote);
+                        } catch (err) {
+                            console.error(err);
+                        }
                     }
-                    break;
+                    onClose();
+                    return;
                 case 'kick':
                     await axios.delete(`/api/servers/${server._id}/members/${targetUser._id}`);
                     break;
