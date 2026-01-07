@@ -48,6 +48,11 @@ const messageSchema = new mongoose.Schema({
     ref: 'Message',
     default: null
   },
+  type: {
+    type: String,
+    enum: ['default', 'missed-call', 'call-ended'],
+    default: 'default'
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -55,7 +60,7 @@ const messageSchema = new mongoose.Schema({
 });
 
 messageSchema.pre('save', function (next) {
-  if (!this.content && (!this.attachments || this.attachments.length === 0)) {
+  if (this.type === 'default' && !this.content && (!this.attachments || this.attachments.length === 0)) {
     return next(new Error('Сообщение не может быть пустым (нужен текст или вложение)'));
   }
   next();

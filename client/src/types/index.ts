@@ -66,6 +66,7 @@ export interface Message {
     users: string[];
   }>;
   replyTo?: Message;
+  type?: 'default' | 'missed-call' | 'call-ended';
   createdAt: string;
 }
 

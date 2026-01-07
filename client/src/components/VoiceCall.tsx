@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Socket } from 'socket.io-client';
+import axios from 'axios';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice } from '../contexts/VoiceContext';
@@ -43,6 +44,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const mixedStreamRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const retryTimeoutRef = useRef<any>(null);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+  const wasCallEstablishedRef = useRef(false);
+  const notificationSentRef = useRef(false);
 
   // Play ringtone for incoming calls
   useEffect(() => {
@@ -99,6 +102,16 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
 
     return () => {
       console.log('VoiceCall: Cleaning up');
+
+      // Send missed call notification if unmounting before established
+      if (!initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId) {
+        notificationSentRef.current = true;
+        axios.post(`/api/direct-messages/${dmId}/messages`, {
+          content: 'Пропущенный звонок',
+          type: 'missed-call'
+        }).catch(err => console.error('Failed to send missed call notification on unmount:', err));
+      }
+
       if (dmId) socket.emit('leave-dm-call', { dmId });
       socket.off('call-offer');
       socket.off('call-answer');
@@ -294,6 +307,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         });
       }
       setIsCallActive(true);
+      wasCallEstablishedRef.current = true;
     } catch (err) {
       console.error('Failed to initiate WebRTC:', err);
     }
@@ -339,6 +353,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         });
       }
       setIsCallActive(true);
+      wasCallEstablishedRef.current = true;
       setIsWaitingInRoom(false);
       setIsRinging(false);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
@@ -381,7 +396,21 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     endCall();
   };
 
-  const endCall = () => {
+  const endCall = async () => {
+    // If we're ending the call before it was established, send a missed call message
+    // Only the caller sends this to avoid duplicates
+    if (!initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId) {
+      notificationSentRef.current = true;
+      try {
+        await axios.post(`/api/direct-messages/${dmId}/messages`, {
+          content: 'Пропущенный звонок',
+          type: 'missed-call'
+        });
+      } catch (err) {
+        console.error('Failed to send missed call notification:', err);
+      }
+    }
+
     cleanupStreams();
     if (socket) {
       socket.emit('call-end', { targetUserId: otherUser._id });

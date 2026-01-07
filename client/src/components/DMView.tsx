@@ -151,40 +151,55 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                     <span>{formatDate(msg.createdAt)}</span>
                   </div>
                 )}
-                <div className="message with-author">
-                  <div className="message-author-avatar" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>
-                    {getAvatarUrl(msg.author.avatar) ? (
-                      <img src={getAvatarUrl(msg.author.avatar)!} alt={msg.author.username} />
-                    ) : (
-                      <span>{msg.author.username.charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="message-content">
-                    <div className="message-header">
-                      <span className="message-author" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
-                      <span className="message-time">{formatDate(msg.createdAt)}</span>
+                {msg.type === 'missed-call' ? (
+                  <div className="message system-message missed-call">
+                    <div className="system-message-icon">
+                      <PhoneIcon color="#f23f43" />
                     </div>
-                    <div className="message-text">{msg.content}</div>
-                    {msg.attachments && msg.attachments.length > 0 && (
-                      <div className="message-attachments">
-                        {msg.attachments.map((att, i) => (
-                          <div key={i} className="attachment-item">
-                            {att.type.startsWith('image/') ? (
-                              <img src={getFullUrl(att.url)!} alt={att.filename} className="attachment-image" />
-                            ) : att.type.startsWith('video/') ? (
-                              <video src={getFullUrl(att.url)!} controls className="attachment-video" />
-                            ) : (
-                              <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                                <DocumentIcon size={18} />
-                                <span>{att.filename}</span>
-                              </a>
-                            )}
-                          </div>
-                        ))}
+                    <div className="system-message-content">
+                      <div className="system-message-header">
+                        <span className="message-author" onClick={() => onUserClick(msg.author._id)}>{msg.author.username}</span>
+                        <span className="message-time">{formatDate(msg.createdAt)}</span>
                       </div>
-                    )}
+                      <div className="system-message-text">Пропущенный звонок</div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="message with-author">
+                    <div className="message-author-avatar" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>
+                      {getAvatarUrl(msg.author.avatar) ? (
+                        <img src={getAvatarUrl(msg.author.avatar)!} alt={msg.author.username} />
+                      ) : (
+                        <span>{msg.author.username.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="message-content">
+                      <div className="message-header">
+                        <span className="message-author" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                        <span className="message-time">{formatDate(msg.createdAt)}</span>
+                      </div>
+                      <div className="message-text">{msg.content}</div>
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="message-attachments">
+                          {msg.attachments.map((att, i) => (
+                            <div key={i} className="attachment-item">
+                              {att.type.startsWith('image/') ? (
+                                <img src={getFullUrl(att.url)!} alt={att.filename} className="attachment-image" />
+                              ) : att.type.startsWith('video/') ? (
+                                <video src={getFullUrl(att.url)!} controls className="attachment-video" />
+                              ) : (
+                                <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
+                                  <DocumentIcon size={18} />
+                                  <span>{att.filename}</span>
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </React.Fragment>
             );
           })}

@@ -162,6 +162,43 @@
   margin-top: 16px;
 }
 
+.message.system-message {
+  padding: 8px 16px;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.system-message-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.system-message-content {
+  flex: 1;
+  padding-top: 4px;
+}
+
+.system-message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.system-message-text {
+  color: #dcddde;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.missed-call .system-message-text {
+  color: #f23f43;
+}
+
 .message-author-avatar {
   width: 40px;
   height: 40px;
