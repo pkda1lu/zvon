@@ -159,6 +159,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
 
   const handleCloseContextMenu = () => setContextMenu(null);
 
+  const getDisplayName = (u: User) => {
+    const member = server.members.find(m => {
+      const mId = typeof m.user === 'string' ? m.user : m.user?._id;
+      return String(mId) === String(u._id);
+    });
+    return member?.nickname || u.username;
+  };
+
   const isConnectedToThisChannel = isConnected && activeChannelId === channel._id;
 
   // Fetch participants if not connected or to keep it updated
@@ -331,7 +339,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                             <div style={{ background: '#5865f2', width: '100%', height: '100%' }}></div>
                           )}
                         </div>
-                        <span className={`stage-user-name ${speakingUsers.has(focusedItem.data._id) ? 'speaking' : ''}`}>{focusedItem.data.username}</span>
+                        <span className={`stage-user-name ${speakingUsers.has(focusedItem.data._id) ? 'speaking' : ''}`}>{getDisplayName(focusedItem.data)}</span>
                       </div>
 
                       <button
@@ -418,11 +426,11 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                                     {getAvatarUrl(participant.avatar) ? (
                                       <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
                                     ) : (
-                                      <span>{participant.username.charAt(0).toUpperCase()}</span>
+                                      <span>{getDisplayName(participant).charAt(0).toUpperCase()}</span>
                                     )}
                                   </div>
                                   <div className={`participant-name ${speakingUsers.has(participant._id) ? 'speaking' : ''}`}>
-                                    {participant.username}{participant.isMe ? ' (Вы)' : ''}
+                                    {getDisplayName(participant)}{participant.isMe ? ' (Вы)' : ''}
                                   </div>
                                 </div>
                               </>
@@ -495,11 +503,11 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                             {getAvatarUrl(participant.avatar) ? (
                               <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
                             ) : (
-                              <div className="avatar-placeholder-inner">{participant.username.charAt(0).toUpperCase()}</div>
+                              <div className="avatar-placeholder-inner">{getDisplayName(participant).charAt(0).toUpperCase()}</div>
                             )}
                           </div>
                           <div className={`participant-name ${isSpeaking ? 'speaking' : ''}`}>
-                            {participant.username} (Демонстрация)
+                            {getDisplayName(participant)} (Демонстрация)
                           </div>
                         </div>
                       </>
@@ -517,11 +525,11 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                             {getAvatarUrl(participant.avatar) ? (
                               <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
                             ) : (
-                              <div className="avatar-placeholder-inner">{participant.username.charAt(0).toUpperCase()}</div>
+                              <div className="avatar-placeholder-inner">{getDisplayName(participant).charAt(0).toUpperCase()}</div>
                             )}
                           </div>
                           <div className={`participant-name ${isSpeaking ? 'speaking' : ''}`}>
-                            {participant.username}{participant.isMe ? ' (Вы)' : ''}
+                            {getDisplayName(participant)}{participant.isMe ? ' (Вы)' : ''}
                           </div>
                         </div>
                       </>

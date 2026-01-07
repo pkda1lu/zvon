@@ -9,6 +9,7 @@ import './Sidebar.css';
 interface SidebarProps {
   user: User;
   servers: Server[];
+  unreadCounts: Record<string, number>;
   selectedServer: Server | null;
   onServerSelect: (server: Server) => void;
   onCreateServer: (name: string) => void;
@@ -20,6 +21,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({
   user,
   servers,
+  unreadCounts,
   selectedServer,
   onServerSelect,
   onCreateServer,
@@ -35,6 +37,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-servers">
         <div className="server-icon home-icon" onClick={onShowFriends} title="Друзья">
           <UsersIcon size={28} />
+          {Object.entries(unreadCounts).some(([id, count]) => count > 0 && !servers.some(s => s.channels.some(c => c._id === id))) && (
+            <div className="unread-badge"></div>
+          )}
         </div>
         <div className="server-icon home-icon" onClick={() => setShowJoinModal(true)} title="Добавить сервер">
           <PlusIcon size={28} color="#43b581" />
@@ -50,6 +55,9 @@ const Sidebar: React.FC<SidebarProps> = ({
               <img src={getAvatarUrl(server.icon)!} alt={server.name} />
             ) : (
               <span>{server.name.charAt(0).toUpperCase()}</span>
+            )}
+            {server.channels.some(c => unreadCounts[c._id] > 0) && (
+              <div className="unread-badge"></div>
             )}
           </div>
         ))}

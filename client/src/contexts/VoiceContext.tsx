@@ -414,6 +414,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }));
         };
 
+        const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
+            setConnectedUsers(prev => prev.map(u =>
+                u._id === updatedUser._id ? { ...u, ...updatedUser } : u
+            ));
+        };
+
         const handleError = (error: { message: string }) => {
             console.error('[VoiceContext] Socket error:', error);
             alert(`Ошибка подключения к голосовому чату: ${error.message || 'Неизвестная ошибка'}`);
@@ -427,6 +433,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         socket.on('voice-answer', handleAnswer);
         socket.on('voice-ice-candidate', handleCandidate);
         socket.on('voice-user-state-update', handleUserStateUpdate);
+        socket.on('user-updated', handleUserUpdate);
         socket.on('error', handleError);
 
         socket.emit('join-voice-channel', { channelId: activeChannelId });
@@ -439,6 +446,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-answer', handleAnswer);
             socket.off('voice-ice-candidate', handleCandidate);
             socket.off('voice-user-state-update', handleUserStateUpdate);
+            socket.off('user-updated', handleUserUpdate);
             socket.off('error', handleError);
         };
     }, [socket, isConnected, activeChannelId, createPeer, user]);

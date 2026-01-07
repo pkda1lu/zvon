@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { VoiceProvider } from './contexts/VoiceContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Main from './pages/Main';
@@ -64,33 +65,35 @@ const ElectronHandler: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <ElectronHandler />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route
-            path="/invite/:code"
-            element={
-              <PrivateRoute>
-                <InvitePage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/*"
-            element={
-              <PrivateRoute>
-                <SocketProvider>
-                  <VoiceProvider>
-                    <Main />
-                  </VoiceProvider>
-                </SocketProvider>
-              </PrivateRoute>
-            }
-          />
-        </Routes>
-      </Router>
+      <NotificationProvider>
+        <Router>
+          <ElectronHandler />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route
+              path="/invite/:code"
+              element={
+                <PrivateRoute>
+                  <InvitePage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/*"
+              element={
+                <PrivateRoute>
+                  <SocketProvider>
+                    <VoiceProvider>
+                      <Main />
+                    </VoiceProvider>
+                  </SocketProvider>
+                </PrivateRoute>
+              }
+            />
+          </Routes>
+        </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

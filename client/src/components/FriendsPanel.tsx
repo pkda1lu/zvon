@@ -2,16 +2,26 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User, Friendship } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
+import { useSocket } from '../contexts/SocketContext';
 import { ChatIcon, CloseIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
   onStartDM: (userId: string) => void;
   onUserClick: (userId: string) => void;
+  unreadCounts: Record<string, number>;
 }
 
-const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) => {
+interface DMDict {
+  [userId: string]: string; // userId -> dmId
+}
+
+const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unreadCounts }) => {
+  const { socket } = useSocket();
+  const { user: currentUser } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
+  const [userDMs, setUserDMs] = useState<DMDict>({});
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -22,11 +32,57 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) =
   useEffect(() => {
     if (activeTab === 'friends') {
       fetchFriends();
+      fetchDMs();
     } else if (activeTab === 'pending') {
       fetchPendingRequests();
     }
     setPanelMessage(null); // Clear message when switching tabs
   }, [activeTab]);
+
+  const fetchDMs = async () => {
+    if (!currentUser) return;
+    try {
+      const res = await axios.get('/api/direct-messages');
+      const dict: DMDict = {};
+      res.data.forEach((dm: any) => {
+        const other = dm.participants.find((p: any) => p._id !== currentUser._id);
+        if (other) {
+          dict[other._id] = dm._id;
+        }
+      });
+      setUserDMs(dict);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUserUpdated = (updatedUser: Partial<User> & { _id: string }) => {
+      setFriends(prev => prev.map(f => f._id === updatedUser._id ? { ...f, ...updatedUser } : f));
+      setSearchResults(prev => prev.map(u => u._id === updatedUser._id ? { ...u, ...updatedUser } : u));
+    };
+
+    const handleFriendRequest = () => {
+      if (activeTab === 'pending') fetchPendingRequests();
+    };
+
+    const handleFriendshipAccepted = () => {
+      fetchFriends();
+      if (activeTab === 'pending') fetchPendingRequests();
+    };
+
+    socket.on('user-updated', handleUserUpdated);
+    socket.on('friend-request', handleFriendRequest);
+    socket.on('friendship-accepted', handleFriendshipAccepted);
+
+    return () => {
+      socket.off('user-updated', handleUserUpdated);
+      socket.off('friend-request', handleFriendRequest);
+      socket.off('friendship-accepted', handleFriendshipAccepted);
+    };
+  }, [socket, activeTab]);
 
   const showMessage = (text: string, type: 'success' | 'error') => {
     setPanelMessage({ text, type });
@@ -148,7 +204,14 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick }) =
                     <div className={`status-indicator ${friend.status}`}></div>
                   </div>
                   <div className="friend-info" onClick={() => onUserClick(friend._id)} style={{ cursor: 'pointer' }}>
-                    <div className="friend-name">{friend.username}</div>
+                    <div className="friend-name">
+                      {friend.username}
+                      {userDMs[friend._id] && unreadCounts[userDMs[friend._id]] > 0 && (
+                        <span className="unread-count-badge">
+                          {unreadCounts[userDMs[friend._id]]}
+                        </span>
+                      )}
+                    </div>
                     <div className="friend-status">{friend.status}</div>
                   </div>
                   <div className="friend-actions">

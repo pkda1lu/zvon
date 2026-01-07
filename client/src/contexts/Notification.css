@@ -1,0 +1,133 @@
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+}
+
+.notification-toast {
+    position: relative;
+    width: 320px;
+    background: rgba(30, 31, 34, 0.95);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+    pointer-events: auto;
+    animation: slideIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    transition: transform 0.2s, background 0.2s, opacity 0.3s;
+}
+
+.notification-toast:hover {
+    background: rgba(35, 36, 40, 0.98);
+    transform: translateY(-2px);
+}
+
+.notification-avatar-container {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.notification-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.notification-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #5865f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 500;
+    font-size: 18px;
+}
+
+.notification-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f2f3f5;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.notification-content {
+    font-size: 13px;
+    color: #b5bac1;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notification-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #949ba4;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+.notification-toast:hover .notification-close {
+    opacity: 1;
+}
+
+.notification-close:hover {
+    color: #f2f3f5;
+}
+
+/* Types */
+.notification-toast.message {
+    border-left: 4px solid #5865f2;
+}
+
+.notification-toast.success {
+    border-left: 4px solid #23a559;
+}
+
+.notification-toast.error {
+    border-left: 4px solid #f23f42;
+}
+
+.notification-toast.warning {
+    border-left: 4px solid #f0b232;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%) scale(0.9);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}

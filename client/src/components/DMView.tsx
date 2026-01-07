@@ -33,6 +33,18 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, attachments]);
 
+  useEffect(() => {
+    if (!socket) return;
+    const handleUserUpdated = (updatedUser: Partial<User> & { _id: string }) => {
+      // Since otherUser is derived from dm.participants, and Main.tsx updates the dm prop
+      // We might not need this if Main.tsx correctly updates the dm object in state.
+    };
+    socket.on('user-updated', handleUserUpdated);
+    return () => {
+      socket.off('user-updated', handleUserUpdated);
+    };
+  }, [socket]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;

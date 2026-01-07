@@ -20,6 +20,7 @@ interface ServerSidebarProps {
   onUserClick: (userId: string) => void;
   onOpenSettings: () => void;
   onServerClick: () => void;
+  unreadCounts: Record<string, number>;
   style?: React.CSSProperties;
 }
 
@@ -31,6 +32,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   onUserClick,
   onOpenSettings,
   onServerClick,
+  unreadCounts,
   style
 }) => {
   const { user: currentUser } = useAuth();
@@ -157,11 +159,14 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             {textChannels.map((channel) => (
               <div
                 key={channel._id}
-                className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`}
+                className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''}`}
                 onClick={() => onChannelSelect(channel)}
               >
-                <span className="channel-icon"><HashtagIcon size={18} /></span>
+                <span className="channel-icon">#</span>
                 <span className="channel-name">{channel.name}</span>
+                {unreadCounts[channel._id] > 0 && (
+                  <div className="channel-unread-badge">{unreadCounts[channel._id]}</div>
+                )}
               </div>
             ))}
           </div>
@@ -184,11 +189,14 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             {voiceChannels.map((channel) => (
               <div key={channel._id}>
                 <div
-                  className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`}
+                  className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''}`}
                   onClick={() => onChannelSelect(channel)}
                 >
                   <span className="channel-icon"><SpeakerIcon size={18} /></span>
                   <span className="channel-name">{channel.name}</span>
+                  {unreadCounts[channel._id] > 0 && (
+                    <div className="channel-unread-badge">{unreadCounts[channel._id]}</div>
+                  )}
                 </div>
                 {/* Voice Users List */}
                 {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (

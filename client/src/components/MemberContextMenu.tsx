@@ -59,13 +59,16 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
+            // If the input modal is shown, it handles its own clicks/overlay
+            if (showInputModal) return;
+
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
                 onClose();
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
+    }, [onClose, showInputModal]);
 
     useEffect(() => {
         // Check friendship status

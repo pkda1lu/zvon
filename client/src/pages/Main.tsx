@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
 import axios from 'axios';
-import { Server, Channel, Message, DirectMessage } from '../types';
+import { Server, Channel, Message, DirectMessage, User } from '../types';
 import Sidebar from '../components/Sidebar';
 import ServerSidebar from '../components/ServerSidebar';
 import ChannelView from '../components/ChannelView';
@@ -16,17 +16,19 @@ import UserProfileCard from '../components/UserProfileCard';
 import ServerSettingsModal from '../components/ServerSettingsModal';
 import ServerProfileCard from '../components/ServerProfileCard';
 import UserServerProfileModal from '../components/UserServerProfileModal';
-import { User } from '../types';
 import { SOUNDS, soundManager } from '../utils/sounds';
+import { useNotifications } from '../contexts/NotificationContext';
 import './Main.css';
 
 const Main: React.FC = () => {
   const { user, logout, updateUser } = useAuth();
   const { socket } = useSocket();
   const { activeChannelId } = useVoice();
+  const { addNotification } = useNotifications();
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [messages, setMessages] = useState<Message[]>([]);
   const [showFriends, setShowFriends] = useState(false);
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
@@ -76,11 +78,24 @@ const Main: React.FC = () => {
       setShowUserServerProfile(true);
     };
 
+    const handleStartDMById = async (e: any) => {
+      try {
+        const response = await axios.get(`/api/direct-messages/${e.detail.dmId}`);
+        setSelectedDM(response.data);
+        setSelectedChannel(null);
+        setSelectedServer(null);
+        setShowFriends(false);
+      } catch (err) {
+        console.error('Error opening DM by id:', err);
+      }
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
+    window.addEventListener('start-dm-by-id', handleStartDMById);
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
@@ -88,6 +103,7 @@ const Main: React.FC = () => {
       window.removeEventListener('start-dm', handleStartDMEvent);
       window.removeEventListener('start-call', handleStartCallEvent);
       window.removeEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
+      window.removeEventListener('start-dm-by-id', handleStartDMById);
     };
   }, []);
 
@@ -95,6 +111,29 @@ const Main: React.FC = () => {
     isResizingRef.current = true;
     document.body.style.cursor = 'col-resize';
   };
+
+  // Clear unread counts when selecting channel or DM
+  useEffect(() => {
+    if (selectedChannel) {
+      setUnreadCounts(prev => {
+        if (!prev[selectedChannel._id]) return prev;
+        const next = { ...prev };
+        delete next[selectedChannel._id];
+        return next;
+      });
+    }
+  }, [selectedChannel]);
+
+  useEffect(() => {
+    if (selectedDM) {
+      setUnreadCounts(prev => {
+        if (!prev[selectedDM._id]) return prev;
+        const next = { ...prev };
+        delete next[selectedDM._id];
+        return next;
+      });
+    }
+  }, [selectedDM]);
 
   const fetchServers = useCallback(async () => {
     try {
@@ -134,6 +173,16 @@ const Main: React.FC = () => {
   useEffect(() => {
     fetchServers();
   }, [fetchServers]);
+
+  // Join all server rooms for real-time updates
+  useEffect(() => {
+    if (socket && servers.length > 0) {
+      console.log('Joining all server rooms:', servers.map(s => s._id));
+      servers.forEach(server => {
+        socket.emit('join-server', server._id);
+      });
+    }
+  }, [socket, servers.length]); // Use length to avoid re-running on deep object changes unless needed
 
   useEffect(() => {
     if (!socket) return;
@@ -299,13 +348,51 @@ const Main: React.FC = () => {
     };
   }, [socket, activeCall, user, updateUser]);
 
-  // Global sound listener for messages
   useEffect(() => {
     if (!socket || !user) return;
 
     const handleGlobalMessage = (message: Message) => {
       if (message.author._id !== user._id) {
         soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
+
+        // Show visual notification if not in the active channel/DM
+        const isCurrentChannel = selectedChannel && message.channel === selectedChannel._id;
+        const isCurrentDM = selectedDM && message.directMessage === selectedDM._id;
+
+        if (!isCurrentChannel && !isCurrentDM) {
+          // Increment unread count
+          const id = message.directMessage || message.channel;
+          if (id) {
+            setUnreadCounts(prev => ({
+              ...prev,
+              [id]: (prev[id] || 0) + 1
+            }));
+          }
+
+          addNotification({
+            title: message.author.username,
+            content: message.content,
+            type: 'message',
+            avatar: message.author.avatar || undefined,
+            onClick: () => {
+              // Navigate to the message source
+              if (message.directMessage) {
+                const dmEvent = new CustomEvent('start-dm-by-id', { detail: { dmId: message.directMessage } });
+                window.dispatchEvent(dmEvent);
+              } else if (message.channel) {
+                // Find server and channel
+                const server = servers.find(s => s.channels.some(c => c._id === message.channel));
+                if (server) {
+                  setSelectedServer(server);
+                  const channel = server.channels.find(c => c._id === message.channel);
+                  if (channel) setSelectedChannel(channel);
+                  setShowFriends(false);
+                  setSelectedDM(null);
+                }
+              }
+            }
+          });
+        }
       }
     };
 
@@ -313,7 +400,7 @@ const Main: React.FC = () => {
     return () => {
       socket.off('new-message', handleGlobalMessage);
     };
-  }, [socket, user]);
+  }, [socket, user, selectedChannel?._id, selectedDM?._id, servers, addNotification]);
 
   useEffect(() => {
     if (!selectedChannel || !socket) return;
@@ -445,6 +532,7 @@ const Main: React.FC = () => {
       <Sidebar
         user={user!}
         servers={servers}
+        unreadCounts={unreadCounts}
         selectedServer={selectedServer}
         onServerSelect={(server) => {
           setSelectedServer(server);
@@ -474,6 +562,7 @@ const Main: React.FC = () => {
         <FriendsPanel
           onStartDM={handleStartDM}
           onUserClick={setShowProfileUserId}
+          unreadCounts={unreadCounts}
         />
       )}
       {selectedServer && !showFriends && (
@@ -481,6 +570,7 @@ const Main: React.FC = () => {
           <ServerSidebar
             server={selectedServer}
             selectedChannel={selectedChannel}
+            unreadCounts={unreadCounts}
             onChannelSelect={handleChannelSelect}
             onChannelCreated={fetchServers}
             onUserClick={setShowProfileUserId}
