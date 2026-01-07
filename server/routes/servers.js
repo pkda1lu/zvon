@@ -429,22 +429,23 @@ router.put('/:id/roles/positions', auth, async (req, res) => {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
-    const { roles } = req.body; // Array of { id: roleId, position: number }
+    const { roles } = req.body;
     if (!roles || !Array.isArray(roles)) {
       return res.status(400).json({ message: 'Invalid roles data' });
     }
 
-    // Filter out invalid items and map to update promises
-    // We update each role individually and catch errors so one failure doesn't stop the whole process
     const updatePromises = roles
       .filter(r => r && r.id && mongoose.Types.ObjectId.isValid(r.id))
-      .map(r =>
-        Role.findByIdAndUpdate(r.id, { $set: { position: parseInt(r.position) || 0 } })
-          .catch(err => {
-            console.error(`Failed to update position for role ${r.id}:`, err);
-            return null;
-          })
-      );
+      .map(async (r) => {
+        try {
+          const position = parseInt(r.position);
+          if (isNaN(position)) return null;
+          return await Role.findByIdAndUpdate(r.id, { $set: { position: position } });
+        } catch (err) {
+          console.error(`Failed to update position for role ${r.id}:`, err);
+          return null;
+        }
+      });
 
     await Promise.all(updatePromises);
 
@@ -462,8 +463,8 @@ router.put('/:id/roles/positions', auth, async (req, res) => {
 
     res.json(updatedRoles);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    console.error('Error updating role positions:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message, stack: error.stack });
   }
 });
 
@@ -504,6 +505,7 @@ router.get('/:id/members/:userId', auth, async (req, res) => {
 router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
     const isSelf = req.user._id.toString() === req.params.userId;
     const canKick = await hasPermission(req.user._id, req.params.id, 'KICK_MEMBERS');
 
@@ -536,6 +538,7 @@ router.put('/:id/members/:userId/roles', auth, async (req, res) => {
   try {
     const { roles } = req.body;
     const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
     if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
@@ -549,10 +552,10 @@ router.put('/:id/members/:userId/roles', auth, async (req, res) => {
     // Role level check: Cannot assign roles higher or equal to your own highest role
     const rolesToAssign = await Role.find({ _id: { $in: roles } });
     const actor = server.members.find(m => m.user.toString() === req.user._id.toString());
-    const actorRoleIds = actor.roles.map(r => r.toString());
+    const actorRoleIds = actor && actor.roles ? actor.roles.map(r => r.toString()) : [];
     const serverRoles = await Role.find({ server: req.params.id });
-    const actorRoles = serverRoles.filter(r => actorRoleIds.includes(r._id.toString()));
-    const actorHighest = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position)) : -1;
+    const actorRoles = serverRoles.filter(r => r && r._id && actorRoleIds.includes(r._id.toString()));
+    const actorHighest = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position || 0)) : -1;
 
     // Server owner bypasses this
     const isOwner = server.owner.toString() === req.user._id.toString();
@@ -649,6 +652,7 @@ router.post('/:id/bans', auth, async (req, res) => {
   try {
     const { userId, reason } = req.body;
     const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
     const canBan = await hasPermission(req.user._id, req.params.id, 'BAN_MEMBERS');
     const higherHierarchy = await canPerformActionOn(req.user._id, userId, req.params.id);
 

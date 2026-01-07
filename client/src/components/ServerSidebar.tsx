@@ -195,7 +195,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                             <span>{u.username.charAt(0).toUpperCase()}</span>
                           )}
                         </div>
-                        <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>{u.username}</span>
+                        <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
+                          {server.members.find(m => {
+                            const mId = typeof m.user === 'string' ? m.user : m.user?._id;
+                            return String(mId) === String(u._id);
+                          })?.nickname || u.username}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -287,7 +292,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                               )}
                               <div className={`status-indicator ${member.user.status}`}></div>
                             </div>
-                            <span className="member-name" style={{ color: memberColor }}>{member.user.username}</span>
+                            <span className="member-name" style={{ color: memberColor }}>
+                              {member.nickname || member.user.username}
+                            </span>
                           </div>
                         );
                       })}
@@ -308,7 +315,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                           )}
                           <div className={`status-indicator ${member.user.status}`}></div>
                         </div>
-                        <span className="member-name">{member.user.username}</span>
+                        <span className="member-name">{member.nickname || member.user.username}</span>
                       </div>
                     ))}
                   </div>
@@ -333,7 +340,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                             )}
                             <div className={`status-indicator ${member.user.status}`}></div>
                           </div>
-                          <span className="member-name" style={{ color: memberColor }}>{member.user.username}</span>
+                          <span className="member-name" style={{ color: memberColor }}>
+                            {member.nickname || member.user.username}
+                          </span>
                         </div>
                       );
                     })}
