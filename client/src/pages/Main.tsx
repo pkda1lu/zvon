@@ -17,6 +17,7 @@ import ServerSettingsModal from '../components/ServerSettingsModal';
 import ServerProfileCard from '../components/ServerProfileCard';
 import UserServerProfileModal from '../components/UserServerProfileModal';
 import { User } from '../types';
+import { SOUNDS, soundManager } from '../utils/sounds';
 import './Main.css';
 
 const Main: React.FC = () => {
@@ -297,6 +298,22 @@ const Main: React.FC = () => {
       socket.off('server-deleted', handleServerDeletedSocket);
     };
   }, [socket, activeCall, user, updateUser]);
+
+  // Global sound listener for messages
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    const handleGlobalMessage = (message: Message) => {
+      if (message.author._id !== user._id) {
+        soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
+      }
+    };
+
+    socket.on('new-message', handleGlobalMessage);
+    return () => {
+      socket.off('new-message', handleGlobalMessage);
+    };
+  }, [socket, user]);
 
   useEffect(() => {
     if (!selectedChannel || !socket) return;

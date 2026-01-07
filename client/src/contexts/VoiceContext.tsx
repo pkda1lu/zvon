@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { User } from '../types';
 import ScreenSourceSelector, { ScreenSource } from '../components/ScreenSourceSelector';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
+import { SOUNDS, soundManager } from '../utils/sounds';
 
 
 // Remote Audio Component to handle lifecycle properly
@@ -244,6 +245,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         setIsConnected(false);
         setActiveChannelId(null);
+        soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, activeChannelId]);
 
     const joinChannel = useCallback(async (channelId: string) => {
@@ -292,6 +294,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Socket join logic happens in useEffect below
             console.log('[VoiceContext] Joined channel locally, waiting for socket events. Channel:', channelId);
+            soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
         } catch (error) {
             console.error('Error connecting to voice channel:', error);
             alert('Не удалось подключиться к голосовому каналу. Проверьте разрешения на доступ к микрофону.');
@@ -546,6 +549,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 mixedStreamRef.current = null;
             }
 
+            soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.5);
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
@@ -667,6 +672,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
             };
 
+            soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.5);
             setIsScreenSharing(true);
 
             let audioTrackToUse: MediaStreamTrack;
@@ -823,7 +829,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const checkSpeaking = () => {
             const nowSpeaking = new Set<string>();
-            const threshold = 0.01; // Slightly lower threshold for better sensitivity
+            const threshold = 0.001; // Very low threshold to trigger on almost any sound
 
             analysersRef.current.forEach((analyser, userId) => {
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);

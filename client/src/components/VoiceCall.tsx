@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useVoice } from '../contexts/VoiceContext';
 import { getAvatarUrl } from '../utils/avatar';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
+import { SOUNDS, soundManager } from '../utils/sounds';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon } from './Icons';
 import './VoiceCall.css';
 
@@ -41,6 +42,25 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const micGainNodeRef = useRef<GainNode | null>(null);
   const mixedStreamRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const retryTimeoutRef = useRef<any>(null);
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play ringtone for incoming calls
+  useEffect(() => {
+    if (initialIncomingCall && isIncomingCall) {
+      ringtoneRef.current = soundManager.playLoop(SOUNDS.CALL_INCOMING, 0.5);
+    } else {
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause();
+        ringtoneRef.current = null;
+      }
+    }
+    return () => {
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause();
+        ringtoneRef.current = null;
+      }
+    };
+  }, [isIncomingCall, initialIncomingCall]);
 
   // Effect to handle join room for CALLER immediately
   useEffect(() => {
