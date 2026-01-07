@@ -51,6 +51,13 @@ function saveWindowState() {
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// Explicitly set the feed URL for GitHub
+autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'pkda1lu',
+    repo: 'zvon'
+});
+
 // Register the custom protocol
 if (process.defaultApp) {
     if (process.argv.length >= 2) {
@@ -176,7 +183,23 @@ function createUpdaterWindow() {
     updaterWindow.once('ready-to-show', () => {
         updaterWindow.show();
         if (!isDev) {
-            autoUpdater.checkForUpdatesAndNotify();
+            log.info('Checking for updates...');
+            autoUpdater.checkForUpdates().then((result) => {
+                log.info('Check for updates result:', result ? 'Update found' : 'No update found');
+            }).catch(err => {
+                log.error('Check for updates failed:', err);
+            });
+
+            // Safety timeout: if checking takes too long (e.g. network issue), just start the app
+            const safetyTimeout = setTimeout(() => {
+                log.warn('Update check timed out, starting app...');
+                createWindow();
+                if (updaterWindow && !updaterWindow.isDestroyed()) updaterWindow.close();
+            }, 10000); // 10 seconds timeout
+
+            autoUpdater.on('update-available', () => clearTimeout(safetyTimeout));
+            autoUpdater.on('update-not-available', () => clearTimeout(safetyTimeout));
+            autoUpdater.on('error', () => clearTimeout(safetyTimeout));
         } else {
             // In dev mode, just wait a bit and open main window
             setTimeout(() => {
@@ -188,27 +211,30 @@ function createUpdaterWindow() {
 
     // updater events
     autoUpdater.on('checking-for-update', () => {
+        log.info('Checking for update...');
         updaterWindow.webContents.send('updater-message', 'Проверка обновлений...');
     });
 
     autoUpdater.on('update-available', (info) => {
-        updaterWindow.webContents.send('updater-message', 'Найдено новое обновление. Загрузка...');
+        log.info('Update available:', info.version);
+        updaterWindow.webContents.send('updater-message', `Найдено обновление ${info.version}. Загрузка...`);
     });
 
     autoUpdater.on('update-not-available', (info) => {
+        log.info('Update not available.');
         updaterWindow.webContents.send('updater-message', 'У вас последняя версия');
         setTimeout(() => {
             createWindow();
-            updaterWindow.close();
+            if (updaterWindow && !updaterWindow.isDestroyed()) updaterWindow.close();
         }, 1000);
     });
 
     autoUpdater.on('error', (err) => {
+        log.error('Updater error:', err);
         updaterWindow.webContents.send('updater-message', 'Ошибка при поиске обновлений');
-        console.error('Updater error:', err);
         setTimeout(() => {
             createWindow();
-            updaterWindow.close();
+            if (updaterWindow && !updaterWindow.isDestroyed()) updaterWindow.close();
         }, 2000);
     });
 
@@ -217,8 +243,12 @@ function createUpdaterWindow() {
     });
 
     autoUpdater.on('update-downloaded', (info) => {
+        log.info('Update downloaded:', info.version);
         updaterWindow.webContents.send('updater-message', 'Обновление скачано. Установка...');
-        autoUpdater.quitAndInstall();
+        // Small delay to ensure the message is seen
+        setTimeout(() => {
+            autoUpdater.quitAndInstall();
+        }, 1000);
     });
 }
 

@@ -40,7 +40,8 @@
       {
         "provider": "github",
         "owner": "pkda1lu",
-        "repo": "zvon"
+        "repo": "zvon",
+        "releaseType": "release"
       }
     ]
   },
@@ -54,7 +55,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "npm run build && node -e \"const fs=require('fs');fs.copyFileSync('public/electron.js','build/electron.js');fs.copyFileSync('public/preload.js','build/preload.js');fs.copyFileSync('public/updater.html','build/updater.html')\" && electron-builder -w -c.extraMetadata.main=build/electron.js -c.compression=store"
+    "electron:build": "npm run build && node -e \"const fs=require('fs'); ['electron.js', 'preload.js', 'updater.html', 'app_icon.ico'].forEach(f => fs.copyFileSync('public/'+f, 'build/'+f))\" && electron-builder -w -c.extraMetadata.main=build/electron.js -c.compression=store"
   },
   "eslintConfig": {
     "extends": [
