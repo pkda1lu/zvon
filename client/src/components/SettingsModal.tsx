@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import { useVoice } from '../contexts/VoiceContext';
 import {
   CloseIcon,
   UsersIcon,
@@ -40,6 +41,7 @@ type SettingsTab =
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user, refreshUser, logout } = useAuth();
+  const { isNoiseSuppressionEnabled, toggleNoiseSuppression } = useVoice();
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
   // Account Form State
@@ -197,6 +199,37 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     </div>
   );
 
+
+
+  const renderVoiceSettings = () => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Голос и видео</h2>
+
+      <div className="settings-section-block">
+        <h3>Обработка голоса</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Шумоподавление (RNNoise)</span>
+            <span className="checkbox-description">Убирает фоновый шум из вашего микрофона с помощью нейросети.</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={isNoiseSuppressionEnabled}
+              onChange={toggleNoiseSuppression}
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Другие настройки (скоро)</h3>
+        <p className="description-text">Эхоподавление и автоматическая регулировка усиления пока управляются автоматически.</p>
+      </div>
+    </div>
+  );
+
   const renderPlaceholder = (title: string, icon: React.ReactNode) => (
     <div className="settings-section-content">
       <h2 className="settings-section-title">{title}</h2>
@@ -206,6 +239,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       </div>
     </div>
   );
+
 
   return (
     <div className="settings-modal-overlay" onClick={onClose}>
@@ -308,8 +342,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               {activeTab === 'privacy' && renderPlaceholder('Данные и конфиденциальность', <ShieldIcon size={80} />)}
               {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
               {activeTab === 'appearance' && renderPlaceholder('Внешний вид', <PaletteIcon size={80} />)}
-              {activeTab === 'voice' && renderPlaceholder('Голос и видео', <SpeakerIcon size={80} />)}
+              {activeTab === 'voice' && renderVoiceSettings()}
               {activeTab === 'chat' && renderPlaceholder('Чат', <ChatIcon size={80} />)}
+
               {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
               {activeTab === 'windows' && renderPlaceholder('Настройки Windows', <MonitorIcon size={80} />)}
               {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}

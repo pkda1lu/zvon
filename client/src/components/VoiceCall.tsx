@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useVoice } from '../contexts/VoiceContext';
 import { getAvatarUrl } from '../utils/avatar';
+import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon } from './Icons';
 import './VoiceCall.css';
 
@@ -17,6 +19,7 @@ interface VoiceCallProps {
 
 const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false, initialOffer }) => {
   const { user } = useAuth();
+  const { isNoiseSuppressionEnabled } = useVoice();
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
@@ -192,14 +195,29 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       },
       video: isVideoEnabled
     });
-    setLocalStream(stream);
+
+    let streamToUse = stream;
+    if (isNoiseSuppressionEnabled) {
+      try {
+        const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = ctx;
+        if (ctx.state === 'suspended') await ctx.resume();
+
+        streamToUse = await setupNoiseSuppression(ctx, stream);
+        console.log('[VoiceCall] Noise suppression applied');
+      } catch (e) {
+        console.error('[VoiceCall] Failed to apply NS:', e);
+      }
+    }
+
+    setLocalStream(streamToUse);
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
 
-    stream.getTracks().forEach(track => {
-      pc.addTrack(track, stream);
+    streamToUse.getTracks().forEach(track => {
+      pc.addTrack(track, streamToUse);
     });
 
     pc.ontrack = (event) => {

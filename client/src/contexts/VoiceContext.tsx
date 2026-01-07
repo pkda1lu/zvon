@@ -4,6 +4,8 @@ import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { User } from '../types';
 import ScreenSourceSelector, { ScreenSource } from '../components/ScreenSourceSelector';
+import { setupNoiseSuppression } from '../utils/audioProcessing';
+
 
 // Remote Audio Component to handle lifecycle properly
 const RemoteAudio: React.FC<{
@@ -84,7 +86,11 @@ interface VoiceContextType {
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
     speakingUsers: Set<string>;
+    isNoiseSuppressionEnabled: boolean;
+    toggleNoiseSuppression: () => void;
 }
+
+
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
 
@@ -109,8 +115,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [showSourceSelector, setShowSourceSelector] = useState(false);
 
+    // Audio Processing State
+    const [isNoiseSuppressionEnabled, setIsNoiseSuppressionEnabled] = useState(() => {
+        return localStorage.getItem('noiseSuppression') === 'true';
+    });
+
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
+    // Store the raw microphone stream to re-apply processing without re-requesting access
+    const rawMicStreamRef = useRef<MediaStream | null>(null);
+
 
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
@@ -247,8 +261,28 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 },
                 video: false
             });
-            setLocalStream(stream);
-            localStreamRef.current = stream;
+
+            // Store raw stream
+            rawMicStreamRef.current = stream;
+
+            // Apply processing if enabled
+            let streamToUse = stream;
+            if (isNoiseSuppressionEnabled) {
+                try {
+                    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    audioContextRef.current = ctx;
+                    if (ctx.state === 'suspended') await ctx.resume();
+
+                    streamToUse = await setupNoiseSuppression(ctx, stream);
+                    console.log('[VoiceContext] Noise suppression applied to local stream');
+                } catch (err) {
+                    console.error('[VoiceContext] Failed to apply noise suppression:', err);
+                }
+            }
+
+            setLocalStream(streamToUse);
+            localStreamRef.current = streamToUse;
+
 
             // Apply initial mute state
             stream.getAudioTracks().forEach(t => t.enabled = !isMuted && !isDeafened);
@@ -436,7 +470,64 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setUserVolumes(prev => new Map(prev).set(userId, volume));
     }, []);
 
+    const toggleNoiseSuppression = useCallback(async () => {
+        const newState = !isNoiseSuppressionEnabled;
+        setIsNoiseSuppressionEnabled(newState);
+        localStorage.setItem('noiseSuppression', String(newState));
+
+        // Re-apply pipeline if connected
+        if (isConnectedRef.current && rawMicStreamRef.current) {
+            console.log('[VoiceContext] Toggling noise suppression:', newState);
+
+            let newStream = rawMicStreamRef.current;
+
+            // Clean up old context/processing if needed
+            // NOTE: We don't close the context here as it might disrupt pending ops, 
+            // but effectively we are creating a new path.
+
+            if (newState) {
+                try {
+                    const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
+                    audioContextRef.current = ctx;
+                    if (ctx.state === 'suspended') await ctx.resume();
+                    newStream = await setupNoiseSuppression(ctx, rawMicStreamRef.current);
+                } catch (e) {
+                    console.error('Failed to enable NS:', e);
+                }
+            } else {
+                // Determine if we need to close context? 
+                // Mostly just switch back to raw stream
+                if (audioContextRef.current && !isScreenSharing) {
+                    // Keep context if screen sharing is mixing, otherwise maybe leave it open or close?
+                    // For simplicity, we just switch source.
+                }
+            }
+
+            setLocalStream(newStream);
+            localStreamRef.current = newStream;
+
+            // Update Audio Tracks for Mute State
+            newStream.getAudioTracks().forEach(t => t.enabled = !isMuted && !isDeafened);
+
+            // Replace tracks in peers
+            const audioTrack = newStream.getAudioTracks()[0];
+            if (audioTrack) {
+                peersRef.current.forEach(async (pc) => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                    if (sender) {
+                        try {
+                            await sender.replaceTrack(audioTrack);
+                        } catch (err) {
+                            console.error('Error replacing track for NS toggle:', err);
+                        }
+                    }
+                });
+            }
+        }
+    }, [isNoiseSuppressionEnabled, isMuted, isDeafened, isScreenSharing]);
+
     const toggleScreenShare = async () => {
+
         if (isScreenSharing) {
             // Stop sharing
             if (localStreamRef.current) {
@@ -869,8 +960,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             userStates,
             localMutes,
             toggleLocalMute,
-            speakingUsers
+            speakingUsers,
+            isNoiseSuppressionEnabled,
+            toggleNoiseSuppression
         }}>
+
             {children}
             {/* Screen Source Selector Modal */}
             {showSourceSelector && (
