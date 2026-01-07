@@ -1,9 +1,9 @@
 export const SOUNDS = {
-    MESSAGE_NOTIFY: '/sounds/message_notify.mp3',
-    VOICE_JOIN: '/sounds/voice_join.mp3',
-    VOICE_LEAVE: '/sounds/voice_leave.mp3',
-    CALL_INCOMING: '/sounds/call_incoming.mp3',
-    SCREENSHARE_TOGGLE: '/sounds/screenshare_toggle.mp3',
+    MESSAGE_NOTIFY: 'sounds/message_notify.mp3',
+    VOICE_JOIN: 'sounds/voice_join.mp3',
+    VOICE_LEAVE: 'sounds/voice_leave.mp3',
+    CALL_INCOMING: 'sounds/call_incoming.mp3',
+    SCREENSHARE_TOGGLE: 'sounds/screenshare_toggle.mp3',
 };
 
 class SoundManager {

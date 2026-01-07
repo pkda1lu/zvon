@@ -209,11 +209,14 @@ const Main: React.FC = () => {
     };
 
     const handleServerMemberUpdate = (data: { serverId: string; member: any }) => {
+      const getMemberUserId = (m: any) => String(m.user?._id || m.user);
+      const targetUserId = getMemberUserId(data.member);
+
       setServers(prev => prev.map(s => {
         if (s._id === data.serverId) {
           return {
             ...s,
-            members: s.members.map(m => m.user._id === data.member.user._id ? data.member : m)
+            members: s.members.map(m => getMemberUserId(m) === targetUserId ? data.member : m)
           };
         }
         return s;
@@ -222,7 +225,7 @@ const Main: React.FC = () => {
         if (prev && prev._id === data.serverId) {
           return {
             ...prev,
-            members: prev.members.map(m => m.user._id === data.member.user._id ? data.member : m)
+            members: prev.members.map(m => getMemberUserId(m) === targetUserId ? data.member : m)
           };
         }
         return prev;
@@ -235,10 +238,13 @@ const Main: React.FC = () => {
     };
 
     const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
+      const getMemberUserId = (m: any) => String(m.user?._id || m.user);
+      const targetUserId = String(updatedUser._id);
+
       setServers(prev => prev.map(server => ({
         ...server,
         members: server.members.map(member =>
-          member.user._id === updatedUser._id
+          getMemberUserId(member) === targetUserId
             ? { ...member, user: { ...member.user, ...updatedUser } }
             : member
         )
@@ -249,7 +255,7 @@ const Main: React.FC = () => {
         return {
           ...prev,
           members: prev.members.map(member =>
-            member.user._id === updatedUser._id
+            getMemberUserId(member) === targetUserId
               ? { ...member, user: { ...member.user, ...updatedUser } }
               : member
           )
@@ -272,17 +278,20 @@ const Main: React.FC = () => {
     };
 
     const handleServerMemberJoined = (data: { serverId: string; member: any }) => {
+      const getMemberUserId = (m: any) => String(m.user?._id || m.user);
+      const newUserId = getMemberUserId(data.member);
+
       setServers(prev => prev.map(s => {
         if (s._id === data.serverId) {
           // Check if already in list to avoid duplicates
-          if (s.members.some(m => m.user._id === data.member.user._id)) return s;
+          if (s.members.some(m => getMemberUserId(m) === newUserId)) return s;
           return { ...s, members: [...s.members, data.member] };
         }
         return s;
       }));
       setSelectedServer(prev => {
         if (prev && prev._id === data.serverId) {
-          if (prev.members.some(m => m.user._id === data.member.user._id)) return prev;
+          if (prev.members.some(m => getMemberUserId(m) === newUserId)) return prev;
           return { ...prev, members: [...prev.members, data.member] };
         }
         return prev;
@@ -290,21 +299,24 @@ const Main: React.FC = () => {
     };
 
     const handleServerMemberLeft = (data: { serverId: string; userId: string }) => {
+      const getMemberUserId = (m: any) => String(m.user?._id || m.user);
+      const targetUserId = String(data.userId);
+
       setServers(prev => prev.map(s => {
         if (s._id === data.serverId) {
-          return { ...s, members: s.members.filter(m => m.user._id !== data.userId) };
+          return { ...s, members: s.members.filter(m => getMemberUserId(m) !== targetUserId) };
         }
         return s;
       }));
       setSelectedServer(prev => {
         if (prev && prev._id === data.serverId) {
-          return { ...prev, members: prev.members.filter(m => m.user._id !== data.userId) };
+          return { ...prev, members: prev.members.filter(m => getMemberUserId(m) !== targetUserId) };
         }
         return prev;
       });
 
       // If the current user is the one who left/was kicked
-      if (data.userId === user?._id) {
+      if (targetUserId === String(user?._id)) {
         setServers(prev => prev.filter(s => s._id !== data.serverId));
         if (selectedServer?._id === data.serverId) {
           setSelectedServer(null);

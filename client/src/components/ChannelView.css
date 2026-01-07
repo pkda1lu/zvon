@@ -82,7 +82,7 @@
 .message {
   display: flex;
   padding: 4px 16px;
-  transition: background-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .message:hover {
@@ -157,11 +157,15 @@
 .msg-action-btn:hover {
   background: #40444b;
   color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .msg-action-btn.danger:hover {
   background: #ed4245;
   color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .message-author {
@@ -232,19 +236,16 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: background-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .send-button:hover:not(:disabled) {
   background: #4752c4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .send-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-
-
-
-

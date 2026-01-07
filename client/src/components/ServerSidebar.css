@@ -57,7 +57,7 @@
   padding: 4px;
   border-radius: 4px;
   line-height: 1;
-  transition: all 0.1s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,6 +67,7 @@
 .settings-button:hover {
   color: #dcddde;
   background-color: rgba(79, 84, 92, 0.32);
+  transform: scale(1.1);
 }
 
 .server-header-actions {
@@ -110,13 +111,14 @@
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 2px;
-  transition: color 0.2s, background-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   line-height: 1;
 }
 
 .add-channel-button:hover {
   color: #dcddde;
   background: #393c43;
+  transform: scale(1.1);
 }
 
 .empty-channels {
@@ -133,11 +135,13 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .create-first-channel-button:hover {
   background: #4752c4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .channel-item {
@@ -146,13 +150,14 @@
   padding: 6px 8px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   margin: 1px 0;
 }
 
 .channel-item:hover {
-  background: #393c43;
+  background: rgba(79, 84, 92, 0.32);
   color: #dcddde;
+  transform: translateX(2px);
 }
 
 .channel-item.unread {
@@ -238,12 +243,13 @@
   padding: 6px 8px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   gap: 8px;
 }
 
 .member-item:hover {
-  background: #393c43;
+  background: rgba(79, 84, 92, 0.32);
+  transform: translateX(4px);
 }
 
 .member-avatar {

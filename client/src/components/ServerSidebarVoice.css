@@ -101,9 +101,9 @@
 }
 
 .voice-user-avatar {
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .voice-user-name {
-    transition: color 0.2s ease;
+    transition: color 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }

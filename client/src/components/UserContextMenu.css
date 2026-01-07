@@ -36,13 +36,14 @@
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.1s, color 0.1s;
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
     color: #b9bbbe;
 }
 
 .context-menu-item:hover {
     background-color: #5865f2;
     color: #fff;
+    transform: scale(1.02);
 }
 
 .context-menu-item.destructive {

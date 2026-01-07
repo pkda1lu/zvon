@@ -22,7 +22,7 @@
   font-size: 14px;
   font-weight: 500;
   border-bottom: 2px solid transparent;
-  transition: color 0.2s, border-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .friends-tabs button:hover {
@@ -56,13 +56,14 @@
   gap: 8px;
   padding: 8px;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .friend-item:hover,
 .request-item:hover,
 .search-result-item:hover {
-  background: #393c43;
+  background: rgba(79, 84, 92, 0.32);
+  transform: translateX(4px);
 }
 
 .friend-avatar,
@@ -173,7 +174,7 @@
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  transition: background-color 0.2s;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dm-button {
@@ -183,6 +184,7 @@
 
 .dm-button:hover {
   background: #4752c4;
+  transform: scale(1.1);
 }
 
 .remove-button {
@@ -192,6 +194,7 @@
 
 .remove-button:hover {
   background: #d84040;
+  transform: scale(1.1);
 }
 
 .accept-button {
@@ -201,6 +204,7 @@
 
 .accept-button:hover {
   background: #3ca374;
+  transform: scale(1.1);
 }
 
 .reject-button {
@@ -219,6 +223,7 @@
 
 .add-button:hover {
   background: #4752c4;
+  transform: scale(1.1);
 }
 
 .search-input {

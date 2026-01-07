@@ -46,12 +46,13 @@
     align-items: center;
     justify-content: space-between;
     position: relative;
-    transition: background 0.1s, color 0.1s;
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .menu-item:hover {
     background: #4752c4;
     color: #fff;
+    transform: scale(1.02);
 }
 
 .menu-item.destructive {

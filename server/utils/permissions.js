@@ -23,7 +23,8 @@ const hasPermission = async (userId, serverId, permission) => {
 
         // 2. Identify all roles for this member (including @everyone)
         const memberRoleIds = member.roles.map(r => (r._id || r).toString());
-        const memberRoles = server.roles.filter(r =>
+        const validRoles = (server.roles || []).filter(r => r && typeof r === 'object');
+        const memberRoles = validRoles.filter(r =>
             memberRoleIds.includes(r._id.toString()) || r.name === '@everyone'
         );
 
@@ -77,7 +78,8 @@ const canPerformActionOn = async (actorId, targetId, serverId) => {
 
         const getHighestPos = (member) => {
             const roleIds = member.roles.map(r => (r._id || r).toString());
-            const roles = server.roles.filter(r => roleIds.includes(r._id.toString()) || r.name === '@everyone');
+            const validRoles = (server.roles || []).filter(r => r && typeof r === 'object');
+            const roles = validRoles.filter(r => roleIds.includes(r._id.toString()) || r.name === '@everyone');
             const positions = roles.map(r => r.position || 0);
             return positions.length > 0 ? Math.max(...positions) : 0;
         };
@@ -87,6 +89,8 @@ const canPerformActionOn = async (actorId, targetId, serverId) => {
 
         console.log(`Hierarchy Check [${server.name}]: Actor(${actorMax}) vs Target(${targetMax})`);
 
+        // If target is regular member and actor has any role above @everyone, allow it.
+        // Also allow if actor position is higher than target position.
         return actorMax > targetMax;
     } catch (err) {
         console.error('canPerformActionOn error:', err);
@@ -113,7 +117,8 @@ const canModifyRole = async (actorId, roleId, serverId) => {
         if (!actor) return false;
 
         const roleIds = actor.roles.map(r => (r._id || r).toString());
-        const actorRoles = server.roles.filter(r => roleIds.includes(r._id.toString()) || r.name === '@everyone');
+        const validRoles = (server.roles || []).filter(r => r && typeof r === 'object');
+        const actorRoles = validRoles.filter(r => roleIds.includes(r._id.toString()) || r.name === '@everyone');
         const actorMax = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position || 0)) : 0;
 
         // Discord Rule: You can only touch roles STRICTLY BELOW yours.

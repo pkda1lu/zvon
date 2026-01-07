@@ -837,7 +837,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const checkSpeaking = () => {
             const nowSpeaking = new Set<string>();
-            const threshold = 0.001; // Very low threshold to trigger on almost any sound
+            const threshold = 0.015; // Increased threshold to trigger only on clearer speech/louder sounds
 
             analysersRef.current.forEach((analyser, userId) => {
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);

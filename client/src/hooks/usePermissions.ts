@@ -27,10 +27,14 @@ export const usePermissions = (user: User | null, server: Server | null) => {
         if (member) {
             member.roles.forEach((roleOrId: any) => {
                 let role: Role | undefined;
-                if (typeof roleOrId === 'object') {
+                if (typeof roleOrId === 'object' && roleOrId !== null) {
                     role = roleOrId;
                 } else if (server.roles) {
-                    role = server.roles.find(r => r._id === roleOrId);
+                    // Normalize to string for comparison
+                    const searchId = String(roleOrId);
+                    role = server.roles.find(r =>
+                        typeof r === 'object' && r !== null && String(r._id) === searchId
+                    ) as Role | undefined;
                 }
 
                 if (role && role.permissions) {
@@ -40,14 +44,21 @@ export const usePermissions = (user: User | null, server: Server | null) => {
         }
 
         // 2. Default @everyone role permissions
-        const everyoneRole = server.roles?.find(r => r.name === '@everyone');
-        if (everyoneRole && everyoneRole.permissions) {
-            everyoneRole.permissions.forEach((p: string) => permissionsSet.add(p));
-        } else if (server.roles && server.roles.length > 0) {
-            // Fallback: usually the first role or one with position 0
-            const firstRole = server.roles.find(r => r.position === 0);
-            if (firstRole && firstRole.name === '@everyone' && firstRole.permissions) {
-                firstRole.permissions.forEach((p: string) => permissionsSet.add(p));
+        if (server.roles) {
+            const everyoneRole = server.roles.find(r =>
+                typeof r === 'object' && r !== null && (r as Role).name === '@everyone'
+            ) as Role | undefined;
+
+            if (everyoneRole && everyoneRole.permissions) {
+                everyoneRole.permissions.forEach((p: string) => permissionsSet.add(p));
+            } else {
+                // Fallback: usually the one with position 0
+                const firstRole = server.roles.find(r =>
+                    typeof r === 'object' && r !== null && (r as Role).position === 0
+                ) as Role | undefined;
+                if (firstRole && firstRole.name === '@everyone' && firstRole.permissions) {
+                    firstRole.permissions.forEach((p: string) => permissionsSet.add(p));
+                }
             }
         }
 

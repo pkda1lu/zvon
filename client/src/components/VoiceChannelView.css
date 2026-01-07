@@ -665,12 +665,12 @@
 
 .participant-avatar,
 .stage-user-avatar {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .participant-name,
 .stage-user-name {
-  transition: color 0.2s ease, text-shadow 0.2s ease;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .participant-screen-overlay {
