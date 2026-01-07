@@ -108,7 +108,7 @@ router.get('/:id/messages', auth, async (req, res) => {
 // Send message to DM
 router.post('/:id/messages', auth, async (req, res) => {
   try {
-    const { content, attachments } = req.body;
+    const { content, attachments, type } = req.body;
     const dm = await DirectMessage.findById(req.params.id);
 
     if (!dm) {
@@ -124,7 +124,8 @@ router.post('/:id/messages', auth, async (req, res) => {
       author: req.user._id,
       channel: null,
       directMessage: dm._id,
-      attachments: attachments || []
+      attachments: attachments || [],
+      type: type || 'default'
     });
 
     await message.save();
@@ -132,6 +133,14 @@ router.post('/:id/messages', auth, async (req, res) => {
 
     dm.updatedAt = new Date();
     await dm.save();
+
+    // Emit via socket
+    const io = req.app.get('io');
+    if (io) {
+      dm.participants.forEach(participantId => {
+        io.to(`user-${participantId}`).emit('new-message', message);
+      });
+    }
 
     res.status(201).json(message);
   } catch (error) {
