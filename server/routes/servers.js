@@ -10,7 +10,7 @@ const AuditLog = require('../models/AuditLog');
 const Ban = require('../models/Ban');
 const Invite = require('../models/Invite');
 const upload = require('../middleware/upload');
-const { hasPermission, canPerformActionOn } = require('../utils/permissions');
+const { hasPermission, canPerformActionOn, canModifyRole } = require('../utils/permissions');
 
 // Helper for audit logging
 const logAction = async (serverId, userId, action, targetType, targetId, changes, reason) => {
@@ -443,6 +443,11 @@ router.put('/:id/roles/:roleId', auth, async (req, res) => {
     if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
+
+    if (!await canModifyRole(req.user._id, req.params.roleId, req.params.id)) {
+      return res.status(403).json({ message: 'Cannot modify a role higher or equal to yours' });
+    }
+
     const server = await Server.findById(req.params.id);
 
     const role = await Role.findByIdAndUpdate(req.params.roleId, req.body, { new: true });
@@ -491,6 +496,12 @@ router.put('/:id/roles/positions', auth, async (req, res) => {
         try {
           const position = parseInt(r.position);
           if (isNaN(position)) return null;
+
+          // Double check hierarchy for each role
+          if (!await canModifyRole(req.user._id, r.id, req.params.id)) {
+            return null; // Skip roles user can't modify
+          }
+
           return await Role.findByIdAndUpdate(r.id, { $set: { position: position } });
         } catch (err) {
           console.error(`Failed to update position for role ${r.id}:`, err);
@@ -498,7 +509,10 @@ router.put('/:id/roles/positions', auth, async (req, res) => {
         }
       });
 
-    await Promise.all(updatePromises);
+    const updatedResults = await Promise.all(updatePromises);
+    const modifiedCount = updatedResults.filter(r => r).length;
+
+    await logAction(req.params.id, req.user._id, 'update-positions', 'role', null, { modifiedCount }, 'Updated role positions');
 
     // Return updated roles
     const updatedRoles = await Role.find({ server: req.params.id }).sort({ position: -1 });
@@ -524,6 +538,11 @@ router.delete('/:id/roles/:roleId', auth, async (req, res) => {
     if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
+
+    if (!await canModifyRole(req.user._id, req.params.roleId, req.params.id)) {
+      return res.status(403).json({ message: 'Cannot delete a role higher or equal to yours' });
+    }
+
     const server = await Server.findById(req.params.id);
 
     await Role.findByIdAndDelete(req.params.roleId);

@@ -1,133 +1,124 @@
 const Server = require('../models/Server');
 const Role = require('../models/Role');
+const User = require('../models/User');
 
 /**
  * Checks if a user has a specific permission on a server
- * @param {string} userId - User ID
- * @param {string} serverId - Server ID
- * @param {string} permission - Permission ID (e.g. 'ADMINISTRATOR', 'MANAGE_SERVER')
- * @returns {Promise<boolean>}
- */
-/**
- * Checks if a user has a specific permission on a server
- * @param {string} userId - User ID
- * @param {string} serverId - Server ID
- * @param {string} permission - Permission ID (e.g. 'ADMINISTRATOR', 'MANAGE_SERVER')
- * @returns {Promise<boolean>}
  */
 const hasPermission = async (userId, serverId, permission) => {
     try {
         const server = await Server.findById(serverId).populate('roles');
         if (!server) return false;
 
-        // Owner has all permissions
-        if (!server.owner) return false;
+        // Owner bypass
         const ownerId = server.owner._id ? server.owner._id.toString() : server.owner.toString();
         if (ownerId === userId.toString()) return true;
 
-        const member = server.members.find(m => {
-            if (!m || !m.user) return false;
-            const mUserId = m.user._id ? m.user._id.toString() : m.user.toString();
-            return mUserId === userId.toString();
-        });
+        const member = server.members.find(m =>
+            (m.user._id || m.user).toString() === userId.toString()
+        );
+        if (!member) return false;
 
-        if (!member) {
-            console.log(`Permission check: Member ${userId} not found in server ${serverId}`);
-            return false;
-        }
-
-        // Check for timeout
+        // Timeout check
         if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
-            const restrictedPermissions = ['SEND_MESSAGES', 'SPEAK', 'ADD_REACTIONS', 'CONNECT'];
-            if (restrictedPermissions.includes(permission)) {
-                return false;
-            }
+            const restricted = ['SEND_MESSAGES', 'SPEAK', 'ADD_REACTIONS', 'CONNECT'];
+            if (restricted.includes(permission)) return false;
         }
 
-        // Administrator permission grants everything
-        // Get all roles for this member
-        const roleIds = member.roles ? member.roles.filter(r => r).map(r => r.toString()) : [];
-        const assignedRoles = server.roles.filter(r => r && r._id && roleIds.includes(r._id.toString()));
-        const everyoneRole = server.roles.find(r => r && (r.name === '@everyone' || (r._id && r._id.toString() === server.roles[0].toString()))); // Heuristic or explicit
+        // Get member roles + @everyone
+        const memberRoleIds = member.roles.map(r => (r._id || r).toString());
+        const memberRoles = server.roles.filter(r =>
+            memberRoleIds.includes(r._id.toString()) || r.name === '@everyone'
+        );
 
-        const rolesToCheck = [...assignedRoles];
-
-        // If everyoneRole is just an ID (not populated), we should still try to find it properly or use fallback
-        if (everyoneRole && everyoneRole.permissions) {
-            rolesToCheck.push(everyoneRole);
-        }
-
-        console.log(`Permission check for ${userId} (${permission}): checking ${rolesToCheck.length} roles`);
-
-        for (const role of rolesToCheck) {
-            if (!role || !role.permissions) continue;
+        // Administrator check
+        for (const role of memberRoles) {
             if (role.permissions.includes('ADMINISTRATOR')) return true;
             if (role.permissions.includes(permission)) return true;
         }
 
-        // Fallback for legacy or if @everyone role is restricted/missing
-        const DEFAULT_PERMISSIONS = ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY', 'CONNECT', 'SPEAK', 'CREATE_INSTANT_INVITE', 'VIEW_CHANNELS'];
-        if (DEFAULT_PERMISSIONS.includes(permission)) {
-            // For now, allow these by default if not explicitly denied by roles (future: DENY overrides)
-            // But if @everyone role exists and doesn't have it, we should respect that.
-            // However, to avoid total lockout during dev:
-            if (!everyoneRole || !everyoneRole.permissions) return true;
-        }
-
         return false;
     } catch (err) {
-        console.error('Permission check error:', err);
+        console.error('hasPermission error:', err);
         return false;
     }
 };
 
 /**
- * Compares two users' hierarchy in a server.
- * Actor can only perform actions on Target if Actor's highest role position is GREATER than Target's.
- * Server Owner is always above everyone else.
- * @returns {Promise<boolean>} - True if Actor is strictly above Target
+ * Hierarchy check: Actor can moderate Target only if:
+ * 1. Actor is Owner
+ * 2. Actor has a role higher than Target's highest role
+ * AND Target is NOT the Owner.
  */
 const canPerformActionOn = async (actorId, targetId, serverId) => {
     try {
         const server = await Server.findById(serverId).populate('roles');
         if (!server) return false;
 
-        const ownerId = server.owner._id ? server.owner._id.toString() : server.owner.toString();
+        const sActorId = actorId.toString();
+        const sTargetId = targetId.toString();
+        const sOwnerId = (server.owner._id || server.owner).toString();
 
-        // Owner can do anything to anyone
-        if (actorId.toString() === ownerId) return true;
+        // 1. Owner can do anything to anyone
+        if (sActorId === sOwnerId) return true;
 
-        // Nobody can do anything to the owner
-        if (targetId.toString() === ownerId) return false;
+        // 2. target is owner? No way.
+        if (sTargetId === sOwnerId) return false;
 
-        const actor = server.members.find(m => m.user && (m.user._id || m.user).toString() === actorId.toString());
-        const target = server.members.find(m => m.user && (m.user._id || m.user).toString() === targetId.toString());
+        // 3. same person? (Usually allowed for nickname changes but handled in routes)
+        if (sActorId === sTargetId) return true;
 
-        if (!actor || !target) {
-            console.log(`Hierarchy check: Actor ${actorId} or Target ${targetId} not found in server ${serverId}`);
-            return false;
-        }
+        const actor = server.members.find(m => (m.user._id || m.user).toString() === sActorId);
+        const target = server.members.find(m => (m.user._id || m.user).toString() === sTargetId);
 
-        // Get highest role position for actor
-        const actorRoleIds = actor.roles ? actor.roles.filter(r => r).map(r => (r._id || r).toString()) : [];
-        const actorRoles = server.roles.filter(r => r && r._id && actorRoleIds.includes(r._id.toString()));
-        const actorHighest = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position || 0)) : -1;
+        if (!actor || !target) return false;
 
-        // Get highest role position for target
-        const targetRoleIds = target.roles ? target.roles.filter(r => r).map(r => (r._id || r).toString()) : [];
-        const targetRoles = server.roles.filter(r => r && r._id && targetRoleIds.includes(r._id.toString()));
-        const targetHighest = targetRoles.length > 0 ? Math.max(...targetRoles.map(r => r.position || 0)) : -1;
+        // Get highest role position
+        const getHighest = (member) => {
+            const roleIds = member.roles.map(r => (r._id || r).toString());
+            // Include roles assigned to member + any @everyone role
+            const roles = server.roles.filter(r =>
+                roleIds.includes(r._id.toString()) || r.name === '@everyone'
+            );
+            const positions = roles.map(r => r.position || 0);
+            return positions.length > 0 ? Math.max(...positions) : -1;
+        };
 
-        console.log(`Hierarchy check in ${serverId}: actorHighest=${actorHighest}, targetHighest=${targetHighest}`);
+        const actorMax = getHighest(actor);
+        const targetMax = getHighest(target);
 
-        // Actor must be strictly higher
-        // Special case: if actor has ADMINISTRATOR permission, allow managing people with same-level roles if target is not admin?
-        // No, keep strictly Discord rules: must be STRICTLY higher.
-        return actorHighest > targetHighest;
+        console.log(`Hierarchy: Actor ${actorMax} vs Target ${targetMax}`);
+
+        return actorMax > targetMax;
     } catch (err) {
-        console.error('Hierarchy check error:', err);
+        console.error('canPerformActionOn error:', err);
         return false;
     }
 };
 
-module.exports = { hasPermission, canPerformActionOn };
+/**
+ * Can Actor modify Role? 
+ * Actor must be Owner or have highest role strictly above Role position.
+ */
+const canModifyRole = async (actorId, roleId, serverId) => {
+    try {
+        const server = await Server.findById(serverId).populate('roles');
+        const role = await Role.findById(roleId);
+        if (!server || !role) return false;
+
+        if (actorId.toString() === (server.owner._id || server.owner).toString()) return true;
+
+        const actor = server.members.find(m => (m.user._id || m.user).toString() === actorId.toString());
+        if (!actor) return false;
+
+        const roleIds = actor.roles.map(r => (r._id || r).toString());
+        const actorRoles = server.roles.filter(r => roleIds.includes(r._id.toString()));
+        const actorMax = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position)) : -1;
+
+        return actorMax > role.position;
+    } catch (err) {
+        return false;
+    }
+};
+
+module.exports = { hasPermission, canPerformActionOn, canModifyRole };
