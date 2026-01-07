@@ -672,3 +672,49 @@
 .stage-user-name {
   transition: color 0.2s ease, text-shadow 0.2s ease;
 }
+
+.participant-screen-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.participant-avatar.small {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+  font-size: 10px;
+}
+
+.participant-avatar.small.speaking {
+  box-shadow: 0 0 10px rgba(67, 181, 129, 0.4);
+}
+
+.participant-avatar.small.speaking::after {
+  display: none;
+  /* Hide pulse for small avatar to avoid clutter */
+}
+
+/* Ensure scale effect works even with video */
+.participant-card:hover {
+  transform: scale(1.02);
+  z-index: 5;
+}
+
+.speaking-card {
+  box-shadow: 0 0 0 2px #43b581, 0 8px 25px rgba(0, 0, 0, 0.4) !important;
+}
+
+.avatar-placeholder-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}

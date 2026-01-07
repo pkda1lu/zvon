@@ -229,12 +229,57 @@ ipcMain.handle('get-desktop-sources', async (event, options) => {
 });
 
 // IPC handler to toggle window fullscreen
-ipcMain.handle('toggle-fullscreen', (event, isFullscreen) => {
-    if (mainWindow) {
-        mainWindow.setFullScreen(isFullscreen);
-        return mainWindow.isFullScreen();
+ipcMain.handle('toggle-fullscreen', async (event, isFullscreen) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+            mainWindow.setFullScreen(isFullscreen);
+            // Wait a bit for the state to actually change
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve(mainWindow.isFullScreen());
+                }, 100);
+            });
+        } catch (err) {
+            console.error('Error toggling fullscreen:', err);
+            return false;
+        }
     }
     return false;
+});
+
+// Configure display media request handler for getDisplayMedia
+app.on('web-contents-created', (event, contents) => {
+    contents.session.setDisplayMediaRequestHandler((request, callback) => {
+        const sourceId = pendingDisplaySourceId;
+        if (sourceId) {
+            desktopCapturer.getSources({ types: ['window', 'screen'] }).then(sources => {
+                const source = sources.find(s => s.id === sourceId);
+                if (source) {
+                    // On Windows, 'loopback' is system-wide.
+                    // If we want window-specific audio, we need to hope Electron/Chromium supports it
+                    // when passing the window source as audio source.
+                    const isWindow = source.id.startsWith('window:');
+                    callback({
+                        video: source,
+                        audio: isWindow ? source : 'loopback',
+                        enableLocalEcho: false
+                    });
+                } else {
+                    callback({ video: sources[0], audio: 'loopback' });
+                }
+            });
+            pendingDisplaySourceId = null;
+        } else {
+            desktopCapturer.getSources({ types: ['screen'] }).then(sources => {
+                callback({ video: sources[0], audio: 'loopback' });
+            });
+        }
+    });
+});
+
+let pendingDisplaySourceId = null;
+ipcMain.on('set-pending-display-source', (event, sourceId) => {
+    pendingDisplaySourceId = sourceId;
 });
 
 app.on('window-all-closed', () => {

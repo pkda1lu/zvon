@@ -67,95 +67,50 @@ export const getScreenSources = async (): Promise<any[]> => {
     return [];
 };
 
-// Request screen sources using Electron desktopCapturer
+// Request screen sources using Electron display media mechanism
 export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaStream | null> => {
     const electronAPI = getElectronAPI();
 
-    if (!electronAPI) {
-        console.log('Electron API not available - window.electron is undefined');
-        // Try IPC fallback
-        if ((window as any).electron?.ipc) {
-            console.log('Trying IPC fallback for desktopCapturer');
-            try {
-                const sources = await (window as any).electron.ipc.invoke('get-desktop-sources', {
-                    types: ['window', 'screen']
-                });
-                return await createStreamFromSources(sources);
-            } catch (error) {
-                console.error('IPC fallback failed:', error);
-            }
-        }
-        return null;
-    }
-
-    let sources;
-    try {
-        // Try direct desktopCapturer first - with extra safety checks
-        const desktopCapturer = electronAPI.desktopCapturer;
-        if (desktopCapturer && typeof desktopCapturer.getSources === 'function') {
-            console.log('Using Electron desktopCapturer API (direct)');
-            try {
-                sources = await desktopCapturer.getSources({
-                    types: ['window', 'screen']
-                });
-            } catch (directError) {
-                console.error('Direct desktopCapturer.getSources failed:', directError);
-                // Fall through to IPC fallback
-                throw directError;
-            }
-        }
-
-        // If direct method didn't work or wasn't available, try IPC
-        if (!sources && electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
-            console.log('Using IPC for desktopCapturer');
-            try {
-                sources = await electronAPI.ipc.invoke('get-desktop-sources', {
-                    types: ['window', 'screen']
-                });
-            } catch (ipcError) {
-                console.error('IPC get-desktop-sources failed:', ipcError);
-                throw ipcError;
-            }
-        }
-
-        // If still no sources, log diagnostic info
-        if (!sources) {
-            console.error('desktopCapturer not available in Electron API');
-            console.error('Available keys:', Object.keys(electronAPI));
-            console.error('desktopCapturer type:', typeof electronAPI.desktopCapturer);
-            console.error('desktopCapturer value:', electronAPI.desktopCapturer);
-            console.error('ipc type:', typeof electronAPI.ipc);
-            console.error('ipc value:', electronAPI.ipc);
+    if (!electronAPI || !electronAPI.ipc) {
+        console.log('Electron API not available, falling back to standard getDisplayMedia');
+        try {
+            return await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true
+            });
+        } catch (err) {
+            console.error('Standard getDisplayMedia failed:', err);
             return null;
         }
+    }
+
+    try {
+        if (sourceId && electronAPI.setPendingDisplaySource) {
+            console.log('Setting pending source ID for display media:', sourceId);
+            electronAPI.setPendingDisplaySource(sourceId);
+        }
+
+        // Use getDisplayMedia which is better for sound capture on Windows
+        // The setDisplayMediaRequestHandler in Main process will pick up the sourceId
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true
+        } as any);
+
+        return stream;
     } catch (error) {
-        console.error('Error getting sources:', error);
-        // Try IPC as last resort if we haven't tried it yet
-        if (electronAPI.ipc && typeof electronAPI.ipc.invoke === 'function') {
-            try {
-                console.log('Attempting IPC fallback after error');
-                sources = await electronAPI.ipc.invoke('get-desktop-sources', {
-                    types: ['window', 'screen']
-                });
-            } catch (fallbackError) {
-                console.error('IPC fallback also failed:', fallbackError);
-                return null;
-            }
-        } else {
+        console.error('Error getting Electron display media via getDisplayMedia:', error);
+
+        // Final fallback to the old way if getDisplayMedia fails
+        try {
+            const sources = await electronAPI.ipc.invoke('get-desktop-sources', {
+                types: ['window', 'screen']
+            });
+            return await createStreamFromSources(sources, sourceId);
+        } catch (fallbackError) {
+            console.error('All display media methods failed:', fallbackError);
             return null;
         }
-    }
-
-    try {
-        return await createStreamFromSources(sources, sourceId);
-    } catch (error: any) {
-        console.error('Error getting Electron display media:', error);
-        console.error('Error details:', {
-            message: error?.message,
-            name: error?.name,
-            stack: error?.stack
-        });
-        return null;
     }
 };
 

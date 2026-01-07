@@ -709,9 +709,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
+        // Ensure context is resumed on interaction if needed
+        if (audioCtx.state === 'suspended') {
+            const resume = () => audioCtx.resume().catch(console.error);
+            document.addEventListener('click', resume, { once: true });
+        }
+
         const checkSpeaking = () => {
             const nowSpeaking = new Set<string>();
-            const threshold = 0.015; // Increased threshold slightly
+            const threshold = 0.01; // Slightly lower threshold for better sensitivity
 
             analysersRef.current.forEach((analyser, userId) => {
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -768,37 +774,40 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const interval = setInterval(checkSpeaking, 100); // 100ms is enough and lighter
 
         const updateAnalysers = () => {
-            // Cleanup stale analysers
-            const currentParticipantIds = new Set(connectedUsers.map(u => u._id));
-            if (user?._id) currentParticipantIds.add(user._id);
-
-            analysersRef.current.forEach((_, id) => {
-                if (!currentParticipantIds.has(id)) {
-                    analysersRef.current.delete(id);
-                }
-            });
+            // ALWAYS clear and rebuild when this is called to ensure 
+            // we are attached to the CURRENT streams and CURRENT audio context
+            analysersRef.current.clear();
 
             // Local
             if (localStream && user?._id && !isMuted) {
-                if (!analysersRef.current.has(user._id)) {
-                    const source = audioCtx.createMediaStreamSource(localStream);
-                    const analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 256;
-                    source.connect(analyser);
-                    analysersRef.current.set(user._id, analyser);
+                const audioTracks = localStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    try {
+                        const source = audioCtx.createMediaStreamSource(localStream);
+                        const analyser = audioCtx.createAnalyser();
+                        analyser.fftSize = 256;
+                        source.connect(analyser);
+                        analysersRef.current.set(user._id, analyser);
+                        console.log("Speaking indicator: Attached local analyser for", user._id);
+                    } catch (err) {
+                        console.error("Failed to create local analyser:", err);
+                    }
                 }
-            } else if (user?._id) {
-                analysersRef.current.delete(user._id);
             }
 
             // Remote
             remoteStreams.forEach((stream, userId) => {
-                if (!analysersRef.current.has(userId) && stream.getAudioTracks().length > 0) {
-                    const source = audioCtx.createMediaStreamSource(stream);
-                    const analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 256;
-                    source.connect(analyser);
-                    analysersRef.current.set(userId, analyser);
+                if (stream.getAudioTracks().length > 0) {
+                    try {
+                        const source = audioCtx.createMediaStreamSource(stream);
+                        const analyser = audioCtx.createAnalyser();
+                        analyser.fftSize = 256;
+                        source.connect(analyser);
+                        analysersRef.current.set(userId, analyser);
+                        console.log("Speaking indicator: Attached remote analyser for", userId);
+                    } catch (err) {
+                        console.error("Failed to create remote analyser for", userId, err);
+                    }
                 }
             });
         };

@@ -40,7 +40,8 @@ try {
         },
         clipboard: {
             writeText: (text) => ipcRenderer.send('clipboard-write', text)
-        }
+        },
+        setPendingDisplaySource: (sourceId) => ipcRenderer.send('set-pending-display-source', sourceId)
     };
 
     contextBridge.exposeInMainWorld('electron', electronAPI);

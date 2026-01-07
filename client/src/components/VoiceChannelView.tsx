@@ -46,6 +46,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; userId: string } | null>(null);
 
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const transitionRef = useRef(false);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -69,22 +70,32 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
   }, []);
 
   const setFullscreenStatus = useCallback(async (newState: boolean) => {
+    if (transitionRef.current) return;
     const container = videoContainerRef.current;
-    if (!container) return;
+    if (!container && !newState) {
+      // If we are exiting but container is gone, we still need to exit window fullscreen
+    } else if (!container && newState) {
+      return;
+    }
 
     const win = window as any;
     const isElectron = !!(win.electron && win.electron.ipc);
 
-    if (isElectron) {
-      try {
+    transitionRef.current = true;
+    try {
+      if (isElectron) {
         const actualState = await win.electron.ipc.invoke('toggle-fullscreen', newState);
         setIsFullscreen(actualState);
-      } catch (err) {
-        console.error('Electron fullscreen failed:', err);
-        browserFullscreenFallback(container, newState);
+      } else {
+        browserFullscreenFallback(container!, newState);
       }
-    } else {
-      browserFullscreenFallback(container, newState);
+    } catch (err) {
+      console.error('Fullscreen transition failed:', err);
+    } finally {
+      // Small delay to let OS/Electron finish transition
+      setTimeout(() => {
+        transitionRef.current = false;
+      }, 500);
     }
   }, []);
 
@@ -128,10 +139,21 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
 
   // Exit fullscreen if focused stream is lost
   useEffect(() => {
+    let timeoutId: any;
+
     if (!focusedStreamId && (isFullscreen || isStageFullWidth)) {
-      setFullscreenStatus(false);
-      setIsStageFullWidth(false);
+      // Use a small timeout to ensure this runs AFTER the re-render that cleared the stream
+      timeoutId = setTimeout(() => {
+        if (!focusedStreamId) { // Double check
+          setFullscreenStatus(false);
+          setIsStageFullWidth(false);
+        }
+      }, 100);
     }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [focusedStreamId, isFullscreen, isStageFullWidth, setFullscreenStatus]);
 
   const handleCloseContextMenu = () => setContextMenu(null);
@@ -433,10 +455,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                 const participant = item.data;
                 const isScreen = item.type === 'screen';
 
+                const isSpeaking = speakingUsers.has(participant._id);
+
                 return (
                   <div
                     key={item.id}
-                    className={`participant-card ${isScreen ? 'screen-share-card' : ''}`}
+                    className={`participant-card ${isScreen ? 'screen-share-card' : ''} ${isSpeaking ? 'speaking-card' : ''}`}
                     onClick={() => {
                       if (isScreen) setFocusedStreamId(item.id);
                       else onUserClick(participant._id);
@@ -454,17 +478,31 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                         <span>Вы делитесь экраном</span>
                       </div>
                     ) : isScreen ? (
-                      <video
-                        autoPlay
-                        playsInline
-                        muted={true}
-                        className="participant-video is-screen"
-                        ref={el => {
-                          if (el && el.srcObject !== item.stream) {
-                            el.srcObject = item.stream!;
-                          }
-                        }}
-                      />
+                      <>
+                        <video
+                          autoPlay
+                          playsInline
+                          muted={true}
+                          className="participant-video is-screen"
+                          ref={el => {
+                            if (el && el.srcObject !== item.stream) {
+                              el.srcObject = item.stream!;
+                            }
+                          }}
+                        />
+                        <div className="participant-screen-overlay">
+                          <div className={`participant-avatar small ${isSpeaking ? 'speaking' : ''}`}>
+                            {getAvatarUrl(participant.avatar) ? (
+                              <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
+                            ) : (
+                              <div className="avatar-placeholder-inner">{participant.username.charAt(0).toUpperCase()}</div>
+                            )}
+                          </div>
+                          <div className={`participant-name ${isSpeaking ? 'speaking' : ''}`}>
+                            {participant.username} (Демонстрация)
+                          </div>
+                        </div>
+                      </>
                     ) : (
                       <>
                         {participant.banner && (
@@ -475,14 +513,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                         )}
 
                         <div className="participant-info">
-                          <div className={`participant-avatar ${speakingUsers.has(participant._id) ? 'speaking' : ''}`}>
+                          <div className={`participant-avatar ${isSpeaking ? 'speaking' : ''}`}>
                             {getAvatarUrl(participant.avatar) ? (
                               <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
                             ) : (
-                              <span>{participant.username.charAt(0).toUpperCase()}</span>
+                              <div className="avatar-placeholder-inner">{participant.username.charAt(0).toUpperCase()}</div>
                             )}
                           </div>
-                          <div className={`participant-name ${speakingUsers.has(participant._id) ? 'speaking' : ''}`}>
+                          <div className={`participant-name ${isSpeaking ? 'speaking' : ''}`}>
                             {participant.username}{participant.isMe ? ' (Вы)' : ''}
                           </div>
                         </div>
@@ -501,12 +539,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
                         </div>
                       )}
                     </div>
-
-                    {isScreen && (
-                      <div className="participant-name" style={{ position: 'absolute', bottom: '8px', left: '8px', zIndex: 10, background: 'rgba(0,0,0,0.7)' }}>
-                        {participant.username} (Демонстрация)
-                      </div>
-                    )}
                   </div>
                 );
               })
