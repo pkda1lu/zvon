@@ -1,22 +1,23 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useVoice } from '../contexts/VoiceContext';
-import { Channel, User } from '../types';
+import { Channel, User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, StopScreenShareIcon, MaximizeIcon, MinimizeIcon } from './Icons';
 import axios from 'axios';
-import UserContextMenu from './UserContextMenu';
+import MemberContextMenu from './MemberContextMenu';
 import './VoiceChannelView.css';
 
 interface VoiceChannelViewProps {
   channel: Channel;
+  server: Server;
   onUserClick: (userId: string) => void;
   onMessageClick: (userId: string) => void;
   onCallClick: (userId: string) => void;
 }
 
-const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClick, onMessageClick, onCallClick }) => {
+const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, onUserClick, onMessageClick, onCallClick }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
   const {
@@ -276,14 +277,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, onUserClic
       </div>
 
       {contextMenu && (
-        <UserContextMenu
+        <MemberContextMenu
+          user={displayItems.find(i => i.id === contextMenu.userId || i.data?._id === contextMenu.userId)?.data}
+          server={server}
           x={contextMenu.x}
           y={contextMenu.y}
-          user={displayItems.find(i => i.id === contextMenu.userId || i.data?._id === contextMenu.userId)?.data}
           onClose={handleCloseContextMenu}
-          onProfileClick={() => onUserClick(contextMenu.userId)}
-          onMessageClick={() => onMessageClick(contextMenu.userId)}
-          onCallClick={() => onCallClick(contextMenu.userId)}
+          onOpenProfile={onUserClick}
         />
       )}
 

@@ -26,6 +26,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [memberRoles, setMemberRoles] = useState<Role[]>([]);
     const [allServerRoles, setAllServerRoles] = useState<Role[]>([]);
     const [isManagingRoles, setIsManagingRoles] = useState(false);
+    const [memberData, setMemberData] = useState<any>(null);
 
     const { hasPermission } = usePermissions(currentUser || null, currentServer || null);
     const canManageRoles = hasPermission('MANAGE_ROLES');
@@ -83,6 +84,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 if (serverId) {
                     try {
                         const memberRes = await axios.get(`/api/servers/${serverId}/members/${userId}`);
+                        setMemberData(memberRes.data);
                         if (memberRes.data.roles) {
                             const validRoles = memberRes.data.roles.filter((r: any) => r && typeof r === 'object' && r._id);
                             const sortedRoles = [...validRoles].sort((a: Role, b: Role) => (b.position || 0) - (a.position || 0));
@@ -91,9 +93,11 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     } catch (memberErr) {
                         console.error('Failed to fetch member info:', memberErr);
                         setMemberRoles([]);
+                        setMemberData(null);
                     }
                 } else {
                     setMemberRoles([]);
+                    setMemberData(null);
                 }
 
             } catch (err: any) {
@@ -132,7 +136,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     className="profile-banner"
                     style={{
                         backgroundColor: '#5865f2',
-                        backgroundImage: user.banner ? `url(${getFullUrl(user.banner)})` : 'none',
+                        backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center'
                     }}
@@ -144,9 +148,9 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
                 <div className="profile-header">
                     <div className="profile-avatar-container">
-                        <div className={`profile-avatar ${user.status}`}>
-                            {getAvatarUrl(user.avatar) ? (
-                                <img src={getAvatarUrl(user.avatar)!} alt={user.username} />
+                        <div className={`profile-avatar ${user.status} ${memberData?.avatar ? 'server-specific' : ''}`}>
+                            {getAvatarUrl(memberData?.avatar || user.avatar) ? (
+                                <img src={getAvatarUrl(memberData?.avatar || user.avatar)!} alt={user.username} />
                             ) : (
                                 <span>{user.username.charAt(0).toUpperCase()}</span>
                             )}
@@ -160,7 +164,8 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
                 <div className="profile-body">
                     <div className="profile-names">
-                        <span className="profile-username">{user.username}</span>
+                        {memberData?.nickname && <span className="profile-nickname">{memberData.nickname}</span>}
+                        <span className={memberData?.nickname ? "profile-username sub" : "profile-username"}>{user.username}</span>
                     </div>
 
                     <div className="profile-divider"></div>
@@ -191,7 +196,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                             <div className="info-tab">
                                 <section>
                                     <h4>О СЕБЕ</h4>
-                                    <p className="bio-text">{user.bio || 'Пользователь ничего не рассказал о себе.'}</p>
+                                    <p className="bio-text">{memberData?.bio || user.bio || 'Пользователь ничего не рассказал о себе.'}</p>
                                 </section>
                                 <section>
                                     <h4>ДАТА РЕГИСТРАЦИИ</h4>

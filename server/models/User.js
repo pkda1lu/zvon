@@ -44,6 +44,15 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Server'
   }],
+  blockedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  notes: {
+    type: Map,
+    of: String, // Key is target ID (user, etc.), value is the note
+    default: {}
+  },
   createdAt: {
     type: Date,
     default: Date.now

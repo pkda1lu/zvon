@@ -10,6 +10,7 @@ import { useVoice } from '../contexts/VoiceContext';
 import './ServerSidebar.css';
 
 import InviteModal from './InviteModal';
+import MemberContextMenu from './MemberContextMenu';
 
 interface ServerSidebarProps {
   server: Server;
@@ -63,6 +64,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, user: User) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, user });
+  };
 
   const textChannels = server.channels.filter(ch => ch.type === 'text');
   const voiceChannels = server.channels.filter(ch => ch.type === 'voice');
@@ -187,7 +194,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                 {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
                   <div className="voice-channel-users">
                     {voiceStates[channel._id].map(u => (
-                      <div key={u._id} className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`} onClick={(e) => { e.stopPropagation(); onUserClick(u._id); }}>
+                      <div
+                        key={u._id}
+                        className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); onUserClick(u._id); }}
+                        onContextMenu={(e) => handleContextMenu(e, u)}
+                      >
                         <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
                           {getAvatarUrl(u.avatar) ? (
                             <img src={getAvatarUrl(u.avatar)!} alt={u.username} />
@@ -283,7 +295,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                         const memberColor = colorRole ? colorRole.color : 'inherit';
 
                         return (
-                          <div key={member.user._id} className="member-item" onClick={() => onUserClick(member.user._id)}>
+                          <div
+                            key={member.user._id}
+                            className="member-item"
+                            onClick={() => onUserClick(member.user._id)}
+                            onContextMenu={(e) => handleContextMenu(e, member.user)}
+                          >
                             <div className="member-avatar">
                               {getAvatarUrl(member.user.avatar) ? (
                                 <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
@@ -306,7 +323,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                   <div className="member-group">
                     <div className="group-header">ОНЛАЙН — {noRoleMembers.length}</div>
                     {noRoleMembers.map(member => (
-                      <div key={member.user._id} className="member-item" onClick={() => onUserClick(member.user._id)}>
+                      <div
+                        key={member.user._id}
+                        className="member-item"
+                        onClick={() => onUserClick(member.user._id)}
+                        onContextMenu={(e) => handleContextMenu(e, member.user)}
+                      >
                         <div className="member-avatar">
                           {getAvatarUrl(member.user.avatar) ? (
                             <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
@@ -331,7 +353,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                       const memberColor = colorRole ? colorRole.color : 'inherit';
 
                       return (
-                        <div key={member.user._id} className="member-item offline" onClick={() => onUserClick(member.user._id)}>
+                        <div
+                          key={member.user._id}
+                          className="member-item offline"
+                          onClick={() => onUserClick(member.user._id)}
+                          onContextMenu={(e) => handleContextMenu(e, member.user)}
+                        >
                           <div className="member-avatar">
                             {getAvatarUrl(member.user.avatar) ? (
                               <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
@@ -353,6 +380,16 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           })()}
         </div>
       </div>
+      {contextMenu && (
+        <MemberContextMenu
+          user={contextMenu.user}
+          server={server}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onOpenProfile={onUserClick}
+        />
+      )}
     </div>
   );
 };

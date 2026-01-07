@@ -45,6 +45,23 @@ const serverSchema = new mongoose.Schema({
     joinedAt: {
       type: Date,
       default: Date.now
+    },
+    communicationDisabledUntil: {
+      type: Date,
+      default: null
+    },
+    bio: {
+      type: String,
+      maxlength: 300,
+      default: null
+    },
+    avatar: {
+      type: String,
+      default: null
+    },
+    banner: {
+      type: String,
+      default: null
     }
   }],
   channels: [{

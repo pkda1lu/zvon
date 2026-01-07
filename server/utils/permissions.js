@@ -36,6 +36,14 @@ const hasPermission = async (userId, serverId, permission) => {
             return false;
         }
 
+        // Check for timeout
+        if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
+            const restrictedPermissions = ['SEND_MESSAGES', 'SPEAK', 'ADD_REACTIONS', 'CONNECT'];
+            if (restrictedPermissions.includes(permission)) {
+                return false;
+            }
+        }
+
         // Administrator permission grants everything
         // Get all roles for this member
         const roleIds = member.roles ? member.roles.filter(r => r).map(r => r.toString()) : [];

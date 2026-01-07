@@ -140,6 +140,19 @@
     font-weight: 600;
 }
 
+.profile-nickname {
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    display: block;
+}
+
+.profile-username.sub {
+    color: #b5bac1;
+    font-size: 14px;
+    font-weight: 400;
+}
+
 .profile-divider {
     height: 1px;
     background-color: #2f3136;

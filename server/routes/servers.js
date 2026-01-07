@@ -619,6 +619,47 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
   }
 });
 
+router.put('/:id/members/:userId/timeout', auth, async (req, res) => {
+  try {
+    const { until } = req.body;
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    if (!await hasPermission(req.user._id, req.params.id, 'MODERATE_MEMBERS') &&
+      !await hasPermission(req.user._id, req.params.id, 'KICK_MEMBERS')) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
+    }
+
+    if (!await canPerformActionOn(req.user._id, req.params.userId, req.params.id)) {
+      return res.status(403).json({ message: 'Insufficient hierarchy' });
+    }
+
+    const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
+    if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
+
+    server.members[memberIndex].communicationDisabledUntil = until;
+    await server.save();
+
+    await logAction(server._id, req.user._id, 'timeout', 'member', req.params.userId, { until }, 'Timed out member');
+
+    const populatedServer = await Server.findById(server._id)
+      .populate('owner', 'username avatar')
+      .populate('channels')
+      .populate('members.user', 'username avatar status')
+      .populate('members.roles')
+      .populate('roles');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${server._id}`).emit('server-updated', populatedServer);
+    }
+
+    res.json({ message: 'Member timed out' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.put('/:id/members/:userId/roles', auth, async (req, res) => {
   try {
     const { roles } = req.body;
@@ -676,16 +717,19 @@ router.put('/:id/members/:userId/roles', auth, async (req, res) => {
   }
 });
 
-// Update member (nickname)
+// Update member (Server Profile)
 router.put('/:id/members/:userId', auth, async (req, res) => {
   try {
-    const { nickname } = req.body;
+    const { nickname, bio, avatar, banner } = req.body;
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
     const isSelf = req.user._id.toString() === req.params.userId;
     const canManageNicknames = await hasPermission(req.user._id, req.params.id, 'MANAGE_NICKNAMES');
 
+    // To change bio/avatar/banner of someone else, we might need a separate permission or reuse MANAGE_NICKNAMES
+    // For now, let's allow users to change their own, and moderators to change nicknames.
+    // If it's not self, only nickname can be changed by default in many systems, but let's allow full profile mod for admins
     if (!isSelf && !canManageNicknames) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
@@ -693,17 +737,27 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     if (!isSelf) {
       const higherHierarchy = await canPerformActionOn(req.user._id, req.params.userId, req.params.id);
       if (!higherHierarchy) {
-        return res.status(403).json({ message: 'Cannot change nickname of someone with higher or equal hierarchy' });
+        return res.status(403).json({ message: 'Cannot modify profile of someone with higher or equal hierarchy' });
       }
     }
 
     const member = server.members.find(m => m.user.toString() === req.params.userId);
     if (!member) return res.status(404).json({ message: 'Member not found' });
 
-    member.nickname = nickname || null;
+    if (nickname !== undefined) member.nickname = nickname || null;
+    if (isSelf) {
+      // Only allow changing these via this route for now
+      if (bio !== undefined) member.bio = bio || null;
+      if (avatar !== undefined) member.avatar = avatar || null;
+      if (banner !== undefined) member.banner = banner || null;
+    } else if (canManageNicknames) {
+      // Moderators can only change nicknames by default, but let's allow bio cleanup if needed
+      if (bio !== undefined) member.bio = bio || null;
+    }
+
     await server.save();
 
-    await logAction(server._id, req.user._id, 'update-nickname', 'member', req.params.userId, { nickname }, 'Updated nickname');
+    await logAction(server._id, req.user._id, 'update-server-profile', 'member', req.params.userId, { nickname, bio }, 'Updated server profile');
 
     const updatedServer = await Server.findById(req.params.id).populate('members.roles').populate('members.user');
     const updatedMember = updatedServer.members.find(m => m.user._id.toString() === req.params.userId.toString());

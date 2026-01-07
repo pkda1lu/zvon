@@ -15,6 +15,7 @@ import VoiceCall from '../components/VoiceCall';
 import UserProfileCard from '../components/UserProfileCard';
 import ServerSettingsModal from '../components/ServerSettingsModal';
 import ServerProfileCard from '../components/ServerProfileCard';
+import UserServerProfileModal from '../components/UserServerProfileModal';
 import { User } from '../types';
 import './Main.css';
 
@@ -39,6 +40,8 @@ const Main: React.FC = () => {
   const [showProfileUserId, setShowProfileUserId] = useState<string | null>(null);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [showServerProfile, setShowServerProfile] = useState(false);
+  const [showUserServerProfile, setShowUserServerProfile] = useState(false);
+  const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const isResizingRef = useRef(false);
 
@@ -56,11 +59,34 @@ const Main: React.FC = () => {
       document.body.style.cursor = 'default';
     };
 
+    const handleStartDMEvent = (e: any) => {
+      setSelectedDM(e.detail.dm);
+      setSelectedChannel(null);
+      setSelectedServer(null);
+      setShowFriends(false);
+    };
+
+    const handleStartCallEvent = (e: any) => {
+      handleStartDirectCall(e.detail.user, e.detail.dmId);
+    };
+
+    const handleOpenServerProfileSettings = (e: any) => {
+      setServerProfileServerId(e.detail.serverId);
+      setShowUserServerProfile(true);
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('start-dm', handleStartDMEvent);
+    window.addEventListener('start-call', handleStartCallEvent);
+    window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('start-dm', handleStartDMEvent);
+      window.removeEventListener('start-call', handleStartCallEvent);
+      window.removeEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
     };
   }, []);
 
@@ -447,6 +473,7 @@ const Main: React.FC = () => {
         ) : (
           <VoiceChannelView
             channel={selectedChannel}
+            server={selectedServer!}
             onUserClick={setShowProfileUserId}
             onMessageClick={handleStartDM}
             onCallClick={async (userId) => {
@@ -542,6 +569,14 @@ const Main: React.FC = () => {
         <ServerProfileCard
           server={selectedServer}
           onClose={() => setShowServerProfile(false)}
+        />
+      )}
+      {showUserServerProfile && serverProfileServerId && user && (
+        <UserServerProfileModal
+          server={servers.find(s => s._id === serverProfileServerId)!}
+          user={user}
+          onClose={() => setShowUserServerProfile(false)}
+          onUpdate={handleServerUpdate}
         />
       )}
     </div>

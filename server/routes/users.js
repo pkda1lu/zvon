@@ -245,5 +245,49 @@ router.post('/banner', auth, (req, res, next) => {
   }
 });
 
+// Block user
+router.post('/block', auth, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: 'User ID required' });
+    if (userId === req.user._id.toString()) return res.status(400).json({ message: 'Cannot block yourself' });
+
+    if (!req.user.blockedUsers.includes(userId)) {
+      req.user.blockedUsers.push(userId);
+      await req.user.save();
+    }
+    res.json({ message: 'User blocked' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Unblock user
+router.post('/unblock', auth, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    req.user.blockedUsers = req.user.blockedUsers.filter(id => id.toString() !== userId);
+    await req.user.save();
+    res.json({ message: 'User unblocked' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update note
+router.post('/note', auth, async (req, res) => {
+  try {
+    const { userId, note } = req.body;
+    if (!userId) return res.status(400).json({ message: 'User ID required' });
+
+    if (!req.user.notes) req.user.notes = new Map();
+    req.user.notes.set(userId, note);
+    await req.user.save();
+    res.json({ message: 'Note updated' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
 

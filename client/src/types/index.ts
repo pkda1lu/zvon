@@ -7,6 +7,8 @@ export interface User {
   bio: string;
   status: 'online' | 'offline' | 'away' | 'busy';
   servers?: string[];
+  blockedUsers?: string[];
+  notes?: Record<string, string>;
   createdAt: string;
 }
 
@@ -23,6 +25,10 @@ export interface Server {
     roles: (Role | string)[];
     nickname?: string;
     joinedAt: string;
+    communicationDisabledUntil?: string;
+    bio?: string;
+    avatar?: string;
+    banner?: string;
   }>;
   channels: Channel[];
   roles?: Role[];

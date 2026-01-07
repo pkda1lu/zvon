@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
-import { Channel, Message, Server, Role } from '../types';
+import { Channel, Message, Server, Role, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import axios from 'axios';
@@ -8,6 +8,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon } from './Icons';
 import './ChannelView.css';
 import './Attachments.css';
+import MemberContextMenu from './MemberContextMenu';
 
 interface ChannelViewProps {
   channel: Channel;
@@ -21,12 +22,22 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   const { user } = useAuth();
   const { hasPermission } = usePermissions(user!, server);
   const [message, setMessage] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
 
   const canSend = hasPermission('SEND_MESSAGES');
   const canManageMessages = hasPermission('MANAGE_MESSAGES');
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, user: User) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, user });
+  };
+
+  const handleMention = (username: string) => {
+    setMessage((prev) => `${prev}@${username} `);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -191,7 +202,12 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                   </div>
                 )}
                 <div className="message with-author">
-                  <div className="message-author-avatar" onClick={() => onUserClick(msg.author._id)} style={{ cursor: 'pointer' }}>
+                  <div
+                    className="message-author-avatar"
+                    onClick={() => onUserClick(msg.author._id)}
+                    onContextMenu={(e) => handleContextMenu(e, msg.author)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {getAvatarUrl(msg.author.avatar) ? (
                       <img src={getAvatarUrl(msg.author.avatar)!} alt={msg.author.username} />
                     ) : (
@@ -204,6 +220,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                         <span
                           className="message-author"
                           onClick={() => onUserClick(msg.author._id)}
+                          onContextMenu={(e) => handleContextMenu(e, msg.author)}
                           style={{ cursor: 'pointer', color: getAuthorColor(msg.author._id) }}
                         >
                           {server.members.find(m => {
@@ -292,6 +309,17 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
           </button>
         </form>
       </div>
+      {contextMenu && (
+        <MemberContextMenu
+          user={contextMenu.user}
+          server={server}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onMention={handleMention}
+          onOpenProfile={onUserClick}
+        />
+      )}
     </div>
   );
 };
