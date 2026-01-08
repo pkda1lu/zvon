@@ -127,9 +127,12 @@ const Main: React.FC = () => {
     // @ts-ignore
     const electron = window.electron;
     if (electron && socket && user) {
+      console.log('[Activity] Initializing activity sync for user:', user.username);
+
       // Sync current activity on load
       electron.getCurrentActivity?.().then((activity: any) => {
         if (activity) {
+          console.log('[Activity] Initial sync:', activity.name);
           socket.emit('activity-update', {
             name: activity.name,
             type: 'playing',
@@ -141,6 +144,7 @@ const Main: React.FC = () => {
 
       // Listen for changes
       const removeActivityListener = electron.onActivityChanged?.((activity: any) => {
+        console.log('[Activity] Event received from Electron:', activity ? activity.name : 'Clear');
         if (activity) {
           socket.emit('activity-update', {
             name: activity.name,
@@ -154,7 +158,10 @@ const Main: React.FC = () => {
       });
 
       return () => {
-        if (removeActivityListener) removeActivityListener();
+        if (removeActivityListener) {
+          console.log('[Activity] Removing listener');
+          removeActivityListener();
+        }
       };
     }
   }, [socket, user?._id]);

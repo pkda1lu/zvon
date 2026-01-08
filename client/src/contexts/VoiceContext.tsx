@@ -25,6 +25,22 @@ const RemoteAudio: React.FC<{
     const streamAudioRef = useRef<HTMLAudioElement>(null);
     const gainNodeRef = useRef<GainNode | null>(null);
     const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const [trackCount, setTrackCount] = useState(0);
+
+    // Listen for track additions/removals to re-trigger audio setup
+    useEffect(() => {
+        const update = () => {
+            console.log(`[RemoteAudio] Tracks updated for ${userId}:`, stream.getTracks().length);
+            setTrackCount(stream.getTracks().length);
+        };
+        stream.onaddtrack = update;
+        stream.onremovetrack = update;
+        update();
+        return () => {
+            stream.onaddtrack = null;
+            stream.onremovetrack = null;
+        };
+    }, [stream, userId]);
 
     // Apply Output Device ID
     useEffect(() => {
@@ -46,44 +62,47 @@ const RemoteAudio: React.FC<{
         if (!stream || !sharedContext) return;
 
         const voiceTracks = stream.getAudioTracks();
-        if (voiceTracks.length === 0) return;
+        if (voiceTracks.length === 0) {
+            if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
+            return;
+        }
 
-        // Ensure the stream is "played" via a hidden audio element
+        // Ensure the stream is "played" via a hidden audio element to keep it active
         if (voiceAudioRef.current) {
             voiceAudioRef.current.srcObject = stream;
-            voiceAudioRef.current.muted = true; // Mute the direct output as we'll use GainNode
+            voiceAudioRef.current.muted = true;
             voiceAudioRef.current.play().catch(() => { });
         }
 
         const ctx = sharedContext;
 
-        // Disconnect old source if it exists
         if (sourceNodeRef.current) {
             sourceNodeRef.current.disconnect();
         }
 
         try {
+            // Re-create source to ensure it picks up current tracks
             const source = ctx.createMediaStreamSource(stream);
             sourceNodeRef.current = source;
 
-            const gainNode = ctx.createGain();
-            gainNodeRef.current = gainNode;
+            if (!gainNodeRef.current) {
+                const gainNode = ctx.createGain();
+                gainNodeRef.current = gainNode;
+                gainNode.connect(ctx.destination);
+            }
 
-            // Base boost of 1.5x + apply user volume + apply master volume
             const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
-            gainNode.gain.value = finalVolume;
+            gainNodeRef.current.gain.value = finalVolume;
 
-            source.connect(gainNode);
-            gainNode.connect(ctx.destination);
+            source.connect(gainNodeRef.current);
         } catch (err) {
             console.error(`[RemoteAudio] Error setting up Web Audio for ${userId}:`, err);
         }
 
         return () => {
             if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
-            if (gainNodeRef.current) gainNodeRef.current.disconnect();
         };
-    }, [stream, userId, sharedContext]);
+    }, [stream, userId, sharedContext, trackCount]);
 
     // Update gain when volumes change
     useEffect(() => {
@@ -97,10 +116,13 @@ const RemoteAudio: React.FC<{
         }
     }, [voiceVolume, masterVolume, isDeafened, isLocalMuted, sharedContext]);
 
+    // Secondary Audio Handle (for Screen Share Audio)
     useEffect(() => {
         if (streamAudioRef.current && stream) {
             const audioTracks = stream.getAudioTracks();
+            // In our system, the SECOND audio track is always screen share audio if present
             if (audioTracks.length > 1) {
+                console.log(`[RemoteAudio] Playing system audio for ${userId}`);
                 const screenStream = new MediaStream([audioTracks[1]]);
                 streamAudioRef.current.srcObject = screenStream;
                 streamAudioRef.current.play().catch(() => { });
@@ -108,11 +130,10 @@ const RemoteAudio: React.FC<{
                 streamAudioRef.current.srcObject = null;
             }
         }
-    }, [stream, userId]);
+    }, [stream, userId, trackCount]);
 
     useEffect(() => {
         if (streamAudioRef.current) {
-            // Apply master volume to the screen audio element too
             streamAudioRef.current.volume = Math.min(1, Math.max(0, streamVolume * masterVolume));
         }
     }, [streamVolume, masterVolume]);
@@ -126,12 +147,7 @@ const RemoteAudio: React.FC<{
     return (
         <>
             <audio ref={voiceAudioRef} autoPlay playsInline muted style={{ display: 'none' }} />
-            <audio
-                ref={streamAudioRef}
-                autoPlay
-                playsInline
-                style={{ display: 'none' }}
-            />
+            <audio ref={streamAudioRef} autoPlay playsInline style={{ display: 'none' }} />
         </>
     );
 };

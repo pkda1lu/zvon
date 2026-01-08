@@ -10,6 +10,21 @@ autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 log.info('App starting...');
 
+// Enable High Performance Screen Capture (Windows Graphics Capture & DXGI)
+if (process.platform === 'win32') {
+    // Windows Graphics Capture (WGC) is the modern way (Windows 10/11)
+    // Win7DesktopDuplication activates the DXGI Desktop Duplication API
+    app.commandLine.appendSwitch('enable-features', 'WindowsGraphicsCapture,Win7DesktopDuplication,WinDirectComposition,WebRTCPipeWireCapturer');
+
+    // Performance and compatibility tweaks for capture
+    app.commandLine.appendSwitch('disable-features', 'D3D11VideoDecoder'); // Prevents some capture black-screen issues
+    app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
+    app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
+    app.commandLine.appendSwitch('enable-zero-copy-tab-capture');
+
+    log.info('Enabled high performance capture and HW acceleration flags for Windows');
+}
+
 let pendingDeepLink = null;
 let mainWindow;
 let updaterWindow;
@@ -147,6 +162,7 @@ function createTray() {
             } else {
                 mainWindow.show();
                 mainWindow.focus();
+                if (typeof scanActivities === 'function') scanActivities();
             }
         }
     });
@@ -294,6 +310,7 @@ function createWindow() {
             contextIsolation: true,
             enableRemoteModule: false,
             webSecurity: true,
+            backgroundThrottling: false,
             preload: isDev
                 ? path.join(__dirname, '../public/preload.js')
                 : path.join(__dirname, 'preload.js'),
@@ -307,6 +324,10 @@ function createWindow() {
     if (windowState.isMaximized) {
         mainWindow.maximize();
     }
+
+    mainWindow.once('ready-to-show', () => {
+        if (typeof scanActivities === 'function') scanActivities();
+    });
 
     // Save state on events
     let saveTimeout;
@@ -417,13 +438,15 @@ let activityStartTime = null;
 
 const KNOWN_GAMES = {
     'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg' },
-    'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/493051_IGDB-285x380.jpg' },
+    'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://upload.wikimedia.org/wikipedia/en/f/f2/Counter-Strike_2_cover_art.jpg' },
     'csgo.exe': { name: 'CS:GO', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg' },
     'Dota2.exe': { name: 'Dota 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/29595-285x380.jpg' },
     'League of Legends.exe': { name: 'League of Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg' },
     'Minecraft.exe': { name: 'Minecraft', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg' },
     'RobloxPlayerBeta.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg' },
     'GenshinImpact.exe': { name: 'Genshin Impact', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/513181-285x380.jpg' },
+    'aces.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg' },
+    'WarThunder.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg' },
     'Telegram.exe': { name: 'Telegram', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Telegram_logo.svg/2048px-Telegram_logo.svg.png' },
     'Code.exe': { name: 'Visual Studio Code', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Visual_Studio_Code_1.35_icon.svg/2048px-Visual_Studio_Code_1.35_icon.svg.png' },
     'Spotify.exe': { name: 'Spotify', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/2048px-Spotify_logo_without_text.svg.png' }
@@ -433,31 +456,62 @@ function scanActivities() {
     if (process.platform !== 'win32') return;
 
     exec('tasklist /NH /FO CSV', (err, stdout) => {
-        if (err) return;
+        if (err) {
+            console.error('[Activity] tasklist error:', err);
+            return;
+        }
 
-        const lines = stdout.split('\r\n');
+        const lines = stdout.split(/\r?\n/);
         let foundActivity = null;
+        const allDetected = [];
 
         for (const line of lines) {
+            if (!line.trim()) continue;
             const parts = line.split('","');
             if (parts.length > 0) {
-                const exeName = parts[0].replace(/"/g, '');
-                if (KNOWN_GAMES[exeName]) {
-                    foundActivity = KNOWN_GAMES[exeName];
-                    break;
+                const rawName = parts[0].replace(/"/g, '').trim();
+                const exeName = rawName.toLowerCase();
+
+                // Try exact match or base match (without .exe)
+                const baseName = exeName.endsWith('.exe') ? exeName.slice(0, -4) : exeName;
+
+                let foundMatch = null;
+                for (const key in KNOWN_GAMES) {
+                    const keyLower = key.toLowerCase();
+                    const keyBase = keyLower.endsWith('.exe') ? keyLower.slice(0, -4) : keyLower;
+
+                    if (exeName === keyLower || baseName === keyBase) {
+                        foundMatch = KNOWN_GAMES[key];
+                        break;
+                    }
+                }
+
+                if (foundMatch) {
+                    if (!foundActivity) foundActivity = foundMatch;
+                    allDetected.push(foundMatch.name);
                 }
             }
         }
 
-        if (foundActivity?.name !== lastActivity?.name) {
-            lastActivity = foundActivity;
+        if (allDetected.length > 0) {
+            console.log(`[Activity] Scan found: ${allDetected.join(', ')}`);
+        }
+
+        const currentName = foundActivity ? foundActivity.name : null;
+        const lastName = lastActivity ? lastActivity.name : null;
+
+        if (currentName !== lastName) {
+            console.log(`[Activity] Detected change: ${lastName || 'Nothing'} -> ${currentName || 'Nothing'}`);
+
             if (foundActivity) {
+                lastActivity = { ...foundActivity };
                 activityStartTime = Date.now();
             } else {
+                lastActivity = null;
                 activityStartTime = null;
             }
 
-            if (mainWindow) {
+            if (mainWindow && !mainWindow.webContents.isDestroyed()) {
                 mainWindow.webContents.send('activity-changed', lastActivity ? {
                     ...lastActivity,
                     startTime: activityStartTime
@@ -467,7 +521,9 @@ function scanActivities() {
     });
 }
 
-setInterval(scanActivities, 15000); // Scan every 15 seconds
+// Initial scan
+scanActivities();
+setInterval(scanActivities, 3000); // Scan every 3 seconds for "instant" updates
 
 ipcMain.handle('get-current-activity', () => {
     return lastActivity ? { ...lastActivity, startTime: activityStartTime } : null;

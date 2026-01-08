@@ -4,6 +4,7 @@ import { Server, User, Role } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { CloseIcon, PlusIcon } from './Icons';
 import { usePermissions } from '../hooks/usePermissions';
+import { useSocket } from '../contexts/SocketContext';
 import './UserProfileCard.css';
 
 interface UserProfileCardProps {
@@ -40,12 +41,36 @@ const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
 };
 
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId, currentUser, currentServer }) => {
+    const { socket } = useSocket();
     const [profileData, setProfileData] = useState<{
         user: User;
         mutualServers: Array<{ _id: string; name: string; icon: string }>;
         mutualFriends: User[];
     } | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Listen for real-time updates to this user
+    useEffect(() => {
+        if (socket && userId) {
+            const handleUserUpdate = (updatedUser: any) => {
+                if (updatedUser._id === userId) {
+                    console.log('[UserProfileCard] Real-time activity update for:', userId);
+                    setProfileData(prev => {
+                        if (!prev) return prev;
+                        return {
+                            ...prev,
+                            user: { ...prev.user, ...updatedUser }
+                        };
+                    });
+                }
+            };
+
+            socket.on('user-updated', handleUserUpdate);
+            return () => {
+                socket.off('user-updated', handleUserUpdate);
+            };
+        }
+    }, [socket, userId]);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'info' | 'mutualFriends' | 'mutualServers'>('info');
     const [memberRoles, setMemberRoles] = useState<Role[]>([]);

@@ -212,7 +212,13 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
                         </span>
                       )}
                     </div>
-                    <div className="friend-status">{friend.status}</div>
+                    <div className="friend-status">
+                      {friend.activity ? (
+                        <span className="activity-status">Играет в {friend.activity.name}</span>
+                      ) : (
+                        friend.status
+                      )}
+                    </div>
                   </div>
                   <div className="friend-actions">
                     <button

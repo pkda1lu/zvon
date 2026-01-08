@@ -363,19 +363,16 @@ io.on('connection', (socket) => {
   // Activity Update
   socket.on('activity-update', async (activity) => {
     try {
+      const User = require('./models/User');
       const user = await User.findById(socket.userId);
-      if (user) {
-        user.activity = activity;
-        await user.save();
+      if (!user) return;
 
-        // Broadcast to everyone that the user has updated their activity
-        io.emit('user-updated', {
-          _id: user._id,
-          activity: user.activity
-        });
-      }
+      console.log(`[Activity] User ${user.username} (${user._id}) updated activity to:`, activity ? activity.name : 'None');
+      await User.findByIdAndUpdate(user._id, { activity });
+
+      io.emit('user-updated', { _id: user._id, activity });
     } catch (err) {
-      console.error('Error updating activity:', err);
+      console.error('[Activity] Error updating activity:', err);
     }
   });
 
