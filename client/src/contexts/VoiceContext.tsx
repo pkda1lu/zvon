@@ -1015,10 +1015,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const screenAudioTrack = screenStream.getAudioTracks()[0];
 
             screenTrack.onended = () => {
-                if (isScreenSharing) {
+                console.log('[VoiceContext] Screen track ended natively');
+                // Use a functional check or a ref to ensure we stop correctly
+                if (isScreenSharingRef.current) {
                     toggleScreenShare();
                 }
             };
+
+            // Set track degree of importance
+            screenTrack.contentHint = 'motion'; // Optimize for movement (games)
 
             soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.5);
             setIsScreenSharing(true);
@@ -1104,21 +1109,33 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         pc.removeTrack(audioSenders[1]);
                     }
 
-                    // Set bitrate for video
+                    // Set bitrate and priority for video
                     const currentVideoSender = pc.getSenders().find(s => s.track?.kind === 'video');
                     if (currentVideoSender) {
                         setTimeout(async () => {
                             try {
                                 const params = currentVideoSender.getParameters();
                                 if (!params.encodings) params.encodings = [{}];
+
                                 const bitrateMap: any = {
-                                    '480p': 1000, '720p': 2500, '1080p': 5000,
-                                    '1440p': 8000, '4k': 15000, 'original': 6000
+                                    '480p': 1000,
+                                    '720p': 3000,
+                                    '1080p': 6000,
+                                    '1440p': 9000,
+                                    '4k': 12000,
+                                    'original': 6000
                                 };
+
                                 const resolutionKey = selectedSource?.quality?.resolution || '720p';
-                                params.encodings[0].maxBitrate = (bitrateMap[resolutionKey] || 2500) * 1000;
+                                params.encodings[0].maxBitrate = (bitrateMap[resolutionKey] || 3000) * 1000;
+                                params.encodings[0].networkPriority = 'high';
+                                params.encodings[0].priority = 'high';
+
                                 await currentVideoSender.setParameters(params);
-                            } catch (e) { console.warn("Bitrate update failed:", e); }
+                                console.log(`[VoiceContext] Set video params: rate=${bitrateMap[resolutionKey]}k, priority=high`);
+                            } catch (e) {
+                                console.warn("Bitrate update failed:", e);
+                            }
                         }, 500);
                     }
 

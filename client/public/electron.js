@@ -432,9 +432,12 @@ ipcMain.on('clipboard-write', (event, text) => {
 });
 
 // Activity Detection
-const { exec } = require('child_process');
+const { exec, execSync } = require('child_process');
 let lastActivity = null;
 let activityStartTime = null;
+let scanInProgress = false;
+let currentScanTimeout = null;
+let adaptiveInterval = 3000;
 
 const KNOWN_GAMES = {
     'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg' },
@@ -444,86 +447,152 @@ const KNOWN_GAMES = {
     'League of Legends.exe': { name: 'League of Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg' },
     'Minecraft.exe': { name: 'Minecraft', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg' },
     'RobloxPlayerBeta.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg' },
+    'Roblox.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg' },
     'GenshinImpact.exe': { name: 'Genshin Impact', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/513181-285x380.jpg' },
     'aces.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg' },
     'WarThunder.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg' },
     'Telegram.exe': { name: 'Telegram', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Telegram_logo.svg/2048px-Telegram_logo.svg.png' },
     'Code.exe': { name: 'Visual Studio Code', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Visual_Studio_Code_1.35_icon.svg/2048px-Visual_Studio_Code_1.35_icon.svg.png' },
-    'Spotify.exe': { name: 'Spotify', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/2048px-Spotify_logo_without_text.svg.png' }
+    'Spotify.exe': { name: 'Spotify', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/2048px-Spotify_logo_without_text.svg.png' },
+    'Discord.exe': { name: 'Discord', icon: 'https://cdn.logojoy.com/wp-content/uploads/20210422095037/discord-mascot.png' },
+    'steam.exe': { name: 'Steam', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Steam_icon_logo.svg/2048px-Steam_icon_logo.svg.png' }
 };
 
-function scanActivities() {
-    if (process.platform !== 'win32') return;
+// Map to keep track of current exe to handle fast checks
+let currentExe = null;
 
+function scheduleNextScan() {
+    if (currentScanTimeout) clearTimeout(currentScanTimeout);
+    currentScanTimeout = setTimeout(scanActivities, adaptiveInterval);
+}
+
+// PowerShell script to get foreground process name
+const FG_SCRIPT = `
+$processId = (Get-Process | Where-Object { $_.MainWindowHandle -eq (Add-Type -MemberDefinition @'
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+'@ -Name "Win32" -Namespace "Win32" -PassThru)::GetForegroundWindow() }).Id
+if ($processId) { (Get-Process -Id $processId).ProcessName + ".exe" }
+`;
+
+async function scanActivities() {
+    if (process.platform !== 'win32' || scanInProgress) {
+        scheduleNextScan();
+        return;
+    }
+    scanInProgress = true;
+
+    // Fast path: Check foreground window first (Instant sync)
+    exec(`powershell -Command "${FG_SCRIPT.replace(/\n/g, '')}"`, (fgErr, fgStdout) => {
+        const fgExe = fgStdout?.trim().toLowerCase();
+
+        if (!fgErr && fgExe) {
+            let foundMatch = null;
+            let rawKey = null;
+            for (const key in KNOWN_GAMES) {
+                const keyLower = key.toLowerCase();
+                const keyBase = keyLower.endsWith('.exe') ? keyLower.slice(0, -4) : keyLower;
+                if (fgExe === keyLower || fgExe === keyBase || fgExe === keyBase + ".exe") {
+                    foundMatch = KNOWN_GAMES[key];
+                    rawKey = key;
+                    break;
+                }
+            }
+
+            if (foundMatch) {
+                updateActivity(foundMatch, rawKey);
+                scanInProgress = false;
+                adaptiveInterval = 2000;
+                scheduleNextScan();
+                return;
+            }
+        }
+
+        // Background Audit: if we have currentExe, check if IT is still running
+        if (currentExe) {
+            exec(`tasklist /FI "IMAGENAME eq ${currentExe}" /NH`, (err, stdout) => {
+                if (!err && stdout.toLowerCase().includes(currentExe.toLowerCase())) {
+                    scanInProgress = false;
+                    adaptiveInterval = 3000;
+                    scheduleNextScan();
+                    return;
+                }
+                performFullScan();
+            });
+        } else {
+            performFullScan();
+        }
+    });
+}
+
+function updateActivity(foundActivity, foundExe) {
+    const currentName = foundActivity ? foundActivity.name : null;
+    const lastName = lastActivity ? lastActivity.name : null;
+
+    if (currentName !== lastName) {
+        console.log(`[Activity] Sync: ${lastName || 'Nothing'} -> ${currentName || 'Nothing'}`);
+
+        if (foundActivity) {
+            lastActivity = { ...foundActivity };
+            currentExe = foundExe;
+            activityStartTime = Date.now();
+        } else {
+            lastActivity = null;
+            currentExe = null;
+            activityStartTime = null;
+        }
+
+        if (mainWindow && !mainWindow.webContents.isDestroyed()) {
+            mainWindow.webContents.send('activity-changed', lastActivity ? {
+                ...lastActivity,
+                startTime: activityStartTime
+            } : null);
+        }
+    }
+}
+
+function performFullScan() {
     exec('tasklist /NH /FO CSV', (err, stdout) => {
+        scanInProgress = false;
         if (err) {
-            console.error('[Activity] tasklist error:', err);
+            adaptiveInterval = 5000;
+            scheduleNextScan();
             return;
         }
 
         const lines = stdout.split(/\r?\n/);
         let foundActivity = null;
-        const allDetected = [];
+        let foundExe = null;
 
         for (const line of lines) {
             if (!line.trim()) continue;
             const parts = line.split('","');
             if (parts.length > 0) {
                 const rawName = parts[0].replace(/"/g, '').trim();
-                const exeName = rawName.toLowerCase();
+                const exeNameLower = rawName.toLowerCase();
+                const baseName = exeNameLower.endsWith('.exe') ? exeNameLower.slice(0, -4) : exeNameLower;
 
-                // Try exact match or base match (without .exe)
-                const baseName = exeName.endsWith('.exe') ? exeName.slice(0, -4) : exeName;
-
-                let foundMatch = null;
                 for (const key in KNOWN_GAMES) {
                     const keyLower = key.toLowerCase();
                     const keyBase = keyLower.endsWith('.exe') ? keyLower.slice(0, -4) : keyLower;
 
-                    if (exeName === keyLower || baseName === keyBase) {
-                        foundMatch = KNOWN_GAMES[key];
+                    if (exeNameLower === keyLower || baseName === keyBase) {
+                        foundActivity = KNOWN_GAMES[key];
+                        foundExe = rawName;
                         break;
                     }
                 }
-
-                if (foundMatch) {
-                    if (!foundActivity) foundActivity = foundMatch;
-                    allDetected.push(foundMatch.name);
-                }
+                if (foundActivity) break;
             }
         }
 
-        if (allDetected.length > 0) {
-            console.log(`[Activity] Scan found: ${allDetected.join(', ')}`);
-        }
-
-        const currentName = foundActivity ? foundActivity.name : null;
-        const lastName = lastActivity ? lastActivity.name : null;
-
-        if (currentName !== lastName) {
-            console.log(`[Activity] Detected change: ${lastName || 'Nothing'} -> ${currentName || 'Nothing'}`);
-
-            if (foundActivity) {
-                lastActivity = { ...foundActivity };
-                activityStartTime = Date.now();
-            } else {
-                lastActivity = null;
-                activityStartTime = null;
-            }
-
-            if (mainWindow && !mainWindow.webContents.isDestroyed()) {
-                mainWindow.webContents.send('activity-changed', lastActivity ? {
-                    ...lastActivity,
-                    startTime: activityStartTime
-                } : null);
-            }
-        }
+        updateActivity(foundActivity, foundExe);
+        adaptiveInterval = foundActivity ? 3000 : 5000;
+        scheduleNextScan();
     });
 }
 
-// Initial scan
+// Initial scan sequence
 scanActivities();
-setInterval(scanActivities, 3000); // Scan every 3 seconds for "instant" updates
 
 ipcMain.handle('get-current-activity', () => {
     return lastActivity ? { ...lastActivity, startTime: activityStartTime } : null;
