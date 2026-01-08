@@ -12,12 +12,13 @@
 }
 
 .user-server-profile-modal {
-    background: #313338;
+    background: var(--bg-primary);
     width: 660px;
     border-radius: 8px;
     display: flex;
     flex-direction: column;
     max-height: 90vh;
+    border: 1px solid var(--border-divider);
 }
 
 .modal-header {
@@ -29,15 +30,20 @@
 
 .modal-header h3 {
     margin: 0;
-    color: #fff;
+    color: var(--text-primary);
     font-size: 20px;
 }
 
 .close-btn {
     background: none;
     border: none;
-    color: #b5bac1;
+    color: var(--text-muted);
     cursor: pointer;
+    transition: color 0.1s;
+}
+
+.close-btn:hover {
+    color: var(--text-primary);
 }
 
 .user-server-profile-content {
@@ -49,17 +55,19 @@
 }
 
 .section-label {
-    color: #949ba4;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     margin-bottom: 8px;
+    text-transform: uppercase;
 }
 
 .profile-preview-card {
-    background: #111214;
+    background: var(--bg-floating);
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    border: 1px solid var(--border-divider);
 }
 
 .preview-banner {
@@ -70,6 +78,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    background-color: var(--bg-tertiary);
 }
 
 .edit-banner-btn {
@@ -104,9 +113,9 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    border: 6px solid #111214;
+    border: 6px solid var(--bg-floating);
     overflow: hidden;
-    background: #313338;
+    background: var(--bg-tertiary);
     position: relative;
 }
 
@@ -141,31 +150,32 @@
 }
 
 .preview-name {
-    color: #fff;
+    color: var(--text-primary);
     font-size: 20px;
     font-weight: 700;
 }
 
 .preview-username {
-    color: #b5bac1;
+    color: var(--text-secondary);
     font-size: 14px;
 }
 
 .preview-divider {
     height: 1px;
-    background: #1f2023;
+    background: var(--border-divider);
     margin: 12px 0;
 }
 
 .preview-bio-label {
-    color: #fff;
+    color: var(--text-primary);
     font-size: 12px;
     font-weight: 700;
     margin-bottom: 4px;
+    text-transform: uppercase;
 }
 
 .preview-bio {
-    color: #dbdee1;
+    color: var(--text-secondary);
     font-size: 14px;
     word-break: break-word;
 }
@@ -177,21 +187,21 @@
 }
 
 .input-group label {
-    display: block;
-    color: #949ba4;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     margin-bottom: 8px;
+    text-transform: uppercase;
 }
 
 .input-group input,
 .input-group textarea {
     width: 100%;
-    background: #1e1f22;
+    background: var(--bg-tertiary);
     border: none;
     border-radius: 4px;
     padding: 10px;
-    color: #dbdee1;
+    color: var(--text-primary);
     outline: none;
 }
 
@@ -209,7 +219,7 @@
 .reset-link {
     background: none;
     border: none;
-    color: #00a8fc;
+    color: var(--bg-accent);
     font-size: 12px;
     cursor: pointer;
     padding: 0;
@@ -222,7 +232,7 @@
 }
 
 .action-btn {
-    background: #5865f2;
+    background: var(--bg-accent);
     color: #fff;
     border: none;
     padding: 6px 16px;
@@ -236,7 +246,7 @@
 }
 
 .char-count {
-    color: #949ba4;
+    color: var(--text-muted);
     font-size: 12px;
     text-align: right;
     margin-top: 4px;
@@ -244,17 +254,18 @@
 
 .modal-footer {
     padding: 16px;
-    background: #2b2d31;
+    background: var(--bg-secondary);
     border-radius: 0 0 8px 8px;
     display: flex;
     justify-content: flex-end;
     gap: 16px;
+    border-top: 1px solid var(--border-divider);
 }
 
 .cancel-btn {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--text-primary);
     cursor: pointer;
 }
 

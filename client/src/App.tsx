@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import Main from './pages/Main';
 import InvitePage from './pages/InvitePage';
 import PrivateRoute from './components/PrivateRoute';
+import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 
 import { useNavigate } from 'react-router-dom';
@@ -67,40 +68,42 @@ import TitleBar from './components/TitleBar';
 function App() {
   return (
     <AuthProvider>
-      <NotificationProvider>
-        <Router>
-          <div className="App">
-            <TitleBar />
-            <ElectronHandler />
-            <div className="app-content">
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route
-                  path="/invite/:code"
-                  element={
-                    <PrivateRoute>
-                      <InvitePage />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/*"
-                  element={
-                    <PrivateRoute>
-                      <SocketProvider>
-                        <VoiceProvider>
-                          <Main />
-                        </VoiceProvider>
-                      </SocketProvider>
-                    </PrivateRoute>
-                  }
-                />
-              </Routes>
+      <AppearanceProvider>
+        <NotificationProvider>
+          <Router>
+            <div className="App">
+              <TitleBar />
+              <ElectronHandler />
+              <div className="app-content">
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route
+                    path="/invite/:code"
+                    element={
+                      <PrivateRoute>
+                        <InvitePage />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/*"
+                    element={
+                      <PrivateRoute>
+                        <SocketProvider>
+                          <VoiceProvider>
+                            <Main />
+                          </VoiceProvider>
+                        </SocketProvider>
+                      </PrivateRoute>
+                    }
+                  />
+                </Routes>
+              </div>
             </div>
-          </div>
-        </Router>
-      </NotificationProvider>
+          </Router>
+        </NotificationProvider>
+      </AppearanceProvider>
     </AuthProvider>
   );
 }

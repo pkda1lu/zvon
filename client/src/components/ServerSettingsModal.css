@@ -17,7 +17,7 @@
     height: 100%;
     max-width: 100vw;
     max-height: 100vh;
-    background: #36393f;
+    background: var(--bg-primary);
     display: flex;
     overflow: hidden;
     animation: modal-appear 0.2s ease-out;
@@ -37,15 +37,16 @@
 
 .server-settings-sidebar {
     width: 250px;
-    background: #2f3136;
+    background: var(--bg-secondary);
     padding: 60px 6px 60px 20px;
     display: flex;
     flex-direction: column;
     gap: 2px;
+    border-right: 1px solid var(--border-divider);
 }
 
 .sidebar-header {
-    color: #8e9297;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     padding: 6px 10px;
@@ -56,7 +57,7 @@
 .sidebar-item {
     padding: 6px 10px;
     border-radius: 4px;
-    color: #b9bbbe;
+    color: var(--text-secondary);
     font-size: 16px;
     font-weight: 500;
     cursor: pointer;
@@ -64,13 +65,13 @@
 }
 
 .sidebar-item:hover {
-    background: rgba(79, 84, 92, 0.32);
-    color: #dcddde;
+    background: var(--channel-hover);
+    color: var(--text-primary);
 }
 
 .sidebar-item.active {
-    background: rgba(79, 84, 92, 0.6);
-    color: #fff;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
 }
 
 .sidebar-item.danger {
@@ -83,7 +84,7 @@
 
 .server-settings-content {
     flex: 1;
-    background: #36393f;
+    background: var(--bg-primary);
     padding: 60px 40px;
     overflow-y: auto;
     position: relative;
@@ -98,26 +99,26 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    color: #b9bbbe;
+    color: var(--text-muted);
     transition: color 0.2s;
 }
 
 .close-settings-button:hover {
-    color: #dcddde;
+    color: var(--text-primary);
 }
 
 .close-icon-wrapper {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    border: 2px solid #b9bbbe;
+    border: 2px solid var(--text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .close-settings-button:hover .close-icon-wrapper {
-    border-color: #dcddde;
+    border-color: var(--text-primary);
 }
 
 .close-text {
@@ -132,7 +133,7 @@
 }
 
 .settings-section h2 {
-    color: #fff;
+    color: var(--header-primary);
     font-size: 16px;
     font-weight: 600;
     margin-bottom: 20px;
@@ -155,7 +156,7 @@
     width: 100px;
     height: 100px;
     border-radius: 50%;
-    background: #5865f2;
+    background: var(--bg-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -173,7 +174,7 @@
 }
 
 .avatar-hint {
-    color: #b9bbbe;
+    color: var(--text-muted);
     font-size: 12px;
     max-width: 100px;
     text-align: center;
@@ -193,17 +194,17 @@
 }
 
 .settings-input-group label {
-    color: #b9bbbe;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
 }
 
 .settings-input {
-    background: #202225;
+    background: var(--bg-tertiary);
     border: none;
     border-radius: 3px;
-    color: #dcddde;
+    color: var(--text-primary);
     padding: 10px;
     font-size: 16px;
     outline: none;
@@ -212,7 +213,7 @@
 }
 
 .settings-input:focus {
-    border: 1px solid #5865f2;
+    box-shadow: 0 0 0 2px var(--bg-accent);
 }
 
 /* Members Tab */
@@ -222,7 +223,7 @@
 }
 
 .member-row {
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--border-divider);
     padding: 12px 0;
     display: flex;
     align-items: center;
@@ -240,10 +241,11 @@
     height: 32px;
     border-radius: 50%;
     overflow: hidden;
+    background: var(--bg-accent);
 }
 
 .member-username {
-    color: #fff;
+    color: var(--text-primary);
     font-weight: 600;
 }
 
@@ -255,14 +257,14 @@
 .action-button {
     background: none;
     border: none;
-    color: #b9bbbe;
+    color: var(--text-muted);
     cursor: pointer;
     padding: 4px;
     transition: color 0.2s;
 }
 
 .action-button:hover {
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .action-button.danger:hover {
@@ -281,8 +283,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px;
-    background: #2f3136;
+    background: var(--bg-secondary);
     border-radius: 4px;
+    border: 1px solid var(--border-divider);
 }
 
 .role-dot {
@@ -297,22 +300,23 @@
 .log-item {
     padding: 12px;
     border-radius: 4px;
-    background: #2f3136;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-divider);
     margin-bottom: 8px;
     font-size: 14px;
 }
 
 .log-user {
-    color: #fff;
+    color: var(--text-primary);
     font-weight: 600;
 }
 
 .log-action {
-    color: #b9bbbe;
+    color: var(--text-secondary);
 }
 
 .log-time {
-    color: #72767d;
+    color: var(--text-muted);
     font-size: 12px;
     display: block;
     margin-top: 4px;
@@ -323,13 +327,15 @@
     bottom: 20px;
     left: 40px;
     right: 40px;
-    background: #202225;
+    background: var(--bg-floating);
     padding: 10px 16px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     animation: slide-up 0.2s ease-out;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-divider);
 }
 
 @keyframes slide-up {
@@ -343,7 +349,7 @@
 }
 
 .save-changes-text {
-    color: #fff;
+    color: var(--text-primary);
     font-weight: 500;
 }
 
@@ -355,7 +361,7 @@
 .reset-button {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--text-primary);
     cursor: pointer;
     font-size: 14px;
 }
@@ -378,19 +384,18 @@
 
 .server-profile-settings-divider {
     height: 1px;
-    background: #4f545c;
-    opacity: 0.2;
+    background: var(--border-divider);
     margin: 40px 0;
 }
 
 .banner-settings-section h3 {
-    color: #fff;
+    color: var(--text-primary);
     font-size: 16px;
     margin-bottom: 8px;
 }
 
 .banner-settings-section p {
-    color: #b9bbbe;
+    color: var(--text-muted);
     font-size: 14px;
     margin-bottom: 20px;
 }
@@ -409,23 +414,25 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border: 2px dashed #4f545c;
-    color: #dcddde;
+    border: 2px dashed var(--text-muted);
+    color: var(--text-secondary);
     font-size: 14px;
     text-align: center;
     padding: 20px;
     background-position: center;
     background-repeat: no-repeat;
-    transition: border-color 0.2s;
+    transition: all 0.2s;
+    background-color: var(--bg-tertiary);
 }
 
 .banner-preview-small:hover {
-    border-color: #5865f2;
+    border-color: var(--bg-accent);
+    color: var(--text-primary);
 }
 
 .color-selection-box label {
     display: block;
-    color: #b9bbbe;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
@@ -466,7 +473,7 @@
 .back-button {
     background: none;
     border: none;
-    color: #b9bbbe;
+    color: var(--text-muted);
     cursor: pointer;
     font-size: 14px;
     margin-bottom: 8px;
@@ -475,6 +482,7 @@
 
 .back-button:hover {
     text-decoration: underline;
+    color: var(--text-primary);
 }
 
 .role-color-editor {
@@ -491,7 +499,7 @@
 }
 
 .permissions-list h3 {
-    color: #b9bbbe;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
@@ -503,7 +511,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--border-divider);
 }
 
 .permission-info {
@@ -512,14 +520,14 @@
 }
 
 .permission-name {
-    color: #fff;
+    color: var(--text-primary);
     font-size: 16px;
     font-weight: 500;
     margin-bottom: 4px;
 }
 
 .permission-description {
-    color: #b9bbbe;
+    color: var(--text-muted);
     font-size: 14px;
     line-height: 1.4;
 }
@@ -546,7 +554,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #72767d;
+    background-color: var(--text-muted);
     transition: .2s;
 }
 
@@ -586,14 +594,17 @@ input:checked+.slider:before {
     margin-top: 20px;
     width: 100%;
     border-radius: 4px;
+    left: 0;
+    right: 0;
 }
 
 /* Member Role Management */
 .member-row-wrapper {
     margin-bottom: 8px;
-    background: rgba(47, 49, 54, 0.3);
+    background: var(--bg-secondary);
     border-radius: 8px;
     overflow: hidden;
+    border: 1px solid var(--border-divider);
 }
 
 .member-row {
@@ -621,9 +632,9 @@ input:checked+.slider:before {
     gap: 4px;
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(47, 49, 54, 0.6);
-    color: #fff;
+    border: 1px solid var(--border-divider);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     font-size: 11px;
     font-weight: 500;
 }
@@ -636,12 +647,12 @@ input:checked+.slider:before {
 
 .member-role-editor {
     padding: 16px;
-    background: rgba(32, 34, 37, 0.6);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border-divider);
 }
 
 .member-role-editor h4 {
-    color: #b9bbbe;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
@@ -660,33 +671,33 @@ input:checked+.slider:before {
     align-items: center;
     justify-content: space-between;
     padding: 10px 16px;
-    background: #2f3136;
+    background: var(--bg-secondary);
     border-radius: 4px;
     margin-bottom: 8px;
     position: relative;
-    border: 1px solid transparent;
+    border: 1px solid var(--border-divider);
     transition: all 0.2s ease;
 }
 
 .role-item:hover {
-    background: #36393f;
-    border-color: #40444b;
+    background: var(--bg-primary);
+    border-color: var(--bg-accent);
 }
 
 .role-item.dragging {
     opacity: 0.5;
-    background: #40444b;
-    border: 1px dashed #5865f2;
+    background: var(--bg-tertiary);
+    border: 1px dashed var(--bg-accent);
 }
 
 .role-item.drag-over {
-    border-top: 2px solid #5865f2;
+    border-top: 2px solid var(--bg-accent);
     transform: translateY(2px);
 }
 
 .drag-handle {
     margin-right: 12px;
-    color: #4f545c;
+    color: var(--text-muted);
     cursor: grab;
     user-select: none;
     font-size: 18px;
@@ -704,23 +715,20 @@ input:checked+.slider:before {
     cursor: grabbing;
 }
 
-.role-select-item:hover {
-    background: #40444b;
-}
-
 .role-select-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: #2f3136;
+    background: var(--bg-secondary);
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.2s;
+    border: 1px solid var(--border-divider);
 }
 
 .role-select-item:hover {
-    background: #40444b;
+    background: var(--bg-tertiary);
 }
 
 .role-select-item.selected {
@@ -732,7 +740,7 @@ input:checked+.slider:before {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #dcddde;
+    color: var(--text-primary);
     font-size: 14px;
 }
 

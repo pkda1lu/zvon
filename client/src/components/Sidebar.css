@@ -1,12 +1,13 @@
 .sidebar {
   width: 72px;
-  background: #202225;
+  background: var(--bg-tertiary);
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 0;
   height: 100vh;
   position: relative;
+  border-right: 1px solid var(--border-divider);
 }
 
 .sidebar-servers {
@@ -36,13 +37,13 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #36393f;
+  background: var(--bg-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  color: #dcddde;
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: 18px;
 }
@@ -55,18 +56,18 @@
   height: 12px;
   background-color: #f23f43;
   border-radius: 50%;
-  border: 3px solid #202225;
+  border: 3px solid var(--bg-tertiary);
 }
 
 .server-icon:hover {
   border-radius: 12px;
-  background: #5865f2;
+  background: var(--bg-accent);
   transform: scale(1.05);
 }
 
 .server-icon.active {
   border-radius: 12px;
-  background: #5865f2;
+  background: var(--bg-accent);
 }
 
 .server-icon:hover img,
@@ -83,20 +84,20 @@
 }
 
 .home-icon {
-  background: #36393f;
-  border: 2px dashed #4f545c;
+  background: var(--bg-primary);
+  border: 2px dashed var(--text-muted);
 }
 
 .home-icon:hover {
-  background: #36393f;
-  border-color: #5865f2;
+  background: var(--bg-primary);
+  border-color: var(--bg-accent);
   transform: scale(1.05);
 }
 
 .sidebar-user {
   width: 100%;
   padding: 8px;
-  background: #292b2f;
+  background: var(--bg-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -110,13 +111,12 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  /* Made circular as requested */
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #4f545c;
+  background: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
   color: #fff;
@@ -126,7 +126,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #5865f2;
+  background: var(--bg-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -153,7 +153,7 @@
 .logout-button {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   font-size: 16px;
@@ -179,23 +179,25 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(4px);
 }
 
 .modal-content {
-  background: #36393f;
+  background: var(--bg-primary);
   padding: 24px;
   border-radius: 8px;
   width: 90%;
   max-width: 400px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 
 .modal-content h2 {
-  color: #fff;
+  color: var(--text-primary);
   margin-bottom: 16px;
   font-size: 24px;
 }
@@ -203,17 +205,17 @@
 .modal-content input {
   width: 100%;
   padding: 10px;
-  background: #202225;
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 4px;
-  color: #dcddde;
+  color: var(--text-primary);
   font-size: 16px;
   margin-bottom: 16px;
   outline: none;
 }
 
 .modal-content input:focus {
-  background: #1e1f22;
+  background: var(--bg-secondary);
 }
 
 .modal-buttons {
@@ -233,17 +235,17 @@
 }
 
 .modal-buttons button[type="button"] {
-  background: #4f545c;
+  background: var(--text-muted);
   color: #fff;
 }
 
 .modal-buttons button[type="button"]:hover {
-  background: #5d6269;
+  background: var(--text-secondary);
   transform: translateY(-1px);
 }
 
 .modal-buttons button[type="submit"] {
-  background: #5865f2;
+  background: var(--bg-accent);
   color: #fff;
 }
 

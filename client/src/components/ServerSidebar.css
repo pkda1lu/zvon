@@ -2,16 +2,17 @@
 
 .server-sidebar {
   width: 240px;
-  background: #2f3136;
+  background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
-  color: #96989d;
+  color: var(--text-muted);
+  border-right: 1px solid var(--border-divider);
 }
 
 .server-header {
   height: 48px;
   padding: 0 16px;
-  border-bottom: 1px solid #202225;
+  border-bottom: 1px solid var(--bg-tertiary);
   box-shadow: 0 1px 0 rgba(4, 4, 5, 0.2), 0 1.5px 0 rgba(6, 6, 7, 0.05), 0 2px 0 rgba(4, 4, 5, 0.05);
   display: flex;
   align-items: center;
@@ -36,7 +37,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #36393f;
+  background: var(--bg-primary);
   font-size: 11px;
   font-weight: 700;
   color: #fff;
@@ -52,7 +53,7 @@
 .settings-button {
   background: transparent;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -65,8 +66,8 @@
 
 .invite-button:hover,
 .settings-button:hover {
-  color: #dcddde;
-  background-color: rgba(79, 84, 92, 0.32);
+  color: var(--text-primary);
+  background-color: var(--channel-hover);
   transform: scale(1.1);
 }
 
@@ -76,7 +77,7 @@
 }
 
 .server-header h2 {
-  color: #fff;
+  color: var(--header-primary);
   font-size: 16px;
   font-weight: 600;
 }
@@ -101,12 +102,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: var(--text-muted);
 }
 
 .add-channel-button {
   background: none;
   border: none;
-  color: #8e9297;
+  color: var(--text-muted);
   font-size: 16px;
   cursor: pointer;
   padding: 2px 4px;
@@ -116,8 +118,8 @@
 }
 
 .add-channel-button:hover {
-  color: #dcddde;
-  background: #393c43;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
   transform: scale(1.1);
 }
 
@@ -127,7 +129,7 @@
 }
 
 .create-first-channel-button {
-  background: #5865f2;
+  background: var(--bg-accent);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -152,16 +154,17 @@
   cursor: pointer;
   transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   margin: 1px 0;
+  color: var(--text-secondary);
 }
 
 .channel-item:hover {
-  background: rgba(79, 84, 92, 0.32);
-  color: #dcddde;
+  background: var(--channel-hover);
+  color: var(--text-primary);
   transform: translateX(2px);
 }
 
 .channel-item.unread {
-  color: #fff;
+  color: var(--text-primary);
   position: relative;
 }
 
@@ -172,7 +175,7 @@
   width: 4px;
   height: 8px;
   border-radius: 0 4px 4px 0;
-  background-color: #fff;
+  background-color: var(--text-primary);
 }
 
 .channel-unread-badge {
@@ -191,8 +194,8 @@
 }
 
 .channel-item.active {
-  background: #393c43;
-  color: #fff;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .channel-icon {
@@ -200,11 +203,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8e9297;
+  color: var(--text-muted);
 }
 
 .channel-item.active .channel-icon {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .channel-name {
@@ -212,13 +215,12 @@
   font-weight: 500;
   line-height: 1.2;
   margin-top: -1px;
-  /* Slight adjustment to bring text up */
 }
 
 .server-members {
   height: 200px;
-  background: #2f3136;
-  border-top: 1px solid #202225;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--bg-tertiary);
   display: flex;
   flex-direction: column;
 }
@@ -229,6 +231,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  color: var(--text-muted);
 }
 
 .members-list {
@@ -245,18 +248,20 @@
   cursor: pointer;
   transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   gap: 8px;
+  color: var(--text-secondary);
 }
 
 .member-item:hover {
-  background: rgba(79, 84, 92, 0.32);
+  background: var(--channel-hover);
   transform: translateX(4px);
+  color: var(--text-primary);
 }
 
 .member-avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #5865f2;
+  background: var(--bg-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -281,7 +286,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid #2f3136;
+  border: 2px solid var(--bg-secondary);
   background: #747f8d;
 }
 
@@ -299,15 +304,13 @@
 
 .member-name {
   font-size: 14px;
-  color: #8e9297;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .member-item:hover .member-name {
-  color: #fff;
+  color: var(--text-primary);
 }
-
-/* This might be overridden by inline styles for colors, but ok for now */
 
 .member-group {
   margin-bottom: 24px;
@@ -319,7 +322,7 @@
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #96989d;
+  color: var(--text-muted);
   letter-spacing: 0.5px;
 }
 

@@ -97,6 +97,12 @@ const RemoteAudio: React.FC<{
         }
     }, [streamVolume]);
 
+    useEffect(() => {
+        if (streamAudioRef.current) {
+            streamAudioRef.current.muted = isDeafened || !isWatched;
+        }
+    }, [isDeafened, isWatched]);
+
     return (
         <>
             <audio ref={voiceAudioRef} autoPlay playsInline muted style={{ display: 'none' }} />
@@ -104,7 +110,6 @@ const RemoteAudio: React.FC<{
                 ref={streamAudioRef}
                 autoPlay
                 playsInline
-                muted={isDeafened || !isWatched}
                 style={{ display: 'none' }}
             />
         </>

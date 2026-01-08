@@ -2,7 +2,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #36393f;
+  background: var(--bg-primary);
 }
 
 .dm-header {
@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid #202225;
+  border-bottom: 1px solid var(--border-divider);
   box-shadow: 0 1px 0 rgba(4, 4, 5, 0.2), 0 1.5px 0 rgba(6, 6, 7, 0.05), 0 2px 0 rgba(4, 4, 5, 0.05);
 }
 
@@ -38,7 +38,7 @@
 .back-button {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 20px;
   cursor: pointer;
   padding: 4px;
@@ -47,8 +47,8 @@
 }
 
 .back-button:hover {
-  background: #393c43;
-  color: #fff;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .dm-header-info {
@@ -61,7 +61,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #5865f2;
+  background: var(--bg-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,7 +86,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid #36393f;
+  border: 2px solid var(--bg-primary);
   background: #747f8d;
 }
 
@@ -103,12 +103,11 @@
 }
 
 .dm-header h3 {
-  color: #fff;
+  color: var(--header-primary);
   font-size: 16px;
   font-weight: 600;
   margin: 0;
   margin-top: -1px;
-  /* Bring text up */
 }
 
 .messages-container {
@@ -135,13 +134,13 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: #40444b;
+  background: var(--border-divider);
 }
 
 .message-date-divider span {
-  background: #36393f;
+  background: var(--bg-primary);
   padding: 0 8px;
-  color: #8e9297;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   position: relative;
@@ -150,16 +149,17 @@
 
 .message {
   display: flex;
-  padding: 4px 16px;
+  padding: var(--message-padding-v) 16px;
+  margin-top: var(--message-spacing);
   transition: background-color 0.2s;
 }
 
 .message:hover {
-  background: #32353b;
+  background: var(--message-hover);
 }
 
 .message.with-author {
-  margin-top: 16px;
+  margin-top: var(--group-spacing);
 }
 
 .message.system-message {
@@ -190,7 +190,7 @@
 }
 
 .system-message-text {
-  color: #dcddde;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
 }
@@ -203,7 +203,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #5865f2;
+  background: var(--bg-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -234,19 +234,19 @@
 }
 
 .message-author {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
-  font-size: 16px;
+  font-size: 1.05rem;
 }
 
 .message-time {
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .message-text {
-  color: #dcddde;
-  font-size: 16px;
+  color: var(--text-secondary);
+  font-size: 1rem;
   line-height: 1.375;
   word-wrap: break-word;
 }
@@ -259,7 +259,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  background: #40444b;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 8px 16px;
 }
@@ -268,19 +268,19 @@
   flex: 1;
   background: transparent;
   border: none;
-  color: #dcddde;
-  font-size: 16px;
+  color: var(--text-primary);
+  font-size: 1rem;
   outline: none;
   padding: 8px;
 }
 
 .message-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .send-button {
   padding: 8px 16px;
-  background: #5865f2;
+  background: var(--bg-accent);
   color: #fff;
   border: none;
   border-radius: 4px;

@@ -377,13 +377,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
 
                       <button
                         className="stop-watching-button"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           if (isFullscreen) {
-                            await setFullscreenStatus(false);
+                            setFullscreenStatus(false);
                           }
                           const focusedItem = displayItems.find(i => i.id === focusedStreamId);
-                          if (focusedItem) {
+                          if (focusedItem && watchedUserIds.has(focusedItem.data._id)) {
                             toggleWatchUser(focusedItem.data._id);
                           }
                           setFocusedStreamId(null);

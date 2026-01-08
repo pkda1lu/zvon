@@ -4,6 +4,7 @@ import { Server, User, Role } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { CloseIcon, TrashIcon, ShieldIcon, PlusIcon, SettingsIcon } from './Icons';
 import { PERMISSIONS, PERMISSION_GROUPS } from '../constants/permissions';
+import ImageCropper from './ImageCropper';
 import './ServerSettingsModal.css';
 
 interface ServerSettingsModalProps {
@@ -31,6 +32,17 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const [bannerColor, setBannerColor] = useState(server.bannerColor || '#5865f2');
     const [hasChanges, setHasChanges] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    // Cropper State
+    const [cropModal, setCropModal] = useState<{
+        isOpen: boolean;
+        image: string;
+        type: 'icon' | 'banner';
+    }>({
+        isOpen: false,
+        image: '',
+        type: 'icon'
+    });
 
     // Data for other tabs
     const [roles, setRoles] = useState<Role[]>([]);
@@ -116,37 +128,65 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         }
     };
 
-    const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const formData = new FormData();
-        formData.append('icon', file);
-
-        try {
-            const res = await axios.post(`/api/servers/${server._id}/icon`, formData);
-            setServerIcon(res.data.icon);
-            onServerUpdate({ ...server, icon: res.data.icon });
-        } catch (err) {
-            console.error(err);
-            alert('Ошибка при загрузке иконки');
-        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropModal({
+                isOpen: true,
+                image: reader.result as string,
+                type: 'icon'
+            });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
     };
 
-    const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropModal({
+                isOpen: true,
+                image: reader.result as string,
+                type: 'banner'
+            });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        const type = cropModal.type;
+        setCropModal(prev => ({ ...prev, isOpen: false }));
+
         const formData = new FormData();
-        formData.append('banner', file);
+        formData.append(type === 'icon' ? 'icon' : 'banner', croppedBlob, `${type}.jpg`);
 
         try {
-            const res = await axios.post(`/api/servers/${server._id}/banner`, formData);
-            setServerBanner(res.data.banner);
-            onServerUpdate({ ...server, banner: res.data.banner });
+            setLoading(true);
+            const endpoint = type === 'icon'
+                ? `/api/servers/${server._id}/icon`
+                : `/api/servers/${server._id}/banner`;
+
+            const res = await axios.post(endpoint, formData);
+
+            if (type === 'icon') {
+                setServerIcon(res.data.icon);
+                onServerUpdate({ ...server, icon: res.data.icon });
+            } else {
+                setServerBanner(res.data.banner);
+                onServerUpdate({ ...server, banner: res.data.banner });
+            }
         } catch (err: any) {
             console.error(err);
-            alert('Ошибка при загрузке баннера');
+            alert(`Ошибка при загрузке ${type === 'icon' ? 'иконки' : 'баннера'}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -788,6 +828,17 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                         </div>
                     </div>
                 </div>
+
+                {cropModal.isOpen && (
+                    <ImageCropper
+                        image={cropModal.image}
+                        cropShape={cropModal.type === 'icon' ? 'round' : 'rect'}
+                        aspect={cropModal.type === 'icon' ? 1 : 2.5}
+                        title={cropModal.type === 'icon' ? 'Обрезка иконки сервера' : 'Обрезка баннера сервера'}
+                        onCropComplete={handleCropComplete}
+                        onCancel={() => setCropModal(prev => ({ ...prev, isOpen: false }))}
+                    />
+                )}
             </div>
         </div>
     );

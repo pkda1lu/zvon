@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { useVoice } from '../contexts/VoiceContext';
+import { useAppearance, ThemeType, DensityType } from '../contexts/AppearanceContext';
 import {
   CloseIcon,
   UsersIcon,
@@ -43,6 +44,13 @@ type SettingsTab =
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user, refreshUser, logout } = useAuth();
   const { isNoiseSuppressionEnabled, toggleNoiseSuppression } = useVoice();
+  const {
+    theme, setTheme,
+    density, setDensity,
+    messageSpacing, setMessageSpacing,
+    groupSpacing, setGroupSpacing,
+    fontScale, setFontScale
+  } = useAppearance();
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
   // Account Form State
@@ -244,6 +252,100 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   );
 
 
+  const renderAppearanceSettings = () => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Внешний вид</h2>
+
+      <div className="settings-section-block">
+        <h3>Тема</h3>
+        <div className="theme-selection-grid">
+          <div
+            className={`theme-card dark ${theme === 'dark' ? 'active' : ''}`}
+            onClick={() => setTheme('dark')}
+          >
+            <div className="theme-preview" />
+            <span>Тёмная</span>
+          </div>
+          <div
+            className={`theme-card amoled ${theme === 'amoled' ? 'active' : ''}`}
+            onClick={() => setTheme('amoled')}
+          >
+            <div className="theme-preview" />
+            <span>AMOLED</span>
+          </div>
+          <div
+            className={`theme-card light ${theme === 'light' ? 'active' : ''}`}
+            onClick={() => setTheme('light')}
+          >
+            <div className="theme-preview" />
+            <span>Светлая</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Плотность интерфейса</h3>
+        <div className="density-selection">
+          <button
+            className={`density-btn ${density === 'cozy' ? 'active' : ''}`}
+            onClick={() => setDensity('cozy')}
+          >
+            Уютная
+          </button>
+          <button
+            className={`density-btn ${density === 'compact' ? 'active' : ''}`}
+            onClick={() => setDensity('compact')}
+          >
+            Компактная
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Размер шрифта ({Math.round(fontScale * 100)}%)</h3>
+        <input
+          type="range"
+          min="0.8"
+          max="1.5"
+          step="0.05"
+          value={fontScale}
+          onChange={(e) => setFontScale(parseFloat(e.target.value))}
+          className="settings-slider"
+        />
+        <div className="slider-labels">
+          <span>80%</span>
+          <span>100%</span>
+          <span>150%</span>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Расстояние между сообщениями ({messageSpacing}px)</h3>
+        <input
+          type="range"
+          min="0"
+          max="24"
+          step="1"
+          value={messageSpacing}
+          onChange={(e) => setMessageSpacing(parseInt(e.target.value))}
+          className="settings-slider"
+        />
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Расстояние между группами ({groupSpacing}px)</h3>
+        <input
+          type="range"
+          min="0"
+          max="48"
+          step="2"
+          value={groupSpacing}
+          onChange={(e) => setGroupSpacing(parseInt(e.target.value))}
+          className="settings-slider"
+        />
+      </div>
+    </div>
+  );
 
   const renderVoiceSettings = () => (
     <div className="settings-section-content">
@@ -385,7 +487,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               {activeTab === 'account' && renderAccountSettings()}
               {activeTab === 'privacy' && renderPlaceholder('Данные и конфиденциальность', <ShieldIcon size={80} />)}
               {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
-              {activeTab === 'appearance' && renderPlaceholder('Внешний вид', <PaletteIcon size={80} />)}
+              {activeTab === 'appearance' && renderAppearanceSettings()}
               {activeTab === 'voice' && renderVoiceSettings()}
               {activeTab === 'chat' && renderPlaceholder('Чат', <ChatIcon size={80} />)}
 
