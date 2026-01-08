@@ -17,16 +17,68 @@ const RemoteAudio: React.FC<{
     isDeafened: boolean;
     isLocalMuted: boolean;
     isWatched: boolean;
-}> = ({ userId, stream, voiceVolume, streamVolume, isDeafened, isLocalMuted, isWatched }) => {
+    sharedContext: AudioContext | null;
+}> = ({ userId, stream, voiceVolume, streamVolume, isDeafened, isLocalMuted, isWatched, sharedContext }) => {
     const voiceAudioRef = useRef<HTMLAudioElement>(null);
     const streamAudioRef = useRef<HTMLAudioElement>(null);
+    const gainNodeRef = useRef<GainNode | null>(null);
+    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
     useEffect(() => {
-        if (voiceAudioRef.current && stream) {
-            const voiceStream = new MediaStream([stream.getAudioTracks()[0]]);
-            voiceAudioRef.current.srcObject = voiceStream;
+        if (!stream || !sharedContext) return;
+
+        const voiceTracks = stream.getAudioTracks();
+        if (voiceTracks.length === 0) return;
+
+        // Ensure the stream is "played" via a hidden audio element
+        // This is often required for the stream packets to actually be processed/flow in some environments
+        if (voiceAudioRef.current) {
+            voiceAudioRef.current.srcObject = stream;
+            voiceAudioRef.current.muted = true; // Mute the direct output as we'll use GainNode
             voiceAudioRef.current.play().catch(() => { });
         }
+
+        const ctx = sharedContext;
+
+        // Disconnect old source if it exists
+        if (sourceNodeRef.current) {
+            sourceNodeRef.current.disconnect();
+        }
+
+        try {
+            const source = ctx.createMediaStreamSource(stream);
+            sourceNodeRef.current = source;
+
+            const gainNode = ctx.createGain();
+            gainNodeRef.current = gainNode;
+
+            // Base boost of 1.5x + apply user volume
+            gainNode.gain.value = (isDeafened || isLocalMuted) ? 0 : voiceVolume * 1.5;
+
+            source.connect(gainNode);
+            gainNode.connect(ctx.destination);
+        } catch (err) {
+            console.error(`[RemoteAudio] Error setting up Web Audio for ${userId}:`, err);
+        }
+
+        return () => {
+            if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
+            if (gainNodeRef.current) gainNodeRef.current.disconnect();
+        };
+    }, [stream, userId, sharedContext]);
+
+    useEffect(() => {
+        if (gainNodeRef.current && sharedContext) {
+            const targetGain = (isDeafened || isLocalMuted) ? 0 : voiceVolume * 1.5;
+            gainNodeRef.current.gain.setTargetAtTime(
+                targetGain,
+                sharedContext.currentTime,
+                0.1
+            );
+        }
+    }, [voiceVolume, isDeafened, isLocalMuted, sharedContext]);
+
+    useEffect(() => {
         if (streamAudioRef.current && stream) {
             const audioTracks = stream.getAudioTracks();
             if (audioTracks.length > 1) {
@@ -40,12 +92,6 @@ const RemoteAudio: React.FC<{
     }, [stream, userId]);
 
     useEffect(() => {
-        if (voiceAudioRef.current) {
-            voiceAudioRef.current.volume = Math.min(1, Math.max(0, voiceVolume));
-        }
-    }, [voiceVolume]);
-
-    useEffect(() => {
         if (streamAudioRef.current) {
             streamAudioRef.current.volume = Math.min(1, Math.max(0, streamVolume));
         }
@@ -53,13 +99,7 @@ const RemoteAudio: React.FC<{
 
     return (
         <>
-            <audio
-                ref={voiceAudioRef}
-                autoPlay
-                playsInline
-                muted={isDeafened || isLocalMuted}
-                style={{ display: 'none' }}
-            />
+            <audio ref={voiceAudioRef} autoPlay playsInline muted style={{ display: 'none' }} />
             <audio
                 ref={streamAudioRef}
                 autoPlay
@@ -101,6 +141,7 @@ interface VoiceContextType {
     toggleScreenAudio: () => void;
     updateScreenQuality: (quality: { resolution: string, frameRate: number }) => void;
     changeScreenSource: () => void;
+    audioContext: AudioContext | null;
 }
 
 
@@ -153,6 +194,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [watchedUserIds, setWatchedUserIds] = useState<Set<string>>(new Set());
     const [streamVolumes, setStreamVolumes] = useState<Map<string, number>>(new Map());
     const [isSharingScreenAudio, setIsSharingScreenAudio] = useState(true);
+    const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
 
     const toggleWatchUser = useCallback((userId: string) => {
         setWatchedUserIds(prev => {
@@ -194,6 +236,28 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const micGainNodeRef = useRef<GainNode | null>(null);
     const mixedStreamRef = useRef<MediaStreamAudioDestinationNode | null>(null);
     const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+
+    const getAudioContext = useCallback(() => {
+        if (audioContextRef.current) {
+            if (audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume().catch(() => { });
+            }
+            return audioContextRef.current;
+        }
+
+        const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+        const ctx = new AudioContextClass();
+        audioContextRef.current = ctx;
+        setAudioContext(ctx);
+
+        if (ctx.state === 'suspended') {
+            const resume = () => ctx.resume().catch(() => { });
+            document.addEventListener('click', resume, { once: true });
+            document.addEventListener('mousedown', resume, { once: true });
+        }
+
+        return ctx;
+    }, []);
 
     // Keep ref synced
     useEffect(() => {
@@ -330,10 +394,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             let streamToUse = stream;
             if (isNoiseSuppressionEnabled) {
                 try {
-                    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-                    audioContextRef.current = ctx;
-                    if (ctx.state === 'suspended') await ctx.resume();
-
+                    const ctx = getAudioContext();
                     streamToUse = await setupNoiseSuppression(ctx, stream);
                     console.log('[VoiceContext] Noise suppression applied to local stream');
                 } catch (err) {
@@ -593,9 +654,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             if (newState) {
                 try {
-                    const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
-                    audioContextRef.current = ctx;
-                    if (ctx.state === 'suspended') await ctx.resume();
+                    const ctx = getAudioContext();
                     newStream = await setupNoiseSuppression(ctx, rawMicStreamRef.current);
                 } catch (e) {
                     console.error('Failed to enable NS:', e);
@@ -646,8 +705,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             // Switch back to audio only (restore mic)
             // Cleanup mixing if exists
             if (audioContextRef.current) {
-                audioContextRef.current.close();
-                audioContextRef.current = null;
+                // DON'T close shared context, just clear state if needed
                 micGainNodeRef.current = null;
                 mixedStreamRef.current = null;
             }
@@ -990,13 +1048,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return;
         }
 
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-        // Ensure context is resumed on interaction if needed
-        if (audioCtx.state === 'suspended') {
-            const resume = () => audioCtx.resume().catch(console.error);
-            document.addEventListener('click', resume, { once: true });
-        }
+        const audioCtx = getAudioContext();
 
         const checkSpeaking = () => {
             const nowSpeaking = new Set<string>();
@@ -1099,7 +1151,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         return () => {
             clearInterval(interval);
-            audioCtx.close();
+            // DON'T close shared context on every re-run of effect
             speakingTimeoutsRef.current.forEach(t => clearTimeout(t));
             speakingTimeoutsRef.current.clear();
         };
@@ -1147,7 +1199,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             isSharingScreenAudio,
             toggleScreenAudio,
             updateScreenQuality,
-            changeScreenSource
+            changeScreenSource,
+            audioContext
         }}>
 
             {children}
@@ -1170,6 +1223,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         isDeafened={isDeafened}
                         isLocalMuted={localMutes.has(userId)}
                         isWatched={watchedUserIds.has(userId)}
+                        sharedContext={audioContext}
                     />
                 ))}
             </div>

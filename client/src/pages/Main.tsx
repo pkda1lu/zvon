@@ -153,10 +153,15 @@ const Main: React.FC = () => {
     try {
       const response = await axios.get('/api/servers/me');
       setServers(response.data);
-      if (response.data.length > 0) {
-        setSelectedServer(response.data[0]);
-        if (response.data[0].channels.length > 0) {
-          setSelectedChannel(response.data[0].channels[0]);
+      if (response.data.length > 0 && !selectedServer) {
+        const firstServer = response.data[0];
+        setSelectedServer(firstServer);
+        // Find first text channel
+        const firstTextChannel = firstServer.channels.find((c: any) => c.type === 'text');
+        if (firstTextChannel) {
+          setSelectedChannel(firstTextChannel);
+        } else if (firstServer.channels.length > 0) {
+          setSelectedChannel(firstServer.channels[0]);
         }
       }
     } catch (error) {
@@ -164,7 +169,7 @@ const Main: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedServer]);
 
   const fetchMessages = useCallback(async (channelId: string) => {
     try {
@@ -595,6 +600,14 @@ const Main: React.FC = () => {
           setSelectedServer(server);
           setShowFriends(false);
           setSelectedDM(null);
+          // Find first text channel
+          const firstTextChannel = server.channels.find(c => c.type === 'text');
+          if (firstTextChannel) {
+            setSelectedChannel(firstTextChannel);
+            fetchMessages(firstTextChannel._id);
+          } else if (server.channels.length > 0) {
+            setSelectedChannel(server.channels[0]);
+          }
         }}
         onCreateServer={handleCreateServer}
         onServerJoined={(server) => {

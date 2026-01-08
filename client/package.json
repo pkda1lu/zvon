@@ -1,6 +1,6 @@
 {
   "name": "zvon-client",
-  "version": "0.73.4",
+  "version": "0.75.0",
   "private": true,
   "author": "pkda1lu",
   "description": "Zvon - Real-time communication platform",
@@ -15,6 +15,7 @@
     "electron-updater": "^6.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-easy-crop": "^5.5.6",
     "react-router-dom": "^6.20.1",
     "socket.io-client": "^4.6.1",
     "web-vitals": "^2.1.4"

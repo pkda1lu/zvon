@@ -36,8 +36,15 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   const otherUser = dm.participants.find(p => p._id !== user?._id);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: messages.length <= 50 ? 'auto' : 'smooth',
+      block: 'end'
+    });
   }, [messages, attachments]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [dm._id]);
 
   useEffect(() => {
     if (!socket) return;

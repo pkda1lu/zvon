@@ -114,8 +114,10 @@ const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, filename, st
                 onEnded={() => setIsPlaying(false)}
             />
 
-            <div className="audio-icon-container">
-                <MusicIcon size={24} color="#b9bbbe" />
+            <div className="audio-controls-main">
+                <button className="control-btn play-btn" onClick={handlePlayPause}>
+                    {isPlaying ? <PauseIcon size={28} color="#fff" /> : <PlayIcon size={28} color="#fff" />}
+                </button>
             </div>
 
             <div className="audio-info">
@@ -142,10 +144,6 @@ const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, filename, st
             </div>
 
             <div className="audio-actions">
-                <button className="control-btn play-btn" onClick={handlePlayPause}>
-                    {isPlaying ? <PauseIcon size={24} /> : <PlayIcon size={24} />}
-                </button>
-
                 <div className="volume-control audio-vol">
                     <button className="control-btn" onClick={toggleMute}>
                         {isMuted ? <SpeakerMutedIcon size={20} /> : (volume > 0.5 ? <VolumeHighIcon size={20} /> : <VolumeLowIcon size={20} />)}

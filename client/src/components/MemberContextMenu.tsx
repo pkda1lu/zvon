@@ -340,7 +340,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                             <input
                                 type="range"
                                 min="0"
-                                max="1"
+                                max="2"
                                 step="0.01"
                                 value={currentVolume}
                                 onChange={(e) => setUserVolume(targetUser._id, parseFloat(e.target.value))}

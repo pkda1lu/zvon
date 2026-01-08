@@ -19,6 +19,7 @@ import {
   EllipsisIcon,
   CameraIcon
 } from './Icons';
+import ImageCropper from './ImageCropper';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -53,6 +54,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Cropper State
+  const [cropModal, setCropModal] = useState<{
+    isOpen: boolean;
+    image: string;
+    type: 'avatar' | 'banner';
+  }>({
+    isOpen: false,
+    image: '',
+    type: 'avatar'
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,39 +88,60 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('avatar', file);
-
-    try {
-      setLoading(true);
-      const response = await axios.post('/api/users/avatar', formData);
-      await refreshUser();
-      setAvatarPreview(getAvatarUrl(response.data.avatar));
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка загрузки аватара');
-    } finally {
-      setLoading(false);
-    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropModal({
+        isOpen: true,
+        image: reader.result as string,
+        type: 'avatar'
+      });
+    };
+    reader.readAsDataURL(file);
+    // Reset input
+    e.target.value = '';
   };
 
-  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropModal({
+        isOpen: true,
+        image: reader.result as string,
+        type: 'banner'
+      });
+    };
+    reader.readAsDataURL(file);
+    // Reset input
+    e.target.value = '';
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    const type = cropModal.type;
+    setCropModal(prev => ({ ...prev, isOpen: false }));
+
     const formData = new FormData();
-    formData.append('banner', file);
+    formData.append(type, croppedBlob, `${type}.jpg`);
 
     try {
       setLoading(true);
-      await axios.post('/api/users/banner', formData);
-      await refreshUser();
-      setBannerPreview(getAvatarUrl(user?.banner)); // This might need a refresh logic
+      if (type === 'avatar') {
+        const response = await axios.post('/api/users/avatar', formData);
+        await refreshUser();
+        setAvatarPreview(getAvatarUrl(response.data.avatar));
+      } else {
+        await axios.post('/api/users/banner', formData);
+        await refreshUser();
+        setBannerPreview(getAvatarUrl(user?.banner));
+      }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка загрузки баннера');
+      setError(err.response?.data?.message || `Ошибка загрузки ${type === 'avatar' ? 'аватара' : 'баннера'}`);
     } finally {
       setLoading(false);
     }
@@ -196,6 +229,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
       <input type="file" ref={fileInputRef} hidden onChange={handleAvatarChange} accept="image/*" />
       <input type="file" ref={bannerInputRef} hidden onChange={handleBannerChange} accept="image/*" />
+
+      {cropModal.isOpen && (
+        <ImageCropper
+          image={cropModal.image}
+          cropShape={cropModal.type === 'avatar' ? 'round' : 'rect'}
+          aspect={cropModal.type === 'avatar' ? 1 : 2.5}
+          title={cropModal.type === 'avatar' ? 'Обрезка аватара' : 'Обрезка баннера'}
+          onCropComplete={handleCropComplete}
+          onCancel={() => setCropModal(prev => ({ ...prev, isOpen: false }))}
+        />
+      )}
     </div>
   );
 
