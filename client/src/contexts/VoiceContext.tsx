@@ -1052,45 +1052,48 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             for (const [targetUserId, pc] of sendersToUpdate) {
                 try {
                     const senders = pc.getSenders();
-                    const audioSender = senders.find(s => s.track?.kind === 'audio');
+
+                    // Identify existing senders
                     const videoSender = senders.find(s => s.track?.kind === 'video');
+                    const audioSenders = senders.filter(s => s.track?.kind === 'audio');
+
+                    // We want to send: screenTrack (video), micTrack (audio), screenAudioTrack (audio)
 
                     if (videoSender) {
                         await videoSender.replaceTrack(screenTrack);
-                        if (audioSender && audioTrackToUse) {
-                            await audioSender.replaceTrack(audioTrackToUse);
-                        }
-
-                        // Set bitrate for existing sender
-                        setTimeout(async () => {
-                            try {
-                                const params = videoSender.getParameters();
-                                if (!params.encodings) params.encodings = [{}];
-                                const bitrateMap: any = {
-                                    '480p': 1000, '720p': 2500, '1080p': 5000,
-                                    '1440p': 8000, '4k': 15000, 'original': 6000
-                                };
-                                const resolutionKey = selectedSource?.quality?.resolution || '720p';
-                                params.encodings[0].maxBitrate = (bitrateMap[resolutionKey] || 2500) * 1000;
-                                await videoSender.setParameters(params);
-                            } catch (e) { console.warn("Bitrate update failed:", e); }
-                        }, 500);
                     } else {
-                        if (audioSender) {
-                            pc.removeTrack(audioSender);
+                        pc.addTrack(screenTrack, newStream);
+                    }
+
+                    // Handle Microphone Track
+                    if (micTrack) {
+                        if (audioSenders.length > 0) {
+                            await audioSenders[0].replaceTrack(micTrack);
+                        } else {
+                            pc.addTrack(micTrack, newStream);
                         }
-                        const vSender = pc.addTrack(screenTrack, newStream);
-                        if (audioTrackToUse) {
-                            pc.addTrack(audioTrackToUse, newStream);
-                        }
-                        if (screenAudioTrack) {
+                    }
+
+                    // Handle Screen Audio Track
+                    if (screenAudioTrack) {
+                        // If we already have a second audio sender, replace its track
+                        if (audioSenders.length > 1) {
+                            await audioSenders[1].replaceTrack(screenAudioTrack);
+                        } else {
+                            // Otherwise add it as a new track
                             pc.addTrack(screenAudioTrack, newStream);
                         }
+                    } else if (audioSenders.length > 1) {
+                        // We had screen audio before but don't anymore, remove it
+                        pc.removeTrack(audioSenders[1]);
+                    }
 
-                        // Set initial bitrate for new video sender
+                    // Set bitrate for video
+                    const currentVideoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+                    if (currentVideoSender) {
                         setTimeout(async () => {
                             try {
-                                const params = vSender.getParameters();
+                                const params = currentVideoSender.getParameters();
                                 if (!params.encodings) params.encodings = [{}];
                                 const bitrateMap: any = {
                                     '480p': 1000, '720p': 2500, '1080p': 5000,
@@ -1098,8 +1101,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                                 };
                                 const resolutionKey = selectedSource?.quality?.resolution || '720p';
                                 params.encodings[0].maxBitrate = (bitrateMap[resolutionKey] || 2500) * 1000;
-                                await vSender.setParameters(params);
-                            } catch (e) { console.warn("Initial bitrate set failed:", e); }
+                                await currentVideoSender.setParameters(params);
+                            } catch (e) { console.warn("Bitrate update failed:", e); }
                         }, 500);
                     }
 
@@ -1180,14 +1183,23 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 localStreamRef.current.getAudioTracks().forEach(t => t.enabled = true); // Output track always on
             }
         } else {
-            // Standard behavior: separate tracks or single mic track
+            // Standard behavior: separate tracks
             if (localStreamRef.current) {
+                const micTracks = rawMicStreamRef.current?.getAudioTracks() || [];
                 localStreamRef.current.getAudioTracks().forEach(track => {
-                    track.enabled = audioTrackEnabled;
+                    const isMicTrack = micTracks.some(t => t.id === track.id) || track.label.toLowerCase().includes('mic') || track.label.toLowerCase().includes('audio input');
+
+                    if (isMicTrack) {
+                        track.enabled = audioTrackEnabled;
+                    } else {
+                        // This is likely screen audio.
+                        // It should follow its own toggle (isSharingScreenAudio) and only be muted if deafened
+                        track.enabled = !isDeafened && isSharingScreenAudio;
+                    }
                 });
             }
         }
-    }, [isMuted, isDeafened]);
+    }, [isMuted, isDeafened, isSharingScreenAudio]);
 
     // Audio Analysis for Speaking Indicator
     useEffect(() => {

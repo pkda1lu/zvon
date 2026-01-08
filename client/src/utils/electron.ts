@@ -97,10 +97,7 @@ export const getElectronDisplayMedia = async (
         // The setDisplayMediaRequestHandler in Main process will pick up the sourceId
         const constraints: any = {
             video: true,
-            audio: {
-                selfBrowserSurface: "exclude",
-                systemAudio: "include"
-            }
+            audio: true
         };
 
         if (quality) {

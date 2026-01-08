@@ -423,15 +423,28 @@ ipcMain.on('change-icon', (event, iconName) => {
 
     // In dev mode, or whenever __dirname is correct (it should be public/)
     const iconPath = path.join(__dirname, iconFile);
+    console.log('Changing icon to:', iconName, 'from path:', iconPath);
 
     try {
+        if (!fs.existsSync(iconPath)) {
+            console.error('Icon file does not exist at path:', iconPath);
+            return;
+        }
+
         const iconImage = nativeImage.createFromPath(iconPath);
+
+        if (iconImage.isEmpty()) {
+            console.error('Failed to create nativeImage from path:', iconPath);
+            return;
+        }
 
         if (mainWindow) {
             mainWindow.setIcon(iconImage);
+            console.log('Main window icon set successfully');
         }
         if (tray) {
             tray.setImage(iconImage);
+            console.log('Tray icon set successfully');
         }
     } catch (err) {
         console.error('Failed to change icon:', err);
@@ -499,23 +512,27 @@ app.on('web-contents-created', (event, contents) => {
             let source = null;
             if (sourceId) {
                 source = sources.find(s => s.id === sourceId);
+                console.log('Searching for sourceId:', sourceId, 'Found:', source ? source.name : 'No');
             }
 
             // Fallback if no sourceId or not found
             if (!source && sources.length > 0) {
                 source = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+                console.log('Fallback to source:', source.name);
             }
 
             if (source) {
                 console.log('Selected source for DisplayMedia:', source.name, source.id);
-                // Requirement check:
-                // 1. If it's a window -> Capture only window audio (source)
-                // 2. If it's a screen -> Capture system audio (loopback) but allow Chromium to apply self-exclusion if possible
                 const isWindow = source.id.startsWith('window:');
+
+                // On Windows/Linux, 'loopback' is required for system-wide audio when sharing screen
+                // For windows, the source itself can sometimes provide audio
+                const audioConfig = isWindow ? source : 'loopback';
+                console.log('Using audio config:', audioConfig === 'loopback' ? 'loopback (system audio)' : 'source-specific');
 
                 callback({
                     video: source,
-                    audio: isWindow ? source : 'loopback',
+                    audio: audioConfig,
                     enableLocalEcho: false
                 });
             } else {
