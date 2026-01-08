@@ -270,6 +270,8 @@ function createWindow() {
                 : path.join(__dirname, 'preload.js'),
         },
         autoHideMenuBar: true,
+        frame: false, // Frameless window
+        backgroundColor: '#1e1f22',
         icon: path.join(__dirname, 'app_icon.ico'),
     });
 
@@ -349,6 +351,14 @@ function createWindow() {
             : `file://${path.join(__dirname, 'index.html')}`
     );
 
+    mainWindow.on('maximize', () => {
+        mainWindow.webContents.send('window-maximized', true);
+    });
+
+    mainWindow.on('unmaximize', () => {
+        mainWindow.webContents.send('window-maximized', false);
+    });
+
     if (isDev) {
         mainWindow.webContents.openDevTools();
     }
@@ -401,33 +411,71 @@ ipcMain.handle('toggle-fullscreen', async (event, isFullscreen) => {
     return false;
 });
 
+// Window control IPC handlers
+ipcMain.on('window-minimize', () => {
+    if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.on('window-maximize', () => {
+    if (mainWindow) {
+        if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow.maximize();
+        }
+    }
+});
+
+ipcMain.on('window-close', () => {
+    if (mainWindow) {
+        if (process.platform !== 'darwin') {
+            isQuitting = true; // For custom title bar close button, we might want to actually quit or just hide
+            app.quit();
+        } else {
+            mainWindow.hide();
+        }
+    }
+});
+
 // Configure display media request handler for getDisplayMedia
 app.on('web-contents-created', (event, contents) => {
     contents.session.setDisplayMediaRequestHandler((request, callback) => {
         const sourceId = pendingDisplaySourceId;
-        if (sourceId) {
-            desktopCapturer.getSources({ types: ['window', 'screen'] }).then(sources => {
-                const source = sources.find(s => s.id === sourceId);
-                if (source) {
-                    // On Windows, 'loopback' is system-wide.
-                    // If we want window-specific audio, we need to hope Electron/Chromium supports it
-                    // when passing the window source as audio source.
-                    const isWindow = source.id.startsWith('window:');
-                    callback({
-                        video: source,
-                        audio: isWindow ? source : 'loopback',
-                        enableLocalEcho: false
-                    });
-                } else {
-                    callback({ video: sources[0], audio: 'loopback' });
-                }
-            });
-            pendingDisplaySourceId = null;
-        } else {
-            desktopCapturer.getSources({ types: ['screen'] }).then(sources => {
-                callback({ video: sources[0], audio: 'loopback' });
-            });
-        }
+        console.log('DisplayMedia request received. Pending source ID:', sourceId);
+
+        desktopCapturer.getSources({ types: ['window', 'screen'] }).then(sources => {
+            let source = null;
+            if (sourceId) {
+                source = sources.find(s => s.id === sourceId);
+            }
+
+            // Fallback if no sourceId or not found
+            if (!source && sources.length > 0) {
+                source = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+            }
+
+            if (source) {
+                console.log('Selected source for DisplayMedia:', source.name, source.id);
+                // Requirement check:
+                // 1. If it's a window -> Capture only window audio (source)
+                // 2. If it's a screen -> Capture system audio (loopback) but allow Chromium to apply self-exclusion if possible
+                const isWindow = source.id.startsWith('window:');
+
+                callback({
+                    video: source,
+                    audio: isWindow ? source : 'loopback',
+                    enableLocalEcho: false
+                });
+            } else {
+                console.warn('No media source found for DisplayMedia request');
+                callback({ video: null, audio: null });
+            }
+        }).catch(err => {
+            console.error('Error in setDisplayMediaRequestHandler:', err);
+            callback({ video: null, audio: null });
+        });
+
+        pendingDisplaySourceId = null;
     });
 });
 

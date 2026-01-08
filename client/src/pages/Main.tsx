@@ -198,6 +198,17 @@ const Main: React.FC = () => {
     }
   }, [socket, servers.length]); // Use length to avoid re-running on deep object changes unless needed
 
+  const handleServerUpdate = useCallback((updatedServer: Server) => {
+    console.log('Server update received:', updatedServer.name, updatedServer._id);
+    setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
+    setSelectedServer(prev => {
+      if (prev && prev._id === updatedServer._id) {
+        return updatedServer;
+      }
+      return prev;
+    });
+  }, []);
+
   useEffect(() => {
     if (!socket) return;
 
@@ -218,11 +229,13 @@ const Main: React.FC = () => {
     };
 
     const handleServerRolesUpdate = (data: { serverId: string; roles: any[] }) => {
+      console.log('Roles updated for server:', data.serverId);
       setServers(prev => prev.map(s => s._id === data.serverId ? { ...s, roles: data.roles } : s));
       setSelectedServer(prev => (prev && prev._id === data.serverId) ? { ...prev, roles: data.roles } : prev);
     };
 
     const handleServerMemberUpdate = (data: { serverId: string; member: any }) => {
+      console.log('Member update received:', data.serverId, data.member?.user?.username || data.member?.user);
       const getMemberUserId = (m: any) => String(m.user?._id || m.user);
       const targetUserId = getMemberUserId(data.member);
 
@@ -246,10 +259,6 @@ const Main: React.FC = () => {
       });
     };
 
-    const handleServerUpdate = (updatedServer: Server) => {
-      setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
-      setSelectedServer(prev => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
-    };
 
     const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
       const getMemberUserId = (m: any) => String(m.user?._id || m.user);
@@ -292,8 +301,10 @@ const Main: React.FC = () => {
     };
 
     const handleServerMemberJoined = (data: { serverId: string; member: any; server?: Server }) => {
+      console.log('Member joined event:', data.serverId, data.member?.user?.username || 'unknown');
       // If the full server object is provided, use it for best sync
       if (data.server) {
+        console.log('Using full server object from join event');
         handleServerUpdate(data.server);
         return;
       }
@@ -319,6 +330,7 @@ const Main: React.FC = () => {
     };
 
     const handleServerMemberLeft = (data: { serverId: string; userId: string }) => {
+      console.log('Member left event:', data.serverId, data.userId);
       const getMemberUserId = (m: any) => String(m.user?._id || m.user);
       const targetUserId = String(data.userId);
 
@@ -393,7 +405,7 @@ const Main: React.FC = () => {
       socket.off('server-kicked', handleServerKicked);
       socket.off('server-deleted', handleServerDeletedSocket);
     };
-  }, [socket, activeCall, user, updateUser]);
+  }, [socket, activeCall, user, updateUser, handleServerUpdate]);
 
   useEffect(() => {
     if (!socket || !user) return;
@@ -555,10 +567,7 @@ const Main: React.FC = () => {
     });
   };
 
-  const handleServerUpdate = (updatedServer: Server) => {
-    setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
-    setSelectedServer(prev => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
-  };
+  // Functional updates are handled via socket listeners or manual triggers
 
   // Functional updates are handled via socket listeners or manual triggers
   // Removing shadowed handleServerUpdate to avoid confusion

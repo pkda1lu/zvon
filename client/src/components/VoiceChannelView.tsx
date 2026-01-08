@@ -7,6 +7,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, StopScreenShareIcon, MaximizeIcon, MinimizeIcon } from './Icons';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
+import StreamContextMenu from './StreamContextMenu';
 import './VoiceChannelView.css';
 
 interface VoiceChannelViewProps {
@@ -37,7 +38,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     userVolumes,
     setUserVolume,
     userStates,
-    speakingUsers
+    speakingUsers,
+    watchedUserIds,
+    toggleWatchUser
   } = useVoice();
 
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
@@ -45,6 +48,17 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const [isStageFullWidth, setIsStageFullWidth] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; userId: string } | null>(null);
+  const [streamContextMenu, setStreamContextMenu] = useState<{ x: number; y: number; participant: User; isMe: boolean } | null>(null);
+  const handleToggleWatch = useCallback((userId: string, itemId: string) => {
+    toggleWatchUser(userId);
+    if (!watchedUserIds.has(userId)) {
+      setFocusedStreamId(itemId);
+    } else {
+      if (focusedStreamId === itemId) {
+        setFocusedStreamId(null);
+      }
+    }
+  }, [toggleWatchUser, watchedUserIds, focusedStreamId]);
 
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const transitionRef = useRef(false);
@@ -329,6 +343,17 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                               el.srcObject = focusedItem.stream;
                             }
                           }}
+                          onContextMenu={(e) => {
+                            if (focusedItem.type === 'screen') {
+                              e.preventDefault();
+                              setStreamContextMenu({
+                                x: e.clientX,
+                                y: e.clientY,
+                                participant: focusedItem.data,
+                                isMe: focusedItem.data.isMe
+                              });
+                            }
+                          }}
                         />
                       )}
                       <div className="stage-user-info">
@@ -357,6 +382,10 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                           if (isFullscreen) {
                             await setFullscreenStatus(false);
                           }
+                          const focusedItem = displayItems.find(i => i.id === focusedStreamId);
+                          if (focusedItem) {
+                            toggleWatchUser(focusedItem.data._id);
+                          }
                           setFocusedStreamId(null);
                           setIsStageFullWidth(false);
                         }}
@@ -379,19 +408,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                               else onUserClick(participant._id);
                             }}
                             onContextMenu={(e) => {
-                              if (isScreen || participant.isMe) return; // No volume control for self or screen video (screen often has no audio or same as user?)
-                              // Allow screen share volume control?
-                              // Usually volume is per user. The screen share audio is mixed into user audio often or separate track.
-                              // In our context, screen share audio is mixed into `localStream` of the sharer, so effective 'remoteStream' of that user has both.
-                              // So controlling user volume controls both voice and their screen share audio.
-                              // So we attach to USER card, or Screen card?
-                              // Since screen share card doesn't have easy user ID access without parsing, let's keep it simple: Right click USER card to set volume.
-                              // But in stage view, user card might be in sidebar.
-
-                              if (participant.isMe) return;
-
                               e.preventDefault();
-                              setContextMenu({ x: e.clientX, y: e.clientY, userId: participant._id });
+                              if (isScreen) {
+                                setStreamContextMenu({ x: e.clientX, y: e.clientY, participant, isMe: participant.isMe });
+                              } else {
+                                if (participant.isMe) return;
+                                setContextMenu({ x: e.clientX, y: e.clientY, userId: participant._id });
+                              }
                             }}
                             style={{ cursor: isScreen ? 'pointer' : 'pointer' }}
                           >
@@ -410,6 +433,15 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                                   if (el && el.srcObject !== item.stream) {
                                     el.srcObject = item.stream!;
                                   }
+                                }}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setStreamContextMenu({
+                                    x: e.clientX,
+                                    y: e.clientY,
+                                    participant,
+                                    isMe: participant.isMe
+                                  });
                                 }}
                               />
                             ) : (
@@ -474,9 +506,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                       else onUserClick(participant._id);
                     }}
                     onContextMenu={(e) => {
-                      if (participant.isMe) return;
                       e.preventDefault();
-                      setContextMenu({ x: e.clientX, y: e.clientY, userId: participant._id });
+                      if (isScreen) {
+                        setStreamContextMenu({ x: e.clientX, y: e.clientY, participant, isMe: participant.isMe });
+                      } else {
+                        if (participant.isMe) return;
+                        setContextMenu({ x: e.clientX, y: e.clientY, userId: participant._id });
+                      }
                     }}
                     style={{ cursor: isScreen ? 'pointer' : 'pointer' }}
                   >
@@ -491,13 +527,35 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                           autoPlay
                           playsInline
                           muted={true}
-                          className="participant-video is-screen"
+                          className={`participant-video is-screen ${!watchedUserIds.has(participant._id) ? 'is-blurred' : ''}`}
                           ref={el => {
                             if (el && el.srcObject !== item.stream) {
                               el.srcObject = item.stream!;
                             }
                           }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setStreamContextMenu({
+                              x: e.clientX,
+                              y: e.clientY,
+                              participant,
+                              isMe: participant.isMe
+                            });
+                          }}
                         />
+                        {!watchedUserIds.has(participant._id) && (
+                          <div className="watch-stream-overlay small">
+                            <button
+                              className="watch-stream-button small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleWatch(participant._id, item.id);
+                              }}
+                            >
+                              Смотреть
+                            </button>
+                          </div>
+                        )}
                         <div className="participant-screen-overlay">
                           <div className={`participant-avatar small ${isSpeaking ? 'speaking' : ''}`}>
                             {getAvatarUrl(participant.avatar) ? (
@@ -611,6 +669,15 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           </div>
         )}
       </div>
+      {streamContextMenu && (
+        <StreamContextMenu
+          x={streamContextMenu.x}
+          y={streamContextMenu.y}
+          user={streamContextMenu.participant}
+          isMe={streamContextMenu.isMe}
+          onClose={() => setStreamContextMenu(null)}
+        />
+      )}
     </div>
   );
 };

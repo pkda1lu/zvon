@@ -12,58 +12,62 @@ import { SOUNDS, soundManager } from '../utils/sounds';
 const RemoteAudio: React.FC<{
     userId: string;
     stream: MediaStream;
-    volume: number;
+    voiceVolume: number;
+    streamVolume: number;
     isDeafened: boolean;
     isLocalMuted: boolean;
-}> = ({ userId, stream, volume, isDeafened, isLocalMuted }) => {
-    const audioRef = useRef<HTMLAudioElement>(null);
+    isWatched: boolean;
+}> = ({ userId, stream, voiceVolume, streamVolume, isDeafened, isLocalMuted, isWatched }) => {
+    const voiceAudioRef = useRef<HTMLAudioElement>(null);
+    const streamAudioRef = useRef<HTMLAudioElement>(null);
 
     useEffect(() => {
-        if (audioRef.current) {
-            audioRef.current.srcObject = stream;
-
-            const attemptPlay = async () => {
-                try {
-                    await audioRef.current?.play();
-                } catch (error) {
-                    if (error instanceof Error && error.name !== 'AbortError') {
-                        console.warn(`Audio play failed for user ${userId}, will retry on interaction:`, error);
-                    }
-                }
-            };
-            attemptPlay();
+        if (voiceAudioRef.current && stream) {
+            const voiceStream = new MediaStream([stream.getAudioTracks()[0]]);
+            voiceAudioRef.current.srcObject = voiceStream;
+            voiceAudioRef.current.play().catch(() => { });
+        }
+        if (streamAudioRef.current && stream) {
+            const audioTracks = stream.getAudioTracks();
+            if (audioTracks.length > 1) {
+                const screenStream = new MediaStream([audioTracks[1]]);
+                streamAudioRef.current.srcObject = screenStream;
+                streamAudioRef.current.play().catch(() => { });
+            } else {
+                streamAudioRef.current.srcObject = null;
+            }
         }
     }, [stream, userId]);
 
-    // Handle interaction play separately if browser blocks autoplay
     useEffect(() => {
-        const handleInteraction = () => {
-            audioRef.current?.play().catch(() => { });
-            document.removeEventListener('click', handleInteraction);
-        };
-        document.addEventListener('click', handleInteraction, { once: true });
-        return () => document.removeEventListener('click', handleInteraction);
-    }, []);
+        if (voiceAudioRef.current) {
+            voiceAudioRef.current.volume = Math.min(1, Math.max(0, voiceVolume));
+        }
+    }, [voiceVolume]);
 
     useEffect(() => {
-        if (audioRef.current) {
-            audioRef.current.volume = Math.min(1, Math.max(0, volume));
+        if (streamAudioRef.current) {
+            streamAudioRef.current.volume = Math.min(1, Math.max(0, streamVolume));
         }
-    }, [volume]);
+    }, [streamVolume]);
 
     return (
-        <audio
-            ref={audioRef}
-            autoPlay
-            playsInline
-            muted={isDeafened || isLocalMuted}
-            onLoadedMetadata={(e) => {
-                const el = e.currentTarget;
-                el.volume = Math.min(1, Math.max(0, volume));
-                el.play().catch(() => { });
-            }}
-            style={{ display: 'none' }}
-        />
+        <>
+            <audio
+                ref={voiceAudioRef}
+                autoPlay
+                playsInline
+                muted={isDeafened || isLocalMuted}
+                style={{ display: 'none' }}
+            />
+            <audio
+                ref={streamAudioRef}
+                autoPlay
+                playsInline
+                muted={isDeafened || !isWatched}
+                style={{ display: 'none' }}
+            />
+        </>
     );
 };
 
@@ -89,6 +93,14 @@ interface VoiceContextType {
     speakingUsers: Set<string>;
     isNoiseSuppressionEnabled: boolean;
     toggleNoiseSuppression: () => void;
+    watchedUserIds: Set<string>;
+    toggleWatchUser: (userId: string) => void;
+    streamVolumes: Map<string, number>;
+    setStreamVolume: (userId: string, volume: number) => void;
+    isSharingScreenAudio: boolean;
+    toggleScreenAudio: () => void;
+    updateScreenQuality: (quality: { resolution: string, frameRate: number }) => void;
+    changeScreenSource: () => void;
 }
 
 
@@ -138,6 +150,39 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
     const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }>>(new Map());
     const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
+    const [watchedUserIds, setWatchedUserIds] = useState<Set<string>>(new Set());
+    const [streamVolumes, setStreamVolumes] = useState<Map<string, number>>(new Map());
+    const [isSharingScreenAudio, setIsSharingScreenAudio] = useState(true);
+
+    const toggleWatchUser = useCallback((userId: string) => {
+        setWatchedUserIds(prev => {
+            const next = new Set(prev);
+            if (next.has(userId)) next.delete(userId);
+            else next.add(userId);
+            return next;
+        });
+    }, []);
+
+    const setStreamVolume = useCallback((userId: string, volume: number) => {
+        setStreamVolumes(prev => new Map(prev).set(userId, volume));
+    }, []);
+
+    const toggleScreenAudio = useCallback(() => {
+        setIsSharingScreenAudio(prev => {
+            const newState = !prev;
+            if (localStreamRef.current) {
+                const tracks = localStreamRef.current.getAudioTracks();
+                if (tracks.length > 1) {
+                    tracks[1].enabled = newState;
+                }
+            }
+            return newState;
+        });
+    }, []);
+
+    const changeScreenSource = useCallback(() => {
+        setShowSourceSelector(true);
+    }, []);
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -178,7 +223,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+            ],
+            iceCandidatePoolSize: 10,
         });
 
         peersRef.current.set(targetUserId, pc);
@@ -670,39 +722,51 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             let screenStream: MediaStream | null = null;
 
             // Try Electron desktopCapturer API first (for packaged Electron apps)
-            const { getElectronDisplayMedia, isElectron, getElectronAPI } = await import('../utils/electron');
+            const { getElectronDisplayMedia, isElectron } = await import('../utils/electron');
             const isElectronEnv = isElectron();
             console.log('Is Electron environment:', isElectronEnv);
 
             if (isElectronEnv && selectedSource) {
                 console.log('Detected Electron environment, using selected source:', selectedSource.id);
-                const electronAPI = getElectronAPI();
-                console.log('Electron API check:', {
-                    hasAPI: !!electronAPI,
-                    hasDesktopCapturer: !!(electronAPI?.desktopCapturer),
-                    apiKeys: electronAPI ? Object.keys(electronAPI) : []
-                });
-                screenStream = await getElectronDisplayMedia(selectedSource.id);
-            } else if (isElectronEnv && !selectedSource) {
+                screenStream = await getElectronDisplayMedia(selectedSource.id, selectedSource.quality);
+            } else if (isElectronEnv) {
                 // User chose to use native picker
                 console.log('Using native picker in Electron');
-                screenStream = await getElectronDisplayMedia();
+                screenStream = await getElectronDisplayMedia(undefined, undefined);
             }
 
             // Fallback to standard getDisplayMedia if Electron API didn't work or user chose native picker
             if (!screenStream && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
                 console.log('Trying standard getDisplayMedia API');
+                const constraints: any = {
+                    video: true,
+                    audio: true
+                };
+
+                if (selectedSource?.quality) {
+                    const { resolution, frameRate } = selectedSource.quality;
+                    const resMap: any = {
+                        '480p': { width: 854, height: 480 },
+                        '720p': { width: 1280, height: 720 },
+                        '1080p': { width: 1920, height: 1080 },
+                        '1440p': { width: 2560, height: 1440 },
+                        '4k': { width: 3840, height: 2160 }
+                    };
+                    const res = resMap[resolution];
+                    constraints.video = {
+                        frameRate: { ideal: frameRate, max: frameRate },
+                        ...(res ? { width: { ideal: res.width }, height: { ideal: res.height } } : {})
+                    };
+                }
+
                 try {
                     // Try with audio first
-                    screenStream = await navigator.mediaDevices.getDisplayMedia({
-                        video: true,
-                        audio: true
-                    });
+                    screenStream = await navigator.mediaDevices.getDisplayMedia(constraints);
                 } catch (err) {
-                    console.warn('getDisplayMedia with audio failed, trying video only:', err);
+                    console.warn('getDisplayMedia with constraints failed, trying video only:', err);
                     try {
                         screenStream = await navigator.mediaDevices.getDisplayMedia({
-                            video: true,
+                            video: constraints.video,
                             audio: false
                         });
                     } catch (secErr) {
@@ -738,69 +802,31 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             let audioTrackToUse: MediaStreamTrack;
 
-            // 2. Mix Audio if system audio is present
-            if (screenAudioTrack) {
-                console.log("System audio detected, setting up mixing...");
-
-                // Reuse existing mic track if available
-                let micTrack: MediaStreamTrack | null = null;
-                if (localStreamRef.current) {
-                    micTrack = localStreamRef.current.getAudioTracks()[0];
-                }
-
-                if (!micTrack) {
-                    console.log("No existing mic track, requesting fresh one for mixing");
+            // Identify/Get mic track
+            let micTrack: MediaStreamTrack | null = null;
+            if (localStreamRef.current) {
+                micTrack = localStreamRef.current.getAudioTracks()[0];
+            }
+            if (!micTrack) {
+                try {
                     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     micTrack = micStream.getAudioTracks()[0];
-                }
-
-                // Setup Web Audio
-                const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-                const dest = ctx.createMediaStreamDestination();
-
-                // Mic Path
-                const micSource = ctx.createMediaStreamSource(new MediaStream([micTrack]));
-                const micGain = ctx.createGain();
-                micGain.gain.value = !isMuted && !isDeafened ? 1 : 0;
-                micSource.connect(micGain);
-                micGain.connect(dest);
-
-                // Screen Audio Path
-                console.log("Creating media source for screen audio track:", screenAudioTrack.label);
-                const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
-                const screenGain = ctx.createGain();
-                screenGain.gain.value = 1.0; // Ensure full volume for system audio
-                screenSource.connect(screenGain);
-                screenGain.connect(dest);
-
-                // References
-                audioContextRef.current = ctx;
-                micGainNodeRef.current = micGain;
-                mixedStreamRef.current = dest;
-
-                if (ctx.state === 'suspended') {
-                    await ctx.resume();
-                }
-
-                console.log("Audio mixing setup complete with system audio. Tracks in mixed stream:", dest.stream.getAudioTracks().length);
-
-                audioTrackToUse = dest.stream.getAudioTracks()[0];
-            } else {
-                console.log("No system audio track found in screen stream. Available tracks:", screenStream.getTracks().map(t => t.kind));
-                // No system audio, just reuse existing mic track (or get new one)
-                if (localStreamRef.current) {
-                    audioTrackToUse = localStreamRef.current.getAudioTracks()[0];
-                } else {
-                    // Fallback logic
-                    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    audioTrackToUse = s.getAudioTracks()[0];
+                } catch (e) {
+                    console.warn("Could not get mic track for screen share", e);
                 }
             }
 
-            const newStream = new MediaStream([
-                audioTrackToUse,
-                screenTrack
-            ]);
+            audioTrackToUse = micTrack!;
+
+            // SEND BOTH TRACKS IF POSSIBLE
+            const tracks: MediaStreamTrack[] = [screenTrack];
+            if (micTrack) tracks.push(micTrack);
+            if (screenAudioTrack) {
+                screenAudioTrack.enabled = isSharingScreenAudio;
+                tracks.push(screenAudioTrack);
+            }
+
+            const newStream = new MediaStream(tracks);
             localStreamRef.current = newStream;
             setLocalStream(newStream);
 
@@ -827,15 +853,47 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         if (audioSender && audioTrackToUse) {
                             await audioSender.replaceTrack(audioTrackToUse);
                         }
+
+                        // Set bitrate for existing sender
+                        setTimeout(async () => {
+                            try {
+                                const params = videoSender.getParameters();
+                                if (!params.encodings) params.encodings = [{}];
+                                const bitrateMap: any = {
+                                    '480p': 1000, '720p': 2500, '1080p': 5000,
+                                    '1440p': 8000, '4k': 15000, 'original': 6000
+                                };
+                                const resolutionKey = selectedSource?.quality?.resolution || '720p';
+                                params.encodings[0].maxBitrate = (bitrateMap[resolutionKey] || 2500) * 1000;
+                                await videoSender.setParameters(params);
+                            } catch (e) { console.warn("Bitrate update failed:", e); }
+                        }, 500);
                     } else {
-                        // Ensure both tracks are on the new stream
                         if (audioSender) {
                             pc.removeTrack(audioSender);
                         }
-                        pc.addTrack(screenTrack, newStream);
+                        const vSender = pc.addTrack(screenTrack, newStream);
                         if (audioTrackToUse) {
                             pc.addTrack(audioTrackToUse, newStream);
                         }
+                        if (screenAudioTrack) {
+                            pc.addTrack(screenAudioTrack, newStream);
+                        }
+
+                        // Set initial bitrate for new video sender
+                        setTimeout(async () => {
+                            try {
+                                const params = vSender.getParameters();
+                                if (!params.encodings) params.encodings = [{}];
+                                const bitrateMap: any = {
+                                    '480p': 1000, '720p': 2500, '1080p': 5000,
+                                    '1440p': 8000, '4k': 15000, 'original': 6000
+                                };
+                                const resolutionKey = selectedSource?.quality?.resolution || '720p';
+                                params.encodings[0].maxBitrate = (bitrateMap[resolutionKey] || 2500) * 1000;
+                                await vSender.setParameters(params);
+                            } catch (e) { console.warn("Initial bitrate set failed:", e); }
+                        }, 500);
                     }
 
                     // Renegotiate
@@ -850,7 +908,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } catch (err) {
             console.error("Error sharing screen:", err);
             setIsScreenSharing(false);
-            // If user cancelled, don't show error
             if (err instanceof Error && err.name === 'NotAllowedError') {
                 console.log("Screen sharing permission denied");
             } else if (err instanceof Error && err.name === 'AbortError') {
@@ -860,6 +917,49 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
         }
     };
+
+    const updateScreenQuality = useCallback(async (quality: { resolution: string, frameRate: number }) => {
+        if (!isScreenSharing || !localStreamRef.current) return;
+
+        const videoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (!videoTrack) return;
+
+        const resMap: any = {
+            '480p': { width: 854, height: 480 },
+            '720p': { width: 1280, height: 720 },
+            '1080p': { width: 1920, height: 1080 },
+            '1440p': { width: 2560, height: 1440 },
+            '4k': { width: 3840, height: 2160 }
+        };
+        const res = resMap[quality.resolution];
+
+        try {
+            await videoTrack.applyConstraints({
+                frameRate: { ideal: quality.frameRate, max: quality.frameRate },
+                ...(res ? { width: { ideal: res.width }, height: { ideal: res.height } } : {})
+            });
+
+            const bitrateMap: any = {
+                '480p': 1000, '720p': 2500, '1080p': 5000,
+                '1440p': 8000, '4k': 15000, 'original': 6000
+            };
+            const maxBitrate = (bitrateMap[quality.resolution] || 2500) * 1000;
+
+            peersRef.current.forEach(async (pc) => {
+                const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+                if (videoSender) {
+                    try {
+                        const params = videoSender.getParameters();
+                        if (!params.encodings) params.encodings = [{}];
+                        params.encodings[0].maxBitrate = maxBitrate;
+                        await videoSender.setParameters(params);
+                    } catch (e) { console.warn("Quality update failed for peer:", e); }
+                }
+            });
+        } catch (e) {
+            console.error("applyConstraints failed:", e);
+        }
+    }, [isScreenSharing]);
 
     useEffect(() => {
         // Handle Mute Logic
@@ -1039,7 +1139,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             toggleLocalMute,
             speakingUsers,
             isNoiseSuppressionEnabled,
-            toggleNoiseSuppression
+            toggleNoiseSuppression,
+            watchedUserIds,
+            toggleWatchUser,
+            streamVolumes,
+            setStreamVolume,
+            isSharingScreenAudio,
+            toggleScreenAudio,
+            updateScreenQuality,
+            changeScreenSource
         }}>
 
             {children}
@@ -1057,9 +1165,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         key={userId}
                         userId={userId}
                         stream={stream}
-                        volume={userVolumes.has(userId) ? userVolumes.get(userId)! : 1}
+                        voiceVolume={userVolumes.has(userId) ? userVolumes.get(userId)! : 1}
+                        streamVolume={streamVolumes.has(userId) ? streamVolumes.get(userId)! : 1}
                         isDeafened={isDeafened}
                         isLocalMuted={localMutes.has(userId)}
+                        isWatched={watchedUserIds.has(userId)}
                     />
                 ))}
             </div>

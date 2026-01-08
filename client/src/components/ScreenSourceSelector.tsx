@@ -6,6 +6,10 @@ export interface ScreenSource {
     name: string;
     thumbnail?: string;
     display_id?: string;
+    quality?: {
+        resolution: '480p' | '720p' | '1080p' | '1440p' | '4k' | 'original';
+        frameRate: 15 | 30 | 60;
+    };
 }
 
 interface ScreenSourceSelectorProps {
@@ -18,6 +22,8 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
     const [loading, setLoading] = useState(true);
     const [selectedSource, setSelectedSource] = useState<ScreenSource | null>(null);
     const [activeTab, setActiveTab] = useState<'screens' | 'applications'>('applications');
+    const [resolution, setResolution] = useState<'480p' | '720p' | '1080p' | '1440p' | '4k' | 'original'>('720p');
+    const [frameRate, setFrameRate] = useState<15 | 30 | 60>(30);
 
     useEffect(() => {
         loadSources();
@@ -95,7 +101,13 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
 
     const handleSelect = () => {
         if (selectedSource) {
-            onSelect(selectedSource);
+            onSelect({
+                ...selectedSource,
+                quality: {
+                    resolution,
+                    frameRate
+                }
+            });
         } else {
             onSelect(null);
         }
@@ -142,6 +154,37 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                     >
                         Экраны
                     </button>
+                </div>
+
+                <div className="screen-quality-settings">
+                    <div className="quality-section">
+                        <span className="quality-label">Разрешение</span>
+                        <div className="quality-options">
+                            {(['480p', '720p', '1080p', '1440p', '4k', 'original'] as const).map((res) => (
+                                <button
+                                    key={res}
+                                    className={`quality-option ${resolution === res ? 'active' : ''}`}
+                                    onClick={() => setResolution(res)}
+                                >
+                                    {res === 'original' ? 'Оригинал' : res.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="quality-section">
+                        <span className="quality-label">Частота кадров</span>
+                        <div className="quality-options">
+                            {([15, 30, 60] as const).map((fps) => (
+                                <button
+                                    key={fps}
+                                    className={`quality-option ${frameRate === fps ? 'active' : ''}`}
+                                    onClick={() => setFrameRate(fps)}
+                                >
+                                    {fps}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="screen-source-selector-content">

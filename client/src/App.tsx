@@ -62,36 +62,43 @@ const ElectronHandler: React.FC = () => {
   return null;
 };
 
+import TitleBar from './components/TitleBar';
+
 function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
         <Router>
-          <ElectronHandler />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route
-              path="/invite/:code"
-              element={
-                <PrivateRoute>
-                  <InvitePage />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/*"
-              element={
-                <PrivateRoute>
-                  <SocketProvider>
-                    <VoiceProvider>
-                      <Main />
-                    </VoiceProvider>
-                  </SocketProvider>
-                </PrivateRoute>
-              }
-            />
-          </Routes>
+          <div className="App">
+            <TitleBar />
+            <ElectronHandler />
+            <div className="app-content">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route
+                  path="/invite/:code"
+                  element={
+                    <PrivateRoute>
+                      <InvitePage />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/*"
+                  element={
+                    <PrivateRoute>
+                      <SocketProvider>
+                        <VoiceProvider>
+                          <Main />
+                        </VoiceProvider>
+                      </SocketProvider>
+                    </PrivateRoute>
+                  }
+                />
+              </Routes>
+            </div>
+          </div>
         </Router>
       </NotificationProvider>
     </AuthProvider>

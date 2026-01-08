@@ -164,7 +164,9 @@ io.on('connection', (socket) => {
         // Join all server rooms for instant updates
         if (user.servers && user.servers.length > 0) {
           user.servers.forEach(serverId => {
-            socket.join(`server-${serverId}`);
+            const roomName = `server-${serverId}`;
+            socket.join(roomName);
+            console.log(`Socket ${socket.id} (User ${socket.userId}) joined room ${roomName} on connection`);
           });
           console.log(`User ${socket.userId} joined rooms for ${user.servers.length} servers`);
         }
@@ -186,8 +188,9 @@ io.on('connection', (socket) => {
 
   // Join server room
   socket.on('join-server', async (serverId) => {
-    socket.join(`server-${serverId}`);
-    console.log(`User ${socket.userId} joined server ${serverId}`);
+    const roomName = `server-${serverId}`;
+    socket.join(roomName);
+    console.log(`User ${socket.userId} explicitly joined server room ${roomName}`);
 
     // Auto-send voice states immediately
     try {

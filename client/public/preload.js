@@ -41,7 +41,12 @@ try {
         clipboard: {
             writeText: (text) => ipcRenderer.send('clipboard-write', text)
         },
-        setPendingDisplaySource: (sourceId) => ipcRenderer.send('set-pending-display-source', sourceId)
+        setPendingDisplaySource: (sourceId) => ipcRenderer.send('set-pending-display-source', sourceId),
+        windowControls: {
+            minimize: () => ipcRenderer.send('window-minimize'),
+            maximize: () => ipcRenderer.send('window-maximize'),
+            close: () => ipcRenderer.send('window-close')
+        }
     };
 
     contextBridge.exposeInMainWorld('electron', electronAPI);

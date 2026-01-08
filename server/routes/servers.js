@@ -625,6 +625,15 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
         userId: req.params.userId
       });
 
+      // Also broadcast full server update to ensure member list is perfectly synced
+      const updatedServer = await Server.findById(req.params.id)
+        .populate('owner', 'username avatar')
+        .populate('channels')
+        .populate('members.user', 'username avatar status')
+        .populate('members.roles')
+        .populate('roles');
+      io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
+
       if (action === 'kick') {
         io.to(`user-${req.params.userId}`).emit('server-kicked', {
           serverId: req.params.id

@@ -1,0 +1,62 @@
+.title-bar {
+    height: 32px;
+    background-color: #1e1f22;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    position: relative;
+    z-index: 9999;
+}
+
+.title-bar-drag-area {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding-left: 12px;
+    -webkit-app-region: drag;
+    /* Allows dragging the window */
+}
+
+.title-bar-title {
+    color: #949ba4;
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.title-bar-controls {
+    display: flex;
+    height: 100%;
+    -webkit-app-region: no-drag;
+    /* Buttons should not be draggable */
+}
+
+.control-btn {
+    width: 46px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #b5bac1;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.control-btn:hover {
+    background-color: #35373c;
+    color: #ffffff;
+}
+
+.control-btn.close:hover {
+    background-color: #da373c;
+    color: #ffffff;
+}
+
+/* Fix for icons */
+.control-btn svg {
+    shape-rendering: crispEdges;
+}

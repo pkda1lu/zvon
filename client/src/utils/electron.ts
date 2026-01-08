@@ -68,7 +68,10 @@ export const getScreenSources = async (): Promise<any[]> => {
 };
 
 // Request screen sources using Electron display media mechanism
-export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaStream | null> => {
+export const getElectronDisplayMedia = async (
+    sourceId?: string,
+    quality?: { resolution: string; frameRate: number }
+): Promise<MediaStream | null> => {
     const electronAPI = getElectronAPI();
 
     if (!electronAPI || !electronAPI.ipc) {
@@ -92,10 +95,23 @@ export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaS
 
         // Use getDisplayMedia which is better for sound capture on Windows
         // The setDisplayMediaRequestHandler in Main process will pick up the sourceId
-        const stream = await navigator.mediaDevices.getDisplayMedia({
+        const constraints: any = {
             video: true,
-            audio: true
-        } as any);
+            audio: {
+                selfBrowserSurface: "exclude",
+                systemAudio: "include"
+            }
+        };
+
+        if (quality) {
+            const res = getResolutionDimensions(quality.resolution);
+            constraints.video = {
+                frameRate: { ideal: quality.frameRate, max: quality.frameRate },
+                ...(res ? { width: { ideal: res.width }, height: { ideal: res.height } } : {})
+            };
+        }
+
+        const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
         return stream;
     } catch (error) {
@@ -106,7 +122,7 @@ export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaS
             const sources = await electronAPI.ipc.invoke('get-desktop-sources', {
                 types: ['window', 'screen']
             });
-            return await createStreamFromSources(sources, sourceId);
+            return await createStreamFromSources(sources, sourceId, quality);
         } catch (fallbackError) {
             console.error('All display media methods failed:', fallbackError);
             return null;
@@ -115,7 +131,11 @@ export const getElectronDisplayMedia = async (sourceId?: string): Promise<MediaS
 };
 
 // Helper function to create stream from sources
-async function createStreamFromSources(sources: any[], sourceId?: string): Promise<MediaStream | null> {
+async function createStreamFromSources(
+    sources: any[],
+    sourceId?: string,
+    quality?: { resolution: string; frameRate: number }
+): Promise<MediaStream | null> {
     console.log('Available sources:', sources.length);
     if (sources.length === 0) {
         console.error('No sources available');
@@ -146,16 +166,22 @@ async function createStreamFromSources(sources: any[], sourceId?: string): Promi
     }
 
     console.log('Using source:', selectedSource.id, selectedSource.name);
-    return await createStreamFromSource(selectedSource);
+    return await createStreamFromSource(selectedSource, quality);
 }
 
 // Helper function to create stream from a single source
-async function createStreamFromSource(source: any): Promise<MediaStream> {
+async function createStreamFromSource(
+    source: any,
+    quality?: { resolution: string; frameRate: number }
+): Promise<MediaStream> {
     // Determine if this is a screen source or a window source
     const isScreen = source.id.startsWith('screen:');
 
     // For Electron, we need to use the correct constraints format
     // On Windows, system audio capture works for screen and many window sources
+    const res = quality ? getResolutionDimensions(quality.resolution) : { width: 1920, height: 1080 };
+    const fps = quality ? quality.frameRate : 60;
+
     const constraints: any = {
         audio: {
             mandatory: {
@@ -167,9 +193,9 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
             mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: source.id,
-                maxWidth: 1920,
-                maxHeight: 1080,
-                maxFrameRate: 60
+                maxWidth: res ? res.width : 1920,
+                maxHeight: res ? res.height : 1080,
+                maxFrameRate: fps
             }
         }
     };
@@ -250,5 +276,16 @@ async function createStreamFromSource(source: any): Promise<MediaStream> {
     });
 
     return stream;
+}
+
+function getResolutionDimensions(resolution: string): { width: number; height: number } | null {
+    switch (resolution) {
+        case '480p': return { width: 854, height: 480 };
+        case '720p': return { width: 1280, height: 720 };
+        case '1080p': return { width: 1920, height: 1080 };
+        case '1440p': return { width: 2560, height: 1440 };
+        case '4k': return { width: 3840, height: 2160 };
+        default: return null;
+    }
 }
 
