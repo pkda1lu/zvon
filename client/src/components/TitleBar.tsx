@@ -55,7 +55,7 @@ const TitleBar: React.FC = () => {
                 </button>
                 <button className="control-btn close" onClick={handleClose} title="Закрыть">
                     <svg width="12" height="12" viewBox="0 0 12 12">
-                        <path fill="currentColor" d="M1.1,1.2L1.2,1.1L6,5.9l4.8-4.8l0.1,0.1L6.1,6l4.8,4.8l-0.1,0.1L6,6.1l-4.8,4.8l-0.1-0.1L5.9,6L1.1,1.2z"></path>
+                        <path fill="none" stroke="currentColor" strokeWidth="1.2" d="M1 1l10 10M11 1L1 11"></path>
                     </svg>
                 </button>
             </div>

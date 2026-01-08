@@ -1,0 +1,122 @@
+.server-members {
+    width: 240px;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border-divider);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.members-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 8px 8px 8px;
+    /* Increased top padding */
+}
+
+.members-list::-webkit-scrollbar {
+    width: 8px;
+    background-color: var(--bg-secondary);
+}
+
+.members-list::-webkit-scrollbar-thumb {
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.member-group {
+    margin-bottom: 24px;
+}
+
+.group-header {
+    padding: 0 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.member-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+    gap: 8px;
+    color: var(--text-secondary);
+}
+
+.member-item:hover {
+    background: var(--channel-hover);
+    transform: translateX(4px);
+    color: var(--text-primary);
+}
+
+.member-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.member-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.status-indicator {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 3px solid var(--bg-secondary);
+    background: #747f8d;
+}
+
+.status-indicator.online {
+    background: #43b581;
+}
+
+.status-indicator.away {
+    background: #faa61a;
+}
+
+.status-indicator.busy {
+    background: #f04747;
+}
+
+.member-name {
+    font-size: 15px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-item:hover .member-name {
+    color: var(--text-primary);
+}
+
+.member-item.offline {
+    opacity: 0.5;
+}
+
+.member-item.offline:hover {
+    opacity: 1;
+}

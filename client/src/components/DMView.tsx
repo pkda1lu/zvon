@@ -36,14 +36,24 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   const otherUser = dm.participants.find(p => p._id !== user?._id);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: messages.length <= 50 ? 'auto' : 'smooth',
-      block: 'end'
-    });
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'end'
+      });
+    };
+
+    scrollToBottom();
+    const timeout = setTimeout(scrollToBottom, 100);
+    return () => clearTimeout(timeout);
   }, [messages, attachments]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    // Double check scroll
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    }, 50);
   }, [dm._id]);
 
   useEffect(() => {

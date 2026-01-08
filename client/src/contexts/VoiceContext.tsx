@@ -699,11 +699,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const toggleScreenShare = async () => {
 
         if (isScreenSharing) {
-            // Stop sharing
+            // 1. Stop ALL tracks of the old stream (Video AND Audio)
+            // This ensures system audio stops capturing immediately
             if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => {
-                    if (t.kind === 'video') t.stop();
-                });
+                localStreamRef.current.getTracks().forEach(t => t.stop());
             }
             setIsScreenSharing(false);
 
@@ -742,22 +741,34 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
 
             // Remove video track from peers and renegotiate (Switch back to audio only)
+            // Also remove any extra audio tracks (System Audio)
             peersRef.current.forEach(async (pc, targetUserId) => {
                 try {
                     const senders = pc.getSenders();
+
+                    // Remove Video Sender
                     const videoSender = senders.find(s => s.track?.kind === 'video');
                     if (videoSender) {
                         pc.removeTrack(videoSender);
                     }
 
-                    // Update audio track to point to new stream
-                    const audioSender = senders.find(s => s.track?.kind === 'audio');
-                    if (audioSender) {
-                        const audioTrack = stream.getAudioTracks()[0];
-                        await audioSender.replaceTrack(audioTrack).catch(e => console.error("Error replacing audio track:", e));
+                    // Handle Audio Senders
+                    // We expect potentially 2 audio senders: Mic and System Audio
+                    const audioSenders = senders.filter(s => s.track?.kind === 'audio');
+
+                    if (audioSenders.length > 0) {
+                        // Keep the first sender for Microphone and update its track
+                        const primaryAudioSender = audioSenders[0];
+                        const newMicTrack = stream.getAudioTracks()[0];
+                        await primaryAudioSender.replaceTrack(newMicTrack).catch(e => console.error("Error replacing audio track:", e));
+
+                        // Remove any additional audio senders (System Audio)
+                        for (let i = 1; i < audioSenders.length; i++) {
+                            pc.removeTrack(audioSenders[i]);
+                        }
                     }
 
-                    // Renegotiate to tell remote that video is gone
+                    // Renegotiate to tell remote that video/extra-audio is gone
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
 
@@ -803,7 +814,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 console.log('Trying standard getDisplayMedia API');
                 const constraints: any = {
                     video: true,
-                    audio: true
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } as any,
+                    selfBrowserSurface: 'exclude' // Prevent capturing the app itself (Zvon)
                 };
 
                 if (selectedSource?.quality) {
@@ -823,7 +839,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
 
                 try {
-                    // Try with audio first
+                    // Try with audio first and selfBrowserSurface exclude
                     screenStream = await navigator.mediaDevices.getDisplayMedia(constraints);
                 } catch (err) {
                     console.warn('getDisplayMedia with constraints failed, trying video only:', err);

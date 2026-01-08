@@ -110,15 +110,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         fetchProfile();
     }, [userId, serverId]);
 
-    if (loading) return (
-        <div className="user-profile-overlay" onClick={onClose}>
-            <div className="user-profile-card loading" onClick={e => e.stopPropagation()}>
-                <div className="loading-spinner"></div>
-            </div>
-        </div>
-    );
-
-    if (error || !profileData) return (
+    if (error) return (
         <div className="user-profile-overlay" onClick={onClose}>
             <div className="user-profile-card error" onClick={e => e.stopPropagation()}>
                 <p>{error || 'Ошибка'}</p>
@@ -127,192 +119,234 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         </div>
     );
 
-    const { user, mutualServers, mutualFriends } = profileData;
+    const user = profileData?.user;
+    const mutualServers = profileData?.mutualServers || [];
+    const mutualFriends = profileData?.mutualFriends || [];
 
     return (
         <div className="user-profile-overlay" onClick={onClose}>
-            <div className="user-profile-card" onClick={e => e.stopPropagation()}>
-                <div
-                    className="profile-banner"
-                    style={{
-                        backgroundColor: '#5865f2',
-                        backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center'
-                    }}
-                >
-                    <button className="profile-close-button" onClick={onClose}>
-                        <CloseIcon />
-                    </button>
-                </div>
-
-                <div className="profile-header">
-                    <div className="profile-avatar-container">
-                        <div className={`profile-avatar ${user.status} ${memberData?.avatar ? 'server-specific' : ''}`}>
-                            {getAvatarUrl(memberData?.avatar || user.avatar) ? (
-                                <img src={getAvatarUrl(memberData?.avatar || user.avatar)!} alt={user.username} />
-                            ) : (
-                                <span>{user.username.charAt(0).toUpperCase()}</span>
-                            )}
-                            <div className={`profile-status-indicator ${user.status}`}></div>
+            <div className={`user-profile-card ${loading ? 'loading-skeleton' : ''}`} onClick={e => e.stopPropagation()}>
+                {loading ? (
+                    // Skeleton Loading State
+                    <>
+                        <div className="profile-banner skeleton"></div>
+                        <div className="profile-header">
+                            <div className="profile-avatar-container">
+                                <div className="profile-avatar skeleton"></div>
+                            </div>
                         </div>
-                    </div>
+                        <div className="profile-body">
+                            <div className="profile-names skeleton-text large" style={{ width: '60%', marginBottom: '8px' }}></div>
+                            <div className="profile-names skeleton-text" style={{ width: '40%' }}></div>
 
-                    <div className="profile-badge-container">
-                    </div>
-                </div>
+                            <div className="profile-divider"></div>
 
-                <div className="profile-body">
-                    <div className="profile-names">
-                        {memberData?.nickname && <span className="profile-nickname">{memberData.nickname}</span>}
-                        <span className={memberData?.nickname ? "profile-username sub" : "profile-username"}>{user.username}</span>
-                    </div>
+                            <div className="profile-tabs">
+                                <div className="skeleton-text" style={{ width: '80px', height: '20px' }}></div>
+                                <div className="skeleton-text" style={{ width: '80px', height: '20px' }}></div>
+                            </div>
 
-                    <div className="profile-divider"></div>
-
-                    <div className="profile-tabs">
-                        <button
-                            className={activeTab === 'info' ? 'active' : ''}
-                            onClick={() => setActiveTab('info')}
-                        >
-                            Информация
-                        </button>
-                        <button
-                            className={activeTab === 'mutualFriends' ? 'active' : ''}
-                            onClick={() => setActiveTab('mutualFriends')}
-                        >
-                            Общие друзья ({mutualFriends.length})
-                        </button>
-                        <button
-                            className={activeTab === 'mutualServers' ? 'active' : ''}
-                            onClick={() => setActiveTab('mutualServers')}
-                        >
-                            Общие серверы ({mutualServers.length})
-                        </button>
-                    </div>
-
-                    <div className="profile-tab-content">
-                        {activeTab === 'info' && (
                             <div className="info-tab">
-                                <section>
-                                    <h4>О СЕБЕ</h4>
-                                    <p className="bio-text">{memberData?.bio || user.bio || 'Пользователь ничего не рассказал о себе.'}</p>
-                                </section>
-                                <section>
-                                    <h4>ДАТА РЕГИСТРАЦИИ</h4>
-                                    <p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                </section>
-                                <section>
-                                    <div className="roles-list-header">
-                                        <h4>РОЛИ</h4>
-                                        {serverId && canEditRoles && (
-                                            <button
-                                                className="add-role-btn"
-                                                onClick={() => setIsManagingRoles(!isManagingRoles)}
-                                                title={isManagingRoles ? "Завершить редактирование" : "Управление ролями"}
-                                            >
-                                                {isManagingRoles ? <CloseIcon size={14} /> : <PlusIcon size={14} />}
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="roles-list">
-                                        {serverId ? (
-                                            <>
-                                                {memberRoles.length > 0 ? (
-                                                    memberRoles.map(role => (
-                                                        <div key={role._id} className="role-chip" style={{ borderColor: role.color }}>
-                                                            <span className="role-dot" style={{ backgroundColor: role.color }}></span>
-                                                            <span style={{ color: '#dcddde' }}>{role.name}</span>
-                                                            {isManagingRoles && (
-                                                                <span
-                                                                    className="role-remove-icon"
-                                                                    onClick={() => handleToggleRole(role._id)}
-                                                                >×</span>
-                                                            )}
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="no-roles">Нет ролей</div>
+                                <div className="skeleton-text" style={{ width: '30%', marginBottom: '8px' }}></div>
+                                <div className="skeleton-text" style={{ width: '90%', height: '40px', marginBottom: '16px' }}></div>
+
+                                <div className="skeleton-text" style={{ width: '40%', marginBottom: '8px' }}></div>
+                                <div className="skeleton-text" style={{ width: '60%', marginBottom: '16px' }}></div>
+
+                                <div className="skeleton-text" style={{ width: '25%', marginBottom: '8px' }}></div>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <div className="skeleton-text" style={{ width: '80px', height: '24px', borderRadius: '4px' }}></div>
+                                    <div className="skeleton-text" style={{ width: '60px', height: '24px', borderRadius: '4px' }}></div>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                ) : user && (
+                    // Actual Content
+                    <>
+                        <div
+                            className="profile-banner"
+                            style={{
+                                backgroundColor: '#5865f2',
+                                backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none',
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center'
+                            }}
+                        >
+                            <button className="profile-close-button" onClick={onClose}>
+                                <CloseIcon />
+                            </button>
+                        </div>
+
+                        <div className="profile-header">
+                            <div className="profile-avatar-container">
+                                <div className={`profile-avatar ${user.status} ${memberData?.avatar ? 'server-specific' : ''}`}>
+                                    {getAvatarUrl(memberData?.avatar || user.avatar) ? (
+                                        <img src={getAvatarUrl(memberData?.avatar || user.avatar)!} alt={user.username} />
+                                    ) : (
+                                        <span>{user.username.charAt(0).toUpperCase()}</span>
+                                    )}
+                                    <div className={`profile-status-indicator ${user.status}`}></div>
+                                </div>
+                            </div>
+
+                            <div className="profile-badge-container">
+                            </div>
+                        </div>
+
+                        <div className="profile-body">
+                            <div className="profile-names">
+                                {memberData?.nickname && <span className="profile-nickname">{memberData.nickname}</span>}
+                                <span className={memberData?.nickname ? "profile-username sub" : "profile-username"}>{user.username}</span>
+                            </div>
+
+                            <div className="profile-divider"></div>
+
+                            <div className="profile-tabs">
+                                <button
+                                    className={activeTab === 'info' ? 'active' : ''}
+                                    onClick={() => setActiveTab('info')}
+                                >
+                                    Информация
+                                </button>
+                                <button
+                                    className={activeTab === 'mutualFriends' ? 'active' : ''}
+                                    onClick={() => setActiveTab('mutualFriends')}
+                                >
+                                    Общие друзья ({mutualFriends.length})
+                                </button>
+                                <button
+                                    className={activeTab === 'mutualServers' ? 'active' : ''}
+                                    onClick={() => setActiveTab('mutualServers')}
+                                >
+                                    Общие серверы ({mutualServers.length})
+                                </button>
+                            </div>
+
+                            <div className="profile-tab-content">
+                                {activeTab === 'info' && (
+                                    <div className="info-tab">
+                                        <section>
+                                            <h4>О СЕБЕ</h4>
+                                            <p className="bio-text">{memberData?.bio || user.bio || 'Пользователь ничего не рассказал о себе.'}</p>
+                                        </section>
+                                        <section>
+                                            <h4>ДАТА РЕГИСТРАЦИИ</h4>
+                                            <p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                        </section>
+                                        <section>
+                                            <div className="roles-list-header">
+                                                <h4>РОЛИ</h4>
+                                                {serverId && canEditRoles && (
+                                                    <button
+                                                        className="add-role-btn"
+                                                        onClick={() => setIsManagingRoles(!isManagingRoles)}
+                                                        title={isManagingRoles ? "Завершить редактирование" : "Управление ролями"}
+                                                    >
+                                                        {isManagingRoles ? <CloseIcon size={14} /> : <PlusIcon size={14} />}
+                                                    </button>
                                                 )}
-                                                {isManagingRoles && (
-                                                    <div className="role-selector-dropdown">
-                                                        {allServerRoles
-                                                            .filter(r => {
-                                                                if (!r || !r._id) return false;
-                                                                return !memberRoles.some(mr => {
-                                                                    const mrId = typeof mr === 'string' ? mr : mr?._id;
-                                                                    return mrId === r._id;
-                                                                });
-                                                            })
-                                                            .map(role => (
-                                                                <div
-                                                                    key={role._id}
-                                                                    className="role-select-item-mini"
-                                                                    onClick={() => handleToggleRole(role._id)}
-                                                                >
-                                                                    <span className="role-dot" style={{ backgroundColor: role.color }} />
-                                                                    {role.name}
+                                            </div>
+                                            <div className="roles-list">
+                                                {serverId ? (
+                                                    <>
+                                                        {memberRoles.length > 0 ? (
+                                                            memberRoles.map(role => (
+                                                                <div key={role._id} className="role-chip" style={{ borderColor: role.color }}>
+                                                                    <span className="role-dot" style={{ backgroundColor: role.color }}></span>
+                                                                    <span style={{ color: '#dcddde' }}>{role.name}</span>
+                                                                    {isManagingRoles && (
+                                                                        <span
+                                                                            className="role-remove-icon"
+                                                                            onClick={() => handleToggleRole(role._id)}
+                                                                        >×</span>
+                                                                    )}
                                                                 </div>
-                                                            ))}
-                                                        {allServerRoles.filter(r => {
-                                                            if (!r || !r._id) return false;
-                                                            return !memberRoles.some(mr => {
-                                                                const mrId = typeof mr === 'string' ? mr : mr?._id;
-                                                                return mrId === r._id;
-                                                            });
-                                                        }).length === 0 && (
-                                                                <div className="no-roles-av">Нет доступных ролей</div>
-                                                            )}
-                                                    </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="no-roles">Нет ролей</div>
+                                                        )}
+                                                        {isManagingRoles && (
+                                                            <div className="role-selector-dropdown">
+                                                                {allServerRoles
+                                                                    .filter(r => {
+                                                                        if (!r || !r._id) return false;
+                                                                        return !memberRoles.some(mr => {
+                                                                            const mrId = typeof mr === 'string' ? mr : mr?._id;
+                                                                            return mrId === r._id;
+                                                                        });
+                                                                    })
+                                                                    .map(role => (
+                                                                        <div
+                                                                            key={role._id}
+                                                                            className="role-select-item-mini"
+                                                                            onClick={() => handleToggleRole(role._id)}
+                                                                        >
+                                                                            <span className="role-dot" style={{ backgroundColor: role.color }} />
+                                                                            {role.name}
+                                                                        </div>
+                                                                    ))}
+                                                                {allServerRoles.filter(r => {
+                                                                    if (!r || !r._id) return false;
+                                                                    return !memberRoles.some(mr => {
+                                                                        const mrId = typeof mr === 'string' ? mr : mr?._id;
+                                                                        return mrId === r._id;
+                                                                    });
+                                                                }).length === 0 && (
+                                                                        <div className="no-roles-av">Нет доступных ролей</div>
+                                                                    )}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="no-roles-server">Роли недоступны вне сервера</div>
                                                 )}
-                                            </>
-                                        ) : (
-                                            <div className="no-roles-server">Роли недоступны вне сервера</div>
+                                            </div>
+                                        </section>
+                                    </div>
+                                )}
+
+                                {activeTab === 'mutualFriends' && (
+                                    <div className="mutual-list">
+                                        {mutualFriends.length > 0 ? mutualFriends.map(friend => (
+                                            <div key={friend._id} className="mutual-item">
+                                                <div className="mutual-avatar">
+                                                    {getAvatarUrl(friend.avatar) ? (
+                                                        <img src={getAvatarUrl(friend.avatar)!} alt={friend.username} />
+                                                    ) : (
+                                                        <span>{friend.username.charAt(0).toUpperCase()}</span>
+                                                    )}
+                                                </div>
+                                                <span>{friend.username}</span>
+                                            </div>
+                                        )) : (
+                                            <div className="empty-mutual">Нет общих друзей.</div>
                                         )}
                                     </div>
-                                </section>
-                            </div>
-                        )}
+                                )}
 
-                        {activeTab === 'mutualFriends' && (
-                            <div className="mutual-list">
-                                {mutualFriends.length > 0 ? mutualFriends.map(friend => (
-                                    <div key={friend._id} className="mutual-item">
-                                        <div className="mutual-avatar">
-                                            {getAvatarUrl(friend.avatar) ? (
-                                                <img src={getAvatarUrl(friend.avatar)!} alt={friend.username} />
-                                            ) : (
-                                                <span>{friend.username.charAt(0).toUpperCase()}</span>
-                                            )}
-                                        </div>
-                                        <span>{friend.username}</span>
+                                {activeTab === 'mutualServers' && (
+                                    <div className="mutual-list">
+                                        {mutualServers.length > 0 ? mutualServers.map(server => (
+                                            <div key={server._id} className="mutual-item">
+                                                <div className="mutual-avatar server">
+                                                    {server.icon ? (
+                                                        <img src={getAvatarUrl(server.icon)!} alt={server.name} />
+                                                    ) : (
+                                                        <span>{server.name.charAt(0).toUpperCase()}</span>
+                                                    )}
+                                                </div>
+                                                <span>{server.name}</span>
+                                            </div>
+                                        )) : (
+                                            <div className="empty-mutual">Нет общих серверов.</div>
+                                        )}
                                     </div>
-                                )) : (
-                                    <div className="empty-mutual">Нет общих друзей.</div>
                                 )}
                             </div>
-                        )}
-
-                        {activeTab === 'mutualServers' && (
-                            <div className="mutual-list">
-                                {mutualServers.length > 0 ? mutualServers.map(server => (
-                                    <div key={server._id} className="mutual-item">
-                                        <div className="mutual-avatar server">
-                                            {server.icon ? (
-                                                <img src={getAvatarUrl(server.icon)!} alt={server.name} />
-                                            ) : (
-                                                <span>{server.name.charAt(0).toUpperCase()}</span>
-                                            )}
-                                        </div>
-                                        <span>{server.name}</span>
-                                    </div>
-                                )) : (
-                                    <div className="empty-mutual">Нет общих серверов.</div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

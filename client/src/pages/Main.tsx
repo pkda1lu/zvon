@@ -16,6 +16,7 @@ import UserProfileCard from '../components/UserProfileCard';
 import ServerSettingsModal from '../components/ServerSettingsModal';
 import ServerProfileCard from '../components/ServerProfileCard';
 import UserServerProfileModal from '../components/UserServerProfileModal';
+import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useNotifications } from '../contexts/NotificationContext';
 import './Main.css';
@@ -60,6 +61,7 @@ const Main: React.FC = () => {
   const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const isResizingRef = useRef(false);
+  const hasViewInitializedRef = useRef(false);
 
 
   useEffect(() => {
@@ -153,7 +155,10 @@ const Main: React.FC = () => {
     try {
       const response = await axios.get('/api/servers/me');
       setServers(response.data);
-      if (response.data.length > 0 && !selectedServer) {
+
+      // Only auto-select first server on very first load
+      if (!hasViewInitializedRef.current && response.data.length > 0 && !selectedServerRef.current) {
+        hasViewInitializedRef.current = true;
         const firstServer = response.data[0];
         setSelectedServer(firstServer);
         // Find first text channel
@@ -163,13 +168,16 @@ const Main: React.FC = () => {
         } else if (firstServer.channels.length > 0) {
           setSelectedChannel(firstServer.channels[0]);
         }
+      } else if (!hasViewInitializedRef.current) {
+        // If we loaded but had no servers, mark as initialized so we don't try again weirdly
+        hasViewInitializedRef.current = true;
       }
     } catch (error) {
       console.error('Error fetching servers:', error);
     } finally {
       setLoading(false);
     }
-  }, [selectedServer]);
+  }, []);
 
   const fetchMessages = useCallback(async (channelId: string) => {
     try {
@@ -558,6 +566,7 @@ const Main: React.FC = () => {
       const response = await axios.get(`/api/direct-messages/user/${userId}`);
       setSelectedDM(response.data);
       setSelectedChannel(null);
+      setSelectedServer(null); // Clear selected server to hide ServerSidebar
       setShowFriends(false);
     } catch (error) {
       console.error('Error starting DM:', error);
@@ -680,6 +689,12 @@ const Main: React.FC = () => {
             }}
           />
         )
+      )}
+      {selectedServer && !showFriends && (
+        <ServerMembers
+          server={selectedServer}
+          onUserClick={setShowProfileUserId}
+        />
       )}
       {selectedDM && !showFriends && (
         <DMView

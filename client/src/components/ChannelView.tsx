@@ -47,20 +47,27 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   };
 
   useEffect(() => {
-    // When messages change, scroll to bottom
-    // If it's a new message (last message author is current user or we are already at bottom), use smooth
-    // If it's the first load, use 'auto' (instant)
-    const isFirstLoad = messages.length > 0 && messagesEndRef.current && !messagesEndRef.current.parentElement?.scrollTop;
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'end'
+      });
+    };
 
-    messagesEndRef.current?.scrollIntoView({
-      behavior: isFirstLoad ? 'auto' : 'smooth',
-      block: 'end'
-    });
+    scrollToBottom();
+
+    // Small timeout to ensure efficient scrolling after layout updates (e.g. images)
+    const timeout = setTimeout(scrollToBottom, 100);
+
+    return () => clearTimeout(timeout);
   }, [messages]);
 
   // Ensure instant scroll on mount/channel change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    }, 50);
   }, [channel._id]);
 
   useEffect(() => {

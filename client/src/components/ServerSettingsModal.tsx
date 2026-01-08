@@ -549,7 +549,11 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                         <div className="member-row">
                                             <div className="member-user-info">
                                                 <div className="member-avatar-small">
-                                                    <img src={getAvatarUrl(member.user.avatar)!} alt="" />
+                                                    {getAvatarUrl(member.user.avatar) ? (
+                                                        <img src={getAvatarUrl(member.user.avatar)!} alt="" />
+                                                    ) : (
+                                                        <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                                                    )}
                                                 </div>
                                                 <div className="member-meta">
                                                     <span className="member-username">{member.user.username}</span>

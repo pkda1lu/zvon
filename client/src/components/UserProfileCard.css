@@ -23,6 +23,7 @@
     /* Allow it to grow but fit screen */
     display: flex;
     flex-direction: column;
+    min-height: 500px;
 }
 
 .profile-tab-content {
@@ -34,11 +35,46 @@
     /* Add some padding at bot */
 }
 
-.user-profile-card.loading {
-    height: 400px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* Skeleton Loading Styles */
+.user-profile-card.loading-skeleton {
+    pointer-events: none;
+}
+
+.skeleton {
+    background: var(--bg-tertiary);
+    background: linear-gradient(90deg,
+            var(--bg-tertiary) 0px,
+            var(--bg-secondary) 50%,
+            var(--bg-tertiary) 100%);
+    background-size: 200px 100%;
+    animation: skeleton-shimmer 1.5s infinite linear;
+}
+
+.skeleton-text {
+    background: var(--bg-tertiary);
+    height: 16px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg,
+            var(--bg-tertiary) 0px,
+            var(--bg-secondary) 50%,
+            var(--bg-tertiary) 100%);
+    background-size: 200px 100%;
+    animation: skeleton-shimmer 1.5s infinite linear;
+}
+
+.skeleton-text.large {
+    height: 24px;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: -200px 0;
+    }
+
+    100% {
+        background-position: 200px 0;
+    }
 }
 
 .profile-banner {

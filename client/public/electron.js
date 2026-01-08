@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, clipboard, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, desktopCapturer, ipcMain, clipboard, Tray, Menu, nativeImage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
@@ -255,11 +255,40 @@ function createUpdaterWindow() {
 function createWindow() {
     const windowState = loadWindowState();
 
+    // Validate bounds to ensure window is within work area (fixes taskbar overlap issues)
+    const display = screen.getPrimaryDisplay();
+    const workArea = display.workArea;
+
+    let { width, height, x, y } = windowState;
+
+    // Ensure dimensions are valid
+    if (!width || width < 800) width = 1280;
+    if (!height || height < 600) height = 800;
+
+    // Simple bounds check - if largely offscreen, reset to center
+    if (x === undefined || y === undefined ||
+        x < workArea.x || x > workArea.x + workArea.width ||
+        y < workArea.y || y > workArea.y + workArea.height) {
+
+        x = workArea.x + (workArea.width - width) / 2;
+        y = workArea.y + (workArea.height - height) / 2;
+    } else {
+        // Clamp to work area if not maximized
+        // This prevents the "under taskbar" issue if the saved state was weird
+        if (!windowState.isMaximized) {
+            if (width > workArea.width) width = workArea.width;
+            if (height > workArea.height) height = workArea.height;
+            if (y + height > workArea.y + workArea.height) y = workArea.y + workArea.height - height;
+        }
+    }
+
     mainWindow = new BrowserWindow({
-        width: windowState.width,
-        height: windowState.height,
-        x: windowState.x,
-        y: windowState.y,
+        width: width,
+        height: height,
+        x: x,
+        y: y,
+        minWidth: 800,
+        minHeight: 600,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
