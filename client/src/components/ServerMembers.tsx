@@ -77,9 +77,18 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                         )}
                                                         <div className={`status-indicator ${member.user.status}`}></div>
                                                     </div>
-                                                    <span className="member-name" style={{ color: memberColor }}>
-                                                        {member.nickname || member.user.username}
-                                                    </span>
+                                                    <div className="member-info">
+                                                        <span className="member-name" style={{ color: memberColor }}>
+                                                            {member.nickname || member.user.username}
+                                                        </span>
+                                                        {member.user.activity && (
+                                                            <div className="member-activity">
+                                                                <span className="activity-text">
+                                                                    Играет в <strong>{member.user.activity.name}</strong>
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -105,7 +114,16 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                 )}
                                                 <div className={`status-indicator ${member.user.status}`}></div>
                                             </div>
-                                            <span className="member-name">{member.nickname || member.user.username}</span>
+                                            <div className="member-info">
+                                                <span className="member-name">{member.nickname || member.user.username}</span>
+                                                {member.user.activity && (
+                                                    <div className="member-activity">
+                                                        <span className="activity-text">
+                                                            Играет в <strong>{member.user.activity.name}</strong>
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

@@ -54,8 +54,23 @@ const ElectronHandler: React.FC = () => {
         }
       });
 
+      // Handle Activity
+      const updateActivity = (activity: any) => {
+        console.log('Activity changed:', activity);
+        if (electron.ipc) {
+          // We might need access to current socket here. 
+          // But ElectronHandler is inside Router, outside SocketProvider maybe?
+          // Let's check App structure.
+        }
+      };
+
+      const removeActivityListener = electron.onActivityChanged?.((activity: any) => {
+        // We'll handle this in a separate component or hook to have access to socket
+      });
+
       return () => {
         if (removeListener) removeListener();
+        if (removeActivityListener) removeActivityListener();
       };
     }
   }, [navigate]);

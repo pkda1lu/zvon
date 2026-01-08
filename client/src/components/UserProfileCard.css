@@ -20,7 +20,6 @@
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
     height: auto;
     max-height: 90vh;
-    /* Allow it to grow but fit screen */
     display: flex;
     flex-direction: column;
     min-height: 500px;
@@ -30,22 +29,12 @@
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-    /* Important for flex child scrolling */
     padding-bottom: 15px;
-    /* Add some padding at bot */
-}
-
-/* Skeleton Loading Styles */
-.user-profile-card.loading-skeleton {
-    pointer-events: none;
 }
 
 .skeleton {
     background: var(--bg-tertiary);
-    background: linear-gradient(90deg,
-            var(--bg-tertiary) 0px,
-            var(--bg-secondary) 50%,
-            var(--bg-tertiary) 100%);
+    background: linear-gradient(90deg, var(--bg-tertiary) 0px, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
     background-size: 200px 100%;
     animation: skeleton-shimmer 1.5s infinite linear;
 }
@@ -55,16 +44,9 @@
     height: 16px;
     border-radius: 4px;
     margin-bottom: 8px;
-    background: linear-gradient(90deg,
-            var(--bg-tertiary) 0px,
-            var(--bg-secondary) 50%,
-            var(--bg-tertiary) 100%);
+    background: linear-gradient(90deg, var(--bg-tertiary) 0px, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
     background-size: 200px 100%;
     animation: skeleton-shimmer 1.5s infinite linear;
-}
-
-.skeleton-text.large {
-    height: 24px;
 }
 
 @keyframes skeleton-shimmer {
@@ -97,10 +79,6 @@
     justify-content: center;
     cursor: pointer;
     transition: background 0.2s;
-}
-
-.profile-close-button:hover {
-    background: rgba(0, 0, 0, 0.5);
 }
 
 .profile-header {
@@ -213,10 +191,6 @@
     position: relative;
 }
 
-.profile-tabs button:hover {
-    color: #dcddde;
-}
-
 .profile-tabs button.active {
     color: white;
 }
@@ -249,11 +223,6 @@
     line-height: 1.4;
 }
 
-.bio-text {
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
 .role-chip {
     display: flex;
     align-items: center;
@@ -272,17 +241,11 @@
     border-radius: 50%;
 }
 
-.no-roles,
-.no-roles-server {
-    color: #b9bbbe;
-    font-size: 12px;
-    font-style: italic;
-}
-
 .roles-list {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    position: relative;
 }
 
 .mutual-list {
@@ -317,103 +280,8 @@
     font-weight: 600;
 }
 
-.mutual-avatar img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
 .mutual-avatar.server {
     border-radius: 30%;
-}
-
-.mutual-avatar.server img {
-    border-radius: 30%;
-}
-
-.empty-mutual {
-    color: #b9bbbe;
-    font-size: 14px;
-    text-align: center;
-    margin-top: 20px;
-}
-
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(255, 255, 255, 0.1);
-    border-left-color: #fff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.roles-list-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-}
-
-.roles-list-header h4 {
-    margin-bottom: 0;
-}
-
-.add-role-btn {
-    background: none;
-    border: none;
-    color: #b9bbbe;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.add-role-btn:hover {
-    background-color: #2f3136;
-    color: white;
-}
-
-.role-remove-icon {
-    font-size: 16px;
-    margin-left: 2px;
-    cursor: pointer;
-    color: #b9bbbe;
-    line-height: 1;
-}
-
-.role-remove-icon:hover {
-    color: #ed4245;
-}
-
-.role-selector-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    width: 100%;
-    background-color: #18191c;
-    border: 1px solid #2f3136;
-    border-radius: 4px;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-    z-index: 100;
-    /* Ensure high z-index */
-    max-height: 150px;
-    overflow-y: auto;
-    padding: 4px 0;
-    margin-top: 4px;
-}
-
-.roles-list {
-    position: relative;
-    /* Context for absolute dropdown */
 }
 
 .role-select-item-mini {
@@ -436,4 +304,65 @@
     color: #b9bbbe;
     font-size: 12px;
     text-align: center;
+}
+
+.profile-activity-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: rgba(32, 34, 37, 0.4);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.profile-activity-section .section-title {
+    color: #b5bac1;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+}
+
+.activity-content {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.activity-image-wrapper {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.activity-large-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.activity-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.activity-name {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.activity-state {
+    color: #b5bac1;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.activity-time {
+    color: #b5bac1;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 4px;
 }

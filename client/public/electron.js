@@ -410,6 +410,69 @@ ipcMain.on('clipboard-write', (event, text) => {
     }
 });
 
+// Activity Detection
+const { exec } = require('child_process');
+let lastActivity = null;
+let activityStartTime = null;
+
+const KNOWN_GAMES = {
+    'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg' },
+    'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/493051_IGDB-285x380.jpg' },
+    'csgo.exe': { name: 'CS:GO', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg' },
+    'Dota2.exe': { name: 'Dota 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/29595-285x380.jpg' },
+    'League of Legends.exe': { name: 'League of Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg' },
+    'Minecraft.exe': { name: 'Minecraft', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg' },
+    'RobloxPlayerBeta.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg' },
+    'GenshinImpact.exe': { name: 'Genshin Impact', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/513181-285x380.jpg' },
+    'Telegram.exe': { name: 'Telegram', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Telegram_logo.svg/2048px-Telegram_logo.svg.png' },
+    'Code.exe': { name: 'Visual Studio Code', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Visual_Studio_Code_1.35_icon.svg/2048px-Visual_Studio_Code_1.35_icon.svg.png' },
+    'Spotify.exe': { name: 'Spotify', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/2048px-Spotify_logo_without_text.svg.png' }
+};
+
+function scanActivities() {
+    if (process.platform !== 'win32') return;
+
+    exec('tasklist /NH /FO CSV', (err, stdout) => {
+        if (err) return;
+
+        const lines = stdout.split('\r\n');
+        let foundActivity = null;
+
+        for (const line of lines) {
+            const parts = line.split('","');
+            if (parts.length > 0) {
+                const exeName = parts[0].replace(/"/g, '');
+                if (KNOWN_GAMES[exeName]) {
+                    foundActivity = KNOWN_GAMES[exeName];
+                    break;
+                }
+            }
+        }
+
+        if (foundActivity?.name !== lastActivity?.name) {
+            lastActivity = foundActivity;
+            if (foundActivity) {
+                activityStartTime = Date.now();
+            } else {
+                activityStartTime = null;
+            }
+
+            if (mainWindow) {
+                mainWindow.webContents.send('activity-changed', lastActivity ? {
+                    ...lastActivity,
+                    startTime: activityStartTime
+                } : null);
+            }
+        }
+    });
+}
+
+setInterval(scanActivities, 15000); // Scan every 15 seconds
+
+ipcMain.handle('get-current-activity', () => {
+    return lastActivity ? { ...lastActivity, startTime: activityStartTime } : null;
+});
+
 // IPC handler to change application icon
 ipcMain.on('change-icon', (event, iconName) => {
     let iconFile = 'app_icon.ico';

@@ -1,3 +1,20 @@
+export interface UserActivity {
+  type: 'playing' | 'streaming' | 'listening' | 'watching' | 'competing';
+  name: string;
+  details?: string;
+  state?: string;
+  timestamps?: {
+    start?: number;
+    end?: number;
+  };
+  assets?: {
+    largeImage?: string;
+    largeText?: string;
+    smallImage?: string;
+    smallText?: string;
+  };
+}
+
 export interface User {
   _id: string;
   username: string;
@@ -6,6 +23,7 @@ export interface User {
   banner: string | null;
   bio: string;
   status: 'online' | 'offline' | 'away' | 'busy';
+  activity?: UserActivity | null;
   servers?: string[];
   blockedUsers?: string[];
   notes?: Record<string, string>;

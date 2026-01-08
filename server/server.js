@@ -360,6 +360,25 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Activity Update
+  socket.on('activity-update', async (activity) => {
+    try {
+      const user = await User.findById(socket.userId);
+      if (user) {
+        user.activity = activity;
+        await user.save();
+
+        // Broadcast to everyone that the user has updated their activity
+        io.emit('user-updated', {
+          _id: user._id,
+          activity: user.activity
+        });
+      }
+    } catch (err) {
+      console.error('Error updating activity:', err);
+    }
+  });
+
   // Voice call events
   socket.on('call-offer', (data) => {
     const targetRoom = `user-${String(data.targetUserId)}`;

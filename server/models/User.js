@@ -53,6 +53,26 @@ const userSchema = new mongoose.Schema({
     of: String, // Key is target ID (user, etc.), value is the note
     default: {}
   },
+  activity: {
+    name: { type: String, default: null },
+    type: {
+      type: String,
+      enum: ['playing', 'streaming', 'listening', 'watching', 'competing'],
+      default: 'playing'
+    },
+    details: String,
+    state: String,
+    timestamps: {
+      start: Number,
+      end: Number
+    },
+    assets: {
+      largeImage: String,
+      largeText: String,
+      smallImage: String,
+      smallText: String
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now

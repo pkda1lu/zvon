@@ -123,6 +123,42 @@ const Main: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // @ts-ignore
+    const electron = window.electron;
+    if (electron && socket && user) {
+      // Sync current activity on load
+      electron.getCurrentActivity?.().then((activity: any) => {
+        if (activity) {
+          socket.emit('activity-update', {
+            name: activity.name,
+            type: 'playing',
+            assets: { largeImage: activity.icon },
+            timestamps: { start: activity.startTime }
+          });
+        }
+      });
+
+      // Listen for changes
+      const removeActivityListener = electron.onActivityChanged?.((activity: any) => {
+        if (activity) {
+          socket.emit('activity-update', {
+            name: activity.name,
+            type: 'playing',
+            assets: { largeImage: activity.icon },
+            timestamps: { start: activity.startTime }
+          });
+        } else {
+          socket.emit('activity-update', null);
+        }
+      });
+
+      return () => {
+        if (removeActivityListener) removeActivityListener();
+      };
+    }
+  }, [socket, user?._id]);
+
   const startResizing = () => {
     isResizingRef.current = true;
     document.body.style.cursor = 'col-resize';

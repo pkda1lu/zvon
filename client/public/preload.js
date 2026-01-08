@@ -41,6 +41,12 @@ try {
         clipboard: {
             writeText: (text) => ipcRenderer.send('clipboard-write', text)
         },
+        getCurrentActivity: () => ipcRenderer.invoke('get-current-activity'),
+        onActivityChanged: (callback) => {
+            const subscription = (event, activity) => callback(activity);
+            ipcRenderer.on('activity-changed', subscription);
+            return () => ipcRenderer.removeListener('activity-changed', subscription);
+        },
         setPendingDisplaySource: (sourceId) => ipcRenderer.send('set-pending-display-source', sourceId),
         windowControls: {
             minimize: () => ipcRenderer.send('window-minimize'),

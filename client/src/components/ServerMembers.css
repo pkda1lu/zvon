@@ -120,3 +120,26 @@
 .member-item.offline:hover {
     opacity: 1;
 }
+
+.member-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    gap: 1px;
+}
+
+.member-activity {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.activity-text {
+    opacity: 0.8;
+}
+
+.activity-text strong {
+    font-weight: 600;
+}

@@ -14,6 +14,31 @@ interface UserProfileCardProps {
     currentServer?: Server | null;
 }
 
+const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
+    const [elapsed, setElapsed] = useState('');
+
+    useEffect(() => {
+        const update = () => {
+            const diff = Math.floor((Date.now() - startTime) / 1000);
+            const hours = Math.floor(diff / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            const seconds = diff % 60;
+
+            if (hours > 0) {
+                setElapsed(`${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} прошло`);
+            } else {
+                setElapsed(`${minutes}:${seconds.toString().padStart(2, '0')} прошло`);
+            }
+        };
+
+        update();
+        const interval = setInterval(update, 1000);
+        return () => clearInterval(interval);
+    }, [startTime]);
+
+    return <div className="activity-time">{elapsed}</div>;
+};
+
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId, currentUser, currentServer }) => {
     const [profileData, setProfileData] = useState<{
         user: User;
@@ -199,6 +224,26 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                 {memberData?.nickname && <span className="profile-nickname">{memberData.nickname}</span>}
                                 <span className={memberData?.nickname ? "profile-username sub" : "profile-username"}>{user.username}</span>
                             </div>
+
+                            {user.activity && (
+                                <div className="profile-activity-section">
+                                    <h4 className="section-title">ЗАНИМАЕТСЯ:</h4>
+                                    <div className="activity-content">
+                                        {user.activity.assets?.largeImage && (
+                                            <div className="activity-image-wrapper">
+                                                <img src={user.activity.assets.largeImage} alt={user.activity.name} className="activity-large-image" />
+                                            </div>
+                                        )}
+                                        <div className="activity-details">
+                                            <div className="activity-name">{user.activity.name}</div>
+                                            <div className="activity-state">Играет в {user.activity.name}</div>
+                                            {user.activity.timestamps?.start && (
+                                                <ActivityTimer startTime={user.activity.timestamps.start} />
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="profile-divider"></div>
 
