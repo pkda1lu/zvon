@@ -428,12 +428,7 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
     if (mainWindow) {
-        if (process.platform !== 'darwin') {
-            isQuitting = true; // For custom title bar close button, we might want to actually quit or just hide
-            app.quit();
-        } else {
-            mainWindow.hide();
-        }
+        mainWindow.close();
     }
 });
 
