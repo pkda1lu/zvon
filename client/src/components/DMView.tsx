@@ -110,6 +110,10 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
     }
   };
 
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -284,7 +288,26 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
       <div className="message-input-container">
         {attachments.length > 0 && (
           <div className="attachments-preview">
-            {attachments.length} файл(ов) прикреплено
+            <div className="attachments-preview-list">
+              {attachments.map((att, i) => (
+                <div key={i} className="input-attachment-preview">
+                  {att.type.startsWith('image/') ? (
+                    <img src={getFullUrl(att.url)!} alt={att.filename} />
+                  ) : (
+                    <div className="file-icon" title={att.filename}>
+                      <DocumentIcon size={24} />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="remove-attachment-btn"
+                    onClick={() => removeAttachment(i)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         <form onSubmit={handleSendMessage} className="message-form">

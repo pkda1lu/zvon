@@ -6,6 +6,38 @@
   overflow: hidden;
 }
 
+.voice-channel-view.app-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: var(--bg-primary);
+}
+
+.voice-channel-view.app-fullscreen .voice-channel-content {
+  padding: 0;
+}
+
+.voice-channel-view.app-fullscreen .stage-container {
+  padding: 0;
+  gap: 0;
+}
+
+.voice-channel-view.app-fullscreen .stage-main {
+  border-radius: 0;
+  border: none;
+}
+
+.voice-channel-view.app-fullscreen .voice-channel-header,
+.voice-channel-view.app-fullscreen .voice-channel-controls {
+  display: none;
+}
+
 .voice-channel-header {
   height: 48px;
   padding: 0 16px;

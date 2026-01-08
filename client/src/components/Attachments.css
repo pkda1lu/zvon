@@ -1,6 +1,8 @@
+/* Attachments.css */
+
 .attachment-button {
-    background: #b9bbbe;
-    color: #36393f;
+    background: var(--text-muted);
+    color: var(--bg-primary);
     border: none;
     border-radius: 50%;
     width: 24px;
@@ -17,20 +19,86 @@
 
 .attachment-button:hover {
     color: #fff;
-    background-color: #3ba55d;
-}
-
-.input-wrapper {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    background-color: #43b581;
+    /* status-online */
 }
 
 .attachments-preview {
-    font-size: 12px;
-    color: #b9bbbe;
-    padding-bottom: 4px;
-    padding-left: 4px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.attachments-preview-list {
+    display: flex;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--bg-tertiary);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border-divider);
+}
+
+.input-attachment-preview {
+    position: relative;
+    width: 128px;
+    height: 128px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid var(--border-divider);
+}
+
+.input-attachment-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.input-attachment-preview .file-icon {
+    color: var(--text-muted);
+}
+
+.remove-attachment-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ed4245;
+    /* status-dnd */
+    color: #fff;
+    border: 2px solid var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    transition: background-color 0.1s, transform 0.1s;
+    z-index: 10;
+}
+
+.remove-attachment-btn:hover {
+    background: #c03537;
+    /* Slightly darker red for hover */
+    transform: scale(1.1);
+}
+
+.attachments-preview-list::-webkit-scrollbar {
+    height: 8px;
+}
+
+.attachments-preview-list::-webkit-scrollbar-thumb {
+    background: var(--bg-secondary);
+    border-radius: 4px;
 }
 
 .message-attachments {
@@ -52,6 +120,8 @@
     max-height: 300px;
     border-radius: 4px;
     object-fit: contain;
+    background: var(--bg-secondary);
+    /* Placeholder bg */
 }
 
 .attachment-video {
@@ -65,13 +135,16 @@
     align-items: center;
     gap: 8px;
     color: #00b0f4;
+    /* link color */
     text-decoration: none;
     padding: 10px;
-    background: #2f3136;
+    background: var(--bg-secondary);
     border-radius: 4px;
-    border: 1px solid #202225;
+    border: 1px solid var(--border-divider);
+    transition: background-color 0.2s;
 }
 
 .attachment-file:hover {
-    text-decoration: underline;
+    background-color: var(--bg-tertiary);
+    text-decoration: none;
 }

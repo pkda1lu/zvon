@@ -410,6 +410,34 @@ ipcMain.on('clipboard-write', (event, text) => {
     }
 });
 
+// IPC handler to change application icon
+ipcMain.on('change-icon', (event, iconName) => {
+    let iconFile = 'app_icon.ico';
+    switch (iconName) {
+        case 'icon1': iconFile = 'icon1.PNG'; break;
+        case 'icon2': iconFile = 'icon2.png'; break;
+        case 'icon3': iconFile = 'icon3.png'; break;
+        case 'icon4': iconFile = 'icon4.png'; break;
+        default: iconFile = 'app_icon.ico'; break;
+    }
+
+    // In dev mode, or whenever __dirname is correct (it should be public/)
+    const iconPath = path.join(__dirname, iconFile);
+
+    try {
+        const iconImage = nativeImage.createFromPath(iconPath);
+
+        if (mainWindow) {
+            mainWindow.setIcon(iconImage);
+        }
+        if (tray) {
+            tray.setImage(iconImage);
+        }
+    } catch (err) {
+        console.error('Failed to change icon:', err);
+    }
+});
+
 // IPC handler for desktopCapturer
 ipcMain.handle('get-desktop-sources', async (event, options) => {
     try {

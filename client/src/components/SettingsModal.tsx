@@ -43,13 +43,23 @@ type SettingsTab =
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user, refreshUser, logout } = useAuth();
-  const { isNoiseSuppressionEnabled, toggleNoiseSuppression } = useVoice();
+  const {
+    isNoiseSuppressionEnabled, toggleNoiseSuppression,
+    inputDevices, outputDevices, videoDevices,
+    selectedInputDeviceId, setSelectedInputDeviceId,
+    selectedOutputDeviceId, setSelectedOutputDeviceId,
+    selectedVideoDeviceId, setSelectedVideoDeviceId,
+    inputVolume, setInputVolume,
+    outputVolume, setOutputVolume,
+    refreshDevices
+  } = useVoice();
   const {
     theme, setTheme,
     density, setDensity,
     messageSpacing, setMessageSpacing,
     groupSpacing, setGroupSpacing,
-    fontScale, setFontScale
+    fontScale, setFontScale,
+    appIcon, setAppIcon
   } = useAppearance();
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
@@ -344,15 +354,160 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           className="settings-slider"
         />
       </div>
+
+      <div className="settings-section-block">
+        <h3>Иконка приложения</h3>
+        <div className="app-icon-grid">
+          <div
+            className={`app-icon-option ${appIcon === 'default' ? 'active' : ''}`}
+            onClick={() => setAppIcon('default')}
+          >
+            <img src="/icon.png" alt="По умолчанию" />
+            <span>Стандартная</span>
+          </div>
+          <div
+            className={`app-icon-option ${appIcon === 'icon1' ? 'active' : ''}`}
+            onClick={() => setAppIcon('icon1')}
+          >
+            <img src="/icon1.PNG" alt="Вариант 1" />
+            <span>Неон</span>
+          </div>
+          <div
+            className={`app-icon-option ${appIcon === 'icon2' ? 'active' : ''}`}
+            onClick={() => setAppIcon('icon2')}
+          >
+            <img src="/icon2.png" alt="Вариант 2" />
+            <span>Лазурь</span>
+          </div>
+          <div
+            className={`app-icon-option ${appIcon === 'icon3' ? 'active' : ''}`}
+            onClick={() => setAppIcon('icon3')}
+          >
+            <img src="/icon3.png" alt="Вариант 3" />
+            <span>Аметист</span>
+          </div>
+          <div
+            className={`app-icon-option ${appIcon === 'icon4' ? 'active' : ''}`}
+            onClick={() => setAppIcon('icon4')}
+          >
+            <img src="/icon4.png" alt="Вариант 4" />
+            <span>Огонь</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
+
+  useEffect(() => {
+    if (activeTab === 'voice') {
+      refreshDevices();
+    }
+  }, [activeTab, refreshDevices]);
 
   const renderVoiceSettings = () => (
     <div className="settings-section-content">
       <h2 className="settings-section-title">Голос и видео</h2>
 
       <div className="settings-section-block">
-        <h3>Обработка голоса</h3>
+        <h3>Устройства ввода и вывода</h3>
+
+        <div className="voice-settings-grid">
+          <div className="settings-form-group">
+            <label>Устройство ввода (Микрофон)</label>
+            <select
+              value={selectedInputDeviceId}
+              onChange={(e) => setSelectedInputDeviceId(e.target.value)}
+              className="settings-select"
+            >
+              {inputDevices.map(device => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Microphone ${device.deviceId.slice(0, 5)}...`}
+                </option>
+              ))}
+              {inputDevices.length === 0 && <option value="default">По умолчанию</option>}
+            </select>
+          </div>
+
+          <div className="settings-form-group">
+            <label>Устройство вывода (Динамики)</label>
+            <select
+              value={selectedOutputDeviceId}
+              onChange={(e) => setSelectedOutputDeviceId(e.target.value)}
+              className="settings-select"
+            >
+              {outputDevices.map(device => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Speaker ${device.deviceId.slice(0, 5)}...`}
+                </option>
+              ))}
+              {outputDevices.length === 0 && <option value="default">По умолчанию</option>}
+            </select>
+          </div>
+        </div>
+
+        <div className="voice-volume-controls">
+          <div className="settings-form-group">
+            <div className="slider-header-row">
+              <label>Громкость микрофона</label>
+              <span className="slider-value">{Math.round(inputVolume * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="0.01"
+              value={inputVolume}
+              onChange={(e) => setInputVolume(parseFloat(e.target.value))}
+              className="settings-slider"
+            />
+          </div>
+
+          <div className="settings-form-group">
+            <div className="slider-header-row">
+              <label>Громкость звука</label>
+              <span className="slider-value">{Math.round(outputVolume * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="0.01"
+              value={outputVolume}
+              onChange={(e) => setOutputVolume(parseFloat(e.target.value))}
+              className="settings-slider"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Настройки видео</h3>
+        <div className="settings-form-group">
+          <label>Камера</label>
+          <select
+            value={selectedVideoDeviceId}
+            onChange={(e) => setSelectedVideoDeviceId(e.target.value)}
+            className="settings-select"
+          >
+            {videoDevices.map(device => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `Camera ${device.deviceId.slice(0, 5)}...`}
+              </option>
+            ))}
+            {videoDevices.length === 0 && <option value="default">Не найдено</option>}
+          </select>
+        </div>
+        {videoDevices.length > 0 && (
+          <div className="camera-preview-placeholder">
+            <div className="camera-preview-text">Предпросмотр камеры (Здесь будет видео)</div>
+          </div>
+        )}
+      </div>
+
+
+      <div className="settings-section-block">
+        <h3>Расширенные настройки</h3>
+
         <div className="settings-form-group-checkbox">
           <div className="checkbox-label">
             <span className="checkbox-title">Шумоподавление (RNNoise)</span>
@@ -367,11 +522,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             <span className="slider round"></span>
           </label>
         </div>
-      </div>
 
-      <div className="settings-section-block">
-        <h3>Другие настройки (скоро)</h3>
-        <p className="description-text">Эхоподавление и автоматическая регулировка усиления пока управляются автоматически.</p>
+        <div className="settings-form-group-checkbox disabled">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Эхоподавление</span>
+            <span className="checkbox-description">Предотвращает попадание звука из динамиков обратно в микрофон. (Всегда включено)</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={true}
+              disabled
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        <div className="settings-form-group-checkbox disabled">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Автоматическая регулировка усиления</span>
+            <span className="checkbox-description">Автоматически выравнивает громкость вашего голоса. (Всегда включено)</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={true}
+              disabled
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
       </div>
     </div>
   );

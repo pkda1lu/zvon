@@ -12,17 +12,35 @@ import { SOUNDS, soundManager } from '../utils/sounds';
 const RemoteAudio: React.FC<{
     userId: string;
     stream: MediaStream;
-    voiceVolume: number;
+    voiceVolume: number; // User-specific volume adjustment
     streamVolume: number;
     isDeafened: boolean;
     isLocalMuted: boolean;
     isWatched: boolean;
     sharedContext: AudioContext | null;
-}> = ({ userId, stream, voiceVolume, streamVolume, isDeafened, isLocalMuted, isWatched, sharedContext }) => {
+    outputDeviceId: string; // New: Selected output device
+    masterVolume: number;   // New: Master output volume
+}> = ({ userId, stream, voiceVolume, streamVolume, isDeafened, isLocalMuted, isWatched, sharedContext, outputDeviceId, masterVolume }) => {
     const voiceAudioRef = useRef<HTMLAudioElement>(null);
     const streamAudioRef = useRef<HTMLAudioElement>(null);
     const gainNodeRef = useRef<GainNode | null>(null);
     const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+
+    // Apply Output Device ID
+    useEffect(() => {
+        const applySinkId = async (element: HTMLAudioElement | null, deviceId: string) => {
+            if (element && (element as any).setSinkId) {
+                try {
+                    await (element as any).setSinkId(deviceId);
+                } catch (err) {
+                    console.error('[RemoteAudio] Failed to set sink ID:', err);
+                }
+            }
+        };
+
+        applySinkId(voiceAudioRef.current, outputDeviceId);
+        applySinkId(streamAudioRef.current, outputDeviceId);
+    }, [outputDeviceId]);
 
     useEffect(() => {
         if (!stream || !sharedContext) return;
@@ -31,7 +49,6 @@ const RemoteAudio: React.FC<{
         if (voiceTracks.length === 0) return;
 
         // Ensure the stream is "played" via a hidden audio element
-        // This is often required for the stream packets to actually be processed/flow in some environments
         if (voiceAudioRef.current) {
             voiceAudioRef.current.srcObject = stream;
             voiceAudioRef.current.muted = true; // Mute the direct output as we'll use GainNode
@@ -52,8 +69,9 @@ const RemoteAudio: React.FC<{
             const gainNode = ctx.createGain();
             gainNodeRef.current = gainNode;
 
-            // Base boost of 1.5x + apply user volume
-            gainNode.gain.value = (isDeafened || isLocalMuted) ? 0 : voiceVolume * 1.5;
+            // Base boost of 1.5x + apply user volume + apply master volume
+            const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
+            gainNode.gain.value = finalVolume;
 
             source.connect(gainNode);
             gainNode.connect(ctx.destination);
@@ -67,16 +85,17 @@ const RemoteAudio: React.FC<{
         };
     }, [stream, userId, sharedContext]);
 
+    // Update gain when volumes change
     useEffect(() => {
         if (gainNodeRef.current && sharedContext) {
-            const targetGain = (isDeafened || isLocalMuted) ? 0 : voiceVolume * 1.5;
+            const targetGain = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
             gainNodeRef.current.gain.setTargetAtTime(
                 targetGain,
                 sharedContext.currentTime,
                 0.1
             );
         }
-    }, [voiceVolume, isDeafened, isLocalMuted, sharedContext]);
+    }, [voiceVolume, masterVolume, isDeafened, isLocalMuted, sharedContext]);
 
     useEffect(() => {
         if (streamAudioRef.current && stream) {
@@ -93,9 +112,10 @@ const RemoteAudio: React.FC<{
 
     useEffect(() => {
         if (streamAudioRef.current) {
-            streamAudioRef.current.volume = Math.min(1, Math.max(0, streamVolume));
+            // Apply master volume to the screen audio element too
+            streamAudioRef.current.volume = Math.min(1, Math.max(0, streamVolume * masterVolume));
         }
-    }, [streamVolume]);
+    }, [streamVolume, masterVolume]);
 
     useEffect(() => {
         if (streamAudioRef.current) {
@@ -147,6 +167,20 @@ interface VoiceContextType {
     updateScreenQuality: (quality: { resolution: string, frameRate: number }) => void;
     changeScreenSource: () => void;
     audioContext: AudioContext | null;
+    inputDevices: MediaDeviceInfo[];
+    outputDevices: MediaDeviceInfo[];
+    videoDevices: MediaDeviceInfo[];
+    selectedInputDeviceId: string;
+    setSelectedInputDeviceId: (id: string) => void;
+    selectedOutputDeviceId: string;
+    setSelectedOutputDeviceId: (id: string) => void;
+    selectedVideoDeviceId: string;
+    setSelectedVideoDeviceId: (id: string) => void;
+    inputVolume: number;
+    setInputVolume: (val: number) => void;
+    outputVolume: number;
+    setOutputVolume: (val: number) => void;
+    refreshDevices: () => Promise<void>;
 }
 
 
@@ -189,6 +223,99 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const localStreamRef = useRef<MediaStream | null>(null);
     // Store the raw microphone stream to re-apply processing without re-requesting access
     const rawMicStreamRef = useRef<MediaStream | null>(null);
+
+    // Device Management State
+    const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+
+    const [selectedInputDeviceId, setSelectedInputDeviceId] = useState(() => localStorage.getItem('selectedInputDeviceId') || 'default');
+    const [selectedOutputDeviceId, setSelectedOutputDeviceId] = useState(() => localStorage.getItem('selectedOutputDeviceId') || 'default');
+    const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState(() => localStorage.getItem('selectedVideoDeviceId') || 'default');
+
+    const [inputVolume, setInputVolume] = useState(() => Number(localStorage.getItem('inputVolume')) || 1.0);
+    const [outputVolume, setOutputVolume] = useState(() => Number(localStorage.getItem('outputVolume')) || 1.0);
+
+    // Persist settings
+    useEffect(() => { localStorage.setItem('selectedInputDeviceId', selectedInputDeviceId); }, [selectedInputDeviceId]);
+    useEffect(() => { localStorage.setItem('selectedOutputDeviceId', selectedOutputDeviceId); }, [selectedOutputDeviceId]);
+    useEffect(() => { localStorage.setItem('selectedVideoDeviceId', selectedVideoDeviceId); }, [selectedVideoDeviceId]);
+    useEffect(() => { localStorage.setItem('inputVolume', String(inputVolume)); }, [inputVolume]);
+    useEffect(() => { localStorage.setItem('outputVolume', String(outputVolume)); }, [outputVolume]);
+
+    const refreshDevices = useCallback(async () => {
+        try {
+            await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); // Request proper permission to list labels
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            setInputDevices(devices.filter(d => d.kind === 'audioinput'));
+            setOutputDevices(devices.filter(d => d.kind === 'audiooutput'));
+            setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
+        } catch (err) {
+            console.error('[VoiceContext] Error enumerating devices:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        refreshDevices();
+        navigator.mediaDevices.ondevicechange = () => {
+            console.log('[VoiceContext] Devices changed, refreshing...');
+            refreshDevices();
+        };
+    }, [refreshDevices]);
+
+    // Handle Input Device Change seamlessly
+    useEffect(() => {
+        if (isConnectedRef.current && activeChannelId) {
+            console.log('[VoiceContext] Input device changed to:', selectedInputDeviceId);
+            // Re-join logic essentially, but optimized?
+            // For now, simple re-request of getUserMedia with new constraint
+            const restartStream = async () => {
+                try {
+                    const constraints = {
+                        audio: {
+                            deviceId: selectedInputDeviceId !== 'default' ? { exact: selectedInputDeviceId } : undefined,
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        },
+                        video: false
+                    };
+                    const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                    // Stop old tracks
+                    if (rawMicStreamRef.current) {
+                        rawMicStreamRef.current.getTracks().forEach(t => t.stop());
+                    }
+                    rawMicStreamRef.current = newStream;
+
+                    let streamToUse = newStream;
+                    if (isNoiseSuppressionEnabled) {
+                        try {
+                            const ctx = getAudioContext();
+                            streamToUse = await setupNoiseSuppression(ctx, newStream);
+                        } catch (e) { console.error("Re-applying NS failed:", e); }
+                    }
+
+                    setLocalStream(streamToUse);
+                    localStreamRef.current = streamToUse;
+                    streamToUse.getAudioTracks().forEach(t => t.enabled = !isMuted && !isDeafened);
+
+                    // Replace track in all peers
+                    const newTrack = streamToUse.getAudioTracks()[0];
+                    if (newTrack) {
+                        peersRef.current.forEach(async (pc) => {
+                            const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                            if (sender) await sender.replaceTrack(newTrack);
+                        });
+                    }
+
+                } catch (err) {
+                    console.error("Failed to switch input device:", err);
+                }
+            };
+            restartStream();
+        }
+    }, [selectedInputDeviceId]);
 
 
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
@@ -385,6 +512,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
+                    deviceId: selectedInputDeviceId !== 'default' ? { exact: selectedInputDeviceId } : undefined,
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true
@@ -1221,7 +1349,21 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             toggleScreenAudio,
             updateScreenQuality,
             changeScreenSource,
-            audioContext
+            audioContext,
+            inputDevices,
+            outputDevices,
+            videoDevices,
+            selectedInputDeviceId,
+            setSelectedInputDeviceId,
+            selectedOutputDeviceId,
+            setSelectedOutputDeviceId,
+            selectedVideoDeviceId,
+            setSelectedVideoDeviceId,
+            inputVolume,
+            setInputVolume,
+            outputVolume,
+            setOutputVolume,
+            refreshDevices
         }}>
 
             {children}
@@ -1245,6 +1387,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         isLocalMuted={localMutes.has(userId)}
                         isWatched={watchedUserIds.has(userId)}
                         sharedContext={audioContext}
+                        outputDeviceId={selectedOutputDeviceId}
+                        masterVolume={outputVolume}
                     />
                 ))}
             </div>

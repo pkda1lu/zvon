@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type ThemeType = 'dark' | 'light' | 'amoled';
 export type DensityType = 'cozy' | 'compact';
+export type AppIconType = 'default' | 'icon1' | 'icon2' | 'icon3' | 'icon4';
 
 interface AppearanceSettings {
     theme: ThemeType;
@@ -9,6 +10,7 @@ interface AppearanceSettings {
     messageSpacing: number; // 0 to 24px
     groupSpacing: number; // 0 to 48px
     fontScale: number; // 0.8 to 1.5
+    appIcon: AppIconType;
 }
 
 interface AppearanceContextType extends AppearanceSettings {
@@ -17,6 +19,7 @@ interface AppearanceContextType extends AppearanceSettings {
     setMessageSpacing: (spacing: number) => void;
     setGroupSpacing: (spacing: number) => void;
     setFontScale: (scale: number) => void;
+    setAppIcon: (icon: AppIconType) => void;
 }
 
 const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
@@ -24,19 +27,30 @@ const AppearanceContext = createContext<AppearanceContextType | undefined>(undef
 export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [settings, setSettings] = useState<AppearanceSettings>(() => {
         const saved = localStorage.getItem('appearance-settings');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            // Ensure appIcon exists for backward compatibility
+            return { ...parsed, appIcon: parsed.appIcon || 'default' };
+        }
         return {
             theme: 'dark',
             density: 'cozy',
             messageSpacing: 2,
             groupSpacing: 16,
             fontScale: 1.0,
+            appIcon: 'default',
         };
     });
 
     useEffect(() => {
         localStorage.setItem('appearance-settings', JSON.stringify(settings));
         applySettings(settings);
+
+        // Apply icon
+        const electron = (window as any).electron;
+        if (electron && electron.ipc) {
+            electron.ipc.send('change-icon', settings.appIcon);
+        }
     }, [settings]);
 
     const applySettings = (s: AppearanceSettings) => {
@@ -110,6 +124,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const setMessageSpacing = (messageSpacing: number) => setSettings(prev => ({ ...prev, messageSpacing }));
     const setGroupSpacing = (groupSpacing: number) => setSettings(prev => ({ ...prev, groupSpacing }));
     const setFontScale = (fontScale: number) => setSettings(prev => ({ ...prev, fontScale }));
+    const setAppIcon = (appIcon: AppIconType) => setSettings(prev => ({ ...prev, appIcon }));
 
     return (
         <AppearanceContext.Provider value={{
@@ -118,7 +133,8 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setDensity,
             setMessageSpacing,
             setGroupSpacing,
-            setFontScale
+            setFontScale,
+            setAppIcon
         }}>
             {children}
         </AppearanceContext.Provider>
