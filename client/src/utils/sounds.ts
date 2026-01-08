@@ -7,18 +7,25 @@ export const SOUNDS = {
 };
 
 class SoundManager {
-    private audioCache: Map<string, HTMLAudioElement> = new Map();
+    private audioContext: AudioContext | null = null;
+
+    setAudioContext(ctx: AudioContext) {
+        this.audioContext = ctx;
+    }
 
     play(soundPath: string, volume: number = 0.5) {
         try {
-            // Determine the base URL dynamically if possible, or assume relative to public root
-            // In Vite/Electron, referencing /sounds/... usually works if it's in public
-
-            let audio = new Audio(soundPath);
+            const audio = new Audio(soundPath);
             audio.volume = volume;
 
-            // Clean up old audio objects if we cached them (optional, basic simple play for now)
-            // For overlapping sounds (spamming messages), new Audio() is actually better than reusing.
+            if (this.audioContext) {
+                try {
+                    const source = this.audioContext.createMediaElementSource(audio);
+                    source.connect(this.audioContext.destination);
+                } catch (e) {
+                    // source already connected might happen, just skip
+                }
+            }
 
             const playPromise = audio.play();
             if (playPromise !== undefined) {
@@ -35,9 +42,18 @@ class SoundManager {
         const audio = new Audio(soundPath);
         audio.volume = volume;
         audio.loop = true;
+
+        if (this.audioContext) {
+            try {
+                const source = this.audioContext.createMediaElementSource(audio);
+                source.connect(this.audioContext.destination);
+            } catch (e) { }
+        }
+
         audio.play().catch(e => console.warn('Loop playback failed:', e));
         return audio;
     }
 }
 
 export const soundManager = new SoundManager();
+

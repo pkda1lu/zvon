@@ -1,6 +1,6 @@
 {
   "name": "zvon-client",
-  "version": "0.88.0",
+  "version": "0.91.3",
   "private": true,
   "author": "pkda1lu",
   "description": "Zvon - Real-time communication platform",

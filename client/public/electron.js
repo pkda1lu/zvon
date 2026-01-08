@@ -440,22 +440,17 @@ let currentScanTimeout = null;
 let adaptiveInterval = 3000;
 
 const KNOWN_GAMES = {
-    'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg' },
-    'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://upload.wikimedia.org/wikipedia/en/f/f2/Counter-Strike_2_cover_art.jpg' },
-    'csgo.exe': { name: 'CS:GO', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg' },
-    'Dota2.exe': { name: 'Dota 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/29595-285x380.jpg' },
-    'League of Legends.exe': { name: 'League of Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg' },
-    'Minecraft.exe': { name: 'Minecraft', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg' },
-    'RobloxPlayerBeta.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg' },
-    'Roblox.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg' },
-    'GenshinImpact.exe': { name: 'Genshin Impact', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/513181-285x380.jpg' },
-    'aces.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg' },
-    'WarThunder.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg' },
-    'Telegram.exe': { name: 'Telegram', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Telegram_logo.svg/2048px-Telegram_logo.svg.png' },
-    'Code.exe': { name: 'Visual Studio Code', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Visual_Studio_Code_1.35_icon.svg/2048px-Visual_Studio_Code_1.35_icon.svg.png' },
-    'Spotify.exe': { name: 'Spotify', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/2048px-Spotify_logo_without_text.svg.png' },
-    'Discord.exe': { name: 'Discord', icon: 'https://cdn.logojoy.com/wp-content/uploads/20210422095037/discord-mascot.png' },
-    'steam.exe': { name: 'Steam', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Steam_icon_logo.svg/2048px-Steam_icon_logo.svg.png' }
+    'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg', type: 'game' },
+    'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://upload.wikimedia.org/wikipedia/en/f/f2/Counter-Strike_2_cover_art.jpg', type: 'game' },
+    'csgo.exe': { name: 'CS:GO', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg', type: 'game' },
+    'Dota2.exe': { name: 'Dota 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/29595-285x380.jpg', type: 'game' },
+    'League of Legends.exe': { name: 'League of Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg', type: 'game' },
+    'Minecraft.exe': { name: 'Minecraft', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg', type: 'game' },
+    'RobloxPlayerBeta.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg', type: 'game' },
+    'Roblox.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg', type: 'game' },
+    'GenshinImpact.exe': { name: 'Genshin Impact', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/513181-285x380.jpg', type: 'game' },
+    'aces.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg', type: 'game' },
+    'WarThunder.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg', type: 'game' }
 };
 
 // Map to keep track of current exe to handle fast checks
@@ -498,7 +493,9 @@ async function scanActivities() {
                 }
             }
 
-            if (foundMatch) {
+            // Priority logic for foreground: If foreground is a game, always use it.
+            // If foreground is an app, we might still want to show a game running in BG.
+            if (foundMatch && foundMatch.type === 'game') {
                 updateActivity(foundMatch, rawKey);
                 scanInProgress = false;
                 adaptiveInterval = 2000;
@@ -507,20 +504,8 @@ async function scanActivities() {
             }
         }
 
-        // Background Audit: if we have currentExe, check if IT is still running
-        if (currentExe) {
-            exec(`tasklist /FI "IMAGENAME eq ${currentExe}" /NH`, (err, stdout) => {
-                if (!err && stdout.toLowerCase().includes(currentExe.toLowerCase())) {
-                    scanInProgress = false;
-                    adaptiveInterval = 3000;
-                    scheduleNextScan();
-                    return;
-                }
-                performFullScan();
-            });
-        } else {
-            performFullScan();
-        }
+        // Background Audit: Find ALL running matches and prioritize
+        performFullScan();
     });
 }
 
@@ -560,8 +545,8 @@ function performFullScan() {
         }
 
         const lines = stdout.split(/\r?\n/);
-        let foundActivity = null;
-        let foundExe = null;
+        let bestMatch = null;
+        let bestExe = null;
 
         for (const line of lines) {
             if (!line.trim()) continue;
@@ -576,17 +561,27 @@ function performFullScan() {
                     const keyBase = keyLower.endsWith('.exe') ? keyLower.slice(0, -4) : keyLower;
 
                     if (exeNameLower === keyLower || baseName === keyBase) {
-                        foundActivity = KNOWN_GAMES[key];
-                        foundExe = rawName;
-                        break;
+                        const activity = KNOWN_GAMES[key];
+
+                        // PRIORITY LOGIC:
+                        // 1. If we found a game, and haven't found a game yet, this is our new best match.
+                        // 2. If we found an app, and we don't have ANY match yet, this is our current best.
+                        // 3. Games always overwrite apps.
+                        if (!bestMatch || (activity.type === 'game' && bestMatch.type !== 'game')) {
+                            bestMatch = activity;
+                            bestExe = rawName;
+                        }
+
+                        // If we already found a game, we can stop looking (assuming first game found is fine)
+                        if (bestMatch && bestMatch.type === 'game') break;
                     }
                 }
-                if (foundActivity) break;
+                if (bestMatch && bestMatch.type === 'game') break;
             }
         }
 
-        updateActivity(foundActivity, foundExe);
-        adaptiveInterval = foundActivity ? 3000 : 5000;
+        updateActivity(bestMatch, bestExe);
+        adaptiveInterval = bestMatch ? 3000 : 5000;
         scheduleNextScan();
     });
 }
@@ -700,31 +695,35 @@ app.on('web-contents-created', (event, contents) => {
             let source = null;
             if (sourceId) {
                 source = sources.find(s => s.id === sourceId);
-                console.log('Searching for sourceId:', sourceId, 'Found:', source ? source.name : 'No');
             }
 
-            // Fallback if no sourceId or not found
             if (!source && sources.length > 0) {
                 source = sources.find(s => s.id.startsWith('screen:')) || sources[0];
-                console.log('Fallback to source:', source.name);
             }
 
             if (source) {
                 console.log('Selected source for DisplayMedia:', source.name, source.id);
                 const isWindow = source.id.startsWith('window:');
 
-                // On Windows/Linux, 'loopback' is required for system-wide audio when sharing screen
-                // For windows, the source itself can sometimes provide audio
-                const audioConfig = isWindow ? source : 'loopback';
-                console.log('Using audio config:', audioConfig === 'loopback' ? 'loopback (system audio)' : 'source-specific');
+                // If sharing a window, we try to capture ONLY that window's audio
+                // If sharing a screen, we use 'loopback-with-out-echo' if available or just 'loopback'
+                // Note: 'loopback' on Windows 10/11 with WGC is quite good.
+
+                let audioConfig = isWindow ? source : 'loopback';
+
+                // Special case: if the window is ZVON itself, we might want to disable audio to prevent feedback
+                const isZvonWindow = source.name.toLowerCase().includes('zvon');
+                if (isZvonWindow && isWindow) {
+                    console.log('Zvon window detected for sharing, disabling audio to prevent feedback loops');
+                    audioConfig = null;
+                }
 
                 callback({
                     video: source,
-                    audio: audioConfig,
+                    audio: audioConfig || undefined,
                     enableLocalEcho: false
                 });
             } else {
-                console.warn('No media source found for DisplayMedia request');
                 callback({ video: null, audio: null });
             }
         }).catch(err => {
