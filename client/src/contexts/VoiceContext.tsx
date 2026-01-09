@@ -73,7 +73,9 @@ const RemoteScreen: React.FC<{
     stream: MediaStream;
     outputDeviceId: string;
     masterVolume: number;
-}> = ({ userId, stream, outputDeviceId, masterVolume }) => {
+    isWatching: boolean;
+    volume: number;
+}> = ({ userId, stream, outputDeviceId, masterVolume, isWatching, volume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -91,15 +93,21 @@ const RemoteScreen: React.FC<{
         if (videoRef.current) videoRef.current.srcObject = stream;
         if (audioRef.current && stream.getAudioTracks().length > 0) {
             audioRef.current.srcObject = new MediaStream(stream.getAudioTracks());
-            audioRef.current.volume = masterVolume;
-            audioRef.current.play().catch(() => { });
+            // Only play audio if watching
+            const finalVolume = isWatching ? (volume * masterVolume) : 0;
+            audioRef.current.volume = finalVolume;
+            if (isWatching) {
+                audioRef.current.play().catch(() => { });
+            } else {
+                audioRef.current.pause();
+            }
         }
-    }, [stream, masterVolume]);
+    }, [stream, masterVolume, isWatching, volume]);
 
     return (
         <div style={{ display: 'none' }}>
-            <video ref={videoRef} autoPlay playsInline />
-            <audio ref={audioRef} autoPlay />
+            <video ref={videoRef} autoPlay playsInline muted />
+            <audio ref={audioRef} autoPlay muted={!isWatching} />
         </div>
     );
 };
@@ -144,6 +152,10 @@ interface VoiceContextType {
     startScreenShare: (sourceId: string) => Promise<void>;
     stopScreenShare: () => void;
     remoteScreenStreams: Map<string, MediaStream>;
+    screenVolumes: Map<string, number>;
+    setScreenVolume: (userId: string, volume: number) => void;
+    watchedScreenIds: Set<string>;
+    setWatchingScreen: (userId: string, isWatching: boolean) => void;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -196,6 +208,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
     const screenStreamRef = useRef<MediaStream | null>(null);
     const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [screenVolumes, setScreenVolumes] = useState<Map<string, number>>(new Map());
+    const [watchedScreenIds, setWatchedScreenIds] = useState<Set<string>>(new Set());
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -243,8 +257,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const handleTrack = useCallback((userId: string, stream: MediaStream) => {
         // Distinguish between voice and screen sharing streams
-        // Screen sharing streams usually have a video track and often a specific ID
-        if (stream.id.startsWith('screen-')) {
+        // Use video track presence as a reliable indicator for screen sharing in Zvon
+        const isScreen = stream.id.startsWith('screen-') || stream.getVideoTracks().length > 0;
+
+        if (isScreen) {
             setRemoteScreenStreams(prev => new Map(prev).set(userId, stream));
         } else {
             setRemoteStreams(prev => new Map(prev).set(userId, stream));
@@ -273,9 +289,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         pc.ontrack = (event) => {
             const stream = event.streams[0];
-            // Identify screen stream by looking for tracks with specific mid or by stream attributes
-            // A simple way is to check if it has video but is not the primary stream
-            if (stream.id.startsWith('screen-')) {
+            const isScreen = stream.id.startsWith('screen-') || stream.getVideoTracks().length > 0;
+
+            if (isScreen) {
                 setRemoteScreenStreams(prev => new Map(prev).set(targetUserId, stream));
             } else {
                 setRemoteStreams(prev => new Map(prev).set(targetUserId, stream));
@@ -284,6 +300,21 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pc.onicecandidate = (event) => {
             if (event.candidate && socket) {
                 socket.emit('voice-ice-candidate', { targetUserId, candidate: event.candidate });
+            }
+        };
+
+        pc.onnegotiationneeded = async () => {
+            try {
+                // Only the initiator (or the speaker if they have more tracks) should send the new offer
+                // To avoid glare, a common strategy is to have a "polite" peer.
+                // Here, we'll just check if we are in stable state.
+                if (pc.signalingState !== 'stable') return;
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                if (socket) socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+            } catch (err) {
+                console.error('Negotiation error:', err);
             }
         };
 
@@ -334,17 +365,30 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: sourceId,
-                        maxWidth: 1920,
-                        maxHeight: 1080,
-                        maxFrameRate: 30
+                        maxWidth: 4096,
+                        maxHeight: 2160,
+                        maxFrameRate: 60
                     }
                 } as any
             });
 
-            // "ПОЛНОСТЬЮ ИСКЛЮЧИ ЗАХВАТ ЗВУКА ИЗ ZVON"
-            // We can't easily exclude a specific app from system audio in JS.
-            // But we can try to mute Zvon's own audio when capturing if we want,
-            // or rely on echo cancellation. Here we use echoCancellation: true.
+            // Optimize for low latency (prioritize motion/framerate over detail)
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+                // 'motion' hint encourages the encoder to reduce buffering and prioritize framerate
+                if ('contentHint' in videoTrack) {
+                    (videoTrack as any).contentHint = 'motion';
+                }
+            }
+
+            // Enable WDA_EXCLUDEFROMCAPTURE to hide the application from the screen capture
+            if (window.electron && window.electron.setContentProtection) {
+                await window.electron.setContentProtection(true);
+            }
+
+            // Note: Granular PID audio filtering (PROCESS_LOOPBACK_MODE_EXCLUDE) requires a native C++ module.
+            // Zvon maintains system audio capture using standard loopback with echo cancellation to minimize self-capture artifacts.
+            // echoCancellation: true is enabled in the constraints above.
 
             // To make the stream recognizable as screen sharing on the other end
             const newStream = new MediaStream(stream.getTracks());
@@ -356,12 +400,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             screenStreamRef.current = newStream;
             setIsScreenSharing(true);
 
-            // Add tracks to all existing peers
+            // Adding tracks will trigger onnegotiationneeded automatically
             peersRef.current.forEach(pc => {
                 newStream.getTracks().forEach(track => pc.addTrack(track, newStream));
-                pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => {
-                    socket?.emit('voice-offer', { targetUserId: Array.from(peersRef.current.entries()).find(e => e[1] === pc)?.[0], offer: pc.localDescription });
-                });
             });
 
             if (socket && activeChannelId) {
@@ -394,6 +435,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (socket && activeChannelId) {
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: false });
+        }
+
+        // Disable WDA_EXCLUDEFROMCAPTURE
+        if (window.electron && window.electron.setContentProtection) {
+            window.electron.setContentProtection(false);
         }
     }, [socket, activeChannelId, isMuted, isDeafened]);
 
@@ -430,9 +476,23 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     useEffect(() => {
         if (!socket || !isConnected || !activeChannelId || !localStreamRef.current) return;
 
-        const handleExistingUsers = (users: User[]) => {
+        const handleExistingUsers = (users: any[]) => {
             const others = users.filter(u => u._id !== user?._id);
             setConnectedUsers(others);
+
+            // Populate userStates for existing users
+            setUserStates(prev => {
+                const newMap = new Map(prev);
+                others.forEach(u => {
+                    newMap.set(u._id, {
+                        isMuted: u.isMuted || false,
+                        isDeafened: u.isDeafened || false,
+                        isScreenSharing: u.isScreenSharing || false
+                    });
+                });
+                return newMap;
+            });
+
             others.forEach(u => createPeer(u._id, true));
         };
 
@@ -644,6 +704,19 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
     }, []);
 
+    const setScreenVolume = useCallback((userId: string, volume: number) => {
+        setScreenVolumes(prev => new Map(prev).set(userId, volume));
+    }, []);
+
+    const setWatchingScreen = useCallback((userId: string, isWatching: boolean) => {
+        setWatchedScreenIds(prev => {
+            const next = new Set(prev);
+            if (isWatching) next.add(userId);
+            else next.delete(userId);
+            return next;
+        });
+    }, []);
+
     return (
         <VoiceContext.Provider value={{
             isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened, toggleMute, toggleDeafen,
@@ -652,7 +725,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             inputDevices, outputDevices, videoDevices, selectedInputDeviceId, setSelectedInputDeviceId,
             selectedOutputDeviceId, setSelectedOutputDeviceId, selectedVideoDeviceId, setSelectedVideoDeviceId,
             inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices,
-            isScreenSharing, screenStream, startScreenShare, stopScreenShare, remoteScreenStreams
+            isScreenSharing, screenStream, startScreenShare, stopScreenShare, remoteScreenStreams,
+            screenVolumes, setScreenVolume, watchedScreenIds, setWatchingScreen
         }}>
             {children}
             <div style={{ display: 'none' }}>
@@ -668,6 +742,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     <RemoteScreen
                         key={`screen-${userId}`} userId={userId} stream={stream}
                         outputDeviceId={selectedOutputDeviceId} masterVolume={outputVolume}
+                        isWatching={watchedScreenIds.has(userId)}
+                        volume={screenVolumes.get(userId) ?? 1}
                     />
                 ))}
             </div>

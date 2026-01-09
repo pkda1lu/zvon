@@ -30,6 +30,15 @@ export interface User {
   createdAt: string;
 }
 
+
+export interface Role {
+  _id: string;
+  name: string;
+  color: string;
+  position: number;
+  permissions: string[];
+}
+
 export interface Server {
   _id: string;
   name: string;
@@ -38,6 +47,8 @@ export interface Server {
   banner?: string;
   bannerColor?: string;
   ownerId: string;
+  owner?: User | string;
+  roles?: Role[];
   members: Array<{
     user: User;
     nickname?: string;
@@ -46,6 +57,7 @@ export interface Server {
     bio?: string;
     avatar?: string;
     banner?: string;
+    roles?: Role[] | string[];
   }>;
   channels: Channel[];
   createdAt: string;

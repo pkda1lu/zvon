@@ -327,4 +327,10 @@ ipcMain.handle('get-desktop-sources', async (event, options) => {
     }));
 });
 
+ipcMain.handle('set-content-protection', (event, enabled) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setContentProtection(enabled);
+    }
+});
+
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

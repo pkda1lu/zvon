@@ -126,6 +126,8 @@
     flex-direction: column;
     overflow: hidden;
     gap: 1px;
+    flex: 1;
+    min-width: 0;
 }
 
 .member-activity {

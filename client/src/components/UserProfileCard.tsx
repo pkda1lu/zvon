@@ -130,7 +130,11 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                         <div className="profile-activity-section">
                             <h4 className="section-title">ЗАНИМАЕТСЯ:</h4>
                             <div className="activity-content">
-                                {user.activity.assets?.largeImage && <img src={user.activity.assets.largeImage} alt="" className="activity-large-image" />}
+                                {user.activity.assets?.largeImage && (
+                                    <div className="activity-image-wrapper">
+                                        <img src={user.activity.assets.largeImage} alt="" className="activity-large-image" />
+                                    </div>
+                                )}
                                 <div className="activity-details">
                                     <div className="activity-name">{user.activity.name}</div>
                                     <div className="activity-state">Играет в {user.activity.name}</div>

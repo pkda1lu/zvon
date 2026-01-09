@@ -148,6 +148,15 @@
   .participants-grid.count-2 {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .participants-grid.count-3,
+  .participants-grid.count-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .participants-grid.count-more {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
 }
 
 .voice-channel-actions {
@@ -514,6 +523,8 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
+  background: #000;
+  display: block;
 }
 
 .stream-overlay {
@@ -559,4 +570,161 @@
   color: var(--text-muted);
   font-size: 14px;
   text-align: center;
+}
+
+.local-streaming-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.local-streaming-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Stream Join Placeholder */
+.stream-join-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stream-preview-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.join-stream-btn {
+  background: var(--bg-accent);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.join-stream-btn:hover {
+  background: var(--bg-accent-hover, #4752c4);
+}
+
+/* Stream Controls */
+.stream-controls-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 12px;
+  background: linear-gradient(rgba(0, 0, 0, 0.6), transparent);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+.stream-card:hover .stream-controls-overlay {
+  opacity: 1;
+}
+
+.stream-controls-left,
+.stream-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.volume-control-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: white;
+}
+
+.stream-volume-slider {
+  width: 60px;
+  height: 4px;
+  cursor: pointer;
+}
+
+.stream-control-btn {
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: none;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stream-control-btn:hover {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.stream-control-btn.stop-watch {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* Expanded/Fullscreen Stream */
+.stream-card.expanded {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  z-index: 999999 !important;
+  border-radius: 0;
+  background: #000 !important;
+  margin: 0;
+  transform: none !important;
+  /* Critical to escape parent transitions/transform contexts */
+  animation: none !important;
+  transition: none !important;
+}
+
+.stream-card.expanded .stream-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure video fits perfectly in expanded mode */
+.stream-card.expanded .remote-stream-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+
+.local-streaming-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
 }

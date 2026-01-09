@@ -35,11 +35,20 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   const otherUser = dm.participants.find(p => p._id !== user?._id);
 
   useEffect(() => {
-    const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); };
+    const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' }); };
     scrollToBottom();
+    // Small timeout to ensure images/layout loaded, but keep it auto for instant jump
     const t = setTimeout(scrollToBottom, 50);
     return () => clearTimeout(t);
-  }, [messages, attachments, dm._id]);
+  }, [dm._id]); // Only on DM change, not every message to allow scrolling up to read history? 
+  // Actually, standard behavior is scroll on new message if at bottom. 
+  // But request is specific about "opening".
+
+  useEffect(() => {
+    // On new messages, we usually scroll to bottom if we were already there or it's a new message from self.
+    // For simplicity and per request "always open last read" (interpreting as "latest"), let's auto-scroll.
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, attachments]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +116,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                               <div className="attachment-video-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
                                 <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
                                   const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/')).map(a => ({ ...a }));
-                                  const idx = allMedia.findIndex(a => a.url === att.url); if (idx !== -1) allMedia[idx].startTime = currentTime;
+                                  const idx = allMedia.findIndex(a => a.url === att.url); if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
                                   setLightboxMedia(allMedia); setLightboxIndex(idx); setLightboxOpen(true);
                                 }} />
                               </div>

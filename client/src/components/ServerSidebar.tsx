@@ -37,7 +37,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const { socket } = useSocket();
   const { speakingUsers } = useVoice();
 
-  const isOwner = String(server.ownerId) === String(currentUser?._id);
+  const isOwner = String((server.owner as any)?._id || server.owner || (server as any).ownerId) === String(currentUser?._id);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);

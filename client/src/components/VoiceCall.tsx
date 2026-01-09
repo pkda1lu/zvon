@@ -7,7 +7,7 @@ import { useVoice } from '../contexts/VoiceContext';
 import { getAvatarUrl } from '../utils/avatar';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
-import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon } from './Icons';
+import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import './VoiceCall.css';
 
@@ -110,6 +110,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       peerConnectionRef.current.onicecandidate = null; peerConnectionRef.current.ontrack = null;
       peerConnectionRef.current.close(); peerConnectionRef.current = null;
     }
+    if ((window as any).electron && (window as any).electron.setContentProtection) {
+      (window as any).electron.setContentProtection(false);
+    }
   };
 
   const setupPeerConnection = async () => {
@@ -128,13 +131,28 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     usedStream.getTracks().forEach(track => pc.addTrack(track, usedStream));
     pc.ontrack = (event) => {
       const stream = event.streams[0];
-      if (stream.id.startsWith('screen-')) {
+      const isScreen = stream.id.startsWith('screen-') || (stream.getVideoTracks().length > 0 && stream.getAudioTracks().length > 0);
+      // In DM, screen share often has both audio and video, while camera is usually separate
+      // But let's simplify: if it's a second stream or has 'screen' in ID
+      if (stream.id.startsWith('screen-') || (remoteStream && stream.id !== remoteStream.id)) {
         setRemoteScreenStream(stream);
       } else {
         setRemoteStream(stream);
       }
     };
     pc.onicecandidate = (event) => { if (event.candidate && socket) socket.emit('call-ice-candidate', { targetUserId: otherUser._id, candidate: event.candidate }); };
+
+    pc.onnegotiationneeded = async () => {
+      try {
+        if (pc.signalingState !== 'stable') return;
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
+      } catch (err) {
+        console.error('DM Negotiation error:', err);
+      }
+    };
+
     peerConnectionRef.current = pc;
     return pc;
   };
@@ -218,9 +236,6 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
             const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
             if (videoSender) await videoSender.replaceTrack(track);
             else peerConnectionRef.current.addTrack(track, localStream);
-            const offer = await peerConnectionRef.current.createOffer();
-            await peerConnectionRef.current.setLocalDescription(offer);
-            socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
           }
         } catch (e) { setIsVideoEnabled(false); }
       } else {
@@ -231,9 +246,6 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
             const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
             if (videoSender) {
               peerConnectionRef.current.removeTrack(videoSender);
-              const offer = await peerConnectionRef.current.createOffer();
-              await peerConnectionRef.current.setLocalDescription(offer);
-              socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
             }
           }
         }
@@ -248,27 +260,39 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         setScreenStream(null);
       }
       setIsScreenSharing(false);
+      // Disable content protection
+      if ((window as any).electron && (window as any).electron.setContentProtection) {
+        (window as any).electron.setContentProtection(false);
+      }
       // Renegotiate
       if (peerConnectionRef.current) {
-        // Senders removal is tricky, let's just renegotiate
-        const offer = await peerConnectionRef.current.createOffer();
-        await peerConnectionRef.current.setLocalDescription(offer);
-        socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
+        // Just removing tracks triggers negotiation
       }
     } else if (sourceId) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, echoCancellation: true } } as any,
-          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId } } as any
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+              maxWidth: 4096,
+              maxHeight: 2160,
+              maxFrameRate: 60
+            }
+          } as any
         });
+
+        // Enable content protection (WDA_EXCLUDEFROMCAPTURE)
+        if ((window as any).electron && (window as any).electron.setContentProtection) {
+          await (window as any).electron.setContentProtection(true);
+        }
+
         Object.defineProperty(stream, 'id', { value: `screen-${user?._id}-${Date.now()}` });
         setScreenStream(stream);
         setIsScreenSharing(true);
         if (peerConnectionRef.current) {
           stream.getTracks().forEach(track => peerConnectionRef.current!.addTrack(track, stream));
-          const offer = await peerConnectionRef.current.createOffer();
-          await peerConnectionRef.current.setLocalDescription(offer);
-          socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
         }
       } catch (e) { console.error(e); }
     }
@@ -312,9 +336,23 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           <div className="call-active">
             <div className="video-container">
               {remoteStream && remoteStream.getVideoTracks().length > 0 && <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />}
-              {remoteScreenStream && <video autoPlay playsInline ref={el => { if (el) el.srcObject = remoteScreenStream; }} className="remote-screen-video" style={{ width: '100%', height: 'auto', borderRadius: '8px', marginTop: '10px' }} />}
+              {remoteScreenStream && (
+                <video
+                  autoPlay
+                  playsInline
+                  muted
+                  ref={el => { if (el && el.srcObject !== remoteScreenStream) el.srcObject = remoteScreenStream; }}
+                  className="remote-screen-video"
+                  style={{ width: '100%', height: 'auto', borderRadius: '8px', marginTop: '10px', background: '#000' }}
+                />
+              )}
               {localStream && localStream.getVideoTracks().length > 0 && <video ref={localVideoRef} autoPlay playsInline muted className="local-video" />}
-              {screenStream && <div className="local-screen-preview">Вы транслируете экран</div>}
+              {screenStream && (
+                <div className="local-screen-preview-container">
+                  <MonitorIcon size={32} color="var(--bg-accent)" />
+                  <span>Вы транслируете экран</span>
+                </div>
+              )}
             </div>
             {remoteStream && (
               <audio

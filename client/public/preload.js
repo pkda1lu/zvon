@@ -26,7 +26,8 @@ const electronAPI = {
         maximize: () => ipcRenderer.send('window-maximize'),
         close: () => ipcRenderer.send('window-close')
     },
-    getDesktopSources: (options) => ipcRenderer.invoke('get-desktop-sources', options)
+    getDesktopSources: (options) => ipcRenderer.invoke('get-desktop-sources', options),
+    setContentProtection: (enabled) => ipcRenderer.invoke('set-content-protection', enabled)
 };
 
 contextBridge.exposeInMainWorld('electron', electronAPI);

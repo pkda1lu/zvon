@@ -41,17 +41,19 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   };
 
   useEffect(() => {
+    // Initial load when channel changes - instant jump
     const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
     };
     scrollToBottom();
     const timeout = setTimeout(scrollToBottom, 100);
     return () => clearTimeout(timeout);
-  }, [messages]);
+  }, [channel._id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
-  }, [channel._id]);
+    // New messages - smooth scroll
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   useEffect(() => {
     if (!socket) return;

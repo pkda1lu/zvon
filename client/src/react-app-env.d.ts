@@ -20,5 +20,6 @@ interface Window {
             close: () => void;
         };
         getDesktopSources: (options: { types: string[]; thumbnailSize?: { width: number; height: number } }) => Promise<any[]>;
+        setContentProtection: (enabled: boolean) => Promise<void>;
     };
 }
