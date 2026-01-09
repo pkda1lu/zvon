@@ -1,7 +1,7 @@
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
-#include <atlbase.h>
-#include <atlcomcli.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <endpointvolume.h>
@@ -72,7 +72,7 @@ public:
         if (wait != WAIT_OBJECT_0) return E_FAIL;
         
         HRESULT hrActivateResult = E_FAIL;
-        CComPtr<IUnknown> punkAudioInterface;
+        ComPtr<IUnknown> punkAudioInterface;
         HRESULT hr = m_activateResult->GetActivateResult(&hrActivateResult, &punkAudioInterface);
         if (SUCCEEDED(hr) && SUCCEEDED(hrActivateResult)) {
             *ppUnknown = punkAudioInterface.Detach();
@@ -82,7 +82,7 @@ public:
     }
 
 private:
-    CComPtr<IActivateAudioInterfaceAsyncOperation> m_activateResult;
+    ComPtr<IActivateAudioInterfaceAsyncOperation> m_activateResult;
     HANDLE m_hEvent;
 };
 
@@ -91,7 +91,7 @@ std::atomic<bool> g_isCapturing(false);
 std::thread g_captureThread;
 Napi::ThreadSafeFunction g_tsfn;
 
-void CaptureLoop(DWORD pid) {
+void CaptureLoop(DWORD pid, int mode) {
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
     try {
@@ -100,20 +100,14 @@ void CaptureLoop(DWORD pid) {
         AUDIOCLIENT_ACTIVATION_PARAMS params = {};
         params.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
         params.ProcessLoopbackParams.TargetProcessId = pid;
-        params.ProcessLoopbackParams.ProcessLoopbackMode = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
+        params.ProcessLoopbackParams.ProcessLoopbackMode = (mode == 1) ? PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE : PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
 
         PROPVARIANT activateParams = {};
         activateParams.vt = VT_BLOB;
         activateParams.blob.cbSize = sizeof(params);
         activateParams.blob.pBlobData = (BYTE*)&params;
 
-        CComPtr<IActivateAudioInterfaceAsyncOperation> pOp;
-        
-        // VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK is technically "VAD" endpoint string or similar, usually null for default loopback?
-        // ActivateAudioInterfaceAsync requires a device interface path.
-        // But for Process Loopback, we should use VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK (defined in headers usually).
-        // If not defined, we might need to look it up.
-        // Actually, it is L"VAD\\Process_Loopback"
+        ComPtr<IActivateAudioInterfaceAsyncOperation> pOp;
         
         LPCWSTR devInterface = L"VAD\\Process_Loopback"; 
         
@@ -126,24 +120,46 @@ void CaptureLoop(DWORD pid) {
         );
         CheckHR(hr, "ActivateAudioInterfaceAsync");
 
-        CComPtr<IUnknown> pUnknown;
+        ComPtr<IUnknown> pUnknown;
         hr = pHandler->WaitForCompletion(5000, &pUnknown);
         CheckHR(hr, "WaitForCompletion");
 
-        CComQIPtr<IAudioClient> pAudioClient(pUnknown);
-        if (!pAudioClient) throw std::runtime_error("Interface is not IAudioClient");
+        ComPtr<IAudioClient> pAudioClient;
+        hr = pUnknown.As(&pAudioClient);
+        CheckHR(hr, "QueryInterface IAudioClient");
 
         WAVEFORMATEX* pwfx = NULL;
         hr = pAudioClient->GetMixFormat(&pwfx);
-        CheckHR(hr, "GetMixFormat");
+        bool usedFallback = false;
+        if (FAILED(hr)) {
+            std::cerr << "GetMixFormat failed (0x" << std::hex << hr << "), using fallback 48kHz Stereo Float" << std::endl;
+            pwfx = (WAVEFORMATEX*)CoTaskMemAlloc(sizeof(WAVEFORMATEXTENSIBLE));
+            WAVEFORMATEXTENSIBLE* pEx = (WAVEFORMATEXTENSIBLE*)pwfx;
+            pEx->Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+            pEx->Format.nChannels = 2;
+            pEx->Format.nSamplesPerSec = 48000;
+            pEx->Format.wBitsPerSample = 32;
+            pEx->Format.nBlockAlign = 8;
+            pEx->Format.nAvgBytesPerSec = 48000 * 8;
+            pEx->Format.cbSize = 22;
+            pEx->Samples.wValidBitsPerSample = 32;
+            pEx->dwChannelMask = KSAUDIO_SPEAKER_STEREO;
+            pEx->SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+            usedFallback = true;
+        }
         
-        // Force standard format if possible or stick to MixFormat?
-        // MixFormat is best.
-        
+        auto metaCb = [sr = pwfx->nSamplesPerSec, ch = pwfx->nChannels](Napi::Env env, Napi::Function jsCallback) {
+            Napi::Object obj = Napi::Object::New(env);
+            obj.Set("sampleRate", sr);
+            obj.Set("channels", ch);
+            jsCallback.Call({ obj });
+        };
+        g_tsfn.BlockingCall(metaCb);
+
         hr = pAudioClient->Initialize(
             AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-            1000 * 10000, // 1 sec buffer
+            AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
+            0,
             0,
             pwfx,
             NULL
@@ -153,7 +169,7 @@ void CaptureLoop(DWORD pid) {
         HANDLE hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
         pAudioClient->SetEventHandle(hEvent);
 
-        CComPtr<IAudioCaptureClient> pCaptureClient;
+        ComPtr<IAudioCaptureClient> pCaptureClient;
         hr = pAudioClient->GetService(__uuidof(IAudioCaptureClient), (void**)&pCaptureClient);
         CheckHR(hr, "GetService");
 
@@ -161,7 +177,7 @@ void CaptureLoop(DWORD pid) {
         CheckHR(hr, "Start");
 
         while (g_isCapturing) {
-            DWORD retval = WaitForSingleObject(hEvent, 500);
+            DWORD retval = WaitForSingleObject(hEvent, 1000);
             if (retval != WAIT_OBJECT_0) continue;
 
             UINT32 packetLength = 0;
@@ -174,18 +190,45 @@ void CaptureLoop(DWORD pid) {
 
                 hr = pCaptureClient->GetBuffer(&pData, &numFramesAvailable, &flags, NULL, NULL);
                 if (SUCCEEDED(hr)) {
-                    if (flags & AUDCLNT_BUFFERFLAGS_SILENT) {
-                        // Silent Packet
-                    } else {
-                        // Copy data
-                        size_t bytes = numFramesAvailable * pwfx->nBlockAlign;
-                        std::vector<uint8_t> buffer(bytes);
-                        memcpy(buffer.data(), pData, bytes);
+                    if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
+                        size_t sampleCount = numFramesAvailable * pwfx->nChannels;
+                        std::vector<float> floatBuffer(sampleCount);
 
-                        auto callback = [buffer = std::move(buffer)](Napi::Env env, Napi::Function jsCallback) {
-                             jsCallback.Call({ Napi::Buffer<uint8_t>::Copy(env, buffer.data(), buffer.size()) });
+                        bool isFloat = (pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) || 
+                                       (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE && 
+                                        ((WAVEFORMATEXTENSIBLE*)pwfx)->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT);
+                        
+                        bool isPCM16 = (pwfx->wFormatTag == WAVE_FORMAT_PCM && pwfx->wBitsPerSample == 16) ||
+                                       (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE && 
+                                        ((WAVEFORMATEXTENSIBLE*)pwfx)->SubFormat == KSDATAFORMAT_SUBTYPE_PCM && 
+                                        pwfx->wBitsPerSample == 16);
+
+                        if (isFloat) {
+                            memcpy(floatBuffer.data(), pData, sampleCount * sizeof(float));
+                        } else if (isPCM16) {
+                            int16_t* pSamples = (int16_t*)pData;
+                            for (size_t i = 0; i < sampleCount; i++) {
+                                floatBuffer[i] = pSamples[i] / 32768.0f;
+                            }
+                        } else {
+                            // Unsupported format - could add more if needed, but these are top 2
+                        }
+
+                        static int nativePacketCount = 0;
+                        nativePacketCount++;
+                        if (nativePacketCount % 100 == 0) {
+                            float maxAmp = 0;
+                            for (float s : floatBuffer) {
+                                float a = fabsf(s);
+                                if (a > maxAmp) maxAmp = a;
+                            }
+                            printf("[Native] Packet %d, Max Amplitude: %.5f\n", nativePacketCount, maxAmp);
+                        }
+
+                        auto callback = [buffer = std::move(floatBuffer)](Napi::Env env, Napi::Function jsCallback) {
+                             jsCallback.Call({ Napi::Buffer<float>::Copy(env, buffer.data(), buffer.size()) });
                         };
-                        g_tsfn.BlockingCall(callback);
+                        g_tsfn.NonBlockingCall(callback);
                     }
                     pCaptureClient->ReleaseBuffer(numFramesAvailable);
                 }
@@ -205,13 +248,14 @@ void CaptureLoop(DWORD pid) {
 Napi::Value Start(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsFunction()) {
-        Napi::TypeError::New(env, "Expected PID (number) and callback (function)").ThrowAsJavaScriptException();
+    if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsFunction()) {
+        Napi::TypeError::New(env, "Expected PID (number), Mode (number), and callback (function)").ThrowAsJavaScriptException();
         return env.Null();
     }
 
     DWORD pid = info[0].As<Napi::Number>().Uint32Value();
-    Napi::Function cb = info[1].As<Napi::Function>();
+    int mode = info[1].As<Napi::Number>().Int32Value();
+    Napi::Function cb = info[2].As<Napi::Function>();
 
     if (g_isCapturing) {
         // Already running
@@ -220,7 +264,7 @@ Napi::Value Start(const Napi::CallbackInfo& info) {
 
     g_tsfn = Napi::ThreadSafeFunction::New(env, cb, "AudioCapture", 0, 1);
     g_isCapturing = true;
-    g_captureThread = std::thread(CaptureLoop, pid);
+    g_captureThread = std::thread(CaptureLoop, pid, mode);
 
     return Napi::Boolean::New(env, true);
 }

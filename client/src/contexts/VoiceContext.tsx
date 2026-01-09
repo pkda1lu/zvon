@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { User } from '../types';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
+import { nativeAudioManager } from '../utils/nativeAudio';
 
 // Remote Audio Component to handle lifecycle properly
 const RemoteAudio: React.FC<{
@@ -32,15 +33,20 @@ const RemoteAudio: React.FC<{
         applySinkId(audioRef.current, outputDeviceId);
     }, [outputDeviceId]);
 
-    // Setup Audio Graph (Source -> Gain -> Destination)
+    // Setup Audio Graph (Source -> Gain -> Destination) or Fallback
     useEffect(() => {
-        if (!stream || !sharedContext) return;
+        if (!stream) return;
 
+        // basic setup
         if (audioRef.current) {
             audioRef.current.srcObject = stream;
-            audioRef.current.muted = true;
+            // If we have an AudioContext, we mute the element and route through Web Audio
+            // If NOT, we unmute the element and play directly
+            audioRef.current.muted = !!sharedContext;
             audioRef.current.play().catch(() => { });
         }
+
+        if (!sharedContext) return;
 
         const ctx = sharedContext;
 
@@ -61,6 +67,10 @@ const RemoteAudio: React.FC<{
             source.connect(gainNodeRef.current);
         } catch (err) {
             console.error("Error creating media stream source", err);
+            // Fallback to direct playback if Web Audio fails
+            if (audioRef.current) {
+                audioRef.current.muted = false;
+            }
         }
 
         return () => {
@@ -72,19 +82,20 @@ const RemoteAudio: React.FC<{
 
     // Handle Volume Changes (Smoothly)
     useEffect(() => {
-        if (gainNodeRef.current && sharedContext) {
-            const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
+        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
 
-            // Smooth transition to prevent clicking/popping
+        if (gainNodeRef.current && sharedContext) {
+            // Web Audio Path
             try {
-                // Cancel scheduled values to apply immediate change
                 gainNodeRef.current.gain.cancelScheduledValues(sharedContext.currentTime);
-                // Ramp to new value over 50ms
                 gainNodeRef.current.gain.setTargetAtTime(finalVolume, sharedContext.currentTime, 0.05);
             } catch (e) {
-                // Fallback
                 gainNodeRef.current.gain.value = finalVolume;
             }
+        } else if (audioRef.current && !audioRef.current.muted) {
+            // Fallback: Direct Audio Element Volume (Clamped to 0-1)
+            // Note: HTMLAudioElement volume is 0.0 to 1.0. We lose the x1.5 boost capability here.
+            audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
         }
     }, [voiceVolume, isDeafened, isLocalMuted, masterVolume, sharedContext]);
 
@@ -352,28 +363,49 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
         };
 
-        pc.onnegotiationneeded = async () => {
+        const negotiate = async () => {
+            if (pc.signalingState !== 'stable') return;
             try {
-                // Only the initiator (or the speaker if they have more tracks) should send the new offer
-                // To avoid glare, a common strategy is to have a "polite" peer.
-                // Here, we'll just check if we are in stable state.
-                if (pc.signalingState !== 'stable') return;
-
+                console.log('[Voice] Negotiating...');
                 const offer = await pc.createOffer();
+                if (pc.signalingState !== 'stable') return;
                 await pc.setLocalDescription(offer);
-                if (socket) socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+                if (socket) {
+                    socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+                }
             } catch (err) {
-                console.error('Negotiation error:', err);
+                console.error('[Voice] Negotiation failed:', err);
             }
         };
 
+        let negotiationTimeout: any = null;
+        pc.onnegotiationneeded = () => {
+            if (pc.signalingState !== 'stable') return;
+            clearTimeout(negotiationTimeout);
+            negotiationTimeout = setTimeout(negotiate, 150);
+        };
+
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => {
+                const alreadyExists = pc.getSenders().some(s => s.track?.id === track.id);
+                if (!alreadyExists) {
+                    pc.addTrack(track, localStreamRef.current!);
+                }
+            });
+        }
+
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(track => {
+                const alreadyExists = pc.getSenders().some(s => s.track?.id === track.id);
+                if (!alreadyExists) {
+                    pc.addTrack(track, screenStreamRef.current!);
+                }
+            });
+        }
+
         if (initiator) {
-            pc.createOffer()
-                .then(offer => pc.setLocalDescription(offer))
-                .then(() => {
-                    if (socket) socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
-                })
-                .catch(() => { });
+            // Initiator starts the first negotiation
+            negotiate();
         }
         return pc;
     }, [socket, handleTrack]);
@@ -383,6 +415,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
+        }
+        if (rawMicStreamRef.current) {
+            rawMicStreamRef.current.getTracks().forEach(track => track.stop());
+            rawMicStreamRef.current = null;
         }
         setLocalStream(null);
         peersRef.current.forEach(pc => pc.close());
@@ -401,65 +437,96 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const startScreenShare = useCallback(async (sourceId: string) => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    mandatory: {
-                        chromeMediaSource: 'desktop',
-                        chromeMediaSourceId: sourceId,
-                        echoCancellation: true, // Essential for removing chat echo
-                        noiseSuppression: false, // OFF for high quality game/music audio
-                        autoGainControl: false,  // OFF to prevent volume pumping
-                        googAutoGainControl: false,
-                        googNoiseSuppression: false,
-                        channelCount: 2,
-                        sampleRate: 48000
-                    }
-                } as any,
-                video: {
-                    mandatory: {
-                        chromeMediaSource: 'desktop',
-                        chromeMediaSourceId: sourceId,
-                        maxWidth: 1920,
-                        maxHeight: 1080, // standardized to 1080p for stability
-                        maxFrameRate: 60,
-                        minFrameRate: 30
-                    }
-                } as any
-            });
+            const hasElectron = !!(window as any).electron;
+            let stream: MediaStream;
+
+            if (hasElectron) {
+                // Get Video Only from Browser
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: sourceId,
+                            maxWidth: 1920,
+                            maxHeight: 1080,
+                            maxFrameRate: 60,
+                            minFrameRate: 30
+                        }
+                    } as any
+                });
+
+                // Get Audio from Native Module
+                try {
+                    const audioStream = await nativeAudioManager.startcapture(sourceId);
+                    const tracks = audioStream.getAudioTracks();
+                    console.log(`[Voice] Native audio capture started. Tracks: ${tracks.length}`);
+                    tracks.forEach(track => {
+                        console.log(`[Voice] Adding native audio track: ${track.id}`);
+                        stream.addTrack(track);
+                    });
+                } catch (err) {
+                    console.error("Native audio capture failed, proceeding with video only:", err);
+                }
+
+            } else {
+                // Standard Browser Implementation
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: sourceId,
+                            echoCancellation: true,
+                            noiseSuppression: false,
+                            autoGainControl: false,
+                            googAutoGainControl: false,
+                            googNoiseSuppression: false,
+                            channelCount: 2,
+                            sampleRate: 48000
+                        }
+                    } as any,
+                    video: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: sourceId,
+                            maxWidth: 1920,
+                            maxHeight: 1080,
+                            maxFrameRate: 60,
+                            minFrameRate: 30
+                        }
+                    } as any
+                });
+            }
 
             // Optimize for low latency (prioritize motion/framerate over detail)
             const videoTrack = stream.getVideoTracks()[0];
             if (videoTrack) {
-                // 'motion' hint encourages the encoder to reduce buffering and prioritize framerate
                 if ('contentHint' in videoTrack) {
                     (videoTrack as any).contentHint = 'motion';
                 }
             }
 
             // Enable WDA_EXCLUDEFROMCAPTURE to hide the application from the screen capture
-            // This prevents visual mirror effect, but does NOT prevent audio loopback echo naturally.
-            // We rely on 'echoCancellation: true' above to filter out the remote voices playing locally.
-            if (window.electron && window.electron.setContentProtection) {
-                await window.electron.setContentProtection(true);
+            if ((window as any).electron && (window as any).electron.setContentProtection) {
+                await (window as any).electron.setContentProtection(true);
             }
 
-            // Note: Granular PID audio filtering (PROCESS_LOOPBACK_MODE_EXCLUDE) requires a native C++ module.
-            // Zvon maintains system audio capture using standard loopback with echo cancellation to minimize self-capture artifacts.
-            // echoCancellation: true is enabled in the constraints above.
-
-            // To make the stream recognizable as screen sharing on the other end
             const newStream = new MediaStream(stream.getTracks());
-            // We can't set ID, but we can track it locally.
-            // Let's wrap it.
             Object.defineProperty(newStream, 'id', { value: `screen-${user?._id}-${Date.now()}` });
 
             setScreenStream(newStream);
             screenStreamRef.current = newStream;
             setIsScreenSharing(true);
+            soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
 
-            // Adding tracks will trigger onnegotiationneeded automatically
+            // Important: sort tracks (video first, then audio) to keep SDP order consistent
+            const sortedTracks = newStream.getTracks().sort((a, b) => a.kind === 'video' ? -1 : 1);
+
             peersRef.current.forEach(pc => {
-                newStream.getTracks().forEach(track => pc.addTrack(track, newStream));
+                sortedTracks.forEach(track => {
+                    console.log(`[Voice] Adding ${track.kind} track to peer:`, track.id);
+                    pc.addTrack(track, newStream);
+                });
             });
 
             if (socket && activeChannelId) {
@@ -475,19 +542,44 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             screenStreamRef.current.getTracks().forEach(track => track.stop());
             screenStreamRef.current = null;
         }
+        nativeAudioManager.stopCapture();
         setScreenStream(null);
         setIsScreenSharing(false);
+        soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.4);
 
         // Remove tracks from peers
         peersRef.current.forEach(async pc => {
+            if (pc.signalingState === 'closed') return;
+
             const senders = pc.getSenders();
-            const screenSenders = senders.filter(s => s.track && (s.track.label.includes('screen') || !localStreamRef.current?.getTracks().includes(s.track)));
-            // Wait, a better way is to find senders whose track is from the screen stream
-            // Since we already stopped the tracks, we can just renegotiate or remove them
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            const targetUserId = Array.from(peersRef.current.entries()).find(e => e[1] === pc)?.[0];
-            if (targetUserId) socket?.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+            let changed = false;
+            senders.forEach(sender => {
+                if (!sender.track) return;
+
+                // If the track is not part of the local mic/camera stream, it's a screen share track.
+                const isLocalMic = localStreamRef.current?.getTracks().some(t => t.id === sender.track?.id);
+                if (!isLocalMic) {
+                    try {
+                        console.log('[Voice] Removing track from peer:', sender.track.kind);
+                        pc.removeTrack(sender);
+                        changed = true;
+                    } catch (e) {
+                        console.warn('[Voice] Error removing track:', e);
+                    }
+                }
+            });
+
+            // Re-negotiation happens if tracks were actually removed
+            if (changed && pc.signalingState === 'stable') {
+                try {
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    const targetUserId = Array.from(peersRef.current.entries()).find(e => e[1] === pc)?.[0];
+                    if (targetUserId) socket?.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+                } catch (e) {
+                    console.error('[Voice] Error during stop-negotiation:', e);
+                }
+            }
         });
 
         if (socket && activeChannelId) {
@@ -495,8 +587,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         // Disable WDA_EXCLUDEFROMCAPTURE
-        if (window.electron && window.electron.setContentProtection) {
-            window.electron.setContentProtection(false);
+        if ((window as any).electron && (window as any).electron.setContentProtection) {
+            (window as any).electron.setContentProtection(false);
         }
     }, [socket, activeChannelId, isMuted, isDeafened]);
 
@@ -513,7 +605,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 video: false
             });
             rawMicStreamRef.current = stream;
-            let streamToUse = stream;
+            rawMicStreamRef.current = stream;
+            let streamToUse = stream.clone();
             if (isNoiseSuppressionEnabled) {
                 try {
                     streamToUse = await setupNoiseSuppression(getAudioContext(), stream);
@@ -623,11 +716,26 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean; isScreenSharing?: boolean }) => {
-            setUserStates(prev => new Map(prev).set(data.userId, {
-                isMuted: data.isMuted,
-                isDeafened: data.isDeafened,
-                isScreenSharing: data.isScreenSharing || false
-            } as any));
+            setUserStates(prev => {
+                const oldState = prev.get(data.userId);
+                if (data.userId !== user?._id) {
+                    if (data.isScreenSharing && (!oldState || !oldState.isScreenSharing)) {
+                        // Play screenshare on sound if it just started
+                        soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
+                    } else if (!data.isScreenSharing && oldState && oldState.isScreenSharing) {
+                        // Play toggle/stop sound if it just stopped
+                        soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.4);
+                    }
+                }
+
+                const newMap = new Map(prev);
+                newMap.set(data.userId, {
+                    isMuted: data.isMuted,
+                    isDeafened: data.isDeafened,
+                    isScreenSharing: data.isScreenSharing || false
+                } as any);
+                return newMap;
+            });
         };
 
         socket.on('voice-existing-users', handleExistingUsers);
@@ -674,11 +782,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsNoiseSuppressionEnabled(newState);
         localStorage.setItem('noiseSuppression', String(newState));
         if (isConnectedRef.current && rawMicStreamRef.current) {
-            let newStream = rawMicStreamRef.current;
+            let newStream: MediaStream;
             if (newState) {
                 try {
                     newStream = await setupNoiseSuppression(getAudioContext(), rawMicStreamRef.current);
-                } catch (e) { }
+                } catch (e) {
+                    newStream = rawMicStreamRef.current.clone();
+                }
+            } else {
+                newStream = rawMicStreamRef.current.clone();
             }
             setLocalStream(newStream);
             localStreamRef.current = newStream;
@@ -711,6 +823,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const analyser = analysersRef.current.get(user?._id || 'local');
                 if (analyser) {
                     const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    dataArray.fill(128); // Pre-fill with silence
                     analyser.getByteTimeDomainData(dataArray);
 
                     let sumOfSquares = 0;
@@ -754,6 +867,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 if (userId === user?._id) return;
 
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                dataArray.fill(128);
                 analyser.getByteTimeDomainData(dataArray);
                 let sumOfSquares = 0;
                 for (let i = 0; i < dataArray.length; i++) {
@@ -776,9 +890,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const updateAnalysers = () => {
             analysersRef.current.clear();
-            if (localStream && user?._id && !isMuted) {
+            if (rawMicStreamRef.current && user?._id && !isMuted) {
                 try {
-                    const source = audioCtx.createMediaStreamSource(localStream);
+                    const source = audioCtx.createMediaStreamSource(rawMicStreamRef.current);
                     const analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 256;
                     source.connect(analyser);

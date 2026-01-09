@@ -24,10 +24,16 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
 
     useEffect(() => {
         const fetchSources = async () => {
+            const electron = (window as any).electron;
+            if (!electron || !electron.getDesktopSources) {
+                console.warn('Electron desktopCapturer is not available yet.');
+                return;
+            }
+
             setLoading(true);
             try {
                 const types = selectedTab === 'screen' ? ['screen'] : ['window'];
-                const results = await window.electron.getDesktopSources({
+                const results = await electron.getDesktopSources({
                     types,
                     thumbnailSize: { width: 300, height: 170 }
                 });

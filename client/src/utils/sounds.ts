@@ -1,12 +1,14 @@
 export const SOUNDS = {
-    MESSAGE_NOTIFY: '/sounds/message.mp3',
-    CALL_RINGING: '/sounds/ringing.mp3',
-    CALL_JOIN: '/sounds/join.mp3',
-    CALL_LEAVE: '/sounds/leave.mp3',
+    MESSAGE_NOTIFY: '/sounds/message_notify.mp3',
+    CALL_RINGING: '/sounds/call_incoming.mp3',
+    CALL_JOIN: '/sounds/voice_join.mp3',
+    CALL_LEAVE: '/sounds/voice_leave.mp3',
     MUTE: '/sounds/mute.mp3',
     UNMUTE: '/sounds/unmute.mp3',
-    VOICE_JOIN: '/sounds/join.mp3',
-    VOICE_LEAVE: '/sounds/leave.mp3'
+    VOICE_JOIN: '/sounds/voice_join.mp3',
+    VOICE_LEAVE: '/sounds/voice_leave.mp3',
+    SCREENSHARE_ON: '/sounds/screenshare_on.mp3',
+    SCREENSHARE_TOGGLE: '/sounds/screenshare_toggle.mp3'
 };
 
 export class SoundManager {

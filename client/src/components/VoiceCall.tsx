@@ -9,6 +9,7 @@ import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
+import { nativeAudioManager } from '../utils/nativeAudio';
 import './VoiceCall.css';
 
 interface VoiceCallProps {
@@ -113,6 +114,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     if ((window as any).electron && (window as any).electron.setContentProtection) {
       (window as any).electron.setContentProtection(false);
     }
+    nativeAudioManager.stopCapture();
   };
 
   const setupPeerConnection = async () => {
@@ -260,6 +262,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         setScreenStream(null);
       }
       setIsScreenSharing(false);
+      nativeAudioManager.stopCapture();
       // Disable content protection
       if ((window as any).electron && (window as any).electron.setContentProtection) {
         (window as any).electron.setContentProtection(false);
@@ -270,18 +273,42 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       }
     } else if (sourceId) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, echoCancellation: true } } as any,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: sourceId,
-              maxWidth: 4096,
-              maxHeight: 2160,
-              maxFrameRate: 60
-            }
-          } as any
-        });
+        const hasElectron = !!(window as any).electron;
+        let stream: MediaStream;
+
+        if (hasElectron) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              mandatory: {
+                chromeMediaSource: 'desktop',
+                chromeMediaSourceId: sourceId,
+                maxWidth: 4096,
+                maxHeight: 2160,
+                maxFrameRate: 60
+              }
+            } as any
+          });
+          try {
+            const audioStream = await nativeAudioManager.startcapture(sourceId);
+            audioStream.getAudioTracks().forEach(track => stream.addTrack(track));
+          } catch (e) {
+            console.error("Native audio capture failed", e);
+          }
+        } else {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, echoCancellation: true } } as any,
+            video: {
+              mandatory: {
+                chromeMediaSource: 'desktop',
+                chromeMediaSourceId: sourceId,
+                maxWidth: 4096,
+                maxHeight: 2160,
+                maxFrameRate: 60
+              }
+            } as any
+          });
+        }
 
         // Enable content protection (WDA_EXCLUDEFROMCAPTURE)
         if ((window as any).electron && (window as any).electron.setContentProtection) {

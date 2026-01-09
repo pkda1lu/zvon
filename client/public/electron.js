@@ -196,18 +196,62 @@ let currentScanTimeout = null;
 let adaptiveInterval = 3000;
 
 const KNOWN_GAMES = {
-    'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg', type: 'game' },
-    'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://upload.wikimedia.org/wikipedia/en/f/f2/Counter-Strike_2_cover_art.jpg', type: 'game' },
-    'csgo.exe': { name: 'CS:GO', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg', type: 'game' },
-    'Dota2.exe': { name: 'Dota 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/29595-285x380.jpg', type: 'game' },
-    'League of Legends.exe': { name: 'League of Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg', type: 'game' },
+    'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575_IGDB-285x380.jpg', type: 'game' },
+    'VALORANT.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575_IGDB-285x380.jpg', type: 'game' },
+    'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg', type: 'game' },
+    'csgo.exe': { name: 'Counter-Strike: GO', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg', type: 'game' },
+    'dota2.exe': { name: 'Dota 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/29595_IGDB-285x380.jpg', type: 'game' },
+    'League of Legends.exe': { name: 'League of Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21779_IGDB-285x380.jpg', type: 'game' },
     'Minecraft.exe': { name: 'Minecraft', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg', type: 'game' },
-    'RobloxPlayerBeta.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg', type: 'game' },
-    'Roblox.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg', type: 'game' },
-    'GenshinImpact.exe': { name: 'Genshin Impact', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/513181-285x380.jpg', type: 'game' },
-    'aces.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg', type: 'game' },
-    'WarThunder.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27546_IGDB-285x380.jpg', type: 'game' }
+    'javaw.exe': { name: 'Minecraft', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg', type: 'game' },
+    'RobloxPlayerBeta.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/23020_IGDB-285x380.jpg', type: 'game' },
+    'Roblox.exe': { name: 'Roblox', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/23020_IGDB-285x380.jpg', type: 'game' },
+    'GenshinImpact.exe': { name: 'Genshin Impact', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/513181_IGDB-285x380.jpg', type: 'game' },
+    'aces.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/66366_IGDB-285x380.jpg', type: 'game' },
+    'WarThunder.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/66366_IGDB-285x380.jpg', type: 'game' },
+    'FortniteClient-Win64-Shipping.exe': { name: 'Fortnite', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214_IGDB-285x380.jpg', type: 'game' },
+
+    // New games from Steam library
+    'witcher3.exe': { name: 'The Witcher 3', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/115977_IGDB-285x380.jpg', type: 'game' },
+    'r5apex.exe': { name: 'Apex Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/511224_IGDB-285x380.jpg', type: 'game' },
+    'arma3.exe': { name: 'Arma 3', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/30028_IGDB-285x380.jpg', type: 'game' },
+    'arma3_x64.exe': { name: 'Arma 3', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/30028_IGDB-285x380.jpg', type: 'game' },
+    'Content Warning.exe': { name: 'Content Warning', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/394758168_IGDB-285x380.jpg', type: 'game' },
+    'deadlock.exe': { name: 'Deadlock', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/1908684124_IGDB-285x380.jpg', type: 'game' },
+    'project8.exe': { name: 'Deadlock', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/1908684124_IGDB-285x380.jpg', type: 'game' },
+    'Phasmophobia.exe': { name: 'Phasmophobia', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/518064_IGDB-285x380.jpg', type: 'game' },
+    'TslGame.exe': { name: 'PUBG: BATTLEGROUNDS', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/493057_IGDB-285x380.jpg', type: 'game' },
+    'RustClient.exe': { name: 'Rust', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/26348_IGDB-285x380.jpg', type: 'game' },
+    'Squad.exe': { name: 'Squad', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/488632_IGDB-285x380.jpg', type: 'game' },
+    'SquadGame.exe': { name: 'Squad', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/488632_IGDB-285x380.jpg', type: 'game' },
+    'TheForest.exe': { name: 'The Forest', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33857_IGDB-285x380.jpg', type: 'game' },
+    'RainbowSix.exe': { name: 'Rainbow Six Siege', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/460630_IGDB-285x380.jpg', type: 'game' },
+    'RainbowSix_Vulkan.exe': { name: 'Rainbow Six Siege', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/460630_IGDB-285x380.jpg', type: 'game' },
+    '7DaysToDie.exe': { name: '7 Days to Die', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27136_IGDB-285x380.jpg', type: 'game' },
+    'BeamNG.drive.x64.exe': { name: 'BeamNG.drive', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/70440_IGDB-285x380.jpg', type: 'game' },
+    'cms2018.exe': { name: 'Car Mechanic Simulator 2018', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/497424_IGDB-285x380.jpg', type: 'game' },
+    'RelicCoH2.exe': { name: 'Company of Heroes 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33075_IGDB-285x380.jpg', type: 'game' },
+    'DCS.exe': { name: 'DCS World', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21971_IGDB-285x380.jpg', type: 'game' },
+    'Deceit.exe': { name: 'Deceit', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/494519_IGDB-285x380.jpg', type: 'game' },
+    'destiny2.exe': { name: 'Destiny 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/497057_IGDB-285x380.jpg', type: 'game' },
+    'Devour.exe': { name: 'DEVOUR', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/512942_IGDB-285x380.jpg', type: 'game' },
+    'dontstarve_steam.exe': { name: "Don't Starve Together", icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32629_IGDB-285x380.jpg', type: 'game' }
 };
+
+const SHARING_BLACKLIST = [
+    'NVIDIA GeForce Experience',
+    'NVIDIA Share',
+    'NVIDIA Overlay',
+    'Microsoft Text Input Application',
+    'Settings',
+    'Task Manager',
+    'Program Manager',
+    'Search',
+    'Start',
+    'Shell Experience Host',
+    'Settings',
+    'Action Center'
+];
 
 function scheduleNextScan() {
     if (currentScanTimeout) clearTimeout(currentScanTimeout);
@@ -317,7 +361,16 @@ ipcMain.on('window-maximize', () => { if (mainWindow) { if (mainWindow.isMaximiz
 ipcMain.on('window-close', () => { if (mainWindow) mainWindow.close(); });
 
 ipcMain.handle('get-desktop-sources', async (event, options) => {
-    const sources = await desktopCapturer.getSources(options);
+    let sources = await desktopCapturer.getSources(options);
+
+    // Filter out blacklisted apps
+    sources = sources.filter(source => {
+        const name = source.name;
+        // Skip if empty or in blacklist
+        if (!name || name.trim() === '') return false;
+        return !SHARING_BLACKLIST.some(blacklisted => name.includes(blacklisted));
+    });
+
     return sources.map(source => ({
         id: source.id,
         name: source.name,
@@ -345,24 +398,30 @@ try {
     log.warn("Failed to load native audio module. Loopback capture will be unavailable.", e);
 }
 
-ipcMain.on('start-audio-capture', (event, pid) => {
+ipcMain.on('start-audio-capture', (event, { pid, mode }) => {
     if (!zvonAudio) {
         log.warn("start-native-audio called but module is not loaded.");
         return;
     }
-    log.info(`Starting native capture for PID: ${pid}`);
+    log.info(`[NativeAudio] Attempting to start capture. PID: ${pid}, Mode: ${mode}`);
     try {
-        const result = zvonAudio.start(pid, (buffer) => {
-            // Buffer comes from C++ thread. Send it to renderer.
-            // Note: Sending high-frequency IPC messages (100Hz) is okay for local socket.
-            // buffer is a node Buffer (Uint8Array)
+        let packetCount = 0;
+        const result = zvonAudio.start(pid, mode, (data) => {
             if (event.sender && !event.sender.isDestroyed()) {
-                event.sender.send('audio-data', buffer);
+                if (!Buffer.isBuffer(data)) {
+                    event.sender.send('audio-meta', data);
+                } else {
+                    packetCount++;
+                    if (packetCount % 100 === 0) {
+                        log.info(`[NativeAudio] Sent 100 packets to renderer. Last size: ${data.length} bytes`);
+                    }
+                    event.sender.send('audio-data', data);
+                }
             }
         });
-        log.info("Native capture start result:", result);
+        log.info("[NativeAudio] Capture start result:", result);
     } catch (e) {
-        log.error("Native capture execution error:", e);
+        log.error("[NativeAudio] Capture execution error:", e);
     }
 });
 
@@ -372,6 +431,7 @@ ipcMain.on('stop-audio-capture', () => {
         zvonAudio.stop();
     }
 });
+ipcMain.handle('get-app-pid', () => process.pid);
 ipcMain.handle('get-pid-from-hwnd', (event, hwnd) => {
     if (zvonAudio && zvonAudio.getPidFromWindowHandle) {
         return zvonAudio.getPidFromWindowHandle(Number(hwnd));
