@@ -8,6 +8,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon } from './Icons';
+import ScreenSourceSelector from './ScreenSourceSelector';
 import './VoiceCall.css';
 
 interface VoiceCallProps {
@@ -29,6 +30,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isIncomingCall, setIsIncomingCall] = useState(initialIncomingCall);
   const [isRinging, setIsRinging] = useState(!initialIncomingCall);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [showScreenSelector, setShowScreenSelector] = useState(false);
+  const [remoteScreenStream, setRemoteScreenStream] = useState<MediaStream | null>(null);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -43,7 +48,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const mountedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    if (initialIncomingCall && isIncomingCall) ringtoneRef.current = soundManager.playLoop(SOUNDS.CALL_INCOMING, 0.5);
+    if (initialIncomingCall && isIncomingCall) ringtoneRef.current = soundManager.playLoop(SOUNDS.CALL_RINGING, 0.5);
     else if (ringtoneRef.current) { ringtoneRef.current.pause(); ringtoneRef.current = null; }
     return () => { if (ringtoneRef.current) { ringtoneRef.current.pause(); ringtoneRef.current = null; } };
   }, [isIncomingCall, initialIncomingCall]);
@@ -94,11 +99,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     if (pendingOfferRef.current) {
       const offer = pendingOfferRef.current; pendingOfferRef.current = null;
       await handleIncomingOffer({ offer });
-    } else socket.emit('join-dm-call', { dmId });
+    } else if (socket) socket.emit('join-dm-call', { dmId });
   };
 
   const cleanupStreams = () => {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
+    if (screenStream) screenStream.getTracks().forEach(track => track.stop());
     if (audioContextRef.current) { audioContextRef.current.close().catch(() => { }); audioContextRef.current = null; }
     if (peerConnectionRef.current) {
       peerConnectionRef.current.onicecandidate = null; peerConnectionRef.current.ontrack = null;
@@ -120,7 +126,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     setLocalStream(usedStream);
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' }] });
     usedStream.getTracks().forEach(track => pc.addTrack(track, usedStream));
-    pc.ontrack = (event) => setRemoteStream(event.streams[0]);
+    pc.ontrack = (event) => {
+      const stream = event.streams[0];
+      if (stream.id.startsWith('screen-')) {
+        setRemoteScreenStream(stream);
+      } else {
+        setRemoteStream(stream);
+      }
+    };
     pc.onicecandidate = (event) => { if (event.candidate && socket) socket.emit('call-ice-candidate', { targetUserId: otherUser._id, candidate: event.candidate }); };
     peerConnectionRef.current = pc;
     return pc;
@@ -228,6 +241,39 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     }
   };
 
+  const toggleScreenShare = async (sourceId?: string) => {
+    if (isScreenSharing) {
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop());
+        setScreenStream(null);
+      }
+      setIsScreenSharing(false);
+      // Renegotiate
+      if (peerConnectionRef.current) {
+        // Senders removal is tricky, let's just renegotiate
+        const offer = await peerConnectionRef.current.createOffer();
+        await peerConnectionRef.current.setLocalDescription(offer);
+        socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
+      }
+    } else if (sourceId) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, echoCancellation: true } } as any,
+          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId } } as any
+        });
+        Object.defineProperty(stream, 'id', { value: `screen-${user?._id}-${Date.now()}` });
+        setScreenStream(stream);
+        setIsScreenSharing(true);
+        if (peerConnectionRef.current) {
+          stream.getTracks().forEach(track => peerConnectionRef.current!.addTrack(track, stream));
+          const offer = await peerConnectionRef.current.createOffer();
+          await peerConnectionRef.current.setLocalDescription(offer);
+          socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
+        }
+      } catch (e) { console.error(e); }
+    }
+  };
+
   useEffect(() => {
     if (localStream && localVideoRef.current) localVideoRef.current.srcObject = localStream;
     if (remoteStream && remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
@@ -266,7 +312,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           <div className="call-active">
             <div className="video-container">
               {remoteStream && remoteStream.getVideoTracks().length > 0 && <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />}
+              {remoteScreenStream && <video autoPlay playsInline ref={el => { if (el) el.srcObject = remoteScreenStream; }} className="remote-screen-video" style={{ width: '100%', height: 'auto', borderRadius: '8px', marginTop: '10px' }} />}
               {localStream && localStream.getVideoTracks().length > 0 && <video ref={localVideoRef} autoPlay playsInline muted className="local-video" />}
+              {screenStream && <div className="local-screen-preview">Вы транслируете экран</div>}
             </div>
             {remoteStream && (
               <audio
@@ -274,19 +322,39 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
                 autoPlay
               />
             )}
+            {remoteScreenStream && remoteScreenStream.getAudioTracks().length > 0 && (
+              <audio
+                autoPlay
+                ref={el => { if (el) { el.srcObject = remoteScreenStream; el.play().catch(() => { }); } }}
+              />
+            )}
+          </div>
+        )}
+        {!isIncomingCall && (
+          <div className="call-controls" style={{ marginTop: '20px' }}>
+            <button className={`control-button ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
+              {isMuted ? <MicMutedIcon /> : <MicIcon />}
+            </button>
+            <button className={`control-button ${isScreenSharing ? 'active' : ''}`} onClick={() => isScreenSharing ? toggleScreenShare() : setShowScreenSelector(true)} title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}>
+              <VideoIcon />
+            </button>
+            <button className={`control-button ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo} title={isVideoEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+              <CameraIcon />
+            </button>
+            <button className="control-button end-call" onClick={endCall} title="Завершить звонок"><PhoneIcon /></button>
           </div>
         )}
       </div>
 
-      <div className="voice-call-controls">
-        <button className={`control-button ${isMuted ? 'active' : ''}`} onClick={toggleMute} title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
-          {isMuted ? <MicMutedIcon /> : <MicIcon />}
-        </button>
-        <button className={`control-button ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo} title={isVideoEnabled ? 'Выключить камеру' : 'Включить камеру'}>
-          <CameraIcon />
-        </button>
-        <button className="control-button end" onClick={endCall} title="Завершить звонок"><PhoneIcon /></button>
-      </div>
+      {showScreenSelector && (
+        <ScreenSourceSelector
+          onClose={() => setShowScreenSelector(false)}
+          onSelect={(id) => {
+            toggleScreenShare(id);
+            setShowScreenSelector(false);
+          }}
+        />
+      )}
     </div>
   );
 };

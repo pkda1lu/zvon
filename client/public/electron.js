@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
@@ -315,5 +315,16 @@ ipcMain.handle('toggle-fullscreen', async (event, isFullscreen) => {
 ipcMain.on('window-minimize', () => { if (mainWindow) mainWindow.minimize(); });
 ipcMain.on('window-maximize', () => { if (mainWindow) { if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize(); } });
 ipcMain.on('window-close', () => { if (mainWindow) mainWindow.close(); });
+
+ipcMain.handle('get-desktop-sources', async (event, options) => {
+    const sources = await desktopCapturer.getSources(options);
+    return sources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail.toDataURL(),
+        display_id: source.display_id,
+        appIcon: source.appIcon ? source.appIcon.toDataURL() : null
+    }));
+});
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

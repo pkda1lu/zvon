@@ -68,6 +68,42 @@ const RemoteAudio: React.FC<{
     return <audio ref={audioRef} autoPlay playsInline muted style={{ display: 'none' }} />;
 };
 
+const RemoteScreen: React.FC<{
+    userId: string;
+    stream: MediaStream;
+    outputDeviceId: string;
+    masterVolume: number;
+}> = ({ userId, stream, outputDeviceId, masterVolume }) => {
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+
+    useEffect(() => {
+        const applySinkId = async (element: HTMLAudioElement | null, deviceId: string) => {
+            if (element && (element as any).setSinkId) {
+                try { await (element as any).setSinkId(deviceId); } catch (err) { }
+            }
+        };
+        applySinkId(audioRef.current, outputDeviceId);
+    }, [outputDeviceId]);
+
+    useEffect(() => {
+        if (!stream) return;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (audioRef.current && stream.getAudioTracks().length > 0) {
+            audioRef.current.srcObject = new MediaStream(stream.getAudioTracks());
+            audioRef.current.volume = masterVolume;
+            audioRef.current.play().catch(() => { });
+        }
+    }, [stream, masterVolume]);
+
+    return (
+        <div style={{ display: 'none' }}>
+            <video ref={videoRef} autoPlay playsInline />
+            <audio ref={audioRef} autoPlay />
+        </div>
+    );
+};
+
 interface VoiceContextType {
     isConnected: boolean;
     activeChannelId: string | null;
@@ -82,7 +118,7 @@ interface VoiceContextType {
     remoteStreams: Map<string, MediaStream>;
     userVolumes: Map<string, number>;
     setUserVolume: (userId: string, volume: number) => void;
-    userStates: Map<string, { isMuted: boolean; isDeafened: boolean }>;
+    userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
     speakingUsers: Set<string>;
@@ -91,15 +127,23 @@ interface VoiceContextType {
     audioContext: AudioContext | null;
     inputDevices: MediaDeviceInfo[];
     outputDevices: MediaDeviceInfo[];
+    videoDevices: MediaDeviceInfo[];
     selectedInputDeviceId: string;
     setSelectedInputDeviceId: (id: string) => void;
     selectedOutputDeviceId: string;
     setSelectedOutputDeviceId: (id: string) => void;
+    selectedVideoDeviceId: string;
+    setSelectedVideoDeviceId: (id: string) => void;
     inputVolume: number;
     setInputVolume: (val: number) => void;
     outputVolume: number;
     setOutputVolume: (val: number) => void;
     refreshDevices: () => Promise<void>;
+    isScreenSharing: boolean;
+    screenStream: MediaStream | null;
+    startScreenShare: (sourceId: string) => Promise<void>;
+    stopScreenShare: () => void;
+    remoteScreenStreams: Map<string, MediaStream>;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -131,9 +175,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
     const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
 
     const [selectedInputDeviceId, setSelectedInputDeviceId] = useState(() => localStorage.getItem('selectedInputDeviceId') || 'default');
     const [selectedOutputDeviceId, setSelectedOutputDeviceId] = useState(() => localStorage.getItem('selectedOutputDeviceId') || 'default');
+    const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState(() => localStorage.getItem('selectedVideoDeviceId') || 'default');
 
     const [inputVolume, setInputVolume] = useState(() => Number(localStorage.getItem('inputVolume')) || 1.0);
     const [outputVolume, setOutputVolume] = useState(() => Number(localStorage.getItem('outputVolume')) || 1.0);
@@ -141,10 +187,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
-    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean }>>(new Map());
+    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }>>(new Map());
     const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
     const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
     const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+    const screenStreamRef = useRef<MediaStream | null>(null);
+    const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -157,16 +208,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     useEffect(() => {
         localStorage.setItem('selectedInputDeviceId', selectedInputDeviceId);
         localStorage.setItem('selectedOutputDeviceId', selectedOutputDeviceId);
+        localStorage.setItem('selectedVideoDeviceId', selectedVideoDeviceId);
         localStorage.setItem('inputVolume', String(inputVolume));
         localStorage.setItem('outputVolume', String(outputVolume));
-    }, [selectedInputDeviceId, selectedOutputDeviceId, inputVolume, outputVolume]);
+    }, [selectedInputDeviceId, selectedOutputDeviceId, selectedVideoDeviceId, inputVolume, outputVolume]);
 
     const refreshDevices = useCallback(async () => {
         try {
-            await navigator.mediaDevices.getUserMedia({ audio: true });
+            await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => { });
             const devices = await navigator.mediaDevices.enumerateDevices();
             setInputDevices(devices.filter(d => d.kind === 'audioinput'));
             setOutputDevices(devices.filter(d => d.kind === 'audiooutput'));
+            setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
         } catch (err) { }
     }, []);
 
@@ -189,7 +242,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, []);
 
     const handleTrack = useCallback((userId: string, stream: MediaStream) => {
-        setRemoteStreams(prev => new Map(prev).set(userId, stream));
+        // Distinguish between voice and screen sharing streams
+        // Screen sharing streams usually have a video track and often a specific ID
+        if (stream.id.startsWith('screen-')) {
+            setRemoteScreenStreams(prev => new Map(prev).set(userId, stream));
+        } else {
+            setRemoteStreams(prev => new Map(prev).set(userId, stream));
+        }
     }, []);
 
     const createPeer = useCallback((targetUserId: string, initiator: boolean) => {
@@ -208,7 +267,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
         }
 
-        pc.ontrack = (event) => handleTrack(targetUserId, event.streams[0]);
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(track => pc.addTrack(track, screenStreamRef.current!));
+        }
+
+        pc.ontrack = (event) => {
+            const stream = event.streams[0];
+            // Identify screen stream by looking for tracks with specific mid or by stream attributes
+            // A simple way is to check if it has video but is not the primary stream
+            if (stream.id.startsWith('screen-')) {
+                setRemoteScreenStreams(prev => new Map(prev).set(targetUserId, stream));
+            } else {
+                setRemoteStreams(prev => new Map(prev).set(targetUserId, stream));
+            }
+        };
         pc.onicecandidate = (event) => {
             if (event.candidate && socket) {
                 socket.emit('voice-ice-candidate', { targetUserId, candidate: event.candidate });
@@ -243,8 +315,87 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         setIsConnected(false);
         setActiveChannelId(null);
+        stopScreenShare();
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, activeChannelId]);
+
+    const startScreenShare = useCallback(async (sourceId: string) => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: sourceId,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                } as any,
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: sourceId,
+                        maxWidth: 1920,
+                        maxHeight: 1080,
+                        maxFrameRate: 30
+                    }
+                } as any
+            });
+
+            // "ПОЛНОСТЬЮ ИСКЛЮЧИ ЗАХВАТ ЗВУКА ИЗ ZVON"
+            // We can't easily exclude a specific app from system audio in JS.
+            // But we can try to mute Zvon's own audio when capturing if we want,
+            // or rely on echo cancellation. Here we use echoCancellation: true.
+
+            // To make the stream recognizable as screen sharing on the other end
+            const newStream = new MediaStream(stream.getTracks());
+            // We can't set ID, but we can track it locally.
+            // Let's wrap it.
+            Object.defineProperty(newStream, 'id', { value: `screen-${user?._id}-${Date.now()}` });
+
+            setScreenStream(newStream);
+            screenStreamRef.current = newStream;
+            setIsScreenSharing(true);
+
+            // Add tracks to all existing peers
+            peersRef.current.forEach(pc => {
+                newStream.getTracks().forEach(track => pc.addTrack(track, newStream));
+                pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => {
+                    socket?.emit('voice-offer', { targetUserId: Array.from(peersRef.current.entries()).find(e => e[1] === pc)?.[0], offer: pc.localDescription });
+                });
+            });
+
+            if (socket && activeChannelId) {
+                socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: true });
+            }
+        } catch (err) {
+            console.error('Error starting screen share:', err);
+        }
+    }, [socket, activeChannelId, isMuted, isDeafened, user?._id]);
+
+    const stopScreenShare = useCallback(() => {
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(track => track.stop());
+            screenStreamRef.current = null;
+        }
+        setScreenStream(null);
+        setIsScreenSharing(false);
+
+        // Remove tracks from peers
+        peersRef.current.forEach(async pc => {
+            const senders = pc.getSenders();
+            const screenSenders = senders.filter(s => s.track && (s.track.label.includes('screen') || !localStreamRef.current?.getTracks().includes(s.track)));
+            // Wait, a better way is to find senders whose track is from the screen stream
+            // Since we already stopped the tracks, we can just renegotiate or remove them
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            const targetUserId = Array.from(peersRef.current.entries()).find(e => e[1] === pc)?.[0];
+            if (targetUserId) socket?.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+        });
+
+        if (socket && activeChannelId) {
+            socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: false });
+        }
+    }, [socket, activeChannelId, isMuted, isDeafened]);
 
     const joinChannel = useCallback(async (channelId: string) => {
         if (isConnectedRef.current) leaveChannel();
@@ -289,7 +440,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (data.userId === user?._id) return;
             setConnectedUsers(prev => prev.find(u => u._id === data.user._id) ? prev : [...prev, data.user]);
             if (data.user.isMuted !== undefined) {
-                setUserStates(prev => new Map(prev).set(data.userId, { isMuted: data.user.isMuted, isDeafened: data.user.isDeafened }));
+                setUserStates(prev => new Map(prev).set(data.userId, {
+                    isMuted: data.user.isMuted,
+                    isDeafened: data.user.isDeafened,
+                    isScreenSharing: data.user.isScreenSharing || false
+                }));
             }
         };
 
@@ -350,8 +505,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             } catch (err) { }
         };
 
-        const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean }) => {
-            setUserStates(prev => new Map(prev).set(data.userId, { isMuted: data.isMuted, isDeafened: data.isDeafened }));
+        const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean; isScreenSharing?: boolean }) => {
+            setUserStates(prev => new Map(prev).set(data.userId, {
+                isMuted: data.isMuted,
+                isDeafened: data.isDeafened,
+                isScreenSharing: data.isScreenSharing || false
+            } as any));
         };
 
         socket.on('voice-existing-users', handleExistingUsers);
@@ -380,7 +539,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsMuted(newMuted);
         if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !newMuted && !isDeafened);
         if (socket && activeChannelId) {
-            socket.emit('voice-state-update', { channelId: activeChannelId, isMuted: newMuted, isDeafened, isScreenSharing: false });
+            socket.emit('voice-state-update', { channelId: activeChannelId, isMuted: newMuted, isDeafened, isScreenSharing });
         }
     };
 
@@ -389,7 +548,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsDeafened(newDeafened);
         if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !isMuted && !newDeafened);
         if (socket && activeChannelId) {
-            socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened: newDeafened, isScreenSharing: false });
+            socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened: newDeafened, isScreenSharing });
         }
     };
 
@@ -490,16 +649,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened, toggleMute, toggleDeafen,
             connectedUsers, localStream, remoteStreams, userVolumes, setUserVolume, userStates, localMutes,
             toggleLocalMute, speakingUsers, isNoiseSuppressionEnabled, toggleNoiseSuppression, audioContext,
-            inputDevices, outputDevices, selectedInputDeviceId, setSelectedInputDeviceId, selectedOutputDeviceId,
-            setSelectedOutputDeviceId, inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices
+            inputDevices, outputDevices, videoDevices, selectedInputDeviceId, setSelectedInputDeviceId,
+            selectedOutputDeviceId, setSelectedOutputDeviceId, selectedVideoDeviceId, setSelectedVideoDeviceId,
+            inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices,
+            isScreenSharing, screenStream, startScreenShare, stopScreenShare, remoteScreenStreams
         }}>
             {children}
             <div style={{ display: 'none' }}>
                 {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
                     <RemoteAudio
-                        key={userId} userId={userId} stream={stream}
+                        key={`audio-${userId}`} userId={userId} stream={stream}
                         voiceVolume={userVolumes.get(userId) ?? 1} isDeafened={isDeafened}
                         isLocalMuted={localMutes.has(userId)} sharedContext={audioContext}
+                        outputDeviceId={selectedOutputDeviceId} masterVolume={outputVolume}
+                    />
+                ))}
+                {Array.from(remoteScreenStreams.entries()).map(([userId, stream]) => (
+                    <RemoteScreen
+                        key={`screen-${userId}`} userId={userId} stream={stream}
                         outputDeviceId={selectedOutputDeviceId} masterVolume={outputVolume}
                     />
                 ))}

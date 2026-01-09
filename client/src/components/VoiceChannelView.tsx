@@ -4,7 +4,8 @@ import { Channel, User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, VideoIcon } from './Icons';
+import ScreenSourceSelector from './ScreenSourceSelector';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
 import './VoiceChannelView.css';
@@ -32,10 +33,15 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     connectedUsers: activeConnectedUsers,
     userStates,
     speakingUsers,
+    isScreenSharing,
+    startScreenShare,
+    stopScreenShare,
+    remoteScreenStreams,
   } = useVoice();
 
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; userId: string } | null>(null);
+  const [showScreenSelector, setShowScreenSelector] = useState(false);
 
   const handleCloseContextMenu = () => setContextMenu(null);
 
@@ -77,25 +83,26 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     let participants: any[] = [];
     if (isConnectedToThisChannel && currentUser) {
       participants = [
-        { ...currentUser, isMe: true, isMuted, isDeafened },
+        { ...currentUser, isMe: true, isMuted, isDeafened, isScreenSharing },
         ...activeConnectedUsers.map(u => {
-          const state = userStates.get(u._id) || { isMuted: false, isDeafened: false };
-          return { ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened };
+          const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false };
+          return { ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened, isScreenSharing: state.isScreenSharing };
         })
       ];
     } else {
       participants = externalParticipants.map(u => {
-        const state = userStates.get(u._id) || { isMuted: false, isDeafened: false };
+        const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false };
         return {
           ...u,
           isMe: u._id === currentUser?._id,
           isMuted: state.isMuted,
-          isDeafened: state.isDeafened
+          isDeafened: state.isDeafened,
+          isScreenSharing: state.isScreenSharing
         };
       });
     }
     return participants;
-  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, externalParticipants, userStates]);
+  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, externalParticipants, userStates]);
 
   const handleConnect = () => joinChannel(channel._id);
   const handleDisconnect = () => leaveChannel();
@@ -177,6 +184,47 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               <p>Будьте первым, кто подключится к этому каналу!</p>
             </div>
           )}
+
+          {/* Remote Streams */}
+          {Array.from(remoteScreenStreams.entries()).map(([userId, stream]) => {
+            const participant = displayParticipants.find(p => p._id === userId);
+            return (
+              <div key={`stream-${userId}`} className="participant-card stream-card">
+                <div className="stream-container">
+                  <video
+                    autoPlay
+                    playsInline
+                    ref={el => { if (el) el.srcObject = stream; }}
+                    className="remote-stream-video"
+                  />
+                  <div className="stream-overlay">
+                    <div className="stream-user-info">
+                      {participant?.username || 'Стрим'} в эфире
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Local Stream Preview */}
+          {isScreenSharing && (
+            <div className="participant-card stream-card local-stream">
+              <div className="stream-container">
+                <video
+                  autoPlay
+                  playsInline
+                  muted
+                  ref={el => { if (el && useVoice().screenStream) el.srcObject = useVoice().screenStream; }}
+                  className="remote-stream-video"
+                />
+                <div className="stream-overlay">
+                  <div className="stream-user-info">Ваш стрим</div>
+                  <button className="stop-stream-btn" onClick={stopScreenShare}>Прекратить</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {!isConnectedToThisChannel && (
@@ -207,6 +255,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               {isDeafened ? <DeafenedIcon size={20} /> : <SpeakerIcon size={20} />}
             </button>
             <button
+              className={`control-button ${isScreenSharing ? 'active' : ''}`}
+              onClick={() => isScreenSharing ? stopScreenShare() : setShowScreenSelector(true)}
+              title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}
+            >
+              <VideoIcon />
+            </button>
+            <button
               className="control-button disconnect"
               onClick={handleDisconnect}
               title="Отключиться"
@@ -220,6 +275,16 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           </div>
         )}
       </div>
+
+      {showScreenSelector && (
+        <ScreenSourceSelector
+          onClose={() => setShowScreenSelector(false)}
+          onSelect={(id) => {
+            startScreenShare(id);
+            setShowScreenSelector(false);
+          }}
+        />
+      )}
     </div>
   );
 };

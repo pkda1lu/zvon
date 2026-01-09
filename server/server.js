@@ -62,6 +62,7 @@ const getVoiceChannelUsers = async (channelId) => {
         const userData = user.toObject();
         userData.isMuted = socket.isMuted || false;
         userData.isDeafened = socket.isDeafened || false;
+        userData.isScreenSharing = socket.isScreenSharing || false;
         users.push(userData);
       }
     }
@@ -203,7 +204,7 @@ io.on('connection', (socket) => {
     const existingUsers = await getVoiceChannelUsers(channelId);
     socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
     const user = await User.findById(socket.userId);
-    socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', { userId: socket.userId, user: { _id: user._id, username: user.username, avatar: user.avatar, banner: user.banner, isMuted: socket.isMuted || false, isDeafened: socket.isDeafened || false } });
+    socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', { userId: socket.userId, user: { _id: user._id, username: user.username, avatar: user.avatar, banner: user.banner, isMuted: socket.isMuted || false, isDeafened: socket.isDeafened || false, isScreenSharing: socket.isScreenSharing || false } });
     socket.emit('voice-existing-users', existingUsers);
     await notifyVoiceChannelUpdate(channelId);
     const ch = await Channel.findById(channelId);
@@ -213,7 +214,13 @@ io.on('connection', (socket) => {
   socket.on('voice-state-update', async (data) => {
     if (!socket.voiceChannelId || socket.voiceChannelId !== data.channelId) return;
     socket.isMuted = data.isMuted; socket.isDeafened = data.isDeafened;
-    socket.to(`voice-channel-${data.channelId}`).emit('voice-user-state-update', { userId: socket.userId, isMuted: socket.isMuted, isDeafened: socket.isDeafened });
+    socket.isScreenSharing = data.isScreenSharing || false;
+    socket.to(`voice-channel-${data.channelId}`).emit('voice-user-state-update', {
+      userId: socket.userId,
+      isMuted: socket.isMuted,
+      isDeafened: socket.isDeafened,
+      isScreenSharing: socket.isScreenSharing
+    });
     await notifyVoiceChannelUpdate(data.channelId);
   });
 

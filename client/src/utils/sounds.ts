@@ -4,7 +4,9 @@ export const SOUNDS = {
     CALL_JOIN: '/sounds/join.mp3',
     CALL_LEAVE: '/sounds/leave.mp3',
     MUTE: '/sounds/mute.mp3',
-    UNMUTE: '/sounds/unmute.mp3'
+    UNMUTE: '/sounds/unmute.mp3',
+    VOICE_JOIN: '/sounds/join.mp3',
+    VOICE_LEAVE: '/sounds/leave.mp3'
 };
 
 export class SoundManager {
@@ -26,6 +28,11 @@ export class SoundManager {
             this.audioContext = existingContext || new ((window as any).AudioContext || (window as any).webkitAudioContext)();
             this.isInitialized = true;
         } catch (e) { }
+    }
+
+    setAudioContext(ctx: AudioContext) {
+        this.audioContext = ctx;
+        this.isInitialized = true;
     }
 
     async playSound(soundPath: string, volume: number = 0.5) {

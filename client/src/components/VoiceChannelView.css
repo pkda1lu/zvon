@@ -494,3 +494,69 @@
   cursor: pointer;
   z-index: 20;
 }
+
+/* Stream Card Styles */
+.stream-card {
+  background: #000 !important;
+  border: 2px solid var(--bg-tertiary);
+}
+
+.stream-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remote-stream-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.stream-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 5;
+}
+
+.stream-user-info {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.stop-stream-btn {
+  background: #f04747;
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.stop-stream-btn:hover {
+  background: #d84040;
+}
+
+.local-stream {
+  border-color: var(--bg-accent) !important;
+}
+
+.local-screen-preview {
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
