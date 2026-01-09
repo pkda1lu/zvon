@@ -238,5 +238,5 @@ io.on('connection', (socket) => {
   });
 });
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').then(() => { }).catch(err => { });
-server.listen(process.env.PORT || 5000, () => { });
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').then(() => { console.log('Connected to MongoDB'); }).catch(err => { console.error('MongoDB connection error:', err); });
+server.listen(process.env.PORT || 5000, () => { console.log(`Server running on port ${process.env.PORT || 5000}`); });
