@@ -129,6 +129,35 @@ router.post('/:id/banner', auth, upload.single('banner'), async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.get('/:id/members/:userId', auth, async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const member = server.members.find(m => m.user.toString() === req.params.userId);
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+    res.json(member);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.put('/:id/members/:userId', auth, async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
+    if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
+    const { nickname, bio, avatar, banner } = req.body;
+    if (nickname !== undefined) server.members[memberIndex].nickname = nickname;
+    if (bio !== undefined) server.members[memberIndex].bio = bio;
+    if (avatar !== undefined) server.members[memberIndex].avatar = avatar;
+    if (banner !== undefined) server.members[memberIndex].banner = banner;
+    await server.save();
+    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: updatedServer.members[memberIndex] });
+    res.json(updatedServer.members[memberIndex]);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
