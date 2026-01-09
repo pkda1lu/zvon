@@ -37,10 +37,9 @@ export interface Server {
   icon?: string;
   banner?: string;
   bannerColor?: string;
-  owner: User;
+  ownerId: string;
   members: Array<{
     user: User;
-    roles: (Role | string)[];
     nickname?: string;
     joinedAt: string;
     communicationDisabledUntil?: string;
@@ -49,7 +48,6 @@ export interface Server {
     banner?: string;
   }>;
   channels: Channel[];
-  roles?: Role[];
   createdAt: string;
 }
 
@@ -61,7 +59,6 @@ export interface Channel {
   category?: string | Channel;
   position: number;
   topic?: string;
-  permissions?: any[];
   createdAt: string;
 }
 
@@ -88,16 +85,6 @@ export interface Message {
   createdAt: string;
 }
 
-export interface Role {
-  _id: string;
-  name: string;
-  server: string;
-  color: string;
-  permissions: string[];
-  position: number;
-  createdAt: string;
-}
-
 export interface Friendship {
   _id: string;
   requester: User;
@@ -113,19 +100,3 @@ export interface DirectMessage {
   createdAt: string;
   updatedAt: string;
 }
-
-export interface Group {
-  _id: string;
-  name: string;
-  description?: string;
-  icon?: string;
-  owner: User;
-  members: Array<{
-    user: User;
-    role: 'owner' | 'admin' | 'member';
-    joinedAt: string;
-  }>;
-  channels: Channel[];
-  createdAt: string;
-}
-

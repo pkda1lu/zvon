@@ -1,922 +1,150 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Server = require('../models/Server');
 const Channel = require('../models/Channel');
 const User = require('../models/User');
-const Role = require('../models/Role');
-const AuditLog = require('../models/AuditLog');
-const Ban = require('../models/Ban');
-const Invite = require('../models/Invite');
 const upload = require('../middleware/upload');
-const { hasPermission, canPerformActionOn, canModifyRole } = require('../utils/permissions');
 
-// Helper for audit logging
-const logAction = async (serverId, userId, action, targetType, targetId, changes, reason) => {
-  try {
-    const log = new AuditLog({
-      server: serverId,
-      user: userId,
-      action,
-      targetType,
-      targetId,
-      changes,
-      reason
-    });
-    await log.save();
-  } catch (err) {
-    console.error('Audit log error:', err);
-  }
-};
-
-// Create server
 router.post('/', auth, async (req, res) => {
   try {
     const { name, description, icon } = req.body;
-
-    if (!name || name.trim().length === 0) {
-      return res.status(400).json({ message: 'Server name is required' });
-    }
-
-    const server = new Server({
-      name: name.trim(),
-      description: description || '',
-      icon: icon || null,
-      owner: req.user._id,
-      members: [{ user: req.user._id, roles: [] }]
-    });
-
+    if (!name || name.trim().length === 0) return res.status(400).json({ message: 'Server name is required' });
+    const server = new Server({ name: name.trim(), description: description || '', icon: icon || null, owner: req.user._id, members: [{ user: req.user._id }] });
     await server.save();
-
-    // Create default @everyone role
-    // Restricted by default - can only view, not send messages globally
-    const everyoneRole = new Role({
-      name: '@everyone',
-      color: '#99AAB5',
-      permissions: ['READ_MESSAGE_HISTORY', 'CONNECT', 'SPEAK', 'CREATE_INSTANT_INVITE', 'VIEW_CHANNELS'],
-      server: server._id,
-      position: 0
-    });
-    await everyoneRole.save();
-    server.roles.push(everyoneRole._id);
-
-    // Initial member (owner) also gets the @everyone role
-    server.members[0].roles.push(everyoneRole._id);
-
-    // Create default channels
-    const generalChannel = new Channel({
-      name: 'general',
-      type: 'text',
-      server: server._id,
-      position: 0,
-      // Add override for @everyone to allow sending messages in general
-      permissions: [{
-        role: everyoneRole._id,
-        allow: ['SEND_MESSAGES', 'READ_MESSAGE_HISTORY', 'ATTACH_FILES'],
-        deny: []
-      }]
-    });
+    const generalChannel = new Channel({ name: 'general', type: 'text', server: server._id, position: 0 });
     await generalChannel.save();
-
     server.channels.push(generalChannel._id);
     await server.save();
-
-    // Add server to user
     const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    if (user) {
+      if (!user.servers) user.servers = [];
+      if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
     }
-
-    if (!user.servers) {
-      user.servers = [];
-    }
-
-    if (!user.servers.includes(server._id)) {
-      user.servers.push(server._id);
-      await user.save();
-    }
-
-    const populatedServer = await Server.findById(server._id)
-      .populate('owner', 'username avatar')
-      .populate('members.user', 'username avatar status')
-      .populate('members.roles')
-      .populate('roles')
-      .populate('channels');
-
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('members.user', 'username avatar status').populate('channels');
     res.status(201).json(populatedServer);
-  } catch (error) {
-    console.error('Create server error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Get user's servers
 router.get('/me', auth, async (req, res) => {
   try {
-    // Get servers where user is a member
-    const memberServers = await Server.find({
-      'members.user': req.user._id
-    })
-      .populate('owner', 'username avatar')
-      .populate('channels')
-      .populate('roles')
-      .populate('members.user', 'username avatar status')
-      .populate('members.roles')
-      .sort({ createdAt: -1 });
-
-    // Also get servers from user.servers array
     const user = await User.findById(req.user._id);
-    const userServerIds = user?.servers?.map(s => s.toString()) || [];
-
-    // Combine and deduplicate
-    const allServerIds = new Set();
-    memberServers.forEach(s => allServerIds.add(s._id.toString()));
-    userServerIds.forEach(id => allServerIds.add(id.toString()));
-
-    if (allServerIds.size === 0) {
-      return res.json([]);
-    }
-
-    const allServers = await Server.find({
-      _id: { $in: Array.from(allServerIds) }
-    })
-      .populate('owner', 'username avatar')
-      .populate('channels')
-      .populate('roles')
-      .populate('members.user', 'username avatar status')
-      .populate('members.roles')
-      .sort({ createdAt: -1 });
-
+    const userServerIds = user?.servers || [];
+    const allServers = await Server.find({ _id: { $in: userServerIds } }).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status').sort({ createdAt: -1 });
     res.json(allServers);
-  } catch (error) {
-    console.error('Get servers error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Get server by ID
 router.get('/:id', auth, async (req, res) => {
   try {
-    const server = await Server.findById(req.params.id)
-      .populate('owner', 'username avatar')
-      .populate('channels')
-      .populate('members.user', 'username avatar status')
-      .populate('members.roles')
-      .populate('roles');
-
-    if (!server) {
-      return res.status(404).json({ message: 'Server not found' });
-    }
-
-    // Check if user is member
-    const isMember = server.members.some(
-      member => member.user._id.toString() === req.user._id.toString()
-    );
-
-    if (!isMember) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+    const server = await Server.findById(req.params.id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+    if (!server) return res.status(404).json({ message: 'Server not found' });
     res.json(server);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Join server
 router.post('/:id/join', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
-
-    if (!server) {
-      return res.status(404).json({ message: 'Server not found' });
-    }
-
-    // Check if already member
-    const isMember = server.members.some(
-      member => member.user.toString() === req.user._id.toString()
-    );
-
-    if (isMember) {
-      return res.status(400).json({ message: 'Already a member' });
-    }
-
-    // Find @everyone role
-    const everyoneRole = await Role.findOne({ server: server._id, name: '@everyone' });
-    const roles = everyoneRole ? [everyoneRole._id] : [];
-
-    server.members.push({ user: req.user._id, roles });
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const isMember = server.members.some(member => member.user.toString() === req.user._id.toString());
+    if (isMember) return res.status(400).json({ message: 'Already a member' });
+    server.members.push({ user: req.user._id });
     await server.save();
-
     const user = await User.findById(req.user._id);
-    if (!user.servers) {
-      user.servers = [];
-    }
-    if (!user.servers.includes(server._id)) {
-      user.servers.push(server._id);
-      await user.save();
-    }
-
-    const populatedServer = await Server.findById(server._id)
-      .populate('owner', 'username avatar')
-      .populate('channels')
-      .populate('members.user', 'username avatar status')
-      .populate('members.roles')
-      .populate('roles');
-
-    // Broadcast member join
+    if (!user.servers) user.servers = [];
+    if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
     const io = req.app.get('io');
     if (io) {
       const newMember = populatedServer.members.find(m => m.user._id.toString() === req.user._id.toString());
-      io.to(`server-${server._id}`).emit('server-member-joined', {
-        serverId: server._id,
-        member: newMember,
-        server: populatedServer // Optionally send full server update
-      });
-      // Also trigger a full server update to be safe
+      io.to(`server-${server._id}`).emit('server-member-joined', { serverId: server._id, member: newMember, server: populatedServer });
       io.to(`server-${server._id}`).emit('server-updated', populatedServer);
     }
-
     res.json(populatedServer);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Update server
 router.put('/:id', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
-
-    if (!server) {
-      return res.status(404).json({ message: 'Server not found' });
-    }
-
-    // Check permissions
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_SERVER')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
+    if (!server) return res.status(404).json({ message: 'Server not found' });
     const { name, description, icon, banner, bannerColor } = req.body;
     if (name) server.name = name;
     if (description !== undefined) server.description = description;
     if (icon !== undefined) server.icon = icon;
     if (banner !== undefined) server.banner = banner;
     if (bannerColor !== undefined) server.bannerColor = bannerColor;
-
     await server.save();
-
-    const populatedServer = await Server.findById(server._id)
-      .populate('owner', 'username avatar')
-      .populate('channels')
-      .populate('members.user', 'username avatar status')
-      .populate('members.roles');
-
-    // Broadcast server update
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
     const io = req.app.get('io');
-    if (io) {
-      io.to(`server-${server._id}`).emit('server-updated', populatedServer);
-    }
-
+    if (io) io.to(`server-${server._id}`).emit('server-updated', populatedServer);
     res.json(populatedServer);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Delete server
 router.delete('/:id', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
-
-    if (!server) {
-      return res.status(404).json({ message: 'Server not found' });
-    }
-
-    // Check if user is owner
-    if (server.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only owner can delete server' });
-    }
-
-    // Delete all channels
+    if (!server) return res.status(404).json({ message: 'Server not found' });
     await Channel.deleteMany({ server: server._id });
-
-    // Broadcast server deletion
     const io = req.app.get('io');
-    if (io) {
-      io.to(`server-${req.params.id}`).emit('server-deleted', { serverId: req.params.id });
-    }
-
+    if (io) io.to(`server-${req.params.id}`).emit('server-deleted', { serverId: req.params.id });
     await Server.findByIdAndDelete(req.params.id);
-
     res.json({ message: 'Server deleted' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Update server icon
 router.post('/:id/icon', auth, upload.single('icon'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_SERVER')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
     const iconUrl = `/api/uploads/${req.file.filename}`;
     server.icon = iconUrl;
     await server.save();
-
-    await logAction(server._id, req.user._id, 'update', 'server', server._id, { icon: iconUrl }, 'Updated server icon');
-
-    // Broadcast icon update
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id)
-        .populate('owner', 'username avatar')
-        .populate('channels')
-        .populate('members.user', 'username avatar status')
-        .populate('members.roles');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
-
     res.json({ icon: iconUrl });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Update server banner
 router.post('/:id/banner', auth, upload.single('banner'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_SERVER')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
     const bannerUrl = `/api/uploads/${req.file.filename}`;
     server.banner = bannerUrl;
     await server.save();
-
-    await logAction(server._id, req.user._id, 'update', 'server', server._id, { banner: bannerUrl }, 'Updated server banner');
-
-    // Broadcast banner update
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id)
-        .populate('owner', 'username avatar')
-        .populate('channels')
-        .populate('members.user', 'username avatar status')
-        .populate('members.roles');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
-
     res.json({ banner: bannerUrl });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Roles management
-router.get('/:id/roles', auth, async (req, res) => {
-  try {
-    const roles = await Role.find({ server: req.params.id }).sort('position');
-    res.json(roles);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.post('/:id/roles', auth, async (req, res) => {
-  try {
-    const { name, color, permissions } = req.body;
-    const server = await Server.findById(req.params.id);
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    const role = new Role({
-      name: name || 'new role',
-      color: color || '#99AAB5',
-      permissions: permissions || [],
-      server: server._id,
-      position: server.roles.length
-    });
-    await role.save();
-    server.roles.push(role._id);
-    await server.save();
-
-    await logAction(server._id, req.user._id, 'create', 'role', role._id, { name: role.name }, 'Created role');
-
-    // Broadcast role update
-    const io = req.app.get('io');
-    if (io) {
-      const updatedRoles = await Role.find({ server: req.params.id }).sort('position');
-      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
-        serverId: req.params.id,
-        roles: updatedRoles
-      });
-    }
-
-    res.status(201).json(role);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Update role
-router.put('/:id/roles/:roleId', auth, async (req, res) => {
-  try {
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    if (!await canModifyRole(req.user._id, req.params.roleId, req.params.id)) {
-      return res.status(403).json({ message: 'Cannot modify a role higher or equal to yours' });
-    }
-
-    const server = await Server.findById(req.params.id);
-
-    const role = await Role.findByIdAndUpdate(req.params.roleId, req.body, { new: true });
-    await logAction(server._id, req.user._id, 'update', 'role', role._id, req.body, 'Updated role');
-
-    // Broadcast role update
-    const io = req.app.get('io');
-    if (io) {
-      const updatedRoles = await Role.find({ server: req.params.id }).sort('position');
-      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
-        serverId: req.params.id,
-        roles: updatedRoles
-      });
-
-      // Also broadcast server update because roles affect member display
-      const updatedServer = await Server.findById(req.params.id)
-        .populate('owner', 'username avatar')
-        .populate('channels')
-        .populate('members.user', 'username avatar status')
-        .populate('members.roles')
-        .populate('roles');
-      io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
-    }
-
-    res.json(role);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Update role positions
-router.put('/:id/roles/positions', auth, async (req, res) => {
-  try {
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    const { roles } = req.body;
-    if (!roles || !Array.isArray(roles)) {
-      return res.status(400).json({ message: 'Invalid roles data' });
-    }
-
-    const updatePromises = roles
-      .filter(r => r && r.id && mongoose.Types.ObjectId.isValid(r.id))
-      .map(async (r) => {
-        try {
-          const position = parseInt(r.position);
-          if (isNaN(position)) return null;
-
-          // Double check hierarchy for each role
-          if (!await canModifyRole(req.user._id, r.id, req.params.id)) {
-            return null; // Skip roles user can't modify
-          }
-
-          return await Role.findByIdAndUpdate(r.id, { $set: { position: position } });
-        } catch (err) {
-          console.error(`Failed to update position for role ${r.id}:`, err);
-          return null;
-        }
-      });
-
-    const updatedResults = await Promise.all(updatePromises);
-    const modifiedCount = updatedResults.filter(r => r).length;
-
-    await logAction(req.params.id, req.user._id, 'update-positions', 'role', null, { modifiedCount }, 'Updated role positions');
-
-    // Return updated roles
-    const updatedRoles = await Role.find({ server: req.params.id }).sort({ position: -1 });
-
-    // Notify clients
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
-        serverId: req.params.id,
-        roles: updatedRoles
-      });
-    }
-
-    res.json(updatedRoles);
-  } catch (error) {
-    console.error('Error updating role positions:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message, stack: error.stack });
-  }
-});
-
-router.delete('/:id/roles/:roleId', auth, async (req, res) => {
-  try {
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    if (!await canModifyRole(req.user._id, req.params.roleId, req.params.id)) {
-      return res.status(403).json({ message: 'Cannot delete a role higher or equal to yours' });
-    }
-
-    const server = await Server.findById(req.params.id);
-
-    await Role.findByIdAndDelete(req.params.roleId);
-    server.roles = server.roles.filter(r => r.toString() !== req.params.roleId);
-    await server.save();
-
-    await logAction(server._id, req.user._id, 'delete', 'role', req.params.roleId, null, 'Deleted role');
-
-    // Broadcast role update
-    const io = req.app.get('io');
-    if (io) {
-      const updatedRoles = await Role.find({ server: req.params.id }).sort('position');
-      io.to(`server-${req.params.id}`).emit('server-roles-updated', {
-        serverId: req.params.id,
-        roles: updatedRoles
-      });
-
-      const updatedServer = await Server.findById(req.params.id)
-        .populate('owner', 'username avatar')
-        .populate('channels')
-        .populate('members.user', 'username avatar status')
-        .populate('members.roles')
-        .populate('roles');
-      io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
-    }
-
-    res.json({ message: 'Role deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Members management
-router.get('/:id/members/:userId', auth, async (req, res) => {
-  try {
-    const server = await Server.findById(req.params.id).populate('members.roles');
-    if (!server) return res.status(404).json({ message: 'Server not found' });
-
-    const member = server.members.find(m => m.user.toString() === req.params.userId);
-    if (!member) return res.status(404).json({ message: 'Member not found' });
-
-    res.json(member);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
-    const isSelf = req.user._id.toString() === req.params.userId;
-    const canKick = await hasPermission(req.user._id, req.params.id, 'KICK_MEMBERS');
-
-    const canKickAction = isSelf || (canKick && await canPerformActionOn(req.user._id, req.params.userId, req.params.id));
-
-    if (!canKickAction) {
-      return res.status(403).json({ message: 'Insufficient permissions or hierarchy' });
-    }
-
     server.members = server.members.filter(m => m.user.toString() !== req.params.userId);
     await server.save();
-
-    // Remove server from user
     const user = await User.findById(req.params.userId);
-    if (user) {
-      user.servers = user.servers.filter(s => s.toString() !== server._id.toString());
-      await user.save();
-    }
-
-    const action = req.user._id.toString() === req.params.userId ? 'leave' : 'kick';
-    await logAction(server._id, req.user._id, action, 'member', req.params.userId, null, `${action === 'kick' ? 'Kicked' : 'Left'} server`);
-
-    // Broadcast member leave
+    if (user) { user.servers = user.servers.filter(s => s.toString() !== server._id.toString()); await user.save(); }
     const io = req.app.get('io');
     if (io) {
-      io.to(`server-${req.params.id}`).emit('server-member-left', {
-        serverId: req.params.id,
-        userId: req.params.userId
-      });
-
-      // Also broadcast full server update to ensure member list is perfectly synced
-      const updatedServer = await Server.findById(req.params.id)
-        .populate('owner', 'username avatar')
-        .populate('channels')
-        .populate('members.user', 'username avatar status')
-        .populate('members.roles')
-        .populate('roles');
+      io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.params.userId });
+      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
       io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
-
-      if (action === 'kick') {
-        io.to(`user-${req.params.userId}`).emit('server-kicked', {
-          serverId: req.params.id
-        });
-      }
     }
-
     res.json({ message: 'Member removed' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.put('/:id/members/:userId/timeout', auth, async (req, res) => {
-  try {
-    const { until } = req.body;
-    const server = await Server.findById(req.params.id);
-    if (!server) return res.status(404).json({ message: 'Server not found' });
-
-    if (!await hasPermission(req.user._id, req.params.id, 'MODERATE_MEMBERS') &&
-      !await hasPermission(req.user._id, req.params.id, 'KICK_MEMBERS')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    if (!await canPerformActionOn(req.user._id, req.params.userId, req.params.id)) {
-      return res.status(403).json({ message: 'Insufficient hierarchy' });
-    }
-
-    const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
-    if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
-
-    server.members[memberIndex].communicationDisabledUntil = until;
-    await server.save();
-
-    await logAction(server._id, req.user._id, 'timeout', 'member', req.params.userId, { until }, 'Timed out member');
-
-    const populatedServer = await Server.findById(server._id)
-      .populate('owner', 'username avatar')
-      .populate('channels')
-      .populate('members.user', 'username avatar status')
-      .populate('members.roles')
-      .populate('roles');
-
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`server-${server._id}`).emit('server-updated', populatedServer);
-    }
-
-    res.json({ message: 'Member timed out' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.put('/:id/members/:userId/roles', auth, async (req, res) => {
-  try {
-    const { roles } = req.body;
-    const server = await Server.findById(req.params.id);
-    if (!server) return res.status(404).json({ message: 'Server not found' });
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_ROLES')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    // Hierarchy check
-    const higherHierarchy = await canPerformActionOn(req.user._id, req.params.userId, req.params.id);
-    if (!higherHierarchy) {
-      return res.status(403).json({ message: 'Cannot modify roles of someone with higher or equal hierarchy' });
-    }
-
-    // Role level check: Cannot assign roles higher or equal to your own highest role
-    const rolesToAssign = await Role.find({ _id: { $in: roles } });
-    const actor = server.members.find(m => m.user.toString() === req.user._id.toString());
-    const actorRoleIds = actor && actor.roles ? actor.roles.map(r => r.toString()) : [];
-    const serverRoles = await Role.find({ server: req.params.id });
-    const actorRoles = serverRoles.filter(r => r && r._id && actorRoleIds.includes(r._id.toString()));
-    const actorHighest = actorRoles.length > 0 ? Math.max(...actorRoles.map(r => r.position || 0)) : -1;
-
-    // Server owner bypasses this
-    const isOwner = server.owner.toString() === req.user._id.toString();
-
-    if (!isOwner) {
-      const highestAssigned = rolesToAssign.length > 0 ? Math.max(...rolesToAssign.map(r => r.position)) : -1;
-      if (highestAssigned >= actorHighest) {
-        return res.status(403).json({ message: 'Cannot assign roles higher or equal to your own highest role' });
-      }
-    }
-
-    const member = server.members.find(m => m.user.toString() === req.params.userId);
-    if (member) {
-      member.roles = roles;
-      await server.save();
-      await logAction(server._id, req.user._id, 'update-roles', 'member', req.params.userId, { roles }, 'Updated member roles');
-
-      // Re-fetch server to get populated roles for the member
-      const updatedServer = await Server.findById(req.params.id).populate('members.roles').populate('members.user');
-      const updatedMember = updatedServer.members.find(m => m.user._id.toString() === req.params.userId.toString());
-
-      const io = req.app.get('io');
-      if (io) {
-        io.to(`server-${req.params.id}`).emit('server-member-updated', {
-          serverId: req.params.id,
-          member: updatedMember
-        });
-      }
-    }
-    res.json({ message: 'Roles updated' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Update member (Server Profile)
-router.put('/:id/members/:userId', auth, async (req, res) => {
-  try {
-    const { nickname, bio, avatar, banner } = req.body;
-    const server = await Server.findById(req.params.id);
-    if (!server) return res.status(404).json({ message: 'Server not found' });
-
-    const isSelf = req.user._id.toString() === req.params.userId;
-    const canManageNicknames = await hasPermission(req.user._id, req.params.id, 'MANAGE_NICKNAMES');
-
-    // To change bio/avatar/banner of someone else, we might need a separate permission or reuse MANAGE_NICKNAMES
-    // For now, let's allow users to change their own, and moderators to change nicknames.
-    // If it's not self, only nickname can be changed by default in many systems, but let's allow full profile mod for admins
-    if (!isSelf && !canManageNicknames) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    if (!isSelf) {
-      const higherHierarchy = await canPerformActionOn(req.user._id, req.params.userId, req.params.id);
-      if (!higherHierarchy) {
-        return res.status(403).json({ message: 'Cannot modify profile of someone with higher or equal hierarchy' });
-      }
-    }
-
-    const member = server.members.find(m => m.user.toString() === req.params.userId);
-    if (!member) return res.status(404).json({ message: 'Member not found' });
-
-    if (nickname !== undefined) member.nickname = nickname || null;
-    if (isSelf) {
-      // Only allow changing these via this route for now
-      if (bio !== undefined) member.bio = bio || null;
-      if (avatar !== undefined) member.avatar = avatar || null;
-      if (banner !== undefined) member.banner = banner || null;
-    } else if (canManageNicknames) {
-      // Moderators can only change nicknames by default, but let's allow bio cleanup if needed
-      if (bio !== undefined) member.bio = bio || null;
-    }
-
-    await server.save();
-
-    await logAction(server._id, req.user._id, 'update-server-profile', 'member', req.params.userId, { nickname, bio }, 'Updated server profile');
-
-    const updatedServer = await Server.findById(req.params.id).populate('members.roles').populate('members.user');
-    const updatedMember = updatedServer.members.find(m => m.user._id.toString() === req.params.userId.toString());
-
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`server-${req.params.id}`).emit('server-member-updated', {
-        serverId: req.params.id,
-        member: updatedMember
-      });
-    }
-
-    res.json(updatedMember);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Bans
-router.get('/:id/bans', auth, async (req, res) => {
-  try {
-    const bans = await Ban.find({ server: req.params.id }).populate('user', 'username avatar');
-    res.json(bans);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.post('/:id/bans', auth, async (req, res) => {
-  try {
-    const { userId, reason } = req.body;
-    const server = await Server.findById(req.params.id);
-    if (!server) return res.status(404).json({ message: 'Server not found' });
-    const canBan = await hasPermission(req.user._id, req.params.id, 'BAN_MEMBERS');
-    const higherHierarchy = await canPerformActionOn(req.user._id, userId, req.params.id);
-
-    if (!canBan || !higherHierarchy) {
-      return res.status(403).json({ message: 'Insufficient permissions or hierarchy' });
-    }
-
-    const ban = new Ban({
-      server: server._id,
-      user: userId,
-      reason: reason || 'No reason provided',
-      bannedBy: req.user._id
-    });
-    await ban.save();
-
-    // Also kick them
-    server.members = server.members.filter(m => m.user.toString() !== userId);
-    await server.save();
-
-    // Remove server from user's list
-    const user = await User.findById(userId);
-    if (user) {
-      user.servers = user.servers.filter(s => s.toString() !== server._id.toString());
-      await user.save();
-    }
-
-    await logAction(server._id, req.user._id, 'ban', 'member', userId, { reason }, 'Banned user');
-
-    // Broadcast
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId });
-      io.emit(`user-kicked-${userId}`, { serverId: req.params.id });
-    }
-
-    res.status(201).json(ban);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.delete('/:id/bans/:userId', auth, async (req, res) => {
-  try {
-    const server = await Server.findById(req.params.id);
-    if (!await hasPermission(req.user._id, req.params.id, 'BAN_MEMBERS')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    await Ban.findOneAndDelete({ server: server._id, user: req.params.userId });
-    await logAction(server._id, req.user._id, 'unban', 'member', req.params.userId, null, 'Unbanned user');
-    res.json({ message: 'User unbanned' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Audit Log
-router.get('/:id/audit-logs', auth, async (req, res) => {
-  try {
-    if (!await hasPermission(req.user._id, req.params.id, 'VIEW_AUDIT_LOG')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-    const logs = await AuditLog.find({ server: req.params.id })
-      .populate('user', 'username avatar')
-      .sort({ createdAt: -1 })
-      .limit(50);
-    res.json(logs);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Invites management
-router.get('/:id/invites', auth, async (req, res) => {
-  try {
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_SERVER')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-    const invites = await Invite.find({ server: req.params.id }).populate('creator', 'username');
-    res.json(invites);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.delete('/:id/invites/:code', auth, async (req, res) => {
-  try {
-    const server = await Server.findById(req.params.id);
-    if (!await hasPermission(req.user._id, req.params.id, 'MANAGE_SERVER')) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    await Invite.findOneAndDelete({ code: req.params.code });
-    res.json({ message: 'Invite deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 module.exports = router;

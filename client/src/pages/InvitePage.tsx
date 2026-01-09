@@ -11,9 +11,7 @@ const InvitePage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [joining, setJoining] = useState(false);
 
-    useEffect(() => {
-        fetchInvite();
-    }, [code]);
+    useEffect(() => { fetchInvite(); }, [code]);
 
     const fetchInvite = async () => {
         try {
@@ -32,22 +30,15 @@ const InvitePage: React.FC = () => {
             await axios.post(`/api/invites/${code}/join`);
             navigate('/');
         } catch (err: any) {
-            if (err.response?.data?.message === 'Already a member') {
-                navigate('/');
-            } else {
-                setError(err.response?.data?.message || 'Не удалось присоединиться');
-            }
+            if (err.response?.data?.message === 'Already a member') navigate('/');
+            else setError(err.response?.data?.message || 'Не удалось присоединиться');
         } finally {
             setJoining(false);
         }
     };
 
-    // Auto-join in Electron
     useEffect(() => {
-        if (invite && (window as any).electron && !joining && !error) {
-            console.log('Auto-joining server in Electron...');
-            handleJoin();
-        }
+        if (invite && (window as any).electron && !joining && !error) handleJoin();
     }, [invite, joining, error]);
 
     if (loading) return <div className="invite-page-loading">Загрузка...</div>;
@@ -67,31 +58,19 @@ const InvitePage: React.FC = () => {
                 ) : (
                     <>
                         {invite.server.icon ? (
-                            <img src={invite.server.icon} alt={invite.server.name} className="server-icon-large" />
+                            <img src={invite.server.icon} alt="" className="server-icon-large" />
                         ) : (
                             <div className="server-icon-placeholder">{invite.server.name.charAt(0)}</div>
                         )}
                         <div className="invite-details">
                             <p className="inviter-text">{invite.inviter.username} приглашает вас в</p>
                             <h2>{invite.server.name}</h2>
-                            <div className="server-stats">
-                                <span className="dot online">●</span> {invite.server.memberCount} участников
-                            </div>
-                            <button
-                                className="join-button-large"
-                                onClick={handleJoin}
-                                disabled={joining}
-                            >
+                            <div className="server-stats"><span className="dot online">●</span> {invite.server.memberCount} участников</div>
+                            <button className="join-button-large" onClick={handleJoin} disabled={joining}>
                                 {joining ? 'Вход...' : isElectron ? 'Присоединиться к серверу' : 'Продолжить в браузере'}
                             </button>
-
                             {!isElectron && (
-                                <button
-                                    className="open-app-button"
-                                    onClick={() => {
-                                        window.location.href = `zvon://invite/${code}`;
-                                    }}
-                                >
+                                <button className="open-app-button" onClick={() => { window.location.href = `zvon://invite/${code}`; }}>
                                     Открыть в приложении
                                 </button>
                             )}

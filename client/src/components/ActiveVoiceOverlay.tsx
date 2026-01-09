@@ -1,7 +1,7 @@
 import React from 'react';
 import { useVoice } from '../contexts/VoiceContext';
 import { Channel } from '../types';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, MaximizeIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MaximizeIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import './VoiceCall.css'; // Reuse styles
 
@@ -17,8 +17,6 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel, onRetu
         isDeafened,
         toggleMute,
         toggleDeafen,
-        isScreenSharing,
-        toggleScreenShare,
         connectedUsers,
         speakingUsers
     } = useVoice();
@@ -41,7 +39,6 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel, onRetu
         if (isDragging) {
             const newX = e.clientX - dragStartRef.current.x;
             const newY = e.clientY - dragStartRef.current.y;
-            // Optional: Add bounds check here if needed
             setPosition({ x: newX, y: newY });
         }
     }, [isDragging]);
@@ -116,13 +113,6 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel, onRetu
                         title={isDeafened ? 'Включить звук' : 'Выключить звук'}
                     >
                         {isDeafened ? <DeafenedIcon /> : <SpeakerIcon />}
-                    </button>
-                    <button
-                        className={`control-button ${isScreenSharing ? 'active' : ''}`}
-                        onClick={toggleScreenShare}
-                        title={isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
-                    >
-                        <ScreenShareIcon />
                     </button>
                     <button
                         className="control-button return-to-chat"

@@ -5,182 +5,66 @@ const auth = require('../middleware/auth');
 const Invite = require('../models/Invite');
 const Server = require('../models/Server');
 const User = require('../models/User');
-const Ban = require('../models/Ban');
-const Role = require('../models/Role');
-const { hasPermission } = require('../utils/permissions');
 
-// Generate random code
 const generateCode = (length = 8) => {
     return crypto.randomBytes(length).toString('hex').slice(0, length);
 };
 
-// Create invite
 router.post('/', auth, async (req, res) => {
     try {
         const { serverId, expiresIn, maxUses } = req.body;
-
         const server = await Server.findById(serverId);
-        if (!server) {
-            return res.status(404).json({ message: 'Server not found' });
-        }
-
-        if (!await hasPermission(req.user._id, serverId, 'CREATE_INSTANT_INVITE')) {
-            return res.status(403).json({ message: 'Insufficient permissions' });
-        }
-
+        if (!server) return res.status(404).json({ message: 'Server not found' });
         let code = generateCode();
-        // Ensure uniqueness
-        while (await Invite.findOne({ code })) {
-            code = generateCode();
-        }
-
+        while (await Invite.findOne({ code })) code = generateCode();
         let expiresAt = null;
-        if (expiresIn) {
-            expiresAt = new Date(Date.now() + expiresIn * 1000);
-        }
-
-        const invite = new Invite({
-            code,
-            server: serverId,
-            creator: req.user._id,
-            expiresAt,
-            maxUses: maxUses || null
-        });
-
+        if (expiresIn) expiresAt = new Date(Date.now() + expiresIn * 1000);
+        const invite = new Invite({ code, server: serverId, creator: req.user._id, expiresAt, maxUses: maxUses || null });
         await invite.save();
-
         res.status(201).json(invite);
-    } catch (error) {
-        console.error('Create invite error:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
+    } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Get invite info
 router.get('/:code', auth, async (req, res) => {
     try {
-        const invite = await Invite.findOne({ code: req.params.code })
-            .populate('server', 'name icon description members')
-            .populate('creator', 'username');
-
-        if (!invite) {
-            return res.status(404).json({ message: 'Invite not found' });
-        }
-
-        // Check expiration
-        if (invite.expiresAt && invite.expiresAt < Date.now()) {
-            return res.status(410).json({ message: 'Invite expired' });
-        }
-
-        // Check usage limit
-        if (invite.maxUses && invite.uses >= invite.maxUses) {
-            return res.status(410).json({ message: 'Invite limit reached' });
-        }
-
-        const memberCount = invite.server.members.length;
-        // Return safe info
+        const invite = await Invite.findOne({ code: req.params.code }).populate('server', 'name icon description members').populate('creator', 'username');
+        if (!invite) return res.status(404).json({ message: 'Invite not found' });
+        if (invite.expiresAt && invite.expiresAt < Date.now()) return res.status(410).json({ message: 'Invite expired' });
+        if (invite.maxUses && invite.uses >= invite.maxUses) return res.status(410).json({ message: 'Invite limit reached' });
         res.json({
             code: invite.code,
-            server: {
-                _id: invite.server._id,
-                name: invite.server.name,
-                icon: invite.server.icon,
-                description: invite.server.description,
-                memberCount
-            },
+            server: { _id: invite.server._id, name: invite.server.name, icon: invite.server.icon, description: invite.server.description, memberCount: invite.server.members.length },
             inviter: invite.creator
         });
-    } catch (error) {
-        console.error('Get invite error:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
+    } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-// Join server using invite
 router.post('/:code/join', auth, async (req, res) => {
     try {
         const invite = await Invite.findOne({ code: req.params.code });
-
-        if (!invite) {
-            return res.status(404).json({ message: 'Invite not found' });
-        }
-
-        // Check expiration
-        if (invite.expiresAt && invite.expiresAt < Date.now()) {
-            return res.status(410).json({ message: 'Invite expired' });
-        }
-
-        // Check usage limit
-        if (invite.maxUses && invite.uses >= invite.maxUses) {
-            return res.status(410).json({ message: 'Invite limit reached' });
-        }
-
+        if (!invite) return res.status(404).json({ message: 'Invite not found' });
+        if (invite.expiresAt && invite.expiresAt < Date.now()) return res.status(410).json({ message: 'Invite expired' });
+        if (invite.maxUses && invite.uses >= invite.maxUses) return res.status(410).json({ message: 'Invite limit reached' });
         const server = await Server.findById(invite.server);
-        if (!server) {
-            return res.status(404).json({ message: 'Server no longer exists' });
-        }
-
-        // Check for ban
-        const isBanned = await Ban.findOne({ server: server._id, user: req.user._id });
-        if (isBanned) {
-            return res.status(403).json({ message: 'Вы заблокированы на этом сервере' });
-        }
-
-        // Check if already member
-        const isMember = server.members.some(
-            member => member.user.toString() === req.user._id.toString()
-        );
-
-        if (isMember) {
-            return res.status(400).json({ message: 'Already a member' });
-        }
-
-        // Find @everyone role
-        const everyoneRole = await Role.findOne({ server: server._id, name: '@everyone' });
-        const roles = everyoneRole ? [everyoneRole._id] : [];
-
-        // Add member
-        server.members.push({ user: req.user._id, roles });
+        if (!server) return res.status(404).json({ message: 'Server no longer exists' });
+        const isMember = server.members.some(member => member.user.toString() === req.user._id.toString());
+        if (isMember) return res.status(400).json({ message: 'Already a member' });
+        server.members.push({ user: req.user._id });
         await server.save();
-
-        // Add server to user's server list
         const user = await User.findById(req.user._id);
-        if (!user.servers) {
-            user.servers = [];
-        }
-        if (!user.servers.includes(server._id)) {
-            user.servers.push(server._id);
-            await user.save();
-        }
-
-        // Update invite usage
+        if (!user.servers) user.servers = [];
+        if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
         invite.uses += 1;
         await invite.save();
-
-        const populatedServer = await Server.findById(server._id)
-            .populate('owner', 'username avatar')
-            .populate('channels')
-            .populate('members.user', 'username avatar status')
-            .populate('members.roles')
-            .populate('roles');
-
-        // Broadcast member join
+        const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
         const io = req.app.get('io');
         if (io) {
             const newMember = populatedServer.members.find(m => m.user._id.toString() === req.user._id.toString());
-            io.to(`server-${server._id}`).emit('server-member-joined', {
-                serverId: server._id,
-                member: newMember,
-                server: populatedServer
-            });
+            io.to(`server-${server._id}`).emit('server-member-joined', { serverId: server._id, member: newMember, server: populatedServer });
             io.to(`server-${server._id}`).emit('server-updated', populatedServer);
         }
-
         res.json(populatedServer);
-    } catch (error) {
-        console.error('Join invite error:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
+    } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 module.exports = router;

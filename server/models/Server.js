@@ -33,10 +33,6 @@ const serverSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
-    roles: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Role'
-    }],
     nickname: {
       type: String,
       maxlength: 100,
@@ -67,10 +63,6 @@ const serverSchema = new mongoose.Schema({
   channels: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Channel'
-  }],
-  roles: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Role'
   }],
   createdAt: {
     type: Date,

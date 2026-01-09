@@ -35,14 +35,6 @@ const channelSchema = new mongoose.Schema({
     type: String,
     maxlength: 500
   },
-  permissions: [{
-    role: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Role'
-    },
-    allow: [String],
-    deny: [String]
-  }],
   createdAt: {
     type: Date,
     default: Date.now

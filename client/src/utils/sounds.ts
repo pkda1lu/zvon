@@ -1,59 +1,64 @@
 export const SOUNDS = {
-    MESSAGE_NOTIFY: 'sounds/message_notify.mp3',
-    VOICE_JOIN: 'sounds/voice_join.mp3',
-    VOICE_LEAVE: 'sounds/voice_leave.mp3',
-    CALL_INCOMING: 'sounds/call_incoming.mp3',
-    SCREENSHARE_TOGGLE: 'sounds/screenshare_toggle.mp3',
+    MESSAGE_NOTIFY: '/sounds/message.mp3',
+    CALL_RINGING: '/sounds/ringing.mp3',
+    CALL_JOIN: '/sounds/join.mp3',
+    CALL_LEAVE: '/sounds/leave.mp3',
+    MUTE: '/sounds/mute.mp3',
+    UNMUTE: '/sounds/unmute.mp3'
 };
 
-class SoundManager {
+export class SoundManager {
+    private static instance: SoundManager;
     private audioContext: AudioContext | null = null;
+    private soundBuffers: Map<string, AudioBuffer> = new Map();
+    private isInitialized = false;
 
-    setAudioContext(ctx: AudioContext) {
-        this.audioContext = ctx;
+    private constructor() { }
+
+    static getInstance(): SoundManager {
+        if (!SoundManager.instance) SoundManager.instance = new SoundManager();
+        return SoundManager.instance;
+    }
+
+    async init(existingContext?: AudioContext) {
+        if (this.isInitialized) return;
+        try {
+            this.audioContext = existingContext || new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+            this.isInitialized = true;
+        } catch (e) { }
+    }
+
+    async playSound(soundPath: string, volume: number = 0.5) {
+        if (!this.isInitialized || !this.audioContext) return;
+        try {
+            let buffer = this.soundBuffers.get(soundPath);
+            if (!buffer) {
+                const resp = await fetch(soundPath);
+                const arrayBuf = await resp.arrayBuffer();
+                buffer = await this.audioContext.decodeAudioData(arrayBuf);
+                this.soundBuffers.set(soundPath, buffer);
+            }
+            const source = this.audioContext.createBufferSource();
+            const gainNode = this.audioContext.createGain();
+            source.buffer = buffer;
+            gainNode.gain.value = volume;
+            source.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            source.start(0);
+        } catch (err) { }
     }
 
     play(soundPath: string, volume: number = 0.5) {
-        try {
-            const audio = new Audio(soundPath);
-            audio.volume = volume;
-
-            if (this.audioContext) {
-                try {
-                    const source = this.audioContext.createMediaElementSource(audio);
-                    source.connect(this.audioContext.destination);
-                } catch (e) {
-                    // source already connected might happen, just skip
-                }
-            }
-
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn(`Sound playback failed for ${soundPath}:`, error);
-                });
-            }
-        } catch (err) {
-            console.error('Error playing sound:', err);
-        }
+        this.playSound(soundPath, volume);
     }
 
     playLoop(soundPath: string, volume: number = 0.5): HTMLAudioElement {
         const audio = new Audio(soundPath);
-        audio.volume = volume;
         audio.loop = true;
-
-        if (this.audioContext) {
-            try {
-                const source = this.audioContext.createMediaElementSource(audio);
-                source.connect(this.audioContext.destination);
-            } catch (e) { }
-        }
-
-        audio.play().catch(e => console.warn('Loop playback failed:', e));
+        audio.volume = volume;
+        audio.play().catch(() => { });
         return audio;
     }
 }
 
-export const soundManager = new SoundManager();
-
+export const soundManager = SoundManager.getInstance();

@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
-import { Channel, Message, Server, Role, User } from '../types';
+import { Channel, Message, Server, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { usePermissions } from '../hooks/usePermissions';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon } from './Icons';
@@ -23,16 +22,11 @@ interface ChannelViewProps {
 
 const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, socket, onUserClick }) => {
   const { user } = useAuth();
-  const { hasPermission } = usePermissions(user!, server);
   const [message, setMessage] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxMedia, setLightboxMedia] = useState<any[]>([]);
-
-  const canSend = hasPermission('SEND_MESSAGES');
-  const canAttach = hasPermission('ATTACH_FILES');
-  const canManageMessages = hasPermission('MANAGE_MESSAGES');
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,37 +42,24 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
 
   useEffect(() => {
     const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'end'
-      });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     };
-
     scrollToBottom();
-
-    // Small timeout to ensure efficient scrolling after layout updates (e.g. images)
     const timeout = setTimeout(scrollToBottom, 100);
-
     return () => clearTimeout(timeout);
   }, [messages]);
 
-  // Ensure instant scroll on mount/channel change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
-    }, 50);
   }, [channel._id]);
 
   useEffect(() => {
     if (!socket) return;
-
     const handleTyping = (data: { userId: string; channelId: string }) => {
       if (data.channelId === channel._id && data.userId !== user?._id) {
         setTypingUsers((prev) => new Set(prev).add(data.userId));
       }
     };
-
     const handleStoppedTyping = (data: { userId: string; channelId: string }) => {
       if (data.channelId === channel._id) {
         setTypingUsers((prev) => {
@@ -88,10 +69,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
         });
       }
     };
-
     socket.on('user-typing', handleTyping);
     socket.on('user-stopped-typing', handleStoppedTyping);
-
     return () => {
       socket.off('user-typing', handleTyping);
       socket.off('user-stopped-typing', handleStoppedTyping);
@@ -104,37 +83,21 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
-
-    socket.emit('send-message', {
-      content: message.trim(),
-      channelId: channel._id,
-      attachments
-    });
-
+    socket.emit('send-message', { content: message.trim(), channelId: channel._id, attachments });
     setMessage('');
     setAttachments([]);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { channelId: channel._id });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const formData = new FormData();
-      for (let i = 0; i < e.target.files.length; i++) {
-        formData.append('files', e.target.files[i]);
-      }
-
+      for (let i = 0; i < e.target.files.length; i++) formData.append('files', e.target.files[i]);
       try {
-        const response = await axios.post('/api/upload-files', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
+        const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setAttachments(prev => [...prev, ...response.data]);
       } catch (error) {
-        console.error('Error uploading file:', error);
         alert('Ошибка загрузки файла');
       }
     }
@@ -142,23 +105,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
 
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value);
-
     if (!socket) return;
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-start', { channelId: channel._id });
-
-    typingTimeoutRef.current = setTimeout(() => {
-      socket.emit('typing-stop', { channelId: channel._id });
-    }, 3000);
+    typingTimeoutRef.current = setTimeout(() => { socket.emit('typing-stop', { channelId: channel._id }); }, 3000);
   };
 
-  const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
-  };
+  const removeAttachment = (index: number) => setAttachments(prev => prev.filter((_, i) => i !== index));
 
   const handleDeleteMessage = (messageId: string) => {
     if (window.confirm('Удалить это сообщение?')) {
@@ -166,107 +119,53 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
     }
   };
 
-  const getAuthorColor = (authorId: string) => {
-    const member = server.members.find(m => String(m.user._id) === String(authorId));
-    if (!member) return 'inherit';
-
-    const sortedRoles = [...(member.roles || [])] as any[];
-    sortedRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
-    const colorRole = sortedRoles.find(r => r.color && r.color !== '#99AAB5');
-    return colorRole ? colorRole.color : 'inherit';
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) {
-      return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    } else if (days === 1) {
-      return 'Вчера';
-    } else if (days < 7) {
-      return date.toLocaleDateString('ru-RU', { weekday: 'long' });
-    } else {
-      return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-    }
+    if (days === 0) return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    if (days === 1) return 'Вчера';
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
   };
 
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
     if (!previous) return true;
-    const currentDate = new Date(current.createdAt);
-    const previousDate = new Date(previous.createdAt);
-    return currentDate.getDate() !== previousDate.getDate();
-  };
-
-  const shouldShowAuthor = () => {
-    // Always show author for each message
-    return true;
+    return new Date(current.createdAt).getDate() !== new Date(previous.createdAt).getDate();
   };
 
   return (
     <div className="channel-view">
       <div className="channel-header">
         <div className="channel-header-info">
-          <span className="channel-icon">
-            <HashtagIcon size={24} color="#8e9297" />
-          </span>
+          <span className="channel-icon"><HashtagIcon size={24} color="#8e9297" /></span>
           <h3>{channel.name}</h3>
         </div>
-        {channel.topic && (
-          <div className="channel-topic">{channel.topic}</div>
-        )}
+        {channel.topic && <div className="channel-topic">{channel.topic}</div>}
       </div>
 
       <div className="messages-container">
         <div className="messages-list">
           {messages.map((msg, index) => {
             const showDate = shouldShowDate(msg, messages[index - 1]);
-            const showAuthor = shouldShowAuthor();
-
             return (
               <React.Fragment key={msg._id}>
-                {showDate && (
-                  <div className="message-date-divider">
-                    <span>{formatDate(msg.createdAt)}</span>
-                  </div>
-                )}
+                {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
                 <div className="message with-author">
-                  <div
-                    className="message-author-avatar"
-                    onClick={() => onUserClick(msg.author._id)}
-                    onContextMenu={(e) => handleContextMenu(e, msg.author)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {getAvatarUrl(msg.author.avatar) ? (
-                      <img src={getAvatarUrl(msg.author.avatar)!} alt={msg.author.username} />
-                    ) : (
-                      <span>{msg.author.username.charAt(0).toUpperCase()}</span>
-                    )}
+                  <div className="message-author-avatar" onClick={() => onUserClick(msg.author._id)} onContextMenu={(e) => handleContextMenu(e, msg.author)} style={{ cursor: 'pointer' }}>
+                    {getAvatarUrl(msg.author.avatar) ? <img src={getAvatarUrl(msg.author.avatar)!} alt="" /> : <span>{msg.author.username.charAt(0).toUpperCase()}</span>}
                   </div>
                   <div className="message-content">
                     <div className="message-header">
                       <div className="message-author-info">
-                        <span
-                          className="message-author"
-                          onClick={() => onUserClick(msg.author._id)}
-                          onContextMenu={(e) => handleContextMenu(e, msg.author)}
-                          style={{ cursor: 'pointer', color: getAuthorColor(msg.author._id) }}
-                        >
-                          {server.members.find(m => {
-                            const memberUserId = typeof m.user === 'string' ? m.user : m.user._id;
-                            return String(memberUserId) === String(msg.author._id);
-                          })?.nickname || msg.author.username}
+                        <span className="message-author" onClick={() => onUserClick(msg.author._id)} onContextMenu={(e) => handleContextMenu(e, msg.author)} style={{ cursor: 'pointer' }}>
+                          {server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id))?.nickname || msg.author.username}
                         </span>
                         <span className="message-time">{formatDate(msg.createdAt)}</span>
                       </div>
-
                       <div className="message-actions-hover">
-                        {(canManageMessages || msg.author._id === user?._id) && (
-                          <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}>
-                            <TrashIcon size={16} />
-                          </button>
+                        {(msg.author._id === user?._id || server.ownerId === user?._id) && (
+                          <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={16} /></button>
                         )}
                       </div>
                     </div>
@@ -276,84 +175,41 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                         {msg.attachments.map((att, i) => (
                           <div key={i} className="attachment-item">
                             {att.type.startsWith('image/') ? (
-                              <img
-                                src={getFullUrl(att.url)!}
-                                alt={att.filename}
-                                className="attachment-image"
-                                onClick={() => {
-                                  // Gather all media from all messages
-                                  const allMedia: any[] = [];
-                                  messages.forEach(m => {
-                                    if (m.attachments) {
-                                      m.attachments.forEach(a => {
-                                        if (a.type.startsWith('image/') || a.type.startsWith('video/')) {
-                                          allMedia.push(a);
-                                        }
-                                      });
-                                    }
-                                  });
-                                  const idx = allMedia.findIndex(a => a.url === att.url);
-                                  setLightboxMedia(allMedia);
-                                  setLightboxIndex(idx !== -1 ? idx : 0);
-                                  setLightboxOpen(true);
-                                }}
-                              />
+                              <img src={getFullUrl(att.url)!} alt="" className="attachment-image" onClick={() => {
+                                const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/'));
+                                setLightboxMedia(allMedia);
+                                setLightboxIndex(allMedia.findIndex(a => a.url === att.url));
+                                setLightboxOpen(true);
+                              }} />
                             ) : att.type.startsWith('video/') ? (
                               <div className="attachment-video-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
-                                <CustomVideoPlayer
-                                  src={getFullUrl(att.url)!}
-                                  onExpand={(currentTime) => {
-                                    const allMedia: any[] = [];
-                                    messages.forEach(m => {
-                                      if (m.attachments) {
-                                        m.attachments.forEach(a => {
-                                          if (a.type.startsWith('image/') || a.type.startsWith('video/')) {
-                                            // Clone attachment to avoid mutating message state directly
-                                            allMedia.push({ ...a });
-                                          }
-                                        });
-                                      }
-                                    });
-                                    // Find index and set startTime for that item
-                                    const idx = allMedia.findIndex(a => a.url === att.url);
-                                    if (idx !== -1) {
-                                      allMedia[idx].startTime = currentTime;
-                                    }
-
-                                    setLightboxMedia(allMedia);
-                                    setLightboxIndex(idx !== -1 ? idx : 0);
-                                    setLightboxOpen(true);
-                                  }}
-                                />
+                                <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
+                                  const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/')).map(a => ({ ...a }));
+                                  const idx = allMedia.findIndex(a => a.url === att.url);
+                                  if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
+                                  setLightboxMedia(allMedia);
+                                  setLightboxIndex(idx);
+                                  setLightboxOpen(true);
+                                }} />
                               </div>
                             ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
-                              <CustomAudioPlayer
-                                src={getFullUrl(att.url)!}
-                                filename={att.filename}
-                              />
+                              <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
                             ) : (
                               <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                                <DocumentIcon size={18} />
-                                <span>{att.filename}</span>
+                                <DocumentIcon size={18} /><span>{att.filename}</span>
                               </a>
                             )}
                           </div>
                         ))}
                       </div>
                     )}
-                    {msg.edited && (
-                      <span className="message-edited">(изменено)</span>
-                    )}
+                    {msg.edited && <span className="message-edited">(изменено)</span>}
                   </div>
                 </div>
               </React.Fragment>
             );
           })}
-          {typingUsers.size > 0 && (
-            <div className="typing-indicator">
-              {Array.from(typingUsers).length} пользователь(ей) печатает...
-            </div>
-          )}
+          {typingUsers.size > 0 && <div className="typing-indicator">{typingUsers.size} пользователь(ей) печатает...</div>}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -364,76 +220,26 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
             <div className="attachments-preview-list">
               {attachments.map((att, i) => (
                 <div key={i} className="input-attachment-preview">
-                  {att.type.startsWith('image/') ? (
-                    <img src={getFullUrl(att.url)!} alt={att.filename} />
-                  ) : (
-                    <div className="file-icon" title={att.filename}>
-                      <DocumentIcon size={24} />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="remove-attachment-btn"
-                    onClick={() => removeAttachment(i)}
-                  >
-                    ×
-                  </button>
+                  {att.type.startsWith('image/') ? <img src={getFullUrl(att.url)!} alt="" /> : <div className="file-icon"><DocumentIcon size={24} /></div>}
+                  <button type="button" className="remove-attachment-btn" onClick={() => removeAttachment(i)}>×</button>
                 </div>
               ))}
             </div>
           </div>
         )}
         <form onSubmit={handleSendMessage} className="message-form">
-          <button
-            type="button"
-            className="attachment-button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!canAttach}
-            title={canAttach ? "Прикрепить файл" : "Нет прав на отправку файлов"}
-          >
-            <PlusIcon />
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            style={{ display: 'none' }}
-            multiple
-          />
-          <input
-            type="text"
-            placeholder={canSend ? `Написать в #${channel.name}` : "У вас нет прав для отправки сообщений"}
-            value={message}
-            onChange={handleTyping}
-            className="message-input"
-            disabled={!canSend}
-          />
-          <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>
-            Отправить
-          </button>
+          <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()}><PlusIcon /></button>
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
+          <input type="text" placeholder={`Написать в #${channel.name}`} value={message} onChange={handleTyping} className="message-input" />
+          <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>Отправить</button>
         </form>
       </div>
       {contextMenu && (
-        <MemberContextMenu
-          user={contextMenu.user}
-          server={server}
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          onMention={handleMention}
-          onOpenProfile={onUserClick}
-        />
+        <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onMention={handleMention} onOpenProfile={onUserClick} />
       )}
-
-      <MediaLightbox
-        isOpen={lightboxOpen}
-        onClose={() => setLightboxOpen(false)}
-        media={lightboxMedia}
-        initialIndex={lightboxIndex}
-      />
+      <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />
     </div>
   );
 };
 
 export default ChannelView;
-

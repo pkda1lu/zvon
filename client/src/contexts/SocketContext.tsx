@@ -11,9 +11,7 @@ const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export const useSocket = () => {
   const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error('useSocket must be used within SocketProvider');
-  }
+  if (!context) throw new Error('useSocket must be used within SocketProvider');
   return context;
 };
 
@@ -26,31 +24,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if (token) {
-      const newSocket = io(SOCKET_URL, {
-        auth: { token },
-        transports: ['websocket', 'polling']
-      });
-
-      newSocket.on('connect', () => {
-        console.log('Socket connected');
-        setConnected(true);
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setConnected(false);
-      });
-
-      newSocket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-        setConnected(false);
-      });
-
+      const newSocket = io(SOCKET_URL, { auth: { token }, transports: ['websocket', 'polling'] });
+      newSocket.on('connect', () => setConnected(true));
+      newSocket.on('disconnect', () => setConnected(false));
+      newSocket.on('connect_error', () => setConnected(false));
       setSocket(newSocket);
-
-      return () => {
-        newSocket.close();
-      };
+      return () => { newSocket.close(); };
     }
   }, [token]);
 
@@ -60,13 +39,3 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     </SocketContext.Provider>
   );
 };
-
-
-
-
-
-
-
-
-
-
