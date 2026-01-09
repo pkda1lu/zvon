@@ -333,4 +333,51 @@ ipcMain.handle('set-content-protection', (event, enabled) => {
     }
 });
 
+// --- Native Audio Capture Integration ---
+let zvonAudio = null;
+try {
+    // Attempt to load the native module. 
+    // This might fail if the module was compiled for Node.js but we are running in Electron 
+    // and the ABIs don't match. In a production build, electron-builder handles rebuilding.
+    zvonAudio = require('zvon-native-audio');
+    log.info("Native Audio Module loaded successfully.");
+} catch (e) {
+    log.warn("Failed to load native audio module. Loopback capture will be unavailable.", e);
+}
+
+ipcMain.on('start-audio-capture', (event, pid) => {
+    if (!zvonAudio) {
+        log.warn("start-native-audio called but module is not loaded.");
+        return;
+    }
+    log.info(`Starting native capture for PID: ${pid}`);
+    try {
+        const result = zvonAudio.start(pid, (buffer) => {
+            // Buffer comes from C++ thread. Send it to renderer.
+            // Note: Sending high-frequency IPC messages (100Hz) is okay for local socket.
+            // buffer is a node Buffer (Uint8Array)
+            if (event.sender && !event.sender.isDestroyed()) {
+                event.sender.send('audio-data', buffer);
+            }
+        });
+        log.info("Native capture start result:", result);
+    } catch (e) {
+        log.error("Native capture execution error:", e);
+    }
+});
+
+ipcMain.on('stop-audio-capture', () => {
+    if (zvonAudio) {
+        log.info("Stopping native capture.");
+        zvonAudio.stop();
+    }
+});
+ipcMain.handle('get-pid-from-hwnd', (event, hwnd) => {
+    if (zvonAudio && zvonAudio.getPidFromWindowHandle) {
+        return zvonAudio.getPidFromWindowHandle(Number(hwnd));
+    }
+    return 0;
+});
+// ----------------------------------------
+
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

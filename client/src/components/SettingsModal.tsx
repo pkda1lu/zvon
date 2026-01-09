@@ -51,7 +51,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     selectedVideoDeviceId, setSelectedVideoDeviceId,
     inputVolume, setInputVolume,
     outputVolume, setOutputVolume,
-    refreshDevices
+    refreshDevices,
+    inputSensitivity, setInputSensitivity,
+    isAutomaticSensitivity, setIsAutomaticSensitivity,
+    currentInputLevel
   } = useVoice();
   const {
     theme, setTheme,
@@ -477,6 +480,82 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               className="settings-slider"
             />
           </div>
+        </div>
+
+        <div className="voice-sensitivity-controls" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-divider)' }}>
+          <h3>Чувствительность микрофона</h3>
+
+          <div className="settings-form-group-checkbox">
+            <div className="checkbox-label">
+              <span className="checkbox-title">Автоматически определять чувствительность</span>
+              <span className="checkbox-description">Позволить Zvon автоматически настраивать чувствительность нажатия.</span>
+            </div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={isAutomaticSensitivity}
+                onChange={(e) => setIsAutomaticSensitivity(e.target.checked)}
+              />
+              <span className="slider round"></span>
+            </label>
+          </div>
+
+          <div className={`sensitivity-slider-container ${isAutomaticSensitivity ? 'disabled' : ''}`}>
+            <div className="slider-header-row">
+              <label>Порог срабатывания</label>
+              <span className="slider-value">{Math.round(inputSensitivity)} dB</span>
+            </div>
+            <div className="sensitivity-visualizer-wrapper" style={{ position: 'relative', height: '24px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginBottom: '8px', overflow: 'hidden' }}>
+              {/* Threshold Marker */}
+              {!isAutomaticSensitivity && (
+                <div
+                  className="sensitivity-threshold-marker"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    width: '2px',
+                    background: '#fff',
+                    zIndex: 5,
+                    left: `${Math.max(0, Math.min(100, inputSensitivity + 100))}%`
+                  }}
+                />
+              )}
+
+              {/* Current Level Bar */}
+              <div
+                className="sensitivity-bar-fill"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  width: `${Math.max(0, Math.min(100, currentInputLevel + 100))}%`,
+                  backgroundColor: (currentInputLevel > (isAutomaticSensitivity ? -50 : inputSensitivity)) ? '#43b581' : '#f04747',
+                  transition: 'width 0.1s linear, background-color 0.1s'
+                }}
+              />
+            </div>
+
+            <input
+              type="range"
+              min="-100"
+              max="0"
+              step="1"
+              value={inputSensitivity}
+              onChange={(e) => setInputSensitivity(parseFloat(e.target.value))}
+              disabled={isAutomaticSensitivity}
+              className="settings-slider sensitivity-slider"
+            />
+            <div className="sensitivity-labels" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+              <span>-100dB</span>
+              <span>-50dB</span>
+              <span>0dB</span>
+            </div>
+          </div>
+          <p className="sensitivity-help-text" style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+            Если ваш микрофон слишком чувствителен и улавливает фоновые шумы, отключите автоматическое определение и сдвиньте ползунок вправо (к 0dB).
+          </p>
         </div>
       </div>
 

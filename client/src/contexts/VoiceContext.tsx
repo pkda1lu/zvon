@@ -32,6 +32,7 @@ const RemoteAudio: React.FC<{
         applySinkId(audioRef.current, outputDeviceId);
     }, [outputDeviceId]);
 
+    // Setup Audio Graph (Source -> Gain -> Destination)
     useEffect(() => {
         if (!stream || !sharedContext) return;
 
@@ -42,28 +43,60 @@ const RemoteAudio: React.FC<{
         }
 
         const ctx = sharedContext;
-        if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
+
+        // Cleanup previous source if any
+        if (sourceNodeRef.current) {
+            try { sourceNodeRef.current.disconnect(); } catch (e) { }
+        }
+
+        // Create new Gain Node if needed (persistent for this component instance usually)
+        if (!gainNodeRef.current) {
+            gainNodeRef.current = ctx.createGain();
+            gainNodeRef.current.connect(ctx.destination);
+        }
 
         try {
             const source = ctx.createMediaStreamSource(stream);
             sourceNodeRef.current = source;
-
-            if (!gainNodeRef.current) {
-                const gainNode = ctx.createGain();
-                gainNodeRef.current = gainNode;
-                gainNode.connect(ctx.destination);
-            }
-
-            const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
-            gainNodeRef.current.gain.value = finalVolume;
-
             source.connect(gainNodeRef.current);
-        } catch (err) { }
+        } catch (err) {
+            console.error("Error creating media stream source", err);
+        }
 
         return () => {
-            if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
+            if (sourceNodeRef.current) {
+                try { sourceNodeRef.current.disconnect(); } catch (e) { }
+            }
         };
-    }, [stream, userId, sharedContext, isDeafened, isLocalMuted, voiceVolume, masterVolume]);
+    }, [stream, sharedContext]);
+
+    // Handle Volume Changes (Smoothly)
+    useEffect(() => {
+        if (gainNodeRef.current && sharedContext) {
+            const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
+
+            // Smooth transition to prevent clicking/popping
+            try {
+                // Cancel scheduled values to apply immediate change
+                gainNodeRef.current.gain.cancelScheduledValues(sharedContext.currentTime);
+                // Ramp to new value over 50ms
+                gainNodeRef.current.gain.setTargetAtTime(finalVolume, sharedContext.currentTime, 0.05);
+            } catch (e) {
+                // Fallback
+                gainNodeRef.current.gain.value = finalVolume;
+            }
+        }
+    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume, sharedContext]);
+
+    // Cleanup Gain Node on unmount
+    useEffect(() => {
+        return () => {
+            if (gainNodeRef.current) {
+                try { gainNodeRef.current.disconnect(); } catch (e) { }
+                gainNodeRef.current = null;
+            }
+        };
+    }, []);
 
     return <audio ref={audioRef} autoPlay playsInline muted style={{ display: 'none' }} />;
 };
@@ -156,6 +189,11 @@ interface VoiceContextType {
     setScreenVolume: (userId: string, volume: number) => void;
     watchedScreenIds: Set<string>;
     setWatchingScreen: (userId: string, isWatching: boolean) => void;
+    inputSensitivity: number;
+    setInputSensitivity: (val: number) => void;
+    isAutomaticSensitivity: boolean;
+    setIsAutomaticSensitivity: (val: boolean) => void;
+    currentInputLevel: number;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -211,6 +249,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [screenVolumes, setScreenVolumes] = useState<Map<string, number>>(new Map());
     const [watchedScreenIds, setWatchedScreenIds] = useState<Set<string>>(new Set());
 
+    // Input Sensitivity (VAD)
+    const [inputSensitivity, setInputSensitivity] = useState(() => Number(localStorage.getItem('inputSensitivity')) || -50);
+    const [isAutomaticSensitivity, setIsAutomaticSensitivity] = useState(() => {
+        const stored = localStorage.getItem('isAutomaticSensitivity');
+        return stored === null ? true : stored === 'true';
+    });
+    // For visualization in settings
+    const [currentInputLevel, setCurrentInputLevel] = useState(-100);
+
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
     const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
@@ -225,7 +272,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('selectedVideoDeviceId', selectedVideoDeviceId);
         localStorage.setItem('inputVolume', String(inputVolume));
         localStorage.setItem('outputVolume', String(outputVolume));
-    }, [selectedInputDeviceId, selectedOutputDeviceId, selectedVideoDeviceId, inputVolume, outputVolume]);
+        localStorage.setItem('inputSensitivity', String(inputSensitivity));
+        localStorage.setItem('isAutomaticSensitivity', String(isAutomaticSensitivity));
+    }, [selectedInputDeviceId, selectedOutputDeviceId, selectedVideoDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity]);
 
     const refreshDevices = useCallback(async () => {
         try {
@@ -357,17 +406,23 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: sourceId,
-                        echoCancellation: true,
-                        noiseSuppression: true
+                        echoCancellation: true, // Essential for removing chat echo
+                        noiseSuppression: false, // OFF for high quality game/music audio
+                        autoGainControl: false,  // OFF to prevent volume pumping
+                        googAutoGainControl: false,
+                        googNoiseSuppression: false,
+                        channelCount: 2,
+                        sampleRate: 48000
                     }
                 } as any,
                 video: {
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: sourceId,
-                        maxWidth: 4096,
-                        maxHeight: 2160,
-                        maxFrameRate: 60
+                        maxWidth: 1920,
+                        maxHeight: 1080, // standardized to 1080p for stability
+                        maxFrameRate: 60,
+                        minFrameRate: 30
                     }
                 } as any
             });
@@ -382,6 +437,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
 
             // Enable WDA_EXCLUDEFROMCAPTURE to hide the application from the screen capture
+            // This prevents visual mirror effect, but does NOT prevent audio loopback echo naturally.
+            // We rely on 'echoCancellation: true' above to filter out the remote voices playing locally.
             if (window.electron && window.electron.setContentProtection) {
                 await window.electron.setContentProtection(true);
             }
@@ -636,6 +693,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [isNoiseSuppressionEnabled, isMuted, isDeafened, getAudioContext]);
 
+    const lastSpeakingTimeRef = useRef<number>(0);
+
     useEffect(() => {
         if (!isConnected) {
             analysersRef.current.clear();
@@ -645,8 +704,55 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const audioCtx = getAudioContext();
         const interval = setInterval(() => {
             const nowSpeaking = new Set<string>();
-            const threshold = 0.015;
+            const now = Date.now();
+
+            // Analyze local user
+            if (localStreamRef.current && !isMuted) {
+                const analyser = analysersRef.current.get(user?._id || 'local');
+                if (analyser) {
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteTimeDomainData(dataArray);
+
+                    let sumOfSquares = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        const normalized = (dataArray[i] - 128) / 128;
+                        sumOfSquares += normalized * normalized;
+                    }
+                    const rms = Math.sqrt(sumOfSquares / dataArray.length);
+                    const db = 20 * Math.log10(rms); // typically -100 to 0
+
+                    if (isFinite(db)) {
+                        setCurrentInputLevel(db);
+                    }
+
+                    // Hysteresis logic and Hold Time
+                    const baseThreshold = isAutomaticSensitivity ? -60 : inputSensitivity;
+
+                    if (db > baseThreshold) {
+                        lastSpeakingTimeRef.current = now;
+                    }
+
+                    const VAD_HOLD_TIME = 200; // ms
+                    const isVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
+
+                    if (isVADOpen) {
+                        if (user?._id) nowSpeaking.add(user._id);
+                    }
+
+                    // Apply Gating to Tracks
+                    const shouldBeEnabled = !isMuted && !isDeafened && isVADOpen;
+                    localStreamRef.current.getAudioTracks().forEach(t => {
+                        if (t.enabled !== shouldBeEnabled) t.enabled = shouldBeEnabled;
+                    });
+                }
+            } else {
+                setCurrentInputLevel(-100);
+            }
+
+            // Analyze remote users
             analysersRef.current.forEach((analyser, userId) => {
+                if (userId === user?._id) return;
+
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
                 analyser.getByteTimeDomainData(dataArray);
                 let sumOfSquares = 0;
@@ -654,13 +760,19 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     const normalized = (dataArray[i] - 128) / 128;
                     sumOfSquares += normalized * normalized;
                 }
-                if (Math.sqrt(sumOfSquares / dataArray.length) > threshold) nowSpeaking.add(userId);
+                const rms = Math.sqrt(sumOfSquares / dataArray.length);
+                const db = 20 * Math.log10(rms);
+
+                if (db > -50) nowSpeaking.add(userId);
             });
+
             setSpeakingUsers(prev => {
-                const newSet = new Set(nowSpeaking);
-                return newSet;
+                if (prev.size === nowSpeaking.size && Array.from(prev).every(u => nowSpeaking.has(u))) {
+                    return prev;
+                }
+                return nowSpeaking;
             });
-        }, 100);
+        }, 50);
 
         const updateAnalysers = () => {
             analysersRef.current.clear();
@@ -726,7 +838,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             selectedOutputDeviceId, setSelectedOutputDeviceId, selectedVideoDeviceId, setSelectedVideoDeviceId,
             inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices,
             isScreenSharing, screenStream, startScreenShare, stopScreenShare, remoteScreenStreams,
-            screenVolumes, setScreenVolume, watchedScreenIds, setWatchingScreen
+            screenVolumes, setScreenVolume, watchedScreenIds, setWatchingScreen,
+            inputSensitivity, setInputSensitivity, isAutomaticSensitivity, setIsAutomaticSensitivity, currentInputLevel
         }}>
             {children}
             <div style={{ display: 'none' }}>
