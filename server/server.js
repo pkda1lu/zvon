@@ -586,10 +586,12 @@ io.on('connection', (socket) => {
         const user = await User.findById(socket.userId);
         if (user) {
           user.status = 'offline';
+          user.activity = null;
           await user.save();
           io.emit('user-updated', {
             _id: user._id,
-            status: 'offline'
+            status: 'offline',
+            activity: null
           });
         }
       } catch (err) {
