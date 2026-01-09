@@ -20,7 +20,10 @@ router.post('/register', [
     await user.save();
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token, user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar } });
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.post('/login', [
@@ -39,14 +42,20 @@ router.post('/login', [
     await user.save();
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status } });
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password').populate('servers');
     res.json(user);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('Get me error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 module.exports = router;
