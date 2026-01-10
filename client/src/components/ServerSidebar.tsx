@@ -112,6 +112,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             </div>
             {textChannels.map((channel) => {
               const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
+              if (!hasPermission(channelPerms, Permissions.VIEW_CHANNEL)) return null;
+
               const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS);
 
               return (
@@ -142,6 +144,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             </div>
             {voiceChannels.map((channel) => {
               const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
+              if (!hasPermission(channelPerms, Permissions.VIEW_CHANNEL)) return null;
+
               const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS);
 
               return (

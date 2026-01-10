@@ -163,6 +163,8 @@ interface VoiceContextType {
     leaveChannel: () => void;
     isMuted: boolean;
     isDeafened: boolean;
+    isServerMuted: boolean;
+    isServerDeafened: boolean;
     toggleMute: () => void;
     toggleDeafen: () => void;
     connectedUsers: User[];
@@ -249,9 +251,30 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
-    const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
+    const [userVolumes, setUserVolumes] = useState<Map<string, number>>(() => {
+        const stored = localStorage.getItem('userVolumes');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                return new Map(Object.entries(parsed) as [string, number][]);
+            } catch (e) {
+                return new Map();
+            }
+        }
+        return new Map();
+    });
     const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>>(new Map());
-    const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
+    const [localMutes, setLocalMutes] = useState<Set<string>>(() => {
+        const stored = localStorage.getItem('localMutes');
+        if (stored) {
+            try {
+                return new Set(JSON.parse(stored) as string[]);
+            } catch (e) {
+                return new Set();
+            }
+        }
+        return new Set();
+    });
     const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
     const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
 
@@ -964,7 +987,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [isConnected, localStream, remoteStreams, user?._id, isMuted, getAudioContext]);
 
     const setUserVolume = useCallback((userId: string, volume: number) => {
-        setUserVolumes(prev => new Map(prev).set(userId, volume));
+        setUserVolumes(prev => {
+            const next = new Map(prev);
+            next.set(userId, volume);
+            localStorage.setItem('userVolumes', JSON.stringify(Object.fromEntries(next)));
+            return next;
+        });
     }, []);
 
     const toggleLocalMute = useCallback((userId: string) => {
@@ -972,6 +1000,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const newMutes = new Set(prev);
             if (newMutes.has(userId)) newMutes.delete(userId);
             else newMutes.add(userId);
+            localStorage.setItem('localMutes', JSON.stringify(Array.from(newMutes)));
             return newMutes;
         });
     }, []);
@@ -1001,7 +1030,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return (
         <VoiceContext.Provider value={{
-            isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened, toggleMute, toggleDeafen,
+            isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened,
+            isServerMuted, isServerDeafened, toggleMute, toggleDeafen,
             connectedUsers, localStream, remoteStreams, userVolumes, setUserVolume, userStates, localMutes,
             toggleLocalMute, speakingUsers, isNoiseSuppressionEnabled, toggleNoiseSuppression, audioContext,
             inputDevices, outputDevices, videoDevices, selectedInputDeviceId, setSelectedInputDeviceId,

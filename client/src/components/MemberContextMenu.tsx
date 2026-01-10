@@ -70,13 +70,13 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const handleServerMute = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (socket) socket.emit('admin-voice-mute', { userId: targetUser._id, muted: !isServerMuted, serverId: server._id });
-        onClose();
+        // Don't close immediately to let the checkbox update
     };
 
     const handleServerDeafen = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (socket) socket.emit('admin-voice-deafen', { userId: targetUser._id, deafened: !isServerDeafened, serverId: server._id });
-        onClose();
+        // Don't close immediately to let the checkbox update
     };
 
     const handleMoveTo = (channelId: string) => {
@@ -199,7 +199,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     };
 
     const adjustedX = Math.min(x, window.innerWidth - 220);
-    const adjustedY = Math.min(y, window.innerHeight - 300);
+    const adjustedY = Math.min(y, window.innerHeight - 400); // Increased buffer
     const flipSubmenu = adjustedX > window.innerWidth - 440;
 
     if (showInputModal) {

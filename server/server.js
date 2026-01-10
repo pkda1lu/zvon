@@ -74,6 +74,8 @@ const getVoiceChannelUsers = async (channelId) => {
         userData.isMuted = socket.isMuted || false;
         userData.isDeafened = socket.isDeafened || false;
         userData.isScreenSharing = socket.isScreenSharing || false;
+        userData.isServerMuted = socket.isServerMuted || false;
+        userData.isServerDeafened = socket.isServerDeafened || false;
         users.push(userData);
       }
     }
@@ -278,6 +280,10 @@ io.on('connection', (socket) => {
         }
       });
       socket.emit('voice-existing-users', existingUsers);
+      socket.emit('voice-server-state-update', {
+        isServerMuted: socket.isServerMuted || false,
+        isServerDeafened: socket.isServerDeafened || false
+      });
       await notifyVoiceChannelUpdate(channelId);
       const ch = await Channel.findById(channelId);
       if (ch && ch.server) io.to(`server-${ch.server}`).emit('voice-channel-users-update', { channelId, users: await getVoiceChannelUsers(channelId) });
