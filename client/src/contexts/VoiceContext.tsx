@@ -170,7 +170,7 @@ interface VoiceContextType {
     remoteStreams: Map<string, MediaStream>;
     userVolumes: Map<string, number>;
     setUserVolume: (userId: string, volume: number) => void;
-    userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }>;
+    userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
     speakingUsers: Set<string>;
@@ -225,6 +225,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const [isMuted, setIsMuted] = useState(false);
     const [isDeafened, setIsDeafened] = useState(false);
+    const [isServerMuted, setIsServerMuted] = useState(false); // New state
+    const [isServerDeafened, setIsServerDeafened] = useState(false); // New state
 
     const [isNoiseSuppressionEnabled, setIsNoiseSuppressionEnabled] = useState(() => {
         return localStorage.getItem('noiseSuppression') === 'true';
@@ -248,7 +250,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [userVolumes, setUserVolumes] = useState<Map<string, number>>(new Map());
-    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean }>>(new Map());
+    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>>(new Map());
     const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
     const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
     const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
@@ -614,14 +616,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
             setLocalStream(streamToUse);
             localStreamRef.current = streamToUse;
-            streamToUse.getAudioTracks().forEach(t => t.enabled = !isMuted && !isDeafened);
+            // Respect server mute/deafen as well
+            const effectiveMuted = isMuted || isServerMuted;
+            const effectiveDeafened = isDeafened || isServerDeafened;
+            streamToUse.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
+
             setActiveChannelId(channelId);
             setIsConnected(true);
             soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
         } catch (error) {
             alert('Не удалось подключиться к голосовому каналу.');
         }
-    }, [isMuted, isDeafened, leaveChannel, selectedInputDeviceId, isNoiseSuppressionEnabled, getAudioContext]);
+    }, [isMuted, isDeafened, isServerMuted, isServerDeafened, leaveChannel, selectedInputDeviceId, isNoiseSuppressionEnabled, getAudioContext]);
 
     useEffect(() => {
         if (!socket || !isConnected || !activeChannelId || !localStreamRef.current) return;
@@ -637,7 +643,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     newMap.set(u._id, {
                         isMuted: u.isMuted || false,
                         isDeafened: u.isDeafened || false,
-                        isScreenSharing: u.isScreenSharing || false
+                        isScreenSharing: u.isScreenSharing || false,
+                        isServerMuted: u.isServerMuted || false,
+                        isServerDeafened: u.isServerDeafened || false
                     });
                 });
                 return newMap;
@@ -653,7 +661,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 setUserStates(prev => new Map(prev).set(data.userId, {
                     isMuted: data.user.isMuted,
                     isDeafened: data.user.isDeafened,
-                    isScreenSharing: data.user.isScreenSharing || false
+                    isScreenSharing: data.user.isScreenSharing || false,
+                    isServerMuted: data.user.isServerMuted || false,
+                    isServerDeafened: data.user.isServerDeafened || false
                 }));
             }
         };
@@ -715,15 +725,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             } catch (err) { }
         };
 
-        const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean; isScreenSharing?: boolean }) => {
+        const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean; isScreenSharing?: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }) => {
             setUserStates(prev => {
                 const oldState = prev.get(data.userId);
                 if (data.userId !== user?._id) {
                     if (data.isScreenSharing && (!oldState || !oldState.isScreenSharing)) {
-                        // Play screenshare on sound if it just started
                         soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
                     } else if (!data.isScreenSharing && oldState && oldState.isScreenSharing) {
-                        // Play toggle/stop sound if it just stopped
                         soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.4);
                     }
                 }
@@ -732,10 +740,21 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 newMap.set(data.userId, {
                     isMuted: data.isMuted,
                     isDeafened: data.isDeafened,
-                    isScreenSharing: data.isScreenSharing || false
+                    isScreenSharing: data.isScreenSharing || false,
+                    isServerMuted: data.isServerMuted || false,
+                    isServerDeafened: data.isServerDeafened || false
                 } as any);
                 return newMap;
             });
+        };
+
+        const handleForceJoin = (data: { channelId: string }) => {
+            joinChannel(data.channelId);
+        };
+
+        const handleServerStateUpdate = (data: { isServerMuted?: boolean; isServerDeafened?: boolean }) => {
+            if (data.isServerMuted !== undefined) setIsServerMuted(data.isServerMuted);
+            if (data.isServerDeafened !== undefined) setIsServerDeafened(data.isServerDeafened);
         };
 
         socket.on('voice-existing-users', handleExistingUsers);
@@ -745,6 +764,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         socket.on('voice-answer', handleAnswer);
         socket.on('voice-ice-candidate', handleCandidate);
         socket.on('voice-user-state-update', handleUserStateUpdate);
+
+        // New Handlers
+        socket.on('force-join-voice', handleForceJoin);
+        socket.on('voice-server-state-update', handleServerStateUpdate);
 
         socket.emit('join-voice-channel', { channelId: activeChannelId });
 
@@ -756,13 +779,17 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-answer');
             socket.off('voice-ice-candidate');
             socket.off('voice-user-state-update');
+            socket.off('force-join-voice');
+            socket.off('voice-server-state-update');
         };
-    }, [socket, isConnected, activeChannelId, createPeer, user]);
+    }, [socket, isConnected, activeChannelId, createPeer, user, joinChannel]); // Added joinChannel dep
 
     const toggleMute = () => {
         const newMuted = !isMuted;
         setIsMuted(newMuted);
-        if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !newMuted && !isDeafened);
+        const effectiveMuted = newMuted || isServerMuted;
+        const effectiveDeafened = isDeafened || isServerDeafened;
+        if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
         if (socket && activeChannelId) {
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted: newMuted, isDeafened, isScreenSharing });
         }
@@ -771,7 +798,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const toggleDeafen = () => {
         const newDeafened = !isDeafened;
         setIsDeafened(newDeafened);
-        if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !isMuted && !newDeafened);
+        const effectiveMuted = isMuted || isServerMuted;
+        const effectiveDeafened = newDeafened || isServerDeafened;
+        if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
         if (socket && activeChannelId) {
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened: newDeafened, isScreenSharing });
         }
@@ -794,7 +823,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
             setLocalStream(newStream);
             localStreamRef.current = newStream;
-            newStream.getAudioTracks().forEach(t => t.enabled = !isMuted && !isDeafened);
+            const effectiveMuted = isMuted || isServerMuted;
+            const effectiveDeafened = isDeafened || isServerDeafened;
+            newStream.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
             const audioTrack = newStream.getAudioTracks()[0];
             if (audioTrack) {
                 peersRef.current.forEach(async (pc) => {
@@ -942,6 +973,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return next;
         });
     }, []);
+
+
+    // Determine effective mute state for logic that re-enables tracks dynamically
+    useEffect(() => {
+        if (localStreamRef.current) {
+            const effectiveMuted = isMuted || isServerMuted;
+            const effectiveDeafened = isDeafened || isServerDeafened;
+            localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
+        }
+    }, [isServerMuted, isServerDeafened, isMuted, isDeafened]);
 
     return (
         <VoiceContext.Provider value={{

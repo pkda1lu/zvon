@@ -97,6 +97,17 @@ const serverSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Channel'
   }],
+  bans: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    reason: {
+      type: String,
+      maxlength: 500,
+      default: null
+    }
+  }],
   createdAt: {
     type: Date,
     default: Date.now

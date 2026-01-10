@@ -574,4 +574,50 @@ router.post('/:id/leave', auth, async (req, res) => {
   }
 });
 
+router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (req, res) => {
+  try {
+    const { userId, reason } = req.body;
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    // Validate target is not owner
+    if (String(server.owner) === String(userId)) return res.status(403).json({ message: 'Cannot ban the owner' });
+
+    // Hierarchy Check
+    if (String(server.owner) !== String(req.user._id)) {
+      const actorHigh = getHighestRolePosition(req.user._id, server);
+      const targetHigh = getHighestRolePosition(userId, server);
+      if (targetHigh >= actorHigh) {
+        return res.status(403).json({ message: 'Cannot ban user with equal or higher role' });
+      }
+    }
+
+    // Check if already banned
+    const isBanned = server.bans.some(b => String(b.user) === String(userId));
+    if (isBanned) return res.status(400).json({ message: 'User is already banned' });
+
+    server.bans.push({ user: userId, reason });
+    server.members = server.members.filter(m => String(m.user) !== String(userId));
+    await server.save();
+
+    const user = await User.findById(userId);
+    if (user) {
+      user.servers = user.servers.filter(s => String(s) !== String(server._id));
+      await user.save();
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${server._id}`).emit('server-member-left', { serverId: server._id, userId: userId });
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+      io.to(`server-${server._id}`).emit('server-updated', updatedServer);
+    }
+
+    res.json({ message: 'User banned' });
+  } catch (error) {
+    console.error('Ban error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

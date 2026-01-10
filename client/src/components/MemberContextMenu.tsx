@@ -53,9 +53,44 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
     const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES);
     const canKick = hasPermission(userPerms, Permissions.KICK_MEMBERS);
+    const canBan = hasPermission(userPerms, Permissions.BAN_MEMBERS);
     const canManageNicknames = hasPermission(userPerms, Permissions.MANAGE_NICKNAMES);
     const canChangeNickname = hasPermission(userPerms, Permissions.CHANGE_NICKNAME);
     const isOwner = (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === currentUser?._id;
+
+    const { userStates } = useVoice();
+    const targetVoiceState = userStates.get(targetUser._id);
+    const isInVoice = !!targetVoiceState;
+    const isServerMuted = targetVoiceState?.isServerMuted || false;
+    const isServerDeafened = targetVoiceState?.isServerDeafened || false;
+
+    const voiceChannels = server.channels.filter(c => c.type === 'voice');
+
+    const handleServerMute = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (socket) socket.emit('admin-voice-mute', { userId: targetUser._id, muted: !isServerMuted, serverId: server._id });
+        onClose();
+    };
+
+    const handleServerDeafen = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (socket) socket.emit('admin-voice-deafen', { userId: targetUser._id, deafened: !isServerDeafened, serverId: server._id });
+        onClose();
+    };
+
+    const handleMoveTo = (channelId: string) => {
+        if (socket) socket.emit('admin-voice-move', { userId: targetUser._id, channelId });
+        onClose();
+    };
+
+    const handleBan = async () => {
+        if (window.confirm(`Вы уверены, что хотите забанить ${targetUser.username}?`)) {
+            try {
+                await axios.post(`/api/servers/${server._id}/bans`, { userId: targetUser._id });
+            } catch (err) { alert('Не удалось забанить пользователя.'); }
+            onClose();
+        }
+    };
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -68,6 +103,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [onClose, showInputModal]);
 
+    // ... (friendship effect existing code)
     useEffect(() => {
         const checkFriendship = async () => {
             try {
@@ -89,6 +125,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const handleAction = async (action: string) => {
         try {
             switch (action) {
+                // ... (existing cases)
                 case 'profile':
                     if (onOpenProfile) onOpenProfile(targetUser._id);
                     break;
@@ -148,7 +185,6 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     setShowInputModal(true);
                     return;
                 case 'toggle-role':
-                    // Handled separately now
                     return;
                 case 'server-profile':
                     window.dispatchEvent(new CustomEvent('open-server-profile-settings', { detail: { serverId: server._id } }));
@@ -162,7 +198,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     const adjustedX = Math.min(x, window.innerWidth - 220);
     const adjustedY = Math.min(y, window.innerHeight - 300);
-    const flipSubmenu = adjustedX > window.innerWidth - 440; // 220 menu width + 220 submenu width
+    const flipSubmenu = adjustedX > window.innerWidth - 440;
 
     if (showInputModal) {
         return ReactDOM.createPortal(
@@ -199,7 +235,40 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 </div>
             </div>
             <div className="menu-separator" />
-            <div className="menu-separator" />
+
+            {(isInVoice && !isSelf && (hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) || hasPermission(userPerms, Permissions.MOVE_MEMBERS))) && (
+                <>
+                    <div className="menu-group">
+                        {hasPermission(userPerms, Permissions.MUTE_MEMBERS) && (
+                            <div className="menu-item check-item" onClick={handleServerMute}>
+                                <span>Отключить микрофон (Сервер)</span>
+                                <div className={`checkbox ${isServerMuted ? 'checked' : ''}`}>{isServerMuted && '✓'}</div>
+                            </div>
+                        )}
+                        {hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) && (
+                            <div className="menu-item check-item" onClick={handleServerDeafen}>
+                                <span>Отключить звук (Сервер)</span>
+                                <div className={`checkbox ${isServerDeafened ? 'checked' : ''}`}>{isServerDeafened && '✓'}</div>
+                            </div>
+                        )}
+                        {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && (
+                            <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
+                                <span>Переместить в</span>
+                                <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
+                                <div className="submenu">
+                                    {voiceChannels.map(vc => (
+                                        <div key={vc._id} className="menu-item" onClick={(e) => { e.stopPropagation(); handleMoveTo(vc._id); }}>
+                                            {vc.name}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="menu-separator" />
+                </>
+            )}
+
             <div className="menu-group">
                 {(isSelf ? canChangeNickname : canManageNicknames) && (
                     <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
@@ -236,9 +305,6 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                                     </div>
                                 );
                             })}
-                            {(server.roles || []).filter(r => r.name !== '@everyone').length === 0 && (
-                                <div className="menu-item disabled">Нет ролей</div>
-                            )}
                         </div>
                     </div>
                 )}
@@ -260,11 +326,12 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     </div>
                 </>
             )}
-            {!isSelf && canKick && (
+            {!isSelf && (canKick || canBan) && (
                 <>
                     <div className="menu-separator" />
                     <div className="menu-group">
-                        <div className="menu-item destructive" onClick={() => handleAction('kick')}>Выгнать</div>
+                        {canKick && <div className="menu-item destructive" onClick={() => handleAction('kick')}>Выгнать</div>}
+                        {canBan && <div className="menu-item destructive" onClick={handleBan}>Забанить</div>}
                     </div>
                 </>
             )}
