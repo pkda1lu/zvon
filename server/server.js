@@ -240,21 +240,11 @@ io.on('connection', (socket) => {
       const channel = await Channel.findById(channelId);
       if (!channel) return;
 
-      const server = await Server.findById(channel.server).populate('roles members.user'); // Need population for permission calc? 
-      // computePermissions usually needs populated roles if using them, but my calc implementation fetches or expects structure? 
-      // computePermissions(userId, server, channel)
-      // Actually my computePermissions in utils/permissionCalculator.js takes (userId, server, channel). 
-      // server object needs roles and members populated? 
-      // Let's rely on what computePermissions expects. Usually it iterates server.roles.
-
-      if (channel.type === 'voice') {
-        // Re-fetch server with necessary fields if not available or just rely on robust fetching
-        const fullServer = await Server.findById(channel.server);
-        const perms = computePermissions(socket.userId, fullServer, channel);
-        if (!hasPermission(perms, Permissions.CONNECT)) {
-          socket.emit('error', { message: 'No permission to connect to this channel' });
-          return;
-        }
+      const fullServer = await Server.findById(channel.server);
+      const perms = computePermissions(socket.userId, fullServer, channel);
+      if (!hasPermission(perms, Permissions.CONNECT)) {
+        socket.emit('error', { message: 'No permission to connect to this channel' });
+        return;
       }
 
       if (socket.voiceChannelId && socket.voiceChannelId !== channelId) {
@@ -292,22 +282,21 @@ io.on('connection', (socket) => {
 
   socket.on('admin-voice-kick', async (data) => {
     try {
-      const { userId, channelId } = data; // channelId is where we kick FROM
+      const { userId, channelId } = data;
       const ch = await Channel.findById(channelId);
       if (!ch) return;
       const server = await Server.findById(ch.server);
       if (!server) return;
 
       const perms = computePermissions(socket.userId, server);
-      if (!hasPermission(perms, Permissions.MOVE_MEMBERS)) return; // Kicking from voice uses MOVE_MEMBERS (or should it be separate? Usually MOVE is enough, effectively moving to null)
+      if (!hasPermission(perms, Permissions.MOVE_MEMBERS)) return;
 
       const connections = io.sockets.adapter.rooms.get(`user-${userId}`);
       if (connections) {
         for (const sid of connections) {
           const s = io.sockets.sockets.get(sid);
-          // if (s) s.disconnect(); // REMOVED: Do not disconnect the entire socket!
           if (s && s.voiceChannelId === channelId) {
-            s.emit('force-disconnect-voice'); // Client needs to handle this
+            s.emit('force-disconnect-voice');
             s.leave(`voice-channel-${channelId}`);
             s.voiceChannelId = null;
             io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId });
@@ -339,7 +328,6 @@ io.on('connection', (socket) => {
   socket.on('voice-answer', (data) => io.to(`user-${data.targetUserId}`).emit('voice-answer', { fromUserId: socket.userId, answer: data.answer }));
   socket.on('voice-ice-candidate', (data) => io.to(`user-${data.targetUserId}`).emit('voice-ice-candidate', { fromUserId: socket.userId, candidate: data.candidate }));
 
-  // --- Admin Voice Controls ---
   socket.on('admin-voice-move', async (data) => {
     try {
       const { userId, channelId } = data;
@@ -376,9 +364,7 @@ io.on('connection', (socket) => {
           if (s) {
             s.isServerMuted = muted;
             if (s.voiceChannelId) {
-              // Determine channel to emit to
-              const chId = s.voiceChannelId;
-              io.to(`voice-channel-${chId}`).emit('voice-user-state-update', {
+              io.to(`voice-channel-${s.voiceChannelId}`).emit('voice-user-state-update', {
                 userId: userId,
                 isMuted: s.isMuted,
                 isDeafened: s.isDeafened,
@@ -386,12 +372,13 @@ io.on('connection', (socket) => {
                 isServerMuted: s.isServerMuted,
                 isServerDeafened: s.isServerDeafened
               });
+              await notifyVoiceChannelUpdate(s.voiceChannelId);
             }
             s.emit('voice-server-state-update', { isServerMuted: muted, isServerDeafened: s.isServerDeafened });
           }
         }
       }
-    } catch (e) { }
+    } catch (e) { console.error('admin-voice-mute error:', e); }
   });
 
   socket.on('admin-voice-deafen', async (data) => {
@@ -409,8 +396,7 @@ io.on('connection', (socket) => {
           if (s) {
             s.isServerDeafened = deafened;
             if (s.voiceChannelId) {
-              const chId = s.voiceChannelId;
-              io.to(`voice-channel-${chId}`).emit('voice-user-state-update', {
+              io.to(`voice-channel-${s.voiceChannelId}`).emit('voice-user-state-update', {
                 userId: userId,
                 isMuted: s.isMuted,
                 isDeafened: s.isDeafened,
@@ -418,12 +404,13 @@ io.on('connection', (socket) => {
                 isServerMuted: s.isServerMuted,
                 isServerDeafened: s.isServerDeafened
               });
+              await notifyVoiceChannelUpdate(s.voiceChannelId);
             }
             s.emit('voice-server-state-update', { isServerMuted: s.isServerMuted, isServerDeafened: deafened });
           }
         }
       }
-    } catch (e) { }
+    } catch (e) { console.error('admin-voice-deafen error:', e); }
   });
 
   socket.on('disconnect', async () => {

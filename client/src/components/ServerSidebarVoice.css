@@ -120,3 +120,15 @@
     text-transform: uppercase;
     line-height: 1.2;
 }
+
+.voice-user-icons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.voice-user-icons svg {
+    opacity: 0.8;
+}

@@ -4,7 +4,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import CreateChannelModal from './CreateChannelModal';
 import ChannelSettingsModal from './ChannelSettingsModal';
-import { HashtagIcon, SpeakerIcon, PlusIcon, SettingsIcon } from './Icons';
+import { HashtagIcon, SpeakerIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice } from '../contexts/VoiceContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
@@ -173,6 +173,13 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                           <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
                             {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
                           </span>
+                          <div className="voice-user-icons">
+                            {((u as any).isDeafened || (u as any).isServerDeafened) ? (
+                              <DeafenedIcon size={14} color="#f23f42" />
+                            ) : ((u as any).isMuted || (u as any).isServerMuted) ? (
+                              <MicMutedIcon size={14} color="#f23f42" />
+                            ) : null}
+                          </div>
                         </div>
                       ))}
                     </div>

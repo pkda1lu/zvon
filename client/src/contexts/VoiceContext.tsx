@@ -888,7 +888,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const now = Date.now();
 
             // Analyze local user
-            if (localStreamRef.current && !isMuted) {
+            if (localStreamRef.current && !isMuted && !isServerMuted) {
                 const analyser = analysersRef.current.get(user?._id || 'local');
                 if (analyser) {
                     const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -922,7 +922,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     }
 
                     // Apply Gating to Tracks
-                    const shouldBeEnabled = !isMuted && !isDeafened && isVADOpen;
+                    const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isVADOpen;
                     localStreamRef.current.getAudioTracks().forEach(t => {
                         if (t.enabled !== shouldBeEnabled) t.enabled = shouldBeEnabled;
                     });
@@ -1046,9 +1046,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
                     <RemoteAudio
                         key={`audio-${userId}`} userId={userId} stream={stream}
-                        voiceVolume={userVolumes.get(userId) ?? 1} isDeafened={isDeafened}
-                        isLocalMuted={localMutes.has(userId)} sharedContext={audioContext}
-                        outputDeviceId={selectedOutputDeviceId} masterVolume={outputVolume}
+                        voiceVolume={userVolumes.get(userId) ?? 1}
+                        isDeafened={isDeafened || isServerDeafened}
+                        isLocalMuted={localMutes.has(userId) || (userStates.get(userId)?.isServerMuted ?? false)}
+                        sharedContext={audioContext}
+                        outputDeviceId={selectedOutputDeviceId}
+                        masterVolume={outputVolume}
                     />
                 ))}
                 {Array.from(remoteScreenStreams.entries()).map(([userId, stream]) => (
