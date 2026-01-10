@@ -295,23 +295,40 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     let role;
     const roleIdStr = String(req.params.roleId);
 
+    console.log(`[DEBUG] Patch role request: server=${server._id}, roleId=${roleIdStr}`);
+
     // 1. Try standard Mongoose subdocument lookup
     try {
       role = server.roles.id(req.params.roleId);
-    } catch (e) { /* ignore cast errors */ }
+    } catch (e) {
+      console.log(`[DEBUG] Mongoose .id() failed for ${roleIdStr}`);
+    }
 
     // 2. Manual search by ID string or placeholder
     if (!role) {
       role = server.roles.find(r =>
-        String(r._id) === roleIdStr ||
+        (r._id && String(r._id) === roleIdStr) ||
         (r.name === '@everyone' && (roleIdStr === 'everyone' || roleIdStr === '0' || roleIdStr.length < 5))
       );
     }
 
-    if (!role) {
-      console.error(`Update role error: Role ${roleIdStr} not found on server ${server._id}`);
-      return res.status(404).json({ message: 'Role not found' });
+    // 3. Last ditch effort: if we're looking for @everyone and it's the first role
+    if (!role && server.roles.length > 0 && server.roles[0].name === '@everyone') {
+      if (roleIdStr.length < 5 || roleIdStr === 'everyone') {
+        role = server.roles[0];
+        console.log(`[DEBUG] Falling back to first role for @everyone`);
+      }
     }
+
+    if (!role) {
+      console.error(`Update role error: Role ${roleIdStr} not found on server ${server.name} (${server._id})`);
+      return res.status(404).json({
+        message: `Role ${roleIdStr} not found`,
+        serverRoles: server.roles.map(r => ({ id: r._id, name: r.name }))
+      });
+    }
+
+    console.log(`[DEBUG] Found role to update: ${role.name} (${role._id})`);
 
 
     // Hierarchy check: Cannot edit role if it's higher/equal to yours
