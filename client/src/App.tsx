@@ -1,14 +1,11 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { HashRouter, BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { SocketProvider } from './contexts/SocketContext';
-import { VoiceProvider } from './contexts/VoiceContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Main from './pages/Main';
 import InvitePage from './pages/InvitePage';
-import PrivateRoute from './components/PrivateRoute';
+import Home from './Home';
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
@@ -38,6 +35,9 @@ const ElectronHandler: React.FC = () => {
 };
 
 function App() {
+  const isElectron = !!(window as any).electron;
+  const Router = isElectron ? HashRouter : BrowserRouter;
+
   return (
     <AuthProvider>
       <AppearanceProvider>
@@ -51,7 +51,8 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/invite/:code" element={<InvitePage />} />
-                  <Route path="/*" element={<PrivateRoute><SocketProvider><VoiceProvider><Main /></VoiceProvider></SocketProvider></PrivateRoute>} />
+                  <Route path="/" element={<Home />} />
+                  <Route path="/*" element={<Home />} />
                 </Routes>
               </div>
             </div>

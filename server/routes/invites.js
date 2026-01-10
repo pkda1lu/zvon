@@ -7,7 +7,12 @@ const Server = require('../models/Server');
 const User = require('../models/User');
 
 const generateCode = (length = 8) => {
-    return crypto.randomBytes(length).toString('hex').slice(0, length);
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
 };
 
 router.post('/', auth, async (req, res) => {

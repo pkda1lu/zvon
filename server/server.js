@@ -51,6 +51,15 @@ app.use('/api/invites', require('./routes/invites'));
 app.use('/api/upload-files', require('./routes/uploads'));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d', immutable: true }));
 
+// Serve static assets from the React app
+app.use(express.static(path.join(__dirname, '../client/build')));
+
+// The "catchall" handler: for any request that doesn't
+// match one above, send back React's index.html file.
+app.get(/^(?!\/api).+/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build/index.html'));
+});
+
 const getVoiceChannelUsers = async (channelId) => {
   const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
   if (!room) return [];
