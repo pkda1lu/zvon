@@ -10,6 +10,8 @@ const Server = require('./models/Server');
 const Channel = require('./models/Channel');
 const Message = require('./models/Message');
 const User = require('./models/User');
+const { computePermissions, hasPermission } = require('./utils/permissionCalculator');
+const { Permissions } = require('./utils/permissions');
 
 const compression = require('compression');
 
@@ -140,6 +142,16 @@ io.on('connection', (socket) => {
         if (!Array.isArray(raw)) raw = [raw];
         messageData.attachments = raw.filter(a => a && typeof a === 'object' && a.url).map(a => ({ url: String(a.url), filename: String(a.filename || ''), size: Number(a.size || 0), type: String(a.type || '') }));
       }
+      if (data.channelId) {
+        const channel = await Channel.findById(data.channelId);
+        if (!channel) return socket.emit('error', { message: 'Channel not found' });
+        const server = await Server.findById(channel.server);
+        if (!server) return socket.emit('error', { message: 'Server not found' });
+        const perms = computePermissions(socket.userId, server, channel);
+        if (!hasPermission(perms, Permissions.SEND_MESSAGES)) {
+          return socket.emit('error', { message: 'У вас нет прав для отправки сообщений в этот канал' });
+        }
+      }
       const message = new Message(messageData);
       await message.save(); await message.populate('author', 'username avatar');
       if (data.channelId) io.to(`channel-${data.channelId}`).emit('new-message', message);
@@ -156,7 +168,24 @@ io.on('connection', (socket) => {
       const { messageId, channelId } = data;
       const msg = await Message.findById(messageId);
       if (!msg) return;
-      if (String(msg.author) === String(socket.userId)) {
+
+      const isAuthor = String(msg.author) === String(socket.userId);
+      let canDelete = isAuthor;
+
+      if (!isAuthor && channelId) {
+        const channel = await Channel.findById(channelId);
+        if (channel) {
+          const server = await Server.findById(channel.server);
+          if (server) {
+            const perms = computePermissions(socket.userId, server, channel);
+            if (hasPermission(perms, Permissions.MANAGE_MESSAGES)) {
+              canDelete = true;
+            }
+          }
+        }
+      }
+
+      if (canDelete) {
         await Message.findByIdAndDelete(messageId);
         if (channelId) io.to(`channel-${channelId}`).emit('message-deleted', messageId);
         else if (msg.directMessage) {

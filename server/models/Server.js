@@ -1,5 +1,33 @@
 const mongoose = require('mongoose');
 
+const roleSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    maxlength: 100
+  },
+  color: {
+    type: String,
+    default: '#99aab5'
+  },
+  hoist: {
+    type: Boolean,
+    default: false
+  },
+  position: {
+    type: Number,
+    default: 0
+  },
+  permissions: {
+    type: String, // Stored as BigInt string
+    default: '0'
+  },
+  mentionable: {
+    type: Boolean,
+    default: false
+  }
+});
+
 const serverSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -28,6 +56,7 @@ const serverSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  roles: [roleSchema],
   members: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -38,6 +67,10 @@ const serverSchema = new mongoose.Schema({
       maxlength: 100,
       default: null
     },
+    roles: [{
+      type: mongoose.Schema.Types.ObjectId,
+      // No ref here because we store role as a subdocument in the server
+    }],
     joinedAt: {
       type: Date,
       default: Date.now

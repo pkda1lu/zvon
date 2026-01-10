@@ -160,13 +160,29 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                   <div className="message-content">
                     <div className="message-header">
                       <div className="message-author-info">
-                        <span className="message-author" onClick={() => onUserClick(msg.author._id)} onContextMenu={(e) => handleContextMenu(e, msg.author)} style={{ cursor: 'pointer' }}>
+                        <span
+                          className="message-author"
+                          onClick={() => onUserClick(msg.author._id)}
+                          onContextMenu={(e) => handleContextMenu(e, msg.author)}
+                          style={{
+                            cursor: 'pointer',
+                            color: (() => {
+                              const member = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id));
+                              if (!member) return 'inherit';
+                              const roleIds = member.roles || [];
+                              const roles = (server.roles || []).filter(r => roleIds.includes(r._id));
+                              roles.sort((a, b) => (b.position || 0) - (a.position || 0));
+                              const colorRole = roles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
+                              return colorRole ? colorRole.color : 'inherit';
+                            })()
+                          }}
+                        >
                           {server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id))?.nickname || msg.author.username}
                         </span>
                         <span className="message-time">{formatDate(msg.createdAt)}</span>
                       </div>
                       <div className="message-actions-hover">
-                        {(msg.author._id === user?._id || server.ownerId === user?._id) && (
+                        {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
                           <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={16} /></button>
                         )}
                       </div>

@@ -6,11 +6,37 @@ const Channel = require('../models/Channel');
 const User = require('../models/User');
 const upload = require('../middleware/upload');
 
+const checkPermission = require('../middleware/checkPermission');
+const { Permissions, DEFAULT_PERMISSIONS } = require('../utils/permissions');
+const { computePermissions } = require('../utils/permissionCalculator');
+
 router.post('/', auth, async (req, res) => {
   try {
     const { name, description, icon } = req.body;
     if (!name || name.trim().length === 0) return res.status(400).json({ message: 'Server name is required' });
-    const server = new Server({ name: name.trim(), description: description || '', icon: icon || null, owner: req.user._id, members: [{ user: req.user._id }] });
+
+    // Create @everyone role
+    const everyoneRole = {
+      name: '@everyone',
+      color: '#99aab5',
+      hoist: false,
+      position: 0,
+      permissions: DEFAULT_PERMISSIONS.toString(),
+      mentionable: false
+    };
+
+    const server = new Server({
+      name: name.trim(),
+      description: description || '',
+      icon: icon || null,
+      owner: req.user._id,
+      roles: [everyoneRole],
+      members: [{
+        user: req.user._id,
+        roles: [] // Owner doesn't strictly need roles, but @everyone is implicit
+      }]
+    });
+
     await server.save();
     const generalChannel = new Channel({ name: 'general', type: 'text', server: server._id, position: 0 });
     await generalChannel.save();
@@ -65,7 +91,8 @@ router.post('/:id/join', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-router.put('/:id', auth, async (req, res) => {
+// Update server settings
+router.put('/:id', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
@@ -83,10 +110,17 @@ router.put('/:id', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+// Delete server
 router.delete('/:id', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    // Only owner can delete server
+    if (server.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only the server owner can delete the server' });
+    }
+
     await Channel.deleteMany({ server: server._id });
     const io = req.app.get('io');
     if (io) io.to(`server-${req.params.id}`).emit('server-deleted', { serverId: req.params.id });
@@ -95,7 +129,7 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-router.post('/:id/icon', auth, upload.single('icon'), async (req, res) => {
+router.post('/:id/icon', auth, checkPermission(Permissions.MANAGE_GUILD), upload.single('icon'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
     const server = await Server.findById(req.params.id);
@@ -112,7 +146,7 @@ router.post('/:id/icon', auth, upload.single('icon'), async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-router.post('/:id/banner', auth, upload.single('banner'), async (req, res) => {
+router.post('/:id/banner', auth, checkPermission(Permissions.MANAGE_GUILD), upload.single('banner'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
     const server = await Server.findById(req.params.id);
@@ -129,6 +163,109 @@ router.post('/:id/banner', auth, upload.single('banner'), async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+// ROLES ROUTES
+router.get('/:id/roles', auth, async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    res.json(server.roles);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const { name, color, hoist, permissions, mentionable } = req.body;
+    const newRole = {
+      name: name || 'new role',
+      color: color || '#99aab5',
+      hoist: hoist || false,
+      position: server.roles.length,
+      permissions: permissions || DEFAULT_PERMISSIONS.toString(),
+      mentionable: mentionable || false
+    };
+
+    server.roles.push(newRole);
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
+
+    res.status(201).json(server.roles[server.roles.length - 1]);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const role = server.roles.id(req.params.roleId);
+    if (!role) return res.status(404).json({ message: 'Role not found' });
+    if (role.name === '@everyone' && req.body.name) return res.status(400).json({ message: 'Cannot rename @everyone role' });
+
+    const fields = ['name', 'color', 'hoist', 'position', 'permissions', 'mentionable'];
+    fields.forEach(field => {
+      if (req.body[field] !== undefined) role[field] = req.body[field];
+    });
+
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
+
+    res.json(role);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const role = server.roles.id(req.params.roleId);
+    if (!role) return res.status(404).json({ message: 'Role not found' });
+    if (role.name === '@everyone') return res.status(400).json({ message: 'Cannot delete @everyone role' });
+
+    // Remove role from all members
+    server.members.forEach(member => {
+      member.roles = member.roles.filter(r => r.toString() !== req.params.roleId);
+    });
+
+    server.roles.pull(req.params.roleId);
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
+
+    res.json({ message: 'Role deleted' });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.patch('/:id/update-member-roles', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
+  try {
+    const { userId, roles } = req.body;
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const member = server.members.find(m => m.user.toString() === userId);
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+
+    member.roles = roles;
+    await server.save();
+
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+    const updatedMember = populatedServer.members.find(m => m.user._id.toString() === userId);
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: updatedMember });
+
+    res.json(updatedMember);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.get('/:id/members/:userId', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
@@ -139,17 +276,40 @@ router.get('/:id/members/:userId', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+// Update member profile (nickname, roles, etc.)
 router.put('/:id/members/:userId', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
     const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
     if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
-    const { nickname, bio, avatar, banner } = req.body;
-    if (nickname !== undefined) server.members[memberIndex].nickname = nickname;
+
+    const { nickname, bio, avatar, banner, roles } = req.body;
+    const isSelf = req.user._id.toString() === req.params.userId;
+    const userPerms = computePermissions(req.user._id, server);
+
+    // Permission checks
+    if (nickname !== undefined && nickname !== server.members[memberIndex].nickname) {
+      const canChangeSelf = isSelf && (userPerms & Permissions.CHANGE_NICKNAME);
+      const canManageOthers = (userPerms & Permissions.MANAGE_NICKNAMES);
+      if (!canChangeSelf && !canManageOthers && String(server.owner) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Insufficient permissions to change nickname' });
+      }
+      server.members[memberIndex].nickname = nickname;
+    }
+
+    if (roles !== undefined) {
+      if (!(userPerms & Permissions.MANAGE_ROLES) && String(server.owner) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Insufficient permissions to manage roles' });
+      }
+      // TODO: Check role hierarchy (cannot add/remove roles higher than your own)
+      server.members[memberIndex].roles = roles;
+    }
+
     if (bio !== undefined) server.members[memberIndex].bio = bio;
     if (avatar !== undefined) server.members[memberIndex].avatar = avatar;
     if (banner !== undefined) server.members[memberIndex].banner = banner;
+
     await server.save();
     const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
     const io = req.app.get('io');

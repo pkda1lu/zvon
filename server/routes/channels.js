@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const checkPermission = require('../middleware/checkPermission');
+const { Permissions } = require('../utils/permissions');
 const Channel = require('../models/Channel');
 const Server = require('../models/Server');
 
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, checkPermission(Permissions.MANAGE_CHANNELS, 'body.serverId'), async (req, res) => {
   try {
     const { name, type, serverId, category, position, topic } = req.body;
     const server = await Server.findById(serverId);
@@ -37,14 +39,21 @@ router.get('/:id', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, async (req, res, next) => {
   try {
     const channel = await Channel.findById(req.params.id);
     if (!channel) return res.status(404).json({ message: 'Channel not found' });
-    const { name, topic, position } = req.body;
+    req.serverId = channel.server;
+    next();
+  } catch (err) { next(err); }
+}, checkPermission(Permissions.MANAGE_CHANNELS), async (req, res) => {
+  try {
+    const channel = await Channel.findById(req.params.id);
+    const { name, topic, position, permissionOverwrites } = req.body;
     if (name) channel.name = name;
     if (topic !== undefined) channel.topic = topic;
     if (position !== undefined) channel.position = position;
+    if (permissionOverwrites !== undefined) channel.permissionOverwrites = permissionOverwrites;
     await channel.save();
     const io = req.app.get('io');
     if (io) {
@@ -55,10 +64,16 @@ router.put('/:id', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, async (req, res, next) => {
   try {
     const channel = await Channel.findById(req.params.id);
     if (!channel) return res.status(404).json({ message: 'Channel not found' });
+    req.serverId = channel.server;
+    next();
+  } catch (err) { next(err); }
+}, checkPermission(Permissions.MANAGE_CHANNELS), async (req, res) => {
+  try {
+    const channel = await Channel.findById(req.params.id);
     const serverId = channel.server;
     await Channel.findByIdAndDelete(req.params.id);
     const server = await Server.findById(serverId);

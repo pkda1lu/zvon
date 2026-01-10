@@ -21,27 +21,29 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
         <div className="server-members">
             <div className="members-list">
                 {(() => {
-                    // Group members by highest role
-                    const onlineMembers = server.members.filter(m => m.user.status !== 'offline');
-                    const offlineMembers = server.members.filter(m => m.user.status === 'offline');
-
                     // Get all server roles sorted by position
                     const serverRoles = [...(server.roles || [])].sort((a, b) => (b.position || 0) - (a.position || 0));
 
-                    // Map role ID to members
+                    const onlineMembers = server.members.filter(m => m.user.status !== 'offline');
+                    const offlineMembers = server.members.filter(m => m.user.status === 'offline');
+
+                    // Map role ID to members for HOISTED roles
                     const roleGroups: Record<string, typeof server.members> = {};
                     const noRoleMembers: typeof server.members = [];
 
                     onlineMembers.forEach(member => {
-                        const memberRoles = (member.roles || []).filter((r: any) => typeof r === 'object') as any[];
+                        const memberRoleIds = member.roles || [];
+                        const memberRoles = serverRoles.filter(r => memberRoleIds.includes(r._id));
                         memberRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
 
-                        if (memberRoles.length > 0) {
-                            const highestRole = memberRoles[0];
-                            if (!roleGroups[highestRole._id]) {
-                                roleGroups[highestRole._id] = [];
+                        // Find highest HOISTED role
+                        const hoistedRole = memberRoles.find(r => r.hoist);
+
+                        if (hoistedRole) {
+                            if (!roleGroups[hoistedRole._id]) {
+                                roleGroups[hoistedRole._id] = [];
                             }
-                            roleGroups[highestRole._id].push(member);
+                            roleGroups[hoistedRole._id].push(member);
                         } else {
                             noRoleMembers.push(member);
                         }
@@ -51,15 +53,17 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                         <>
                             {serverRoles.map(role => {
                                 const membersInRole = roleGroups[role._id];
-                                if (!membersInRole || membersInRole.length === 0) return null;
+                                if (!membersInRole || membersInRole.length === 0 || !role.hoist) return null;
 
                                 return (
                                     <div key={role._id} className="member-group">
                                         <div className="group-header">{role.name.toUpperCase()} — {membersInRole.length}</div>
                                         {membersInRole.map(member => {
-                                            const sortedRoles = [...(member.roles || [])] as any[];
-                                            sortedRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
-                                            const colorRole = sortedRoles.find(r => r.color && r.color !== '#99AAB5');
+                                            const memberRoleIds = member.roles || [];
+                                            const memberRoles = serverRoles.filter(r => memberRoleIds.includes(r._id));
+                                            memberRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
+
+                                            const colorRole = memberRoles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
                                             const memberColor = colorRole ? colorRole.color : 'inherit';
 
                                             return (
@@ -99,33 +103,41 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                             {noRoleMembers.length > 0 && (
                                 <div className="member-group">
                                     <div className="group-header">ОНЛАЙН — {noRoleMembers.length}</div>
-                                    {noRoleMembers.map(member => (
-                                        <div
-                                            key={member.user._id}
-                                            className="member-item"
-                                            onClick={() => onUserClick(member.user._id)}
-                                            onContextMenu={(e) => handleContextMenu(e, member.user)}
-                                        >
-                                            <div className="member-avatar">
-                                                {getAvatarUrl(member.user.avatar) ? (
-                                                    <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
-                                                ) : (
-                                                    <span>{member.user.username.charAt(0).toUpperCase()}</span>
-                                                )}
-                                                <div className={`status-indicator ${member.user.status}`}></div>
+                                    {noRoleMembers.map(member => {
+                                        const memberRoleIds = member.roles || [];
+                                        const memberRoles = serverRoles.filter(r => memberRoleIds.includes(r._id));
+                                        memberRoles.sort((a, b) => b.position - a.position);
+                                        const colorRole = memberRoles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
+                                        const memberColor = colorRole ? colorRole.color : 'inherit';
+
+                                        return (
+                                            <div
+                                                key={member.user._id}
+                                                className="member-item"
+                                                onClick={() => onUserClick(member.user._id)}
+                                                onContextMenu={(e) => handleContextMenu(e, member.user)}
+                                            >
+                                                <div className="member-avatar">
+                                                    {getAvatarUrl(member.user.avatar) ? (
+                                                        <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
+                                                    ) : (
+                                                        <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                                                    )}
+                                                    <div className={`status-indicator ${member.user.status}`}></div>
+                                                </div>
+                                                <div className="member-info">
+                                                    <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.username}</span>
+                                                    {member.user.activity && (
+                                                        <div className="member-activity">
+                                                            <span className="activity-text">
+                                                                Играет в <strong>{member.user.activity.name}</strong>
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="member-info">
-                                                <span className="member-name">{member.nickname || member.user.username}</span>
-                                                {member.user.activity && (
-                                                    <div className="member-activity">
-                                                        <span className="activity-text">
-                                                            Играет в <strong>{member.user.activity.name}</strong>
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
 
@@ -133,9 +145,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                 <div className="member-group">
                                     <div className="group-header">ОФФЛАЙН — {offlineMembers.length}</div>
                                     {offlineMembers.map(member => {
-                                        const sortedRoles = [...(member.roles || [])] as any[];
-                                        sortedRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
-                                        const colorRole = sortedRoles.find(r => r.color && r.color !== '#99AAB5');
+                                        const memberRoleIds = member.roles || [];
+                                        const memberRoles = serverRoles.filter(r => memberRoleIds.includes(r._id));
+                                        memberRoles.sort((a, b) => b.position - a.position);
+                                        const colorRole = memberRoles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
                                         const memberColor = colorRole ? colorRole.color : 'inherit';
 
                                         return (

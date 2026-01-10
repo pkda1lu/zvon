@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
 import axios from 'axios';
+import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './MemberContextMenu.css';
 import InputModal from './InputModal';
 
@@ -47,7 +48,12 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const currentVolume = userVolumes.get(targetUser._id) ?? 1;
     const isLocalMuted = localMutes.has(targetUser._id);
     const isSelf = currentUser?._id === targetUser._id;
-    const isOwner = server.ownerId === currentUser?._id;
+    const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
+    const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES);
+    const canKick = hasPermission(userPerms, Permissions.KICK_MEMBERS);
+    const canManageNicknames = hasPermission(userPerms, Permissions.MANAGE_NICKNAMES);
+    const canChangeNickname = hasPermission(userPerms, Permissions.CHANGE_NICKNAME);
+    const isOwner = (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === currentUser?._id;
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -126,11 +132,11 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     }
                     break;
                 case 'nickname':
-                    const targetMember = server.members.find(m => m.user._id === targetUser._id);
+                    const m = server.members.find(m => (m.user._id || m.user) === targetUser._id);
                     setInputModalConfig({
                         title: 'Изменить никнейм',
                         label: 'Никнейм',
-                        initialValue: (targetMember as any)?.nickname || '',
+                        initialValue: (m as any)?.nickname || '',
                         onSubmit: async (val) => {
                             try {
                                 await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { nickname: val });
@@ -138,6 +144,9 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                         }
                     });
                     setShowInputModal(true);
+                    return;
+                case 'toggle-role':
+                    // Handled separately now
                     return;
                 case 'server-profile':
                     window.dispatchEvent(new CustomEvent('open-server-profile-settings', { detail: { serverId: server._id } }));
@@ -187,8 +196,43 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 </div>
             </div>
             <div className="menu-separator" />
+            <div className="menu-separator" />
             <div className="menu-group">
-                {(isSelf || isOwner) && <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>}
+                {(isSelf ? canChangeNickname : canManageNicknames) && (
+                    <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
+                )}
+                {canManageRoles && !isSelf && (
+                    <div className="menu-item has-submenu">
+                        Роли
+                        <div className="context-submenu">
+                            {(server.roles || []).filter(r => r.name !== '@everyone').map(role => {
+                                const m = server.members.find(me => (me.user._id || me.user) === targetUser._id);
+                                const hasRole = (m?.roles || []).includes(role._id);
+                                return (
+                                    <div
+                                        key={role._id}
+                                        className="menu-item check-item"
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+                                            const newRoles = hasRole
+                                                ? (m?.roles || []).filter(rid => rid !== role._id)
+                                                : [...(m?.roles || []), role._id];
+                                            try {
+                                                await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { roles: newRoles });
+                                            } catch (err) { }
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div className="role-dot-mini" style={{ backgroundColor: role.color, width: '8px', height: '8px', borderRadius: '50%' }} />
+                                            {role.name}
+                                        </div>
+                                        {hasRole && '✓'}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
                 {!isSelf && (isFriend ? <div className="menu-item destructive" onClick={() => handleAction('remove-friend')}>Удалить из друзей</div> : <div className="menu-item" onClick={() => handleAction('add-friend')}>Добавить в друзья</div>)}
                 {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('block')}>Заблокировать</div>}
             </div>
@@ -207,7 +251,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     </div>
                 </>
             )}
-            {!isSelf && isOwner && (
+            {!isSelf && canKick && (
                 <>
                     <div className="menu-separator" />
                     <div className="menu-group">

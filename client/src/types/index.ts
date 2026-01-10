@@ -35,8 +35,18 @@ export interface Role {
   _id: string;
   name: string;
   color: string;
+  hoist: boolean;
   position: number;
-  permissions: string[];
+  permissions: string;
+  mentionable: boolean;
+}
+
+export interface PermissionOverwrite {
+  _id?: string;
+  id: string;
+  type: 'role' | 'member';
+  allow: string;
+  deny: string;
 }
 
 export interface Server {
@@ -46,18 +56,17 @@ export interface Server {
   icon?: string;
   banner?: string;
   bannerColor?: string;
-  ownerId: string;
   owner?: User | string;
-  roles?: Role[];
+  roles: Role[];
   members: Array<{
     user: User;
     nickname?: string;
+    roles: string[]; // Role IDs
     joinedAt: string;
     communicationDisabledUntil?: string;
     bio?: string;
     avatar?: string;
     banner?: string;
-    roles?: Role[] | string[];
   }>;
   channels: Channel[];
   createdAt: string;
@@ -71,6 +80,7 @@ export interface Channel {
   category?: string | Channel;
   position: number;
   topic?: string;
+  permissionOverwrites?: PermissionOverwrite[];
   createdAt: string;
 }
 

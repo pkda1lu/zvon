@@ -3,9 +3,11 @@ import { Server, Channel, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import CreateChannelModal from './CreateChannelModal';
+import ChannelSettingsModal from './ChannelSettingsModal';
 import { HashtagIcon, SpeakerIcon, PlusIcon, SettingsIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice } from '../contexts/VoiceContext';
+import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './ServerSidebar.css';
 import InviteModal from './InviteModal';
 import MemberContextMenu from './MemberContextMenu';
@@ -37,12 +39,17 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const { socket } = useSocket();
   const { speakingUsers } = useVoice();
 
-  const isOwner = String((server.owner as any)?._id || server.owner || (server as any).ownerId) === String(currentUser?._id);
+  const isOwner = (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === currentUser?._id;
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
+
+  const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
+  const canManageChannels = hasPermission(userPerms, Permissions.MANAGE_CHANNELS) || isOwner;
+  const canCreateChannels = hasPermission(userPerms, Permissions.MANAGE_CHANNELS) || isOwner;
 
   const handleContextMenu = (e: React.MouseEvent, user: User) => {
     e.preventDefault();
@@ -94,13 +101,22 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           <div className="channel-category">
             <div className="category-header">
               <span>ТЕКСТОВЫЕ КАНАЛЫ</span>
-              {isOwner && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
+              {canCreateChannels && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
             </div>
             {textChannels.map((channel) => (
               <div key={channel._id} className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''}`} onClick={() => onChannelSelect(channel)}>
-                <span className="channel-icon">#</span>
-                <span className="channel-name">{channel.name}</span>
-                {unreadCounts[channel._id] > 0 && <div className="channel-unread-badge">{unreadCounts[channel._id]}</div>}
+                <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                  <span className="channel-icon">#</span>
+                  <span className="channel-name">{channel.name}</span>
+                </div>
+                <div className="channel-actions">
+                  {unreadCounts[channel._id] > 0 && <div className="channel-unread-badge" style={{ marginRight: '4px' }}>{unreadCounts[channel._id]}</div>}
+                  {canManageChannels && (
+                    <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
+                      <SettingsIcon size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -110,13 +126,22 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           <div className="channel-category">
             <div className="category-header">
               <span>ГОЛОСОВЫЕ КАНАЛЫ</span>
-              {isOwner && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
+              {canCreateChannels && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
             </div>
             {voiceChannels.map((channel) => (
               <div key={channel._id}>
                 <div className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`} onClick={() => onChannelSelect(channel)}>
-                  <span className="channel-icon"><SpeakerIcon size={18} /></span>
-                  <span className="channel-name">{channel.name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                    <span className="channel-icon"><SpeakerIcon size={18} /></span>
+                    <span className="channel-name">{channel.name}</span>
+                  </div>
+                  <div className="channel-actions">
+                    {canManageChannels && (
+                      <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
+                        <SettingsIcon size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
                   <div className="voice-channel-users">
@@ -140,6 +165,21 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 
       {showCreateModal && <CreateChannelModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} serverId={server._id} onChannelCreated={handleChannelCreated} />}
       {showInviteModal && <InviteModal isOpen={showInviteModal} onClose={() => setShowInviteModal(false)} serverId={server._id} serverName={server.name} />}
+      {editingChannel && (
+        <ChannelSettingsModal
+          isOpen={!!editingChannel}
+          onClose={() => setEditingChannel(null)}
+          channel={editingChannel}
+          server={server}
+          onChannelUpdate={(updated) => {
+            // Updated via server-updated socket usually, but for instant UI:
+            if (onChannelCreated) onChannelCreated();
+          }}
+          onChannelDelete={(id) => {
+            if (onChannelCreated) onChannelCreated();
+          }}
+        />
+      )}
       {contextMenu && <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onOpenProfile={onUserClick} />}
     </div>
   );

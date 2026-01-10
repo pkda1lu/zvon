@@ -1,5 +1,25 @@
 const mongoose = require('mongoose');
 
+const permissionOverwriteSchema = new mongoose.Schema({
+  id: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true
+  },
+  type: {
+    type: String,
+    enum: ['role', 'member'],
+    required: true
+  },
+  allow: {
+    type: String,
+    default: '0'
+  },
+  deny: {
+    type: String,
+    default: '0'
+  }
+});
+
 const channelSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -35,6 +55,7 @@ const channelSchema = new mongoose.Schema({
     type: String,
     maxlength: 500
   },
+  permissionOverwrites: [permissionOverwriteSchema],
   createdAt: {
     type: Date,
     default: Date.now
