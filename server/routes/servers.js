@@ -178,8 +178,16 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
     const { name, color, hoist, permissions, mentionable } = req.body;
+
+    // Fix existing roles that might be missing names to pass validation
+    server.roles.forEach((role, index) => {
+      if (!role.name) {
+        role.name = index === 0 ? '@everyone' : `Role ${index}`;
+      }
+    });
+
     const newRole = {
-      name: name || 'new role',
+      name: name || 'New Role',
       color: color || '#99aab5',
       hoist: hoist || false,
       position: server.roles.length,
