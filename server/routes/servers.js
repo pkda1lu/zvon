@@ -240,19 +240,25 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
-    // Robust role lookup
+    // --- ULTRA-ROBUST ROLE LOOKUP ---
     let role = server.roles.id(req.params.roleId);
+
     if (!role) {
-      // Fallback 1: Manual search by ID string
+      console.log(`Role ID ${req.params.roleId} not found by standard method. Trying fallbacks...`);
+      // Fallback 1: Manual search in array
       role = server.roles.find(r => r && String(r._id || r) === String(req.params.roleId));
-    }
-    if (!role && req.params.roleId === 'everyone') {
-      // Fallback 2: Name-based search if ID is literally 'everyone' (from some clients)
-      role = server.roles.find(r => r.name === '@everyone');
     }
 
     if (!role) {
-      console.error(`Update role error: Role ${req.params.roleId} not found on server ${server._id}`);
+      // Fallback 2: If it's the @everyone role, find it by name regardless of ID
+      // Some old clients or manual DB edits might have mismatched IDs
+      const isEveryoneRequest = req.params.roleId === 'everyone' || req.params.roleId === '0';
+      role = server.roles.find(r => r.name === '@everyone');
+      if (role) console.log('Found @everyone role by name fallback.');
+    }
+
+    if (!role) {
+      console.error(`Update role error: Role ${req.params.roleId} absolutely not found on server ${server._id}`);
       return res.status(404).json({ message: 'Role not found' });
     }
 
