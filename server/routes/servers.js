@@ -208,8 +208,8 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
 
     // Fix existing roles that might be missing names to pass validation
     server.roles.forEach((role, index) => {
-      if (!role.name) {
-        role.name = index === 0 ? '@everyone' : `Role ${index}`;
+      if (!role || !role.name) {
+        if (role) role.name = index === 0 ? '@everyone' : `Recovered Role ${index}`;
       }
     });
 
