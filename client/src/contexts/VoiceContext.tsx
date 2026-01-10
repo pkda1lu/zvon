@@ -397,7 +397,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             let negotiationTimeout: any = null;
             pc.onnegotiationneeded = () => {
-                if (pc.signalingState !== 'stable') return;
+                if (!initiator || pc.signalingState !== 'stable') return;
                 clearTimeout(negotiationTimeout);
                 negotiationTimeout = setTimeout(negotiate, 150);
             };
@@ -433,7 +433,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         return peersRef.current.get(targetUserId)!;
-    }, [socket, handleTrack]);
+    }, [socket, handleTrack, user?._id]);
 
     const leaveChannel = useCallback(() => {
         if (!activeChannelId) return;
@@ -679,7 +679,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
 
             others.forEach(u => {
-                const isInitiator = String(user?._id) < String(u._id);
+                const myId = String(user?._id);
+                const otherId = String(u._id);
+                const isInitiator = myId < otherId;
+                console.log(`[Voice] Creating peer for existing user ${u.username} (${u._id}). Initiator: ${isInitiator}`);
                 createPeer(u._id, isInitiator);
             });
         };
@@ -688,7 +691,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (data.userId === user?._id) return;
             setConnectedUsers(prev => prev.find(u => u._id === data.user._id) ? prev : [...prev, data.user]);
 
-            const isInitiator = String(user?._id) < String(data.userId);
+            const myId = String(user?._id);
+            const otherId = String(data.userId);
+            const isInitiator = myId < otherId;
+            console.log(`[Voice] User joined: ${data.user.username} (${data.userId}). Initiator: ${isInitiator}`);
             createPeer(data.userId, isInitiator);
 
             if (data.user.isMuted !== undefined) {
