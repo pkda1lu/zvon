@@ -71,7 +71,8 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const [editingMemberRoles, setEditingMemberRoles] = useState<string | null>(null); // User ID
 
     const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
-    const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES) || String(server.owner === 'object' ? (server.owner as any)._id : server.owner) === currentUser?._id;
+    const isOwner = (server.owner && (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner)) === currentUser?._id;
+    const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES) || isOwner;
 
     const [cropModal, setCropModal] = useState<{
         isOpen: boolean;
@@ -97,6 +98,14 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     useEffect(() => {
         setRoles(server.roles || []);
     }, [server.roles]);
+
+    useEffect(() => {
+        setServerName(server.name);
+        setServerDescription(server.description || '');
+        setServerIcon(server.icon);
+        setServerBanner(server.banner);
+        setBannerColor(server.bannerColor || '#5865f2');
+    }, [server]);
 
     // Sync editingRole if it was a placeholder or if it's not found by ID but found by name (@everyone)
     useEffect(() => {
@@ -257,6 +266,9 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             resolvedId = currentRole._id;
         }
 
+        // Optimistic update
+        setRoles(prev => prev.map(r => (String(r._id) === String(resolvedId)) ? { ...r, ...updates } : r));
+
         const url = `/api/servers/${server._id}/roles/${resolvedId}`;
         console.log(`[DEBUG] Updating role at: ${url}`, updates);
 
@@ -266,25 +278,24 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
             if (!updatedRole) return;
 
-            // Use functional update to avoid race conditions
+            // Final sync with server response
             setRoles(currentRoles => {
                 const newRoles = currentRoles.map(r =>
                     (String(r._id) === String(resolvedId) || (r.name === '@everyone' && updatedRole.name === '@everyone'))
                         ? updatedRole
                         : r
                 );
-
-                // Immediately notify parent
                 onServerUpdate({ ...server, roles: newRoles });
                 return newRoles;
             });
 
-            // Keep current editing context if ID changed
             if (updatedRole._id && String(resolvedId) !== String(updatedRole._id)) {
                 setEditingRole(updatedRole._id);
             }
         } catch (err) {
             console.error('Role update error:', err);
+            // Revert state on error? (Optional but safer)
+            setRoles(server.roles || []);
         }
     };
 
@@ -368,7 +379,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                     <div className="sidebar-header">Управление</div>
                     <div className={`sidebar-item ${activeTab === 'members' ? 'active' : ''}`} onClick={() => { setActiveTab('members'); setEditingRole(null); }}>Участники</div>
                     <div style={{ flex: 1 }} />
-                    <div className="sidebar-item danger" onClick={handleDeleteServer}>Удалить сервер</div>
+                    {isOwner && <div className="sidebar-item danger" onClick={handleDeleteServer}>Удалить сервер</div>}
                 </div>
 
                 <div className="server-settings-content">
@@ -383,9 +394,9 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                             <div className="overview-grid">
                                 <div className="avatar-upload-section">
                                     <div className="server-avatar-preview" onClick={() => fileInputRef.current?.click()}>
-                                        {getAvatarUrl(serverIcon) ? <img src={getAvatarUrl(serverIcon)!} alt="" /> : <span>{serverName.charAt(0).toUpperCase()}</span>}
-                                        <div className="avatar-hint">СМЕНИТЬ ИКОНКУ</div>
+                                        {getAvatarUrl(serverIcon) ? <img src={getAvatarUrl(serverIcon)!} alt="" /> : <span>{serverName ? serverName.charAt(0).toUpperCase() : '?'}</span>}
                                     </div>
+                                    <div className="avatar-hint">СМЕНИТЬ ИКОНКУ</div>
                                     <input type="file" ref={fileInputRef} onChange={handleIconUpload} style={{ display: 'none' }} accept="image/*" />
                                 </div>
                                 <div className="input-section">
