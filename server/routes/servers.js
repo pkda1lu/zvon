@@ -240,8 +240,22 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
-    const role = server.roles.id(req.params.roleId);
-    if (!role) return res.status(404).json({ message: 'Role not found' });
+    // Robust role lookup
+    let role = server.roles.id(req.params.roleId);
+    if (!role) {
+      // Fallback 1: Manual search by ID string
+      role = server.roles.find(r => r && String(r._id || r) === String(req.params.roleId));
+    }
+    if (!role && req.params.roleId === 'everyone') {
+      // Fallback 2: Name-based search if ID is literally 'everyone' (from some clients)
+      role = server.roles.find(r => r.name === '@everyone');
+    }
+
+    if (!role) {
+      console.error(`Update role error: Role ${req.params.roleId} not found on server ${server._id}`);
+      return res.status(404).json({ message: 'Role not found' });
+    }
+
     if (role.name === '@everyone' && req.body.name) return res.status(400).json({ message: 'Cannot rename @everyone role' });
 
     const fields = ['name', 'color', 'hoist', 'position', 'permissions', 'mentionable'];

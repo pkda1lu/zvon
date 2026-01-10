@@ -18,6 +18,36 @@ interface ServerSettingsModalProps {
 
 type SettingsTab = 'overview' | 'roles' | 'members';
 
+const PermissionMetadata: Record<string, { label: string; description: string; category: string }> = {
+    ADMINISTRATOR: { category: 'ОСНОВНЫЕ ПРАВА', label: 'Администратор', description: 'Предоставляет все права доступа, а также позволяет обходить ограничения в каналах. Это опасное право.' },
+    MANAGE_GUILD: { category: 'ОСНОВНЫЕ ПРАВА', label: 'Управление сервером', description: 'Позволяет менять название сервера, иконку, баннер и регион.' },
+    MANAGE_ROLES: { category: 'ОСНОВНЫЕ ПРАВА', label: 'Управление ролями', description: 'Позволяет создавать новые роли и редактировать роли ниже этой.' },
+    MANAGE_CHANNELS: { category: 'ОСНОВНЫЕ ПРАВА', label: 'Управление каналами', description: 'Позволяет создавать, редактировать и удалять каналы.' },
+    VIEW_AUDIT_LOG: { category: 'ОСНОВНЫЕ ПРАВА', label: 'Просмотр журнала аудита', description: 'Позволяет видеть историю изменений на сервере.' },
+
+    KICK_MEMBERS: { category: 'УПРАВЛЕНИЕ УЧАСТНИКАМИ', label: 'Исключать участников', description: 'Позволяет выгонять пользователей с сервера.' },
+    BAN_MEMBERS: { category: 'УПРАВЛЕНИЕ УЧАСТНИКАМИ', label: 'Банить участников', description: 'Позволяет навсегда блокировать доступ пользователей к серверу.' },
+    CREATE_INSTANT_INVITE: { category: 'УПРАВЛЕНИЕ УЧАСТНИКАМИ', label: 'Создание приглашения', description: 'Позволяет создавать ссылки для приглашения новых людей.' },
+    CHANGE_NICKNAME: { category: 'УПРАВЛЕНИЕ УЧАСТНИКАМИ', label: 'Изменение никнейма', description: 'Позволяет пользователю менять свой никнейм на этом сервере.' },
+    MANAGE_NICKNAMES: { category: 'УПРАВЛЕНИЕ УЧАСТНИКАМИ', label: 'Управление никнеймами', description: 'Позволяет менять никнеймы других участников.' },
+
+    VIEW_CHANNEL: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Просмотр каналов', description: 'Позволяет видеть список каналов и читать сообщения.' },
+    SEND_MESSAGES: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Отправка сообщений', description: 'Позволяет отправлять текстовые сообщения в каналы.' },
+    MANAGE_MESSAGES: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Управление сообщениями', description: 'Позволяет удалять и закреплять сообщения других пользователей.' },
+    EMBED_LINKS: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Встраивание ссылок', description: 'Ссылки в сообщениях будут преобразовываться в предпросмотр.' },
+    ATTACH_FILES: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Отправка файлов', description: 'Позволяет загружать и отправлять файлы и изображения.' },
+    READ_MESSAGE_HISTORY: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Чтение истории сообщений', description: 'Позволяет видеть сообщения, отправленные до входа в канал.' },
+    MENTION_EVERYONE: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Упоминание @everyone', description: 'Позволяет использовать теги @everyone и @here для уведомления всех.' },
+    ADD_REACTIONS: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Добавление реакций', description: 'Позволяет ставить эмодзи-реакции на сообщения.' },
+
+    CONNECT: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Подключение', description: 'Позволяет заходить в голосовые каналы.' },
+    SPEAK: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Говорить', description: 'Позволяет говорить в голосовых каналах.' },
+    STREAM: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Видеостриминг', description: 'Позволяет транслировать экран или включать камеру.' },
+    MUTE_MEMBERS: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Отключать микрофон участников', description: 'Позволяет выключать микрофон другим людям в голосовом канале.' },
+    DEAFEN_MEMBERS: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Отключать звук участникам', description: 'Позволяет выключать звук (наушники) другим людям.' },
+    MOVE_MEMBERS: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Перемещать участников', description: 'Позволяет перетаскивать людей между голосовыми каналами.' },
+};
+
 const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     isOpen,
     onClose,
@@ -276,70 +306,100 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                     {activeTab === 'roles' && (
                         <div className="settings-section roles-tab">
                             {editingRole ? (
-                                <div className="role-editor">
-                                    <button className="back-button" onClick={() => setEditingRole(null)}>← Все роли</button>
-                                    <div className="editor-header">
-                                        <h2>Редактирование: {roles.find(r => r._id === editingRole)?.name}</h2>
+                                <div className="role-editor-container">
+                                    <div className="role-editor-header">
+                                        <button className="back-button-compact" onClick={() => setEditingRole(null)}>
+                                            <CloseIcon size={16} />
+                                            <span>Все роли</span>
+                                        </button>
+                                        <div className="editor-title">
+                                            <h2>{roles.find(r => r._id === editingRole)?.name}</h2>
+                                            <span className="editor-subtitle">Редактирование роли</span>
+                                        </div>
                                     </div>
-                                    <div className="settings-input-group">
-                                        <label>Название роли</label>
-                                        <input
-                                            className="settings-input"
-                                            value={roles.find(r => r._id === editingRole)?.name || ''}
-                                            onChange={(e) => handleUpdateRole(editingRole, { name: e.target.value })}
-                                            disabled={roles.find(r => r._id === editingRole)?.name === '@everyone'}
-                                        />
-                                    </div>
-                                    <div className="settings-input-group">
-                                        <label>Цвет роли</label>
-                                        <div className="role-color-editor">
-                                            <input
-                                                type="color"
-                                                value={roles.find(r => r._id === editingRole)?.color || '#99aab5'}
-                                                onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
-                                            />
+
+                                    <div className="role-editor-scrollable">
+                                        <div className="settings-input-group">
+                                            <label>Название роли</label>
                                             <input
                                                 className="settings-input"
-                                                value={roles.find(r => r._id === editingRole)?.color || '#99aab5'}
-                                                onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
+                                                value={roles.find(r => r._id === editingRole)?.name || ''}
+                                                onChange={(e) => handleUpdateRole(editingRole, { name: e.target.value })}
+                                                disabled={roles.find(r => r._id === editingRole)?.name === '@everyone'}
                                             />
                                         </div>
-                                    </div>
 
-                                    <div className="permission-item">
-                                        <div className="permission-info">
-                                            <div className="permission-name">Показывать роль отдельно</div>
-                                            <div className="permission-description">Участники с этой ролью будут отображаться в отдельной категории в списке участников.</div>
-                                        </div>
-                                        <label className="switch">
-                                            <input type="checkbox" checked={roles.find(r => r._id === editingRole)?.hoist} onChange={(e) => handleUpdateRole(editingRole, { hoist: e.target.checked })} />
-                                            <span className="slider round"></span>
-                                        </label>
-                                    </div>
-
-                                    <div className="permissions-list">
-                                        <h3>Права доступа</h3>
-                                        {Object.entries(Permissions).map(([name, bit]) => (
-                                            <div key={name} className="permission-item">
-                                                <div className="permission-info">
-                                                    <div className="permission-name">{name.replace(/_/g, ' ')}</div>
-                                                </div>
-                                                <label className="switch">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={hasPermission(BigInt(roles.find(r => r._id === editingRole)?.permissions || '0'), bit as bigint)}
-                                                        onChange={(e) => {
-                                                            const currentPerms = BigInt(roles.find(r => r._id === editingRole)?.permissions || '0');
-                                                            const newPerms = e.target.checked ? currentPerms | (bit as bigint) : currentPerms & ~(bit as bigint);
-                                                            handleUpdateRole(editingRole, { permissions: newPerms.toString() });
-                                                        }}
-                                                    />
-                                                    <span className="slider round"></span>
-                                                </label>
+                                        <div className="settings-input-group">
+                                            <label>Цвет роли</label>
+                                            <div className="role-color-editor">
+                                                <input
+                                                    type="color"
+                                                    value={roles.find(r => r._id === editingRole)?.color || '#99aab5'}
+                                                    onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
+                                                />
+                                                <input
+                                                    className="settings-input"
+                                                    value={roles.find(r => r._id === editingRole)?.color || '#99aab5'}
+                                                    onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
+                                                />
                                             </div>
-                                        ))}
+                                        </div>
+
+                                        <div className="permission-item">
+                                            <div className="permission-info">
+                                                <div className="permission-name">Показывать роль отдельно от остальных участников</div>
+                                                <div className="permission-description">Участники с этой ролью будут отображаться в отдельной категории в списке участников.</div>
+                                            </div>
+                                            <label className="switch">
+                                                <input type="checkbox" checked={roles.find(r => r._id === editingRole)?.hoist} onChange={(e) => handleUpdateRole(editingRole, { hoist: e.target.checked })} />
+                                                <span className="slider round"></span>
+                                            </label>
+                                        </div>
+
+                                        <div className="permissions-group-container">
+                                            {Array.from(new Set(Object.values(PermissionMetadata).map(m => m.category))).map(category => (
+                                                <div key={category} className="permission-category-wrapper">
+                                                    <div className="permissions-divider">{category}</div>
+                                                    <div className="permissions-list">
+                                                        {Object.entries(PermissionMetadata)
+                                                            .filter(([_, data]) => data.category === category)
+                                                            .map(([key, data]) => {
+                                                                const bit = (Permissions as any)[key];
+                                                                return (
+                                                                    <div key={key} className="permission-item">
+                                                                        <div className="permission-info">
+                                                                            <div className="permission-name">{data.label}</div>
+                                                                            <div className="permission-description">{data.description}</div>
+                                                                        </div>
+                                                                        <label className="switch">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={hasPermission(BigInt(roles.find(r => r._id === editingRole)?.permissions || '0'), bit)}
+                                                                                onChange={(e) => {
+                                                                                    const currentPerms = BigInt(roles.find(r => r._id === editingRole)?.permissions || '0');
+                                                                                    const newPerms = e.target.checked ? currentPerms | bit : currentPerms & ~BigInt(bit);
+                                                                                    handleUpdateRole(editingRole, { permissions: newPerms.toString() });
+                                                                                }}
+                                                                            />
+                                                                            <span className="slider round"></span>
+                                                                        </label>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {roles.find(r => r._id === editingRole)?.name !== '@everyone' && (
+                                            <div className="role-editor-footer">
+                                                <button className="delete-role-btn" onClick={() => handleDeleteRole(editingRole)}>
+                                                    <TrashIcon size={16} />
+                                                    Удалить роль
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                    <button className="sidebar-item danger" style={{ marginTop: '40px' }} onClick={() => handleDeleteRole(editingRole)}>Удалить роль</button>
                                 </div>
                             ) : (
                                 <>
