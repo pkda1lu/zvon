@@ -56,9 +56,10 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const canBan = hasPermission(userPerms, Permissions.BAN_MEMBERS);
     const canManageNicknames = hasPermission(userPerms, Permissions.MANAGE_NICKNAMES);
     const canChangeNickname = hasPermission(userPerms, Permissions.CHANGE_NICKNAME);
+    const canMove = hasPermission(userPerms, Permissions.MOVE_MEMBERS);
     const isOwner = (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === currentUser?._id;
 
-    const { userStates } = useVoice();
+    const { userStates, activeChannelId } = useVoice();
     const targetVoiceState = userStates.get(targetUser._id);
     const isInVoice = !!targetVoiceState;
     const isServerMuted = targetVoiceState?.isServerMuted || false;
@@ -165,11 +166,6 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     });
                     setShowInputModal(true);
                     return;
-                case 'kick':
-                    if (window.confirm(`Выгнать ${targetUser.username}?`)) {
-                        await axios.delete(`/api/servers/${server._id}/members/${targetUser._id}`);
-                    }
-                    break;
                 case 'nickname':
                     const m = server.members.find(m => (m.user._id || m.user) === targetUser._id);
                     setInputModalConfig({
@@ -193,6 +189,11 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
         } catch (err) {
             alert('Действие не удалось.');
         }
+        onClose();
+    };
+
+    const handleVoiceKick = () => {
+        if (socket && activeChannelId) socket.emit('admin-voice-kick', { userId: targetUser._id, channelId: activeChannelId });
         onClose();
     };
 
@@ -326,11 +327,11 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     </div>
                 </>
             )}
-            {!isSelf && (canKick || canBan) && (
+            {!isSelf && (canBan || (isInVoice && canMove)) && (
                 <>
                     <div className="menu-separator" />
                     <div className="menu-group">
-                        {canKick && <div className="menu-item destructive" onClick={() => handleAction('kick')}>Выгнать</div>}
+                        {isInVoice && canMove && <div className="menu-item destructive" onClick={handleVoiceKick}>Отключить (Голос)</div>}
                         {canBan && <div className="menu-item destructive" onClick={handleBan}>Забанить</div>}
                     </div>
                 </>

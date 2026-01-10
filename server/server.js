@@ -284,6 +284,34 @@ io.on('connection', (socket) => {
     } catch (e) { console.error('Join voice error', e); }
   });
 
+  socket.on('admin-voice-kick', async (data) => {
+    try {
+      const { userId, channelId } = data; // channelId is where we kick FROM
+      const ch = await Channel.findById(channelId);
+      if (!ch) return;
+      const server = await Server.findById(ch.server);
+      if (!server) return;
+
+      const perms = computePermissions(socket.userId, server);
+      if (!hasPermission(perms, Permissions.MOVE_MEMBERS)) return; // Kicking from voice uses MOVE_MEMBERS (or should it be separate? Usually MOVE is enough, effectively moving to null)
+
+      const connections = io.sockets.adapter.rooms.get(`user-${userId}`);
+      if (connections) {
+        for (const sid of connections) {
+          const s = io.sockets.sockets.get(sid);
+          if (s) s.disconnect(); // Or force leave? Disconnect fully disconnects socket. Force leave is better.
+          if (s && s.voiceChannelId === channelId) {
+            s.leave(`voice-channel-${channelId}`);
+            s.voiceChannelId = null;
+            s.emit('force-disconnect-voice'); // Client needs to handle this
+            io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId });
+            await notifyVoiceChannelUpdate(channelId);
+          }
+        }
+      }
+    } catch (e) { console.error('Voice kick error', e); }
+  });
+
   socket.on('voice-state-update', async (data) => {
     if (!socket.voiceChannelId || socket.voiceChannelId !== data.channelId) return;
     socket.isMuted = data.isMuted; socket.isDeafened = data.isDeafened;

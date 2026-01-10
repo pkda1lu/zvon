@@ -768,6 +768,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // New Handlers
         socket.on('force-join-voice', handleForceJoin);
         socket.on('voice-server-state-update', handleServerStateUpdate);
+        socket.on('force-disconnect-voice', leaveChannel); // Simply reuse leaveChannel logic
 
         socket.emit('join-voice-channel', { channelId: activeChannelId });
 
@@ -781,6 +782,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-user-state-update');
             socket.off('force-join-voice');
             socket.off('voice-server-state-update');
+            socket.off('force-disconnect-voice');
         };
     }, [socket, isConnected, activeChannelId, createPeer, user, joinChannel]); // Added joinChannel dep
 
