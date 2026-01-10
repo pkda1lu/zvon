@@ -945,8 +945,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
                 const rms = Math.sqrt(sumOfSquares / dataArray.length);
                 const db = 20 * Math.log10(rms);
+                const state = userStates.get(userId);
+                const isUserMuted = state?.isMuted || state?.isServerMuted || state?.isDeafened || state?.isServerDeafened;
 
-                if (db > -50) nowSpeaking.add(userId);
+                if (db > -50 && !isUserMuted) nowSpeaking.add(userId);
             });
 
             setSpeakingUsers(prev => {
@@ -984,7 +986,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             speakingTimeoutsRef.current.forEach(t => clearTimeout(t));
             speakingTimeoutsRef.current.clear();
         };
-    }, [isConnected, localStream, remoteStreams, user?._id, isMuted, getAudioContext]);
+    }, [isConnected, localStream, remoteStreams, user?._id, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, getAudioContext]);
 
     const setUserVolume = useCallback((userId: string, volume: number) => {
         setUserVolumes(prev => {
