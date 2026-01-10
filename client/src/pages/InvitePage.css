@@ -166,6 +166,10 @@
 }
 
 .status-dot-pulse {
+    display: block;
+    /* Ensure it has dimensions */
+    flex-shrink: 0;
+    /* Prevent shrinking */
     width: 10px;
     height: 10px;
     background: #23a559;
