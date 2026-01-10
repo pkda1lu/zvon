@@ -248,11 +248,24 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
     let role = server.roles.id(req.params.roleId);
     if (!role) {
       // Fallback: search manually by string ID
-      role = server.roles.find(r => String(r._id) === String(req.params.roleId));
+      role = server.roles.find(r => r && String(r._id || r) === String(req.params.roleId));
     }
 
     if (!role) {
-      console.error(`Delete role error: Role ${req.params.roleId} not found in server roles`);
+      console.log(`Role ${req.params.roleId} not found in roles array. Attempting forced filter removal...`);
+      const initialLength = server.roles.length;
+      // Filter out anything that matches the ID string
+      server.roles = server.roles.filter(r => r && String(r._id || r) !== String(req.params.roleId));
+
+      if (server.roles.length < initialLength) {
+        await server.save();
+        const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+        const io = req.app.get('io');
+        if (io) io.to(`server-${server._id}`).emit('server-updated', updatedServer);
+        return res.json({ message: 'Role forcibly removed' });
+      }
+
+      console.error(`Delete role error: Role ${req.params.roleId} absolutely not found`);
       return res.status(404).json({ message: 'Role not found' });
     }
 
@@ -260,7 +273,9 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
 
     // Remove role from all members
     server.members.forEach(member => {
-      member.roles = member.roles.filter(r => r.toString() !== req.params.roleId);
+      if (member.roles) {
+        member.roles = member.roles.filter(r => String(r) !== String(req.params.roleId));
+      }
     });
 
     server.roles.pull(req.params.roleId);
