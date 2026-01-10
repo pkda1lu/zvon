@@ -193,6 +193,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     };
 
     const handleVoiceKick = () => {
+        // Kick user from voice channel (disconnect)
         if (socket && activeChannelId) socket.emit('admin-voice-kick', { userId: targetUser._id, channelId: activeChannelId });
         onClose();
     };

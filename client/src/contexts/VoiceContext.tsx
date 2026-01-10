@@ -768,7 +768,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // New Handlers
         socket.on('force-join-voice', handleForceJoin);
         socket.on('voice-server-state-update', handleServerStateUpdate);
-        socket.on('force-disconnect-voice', leaveChannel); // Simply reuse leaveChannel logic
+
+        const handleForceDisconnect = () => {
+            console.log('Forced disconnect from voice');
+            setActiveChannelId(null);
+            setIsConnected(false);
+            setConnectedUsers([]);
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(t => t.stop());
+                localStreamRef.current = null;
+                setLocalStream(null);
+            }
+            // We don't need to emit 'leave-voice-channel' because server already removed us
+        };
+        socket.on('force-disconnect-voice', handleForceDisconnect);
 
         socket.emit('join-voice-channel', { channelId: activeChannelId });
 

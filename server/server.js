@@ -299,11 +299,11 @@ io.on('connection', (socket) => {
       if (connections) {
         for (const sid of connections) {
           const s = io.sockets.sockets.get(sid);
-          if (s) s.disconnect(); // Or force leave? Disconnect fully disconnects socket. Force leave is better.
+          // if (s) s.disconnect(); // REMOVED: Do not disconnect the entire socket!
           if (s && s.voiceChannelId === channelId) {
+            s.emit('force-disconnect-voice'); // Client needs to handle this
             s.leave(`voice-channel-${channelId}`);
             s.voiceChannelId = null;
-            s.emit('force-disconnect-voice'); // Client needs to handle this
             io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId });
             await notifyVoiceChannelUpdate(channelId);
           }
