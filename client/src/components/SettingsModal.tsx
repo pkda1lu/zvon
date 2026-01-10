@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
@@ -42,6 +43,7 @@ type SettingsTab =
   | 'activity';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const { user, refreshUser, logout } = useAuth();
   const {
     isNoiseSuppressionEnabled, toggleNoiseSuppression,
@@ -762,7 +764,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
             <div className="sidebar-separator" />
 
-            <div className="sidebar-item logout" onClick={() => { logout(); onClose(); }}>
+            <div className="sidebar-item logout" onClick={() => { logout(); onClose(); navigate('/login'); }}>
               <LogOutIcon size={18} /> Выйти
             </div>
 

@@ -131,13 +131,11 @@ const InvitePage: React.FC = () => {
                                         </button>
 
                                         <div className="invite-browser-option">
-                                            <span>Уже в приложении?</span>
                                             <button
                                                 className="text-link-btn"
-                                                onClick={handleJoin}
-                                                disabled={joining}
+                                                onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}
                                             >
-                                                {joining ? 'Выполняется вход...' : 'Открыть в браузере'}
+                                                Установить ZVON
                                             </button>
                                         </div>
                                     </>
