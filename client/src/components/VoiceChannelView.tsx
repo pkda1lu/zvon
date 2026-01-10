@@ -5,7 +5,7 @@ import { Channel, User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, VideoIcon, MonitorIcon, PlayIcon, MaximizeIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, VideoIcon, MonitorIcon, PlayIcon, MaximizeIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon, FullscreenIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
@@ -48,7 +48,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; userId: string } | null>(null);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
-  const [expandedStreamId, setExpandedStreamId] = useState<string | null>(null);
+  const [expandedStreamId, setExpandedStreamId] = useState<string | null>(null); // Fullscreen (Portal)
+  const [focusedStreamId, setFocusedStreamId] = useState<string | null>(null); // Theater Mode (Inside View)
 
   const handleCloseContextMenu = () => setContextMenu(null);
 
@@ -127,25 +128,204 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     return items;
   }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, externalParticipants, userStates, remoteScreenStreams]);
 
-  // Cleanup expanded stream on disconnect or when stream is gone
+  // Cleanup expanded/focused stream on disconnect or when stream is gone
   useEffect(() => {
     if (!isConnectedToThisChannel) {
       setExpandedStreamId(null);
-    } else if (expandedStreamId) {
-      const streamExists = displayParticipants.some(p => p._id === expandedStreamId);
-      if (!streamExists) {
-        setExpandedStreamId(null);
+      setFocusedStreamId(null);
+    } else {
+      if (expandedStreamId) {
+        const streamExists = displayParticipants.some(p => p._id === expandedStreamId);
+        if (!streamExists) setExpandedStreamId(null);
+      }
+      if (focusedStreamId) {
+        const streamExists = displayParticipants.some(p => p._id === focusedStreamId);
+        if (!streamExists) setFocusedStreamId(null);
       }
     }
-  }, [isConnectedToThisChannel, expandedStreamId, displayParticipants]);
+  }, [isConnectedToThisChannel, expandedStreamId, focusedStreamId, displayParticipants]);
 
   const handleConnect = () => joinChannel(channel._id);
   const handleDisconnect = () => {
     setExpandedStreamId(null);
+    setFocusedStreamId(null);
     leaveChannel();
   };
 
+  const renderCard = (item: any, isMainStage = false) => {
+    if (item.type === 'stream') {
+      if (item.isMe) {
+        return (
+          <div key="local-stream" className={`participant-card stream-card local-stream ${isMainStage ? 'stage-card' : ''}`}>
+            <div className="stream-container">
+              <div className="local-streaming-placeholder">
+                <MonitorIcon size={48} color="var(--bg-accent)" />
+                <div className="local-streaming-text">Вы транслируете экран</div>
+              </div>
+              <div className="stream-overlay">
+                <div className="stream-user-info">Ваш стрим</div>
+                <button className="stop-stream-btn" onClick={stopScreenShare}>Прекратить</button>
+              </div>
+            </div>
+          </div>
+        );
+      } else {
+        const stream = remoteScreenStreams.get(item.userId);
+        const participant = activeConnectedUsers.find(u => u._id === item.userId) || externalParticipants.find(u => u._id === item.userId);
+        const isWatching = watchedScreenIds.has(item.userId);
+        const volume = screenVolumes.get(item.userId) ?? 1;
+        const isExpanded = expandedStreamId === item._id;
+        const isFocused = focusedStreamId === item._id;
+
+        const cardContent = (
+          <div
+            key={item._id}
+            className={`participant-card stream-card ${isExpanded ? 'expanded' : ''} ${isMainStage ? 'stage-card' : ''}`}
+            onClick={() => !isWatching && setWatchingScreen(item.userId, true)}
+          >
+            <div className="stream-container">
+              {!isWatching ? (
+                <div className="stream-join-placeholder">
+                  <div className="stream-preview-overlay">
+                    <MonitorIcon size={48} color="rgba(255,255,255,0.3)" />
+                    <button className="join-stream-btn" onClick={(e) => { e.stopPropagation(); setWatchingScreen(item.userId, true); }}>
+                      <PlayIcon size={16} /> Смотреть трансляцию
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <video
+                    autoPlay
+                    playsInline
+                    muted
+                    ref={el => {
+                      if (el && stream && el.srcObject !== stream) {
+                        el.srcObject = stream;
+                      }
+                    }}
+                    className="remote-stream-video"
+                  />
+                  <div className="stream-controls-overlay" onClick={e => e.stopPropagation()}>
+                    <div className="stream-controls-left">
+                      <div className="volume-control-wrapper">
+                        {volume === 0 ? <VolumeLowIcon size={18} /> : <VolumeHighIcon size={18} />}
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value={volume}
+                          onChange={(e) => setScreenVolume(item.userId, parseFloat(e.target.value))}
+                          className="stream-volume-slider"
+                        />
+                      </div>
+                    </div>
+                    <div className="stream-controls-right">
+                      {/* Theater Mode Button */}
+                      <button
+                        className="stream-control-btn"
+                        onClick={() => {
+                          if (isExpanded) setExpandedStreamId(null); // Close fullscreen if open
+                          setFocusedStreamId(isFocused ? null : item._id);
+                        }}
+                        title={isFocused ? 'Свернуть' : 'Развернуть'}
+                      >
+                        {isFocused ? <MinimizeIcon size={18} /> : <MaximizeIcon size={18} />}
+                      </button>
+
+                      {/* Fullscreen Mode Button */}
+                      <button
+                        className="stream-control-btn"
+                        onClick={() => {
+                          if (isFocused) setFocusedStreamId(null); // Exit theater if open (optional preference)
+                          setExpandedStreamId(isExpanded ? null : item._id);
+                        }}
+                        title={isExpanded ? 'Выйти из полноэкранного' : 'На весь экран'}
+                      >
+                        <FullscreenIcon size={18} />
+                      </button>
+
+                      <button
+                        className="stream-control-btn stop-watch"
+                        onClick={() => {
+                          setWatchingScreen(item.userId, false);
+                          if (isExpanded) setExpandedStreamId(null);
+                          if (isFocused) setFocusedStreamId(null);
+                        }}
+                        title="Прекратить просмотр"
+                      >
+                        Прекратить просмотр
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="stream-overlay">
+                <div className="stream-user-info">
+                  {participant?.username || 'Стрим'} в эфире
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+        if (isExpanded) {
+          return ReactDOM.createPortal(cardContent, document.body);
+        }
+        return cardContent;
+      }
+    }
+
+    // Normal User Card
+    const participant = item;
+    const isSpeaking = speakingUsers.has(participant._id);
+
+    return (
+      <div
+        key={participant._id}
+        className={`participant-card ${isSpeaking ? 'speaking-card' : ''} ${isMainStage ? 'stage-card' : ''}`}
+        onClick={() => onUserClick(participant._id)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (participant.isMe) return;
+          setContextMenu({ x: e.clientX, y: e.clientY, userId: participant._id });
+        }}
+      >
+        {participant.banner && (
+          <div
+            className="participant-banner"
+            style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }}
+          />
+        )}
+
+        <div className="participant-info">
+          <div className={`participant-avatar ${isSpeaking ? 'speaking' : ''}`}>
+            {getAvatarUrl(participant.avatar) ? (
+              <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
+            ) : (
+              <div className="avatar-placeholder-inner">{getDisplayName(participant).charAt(0).toUpperCase()}</div>
+            )}
+          </div>
+          <div className={`participant-name ${isSpeaking ? 'speaking' : ''}`}>
+            {getDisplayName(participant)}{participant.isMe ? ' (Вы)' : ''}
+          </div>
+        </div>
+
+        <div className="participant-status-icons">
+          {(participant.isMuted || participant.isDeafened) && (
+            <div className="status-icon">
+              {participant.isDeafened ? <DeafenedIcon size={12} /> : <MicMutedIcon size={12} />}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const gridClass = `participants-grid count-${displayParticipants.length > 4 ? 'more' : displayParticipants.length}`;
+
+  const focusedItem = focusedStreamId ? displayParticipants.find(p => p._id === focusedStreamId) : null;
 
   return (
     <div className="voice-channel-view">
@@ -168,177 +348,43 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         />
       )}
 
-      <div className="voice-channel-content">
-        <div className={gridClass}>
-          {displayParticipants.length > 0 ? (
-            displayParticipants.map((item) => {
-              if (item.type === 'stream') {
-                if (item.isMe) {
-                  return (
-                    <div key="local-stream" className="participant-card stream-card local-stream">
-                      <div className="stream-container">
-                        <div className="local-streaming-placeholder">
-                          <MonitorIcon size={48} color="var(--bg-accent)" />
-                          <div className="local-streaming-text">Вы транслируете экран</div>
-                        </div>
-                        <div className="stream-overlay">
-                          <div className="stream-user-info">Ваш стрим</div>
-                          <button className="stop-stream-btn" onClick={stopScreenShare}>Прекратить</button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                } else {
-                  const stream = remoteScreenStreams.get(item.userId);
-                  const participant = activeConnectedUsers.find(u => u._id === item.userId) || externalParticipants.find(u => u._id === item.userId);
-                  const isWatching = watchedScreenIds.has(item.userId);
-                  const volume = screenVolumes.get(item.userId) ?? 1;
-                  const isExpanded = expandedStreamId === item._id;
+      {/* RENDER LOGIC SWITCH: Theater Mode vs Grid Mode */}
+      {focusedItem ? (
+        <div className="voice-channel-content stage-layout">
+          <div className="stage-container">
+            <div className="stage-main">
+              {renderCard(focusedItem, true)}
+            </div>
+            <div className="stage-sidebar">
+              {displayParticipants.filter(p => p._id !== focusedStreamId).map(item => renderCard(item))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="voice-channel-content">
+          <div className={gridClass}>
+            {displayParticipants.length > 0 ? (
+              displayParticipants.map((item) => renderCard(item))
+            ) : (
+              <div className="voice-channel-disconnected" style={{ gridColumn: '1 / -1' }}>
+                <div className="voice-channel-icon-large"><SpeakerIcon size={80} /></div>
+                <h2>Здесь пока никого нет</h2>
+                <p>Будьте первым, кто подключится к этому каналу!</p>
+              </div>
+            )}
+          </div>
 
-                  const cardContent = (
-                    <div
-                      key={item._id}
-                      className={`participant-card stream-card ${isExpanded ? 'expanded' : ''}`}
-                    >
-                      <div className="stream-container">
-                        {!isWatching ? (
-                          <div className="stream-join-placeholder">
-                            <div className="stream-preview-overlay">
-                              <MonitorIcon size={48} color="rgba(255,255,255,0.3)" />
-                              <button className="join-stream-btn" onClick={() => setWatchingScreen(item.userId, true)}>
-                                <PlayIcon size={16} /> Смотреть трансляцию
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <video
-                              autoPlay
-                              playsInline
-                              muted
-                              ref={el => {
-                                if (el && stream && el.srcObject !== stream) {
-                                  el.srcObject = stream;
-                                }
-                              }}
-                              className="remote-stream-video"
-                            />
-                            <div className="stream-controls-overlay">
-                              <div className="stream-controls-left">
-                                <div className="volume-control-wrapper">
-                                  {volume === 0 ? <VolumeLowIcon size={18} /> : <VolumeHighIcon size={18} />}
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.01"
-                                    value={volume}
-                                    onChange={(e) => setScreenVolume(item.userId, parseFloat(e.target.value))}
-                                    className="stream-volume-slider"
-                                  />
-                                </div>
-                              </div>
-                              <div className="stream-controls-right">
-                                <button
-                                  className="stream-control-btn"
-                                  onClick={() => setExpandedStreamId(isExpanded ? null : item._id)}
-                                  title={isExpanded ? 'Свернуть' : 'Развернуть'}
-                                >
-                                  {isExpanded ? <MinimizeIcon size={18} /> : <MaximizeIcon size={18} />}
-                                </button>
-                                <button
-                                  className="stream-control-btn stop-watch"
-                                  onClick={() => {
-                                    setWatchingScreen(item.userId, false);
-                                    if (isExpanded) setExpandedStreamId(null);
-                                  }}
-                                  title="Прекратить просмотр"
-                                >
-                                  Прекратить просмотр
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                        <div className="stream-overlay">
-                          <div className="stream-user-info">
-                            {participant?.username || 'Стрим'} в эфире
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-
-                  if (isExpanded) {
-                    return ReactDOM.createPortal(cardContent, document.body);
-                  }
-                  return cardContent;
-                }
-              }
-
-              // Normal User Card
-              const participant = item;
-              const isSpeaking = speakingUsers.has(participant._id);
-
-              return (
-                <div
-                  key={participant._id}
-                  className={`participant-card ${isSpeaking ? 'speaking-card' : ''}`}
-                  onClick={() => onUserClick(participant._id)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    if (participant.isMe) return;
-                    setContextMenu({ x: e.clientX, y: e.clientY, userId: participant._id });
-                  }}
-                >
-                  {participant.banner && (
-                    <div
-                      className="participant-banner"
-                      style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }}
-                    />
-                  )}
-
-                  <div className="participant-info">
-                    <div className={`participant-avatar ${isSpeaking ? 'speaking' : ''}`}>
-                      {getAvatarUrl(participant.avatar) ? (
-                        <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
-                      ) : (
-                        <div className="avatar-placeholder-inner">{getDisplayName(participant).charAt(0).toUpperCase()}</div>
-                      )}
-                    </div>
-                    <div className={`participant-name ${isSpeaking ? 'speaking' : ''}`}>
-                      {getDisplayName(participant)}{participant.isMe ? ' (Вы)' : ''}
-                    </div>
-                  </div>
-
-                  <div className="participant-status-icons">
-                    {(participant.isMuted || participant.isDeafened) && (
-                      <div className="status-icon">
-                        {participant.isDeafened ? <DeafenedIcon size={12} /> : <MicMutedIcon size={12} />}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="voice-channel-disconnected" style={{ gridColumn: '1 / -1' }}>
-              <div className="voice-channel-icon-large"><SpeakerIcon size={80} /></div>
-              <h2>Здесь пока никого нет</h2>
-              <p>Будьте первым, кто подключится к этому каналу!</p>
+          {!isConnectedToThisChannel && (
+            <div className="voice-channel-actions">
+              <button className="connect-voice-button" onClick={handleConnect}>
+                <span className="button-icon"><PhoneIcon /></span>
+                Подключиться
+              </button>
             </div>
           )}
         </div>
+      )}
 
-        {!isConnectedToThisChannel && (
-          <div className="voice-channel-actions">
-            <button className="connect-voice-button" onClick={handleConnect}>
-              <span className="button-icon"><PhoneIcon /></span>
-              Подключиться
-            </button>
-          </div>
-        )}
-      </div>
 
       <div className="voice-channel-controls">
         {isConnectedToThisChannel ? (

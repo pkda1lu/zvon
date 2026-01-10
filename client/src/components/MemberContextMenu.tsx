@@ -28,6 +28,8 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     onMention,
     onOpenProfile
 }) => {
+    if (!targetUser) return null;
+
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
     const { userVolumes, setUserVolume, localMutes, toggleLocalMute } = useVoice();
