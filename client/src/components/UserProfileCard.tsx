@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { CloseIcon } from './Icons';
+import { CloseIcon, PlusIcon } from './Icons';
 import { useSocket } from '../contexts/SocketContext';
+import { useAuth } from '../contexts/AuthContext';
+import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './UserProfileCard.css';
 
 interface UserProfileCardProps {
@@ -32,6 +34,7 @@ const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
 
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId }) => {
     const { socket } = useSocket();
+    const { user: currentUser } = useAuth();
     const [profileData, setProfileData] = useState<{
         user: User;
         mutualServers: Array<{ _id: string; name: string; icon: string }>;
@@ -41,6 +44,11 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'info' | 'mutualFriends' | 'mutualServers'>('info');
     const [memberData, setMemberData] = useState<any>(null);
+    const [server, setServer] = useState<any>(null);
+    const [showRoleSelector, setShowRoleSelector] = useState(false);
+
+    const userPerms = (currentUser && server) ? computePermissions(currentUser._id, server) : 0n;
+    const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES);
 
     useEffect(() => {
         if (socket && userId) {
@@ -64,10 +72,15 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 setProfileData(response.data);
                 if (serverId) {
                     try {
-                        const memberRes = await axios.get(`/api/servers/${serverId}/members/${userId}`);
+                        const [memberRes, serverRes] = await Promise.all([
+                            axios.get(`/api/servers/${serverId}/members/${userId}`),
+                            axios.get(`/api/servers/${serverId}`)
+                        ]);
                         setMemberData(memberRes.data);
+                        setServer(serverRes.data);
                     } catch (memberErr) {
                         setMemberData(null);
+                        setServer(null);
                     }
                 }
             } catch (err) {
@@ -97,6 +110,22 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             </div>
         </div>
     );
+
+    const handleToggleRole = async (roleId: string) => {
+        if (!serverId || !userId || !memberData) return;
+        const currentRoles = memberData.roles || [];
+        const isRemoving = currentRoles.includes(roleId);
+        const newRoles = isRemoving
+            ? currentRoles.filter((id: string) => id !== roleId)
+            : [...currentRoles, roleId];
+
+        try {
+            const res = await axios.put(`/api/servers/${serverId}/members/${userId}`, { roles: newRoles });
+            setMemberData({ ...memberData, roles: res.data.roles });
+        } catch (err) {
+            alert('Не удалось обновить роли');
+        }
+    };
 
     const { user, mutualServers, mutualFriends } = profileData;
 
@@ -156,6 +185,53 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                         {activeTab === 'info' && (
                             <div className="info-tab">
                                 <section><h4>О СЕБЕ</h4><p className="bio-text">{memberData?.bio || user.bio || 'Пользователь ничего не рассказал о себе.'}</p></section>
+
+                                {serverId && server && (
+                                    <section>
+                                        <div className="roles-list-header">
+                                            <h4>РОЛИ</h4>
+                                            {canManageRoles && (
+                                                <button className="add-role-btn" onClick={() => setShowRoleSelector(!showRoleSelector)}>
+                                                    <PlusIcon size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="roles-list">
+                                            {(memberData?.roles || []).length > 0 ? (
+                                                memberData.roles.map((rid: string) => {
+                                                    const role = server.roles.find((r: any) => r._id === rid);
+                                                    if (!role) return null;
+                                                    return (
+                                                        <div key={rid} className="role-chip" style={{ borderColor: role.color + '44' }}>
+                                                            <div className="role-dot" style={{ backgroundColor: role.color }} />
+                                                            <span style={{ color: role.color || '#fff' }}>{role.name}</span>
+                                                            {canManageRoles && (
+                                                                <div className="role-remove-icon" onClick={() => handleToggleRole(rid)}>×</div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <span className="no-roles">Нет ролей</span>
+                                            )}
+
+                                            {showRoleSelector && (
+                                                <div className="role-selector-dropdown">
+                                                    {server.roles.filter((r: any) => r.name !== '@everyone' && !memberData.roles?.includes(r._id)).map((role: any) => (
+                                                        <div key={role._id} className="role-select-item-mini" onClick={() => { handleToggleRole(role._id); setShowRoleSelector(false); }}>
+                                                            <div className="role-dot" style={{ backgroundColor: role.color }} />
+                                                            {role.name}
+                                                        </div>
+                                                    ))}
+                                                    {server.roles.filter((r: any) => r.name !== '@everyone' && !memberData.roles?.includes(r._id)).length === 0 && (
+                                                        <div className="no-roles-av">Нет доступных ролей</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+                                )}
+
                                 <section><h4>ДАТА РЕГИСТРАЦИИ</h4><p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p></section>
                             </div>
                         )}

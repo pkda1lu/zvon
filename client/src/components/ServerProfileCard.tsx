@@ -1,4 +1,4 @@
-import React from 'react';
+import axios from 'axios';
 import { Server } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { CloseIcon } from './Icons';
@@ -7,9 +7,22 @@ import './ServerProfileCard.css';
 interface ServerProfileCardProps {
     server: Server;
     onClose: () => void;
+    onLeave: (serverId: string) => void;
 }
 
-const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose }) => {
+const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, onLeave }) => {
+    const handleLeave = async () => {
+        if (window.confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
+            try {
+                await axios.post(`/api/servers/${server._id}/leave`);
+                onLeave(server._id);
+                onClose();
+            } catch (err) {
+                alert('Не удалось покинуть сервер');
+            }
+        }
+    };
+
     return (
         <div className="server-profile-overlay" onClick={onClose}>
             <div className="server-profile-card" onClick={e => e.stopPropagation()}>
@@ -78,6 +91,14 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose }
                                 </>
                             )}
                         </div>
+                    </div>
+
+                    <div className="server-profile-divider"></div>
+
+                    <div className="server-profile-actions">
+                        <button className="leave-server-btn" onClick={handleLeave}>
+                            Покинуть сервер
+                        </button>
                     </div>
                 </div>
             </div>

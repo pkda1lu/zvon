@@ -4,6 +4,7 @@ import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
 import { getAvatarUrl } from '../utils/avatar';
 import { UsersIcon, PlusIcon, SettingsIcon } from './Icons';
+import ServerContextMenu from './ServerContextMenu';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -16,6 +17,7 @@ interface SidebarProps {
   onServerJoined: (server: Server) => void;
   onLogout: () => void;
   onShowFriends: () => void;
+  onServerLeave: (serverId: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -27,10 +29,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCreateServer,
   onServerJoined,
   onLogout,
-  onShowFriends
+  onShowFriends,
+  onServerLeave
 }) => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, server: Server) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, server });
+  };
 
   return (
     <div className="sidebar">
@@ -49,6 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             key={server._id}
             className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''}`}
             onClick={() => onServerSelect(server)}
+            onContextMenu={(e) => handleContextMenu(e, server)}
             title={server.name}
           >
             {server.icon ? (
@@ -91,6 +101,16 @@ const Sidebar: React.FC<SidebarProps> = ({
             onServerJoined(server);
           }}
           onCreate={onCreateServer}
+        />
+      )}
+
+      {contextMenu && (
+        <ServerContextMenu
+          server={contextMenu.server}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onLeave={onServerLeave}
         />
       )}
     </div>

@@ -50,7 +50,7 @@ function App() {
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
-                  <Route path="/invite/:code" element={<PrivateRoute><InvitePage /></PrivateRoute>} />
+                  <Route path="/invite/:code" element={<InvitePage />} />
                   <Route path="/*" element={<PrivateRoute><SocketProvider><VoiceProvider><Main /></VoiceProvider></SocketProvider></PrivateRoute>} />
                 </Routes>
               </div>

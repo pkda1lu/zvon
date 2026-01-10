@@ -360,6 +360,10 @@ const Main: React.FC = () => {
     setServers(prev => prev.filter(s => s._id !== serverId));
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
   };
+  const handleServerLeave = (serverId: string) => {
+    setServers(prev => prev.filter(s => s._id !== serverId));
+    if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
+  };
 
   if (loading) return <div className="loading">Загрузка...</div>;
 
@@ -376,6 +380,7 @@ const Main: React.FC = () => {
         onCreateServer={handleCreateServer}
         onServerJoined={(server) => { setServers((prev) => [...prev, server]); setSelectedServer(server); if (socket) socket.emit('join-server', server._id); if (server.channels.length > 0) setSelectedChannel(server.channels[0]); }}
         onLogout={logout} onShowFriends={() => { setShowFriends(true); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); }}
+        onServerLeave={handleServerLeave}
       />
       {showFriends && <FriendsPanel onStartDM={handleStartDM} onUserClick={setShowProfileUserId} unreadCounts={unreadCounts} />}
       {selectedServer && !showFriends && (
@@ -434,7 +439,7 @@ const Main: React.FC = () => {
       {activeCall && <VoiceCall socket={socket} otherUser={activeCall.user} dmId={activeCall.dmId} initialIncomingCall={activeCall.isIncoming} initialOffer={activeCall.offer} onEndCall={() => setActiveCall(null)} />}
       {showProfileUserId && <UserProfileCard userId={showProfileUserId} onClose={() => setShowProfileUserId(null)} serverId={selectedServer?._id} />}
       {showServerSettings && selectedServer && <ServerSettingsModal isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} />}
-      {showServerProfile && selectedServer && <ServerProfileCard server={selectedServer} onClose={() => setShowServerProfile(false)} />}
+      {showServerProfile && selectedServer && <ServerProfileCard server={selectedServer} onClose={() => setShowServerProfile(false)} onLeave={handleServerLeave} />}
       {showUserServerProfile && serverProfileServerId && <UserServerProfileModal isOpen={showUserServerProfile} onClose={() => setShowUserServerProfile(false)} serverId={serverProfileServerId} onUpdate={handleServerUpdate} />}
     </div>
   );

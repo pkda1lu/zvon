@@ -25,7 +25,8 @@ router.post('/', auth, async (req, res) => {
     } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-router.get('/:code', auth, async (req, res) => {
+// Public route to view invite details
+router.get('/:code', async (req, res) => {
     try {
         const invite = await Invite.findOne({ code: req.params.code }).populate('server', 'name icon description members').populate('creator', 'username');
         if (!invite) return res.status(404).json({ message: 'Invite not found' });

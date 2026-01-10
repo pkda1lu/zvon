@@ -160,6 +160,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     const adjustedX = Math.min(x, window.innerWidth - 220);
     const adjustedY = Math.min(y, window.innerHeight - 300);
+    const flipSubmenu = adjustedX > window.innerWidth - 440; // 220 menu width + 220 submenu width
 
     if (showInputModal) {
         return ReactDOM.createPortal(
@@ -202,16 +203,17 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
                 )}
                 {canManageRoles && !isSelf && (
-                    <div className="menu-item has-submenu">
-                        Роли
-                        <div className="context-submenu">
+                    <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
+                        <span>Роли</span>
+                        <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
+                        <div className="submenu">
                             {(server.roles || []).filter(r => r.name !== '@everyone').map(role => {
-                                const m = server.members.find(me => (me.user._id || me.user) === targetUser._id);
+                                const m = server.members.find(me => String(me.user._id || me.user) === String(targetUser._id));
                                 const hasRole = (m?.roles || []).includes(role._id);
                                 return (
                                     <div
                                         key={role._id}
-                                        className="menu-item check-item"
+                                        className="menu-item role-item"
                                         onClick={async (e) => {
                                             e.stopPropagation();
                                             const newRoles = hasRole
@@ -223,13 +225,18 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                                         }}
                                     >
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div className="role-dot-mini" style={{ backgroundColor: role.color, width: '8px', height: '8px', borderRadius: '50%' }} />
-                                            {role.name}
+                                            <div className="role-checkbox">
+                                                {hasRole && '✓'}
+                                            </div>
+                                            <div className="role-dot-mini" style={{ backgroundColor: role.color, width: '10px', height: '10px', borderRadius: '50%' }} />
+                                            <span style={{ color: role.color }}>{role.name}</span>
                                         </div>
-                                        {hasRole && '✓'}
                                     </div>
                                 );
                             })}
+                            {(server.roles || []).filter(r => r.name !== '@everyone').length === 0 && (
+                                <div className="menu-item disabled">Нет ролей</div>
+                            )}
                         </div>
                     </div>
                 )}

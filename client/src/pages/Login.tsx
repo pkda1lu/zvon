@@ -27,7 +27,9 @@ const Login: React.FC = () => {
 
     try {
       await login(email.trim(), password);
-      navigate('/');
+      const searchParams = new URLSearchParams(window.location.search);
+      const returnTo = searchParams.get('returnTo');
+      navigate(returnTo || '/');
     } catch (err: any) {
       // Обработка ошибок валидации
       if (err.response?.data?.errors) {

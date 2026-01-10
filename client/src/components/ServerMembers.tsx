@@ -74,10 +74,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                     onContextMenu={(e) => handleContextMenu(e, member.user)}
                                                 >
                                                     <div className="member-avatar">
-                                                        {getAvatarUrl(member.user.avatar) ? (
-                                                            <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
+                                                        {getAvatarUrl(member.avatar || member.user.avatar) ? (
+                                                            <img src={getAvatarUrl(member.avatar || member.user.avatar)!} alt={member.user.username} />
                                                         ) : (
-                                                            <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                                                            <span>{(member.nickname || member.user.username).charAt(0).toUpperCase()}</span>
                                                         )}
                                                         <div className={`status-indicator ${member.user.status}`}></div>
                                                     </div>
@@ -118,10 +118,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                 onContextMenu={(e) => handleContextMenu(e, member.user)}
                                             >
                                                 <div className="member-avatar">
-                                                    {getAvatarUrl(member.user.avatar) ? (
-                                                        <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
+                                                    {getAvatarUrl(member.avatar || member.user.avatar) ? (
+                                                        <img src={getAvatarUrl(member.avatar || member.user.avatar)!} alt={member.user.username} />
                                                     ) : (
-                                                        <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                                                        <span>{(member.nickname || member.user.username).charAt(0).toUpperCase()}</span>
                                                     )}
                                                     <div className={`status-indicator ${member.user.status}`}></div>
                                                 </div>
@@ -159,10 +159,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                 onContextMenu={(e) => handleContextMenu(e, member.user)}
                                             >
                                                 <div className="member-avatar">
-                                                    {getAvatarUrl(member.user.avatar) ? (
-                                                        <img src={getAvatarUrl(member.user.avatar)!} alt={member.user.username} />
+                                                    {getAvatarUrl(member.avatar || member.user.avatar) ? (
+                                                        <img src={getAvatarUrl(member.avatar || member.user.avatar)!} alt={member.user.username} />
                                                     ) : (
-                                                        <span>{member.user.username.charAt(0).toUpperCase()}</span>
+                                                        <span>{(member.nickname || member.user.username).charAt(0).toUpperCase()}</span>
                                                     )}
                                                     <div className={`status-indicator ${member.user.status}`}></div>
                                                 </div>

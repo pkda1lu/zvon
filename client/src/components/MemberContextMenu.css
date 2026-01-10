@@ -8,8 +8,7 @@
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
     user-select: none;
     max-height: calc(100vh - 40px);
-    overflow-y: auto;
-    overflow-x: hidden;
+    /* Removed overflow-x: hidden to allow submenus to be visible */
 }
 
 /* Custom scrollbar for context menu */
@@ -93,9 +92,18 @@
     padding: 6px 8px;
     min-width: 188px;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-    display: flex;
+    display: none;
     flex-direction: column;
     z-index: 10000;
+}
+
+.has-submenu:hover .submenu {
+    display: flex;
+}
+
+.flip-left .submenu {
+    left: auto;
+    right: 100%;
 }
 
 .role-item {

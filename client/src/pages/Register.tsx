@@ -17,7 +17,9 @@ const Register: React.FC = () => {
 
     try {
       await register(username, email, password);
-      navigate('/');
+      const searchParams = new URLSearchParams(window.location.search);
+      const returnTo = searchParams.get('returnTo');
+      navigate(returnTo || '/');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Ошибка регистрации');
     }

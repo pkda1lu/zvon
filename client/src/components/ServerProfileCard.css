@@ -169,3 +169,25 @@
     border-radius: 50%;
     object-fit: cover;
 }
+
+.server-profile-actions {
+    margin-top: 8px;
+}
+
+.leave-server-btn {
+    width: 100%;
+    padding: 10px;
+    background-color: transparent;
+    border: 1px solid #f23f43;
+    color: #f23f43;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.leave-server-btn:hover {
+    background-color: #f23f43;
+    color: #fff;
+}
