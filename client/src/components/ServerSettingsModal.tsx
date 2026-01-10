@@ -154,7 +154,8 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         } catch (err) { alert('Ошибка при создании роли'); }
     };
 
-    const handleUpdateRole = async (roleId: string, updates: any) => {
+    const handleUpdateRole = async (roleId: string | null, updates: any) => {
+        if (!roleId) return;
         try {
             const res = await axios.patch(`/api/servers/${server._id}/roles/${roleId}`, updates);
             const updatedRoles = roles.map(r => r._id === roleId ? res.data : r);
@@ -163,7 +164,8 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         } catch (err) { alert('Ошибка при обновлении роли'); }
     };
 
-    const handleDeleteRole = async (roleId: string) => {
+    const handleDeleteRole = async (roleId: string | null) => {
+        if (!roleId) return;
         if (!window.confirm('Удалить эту роль?')) return;
         try {
             await axios.delete(`/api/servers/${server._id}/roles/${roleId}`);
