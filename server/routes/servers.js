@@ -236,11 +236,26 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
 
 router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
   try {
-    const server = await Server.findById(req.params.id);
-    if (!server) return res.status(404).json({ message: 'Server not found' });
+    console.log(`Attempting to delete role ${req.params.roleId} from server ${req.params.id}`);
 
-    const role = server.roles.id(req.params.roleId);
-    if (!role) return res.status(404).json({ message: 'Role not found' });
+    const server = await Server.findById(req.params.id);
+    if (!server) {
+      console.error('Delete role error: Server not found');
+      return res.status(404).json({ message: 'Server not found' });
+    }
+
+    // Robust role lookup
+    let role = server.roles.id(req.params.roleId);
+    if (!role) {
+      // Fallback: search manually by string ID
+      role = server.roles.find(r => String(r._id) === String(req.params.roleId));
+    }
+
+    if (!role) {
+      console.error(`Delete role error: Role ${req.params.roleId} not found in server roles`);
+      return res.status(404).json({ message: 'Role not found' });
+    }
+
     if (role.name === '@everyone') return res.status(400).json({ message: 'Cannot delete @everyone role' });
 
     // Remove role from all members
