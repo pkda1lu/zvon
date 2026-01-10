@@ -94,6 +94,23 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         setMembers(server.members);
     }, [server.members]);
 
+    useEffect(() => {
+        setRoles(server.roles || []);
+    }, [server.roles]);
+
+    // Sync editingRole if it was a placeholder or if it's not found by ID but found by name (@everyone)
+    useEffect(() => {
+        if (editingRole && activeTab === 'roles' && roles.length > 0) {
+            const currentRole = roles.find(r => String(r._id) === String(editingRole));
+            if (!currentRole) {
+                const everyone = roles.find(r => r.name === '@everyone');
+                if (everyone && (editingRole === 'everyone' || editingRole === '0' || String(editingRole).length < 5)) {
+                    setEditingRole(everyone._id);
+                }
+            }
+        }
+    }, [roles, editingRole, activeTab]);
+
     const handleSaveOverview = async () => {
         setLoading(true);
         try {
@@ -188,10 +205,28 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         if (!roleId) return;
         try {
             const res = await axios.patch(`/api/servers/${server._id}/roles/${roleId}`, updates);
-            const updatedRoles = roles.map(r => r._id === roleId ? res.data : r);
-            setRoles(updatedRoles);
-            onServerUpdate({ ...server, roles: updatedRoles });
-        } catch (err) { alert('Ошибка при обновлении роли'); }
+            const updatedRole = res.data;
+
+            // Use functional update to avoid race conditions with multiple in-flight requests
+            setRoles(currentRoles => {
+                const newRoles = currentRoles.map(r =>
+                    (String(r._id) === String(roleId) || (r.name === '@everyone' && updatedRole.name === '@everyone'))
+                        ? updatedRole
+                        : r
+                );
+
+                // Immediately notify parent about the change using the newest data
+                onServerUpdate({ ...server, roles: newRoles });
+                return newRoles;
+            });
+
+            // Critical: Update editingRole if the ID changed (e.g. from placeholder to real ID)
+            if (updatedRole?._id && String(roleId) !== String(updatedRole._id)) {
+                setEditingRole(updatedRole._id);
+            }
+        } catch (err) {
+            console.error('Role update error:', err);
+        }
     };
 
     const handleDeleteRole = async (roleId: string | null) => {
@@ -306,7 +341,25 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                     {activeTab === 'roles' && (
                         <div className="settings-section roles-tab">
                             {editingRole ? (() => {
-                                const currentRole = roles.find(r => r._id === editingRole);
+                                // Enhanced lookup: find by ID or fallback to @everyone by name/context
+                                let currentRole = roles.find(r => String(r._id) === String(editingRole));
+
+                                // Fallback for @everyone
+                                if (!currentRole) {
+                                    const everyone = roles.find(r => r.name === '@everyone');
+                                    if (everyone && (editingRole === 'everyone' || editingRole === '0' || String(editingRole).length < 5)) {
+                                        currentRole = everyone;
+                                    }
+                                }
+
+                                // Final attempt: if it's @everyone, just find it
+                                if (!currentRole && roles.length > 0) {
+                                    const everyone = roles.find(r => r.name === '@everyone');
+                                    // If we were editing something and it's gone, check if it was @everyone
+                                    if (everyone && (editingRole === everyone._id || String(editingRole).includes('everyone'))) {
+                                        currentRole = everyone;
+                                    }
+                                }
                                 if (!currentRole) return (
                                     <div className="role-editor-container">
                                         <button className="back-button-compact" onClick={() => setEditingRole(null)}>

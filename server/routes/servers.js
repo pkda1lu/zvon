@@ -169,26 +169,36 @@ router.get('/:id/roles', auth, async (req, res) => {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
-    // AUTOMATIC CLEANUP: Remove roles with no name or invalid structure
-    const initialCount = server.roles.length;
-    let roles = server.roles.filter(r => r && r.name && r.name.trim() !== '');
+    // AUTOMATIC REPAIR: Ensure all roles have names to pass validation
+    let changed = false;
+    server.roles.forEach((r, idx) => {
+      if (!r.name) {
+        r.name = idx === 0 ? '@everyone' : `Recovered Role ${idx}`;
+        changed = true;
+      }
+    });
 
-    // Ensure @everyone exists and is at index 0
-    let everyone = roles.find(r => r.name === '@everyone');
-    if (!everyone) {
-      everyone = {
+    // Ensure @everyone exists at the start
+    let everyoneIdx = server.roles.findIndex(r => r.name === '@everyone');
+    if (everyoneIdx === -1) {
+      server.roles.unshift({
         name: '@everyone',
         color: '#99aab5',
         hoist: false,
         position: 0,
         permissions: DEFAULT_PERMISSIONS.toString()
-      };
-      roles.unshift(everyone);
+      });
+      changed = true;
+    } else if (everyoneIdx > 0) {
+      // Optional: move it to the front if it's not there
+      const everyone = server.roles[everyoneIdx];
+      server.roles.splice(everyoneIdx, 1);
+      server.roles.unshift(everyone);
+      changed = true;
     }
 
-    if (roles.length !== initialCount) {
-      console.log(`Cleaned up ${initialCount - roles.length} phantom roles for server ${server._id}`);
-      server.roles = roles;
+    if (changed) {
+      console.log(`Repaired roles for server ${server._id}`);
       await server.save();
     }
 
@@ -251,10 +261,11 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
 
     if (!role) {
       // Fallback 2: If it's the @everyone role, find it by name regardless of ID
-      // Some old clients or manual DB edits might have mismatched IDs
       const isEveryoneRequest = req.params.roleId === 'everyone' || req.params.roleId === '0';
-      role = server.roles.find(r => r.name === '@everyone');
-      if (role) console.log('Found @everyone role by name fallback.');
+      if (isEveryoneRequest) {
+        role = server.roles.find(r => r.name === '@everyone');
+        if (role) console.log('Found @everyone role by name fallback.');
+      }
     }
 
     if (!role) {
