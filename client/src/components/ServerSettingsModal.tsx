@@ -136,18 +136,52 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         }
     };
 
-    const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        if (file.type === 'image/gif') {
+            const formData = new FormData();
+            formData.append('icon', file);
+            try {
+                setLoading(true);
+                const res = await axios.post(`/api/servers/${server._id}/icon`, formData);
+                setServerIcon(res.data.icon);
+                onServerUpdate({ ...server, icon: res.data.icon });
+            } catch (err) {
+                alert('Ошибка при загрузке иконки');
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = () => setCropModal({ isOpen: true, image: reader.result as string, type: 'icon' });
         reader.readAsDataURL(file);
         e.target.value = '';
     };
 
-    const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        if (file.type === 'image/gif') {
+            const formData = new FormData();
+            formData.append('banner', file);
+            try {
+                setLoading(true);
+                const res = await axios.post(`/api/servers/${server._id}/banner`, formData);
+                setServerBanner(res.data.banner);
+                onServerUpdate({ ...server, banner: res.data.banner });
+            } catch (err) {
+                alert('Ошибка при загрузке баннера');
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = () => setCropModal({ isOpen: true, image: reader.result as string, type: 'banner' });
         reader.readAsDataURL(file);

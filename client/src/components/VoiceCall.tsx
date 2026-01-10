@@ -49,10 +49,28 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const mountedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    if (initialIncomingCall && isIncomingCall) ringtoneRef.current = soundManager.playLoop(SOUNDS.CALL_RINGING, 0.5);
-    else if (ringtoneRef.current) { ringtoneRef.current.pause(); ringtoneRef.current = null; }
-    return () => { if (ringtoneRef.current) { ringtoneRef.current.pause(); ringtoneRef.current = null; } };
-  }, [isIncomingCall, initialIncomingCall]);
+    const shouldRing = (initialIncomingCall && isIncomingCall) || (!initialIncomingCall && isRinging && !isCallActive);
+    if (shouldRing) {
+      if (!ringtoneRef.current) {
+        ringtoneRef.current = soundManager.playLoop(SOUNDS.CALL_RINGING, 0.5);
+      }
+    } else if (ringtoneRef.current) {
+      ringtoneRef.current.pause();
+      ringtoneRef.current = null;
+    }
+    return () => {
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause();
+        ringtoneRef.current = null;
+      }
+    };
+  }, [isIncomingCall, isRinging, initialIncomingCall, isCallActive]);
+
+  useEffect(() => {
+    if (isCallActive) {
+      soundManager.play(SOUNDS.CALL_JOIN, 0.4);
+    }
+  }, [isCallActive]);
 
   useEffect(() => {
     if (!socket || !dmId) return;
@@ -210,6 +228,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
 
   const endCall = async () => {
     cleanupStreams();
+    soundManager.play(SOUNDS.CALL_LEAVE, 0.4);
     if (socket) socket.emit('call-end', { targetUserId: otherUser._id });
     const duration = Date.now() - mountedAtRef.current;
     const needsNotification = !initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId && duration > 2000;

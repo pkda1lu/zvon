@@ -109,9 +109,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.type === 'image/gif') {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      try {
+        setLoading(true);
+        const response = await axios.post('/api/users/avatar', formData);
+        await refreshUser();
+        setAvatarPreview(getAvatarUrl(response.data.avatar));
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Ошибка загрузки аватара');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -122,13 +138,28 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       });
     };
     reader.readAsDataURL(file);
-    // Reset input
     e.target.value = '';
   };
 
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.type === 'image/gif') {
+      const formData = new FormData();
+      formData.append('banner', file);
+      try {
+        setLoading(true);
+        const response = await axios.post('/api/users/banner', formData);
+        await refreshUser();
+        setBannerPreview(getFullUrl(response.data.banner));
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Ошибка загрузки баннера');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -139,7 +170,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       });
     };
     reader.readAsDataURL(file);
-    // Reset input
     e.target.value = '';
   };
 
@@ -157,9 +187,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         await refreshUser();
         setAvatarPreview(getAvatarUrl(response.data.avatar));
       } else {
-        await axios.post('/api/users/banner', formData);
+        const response = await axios.post('/api/users/banner', formData);
         await refreshUser();
-        setBannerPreview(getAvatarUrl(user?.banner));
+        setBannerPreview(getFullUrl(response.data.banner));
       }
     } catch (err: any) {
       setError(err.response?.data?.message || `Ошибка загрузки ${type === 'avatar' ? 'аватара' : 'баннера'}`);
