@@ -47,29 +47,34 @@ export const DEFAULT_PERMISSIONS =
 export function computePermissions(userId: string, server: any, channel: any = null): bigint {
     if (!server || !userId) return 0n;
 
+    const uId = String(userId);
+    const ownerId = typeof server.owner === 'object' ? String(server.owner._id) : String(server.owner);
+
     // 1. Owner has all permissions
-    const ownerId = typeof server.owner === 'object' ? server.owner._id : server.owner;
-    if (String(ownerId) === String(userId)) {
+    if (uId === ownerId) {
         return Object.values(Permissions).reduce((acc, p) => acc | p, 0n);
     }
 
     // Find member
-    const member = server.members.find((m: any) => String(m.user._id || m.user) === String(userId));
+    const member = server.members.find((m: any) => String(m.user._id || m.user) === uId);
     if (!member) return 0n;
 
     // 2. Start with @everyone
-    let permissions = DEFAULT_PERMISSIONS;
-    const everyoneRole = server.roles.find((r: any) => r.name === '@everyone');
+    let permissions = 0n;
+    // @everyone role usually has the same ID as the server, or name '@everyone'
+    const everyoneRole = server.roles.find((r: any) => r.name === '@everyone' || String(r._id) === String(server._id));
     if (everyoneRole) {
-        permissions = BigInt(everyoneRole.permissions);
+        permissions = BigInt(everyoneRole.permissions || 0n);
+    } else {
+        permissions = DEFAULT_PERMISSIONS;
     }
 
     // 3. Roles
-    const memberRoleIds = member.roles || [];
+    const memberRoleIds = (member.roles || []).map((id: any) => String(id));
     const memberRoles = server.roles.filter((r: any) => memberRoleIds.includes(String(r._id)));
 
     for (const role of memberRoles) {
-        permissions |= BigInt(role.permissions);
+        permissions |= BigInt(role.permissions || 0n);
     }
 
     // 4. Admin
@@ -79,31 +84,31 @@ export function computePermissions(userId: string, server: any, channel: any = n
 
     // 5. Channel Overwrites
     if (channel && channel.permissionOverwrites) {
-        // @everyone
+        // @everyone overwrite
         const everyoneOverwrite = channel.permissionOverwrites.find((o: any) => String(o.id) === String(server._id));
         if (everyoneOverwrite) {
-            permissions &= ~BigInt(everyoneOverwrite.deny);
-            permissions |= BigInt(everyoneOverwrite.allow);
+            permissions &= ~BigInt(everyoneOverwrite.deny || 0n);
+            permissions |= BigInt(everyoneOverwrite.allow || 0n);
         }
 
-        // Roles
+        // Roles overwrites
         let roleAllow = 0n;
         let roleDeny = 0n;
         for (const roleId of memberRoleIds) {
             const overwrite = channel.permissionOverwrites.find((o: any) => String(o.id) === String(roleId));
             if (overwrite) {
-                roleAllow |= BigInt(overwrite.allow);
-                roleDeny |= BigInt(overwrite.deny);
+                roleAllow |= BigInt(overwrite.allow || 0n);
+                roleDeny |= BigInt(overwrite.deny || 0n);
             }
         }
         permissions &= ~roleDeny;
         permissions |= roleAllow;
 
-        // Member
-        const memberOverwrite = channel.permissionOverwrites.find((o: any) => String(o.id) === String(userId));
+        // Member overwrite
+        const memberOverwrite = channel.permissionOverwrites.find((o: any) => String(o.id) === uId);
         if (memberOverwrite) {
-            permissions &= ~BigInt(memberOverwrite.deny);
-            permissions |= BigInt(memberOverwrite.allow);
+            permissions &= ~BigInt(memberOverwrite.deny || 0n);
+            permissions |= BigInt(memberOverwrite.allow || 0n);
         }
     }
 

@@ -39,7 +39,10 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const { socket } = useSocket();
   const { speakingUsers } = useVoice();
 
-  const isOwner = (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === currentUser?._id;
+  const isOwner = currentUser && server.owner && (
+    (typeof server.owner === 'object' && String((server.owner as any)._id) === String(currentUser._id)) ||
+    (String(server.owner) === String(currentUser._id))
+  );
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -47,10 +50,13 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
 
+  // Use computePermissions - it already handles ownership by returning all bits
   const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
-  const canManageGuild = hasPermission(userPerms, Permissions.MANAGE_GUILD) || isOwner;
-  const canCreateChannels = hasPermission(userPerms, Permissions.MANAGE_CHANNELS) || isOwner;
-  const canInvite = hasPermission(userPerms, Permissions.CREATE_INSTANT_INVITE) || isOwner;
+  const canManageGuild = hasPermission(userPerms, Permissions.MANAGE_GUILD);
+  const canCreateChannels = hasPermission(userPerms, Permissions.MANAGE_CHANNELS);
+  const canInvite = hasPermission(userPerms, Permissions.CREATE_INSTANT_INVITE);
+
+  /* console.log('ServerSidebar Permissions Debug:', { serverName: server.name, userId: currentUser?._id, isOwner, userPerms: userPerms.toString() }); */
 
   const handleContextMenu = (e: React.MouseEvent, user: User) => {
     e.preventDefault();
@@ -106,7 +112,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             </div>
             {textChannels.map((channel) => {
               const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
-              const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS) || isOwner;
+              const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS);
 
               return (
                 <div key={channel._id} className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''}`} onClick={() => onChannelSelect(channel)}>
@@ -136,7 +142,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             </div>
             {voiceChannels.map((channel) => {
               const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
-              const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS) || isOwner;
+              const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS);
 
               return (
                 <div key={channel._id}>

@@ -246,16 +246,18 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const handleUpdateRole = async (roleId: string | null, updates: any) => {
         if (!roleId) return;
 
-        // Resolve roleId if it's a placeholder (like 'everyone' or '0') or if the backend renamed it
+        // Resolve roleId to its actual DB _id if possible
         let resolvedId = roleId;
-        const currentRole = roles.find(r => String(r._id) === String(roleId) || (r.name === '@everyone' && (roleId === 'everyone' || roleId === '0' || String(roleId).length < 5)));
+        const currentRole = roles.find(r =>
+            String(r._id) === String(roleId) ||
+            (r.name === '@everyone' && (roleId === 'everyone' || roleId === '0' || String(roleId).length < 5))
+        );
 
-        if (!currentRole && (roleId === 'everyone' || roleId === '0' || String(roleId).length < 5)) {
-            const everyone = roles.find(r => r.name === '@everyone');
-            if (everyone) resolvedId = everyone._id;
-        } else if (currentRole) {
+        if (currentRole && currentRole._id) {
             resolvedId = currentRole._id;
         }
+
+        /* console.log(`Updating role: id=${roleId}, resolved=${resolvedId}, name=${currentRole?.name}`); */
 
         try {
             const res = await axios.patch(`/api/servers/${server._id}/roles/${resolvedId}`, updates);
