@@ -39,39 +39,76 @@
     padding: 60px 40px;
     overflow-y: auto;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
-.overwrite-item {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-divider);
-    border-radius: 4px;
-    padding: 12px;
-    margin-bottom: 8px;
+.settings-section {
+    max-width: 740px;
+    width: 100%;
+}
+
+.permissions-layout {
     display: flex;
-    justify-content: space-between;
+    gap: 32px;
+    height: calc(100vh - 200px);
+}
+
+.overwrites-sidebar {
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+}
+
+.overwrite-tab {
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+}
+
+.overwrite-tab:hover {
+    background: var(--channel-hover);
+    color: var(--text-primary);
+}
+
+.overwrite-tab.active {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.permissions-editor {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 12px;
 }
 
 .permission-grid-3 {
     display: flex;
-    gap: 8px;
+    border: 1px solid var(--border-divider);
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .perm-button {
-    width: 32px;
+    width: 36px;
     height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-divider);
+    background: var(--bg-secondary);
     cursor: pointer;
     color: var(--text-muted);
-}
-
-.perm-button.allow.active {
-    background: #43b581;
-    color: #fff;
+    transition: all 0.2s;
+    font-size: 14px;
 }
 
 .perm-button.deny.active {
@@ -80,6 +117,118 @@
 }
 
 .perm-button.neutral.active {
-    background: var(--bg-accent);
+    background: var(--text-muted);
     color: #fff;
+}
+
+.perm-button.allow.active {
+    background: #43b581;
+    color: #fff;
+}
+
+.perm-button:not(.active):hover {
+    background: var(--bg-tertiary);
+}
+
+/* Custom Scrollbar */
+.permissions-editor::-webkit-scrollbar,
+.overwrites-sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.permissions-editor::-webkit-scrollbar-track,
+.overwrites-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Save Changes Bar */
+.save-changes-bar.relative {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    background: var(--bg-floating);
+    padding: 16px 24px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-divider);
+    z-index: 10;
+}
+
+.save-changes-text {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.save-changes-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.reset-button {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.save-button {
+    background: #43b581;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.save-button:hover {
+    background: #3ca374;
+}
+
+.settings-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-input-group label {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.settings-input {
+    background: var(--bg-tertiary);
+    border: none;
+    border-radius: 3px;
+    color: var(--text-primary);
+    padding: 10px;
+    font-size: 16px;
+    outline: none;
+    font-family: inherit;
+}
+
+.settings-input:focus {
+    box-shadow: 0 0 0 2px var(--bg-accent);
+}
+
+.sidebar-header {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 8px 12px;
+}
+
+.add-role-btn:hover {
+    background: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--bg-accent) !important;
 }

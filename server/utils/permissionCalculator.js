@@ -23,7 +23,7 @@ function computePermissions(userId, server, channel = null) {
     let basePermissions = DEFAULT_PERMISSIONS;
     const everyoneRole = server.roles.find(r => r.name === '@everyone');
     if (everyoneRole) {
-        basePermissions = BigInt(everyoneRole.permissions);
+        basePermissions = BigInt(everyoneRole.permissions || '0');
     }
 
     // 3. Add permissions from all user roles
@@ -32,7 +32,7 @@ function computePermissions(userId, server, channel = null) {
     const memberRoles = server.roles.filter(r => memberRoleIds.includes(String(r._id)));
 
     for (const role of memberRoles) {
-        permissions |= BigInt(role.permissions);
+        permissions |= BigInt(role.permissions || '0');
     }
 
     // 4. If Administrator is present, they have all perms
@@ -43,10 +43,10 @@ function computePermissions(userId, server, channel = null) {
     // 5. Channel-specific overwrites
     if (channel) {
         // a. @everyone overwrite
-        const everyoneOverwrite = channel.permissionOverwrites.find(o => String(o.id) === String(server._id)); // In Discord, @everyone overwrite ID is server ID
+        const everyoneOverwrite = channel.permissionOverwrites.find(o => String(o.id) === String(server._id || server) || o.id === everyoneRole?._id);
         if (everyoneOverwrite) {
-            permissions &= ~BigInt(everyoneOverwrite.deny);
-            permissions |= BigInt(everyoneOverwrite.allow);
+            permissions &= ~BigInt(everyoneOverwrite.deny || '0');
+            permissions |= BigInt(everyoneOverwrite.allow || '0');
         }
 
         // b. Role overwrites
@@ -55,8 +55,8 @@ function computePermissions(userId, server, channel = null) {
         for (const roleId of memberRoleIds) {
             const overwrite = channel.permissionOverwrites.find(o => String(o.id) === roleId);
             if (overwrite) {
-                roleAllow |= BigInt(overwrite.allow);
-                roleDeny |= BigInt(overwrite.deny);
+                roleAllow |= BigInt(overwrite.allow || '0');
+                roleDeny |= BigInt(overwrite.deny || '0');
             }
         }
         permissions &= ~roleDeny;
@@ -65,8 +65,8 @@ function computePermissions(userId, server, channel = null) {
         // c. Member overwrite
         const memberOverwrite = channel.permissionOverwrites.find(o => String(o.id) === userId);
         if (memberOverwrite) {
-            permissions &= ~BigInt(memberOverwrite.deny);
-            permissions |= BigInt(memberOverwrite.allow);
+            permissions &= ~BigInt(memberOverwrite.deny || '0');
+            permissions |= BigInt(memberOverwrite.allow || '0');
         }
     }
 

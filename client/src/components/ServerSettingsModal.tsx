@@ -212,6 +212,65 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                         <span className="close-text">ESC</span>
                     </div>
 
+                    {activeTab === 'overview' && (
+                        <div className="settings-section">
+                            <h2>Обзор сервера</h2>
+                            <div className="overview-grid">
+                                <div className="avatar-upload-section">
+                                    <div className="server-avatar-preview" onClick={() => fileInputRef.current?.click()}>
+                                        {getAvatarUrl(serverIcon) ? <img src={getAvatarUrl(serverIcon)!} alt="" /> : <span>{serverName.charAt(0).toUpperCase()}</span>}
+                                        <div className="avatar-hint">СМЕНИТЬ ИКОНКУ</div>
+                                    </div>
+                                    <input type="file" ref={fileInputRef} onChange={handleIconUpload} style={{ display: 'none' }} accept="image/*" />
+                                </div>
+                                <div className="input-section">
+                                    <div className="settings-input-group">
+                                        <label>Название сервера</label>
+                                        <input className="settings-input" value={serverName} onChange={(e) => setServerName(e.target.value)} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="server-profile-settings-divider" />
+
+                            <div className="banner-settings-section">
+                                <h3>Баннер сервера</h3>
+                                <p>Это изображение будет отображаться в верхней части списка каналов.</p>
+                                <div className="banner-selection-grid">
+                                    <div
+                                        className="banner-preview-small"
+                                        onClick={() => bannerInputRef.current?.click()}
+                                        style={serverBanner ? { backgroundImage: `url(${getAvatarUrl(serverBanner)})`, border: 'none' } : {}}
+                                    >
+                                        {!serverBanner && 'Загрузить баннер'}
+                                    </div>
+                                    <input type="file" ref={bannerInputRef} onChange={handleBannerUpload} style={{ display: 'none' }} accept="image/*" />
+
+                                    <div className="color-selection-box">
+                                        <label>Цвет баннера (если нет изображения)</label>
+                                        <div className="color-picker-row">
+                                            <input type="color" className="color-input-native" value={bannerColor} onChange={(e) => setBannerColor(e.target.value)} />
+                                            <input type="text" className="settings-input color-text-input" value={bannerColor} onChange={(e) => setBannerColor(e.target.value)} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {hasChanges && (
+                                <div className="save-changes-bar">
+                                    <span className="save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
+                                    <div className="save-changes-buttons">
+                                        <button className="reset-button" onClick={() => {
+                                            setServerName(server.name);
+                                            setBannerColor(server.bannerColor || '#5865f2');
+                                        }}>Сбросить</button>
+                                        <button className="save-button" onClick={handleSaveOverview} disabled={loading}>{loading ? 'Сохранение...' : 'Сохранить изменения'}</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {activeTab === 'roles' && (
                         <div className="settings-section roles-tab">
                             {editingRole ? (
@@ -289,7 +348,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                     <div className="role-list">
                                         {[...roles].sort((a, b) => b.position - a.position).map(role => (
                                             <div key={role._id} className="role-item" onClick={() => setEditingRole(role._id)} style={{ cursor: 'pointer' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <div className="role-name-container">
                                                     <div className="role-dot" style={{ backgroundColor: role.color }} />
                                                     <span style={{ color: role.color }}>{role.name}</span>
                                                 </div>

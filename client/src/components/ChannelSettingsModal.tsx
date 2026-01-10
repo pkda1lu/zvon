@@ -82,6 +82,10 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 
     if (!isOpen) return null;
 
+    const [selectedOverwriteId, setSelectedOverwriteId] = useState<string | null>(overwrites.length > 0 ? overwrites[0].id : null);
+
+    const activeOverwrite = overwrites.find(o => o.id === selectedOverwriteId);
+
     return (
         <div className="channel-settings-modal-overlay">
             <div className="channel-settings-modal">
@@ -106,7 +110,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                 <label>Название канала</label>
                                 <input className="settings-input" value={name} onChange={(e) => setName(e.target.value)} />
                             </div>
-                            <div className="settings-input-group">
+                            <div className="settings-input-group" style={{ marginTop: '20px' }}>
                                 <label>Тема канала</label>
                                 <textarea
                                     className="settings-input"
@@ -116,89 +120,99 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                     placeholder="Расскажите всем, для чего этот канал"
                                 />
                             </div>
-                            <button className="save-button" onClick={handleSave} disabled={loading} style={{ marginTop: '20px' }}>
-                                {loading ? 'Сохранение...' : 'Сохранить изменения'}
-                            </button>
+                            <div className="save-changes-bar relative">
+                                <span className="save-changes-text">У вас есть несохраненные изменения!</span>
+                                <div className="save-changes-buttons">
+                                    <button className="reset-button" onClick={() => { setName(channel.name); setTopic(channel.topic || ''); }}>Сбросить</button>
+                                    <button className="save-button" onClick={handleSave} disabled={loading}>{loading ? 'Сохранение...' : 'Сохранить'}</button>
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     {activeTab === 'permissions' && (
-                        <div className="settings-section">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h2>Исключения прав доступа</h2>
-                                <div className="add-overwrite-dropdown">
-                                    {/* Simplified for now: just show @everyone and roles */}
-                                    <button className="save-button" onClick={() => {
-                                        const everyoneRole = server.roles.find(r => r.name === '@everyone');
-                                        if (everyoneRole && !overwrites.find(o => o.id === everyoneRole._id)) {
-                                            updateOverwrite(everyoneRole._id, 'role', 0n, 0n);
-                                        } else {
-                                            alert('Исключение для этой роли уже существует');
+                        <div className="settings-section" style={{ maxWidth: 'none' }}>
+                            <h2>Права доступа</h2>
+                            <div className="permissions-layout">
+                                <div className="overwrites-sidebar">
+                                    <div className="sidebar-header" style={{ margin: '0 0 8px 0', padding: '0' }}>РОЛИ / УЧАСТНИКИ</div>
+                                    {overwrites.map(ow => {
+                                        const role = server.roles.find(r => r._id === ow.id);
+                                        const roleName = role ? role.name : 'Unknown';
+                                        return (
+                                            <div
+                                                key={ow.id}
+                                                className={`overwrite-tab ${selectedOverwriteId === ow.id ? 'active' : ''}`}
+                                                onClick={() => setSelectedOverwriteId(ow.id)}
+                                            >
+                                                <span style={{ color: role?.color }}>{roleName}</span>
+                                                <button className="action-button small" onClick={(e) => { e.stopPropagation(); removeOverwrite(ow.id); if (selectedOverwriteId === ow.id) setSelectedOverwriteId(null); }}><CloseIcon size={12} /></button>
+                                            </div>
+                                        );
+                                    })}
+                                    <button className="add-role-btn" style={{ marginTop: '12px', background: 'none', border: '1px dashed var(--border-divider)', color: 'var(--text-muted)', padding: '8px', cursor: 'pointer', borderRadius: '4px' }} onClick={() => {
+                                        const role = server.roles.find(r => !overwrites.find(o => o.id === r._id));
+                                        if (role) {
+                                            updateOverwrite(role._id, 'role', 0n, 0n);
+                                            setSelectedOverwriteId(role._id);
                                         }
                                     }}>
-                                        <PlusIcon size={16} /> Добавить роль
+                                        + Добавить роль
                                     </button>
                                 </div>
-                            </div>
 
-                            <div className="overwrites-list">
-                                {overwrites.map(overwrite => {
-                                    const role = server.roles.find(r => r._id === overwrite.id);
-                                    const name = role ? role.name : 'Unknown';
-                                    const allow = BigInt(overwrite.allow);
-                                    const deny = BigInt(overwrite.deny);
-
-                                    return (
-                                        <div key={overwrite.id} className="overwrite-item-container" style={{ marginBottom: '32px', padding: '16px', border: '1px solid var(--border-divider)', borderRadius: '8px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                                <h3 style={{ margin: 0, color: role?.color || 'inherit' }}>{name}</h3>
-                                                <button className="action-button danger" onClick={() => removeOverwrite(overwrite.id)}><TrashIcon size={18} /></button>
+                                <div className="permissions-editor">
+                                    {activeOverwrite ? (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                                <h3>{server.roles.find(r => r._id === activeOverwrite.id)?.name || 'Настройки'}</h3>
                                             </div>
 
                                             {Object.entries(Permissions).map(([pName, bit]) => {
+                                                const allow = BigInt(activeOverwrite.allow);
+                                                const deny = BigInt(activeOverwrite.deny);
                                                 const isAllowed = (allow & (bit as bigint)) !== 0n;
                                                 const isDenied = (deny & (bit as bigint)) !== 0n;
                                                 const isNeutral = !isAllowed && !isDenied;
 
                                                 return (
-                                                    <div key={pName} className="permission-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-divider)' }}>
-                                                        <span>{pName.replace(/_/g, ' ')}</span>
+                                                    <div key={pName} className="permission-item">
+                                                        <div className="permission-info">
+                                                            <div className="permission-name">{pName.replace(/_/g, ' ')}</div>
+                                                        </div>
                                                         <div className="permission-grid-3">
                                                             <div
                                                                 className={`perm-button deny ${isDenied ? 'active' : ''}`}
-                                                                onClick={() => {
-                                                                    const nAllow = allow & ~(bit as bigint);
-                                                                    const nDeny = deny | (bit as bigint);
-                                                                    updateOverwrite(overwrite.id, overwrite.type, nAllow, nDeny);
-                                                                }}
+                                                                onClick={() => updateOverwrite(activeOverwrite.id, activeOverwrite.type, allow & ~(bit as bigint), deny | (bit as bigint))}
                                                             >✖</div>
                                                             <div
                                                                 className={`perm-button neutral ${isNeutral ? 'active' : ''}`}
-                                                                onClick={() => {
-                                                                    const nAllow = allow & ~(bit as bigint);
-                                                                    const nDeny = deny & ~(bit as bigint);
-                                                                    updateOverwrite(overwrite.id, overwrite.type, nAllow, nDeny);
-                                                                }}
+                                                                onClick={() => updateOverwrite(activeOverwrite.id, activeOverwrite.type, allow & ~(bit as bigint), deny & ~(bit as bigint))}
                                                             >/</div>
                                                             <div
                                                                 className={`perm-button allow ${isAllowed ? 'active' : ''}`}
-                                                                onClick={() => {
-                                                                    const nAllow = allow | (bit as bigint);
-                                                                    const nDeny = deny & ~(bit as bigint);
-                                                                    updateOverwrite(overwrite.id, overwrite.type, nAllow, nDeny);
-                                                                }}
+                                                                onClick={() => updateOverwrite(activeOverwrite.id, activeOverwrite.type, allow | (bit as bigint), deny & ~(bit as bigint))}
                                                             >✔</div>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
+                                        </>
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifySelf: 'center', color: 'var(--text-muted)', height: '100%' }}>
+                                            Выберите роль или участника для настройки прав
                                         </div>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
-                            <button className="save-button" onClick={handleSave} disabled={loading} style={{ marginTop: '20px' }}>
-                                {loading ? 'Сохранение...' : 'Сохранить изменения'}
-                            </button>
+
+                            <div className="save-changes-bar relative">
+                                <span className="save-changes-text">Не забудьте сохранить изменения!</span>
+                                <div className="save-changes-buttons">
+                                    <button className="reset-button" onClick={() => setOverwrites(channel.permissionOverwrites || [])}>Сбросить</button>
+                                    <button className="save-button" onClick={handleSave} disabled={loading}>{loading ? 'Сохранение...' : 'Сохранить'}</button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
