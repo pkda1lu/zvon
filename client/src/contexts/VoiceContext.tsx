@@ -353,86 +353,86 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, []);
 
     const createPeer = useCallback((targetUserId: string, initiator: boolean) => {
-        if (peersRef.current.has(targetUserId)) return peersRef.current.get(targetUserId)!;
+        if (!peersRef.current.has(targetUserId)) {
+            const pc = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                ],
+            });
 
-        const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-            ],
-        });
+            peersRef.current.set(targetUserId, pc);
 
-        peersRef.current.set(targetUserId, pc);
+            pc.ontrack = (event) => {
+                const stream = event.streams[0];
+                const isScreen = stream.id.startsWith('screen-') || stream.getVideoTracks().length > 0;
 
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
-        }
+                if (isScreen) {
+                    setRemoteScreenStreams(prev => new Map(prev).set(targetUserId, stream));
+                } else {
+                    setRemoteStreams(prev => new Map(prev).set(targetUserId, stream));
+                }
+            };
 
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(track => pc.addTrack(track, screenStreamRef.current!));
-        }
+            pc.onicecandidate = (event) => {
+                if (event.candidate && socket) {
+                    socket.emit('voice-ice-candidate', { targetUserId, candidate: event.candidate });
+                }
+            };
 
-        pc.ontrack = (event) => {
-            const stream = event.streams[0];
-            const isScreen = stream.id.startsWith('screen-') || stream.getVideoTracks().length > 0;
-
-            if (isScreen) {
-                setRemoteScreenStreams(prev => new Map(prev).set(targetUserId, stream));
-            } else {
-                setRemoteStreams(prev => new Map(prev).set(targetUserId, stream));
-            }
-        };
-        pc.onicecandidate = (event) => {
-            if (event.candidate && socket) {
-                socket.emit('voice-ice-candidate', { targetUserId, candidate: event.candidate });
-            }
-        };
-
-        const negotiate = async () => {
-            if (pc.signalingState !== 'stable') return;
-            try {
-                console.log('[Voice] Negotiating...');
-                const offer = await pc.createOffer();
+            const negotiate = async () => {
                 if (pc.signalingState !== 'stable') return;
-                await pc.setLocalDescription(offer);
-                if (socket) {
-                    socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+                try {
+                    console.log(`[Voice] Negotiating with ${targetUserId}...`);
+                    const offer = await pc.createOffer();
+                    if (pc.signalingState !== 'stable') return;
+                    await pc.setLocalDescription(offer);
+                    if (socket) {
+                        socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+                    }
+                } catch (err) {
+                    console.error('[Voice] Negotiation failed:', err);
                 }
-            } catch (err) {
-                console.error('[Voice] Negotiation failed:', err);
-            }
-        };
+            };
 
-        let negotiationTimeout: any = null;
-        pc.onnegotiationneeded = () => {
-            if (pc.signalingState !== 'stable') return;
-            clearTimeout(negotiationTimeout);
-            negotiationTimeout = setTimeout(negotiate, 150);
-        };
+            let negotiationTimeout: any = null;
+            pc.onnegotiationneeded = () => {
+                if (pc.signalingState !== 'stable') return;
+                clearTimeout(negotiationTimeout);
+                negotiationTimeout = setTimeout(negotiate, 150);
+            };
 
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => {
-                const alreadyExists = pc.getSenders().some(s => s.track?.id === track.id);
-                if (!alreadyExists) {
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => {
                     pc.addTrack(track, localStreamRef.current!);
-                }
-            });
-        }
+                });
+            }
 
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(track => {
-                const alreadyExists = pc.getSenders().some(s => s.track?.id === track.id);
-                if (!alreadyExists) {
+            if (screenStreamRef.current) {
+                screenStreamRef.current.getTracks().forEach(track => {
                     pc.addTrack(track, screenStreamRef.current!);
-                }
-            });
+                });
+            }
+
+            if (initiator) {
+                negotiate();
+            }
+        } else {
+            const pc = peersRef.current.get(targetUserId)!;
+            if (initiator && pc.signalingState === 'stable') {
+                const negotiate = async () => {
+                    try {
+                        const offer = await pc.createOffer();
+                        if (pc.signalingState !== 'stable') return;
+                        await pc.setLocalDescription(offer);
+                        socket?.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+                    } catch (e) { }
+                };
+                negotiate();
+            }
         }
 
-        if (initiator) {
-            // Initiator starts the first negotiation
-            negotiate();
-        }
-        return pc;
+        return peersRef.current.get(targetUserId)!;
     }, [socket, handleTrack]);
 
     const leaveChannel = useCallback(() => {
@@ -652,6 +652,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [isMuted, isDeafened, isServerMuted, isServerDeafened, leaveChannel, selectedInputDeviceId, isNoiseSuppressionEnabled, getAudioContext]);
 
+    const joinChannelRef = useRef(joinChannel);
+    useEffect(() => {
+        joinChannelRef.current = joinChannel;
+    }, [joinChannel]);
+
     useEffect(() => {
         if (!socket || !isConnected || !activeChannelId || !localStreamRef.current) return;
 
@@ -659,7 +664,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const others = users.filter(u => u._id !== user?._id);
             setConnectedUsers(others);
 
-            // Populate userStates for existing users
             setUserStates(prev => {
                 const newMap = new Map(prev);
                 others.forEach(u => {
@@ -674,12 +678,19 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 return newMap;
             });
 
-            others.forEach(u => createPeer(u._id, true));
+            others.forEach(u => {
+                const isInitiator = String(user?._id) < String(u._id);
+                createPeer(u._id, isInitiator);
+            });
         };
 
         const handleUserJoined = (data: { userId: string; user: any }) => {
             if (data.userId === user?._id) return;
             setConnectedUsers(prev => prev.find(u => u._id === data.user._id) ? prev : [...prev, data.user]);
+
+            const isInitiator = String(user?._id) < String(data.userId);
+            createPeer(data.userId, isInitiator);
+
             if (data.user.isMuted !== undefined) {
                 setUserStates(prev => new Map(prev).set(data.userId, {
                     isMuted: data.user.isMuted,
@@ -737,13 +748,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const handleCandidate = async (data: { fromUserId: string; candidate: RTCIceCandidateInit }) => {
             try {
                 const pc = peersRef.current.get(data.fromUserId);
-                if (pc) {
-                    if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    else {
-                        const pending = pendingCandidatesRef.current.get(data.fromUserId) || [];
-                        pending.push(data.candidate);
-                        pendingCandidatesRef.current.set(data.fromUserId, pending);
-                    }
+                if (pc && pc.remoteDescription) {
+                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } else {
+                    const pending = pendingCandidatesRef.current.get(data.fromUserId) || [];
+                    pending.push(data.candidate);
+                    pendingCandidatesRef.current.set(data.fromUserId, pending);
                 }
             } catch (err) { }
         };
@@ -772,7 +782,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         const handleForceJoin = (data: { channelId: string }) => {
-            joinChannel(data.channelId);
+            joinChannelRef.current(data.channelId);
         };
 
         const handleServerStateUpdate = (data: { isServerMuted?: boolean; isServerDeafened?: boolean }) => {
@@ -820,7 +830,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-server-state-update');
             socket.off('force-disconnect-voice');
         };
-    }, [socket, isConnected, activeChannelId, createPeer, user, joinChannel]); // Added joinChannel dep
+    }, [socket, isConnected, activeChannelId, createPeer, user?._id]);
 
     const toggleMute = () => {
         const newMuted = !isMuted;
