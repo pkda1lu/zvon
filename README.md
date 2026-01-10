@@ -1,119 +1,121 @@
-# Zvon - Discord Clone
+# <img src="client/public/icon.png" width="48" align="center" /> Zvon
 
-Полнофункциональное приложение-аналог Discord с поддержкой серверов, каналов, сообщений в реальном времени и многим другим.
+**Zvon** — это современная и высокопроизводительная коммуникационная платформа реального времени, вдохновленная Discord, но с упором на премиальный дизайн и расширенные возможности аудио-захвата.
 
-## Возможности
+[![Version](https://img.shields.io/badge/version-0.92.6-blue.svg)](https://github.com/pkda1lu/zvon)
+[![Electron](https://img.shields.io/badge/platform-Electron-brightgreen.svg)](https://www.electronjs.org/)
+[![Technologies](https://img.shields.io/badge/stack-MERN%20+%20Socket.io-orange.svg)](https://socket.io/)
 
-- 🔐 Аутентификация и авторизация пользователей
-- 🏠 Создание и управление серверами
-- 📝 Текстовые и голосовые каналы
-- 💬 Сообщения в реальном времени через WebSocket
-- 👥 Управление участниками сервера
-- 🎨 Роли и права доступа
-- 📎 Прикрепление файлов к сообщениям
-- ⚡ Индикатор набора текста
-- 🔔 Уведомления
+---
 
-## Технологии
+## ✨ Ключевые особенности
 
-### Backend
-- Node.js + Express
-- Socket.io для real-time коммуникации
-- MongoDB + Mongoose
-- JWT для аутентификации
-- Multer для загрузки файлов
+### 💬 Сообщения и Серверы
+- **Real-time Messaging**: Мгновенный обмен сообщениями через WebSockets с поддержкой вложений.
+- **Гибкая структура**: Создание собственных серверов, текстовых и голосовых каналов.
+- **Система ролей**: Мощная система разрешений с возможностью переопределения для каждого канала.
+- **Инвайты**: Красивые лендинги для приглашений с предпросмотром сервера и умным deep-linking.
 
-### Frontend
-- React + TypeScript
-- Socket.io-client
-- Axios для HTTP запросов
-- Современный UI с кастомным CSS
+### 🎙️ Голос и Видео
+- **Voice Channels**: Кристально чистый звук с встроенным подавлением шума.
+- **Screen Sharing**: Демонстрация экрана с **захватом системного аудио** (через нативный модуль C++).
+- **WebRTC**: Надежные прямые соединения для минимальной задержки.
 
-## Установка
+### 💻 Desktop Experience
+- **Auto-Updater**: Профессиональное окно обновления с уникальной анимацией.
+- **Deep Linking**: Поддержка протокола `zvon://` для открытия инвайтов прямо в приложении.
+- **Tray & Notifications**: Полная интеграция с системным треем и уведомлениями Windows.
 
-Подробные инструкции по установке см. в [SETUP.md](./SETUP.md)
+### 🎨 Премиальный UI
+- **Glassmorphism**: Современный интерфейс с эффектами размытия и мягкими градиентами.
+- **Анимации**: Динамичные фоны, плавные переходы и микро-взаимодействия.
+- **Dark Mode**: Глубокий темный интерфейс по умолчанию.
 
-1. Клонируйте репозиторий
-2. Установите зависимости:
+---
+
+## 🚀 Стек технологий
+
+| Модуль | Технологии |
+| :--- | :--- |
+| **Frontend** | React, TypeScript, Vite, Vanilla CSS, WebRTC |
+| **Backend** | Node.js, Express, MongoDB (Mongoose), JWT |
+| **Real-time** | Socket.io |
+| **Desktop** | Electron, C++ (Native Audio Module) |
+| **Инфраструктура** | PM2, Nginx, Let's Encrypt |
+
+---
+
+## 🛠️ Быстрый старт
+
+### Требования
+- Node.js 18+
+- MongoDB 6.0+
+- Git
+
+### Установка
+
+1. **Клонируйте репозиторий:**
+   ```bash
+   git clone https://github.com/pkda1lu/zvon.git
+   cd zvon
+   ```
+
+2. **Настройка сервера:**
+   ```bash
+   cd server
+   npm install
+   cp .env.example .env # Настройте PORT, MONGODB_URI и JWT_SECRET
+   npm run dev
+   ```
+
+3. **Настройка клиента (Браузерная версия):**
+   ```bash
+   cd client
+   npm install
+   npm run dev
+   ```
+
+4. **Запуск десктопной версии (Electron):**
+   ```bash
+   cd client
+   npm run electron:dev
+   ```
+
+---
+
+## 📦 Сборка и Деплой
+
+### Сборка Windows приложения
 ```bash
-npm run install-all
+cd client
+npm run electron:build
 ```
+Инсталлер будет доступен в папке `client/dist`.
 
-3. Настройте переменные окружения:
-```bash
-cd server
-cp .env.example .env
-# Отредактируйте .env файл
-```
+### Деплой на VPS
+Подробная инструкция по деплою (Nginx, PM2, SSL) находится в файле [VPS_DEPLOYMENT.md](./VPS_DEPLOYMENT.md).
 
-4. Убедитесь, что MongoDB запущен
+---
 
-5. Запустите приложение:
-```bash
-npm run dev
-```
+## 📂 Структура проекта
 
-Backend будет доступен на http://localhost:5000
-Frontend будет доступен на http://localhost:3000
-
-## Структура проекта
-
-```
+```text
 zvon/
-├── server/          # Backend приложение
-│   ├── models/      # Mongoose модели
-│   ├── routes/      # API маршруты
-│   ├── middleware/  # Middleware функции
-│   └── server.js    # Главный файл сервера
-├── client/          # Frontend приложение
-└── package.json     # Корневой package.json
+├── client/           # React + Electron (Frontend)
+│   ├── src/          # Исходный код UI
+│   ├── public/       # Статические ресурсы и Electron точки входа
+│   └── native-audio/ # C++ модуль захвата аудио
+├── server/           # Node.js + Express (Backend)
+│   ├── models/       # Схемы данных MongoDB
+│   ├── routes/       # API Эндпоинты
+│   └── uploads/      # Хранилище пользовательских файлов
+└── sounds/           # Системные звуки приложения
 ```
 
-## API Endpoints
+---
 
-### Аутентификация
-- `POST /api/auth/register` - Регистрация
-- `POST /api/auth/login` - Вход
-- `GET /api/auth/me` - Получить текущего пользователя
+## 📄 Лицензия
 
-### Серверы
-- `POST /api/servers` - Создать сервер
-- `GET /api/servers/me` - Получить серверы пользователя
-- `GET /api/servers/:id` - Получить сервер по ID
-- `POST /api/servers/:id/join` - Присоединиться к серверу
-- `PUT /api/servers/:id` - Обновить сервер
-- `DELETE /api/servers/:id` - Удалить сервер
+Проект распространяется под лицензией ISC. Разработано с страстью к качественной связи.
 
-### Каналы
-- `POST /api/channels` - Создать канал
-- `GET /api/channels/server/:serverId` - Получить каналы сервера
-- `GET /api/channels/:id` - Получить канал по ID
-- `PUT /api/channels/:id` - Обновить канал
-- `DELETE /api/channels/:id` - Удалить канал
-
-### Сообщения
-- `GET /api/messages/channel/:channelId` - Получить сообщения канала
-- `POST /api/messages` - Создать сообщение
-- `PUT /api/messages/:id` - Обновить сообщение
-- `DELETE /api/messages/:id` - Удалить сообщение
-
-## WebSocket Events
-
-### Клиент -> Сервер
-- `join-server` - Присоединиться к серверу
-- `leave-server` - Покинуть сервер
-- `join-channel` - Присоединиться к каналу
-- `leave-channel` - Покинуть канал
-- `send-message` - Отправить сообщение
-- `typing-start` - Начать набор текста
-- `typing-stop` - Остановить набор текста
-
-### Сервер -> Клиент
-- `new-message` - Новое сообщение
-- `user-typing` - Пользователь набирает текст
-- `user-stopped-typing` - Пользователь перестал набирать текст
-
-## Лицензия
-
-ISC
-
+**Автор:** [pkda1lu](https://github.com/pkda1lu)
