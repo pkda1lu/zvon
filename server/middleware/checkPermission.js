@@ -10,7 +10,17 @@ const { Permissions } = require('../utils/permissions');
 const checkPermission = (permission, serverIdParam = 'id') => {
     return async (req, res, next) => {
         try {
-            const serverId = req.params[serverIdParam];
+            let serverId;
+            if (serverIdParam.startsWith('body.')) {
+                serverId = req.body[serverIdParam.split('.')[1]];
+            } else if (serverIdParam.startsWith('req.')) {
+                serverId = req[serverIdParam.split('.')[1]];
+            } else {
+                serverId = req.serverId || req.params[serverIdParam];
+            }
+
+            if (!serverId) return res.status(404).json({ message: 'Server ID not provided' });
+
             const server = await Server.findById(serverId);
             if (!server) return res.status(404).json({ message: 'Server not found' });
 
