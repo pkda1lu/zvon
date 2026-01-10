@@ -453,4 +453,39 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.post('/:id/leave', auth, async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    // Owners cannot leave their own server - they must delete it or transfer ownership
+    if (server.owner.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Owners cannot leave their own server' });
+    }
+
+    // Remove from server members
+    server.members = server.members.filter(m => m.user.toString() !== req.user._id.toString());
+    await server.save();
+
+    // Remove from user's servers list
+    const user = await User.findById(req.user._id);
+    if (user) {
+      user.servers = user.servers.filter(s => s.toString() !== server._id.toString());
+      await user.save();
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.user._id });
+      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+      io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
+    }
+
+    res.json({ message: 'Left server successfully' });
+  } catch (error) {
+    console.error('Leave server error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
