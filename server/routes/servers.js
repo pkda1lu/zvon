@@ -194,7 +194,10 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
     if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
 
     res.status(201).json(server.roles[server.roles.length - 1]);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('Role creation error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
@@ -217,7 +220,10 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
 
     res.json(role);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('Role update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
@@ -241,7 +247,10 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
     if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
 
     res.json({ message: 'Role deleted' });
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('Role deletion error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.patch('/:id/update-member-roles', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
