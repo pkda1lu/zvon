@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Server, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
-import { CloseIcon, TrashIcon, PlusIcon } from './Icons';
+import { CloseIcon, TrashIcon, PlusIcon, ChevronUpIcon, ChevronDownIcon } from './Icons';
 import ImageCropper from './ImageCropper';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import { useAuth } from '../contexts/AuthContext';
@@ -314,6 +314,45 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         } catch (err) { alert('Ошибка при обновлении ролей участника'); }
     };
 
+    const handleMoveRole = async (roleId: string, direction: 'up' | 'down') => {
+        const sortedRoles = [...roles].sort((a, b) => b.position - a.position);
+        const currentIndex = sortedRoles.findIndex(r => r._id === roleId);
+        if (currentIndex === -1) return;
+
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= sortedRoles.length) return;
+
+        const targetRole = sortedRoles[targetIndex];
+
+        // Swap positions
+        const tempPos = sortedRoles[currentIndex].position;
+        // If positions are same, adjust slightly? Or just swap ranks.
+        // Better: Set specific logical positions 0, 1, 2...
+        // Let's rely on swapping their current position values.
+
+        const updates = [
+            { id: roleId, position: targetRole.position },
+            { id: targetRole._id, position: sortedRoles[currentIndex].position }
+        ];
+
+        // Optimistic update
+        const newRoles = roles.map(r => {
+            if (r._id === roleId) return { ...r, position: targetRole.position };
+            if (r._id === targetRole._id) return { ...r, position: sortedRoles[currentIndex].position };
+            return r;
+        });
+        setRoles(newRoles);
+
+        try {
+            await axios.patch(`/api/servers/${server._id}/roles/positions`, { roles: updates });
+            onServerUpdate({ ...server, roles: newRoles });
+        } catch (err) {
+            // Revert
+            setRoles(roles);
+            alert('Не удалось переместить роль (возможно, недостаточно прав)');
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -547,6 +586,22 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                                     <span style={{ color: role.color }}>{role.name}</span>
                                                 </div>
                                                 <div className="role-actions">
+                                                    <div className="role-reorder-buttons" style={{ display: 'flex', flexDirection: 'column', marginRight: '8px' }}>
+                                                        <button
+                                                            className="action-button small"
+                                                            onClick={(e: any) => { e.stopPropagation(); handleMoveRole(role._id, 'up'); }}
+                                                            disabled={role.position >= roles.reduce((max, r) => Math.max(max, r.position), 0)}
+                                                        >
+                                                            <ChevronUpIcon size={12} />
+                                                        </button>
+                                                        <button
+                                                            className="action-button small"
+                                                            onClick={(e: any) => { e.stopPropagation(); handleMoveRole(role._id, 'down'); }}
+                                                            disabled={role.position <= 0}
+                                                        >
+                                                            <ChevronDownIcon size={12} />
+                                                        </button>
+                                                    </div>
                                                     <button className="action-button danger" onClick={(e: any) => { e.stopPropagation(); handleDeleteRole(role._id); }}>
                                                         <TrashIcon size={18} />
                                                     </button>

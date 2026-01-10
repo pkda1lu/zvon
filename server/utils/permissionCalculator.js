@@ -84,7 +84,24 @@ function hasPermission(userPerms, requiredPerm) {
     return (userPerms & requiredPerm) === requiredPerm;
 }
 
+function getHighestRolePosition(userId, server) {
+    if (String(server.owner) === String(userId)) return Infinity;
+
+    const member = server.members.find(m => String(m.user._id || m.user) === String(userId));
+    if (!member) return -1;
+
+    let maxPos = 0;
+    const memberRoleIds = (member.roles || []).map(r => String(r));
+    const memberRoles = (server.roles || []).filter(r => memberRoleIds.includes(String(r._id)));
+
+    for (const role of memberRoles) {
+        if (role.position > maxPos) maxPos = role.position;
+    }
+    return maxPos;
+}
+
 module.exports = {
     computePermissions,
-    hasPermission
+    hasPermission,
+    getHighestRolePosition
 };

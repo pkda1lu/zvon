@@ -8,7 +8,8 @@ const upload = require('../middleware/upload');
 
 const checkPermission = require('../middleware/checkPermission');
 const { Permissions, DEFAULT_PERMISSIONS } = require('../utils/permissions');
-const { computePermissions } = require('../utils/permissionCalculator');
+const { computePermissions, getHighestRolePosition } = require('../utils/permissionCalculator');
+
 
 router.post('/', auth, async (req, res) => {
   try {
@@ -209,6 +210,46 @@ router.get('/:id/roles', auth, async (req, res) => {
   }
 });
 
+// Update role positions
+router.patch('/:id/roles/positions', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
+  try {
+    const { roles: rolePositions } = req.body; // [{ id, position }]
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const actorHigh = getHighestRolePosition(req.user._id, server);
+
+    // Validate: Access check
+    for (const item of rolePositions) {
+      const role = server.roles.id(item.id);
+      if (!role) continue;
+      // Cannot move roles if they are above you (unless owner)
+      if (role.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Cannot move roles equal to or higher than your highest role' });
+      }
+      // Cannot move roles TO a position above you
+      if (item.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Cannot move roles to a position higher than your highest role' });
+      }
+    }
+
+    rolePositions.forEach(item => {
+      const role = server.roles.id(item.id);
+      if (role) role.position = item.position;
+    });
+
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
+
+    res.json(server.roles);
+  } catch (error) {
+    console.error('Role position update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
@@ -271,6 +312,13 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     if (!role) {
       console.error(`Update role error: Role ${req.params.roleId} absolutely not found on server ${server._id}`);
       return res.status(404).json({ message: 'Role not found' });
+    }
+
+
+    // Hierarchy check: Cannot edit role if it's higher/equal to yours
+    const actorHigh = getHighestRolePosition(req.user._id, server);
+    if (role.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Insufficient permissions to manage this role' });
     }
 
     if (role.name === '@everyone' && req.body.name) return res.status(400).json({ message: 'Cannot rename @everyone role' });
@@ -339,6 +387,13 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
       return res.status(404).json({ message: 'Role not found' });
     }
 
+
+    // Hierarchy check
+    const actorHigh = getHighestRolePosition(req.user._id, server);
+    if (role.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Insufficient permissions to delete this role' });
+    }
+
     if (role.name === '@everyone') return res.status(400).json({ message: 'Cannot delete @everyone role' });
 
     // Remove role from all members
@@ -405,6 +460,15 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     const isSelf = req.user._id.toString() === req.params.userId;
     const userPerms = computePermissions(req.user._id, server);
 
+    // Hierarchy Check (if modifying someone else)
+    if (!isSelf && String(server.owner) !== String(req.user._id)) {
+      const actorHigh = getHighestRolePosition(req.user._id, server);
+      const targetHigh = getHighestRolePosition(req.params.userId, server);
+      if (targetHigh >= actorHigh) {
+        return res.status(403).json({ message: 'You cannot manage this user (hierarchy)' });
+      }
+    }
+
     // Permission checks
     if (nickname !== undefined && nickname !== server.members[memberIndex].nickname) {
       const canChangeSelf = isSelf && (userPerms & Permissions.CHANGE_NICKNAME);
@@ -419,7 +483,20 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
       if (!(userPerms & Permissions.MANAGE_ROLES) && String(server.owner) !== String(req.user._id)) {
         return res.status(403).json({ message: 'Insufficient permissions to manage roles' });
       }
-      // TODO: Check role hierarchy (cannot add/remove roles higher than your own)
+
+      // Ensure user isn't assigning roles higher than their own (if not owner)
+      if (String(server.owner) !== String(req.user._id)) {
+        const actorHigh = getHighestRolePosition(req.user._id, server);
+        const addedRoles = roles.filter(r => !(server.members[memberIndex].roles || []).includes(r));
+
+        for (const rid of addedRoles) {
+          const r = server.roles.id(rid);
+          if (r && r.position >= actorHigh) {
+            return res.status(403).json({ message: 'Cannot assign a role higher or equal to your own' });
+          }
+        }
+      }
+
       server.members[memberIndex].roles = roles;
     }
 
@@ -440,6 +517,15 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
     server.members = server.members.filter(m => m.user.toString() !== req.params.userId);
+
+    // Hierarchy Check
+    if (String(server.owner) !== String(req.user._id)) {
+      const actorHigh = getHighestRolePosition(req.user._id, server);
+      const targetHigh = getHighestRolePosition(req.params.userId, server);
+      if (targetHigh >= actorHigh) {
+        return res.status(403).json({ message: 'Cannot kick user with equal or higher role' });
+      }
+    }
     await server.save();
     const user = await User.findById(req.params.userId);
     if (user) { user.servers = user.servers.filter(s => s.toString() !== server._id.toString()); await user.save(); }
