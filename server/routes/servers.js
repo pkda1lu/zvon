@@ -293,43 +293,24 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
 
     // --- ULTRA-ROBUST ROLE LOOKUP ---
     let role;
+    const roleIdStr = String(req.params.roleId);
 
-    // 1. Try Mongoose subdocument ID (standard)
+    // 1. Try standard Mongoose subdocument lookup
     try {
       role = server.roles.id(req.params.roleId);
     } catch (e) { /* ignore cast errors */ }
 
-    // 2. Manual search in array (string match)
+    // 2. Manual search by ID string or placeholder
     if (!role) {
-      role = server.roles.find(r => r && String(r._id) === String(req.params.roleId));
-    }
-
-    // 3. Special handling for @everyone if ID lookups failed
-    if (!role) {
-      const isEveryonePlaceholder =
-        req.params.roleId === 'everyone' ||
-        req.params.roleId === '0' ||
-        req.params.roleId === 'null' ||
-        req.params.roleId === 'undefined';
-
-      if (isEveryonePlaceholder) {
-        role = server.roles.find(r => r.name === '@everyone');
-      }
-
-      // Final fallback for @everyone: if we still don't have a role, 
-      // check if the first role is @everyone and the request might be for it
-      if (!role && server.roles.length > 0 && server.roles[0].name === '@everyone') {
-        // If the user is trying to update the first role, assume it's everyone
-        // This handles some edge cases where IDs are totally lost or mismatched
-        if (req.params.roleId.length < 5) {
-          role = server.roles[0];
-        }
-      }
+      role = server.roles.find(r =>
+        String(r._id) === roleIdStr ||
+        (r.name === '@everyone' && (roleIdStr === 'everyone' || roleIdStr === '0' || roleIdStr.length < 5))
+      );
     }
 
     if (!role) {
-      console.error(`Update role error: Role ID "${req.params.roleId}" not found on server ${server._id} (${server.name})`);
-      return res.status(404).json({ message: `Role ${req.params.roleId} not found` });
+      console.error(`Update role error: Role ${roleIdStr} not found on server ${server._id}`);
+      return res.status(404).json({ message: 'Role not found' });
     }
 
 

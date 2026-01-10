@@ -257,10 +257,11 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             resolvedId = currentRole._id;
         }
 
-        /* console.log(`Updating role: id=${roleId}, resolved=${resolvedId}, name=${currentRole?.name}`); */
+        const url = `/api/servers/${server._id}/roles/${resolvedId}`;
+        console.log(`[DEBUG] Updating role at: ${url}`, updates);
 
         try {
-            const res = await axios.patch(`/api/servers/${server._id}/roles/${resolvedId}`, updates);
+            const res = await axios.patch(url, updates);
             const updatedRole = res.data;
 
             if (!updatedRole) return;
