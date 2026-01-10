@@ -244,10 +244,22 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
       return res.status(404).json({ message: 'Server not found' });
     }
 
+    // --- REPAIR STEP ---
+    // Ensure ALL existing roles have a name, otherwise we can't save the server at all
+    let namesFixed = false;
+    server.roles.forEach((r, idx) => {
+      if (!r.name) {
+        r.name = idx === 0 ? '@everyone' : `Recovered Role ${idx}`;
+        namesFixed = true;
+      }
+    });
+    if (namesFixed) console.log('Fixed missing names for some roles to allow saving.');
+
+    console.log('Available role IDs in DB:', server.roles.map(r => String(r._id || 'NO_ID')));
+
     // Robust role lookup
     let role = server.roles.id(req.params.roleId);
     if (!role) {
-      // Fallback: search manually by string ID
       role = server.roles.find(r => r && String(r._id || r) === String(req.params.roleId));
     }
 
