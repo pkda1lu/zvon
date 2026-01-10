@@ -48,8 +48,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
 
   const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
-  const canManageChannels = hasPermission(userPerms, Permissions.MANAGE_CHANNELS) || isOwner;
+  const canManageGuild = hasPermission(userPerms, Permissions.MANAGE_GUILD) || isOwner;
   const canCreateChannels = hasPermission(userPerms, Permissions.MANAGE_CHANNELS) || isOwner;
+  const canInvite = hasPermission(userPerms, Permissions.CREATE_INSTANT_INVITE) || isOwner;
 
   const handleContextMenu = (e: React.MouseEvent, user: User) => {
     e.preventDefault();
@@ -91,8 +92,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           <h2>{server.name}</h2>
         </div>
         <div className="server-header-actions">
-          <button className="invite-button" onClick={() => setShowInviteModal(true)} title="Пригласить друзей"><PlusIcon size={18} /></button>
-          {isOwner && <button className="settings-button" onClick={onOpenSettings} title="Настройки сервера"><SettingsIcon size={18} /></button>}
+          {canInvite && <button className="invite-button" onClick={() => setShowInviteModal(true)} title="Пригласить друзей"><PlusIcon size={18} /></button>}
+          {canManageGuild && <button className="settings-button" onClick={onOpenSettings} title="Настройки сервера"><SettingsIcon size={18} /></button>}
         </div>
       </div>
 
@@ -103,22 +104,27 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
               <span>ТЕКСТОВЫЕ КАНАЛЫ</span>
               {canCreateChannels && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
             </div>
-            {textChannels.map((channel) => (
-              <div key={channel._id} className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''}`} onClick={() => onChannelSelect(channel)}>
-                <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                  <span className="channel-icon">#</span>
-                  <span className="channel-name">{channel.name}</span>
+            {textChannels.map((channel) => {
+              const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
+              const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS) || isOwner;
+
+              return (
+                <div key={channel._id} className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''}`} onClick={() => onChannelSelect(channel)}>
+                  <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                    <span className="channel-icon">#</span>
+                    <span className="channel-name">{channel.name}</span>
+                  </div>
+                  <div className="channel-actions">
+                    {unreadCounts[channel._id] > 0 && <div className="channel-unread-badge" style={{ marginRight: '4px' }}>{unreadCounts[channel._id]}</div>}
+                    {canEditThisChannel && (
+                      <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
+                        <SettingsIcon size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="channel-actions">
-                  {unreadCounts[channel._id] > 0 && <div className="channel-unread-badge" style={{ marginRight: '4px' }}>{unreadCounts[channel._id]}</div>}
-                  {canManageChannels && (
-                    <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
-                      <SettingsIcon size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -128,37 +134,42 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
               <span>ГОЛОСОВЫЕ КАНАЛЫ</span>
               {canCreateChannels && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
             </div>
-            {voiceChannels.map((channel) => (
-              <div key={channel._id}>
-                <div className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`} onClick={() => onChannelSelect(channel)}>
-                  <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                    <span className="channel-icon"><SpeakerIcon size={18} /></span>
-                    <span className="channel-name">{channel.name}</span>
+            {voiceChannels.map((channel) => {
+              const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
+              const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS) || isOwner;
+
+              return (
+                <div key={channel._id}>
+                  <div className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`} onClick={() => onChannelSelect(channel)}>
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                      <span className="channel-icon"><SpeakerIcon size={18} /></span>
+                      <span className="channel-name">{channel.name}</span>
+                    </div>
+                    <div className="channel-actions">
+                      {canEditThisChannel && (
+                        <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
+                          <SettingsIcon size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="channel-actions">
-                    {canManageChannels && (
-                      <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
-                        <SettingsIcon size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
-                  <div className="voice-channel-users">
-                    {voiceStates[channel._id].map(u => (
-                      <div key={u._id} className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`} onClick={(e) => { e.stopPropagation(); onUserClick(u._id); }} onContextMenu={(e) => handleContextMenu(e, u)}>
-                        <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                          {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" /> : <span>{u.username.charAt(0).toUpperCase()}</span>}
+                  {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
+                    <div className="voice-channel-users">
+                      {voiceStates[channel._id].map(u => (
+                        <div key={u._id} className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`} onClick={(e) => { e.stopPropagation(); onUserClick(u._id); }} onContextMenu={(e) => handleContextMenu(e, u)}>
+                          <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
+                            {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" /> : <span>{u.username.charAt(0).toUpperCase()}</span>}
+                          </div>
+                          <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
+                            {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
+                          </span>
                         </div>
-                        <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                          {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
