@@ -31,6 +31,11 @@ const Landing: React.FC = () => {
                     <span className="nav-link">Поддержка</span>
                 </div>
                 <div className="nav-actions">
+                    {!user && (
+                        <button className="btn-secondary" style={{ padding: '8px 20px', fontSize: '14px' }} onClick={() => { window.location.href = 'zvon://'; }}>
+                            Запустить Zvon
+                        </button>
+                    )}
                     <button className="btn-login" onClick={() => navigate('/login')}>
                         {user ? 'Открыть Zvon' : 'Войти'}
                     </button>

@@ -2,10 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
-// https://vitejs.dev/config/
+// detect if we are building for electron
+const isElectron = process.env.VITE_ELECTRON === 'true';
+
 export default defineConfig({
     plugins: [react(), tsconfigPaths()],
-    base: './',
+    base: isElectron ? './' : '/',
     server: {
         port: 3000,
     },

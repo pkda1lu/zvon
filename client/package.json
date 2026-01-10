@@ -1,6 +1,6 @@
 {
   "name": "zvon-client",
-  "version": "0.92.7",
+  "version": "0.92.8",
   "private": true,
   "author": "pkda1lu",
   "description": "Zvon - Real-time communication platform",
@@ -57,7 +57,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "npm run build && node -e \"const fs=require('fs'); ['electron.js', 'preload.js', 'updater.html', 'app_icon.ico', 'icon.png', 'icon1.PNG', 'icon2.png', 'icon3.png', 'icon4.png'].forEach(f => fs.copyFileSync('public/'+f, 'build/'+f))\" && electron-builder -w -c.extraMetadata.main=build/electron.js -c.compression=store"
+    "electron:build": "cross-env VITE_ELECTRON=true npm run build && node -e \"const fs=require('fs'); ['electron.js', 'preload.js', 'updater.html', 'app_icon.ico', 'icon.png', 'icon1.PNG', 'icon2.png', 'icon3.png', 'icon4.png'].forEach(f => fs.copyFileSync('public/'+f, 'build/'+f))\" && electron-builder -w -c.extraMetadata.main=build/electron.js -c.compression=store"
   },
   "eslintConfig": {
     "extends": [

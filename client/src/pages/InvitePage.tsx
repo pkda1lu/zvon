@@ -120,20 +120,34 @@ const InvitePage: React.FC = () => {
                             </div>
 
                             <div className="invite-actions-lux">
-                                <button
-                                    className="primary-action-btn join-btn-shine"
-                                    onClick={handleJoin}
-                                    disabled={joining}
-                                >
-                                    {joining ? 'Выполняется вход...' : authUser ? 'Принять приглашение' : 'Войти и вступить'}
-                                </button>
+                                {!isElectron ? (
+                                    <>
+                                        <button
+                                            className="primary-action-btn join-btn-shine"
+                                            onClick={() => { window.location.href = `zvon://invite/${code}`; }}
+                                        >
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px' }}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                                            Запустить в приложении Zvon
+                                        </button>
 
-                                {!isElectron && (
+                                        <div className="invite-browser-option">
+                                            <span>Уже в приложении?</span>
+                                            <button
+                                                className="text-link-btn"
+                                                onClick={handleJoin}
+                                                disabled={joining}
+                                            >
+                                                {joining ? 'Выполняется вход...' : 'Открыть в браузере'}
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
                                     <button
-                                        className="secondary-action-btn"
-                                        onClick={() => { window.location.href = `zvon://invite/${code}`; }}
+                                        className="primary-action-btn join-btn-shine"
+                                        onClick={handleJoin}
+                                        disabled={joining}
                                     >
-                                        Открыть в приложении
+                                        {joining ? 'Выполняется вход...' : 'Принять приглашение'}
                                     </button>
                                 )}
                             </div>
