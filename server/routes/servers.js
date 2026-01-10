@@ -168,8 +168,35 @@ router.get('/:id/roles', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    // AUTOMATIC CLEANUP: Remove roles with no name or invalid structure
+    const initialCount = server.roles.length;
+    let roles = server.roles.filter(r => r && r.name && r.name.trim() !== '');
+
+    // Ensure @everyone exists and is at index 0
+    let everyone = roles.find(r => r.name === '@everyone');
+    if (!everyone) {
+      everyone = {
+        name: '@everyone',
+        color: '#99aab5',
+        hoist: false,
+        position: 0,
+        permissions: DEFAULT_PERMISSIONS.toString()
+      };
+      roles.unshift(everyone);
+    }
+
+    if (roles.length !== initialCount) {
+      console.log(`Cleaned up ${initialCount - roles.length} phantom roles for server ${server._id}`);
+      server.roles = roles;
+      await server.save();
+    }
+
     res.json(server.roles);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('Roles GET error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async (req, res) => {
