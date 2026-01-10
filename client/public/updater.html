@@ -27,116 +27,89 @@
         }
 
         .z-loader {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .z-svg {
             width: 80px;
             height: 80px;
-            margin: 0 auto 30px;
-            position: relative;
-            transform-style: preserve-3d;
-            perspective: 500px;
+            filter: drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+            animation: zFloat 3s ease-in-out infinite;
         }
 
-        .bar {
+        .z-path {
+            fill: none;
+            stroke: #5865f2;
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 300;
+            stroke-dashoffset: 300;
+            animation: zDraw 2.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+        }
+
+        .z-glow {
             position: absolute;
-            height: 8px;
-            background: #5865f2;
-            border-radius: 4px;
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 0 15px rgba(88, 101, 242, 0.4);
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(88, 101, 242, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: zPulse 2s ease-in-out infinite;
         }
 
-        .bar.top {
-            width: 50px;
-            top: 20px;
-            left: 15px;
-            animation: topBarAnim 4s infinite;
+        @keyframes zDraw {
+            0% {
+                stroke-dashoffset: 300;
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            50% {
+                stroke-dashoffset: 0;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                stroke-dashoffset: -300;
+                opacity: 0;
+            }
         }
 
-        .bar.middle {
-            width: 60px;
-            top: 36px;
-            left: 10px;
-            transform-origin: center;
-            animation: middleBarAnim 4s infinite;
-        }
-
-        .bar.bottom {
-            width: 50px;
-            bottom: 20px;
-            left: 15px;
-            animation: bottomBarAnim 4s infinite;
-        }
-
-        @keyframes topBarAnim {
+        @keyframes zPulse {
 
             0%,
-            10% {
-                transform: translateY(0) rotate(0);
+            100% {
+                transform: scale(0.8);
+                opacity: 0.3;
             }
 
-            20%,
-            30% {
-                transform: translateY(16px) rotate(0);
+            50% {
+                transform: scale(1.2);
+                opacity: 0.6;
             }
+        }
 
-            70%,
-            80% {
-                transform: translateY(16px) rotate(0);
-            }
+        @keyframes zFloat {
 
-            90%,
+            0%,
             100% {
                 transform: translateY(0) rotate(0);
             }
-        }
 
-        @keyframes bottomBarAnim {
-
-            0%,
-            10% {
-                transform: translateY(0) rotate(0);
-            }
-
-            20%,
-            30% {
-                transform: translateY(-16px) rotate(0);
-            }
-
-            70%,
-            80% {
-                transform: translateY(-16px) rotate(0);
-            }
-
-            90%,
-            100% {
-                transform: translateY(0) rotate(0);
-            }
-        }
-
-        @keyframes middleBarAnim {
-
-            0%,
-            10% {
-                transform: rotate(-45deg);
-            }
-
-            20%,
-            30% {
-                transform: rotate(0deg);
-            }
-
-            35%,
-            65% {
-                transform: rotate(0deg) rotateY(360deg);
-            }
-
-            70%,
-            80% {
-                transform: rotate(0deg);
-            }
-
-            90%,
-            100% {
-                transform: rotate(-45deg);
+            50% {
+                transform: translateY(-10px) rotate(5deg);
             }
         }
 
@@ -200,9 +173,10 @@
 <body>
     <div class="container">
         <div class="z-loader">
-            <div class="bar top"></div>
-            <div class="bar middle"></div>
-            <div class="bar bottom"></div>
+            <div class="z-glow"></div>
+            <svg class="z-svg" viewBox="0 0 100 100">
+                <path class="z-path" d="M20,20 L80,20 L20,80 L80,80" />
+            </svg>
         </div>
         <h1>Zvon</h1>
         <div id="status" class="status">Проверка обновлений<span class="loading-dots"></span></div>
