@@ -295,6 +295,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [currentInputLevel, setCurrentInputLevel] = useState(-100);
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+    const peerStatesRef = useRef<Map<string, { makingOffer: boolean; ignoreOffer: boolean; isSettingRemoteAnswerPending: boolean }>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
     const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
     const speakingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -354,24 +355,26 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const createPeer = useCallback((targetUserId: string, initiator: boolean) => {
         if (!peersRef.current.has(targetUserId)) {
+            console.log(`[Voice] Creating new peer for ${targetUserId}. Role: ${initiator ? 'Impolite (Initiator)' : 'Polite'}`);
+
             const pc = new RTCPeerConnection({
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
                 ],
             });
 
             peersRef.current.set(targetUserId, pc);
+            peerStatesRef.current.set(targetUserId, {
+                makingOffer: false,
+                ignoreOffer: false,
+                isSettingRemoteAnswerPending: false
+            });
 
             pc.ontrack = (event) => {
-                const stream = event.streams[0];
-                const isScreen = stream.id.startsWith('screen-') || stream.getVideoTracks().length > 0;
-
-                if (isScreen) {
-                    setRemoteScreenStreams(prev => new Map(prev).set(targetUserId, stream));
-                } else {
-                    setRemoteStreams(prev => new Map(prev).set(targetUserId, stream));
-                }
+                console.log(`[Voice] Received track from ${targetUserId}, stream ID: ${event.streams[0].id}`);
+                handleTrack(targetUserId, event.streams[0]);
             };
 
             pc.onicecandidate = (event) => {
@@ -380,28 +383,31 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
             };
 
-            const negotiate = async () => {
-                if (pc.signalingState !== 'stable') return;
+            pc.onnegotiationneeded = async () => {
+                const state = peerStatesRef.current.get(targetUserId);
+                if (!state) return;
                 try {
-                    console.log(`[Voice] Negotiating with ${targetUserId}...`);
-                    const offer = await pc.createOffer();
-                    if (pc.signalingState !== 'stable') return;
-                    await pc.setLocalDescription(offer);
+                    state.makingOffer = true;
+                    console.log(`[Voice] Negotiation needed for ${targetUserId}. Making offer...`);
+                    await pc.setLocalDescription();
                     if (socket) {
                         socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
                     }
                 } catch (err) {
-                    console.error('[Voice] Negotiation failed:', err);
+                    console.error(`[Voice] Offer creation failed for ${targetUserId}:`, err);
+                } finally {
+                    state.makingOffer = false;
                 }
             };
 
-            let negotiationTimeout: any = null;
-            pc.onnegotiationneeded = () => {
-                if (!initiator || pc.signalingState !== 'stable') return;
-                clearTimeout(negotiationTimeout);
-                negotiationTimeout = setTimeout(negotiate, 150);
+            pc.oniceconnectionstatechange = () => {
+                if (pc.iceConnectionState === 'failed') {
+                    console.warn(`[Voice] ICE failed for ${targetUserId}. Restarting...`);
+                    pc.restartIce();
+                }
             };
 
+            // Add existing tracks
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(track => {
                     pc.addTrack(track, localStreamRef.current!);
@@ -413,27 +419,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     pc.addTrack(track, screenStreamRef.current!);
                 });
             }
-
-            if (initiator) {
-                negotiate();
-            }
-        } else {
-            const pc = peersRef.current.get(targetUserId)!;
-            if (initiator && pc.signalingState === 'stable') {
-                const negotiate = async () => {
-                    try {
-                        const offer = await pc.createOffer();
-                        if (pc.signalingState !== 'stable') return;
-                        await pc.setLocalDescription(offer);
-                        socket?.emit('voice-offer', { targetUserId, offer: pc.localDescription });
-                    } catch (e) { }
-                };
-                negotiate();
-            }
         }
 
         return peersRef.current.get(targetUserId)!;
-    }, [socket, handleTrack, user?._id]);
+    }, [socket, user?._id]);
 
     const leaveChannel = useCallback(() => {
         if (!activeChannelId) return;
@@ -448,6 +437,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setLocalStream(null);
         peersRef.current.forEach(pc => pc.close());
         peersRef.current.clear();
+        peerStatesRef.current.clear();
         pendingCandidatesRef.current.clear();
         setRemoteStreams(new Map());
         setConnectedUsers([]);
@@ -723,45 +713,75 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         const handleOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit }) => {
+            const pc = createPeer(data.fromUserId, false);
+            const state = peerStatesRef.current.get(data.fromUserId);
+            if (!state) return;
+
             try {
-                const pc = createPeer(data.fromUserId, false);
+                const polite = String(user?._id) > String(data.fromUserId);
+                const offerCollision = state.makingOffer || pc.signalingState !== 'stable';
+
+                state.ignoreOffer = !polite && offerCollision;
+                if (state.ignoreOffer) {
+                    console.log(`[Voice] Ignoring offer from ${data.fromUserId} due to collision (impolite)`);
+                    return;
+                }
+
+                console.log(`[Voice] Handling offer from ${data.fromUserId}`);
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+
                 const pending = pendingCandidatesRef.current.get(data.fromUserId);
                 if (pending) {
-                    for (const candidate of pending) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    for (const candidate of pending) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { }
+                    }
                     pendingCandidatesRef.current.delete(data.fromUserId);
                 }
+
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 socket.emit('voice-answer', { targetUserId: data.fromUserId, answer });
-            } catch (err) { }
+            } catch (err) {
+                console.error(`[Voice] Error handling offer from ${data.fromUserId}:`, err);
+            }
         };
 
         const handleAnswer = async (data: { fromUserId: string; answer: RTCSessionDescriptionInit }) => {
+            const pc = peersRef.current.get(data.fromUserId);
+            if (!pc) return;
             try {
-                const pc = peersRef.current.get(data.fromUserId);
-                if (pc) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    const pending = pendingCandidatesRef.current.get(data.fromUserId);
-                    if (pending) {
-                        for (const candidate of pending) await pc.addIceCandidate(new RTCIceCandidate(candidate));
-                        pendingCandidatesRef.current.delete(data.fromUserId);
+                console.log(`[Voice] Handling answer from ${data.fromUserId}`);
+                await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                const pending = pendingCandidatesRef.current.get(data.fromUserId);
+                if (pending) {
+                    for (const candidate of pending) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { }
                     }
+                    pendingCandidatesRef.current.delete(data.fromUserId);
                 }
-            } catch (err) { }
+            } catch (err) {
+                console.error(`[Voice] Error handling answer from ${data.fromUserId}:`, err);
+            }
         };
 
         const handleCandidate = async (data: { fromUserId: string; candidate: RTCIceCandidateInit }) => {
+            const pc = peersRef.current.get(data.fromUserId);
+            const state = peerStatesRef.current.get(data.fromUserId);
+
             try {
-                const pc = peersRef.current.get(data.fromUserId);
                 if (pc && pc.remoteDescription) {
                     await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 } else {
+                    if (state && state.ignoreOffer) return;
                     const pending = pendingCandidatesRef.current.get(data.fromUserId) || [];
                     pending.push(data.candidate);
                     pendingCandidatesRef.current.set(data.fromUserId, pending);
                 }
-            } catch (err) { }
+            } catch (err) {
+                if (!state || !state.ignoreOffer) {
+                    console.warn(`[Voice] Error adding ICE candidate from ${data.fromUserId}:`, err);
+                }
+            }
         };
 
         const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean; isScreenSharing?: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }) => {

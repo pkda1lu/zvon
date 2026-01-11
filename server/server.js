@@ -219,20 +219,44 @@ io.on('connection', (socket) => {
     } catch (err) { }
   });
 
-  socket.on('call-offer', (data) => io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId }));
-  socket.on('call-answer', (data) => io.to(`user-${data.targetUserId}`).emit('call-answer', { answer: data.answer }));
-  socket.on('call-ice-candidate', (data) => io.to(`user-${data.targetUserId}`).emit('call-ice-candidate', { candidate: data.candidate }));
-  socket.on('call-end', (data) => io.to(`user-${data.targetUserId}`).emit('call-end'));
+  socket.on('call-offer', (data) => {
+    console.log(`[Call] Offer from ${socket.userId} to ${data.targetUserId}`);
+    io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId });
+  });
+  socket.on('call-answer', (data) => {
+    console.log(`[Call] Answer from ${socket.userId} to ${data.targetUserId}`);
+    io.to(`user-${data.targetUserId}`).emit('call-answer', { answer: data.answer });
+  });
+  socket.on('call-ice-candidate', (data) => {
+    io.to(`user-${data.targetUserId}`).emit('call-ice-candidate', { candidate: data.candidate });
+  });
+  socket.on('call-end', (data) => {
+    console.log(`[Call] End from ${socket.userId} to ${data.targetUserId}`);
+    io.to(`user-${data.targetUserId}`).emit('call-end');
+  });
 
   socket.on('join-dm-call', (data) => {
-    socket.join(`dm-call-${data.dmId}`); socket.dmCallId = data.dmId;
+    console.log(`[Call] User ${socket.userId} joined DM room ${data.dmId}`);
+    socket.join(`dm-call-${data.dmId}`);
+    socket.dmCallId = data.dmId;
     socket.to(`dm-call-${data.dmId}`).emit('dm-call-user-joined', { userId: socket.userId });
     const room = io.sockets.adapter.rooms.get(`dm-call-${data.dmId}`);
-    const existing = []; if (room) for (const sid of room) { const s = io.sockets.sockets.get(sid); if (s && s.userId && s.userId !== socket.userId) existing.push(String(s.userId)); }
+    const existing = [];
+    if (room) {
+      for (const sid of room) {
+        const s = io.sockets.sockets.get(sid);
+        if (s && s.userId && s.userId !== socket.userId) existing.push(String(s.userId));
+      }
+    }
     socket.emit('dm-call-existing-users', existing);
   });
 
-  socket.on('leave-dm-call', (data) => { socket.leave(`dm-call-${data.dmId}`); socket.dmCallId = null; socket.to(`dm-call-${data.dmId}`).emit('dm-call-user-left', { userId: socket.userId }); });
+  socket.on('leave-dm-call', (data) => {
+    console.log(`[Call] User ${socket.userId} left DM room ${data.dmId}`);
+    socket.leave(`dm-call-${data.dmId}`);
+    socket.dmCallId = null;
+    socket.to(`dm-call-${data.dmId}`).emit('dm-call-user-left', { userId: socket.userId });
+  });
 
   socket.on('join-voice-channel', async (data) => {
     try {

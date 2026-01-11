@@ -1,14 +1,14 @@
 export const SOUNDS = {
-    MESSAGE_NOTIFY: 'sounds/message_notify.mp3',
-    CALL_RINGING: 'sounds/call_incoming.mp3',
-    CALL_JOIN: 'sounds/voice_join.mp3',
-    CALL_LEAVE: 'sounds/voice_leave.mp3',
-    MUTE: 'sounds/mute.mp3',
-    UNMUTE: 'sounds/unmute.mp3',
-    VOICE_JOIN: 'sounds/voice_join.mp3',
-    VOICE_LEAVE: 'sounds/voice_leave.mp3',
-    SCREENSHARE_ON: 'sounds/screenshare_on.mp3',
-    SCREENSHARE_TOGGLE: 'sounds/screenshare_toggle.mp3'
+    MESSAGE_NOTIFY: '/sounds/message_notify.mp3',
+    CALL_RINGING: '/sounds/call_incoming.mp3',
+    CALL_JOIN: '/sounds/voice_join.mp3',
+    CALL_LEAVE: '/sounds/voice_leave.mp3',
+    MUTE: '/sounds/mute.mp3',
+    UNMUTE: '/sounds/unmute.mp3',
+    VOICE_JOIN: '/sounds/voice_join.mp3',
+    VOICE_LEAVE: '/sounds/voice_leave.mp3',
+    SCREENSHARE_ON: '/sounds/screenshare_on.mp3',
+    SCREENSHARE_TOGGLE: '/sounds/screenshare_toggle.mp3'
 };
 
 export class SoundManager {
@@ -53,7 +53,7 @@ export class SoundManager {
         try {
             let buffer = this.soundBuffers.get(soundPath);
             if (!buffer) {
-                const resp = await fetch(soundPath);
+                const resp = await fetch(`${soundPath}?v=${Date.now()}`, { cache: 'no-store' });
                 if (!resp.ok) throw new Error(`Failed to fetch sound: ${resp.status}`);
                 const arrayBuf = await resp.arrayBuffer();
                 buffer = await this.audioContext.decodeAudioData(arrayBuf);
@@ -81,10 +81,12 @@ export class SoundManager {
     }
 
     playLoop(soundPath: string, volume: number = 0.5): HTMLAudioElement {
-        const audio = new Audio(soundPath);
+        const audio = new Audio(`${soundPath}?v=${Date.now()}`);
         audio.loop = true;
         audio.volume = volume;
-        audio.play().catch(() => { });
+        audio.play().catch((err) => {
+            console.warn('[SoundManager] playLoop failed:', err);
+        });
         return audio;
     }
 }

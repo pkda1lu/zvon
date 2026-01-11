@@ -39,6 +39,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const peerStateRef = useRef({ makingOffer: false, ignoreOffer: false });
   const ringTimeoutRef = useRef<any>(null);
   const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(initialOffer?.offer || null);
@@ -99,26 +100,41 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   }, [socket, dmId]);
 
   const handleOtherUserJoined = (data: { userId: string }) => {
-    if (data.userId === otherUser._id) {
-      setIsRinging(false); if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
-      if (user && user._id < otherUser._id) initiateWebRTC();
+    if (String(data.userId) === String(otherUser._id)) {
+      console.log(`[DM Voice] Other user (${otherUser.username}) joined. My ID: ${user?._id}, Other ID: ${otherUser._id}`);
+      setIsRinging(false);
+      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+      const isInitiator = user && String(user._id) < String(otherUser._id);
+      console.log(`[DM Voice] Am I initiator? ${isInitiator}`);
+      if (isInitiator) {
+        initiateWebRTC();
+      }
     }
   };
 
   const handleExistingUsers = (users: string[]) => {
-    if (users.includes(otherUser._id)) {
-      setIsRinging(false); if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
-      if (user && user._id < otherUser._id) initiateWebRTC();
+    console.log('[DM Voice] Existing users in room:', users);
+    const otherIdStr = String(otherUser._id);
+    if (users.map(u => String(u)).includes(otherIdStr)) {
+      console.log(`[DM Voice] Other user (${otherUser.username}) is already in room. My ID: ${user?._id}, Other ID: ${otherUser._id}`);
+      setIsRinging(false);
+      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+      const isInitiator = user && String(user._id) < String(otherUser._id);
+      console.log(`[DM Voice] Am I initiator? ${isInitiator}`);
+      if (isInitiator) {
+        initiateWebRTC();
+      }
     }
   };
 
   const acceptCall = async () => {
     setIsIncomingCall(false); setIsRinging(false);
     if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+    if (socket) socket.emit('join-dm-call', { dmId });
     if (pendingOfferRef.current) {
       const offer = pendingOfferRef.current; pendingOfferRef.current = null;
       await handleIncomingOffer({ offer });
-    } else if (socket) socket.emit('join-dm-call', { dmId });
+    }
   };
 
   const cleanupStreams = () => {
@@ -136,7 +152,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   };
 
   const setupPeerConnection = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: isVideoEnabled });
+    if (peerConnectionRef.current) return peerConnectionRef.current;
+
+    console.log(`[DM Voice] Setting up peer connection with ${otherUser.username}`);
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: isVideoEnabled
+    });
+
     let usedStream = stream;
     if (isNoiseSuppressionEnabled) {
       try {
@@ -147,81 +170,143 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       } catch (e) { }
     }
     setLocalStream(usedStream);
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' }] });
-    usedStream.getTracks().forEach(track => pc.addTrack(track, usedStream));
+
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
+    });
+
     pc.ontrack = (event) => {
       const stream = event.streams[0];
-      const isScreen = stream.id.startsWith('screen-') || (stream.getVideoTracks().length > 0 && stream.getAudioTracks().length > 0);
-      // In DM, screen share often has both audio and video, while camera is usually separate
-      // But let's simplify: if it's a second stream or has 'screen' in ID
+      console.log(`[DM Voice] Received track from ${otherUser.username}, stream ID: ${stream.id}`);
       if (stream.id.startsWith('screen-') || (remoteStream && stream.id !== remoteStream.id)) {
         setRemoteScreenStream(stream);
       } else {
         setRemoteStream(stream);
       }
     };
-    pc.onicecandidate = (event) => { if (event.candidate && socket) socket.emit('call-ice-candidate', { targetUserId: otherUser._id, candidate: event.candidate }); };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socket) {
+        socket.emit('call-ice-candidate', { targetUserId: otherUser._id, candidate: event.candidate });
+      }
+    };
 
     pc.onnegotiationneeded = async () => {
       try {
-        if (pc.signalingState !== 'stable') return;
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
+        peerStateRef.current.makingOffer = true;
+        console.log('[DM Voice] Negotiation needed. Making offer...');
+        await pc.setLocalDescription();
+        socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer: pc.localDescription });
       } catch (err) {
-        console.error('DM Negotiation error:', err);
+        console.error('[DM Voice] Negotiation error:', err);
+      } finally {
+        peerStateRef.current.makingOffer = false;
       }
     };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') {
+        console.warn('[DM Voice] ICE failed. Restarting...');
+        pc.restartIce();
+      }
+    };
+
+    usedStream.getTracks().forEach(track => pc.addTrack(track, usedStream));
 
     peerConnectionRef.current = pc;
     return pc;
   };
 
+
   const initiateWebRTC = async () => {
     if (isCallActive) return;
     try {
-      const pc = await setupPeerConnection();
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      if (socket) socket.emit('call-offer', { targetUserId: otherUser._id, dmId, offer });
+      await setupPeerConnection();
       setIsCallActive(true); wasCallEstablishedRef.current = true;
-    } catch (err) { }
+    } catch (err) {
+      console.error('[DM Voice] initiateWebRTC failed:', err);
+    }
   };
 
   const handleIncomingOffer = async (data: { offer: RTCSessionDescriptionInit | null }) => {
-    if (!data.offer) { if (!isCallActive && initialIncomingCall) setIsIncomingCall(true); return; }
-    if (isIncomingCall) { pendingOfferRef.current = data.offer; return; }
+    if (!data.offer) {
+      if (!isCallActive && initialIncomingCall) setIsIncomingCall(true);
+      return;
+    }
+
+    if (isIncomingCall) {
+      pendingOfferRef.current = data.offer;
+      return;
+    }
+
     try {
-      const pc = peerConnectionRef.current || await setupPeerConnection();
+      const pc = await setupPeerConnection();
+      const polite = String(user?._id) > String(otherUser._id);
+      const offerCollision = peerStateRef.current.makingOffer || pc.signalingState !== 'stable';
+
+      peerStateRef.current.ignoreOffer = !polite && offerCollision;
+      if (peerStateRef.current.ignoreOffer) {
+        console.log('[DM Voice] Ignoring offer due to collision (impolite)');
+        return;
+      }
+
+      console.log('[DM Voice] Handling incoming offer');
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       if (socket) socket.emit('call-answer', { targetUserId: otherUser._id, answer });
+
       setIsCallActive(true); wasCallEstablishedRef.current = true; setIsRinging(false);
+
       while (iceCandidatesQueue.current.length > 0) {
         const c = iceCandidatesQueue.current.shift();
-        if (c) await pc.addIceCandidate(new RTCIceCandidate(c));
+        if (c) try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { }
       }
-    } catch (err) { }
+    } catch (err) {
+      console.error('[DM Voice] Error handling incoming offer:', err);
+    }
   };
 
   const handleCallAnswer = async (data: { answer: RTCSessionDescriptionInit }) => {
-    if (peerConnectionRef.current && peerConnectionRef.current.signalingState === 'have-local-offer') {
-      try {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-        setIsCallActive(true); wasCallEstablishedRef.current = true;
-        while (iceCandidatesQueue.current.length > 0) {
-          const c = iceCandidatesQueue.current.shift();
-          if (c) await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c));
+    if (!peerConnectionRef.current) return;
+    try {
+      console.log('[DM Voice] Handling incoming answer');
+      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+      setIsCallActive(true); wasCallEstablishedRef.current = true;
+      while (iceCandidatesQueue.current.length > 0) {
+        const c = iceCandidatesQueue.current.shift();
+        if (c) {
+          try {
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c));
+          } catch (e) {
+            console.warn('[DM Voice] Error adding queued ICE candidate after answer:', e);
+          }
         }
-      } catch (e) { }
+      }
+    } catch (e) {
+      console.error('[DM Voice] Error handling incoming answer:', e);
     }
   };
 
   const handleIceCandidate = async (data: { candidate: RTCIceCandidateInit }) => {
-    if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
-      try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (e) { }
-    } else iceCandidatesQueue.current.push(data.candidate);
+    const pc = peerConnectionRef.current;
+    try {
+      if (pc && pc.remoteDescription) {
+        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } else {
+        if (peerStateRef.current.ignoreOffer) return;
+        iceCandidatesQueue.current.push(data.candidate);
+      }
+    } catch (e) {
+      if (!peerStateRef.current.ignoreOffer) {
+        console.warn('[DM Voice] Error adding ICE candidate:', e);
+      }
+    }
   };
 
   const handleCallEnd = () => endCall();
