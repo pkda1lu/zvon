@@ -6,7 +6,7 @@ import './ServerMembers.css';
 
 interface ServerMembersProps {
     server: Server;
-    onUserClick: (userId: string) => void;
+    onUserClick: (userId: string, event?: React.MouseEvent) => void;
 }
 
 const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) => {
@@ -70,7 +70,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                 <div
                                                     key={member.user._id}
                                                     className="member-item"
-                                                    onClick={() => onUserClick(member.user._id)}
+                                                    onClick={(e) => onUserClick(member.user._id, e)}
                                                     onContextMenu={(e) => handleContextMenu(e, member.user)}
                                                 >
                                                     <div className="member-avatar">
@@ -114,7 +114,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                             <div
                                                 key={member.user._id}
                                                 className="member-item"
-                                                onClick={() => onUserClick(member.user._id)}
+                                                onClick={(e) => onUserClick(member.user._id, e)}
                                                 onContextMenu={(e) => handleContextMenu(e, member.user)}
                                             >
                                                 <div className="member-avatar">
@@ -155,7 +155,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                             <div
                                                 key={member.user._id}
                                                 className="member-item offline"
-                                                onClick={() => onUserClick(member.user._id)}
+                                                onClick={(e) => onUserClick(member.user._id, e)}
                                                 onContextMenu={(e) => handleContextMenu(e, member.user)}
                                             >
                                                 <div className="member-avatar">

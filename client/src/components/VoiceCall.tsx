@@ -23,7 +23,8 @@ interface VoiceCallProps {
 
 const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false, initialOffer }) => {
   const { user } = useAuth();
-  const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened } = useVoice();
+  const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened, speakingUsers } = useVoice();
+  const isOtherSpeaking = speakingUsers.has(otherUser._id);
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
@@ -35,6 +36,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
   const [remoteScreenStream, setRemoteScreenStream] = useState<MediaStream | null>(null);
+
+  const [localSpeaking, setLocalSpeaking] = useState(false);
+  const [remoteSpeaking, setRemoteSpeaking] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -430,90 +434,217 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   };
 
   useEffect(() => {
+    if (!isCallActive) return;
+
+    let interval: any;
+    let localAnalyser: AnalyserNode | null = null;
+    let remoteAnalyser: AnalyserNode | null = null;
+    let audioCtx: AudioContext | null = null;
+
+    const setupAnalysers = async () => {
+      audioCtx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      if (localStream && localStream.getAudioTracks().length > 0) {
+        localAnalyser = audioCtx.createAnalyser();
+        const source = audioCtx.createMediaStreamSource(localStream);
+        source.connect(localAnalyser);
+      }
+
+      if (remoteStream && remoteStream.getAudioTracks().length > 0) {
+        remoteAnalyser = audioCtx.createAnalyser();
+        const source = audioCtx.createMediaStreamSource(remoteStream);
+        source.connect(remoteAnalyser);
+      }
+
+      const localDataArray = localAnalyser ? new Uint8Array(localAnalyser.fftSize) : null;
+      const remoteDataArray = remoteAnalyser ? new Uint8Array(remoteAnalyser.fftSize) : null;
+
+      let localSpeakingHold = 0;
+      let remoteSpeakingHold = 0;
+
+      interval = setInterval(() => {
+        if (localAnalyser && localDataArray) {
+          localAnalyser.getByteTimeDomainData(localDataArray);
+          let sumOfSquares = 0;
+          for (let i = 0; i < localDataArray.length; i++) {
+            const normalized = (localDataArray[i] - 128) / 128;
+            sumOfSquares += normalized * normalized;
+          }
+          const rms = Math.sqrt(sumOfSquares / localDataArray.length);
+          if (rms > 0.01) localSpeakingHold = 5; // Hold for 5 ticks (250ms)
+          else if (localSpeakingHold > 0) localSpeakingHold--;
+
+          setLocalSpeaking(localSpeakingHold > 0);
+        }
+
+        if (remoteAnalyser && remoteDataArray) {
+          remoteAnalyser.getByteTimeDomainData(remoteDataArray);
+          let sumOfSquares = 0;
+          for (let i = 0; i < remoteDataArray.length; i++) {
+            const normalized = (remoteDataArray[i] - 128) / 128;
+            sumOfSquares += normalized * normalized;
+          }
+          const rms = Math.sqrt(sumOfSquares / remoteDataArray.length);
+          if (rms > 0.01) remoteSpeakingHold = 5;
+          else if (remoteSpeakingHold > 0) remoteSpeakingHold--;
+
+          setRemoteSpeaking(remoteSpeakingHold > 0);
+        }
+      }, 50);
+    };
+
+    setupAnalysers();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isCallActive, localStream, remoteStream]);
+
+  useEffect(() => {
     if (localStream && localVideoRef.current) localVideoRef.current.srcObject = localStream;
     if (remoteStream && remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
   }, [localStream, remoteStream]);
 
-  return (
-    <div className="voice-call-container">
-      <div className="voice-call-header">
-        <div className="call-user-info">
-          <div className="call-avatar">{getAvatarUrl(otherUser.avatar) ? <img src={getAvatarUrl(otherUser.avatar)!} alt="" /> : <span>{otherUser.username.charAt(0).toUpperCase()}</span>}</div>
-          <div className="call-user-details">
-            <div className="call-username">{otherUser.username}</div>
-            <div className="call-status">
-              {isCallActive ? 'В разговоре' : isIncomingCall ? 'Входящий звонок' : isRinging ? 'Звонок...' : 'Подключение...'}
-            </div>
+  if (isIncomingCall) {
+    return (
+      <div className="voice-call-notification">
+        <div className="notification-content">
+          <div className="notification-avatar">
+            {getAvatarUrl(otherUser.avatar) ? (
+              <img src={getAvatarUrl(otherUser.avatar)!} alt="" />
+            ) : (
+              <span>{otherUser.username.charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+          <div className="notification-info">
+            <div className="notification-name">{otherUser.username}</div>
+            <div className="notification-status">Входящий звонок...</div>
+          </div>
+          <div className="notification-actions">
+            <button className="accept-btn" onClick={acceptCall}>
+              <CheckIcon color="black" />
+            </button>
+            <button className="reject-btn" onClick={endCall}>
+              <CloseIcon color="white" size={20} />
+            </button>
           </div>
         </div>
-        <button className="end-call-button" onClick={endCall}><CloseIcon size={18} /></button>
       </div>
+    );
+  }
 
-      <div className="voice-call-content">
-        {isIncomingCall ? (
-          <div className="call-pending">
-            <div className="call-avatar-large">{getAvatarUrl(otherUser.avatar) ? <img src={getAvatarUrl(otherUser.avatar)!} alt="" /> : <span>{otherUser.username.charAt(0).toUpperCase()}</span>}</div>
-            <div className="incoming-call-actions">
-              <button className="accept-call-button" onClick={acceptCall}><CheckIcon color="white" /> Принять</button>
-              <button className="reject-call-button" onClick={endCall}><CloseIcon color="white" size={24} /> Отклонить</button>
-            </div>
-          </div>
-        ) : !isCallActive ? (
-          <div className="call-pending">
-            <div className="call-avatar-large">{getAvatarUrl(otherUser.avatar) ? <img src={getAvatarUrl(otherUser.avatar)!} alt="" /> : <span>{otherUser.username.charAt(0).toUpperCase()}</span>}</div>
-            <div className="waiting-indicator">{isRinging ? 'Вызываем...' : 'Подключение...'}</div>
-          </div>
-        ) : (
-          <div className="call-active">
-            <div className="video-container">
-              {remoteStream && remoteStream.getVideoTracks().length > 0 && <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />}
-              {remoteScreenStream && (
+  return (
+    <div className="voice-call-full-view">
+      <header className="call-topbar">
+        <div className="call-topbar-left">
+          <button className="back-to-app-btn" onClick={onEndCall} title="Свернуть (звонок продолжится)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <div className="call-title">Прямой звонок: {otherUser.username}</div>
+        </div>
+        <div className="call-duration">
+          {isCallActive ? 'В эфире' : 'Подключение...'}
+        </div>
+      </header>
+
+      <main className="call-main">
+        <div className="video-grid">
+          <div className="main-video-slot">
+            {remoteStream && remoteStream.getVideoTracks().length > 0 ? (
+              <video ref={remoteVideoRef} autoPlay playsInline className={`remote-video-full ${remoteSpeaking ? 'speaking' : ''}`} />
+            ) : (
+              <div className="remote-audio-placeholder">
+                <div className={`placeholder-avatar-ring ${remoteSpeaking ? 'speaking' : ''}`}>
+                  <div className="call-avatar-large">
+                    {getAvatarUrl(otherUser.avatar) ? (
+                      <img src={getAvatarUrl(otherUser.avatar)!} alt="" />
+                    ) : (
+                      <span>{otherUser.username.charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="placeholder-info">
+                  <h3>{otherUser.username}</h3>
+                  <div className="speaking-indicator">
+                    {isCallActive ? 'СОБЕСЕДНИК В СЕТИ' : 'ПОДКЛЮЧЕНИЕ...'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {remoteScreenStream && (
+              <div className="remote-screen-slot">
                 <video
                   autoPlay
                   playsInline
                   muted
                   ref={el => { if (el && el.srcObject !== remoteScreenStream) el.srcObject = remoteScreenStream; }}
-                  className="remote-screen-video"
-                  style={{ width: '100%', height: 'auto', borderRadius: '8px', marginTop: '10px', background: '#000' }}
+                  className="remote-screen-video-full"
                 />
-              )}
-              {localStream && localStream.getVideoTracks().length > 0 && <video ref={localVideoRef} autoPlay playsInline muted className="local-video" />}
-              {screenStream && (
-                <div className="local-screen-preview-container">
-                  <MonitorIcon size={32} color="var(--bg-accent)" />
-                  <span>Вы транслируете экран</span>
+              </div>
+            )}
+          </div>
+
+          <div className={`pip-video-slot ${localSpeaking ? 'speaking' : ''}`}>
+            {localStream && localStream.getVideoTracks().length > 0 ? (
+              <video ref={localVideoRef} autoPlay playsInline muted className="local-video-pip" />
+            ) : (
+              <div className="local-audio-pip">
+                <div className={`pip-avatar ${localSpeaking ? 'speaking' : ''}`}>
+                  {getAvatarUrl(user?.avatar) ? (
+                    <img src={getAvatarUrl(user?.avatar)!} alt="" />
+                  ) : (
+                    <span>{user?.username.charAt(0).toUpperCase()}</span>
+                  )}
                 </div>
-              )}
-            </div>
-            {remoteStream && (
-              <audio
-                ref={(el) => { if (el) { el.srcObject = remoteStream; el.volume = userVolumes.get(otherUser._id) ?? 1; el.muted = isGlobalDeafened; el.play().catch(() => { }); } }}
-                autoPlay
-              />
+              </div>
             )}
-            {remoteScreenStream && remoteScreenStream.getAudioTracks().length > 0 && (
-              <audio
-                autoPlay
-                ref={el => { if (el) { el.srcObject = remoteScreenStream; el.play().catch(() => { }); } }}
-              />
+            <div className="pip-label">Вы</div>
+
+            {screenStream && (
+              <div className="screen-share-overlay">
+                <MonitorIcon size={24} />
+                <span>Трансляция экрана</span>
+              </div>
             )}
           </div>
-        )}
-        {!isIncomingCall && (
-          <div className="call-controls" style={{ marginTop: '20px' }}>
-            <button className={`control-button ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
-              {isMuted ? <MicMutedIcon /> : <MicIcon />}
-            </button>
-            <button className={`control-button ${isScreenSharing ? 'active' : ''}`} onClick={() => isScreenSharing ? toggleScreenShare() : setShowScreenSelector(true)} title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}>
-              <VideoIcon />
-            </button>
-            <button className={`control-button ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo} title={isVideoEnabled ? 'Выключить камеру' : 'Включить камеру'}>
-              <CameraIcon />
-            </button>
-            <button className="control-button end-call" onClick={endCall} title="Завершить звонок"><PhoneIcon /></button>
-          </div>
-        )}
+        </div>
+      </main>
+
+      <div className="call-controls-bar">
+        <button className={`control-circle ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
+          {isMuted ? <MicMutedIcon /> : <MicIcon />}
+        </button>
+        <button className={`control-circle ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo} title={isVideoEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+          <CameraIcon />
+        </button>
+        <button className={`control-circle ${isScreenSharing ? 'active' : ''}`} onClick={() => isScreenSharing ? toggleScreenShare() : setShowScreenSelector(true)} title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}>
+          <MonitorIcon size={24} />
+        </button>
+        <div className="control-divider"></div>
+        <button className="control-circle end-call-circle" onClick={endCall} title="Завершить звонок">
+          <span style={{ display: 'flex', transform: 'rotate(135deg)' }}>
+            <PhoneIcon size={28} />
+          </span>
+        </button>
       </div>
+
+      {remoteStream && (
+        <audio
+          ref={(el) => { if (el) { el.srcObject = remoteStream; el.volume = userVolumes.get(otherUser._id) ?? 1; el.muted = isGlobalDeafened; el.play().catch(() => { }); } }}
+          autoPlay
+        />
+      )}
+      {remoteScreenStream && remoteScreenStream.getAudioTracks().length > 0 && (
+        <audio
+          autoPlay
+          ref={el => { if (el) { el.srcObject = remoteScreenStream; el.play().catch(() => { }); } }}
+        />
+      )}
 
       {showScreenSelector && (
         <ScreenSourceSelector

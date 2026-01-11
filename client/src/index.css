@@ -1,27 +1,119 @@
 :root {
+  /* Legacy Variables (preserved for compatibility) */
   --bg-primary: #36393f;
   --bg-secondary: #2f3136;
   --bg-tertiary: #202225;
   --bg-floating: #18191c;
   --bg-accent: #5865f2;
-
   --text-primary: #ffffff;
   --text-secondary: #b9bbbe;
   --text-muted: #72767d;
 
-  --header-primary: #ffffff;
-  --channel-hover: rgba(79, 84, 92, 0.32);
-  --message-hover: rgba(4, 4, 5, 0.07);
-  --border-subtle: rgba(255, 255, 255, 0.05);
+  /* --- LIQUID GLASS 2026 DESIGN TOKENS --- */
+  --bg-dark: #020205;
+  --glass-bg: rgba(255, 255, 255, 0.035);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(50px) saturate(160%) brightness(1.05);
+  --primary-neon: #00e5ff;
+  --secondary-neon: #a155ff;
+  --accent-pink: #ff00e5;
+  --text-main: #ffffff;
+  --text-dim: rgba(255, 255, 255, 0.45);
+  --corner-radius: 36px;
+  --liquid-specular: linear-gradient(145deg, rgba(255, 255, 255, 0.15) 0%, transparent 40%, transparent 75%, rgba(255, 255, 255, 0.05) 100%);
 
-  --message-spacing: 16px;
-  --group-spacing: 24px;
-  --font-scale: 1;
-  --base-font-size: 16px;
+  /* Layout Constants */
+  --sidebar-width: 84px;
+  --topbar-height: 80px;
+}
 
-  --message-padding-v: 8px;
-  --message-margin-v: 2px;
-  --slider-track: #4f545c;
+/* --- GLOBAL LIQUID COMPONENTS --- */
+.neon-btn {
+  background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
+  color: #000 !important;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.auth-input-glass {
+  width: 100%;
+  padding: 15px 20px;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 16px !important;
+  color: white !important;
+  outline: none !important;
+  transition: all 0.4s ease;
+  font-family: inherit;
+}
+
+.auth-label-neon {
+  font-size: 10px;
+  color: var(--primary-neon);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+  margin-left: 5px;
+  display: block;
+}
+
+/* --- GLOBAL ANIMATIONS --- */
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes liquidFloat {
+  0% {
+    transform: scale(1) translate(0, 0);
+  }
+
+  33% {
+    transform: scale(0.95) translate(-1%, 2%);
+  }
+
+  66% {
+    transform: scale(1.02) translate(1%, -1%);
+  }
+
+  100% {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-20px) rotate(2deg);
+  }
 }
 
 * {
@@ -30,69 +122,99 @@
   box-sizing: border-box;
 }
 
-html {
-  font-size: var(--base-font-size);
-}
-
+html,
 body {
+  background-color: transparent !important;
+  background: transparent !important;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-smoothing: grayscale;
-  background-color: var(--bg-primary);
-  color: var(--text-secondary);
   overflow: hidden;
-  transition: background-color 0.2s ease, color 0.1s ease;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-#root {
   height: 100vh;
   width: 100vw;
 }
 
-/* Global Premium Scrollbar */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-smoothing: grayscale;
+  color: var(--text-main);
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* --- SHARED LIQUID BACKGROUND --- */
+.liquid-bg-container {
+  position: fixed;
+  inset: -10%;
+  background: linear-gradient(-45deg, #020204, #15082e, #0a1f38, #2e081c, #020204);
+  background-size: 300% 300%;
+  animation: gradientMove 50s ease infinite, liquidFloat 75s ease-in-out infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.liquid-bg-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.12;
+  mix-blend-mode: overlay;
+}
+
+.liquid-bg-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.07), transparent 70%);
+}
+
+/* --- PREMIUM SCROLLBARS --- */
 ::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background-color: transparent;
-  border: 4px solid transparent;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--bg-tertiary);
-  border: 4px solid transparent;
-  background-clip: padding-box;
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 100px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--bg-secondary);
+  background: rgba(255, 255, 255, 0.15);
+  background-clip: content-box;
 }
 
-/* Thin variant for specific areas */
-.sidebar-scroll::-webkit-scrollbar,
-.settings-sidebar::-webkit-scrollbar,
-.settings-content-wrapper::-webkit-scrollbar,
-.stage-sidebar::-webkit-scrollbar,
-.voice-channel-content::-webkit-scrollbar {
-  width: 8px;
+/* Utility to bridge old/new styles */
+.preview-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.sidebar-scroll::-webkit-scrollbar-thumb,
-.settings-sidebar::-webkit-scrollbar-thumb,
-.settings-content-wrapper::-webkit-scrollbar-thumb,
-.stage-sidebar::-webkit-scrollbar-thumb,
-.voice-channel-content::-webkit-scrollbar-thumb {
-  background-color: var(--bg-tertiary);
-  border: 2px solid transparent;
+.glass-panel-base {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--corner-radius);
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }

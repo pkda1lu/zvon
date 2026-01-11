@@ -56,7 +56,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     refreshDevices,
     inputSensitivity, setInputSensitivity,
     isAutomaticSensitivity, setIsAutomaticSensitivity,
-    currentInputLevel
+    currentInputLevel,
+    startTestStream, stopTestStream
   } = useVoice();
   const {
     theme, setTheme,
@@ -235,7 +236,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         <div className="account-info-banner">
           <div className="account-details">
             <h3>{user?.username}</h3>
-            <p>Статус: {status === 'online' ? 'В сети' : 'Не в сети'}</p>
+            <div className="account-status-wrapper">
+              <div className={`status-dot ${status}`} />
+              <p>
+                {status === 'online' && 'В сети'}
+                {status === 'away' && 'Отошёл'}
+                {status === 'busy' && 'Занят'}
+                {status === 'offline' && 'Невидимый'}
+              </p>
+            </div>
           </div>
           <button className="edit-profile-button" onClick={() => fileInputRef.current?.click()}>
             Изменить профиль
@@ -264,12 +273,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
       <div className="settings-form-group">
         <label>Статус</label>
-        <select value={status} onChange={e => setStatus(e.target.value as any)}>
-          <option value="online">В сети</option>
-          <option value="away">Отошёл</option>
-          <option value="busy">Занят</option>
-          <option value="offline">Невидимый</option>
-        </select>
+        <div className="status-selector-grid">
+          {[
+            { id: 'online', label: 'В сети', color: 'online' },
+            { id: 'away', label: 'Отошёл', color: 'away' },
+            { id: 'busy', label: 'Занят', color: 'busy' },
+            { id: 'offline', label: 'Невидимый', color: 'offline' }
+          ].map(opt => (
+            <div
+              key={opt.id}
+              className={`status-option ${status === opt.id ? 'active' : ''}`}
+              onClick={() => setStatus(opt.id as any)}
+            >
+              <div className={`status-dot ${opt.color}`} />
+              <span className="status-text">{opt.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <button
@@ -436,8 +456,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (activeTab === 'voice') {
       refreshDevices();
+      startTestStream();
+    } else {
+      stopTestStream();
     }
-  }, [activeTab, refreshDevices]);
+    return () => stopTestStream();
+  }, [activeTab, refreshDevices, startTestStream, stopTestStream]);
 
   const renderVoiceSettings = () => (
     <div className="settings-section-content">
@@ -514,7 +538,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        <div className="voice-sensitivity-controls" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-divider)' }}>
+        <div className="voice-sensitivity-controls">
           <h3>Чувствительность микрофона</h3>
 
           <div className="settings-form-group-checkbox">
@@ -533,22 +557,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className={`sensitivity-slider-container ${isAutomaticSensitivity ? 'disabled' : ''}`}>
-            <div className="slider-header-row">
+            <div className="slider-header-row" style={{ marginBottom: '40px' }}>
               <label>Порог срабатывания</label>
-              <span className="slider-value">{Math.round(inputSensitivity)} dB</span>
+              <span className="slider-value" style={{ color: 'var(--primary-neon)', fontWeight: 900 }}>{Math.round(inputSensitivity)} dB</span>
             </div>
-            <div className="sensitivity-visualizer-wrapper" style={{ position: 'relative', height: '24px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginBottom: '8px', overflow: 'hidden' }}>
+
+            <div className="sensitivity-visualizer-wrapper">
               {/* Threshold Marker */}
               {!isAutomaticSensitivity && (
                 <div
                   className="sensitivity-threshold-marker"
                   style={{
-                    position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    width: '2px',
-                    background: '#fff',
-                    zIndex: 5,
                     left: `${Math.max(0, Math.min(100, inputSensitivity + 100))}%`
                   }}
                 />
@@ -558,13 +577,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <div
                 className="sensitivity-bar-fill"
                 style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  bottom: 0,
                   width: `${Math.max(0, Math.min(100, currentInputLevel + 100))}%`,
-                  backgroundColor: (currentInputLevel > (isAutomaticSensitivity ? -50 : inputSensitivity)) ? '#43b581' : '#f04747',
-                  transition: 'width 0.1s linear, background-color 0.1s'
+                  color: (currentInputLevel > (isAutomaticSensitivity ? -60 : inputSensitivity)) ? '#00ffa3' : '#ff3b30',
+                  backgroundColor: 'currentColor'
                 }}
               />
             </div>
@@ -579,13 +594,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               disabled={isAutomaticSensitivity}
               className="settings-slider sensitivity-slider"
             />
-            <div className="sensitivity-labels" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+            <div className="sensitivity-labels">
               <span>-100dB</span>
               <span>-50dB</span>
               <span>0dB</span>
             </div>
           </div>
-          <p className="sensitivity-help-text" style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+          <p className="sensitivity-help-text">
             Если ваш микрофон слишком чувствителен и улавливает фоновые шумы, отключите автоматическое определение и сдвиньте ползунок вправо (к 0dB).
           </p>
         </div>
@@ -762,10 +777,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <ShieldIcon size={18} /> Конфиденциальность активности
             </div>
 
-            <div className="sidebar-separator" />
+
+            <div className="sidebar-separator" style={{ marginTop: 'auto' }} />
 
             <div className="sidebar-item logout" onClick={() => { logout(); onClose(); navigate('/login'); }}>
-              <LogOutIcon size={18} /> Выйти
+              <LogOutIcon size={18} /> Выйти из аккаунта
             </div>
 
           </div>

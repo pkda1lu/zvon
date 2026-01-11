@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { CloseIcon, SearchIcon } from './Icons';
 import { User } from '../types';
@@ -54,7 +55,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
     if (!isOpen) return null;
     const filteredFriends = friends.filter(f => f.username.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    return (
+    return createPortal(
         <div className="modal-overlay" onClick={onClose}>
             <div className="invite-modal-v2" onClick={e => e.stopPropagation()}>
                 <div className="invite-header"><div className="header-title"><h3>Пригласить друзей в {serverName || 'на сервер'}</h3></div><button className="close-btn" onClick={onClose}><CloseIcon /></button></div>
@@ -74,7 +75,8 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
                     {error && <div className="invite-error">{error}</div>}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

@@ -138,9 +138,16 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                                 >
                                     <div className="source-thumbnail-container">
                                         <img src={source.thumbnail} alt={source.name} className="source-thumbnail" />
+                                        <div className="source-thumbnail-overlay"></div>
                                     </div>
                                     <div className="source-info">
-                                        {source.appIcon && <img src={source.appIcon} alt="" style={{ width: 16, height: 16, marginRight: 8 }} />}
+                                        {source.appIcon ? (
+                                            <div className="source-app-icon">
+                                                <img src={source.appIcon} alt="" />
+                                            </div>
+                                        ) : (
+                                            <div className="source-app-icon placeholder"></div>
+                                        )}
                                         <span className="source-name">{source.name}</span>
                                     </div>
                                 </div>

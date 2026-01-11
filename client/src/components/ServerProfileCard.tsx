@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Server } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
@@ -8,9 +9,37 @@ interface ServerProfileCardProps {
     server: Server;
     onClose: () => void;
     onLeave: (serverId: string) => void;
+    position?: { x: number, y: number } | null;
+    onUserClick?: (userId: string, event?: React.MouseEvent) => void;
 }
 
-const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, onLeave }) => {
+const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, onLeave, position, onUserClick }) => {
+    const cardRef = useRef<HTMLDivElement>(null);
+    const [adjustedPos, setAdjustedPos] = useState({ top: position?.y || 0, left: (position?.x || 0) + 20 });
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        if (!position || !cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        let finalX = position.x + 20;
+        let finalY = position.y;
+
+        if (finalX + rect.width > window.innerWidth) {
+            finalX = position.x - rect.width - 20;
+        }
+
+        if (finalY + rect.height > window.innerHeight) {
+            finalY = position.y - rect.height;
+        }
+
+        if (finalY + rect.height > window.innerHeight) finalY = window.innerHeight - rect.height - 10;
+        if (finalY < 10) finalY = 10;
+        if (finalX < 10) finalX = 10;
+        if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 10;
+
+        setAdjustedPos({ top: finalY, left: finalX });
+        setIsVisible(true);
+    }, [position]);
     const handleLeave = async () => {
         if (window.confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
             try {
@@ -24,8 +53,19 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
     };
 
     return (
-        <div className="server-profile-overlay" onClick={onClose}>
-            <div className="server-profile-card" onClick={e => e.stopPropagation()}>
+        <div className={`server-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+            <div
+                className={`server-profile-card ${position ? 'popout' : ''}`}
+                onClick={e => e.stopPropagation()}
+                style={position ? {
+                    position: 'absolute',
+                    top: adjustedPos.top,
+                    left: adjustedPos.left,
+                    visibility: isVisible ? 'visible' : 'hidden',
+                    opacity: isVisible ? 1 : 0
+                } : undefined}
+                ref={cardRef}
+            >
                 <div
                     className="server-profile-banner"
                     style={{
@@ -77,7 +117,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
 
                     <div className="server-profile-section">
                         <h4>ВЛАДЕЛЕЦ</h4>
-                        <div className="owner-info">
+                        <div className="owner-info" onClick={(e) => typeof server.owner === 'object' && onUserClick?.((server.owner as any)._id, e)} style={{ cursor: 'pointer' }}>
                             {typeof server.owner === 'object' && (
                                 <>
                                     <img

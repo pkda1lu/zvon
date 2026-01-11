@@ -1,12 +1,13 @@
 .title-bar {
-    height: 32px;
-    background-color: var(--bg-tertiary);
+    height: 40px;
+    background: transparent;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     user-select: none;
     position: relative;
     z-index: 9999;
+    padding: 5px 15px 0 15px;
 }
 
 .title-bar-drag-area {
@@ -14,49 +15,68 @@
     height: 100%;
     display: flex;
     align-items: center;
-    padding-left: 12px;
     -webkit-app-region: drag;
-    /* Allows dragging the window */
 }
 
 .title-bar-title {
-    color: var(--text-muted);
-    font-size: 12px;
-    font-weight: 600;
+    color: var(--primary-neon);
+    font-size: 11px;
+    font-weight: 900;
     pointer-events: none;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.8;
+    font-family: 'Outfit', sans-serif;
 }
 
 .title-bar-controls {
     display: flex;
     height: 100%;
     -webkit-app-region: no-drag;
-    /* Buttons should not be draggable */
+    gap: 5px;
 }
 
 .control-btn {
-    width: 46px;
-    height: 100%;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
+    background: none !important;
+    background-color: transparent !important;
+    border: none !important;
+    color: var(--text-dim);
     cursor: pointer;
-    transition: background-color 0.1s;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
-.control-btn:hover {
-    background-color: var(--channel-hover);
-    color: var(--text-primary);
+.control-btn:hover,
+.control-btn:active,
+.control-btn:focus {
+    color: white;
+    background: none !important;
+    background-color: transparent !important;
 }
 
-.control-btn.close:hover {
-    background-color: #da373c;
-    color: #ffffff;
+.control-btn.close:hover,
+.control-btn.close:active,
+.control-btn.close:focus {
+    color: #ff3b30;
+    background: none !important;
+    background-color: transparent !important;
 }
 
-/* Fix for icons */
 .control-btn svg {
-    shape-rendering: crispEdges;
+    opacity: 0.6;
+    transition: opacity 0.3s;
+}
+
+.control-btn:hover svg {
+    opacity: 1;
 }

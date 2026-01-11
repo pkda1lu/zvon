@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import CustomVideoPlayer from './CustomVideoPlayer';
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from './Icons';
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon } from './Icons';
 import { getFullUrl } from '../utils/avatar';
 import './MediaLightbox.css';
 
@@ -53,6 +53,33 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ isOpen, onClose, media, i
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose, handleNext, handlePrev]);
 
+    const handleDownload = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const item = media[currentIndex];
+        const url = getFullUrl(item.url)!;
+        const filename = item.filename || (item.type.startsWith('video/') ? 'video.mp4' : 'image.jpg');
+
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.target = "_blank";
+            link.click();
+        }
+    };
+
     if (!isOpen) return null;
 
     const currentItem = media[currentIndex];
@@ -83,10 +110,16 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ isOpen, onClose, media, i
 
                 {/* Footer Info */}
                 <div className="media-lightbox-footer">
-                    {currentItem.filename && <div className="media-filename">{currentItem.filename}</div>}
-                    <div className="media-counter">
-                        {currentIndex + 1} из {media.length}
+                    <div className="media-info-left">
+                        {currentItem.filename && <div className="media-filename">{currentItem.filename}</div>}
+                        <div className="media-counter">
+                            {currentIndex + 1} из {media.length}
+                        </div>
                     </div>
+                    <button className="lightbox-download-btn" onClick={handleDownload} title="Скачать">
+                        <DownloadIcon size={20} />
+                        <span>Скачать</span>
+                    </button>
                 </div>
             </div>
 

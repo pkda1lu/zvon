@@ -18,6 +18,9 @@ interface SidebarProps {
   onLogout: () => void;
   onShowFriends: () => void;
   onServerLeave: (serverId: string) => void;
+  onOpenJoinModal: () => void;
+  onOpenSettings: () => void;
+  onOpenProfile: (userId: string, event?: React.MouseEvent) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -30,10 +33,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onServerJoined,
   onLogout,
   onShowFriends,
-  onServerLeave
+  onServerLeave,
+  onOpenJoinModal,
+  onOpenSettings,
+  onOpenProfile
 }) => {
-  const [showJoinModal, setShowJoinModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent, server: Server) => {
@@ -50,8 +54,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="unread-badge"></div>
           )}
         </div>
-        <div className="server-icon home-icon" onClick={() => setShowJoinModal(true)} title="Добавить сервер">
-          <PlusIcon size={28} color="#43b581" />
+        <div className="server-icon home-icon" onClick={onOpenJoinModal} title="Добавить сервер">
+          <PlusIcon size={28} color="var(--primary-neon)" />
         </div>
         {servers.map((server) => (
           <div
@@ -74,35 +78,23 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       <div className="sidebar-user">
-        <div className="user-avatar" title={`${user.username} (${user.status})`}>
+        <div
+          className="user-avatar"
+          title={`${user.username} (${user.status})`}
+          onClick={(e) => onOpenProfile(user._id, e)}
+        >
           {getAvatarUrl(user.avatar) ? (
             <img src={getAvatarUrl(user.avatar)!} alt={user.username} />
           ) : (
             <span>{user.username.charAt(0).toUpperCase()}</span>
           )}
+          <div className={`status-indicator ${user.status}`}></div>
         </div>
-        <button className="logout-button" onClick={() => setShowSettingsModal(true)} title="Настройки">
+        <button className="logout-button" onClick={onOpenSettings} title="Настройки">
           <SettingsIcon size={20} />
         </button>
       </div>
 
-      {showSettingsModal && (
-        <SettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-        />
-      )}
-
-      {showJoinModal && (
-        <JoinServerModal
-          isOpen={showJoinModal}
-          onClose={() => setShowJoinModal(false)}
-          onJoin={(server: Server) => {
-            onServerJoined(server);
-          }}
-          onCreate={onCreateServer}
-        />
-      )}
 
       {contextMenu && (
         <ServerContextMenu

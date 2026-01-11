@@ -105,9 +105,21 @@
 .media-lightbox-footer {
     margin-top: 16px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
+    justify-content: space-between;
+    width: 100%;
     color: #dcddde;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 12px 20px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.media-info-left {
+    display: flex;
+    flex-direction: column;
 }
 
 .media-filename {
@@ -118,4 +130,32 @@
 .media-counter {
     font-size: 14px;
     opacity: 0.8;
+}
+
+.lightbox-download-btn {
+    background: var(--primary-neon);
+    color: black;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.lightbox-download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 229, 255, 0.4);
+    filter: brightness(1.1);
+}
+
+.lightbox-download-btn:active {
+    transform: translateY(0);
 }

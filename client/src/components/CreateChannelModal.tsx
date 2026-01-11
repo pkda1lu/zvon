@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { CloseIcon, HashtagIcon, SpeakerIcon } from './Icons';
 import './CreateChannelModal.css';
@@ -51,7 +52,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="create-channel-modal-overlay" onClick={onClose}>
       <div className="create-channel-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="create-channel-modal-header">
@@ -119,7 +120,8 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

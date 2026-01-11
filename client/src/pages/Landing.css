@@ -9,7 +9,7 @@
 }
 
 .landing-container {
-    background-color: var(--landing-bg);
+    background-color: transparent !important;
     color: var(--landing-text);
     min-height: 100vh;
     font-family: 'Outfit', 'Inter', sans-serif;

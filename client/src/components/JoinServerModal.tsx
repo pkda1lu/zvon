@@ -44,29 +44,46 @@ const JoinServerModal: React.FC<JoinServerModalProps> = ({ isOpen, onClose, onJo
     if (!isOpen) return null;
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '440px', textAlign: 'center' }}>
+        <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+            <div className="glass-panel-base" onClick={e => e.stopPropagation()} style={{
+                width: '100%',
+                maxWidth: '480px',
+                padding: '50px 40px',
+                textAlign: 'center',
+                boxShadow: '0 30px 60px rgba(0,0,0,0.5)',
+                margin: '20px',
+                overflow: 'hidden'
+            }}>
                 {view === 'initial' && (
                     <>
-                        <h2>Создайте сервер</h2>
-                        <p style={{ color: '#b9bbbe', marginBottom: '20px' }}>
-                            Ваш сервер - это место, где вы и ваши друзья можете общаться.
-                            Создайте свой собственный или присоединитесь к существующему.
+                        <div style={{
+                            width: '80px', height: '80px', background: 'var(--primary-neon)',
+                            borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 30px', boxShadow: '0 15px 30px rgba(0, 229, 255, 0.3)'
+                        }}>
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5">
+                                <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </div>
+                        <h2 style={{ color: 'white', fontSize: '28px', fontWeight: 800, marginBottom: '15px' }}>Создайте свой мир</h2>
+                        <p style={{ color: 'var(--text-dim)', marginBottom: '40px', fontSize: '15px', lineHeight: '1.6' }}>
+                            Ваш сервер — это приватное пространство для общения с друзьями.
+                            Выберите путь: объединитесь или создайте новое.
                         </p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             <button
-                                className="save-button"
+                                className="neon-btn"
                                 onClick={() => setView('create')}
-                                style={{ padding: '14px', width: '100%', fontSize: '16px' }}
+                                style={{ padding: '18px', width: '100%' }}
                             >
-                                Создать свой шаблон
+                                Создать свой сервер
                             </button>
                             <button
-                                className="cancel-button"
+                                className="test-action-btn"
                                 onClick={() => setView('join')}
-                                style={{ padding: '14px', width: '100%', fontSize: '16px', background: '#4f545c' }}
+                                style={{ padding: '18px', width: '100%', height: 'auto', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)' }}
                             >
-                                Присоединиться к серверу
+                                У меня есть приглашение
                             </button>
                         </div>
                     </>
@@ -74,57 +91,66 @@ const JoinServerModal: React.FC<JoinServerModalProps> = ({ isOpen, onClose, onJo
 
                 {view === 'create' && (
                     <form onSubmit={handleCreate}>
-                        <h2>Настройте свой сервер</h2>
-                        <p style={{ color: '#b9bbbe', marginBottom: '20px' }}>
-                            Персонализируйте новый сервер, придумав ему название и выбрав значок.
-                            Вы всегда сможете изменить их позже.
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px', textAlign: 'left' }}>
+                            <div onClick={() => setView('initial')} style={{ cursor: 'pointer', color: 'var(--text-dim)' }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                            </div>
+                            <h2 style={{ color: 'white', fontSize: '24px', fontWeight: 800, margin: 0 }}>Настройка сервера</h2>
+                        </div>
+
+                        <p style={{ color: 'var(--text-dim)', marginBottom: '30px', fontSize: '14px', textAlign: 'left' }}>
+                            Дайте вашему серверу имя. Вы всегда сможете добавить иконку и изменить описание позже.
                         </p>
-                        <div className="form-group">
-                            <label>НАЗВАНИЕ СЕРВЕРА</label>
+
+                        <div style={{ textAlign: 'left', marginBottom: '35px' }}>
+                            <label className="auth-label-neon">НАЗВАНИЕ СЕРВЕРА</label>
                             <input
                                 type="text"
+                                className="auth-input-glass"
                                 value={serverName}
                                 onChange={(e) => setServerName(e.target.value)}
-                                placeholder="Мой сервер"
+                                placeholder="Например: Cyber Bunker"
                                 autoFocus
+                                required
                             />
                         </div>
-                        <div className="modal-buttons" style={{ justifyContent: 'space-between', display: 'flex' }}>
-                            <button type="button" onClick={() => setView('initial')} className="cancel-button">
-                                Назад
-                            </button>
-                            <button type="submit" className="save-button" disabled={!serverName.trim()}>
-                                Создать
-                            </button>
-                        </div>
+
+                        <button type="submit" className="neon-btn" style={{ width: '100%', padding: '18px' }} disabled={!serverName.trim()}>
+                            Вперёд к звёздам
+                        </button>
                     </form>
                 )}
 
                 {view === 'join' && (
                     <form onSubmit={handleJoin}>
-                        <h2>Присоединиться к серверу</h2>
-                        <p style={{ color: '#b9bbbe', marginBottom: '20px' }}>
-                            Введите приглашение, чтобы присоединиться к существующему серверу.
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px', textAlign: 'left' }}>
+                            <div onClick={() => setView('initial')} style={{ cursor: 'pointer', color: 'var(--text-dim)' }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                            </div>
+                            <h2 style={{ color: 'white', fontSize: '24px', fontWeight: 800, margin: 0 }}>Присоединиться</h2>
+                        </div>
+
+                        <p style={{ color: 'var(--text-dim)', marginBottom: '30px', fontSize: '14px', textAlign: 'left' }}>
+                            Введите ссылку-приглашение или код доступа, чтобы мгновенно оказаться на сервере.
                         </p>
-                        <div className="form-group">
-                            <label>ССЫЛКА-ПРИГЛАШЕНИЕ</label>
+
+                        <div style={{ textAlign: 'left', marginBottom: '35px' }}>
+                            <label className="auth-label-neon">ИНВАЙТ-КОД ИЛИ ССЫЛКА</label>
                             <input
                                 type="text"
+                                className="auth-input-glass"
                                 value={inviteLink}
                                 onChange={(e) => setInviteLink(e.target.value)}
-                                placeholder="https://zvon.com/invite/..."
+                                placeholder="h7f2kL или zvon.com/invite/..."
                                 autoFocus
+                                required
                             />
-                            {error && <div className="error-message" style={{ color: '#f23f42', marginTop: '5px' }}>{error}</div>}
+                            {error && <div style={{ color: 'var(--accent-pink)', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>{error}</div>}
                         </div>
-                        <div className="modal-buttons" style={{ justifyContent: 'space-between', display: 'flex' }}>
-                            <button type="button" onClick={() => setView('initial')} className="cancel-button">
-                                Назад
-                            </button>
-                            <button type="submit" className="save-button" disabled={!inviteLink.trim() || loading}>
-                                {loading ? 'Вход...' : 'Присоединиться'}
-                            </button>
-                        </div>
+
+                        <button type="submit" className="neon-btn" style={{ width: '100%', padding: '18px' }} disabled={!inviteLink.trim() || loading}>
+                            {loading ? 'Синхронизация...' : 'Войти на сервер'}
+                        </button>
                     </form>
                 )}
             </div>

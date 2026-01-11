@@ -16,7 +16,7 @@ interface MemberContextMenuProps {
     y: number;
     onClose: () => void;
     onMention?: (username: string) => void;
-    onOpenProfile?: (userId: string) => void;
+    onOpenProfile?: (userId: string, event?: React.MouseEvent) => void;
 }
 
 const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
@@ -46,6 +46,8 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
         type?: 'text' | 'number';
         onSubmit: (val: string) => void;
     }>({ title: '', onSubmit: () => { } });
+    const [adjustedPos, setAdjustedPos] = useState({ top: y, left: x });
+    const [isVisible, setIsVisible] = useState(false);
 
     const currentVolume = userVolumes.get(targetUser._id) ?? 1;
     const isLocalMuted = localMutes.has(targetUser._id);
@@ -94,6 +96,27 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     };
 
     useEffect(() => {
+        if (menuRef.current) {
+            const rect = menuRef.current.getBoundingClientRect();
+            let finalX = x;
+            let finalY = y;
+
+            if (finalX + rect.width > window.innerWidth) {
+                finalX = window.innerWidth - rect.width - 20;
+            }
+            if (finalY + rect.height > window.innerHeight) {
+                finalY = window.innerHeight - rect.height - 20;
+            }
+
+            setAdjustedPos({
+                top: Math.max(10, finalY),
+                left: Math.max(10, finalX)
+            });
+            setIsVisible(true);
+        }
+    }, [x, y]);
+
+    useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (showInputModal) return;
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -128,7 +151,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
             switch (action) {
                 // ... (existing cases)
                 case 'profile':
-                    if (onOpenProfile) onOpenProfile(targetUser._id);
+                    if (onOpenProfile) onOpenProfile(targetUser._id, { clientX: x, clientY: y } as any);
                     break;
                 case 'mention':
                     if (onMention) onMention(targetUser.username);
@@ -198,9 +221,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
         onClose();
     };
 
-    const adjustedX = Math.min(x, window.innerWidth - 220);
-    const adjustedY = Math.min(y, window.innerHeight - 400); // Increased buffer
-    const flipSubmenu = adjustedX > window.innerWidth - 440;
+    const flipSubmenu = adjustedPos.left > window.innerWidth - 440;
 
     if (showInputModal) {
         return ReactDOM.createPortal(
@@ -218,7 +239,16 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     }
 
     return ReactDOM.createPortal(
-        <div className="member-context-menu" ref={menuRef} style={{ top: adjustedY, left: adjustedX }}>
+        <div
+            className="member-context-menu"
+            ref={menuRef}
+            style={{
+                top: adjustedPos.top,
+                left: adjustedPos.left,
+                visibility: isVisible ? 'visible' : 'hidden',
+                opacity: isVisible ? 1 : 0
+            }}
+        >
             <div className="menu-group">
                 <div className="menu-item" onClick={() => handleAction('profile')}>Профиль</div>
                 {isSelf && <div className="menu-item" onClick={() => handleAction('server-profile')}>Настроить профиль на сервере</div>}
@@ -297,12 +327,12 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                                             } catch (err) { }
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div className="role-checkbox">
+                                        <div className="role-info">
+                                            <div className={`role-checkbox ${hasRole ? 'checked' : ''}`}>
                                                 {hasRole && '✓'}
                                             </div>
-                                            <div className="role-dot-mini" style={{ backgroundColor: role.color, width: '10px', height: '10px', borderRadius: '50%' }} />
-                                            <span style={{ color: role.color }}>{role.name}</span>
+                                            <div className="role-dot-mini" style={{ backgroundColor: role.color, color: role.color }} />
+                                            <span className="role-name-text" style={{ color: role.color }}>{role.name}</span>
                                         </div>
                                     </div>
                                 );

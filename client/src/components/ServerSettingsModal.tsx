@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Server, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
-import { CloseIcon, TrashIcon, PlusIcon, ChevronUpIcon, ChevronDownIcon } from './Icons';
+import { CloseIcon, TrashIcon, PlusIcon, ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon } from './Icons';
 import ImageCropper from './ImageCropper';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import { useAuth } from '../contexts/AuthContext';
@@ -63,6 +64,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const [serverBanner, setServerBanner] = useState(server.banner);
     const [bannerColor, setBannerColor] = useState(server.bannerColor || '#5865f2');
     const [hasChanges, setHasChanges] = useState(false);
+    const [originalRoles, setOriginalRoles] = useState(server.roles || []);
     const [loading, setLoading] = useState(false);
 
     const [editingRole, setEditingRole] = useState<string | null>(null); // Role ID
@@ -83,13 +85,16 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
+    const isRolesDirty = JSON.stringify(roles) !== JSON.stringify(originalRoles);
+
     useEffect(() => {
         setHasChanges(
             serverName !== server.name ||
             serverDescription !== (server.description || '') ||
-            bannerColor !== (server.bannerColor || '#5865f2')
+            bannerColor !== (server.bannerColor || '#5865f2') ||
+            isRolesDirty
         );
-    }, [serverName, serverDescription, bannerColor, server.name, server.description, server.bannerColor]);
+    }, [serverName, serverDescription, bannerColor, server.name, server.description, server.bannerColor, isRolesDirty]);
 
     useEffect(() => {
         setMembers(server.members);
@@ -97,6 +102,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
     useEffect(() => {
         setRoles(server.roles || []);
+        setOriginalRoles(server.roles || []);
     }, [server.roles]);
 
     useEffect(() => {
@@ -114,11 +120,10 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             if (!currentRole) {
                 const everyone = roles.find(r => r.name === '@everyone');
                 if (everyone) {
-                    // Robust check: if it's a placeholder OR if we were likely editing @everyone
                     const isLikelyEveryone = editingRole === 'everyone' ||
                         editingRole === '0' ||
                         String(editingRole).length < 5 ||
-                        everyone.name === '@everyone'; // Always try to recover @everyone if current is lost
+                        everyone.name === '@everyone';
 
                     if (isLikelyEveryone) {
                         setEditingRole(everyone._id);
@@ -128,15 +133,33 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         }
     }, [roles, editingRole, activeTab]);
 
-    const handleSaveOverview = async () => {
+    const handleSaveGlobal = async () => {
         setLoading(true);
         try {
-            const res = await axios.put(`/api/servers/${server._id}`, {
-                name: serverName,
-                description: serverDescription,
-                bannerColor: bannerColor
-            });
-            onServerUpdate(res.data);
+            // Save Overview
+            if (serverName !== server.name || serverDescription !== (server.description || '') || bannerColor !== (server.bannerColor || '#5865f2')) {
+                const res = await axios.put(`/api/servers/${server._id}`, {
+                    name: serverName,
+                    description: serverDescription,
+                    bannerColor: bannerColor
+                });
+                onServerUpdate(res.data);
+            }
+
+            // Save Roles if dirty
+            if (isRolesDirty) {
+                // Find changed roles
+                for (const role of roles) {
+                    const originalRole = originalRoles.find(r => r._id === role._id);
+                    if (originalRole && JSON.stringify(role) !== JSON.stringify(originalRole)) {
+                        await axios.patch(`/api/servers/${server._id}/roles/${role._id}`, role);
+                    }
+                }
+                const res = await axios.get(`/api/servers/${server._id}`);
+                onServerUpdate(res.data);
+                setOriginalRoles(res.data.roles);
+            }
+
             setHasChanges(false);
         } catch (err) {
             alert('Ошибка при сохранении настроек');
@@ -252,10 +275,9 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         } catch (err) { alert('Ошибка при создании роли'); }
     };
 
-    const handleUpdateRole = async (roleId: string | null, updates: any) => {
+    const handleUpdateRole = (roleId: string | null, updates: any) => {
         if (!roleId) return;
 
-        // Resolve roleId to its actual DB _id if possible
         let resolvedId = roleId;
         const currentRole = roles.find(r =>
             String(r._id) === String(roleId) ||
@@ -266,37 +288,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             resolvedId = currentRole._id;
         }
 
-        // Optimistic update
         setRoles(prev => prev.map(r => (String(r._id) === String(resolvedId)) ? { ...r, ...updates } : r));
-
-        const url = `/api/servers/${server._id}/roles/${resolvedId}`;
-        console.log(`[DEBUG] Updating role at: ${url}`, updates);
-
-        try {
-            const res = await axios.patch(url, updates);
-            const updatedRole = res.data;
-
-            if (!updatedRole) return;
-
-            // Final sync with server response
-            setRoles(currentRoles => {
-                const newRoles = currentRoles.map(r =>
-                    (String(r._id) === String(resolvedId) || (r.name === '@everyone' && updatedRole.name === '@everyone'))
-                        ? updatedRole
-                        : r
-                );
-                onServerUpdate({ ...server, roles: newRoles });
-                return newRoles;
-            });
-
-            if (updatedRole._id && String(resolvedId) !== String(updatedRole._id)) {
-                setEditingRole(updatedRole._id);
-            }
-        } catch (err) {
-            console.error('Role update error:', err);
-            // Revert state on error? (Optional but safer)
-            setRoles(server.roles || []);
-        }
     };
 
     const handleDeleteRole = async (roleId: string | null) => {
@@ -337,19 +329,13 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         if (targetIndex < 0 || targetIndex >= sortedRoles.length) return;
 
         const targetRole = sortedRoles[targetIndex];
-
-        // Swap positions
         const tempPos = sortedRoles[currentIndex].position;
-        // If positions are same, adjust slightly? Or just swap ranks.
-        // Better: Set specific logical positions 0, 1, 2...
-        // Let's rely on swapping their current position values.
 
         const updates = [
             { id: roleId, position: targetRole.position },
             { id: targetRole._id, position: sortedRoles[currentIndex].position }
         ];
 
-        // Optimistic update
         const newRoles = roles.map(r => {
             if (r._id === roleId) return { ...r, position: targetRole.position };
             if (r._id === targetRole._id) return { ...r, position: sortedRoles[currentIndex].position };
@@ -361,15 +347,14 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             await axios.patch(`/api/servers/${server._id}/roles/positions`, { roles: updates });
             onServerUpdate({ ...server, roles: newRoles });
         } catch (err) {
-            // Revert
             setRoles(roles);
-            alert('Не удалось переместить роль (возможно, недостаточно прав)');
+            alert('Не удалось переместить роль');
         }
     };
 
     if (!isOpen) return null;
 
-    return (
+    const modalContent = (
         <div className="server-settings-modal-overlay">
             <div className="server-settings-modal">
                 <div className="server-settings-sidebar">
@@ -384,306 +369,298 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
                 <div className="server-settings-content">
                     <div className="close-settings-button" onClick={onClose}>
-                        <div className="close-icon-wrapper"><CloseIcon size={18} /></div>
+                        <div className="close-icon-wrapper"><CloseIcon size={20} /></div>
                         <span className="close-text">ESC</span>
                     </div>
 
-                    {activeTab === 'overview' && (
-                        <div className="settings-section">
-                            <h2>Обзор сервера</h2>
-                            <div className="overview-grid">
-                                <div className="avatar-upload-section">
-                                    <div className="server-avatar-preview" onClick={() => fileInputRef.current?.click()}>
-                                        {getAvatarUrl(serverIcon) ? <img src={getAvatarUrl(serverIcon)!} alt="" /> : <span>{serverName ? serverName.charAt(0).toUpperCase() : '?'}</span>}
+                    <div className="content-scroll-area">
+                        {activeTab === 'overview' && (
+                            <div className="settings-section">
+                                <h2>Обзор сервера</h2>
+                                <div className="overview-grid">
+                                    <div className="avatar-upload-section">
+                                        <div className="server-avatar-preview" onClick={() => fileInputRef.current?.click()}>
+                                            {getAvatarUrl(serverIcon) ? <img src={getAvatarUrl(serverIcon)!} alt="" /> : <span>{serverName ? serverName.charAt(0).toUpperCase() : '?'}</span>}
+                                        </div>
+                                        <div className="avatar-hint">СМЕНИТЬ ИКОНКУ</div>
+                                        <input type="file" ref={fileInputRef} onChange={handleIconUpload} style={{ display: 'none' }} accept="image/*" />
                                     </div>
-                                    <div className="avatar-hint">СМЕНИТЬ ИКОНКУ</div>
-                                    <input type="file" ref={fileInputRef} onChange={handleIconUpload} style={{ display: 'none' }} accept="image/*" />
+                                    <div className="input-section">
+                                        <div className="settings-input-group">
+                                            <label>Название сервера</label>
+                                            <input className="settings-input" value={serverName} onChange={(e) => setServerName(e.target.value)} />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="input-section">
-                                    <div className="settings-input-group">
-                                        <label>Название сервера</label>
-                                        <input className="settings-input" value={serverName} onChange={(e) => setServerName(e.target.value)} />
+
+                                <div className="banner-settings-section">
+                                    <div className="banner-upload-group">
+                                        <h3>Баннер сервера</h3>
+                                        <p>Это изображение будет отображаться в верхней части списка каналов.</p>
+                                        <div
+                                            className="banner-preview-small"
+                                            onClick={() => bannerInputRef.current?.click()}
+                                            style={serverBanner ? { backgroundImage: `url(${getAvatarUrl(serverBanner)})`, border: 'none' } : {}}
+                                        >
+                                            {!serverBanner && 'Загрузить баннер'}
+                                        </div>
+                                        <input type="file" ref={bannerInputRef} onChange={handleBannerUpload} style={{ display: 'none' }} accept="image/*" />
                                     </div>
-                                </div>
-                            </div>
 
-                            <div className="server-profile-settings-divider" />
-
-                            <div className="banner-settings-section">
-                                <h3>Баннер сервера</h3>
-                                <p>Это изображение будет отображаться в верхней части списка каналов.</p>
-                                <div className="banner-selection-grid">
-                                    <div
-                                        className="banner-preview-small"
-                                        onClick={() => bannerInputRef.current?.click()}
-                                        style={serverBanner ? { backgroundImage: `url(${getAvatarUrl(serverBanner)})`, border: 'none' } : {}}
-                                    >
-                                        {!serverBanner && 'Загрузить баннер'}
-                                    </div>
-                                    <input type="file" ref={bannerInputRef} onChange={handleBannerUpload} style={{ display: 'none' }} accept="image/*" />
-
-                                    <div className="color-selection-box">
-                                        <label>Цвет баннера (если нет изображения)</label>
+                                    <div className="banner-color-group">
+                                        <label>Цвет баннера</label>
                                         <div className="color-picker-row">
-                                            <input type="color" className="color-input-native" value={bannerColor} onChange={(e) => setBannerColor(e.target.value)} />
-                                            <input type="text" className="settings-input color-text-input" value={bannerColor} onChange={(e) => setBannerColor(e.target.value)} />
+                                            <div className="role-color-editor">
+                                                <input type="color" value={bannerColor} onChange={(e) => setBannerColor(e.target.value)} />
+                                                <input type="text" className="settings-input" value={bannerColor} onChange={(e) => setBannerColor(e.target.value)} style={{ width: '120px' }} />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+
+
                             </div>
+                        )}
 
-                            {hasChanges && (
-                                <div className="save-changes-bar">
-                                    <span className="save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
-                                    <div className="save-changes-buttons">
-                                        <button className="reset-button" onClick={() => {
-                                            setServerName(server.name);
-                                            setBannerColor(server.bannerColor || '#5865f2');
-                                        }}>Сбросить</button>
-                                        <button className="save-button" onClick={handleSaveOverview} disabled={loading}>{loading ? 'Сохранение...' : 'Сохранить изменения'}</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'roles' && (
-                        <div className="settings-section roles-tab">
-                            {editingRole ? (
-                                (() => {
-                                    // Enhanced lookup: find by ID or fallback to @everyone by name/context
-                                    let currentRole = roles.find(r => String(r._id) === String(editingRole));
-
-                                    // Fallback for @everyone
-                                    if (!currentRole) {
-                                        const everyone = roles.find(r => r.name === '@everyone');
-                                        if (everyone && (editingRole === 'everyone' || editingRole === '0' || String(editingRole).length < 5)) {
-                                            currentRole = everyone;
+                        {activeTab === 'roles' && (
+                            <div className="settings-section roles-tab">
+                                {editingRole ? (
+                                    (() => {
+                                        let currentRole = roles.find(r => String(r._id) === String(editingRole));
+                                        if (!currentRole) {
+                                            const everyone = roles.find(r => r.name === '@everyone');
+                                            if (everyone && (editingRole === 'everyone' || editingRole === '0' || String(editingRole).length < 5)) {
+                                                currentRole = everyone;
+                                            }
                                         }
-                                    }
-
-                                    // Final attempt: if it's @everyone, just find it
-                                    if (!currentRole && roles.length > 0) {
-                                        const everyone = roles.find(r => r.name === '@everyone');
-                                        // If we were editing something and it's gone, check if it was @everyone
-                                        if (everyone && (editingRole === everyone._id || String(editingRole).includes('everyone'))) {
-                                            currentRole = everyone;
+                                        if (!currentRole && roles.length > 0) {
+                                            const everyone = roles.find(r => r.name === '@everyone');
+                                            if (everyone && (editingRole === everyone._id || String(editingRole).includes('everyone'))) {
+                                                currentRole = everyone;
+                                            }
                                         }
-                                    }
 
-                                    if (!currentRole) return (
-                                        <div className="role-editor-container">
-                                            <button className="back-button-compact" onClick={() => setEditingRole(null)}>
-                                                <CloseIcon size={16} />
-                                                <span>Назад</span>
-                                            </button>
-                                            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                                Загрузка настроек роли...
-                                            </div>
-                                        </div>
-                                    );
-
-                                    return (
-                                        <div className="role-editor-container">
-                                            <div className="role-editor-header">
-                                                <button className="back-button-compact" onClick={() => setEditingRole(null)}>
-                                                    <CloseIcon size={16} />
-                                                    <span>Все роли</span>
+                                        if (!currentRole) return (
+                                            <div className="role-editor-container">
+                                                <button className="back-button-liquid" onClick={() => setEditingRole(null)}>
+                                                    <div className="back-button-icon-wrapper">
+                                                        <ChevronLeftIcon size={18} />
+                                                    </div>
+                                                    <span className="back-button-text">Все роли</span>
                                                 </button>
-                                                <div className="editor-title">
-                                                    <h2>{currentRole.name}</h2>
-                                                    <span className="editor-subtitle">Редактирование роли</span>
-                                                </div>
+                                                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.5 }}>Загрузка...</div>
                                             </div>
+                                        );
 
-                                            <div className="role-editor-scrollable">
-                                                <div className="settings-input-group">
-                                                    <label>Название роли</label>
-                                                    <input
-                                                        className="settings-input"
-                                                        value={currentRole.name || ''}
-                                                        onChange={(e) => handleUpdateRole(editingRole, { name: e.target.value })}
-                                                        disabled={currentRole.name === '@everyone'}
-                                                    />
+                                        return (
+                                            <div className="role-editor-container">
+                                                <div className="role-editor-header">
+                                                    <button className="back-button-liquid" onClick={() => setEditingRole(null)}>
+                                                        <div className="back-button-icon-wrapper">
+                                                            <ChevronLeftIcon size={18} />
+                                                        </div>
+                                                        <span className="back-button-text">Все роли</span>
+                                                    </button>
+                                                    <div className="editor-title">
+                                                        <h2>{currentRole.name}</h2>
+                                                        <span className="editor-subtitle">Редактирование роли</span>
+                                                    </div>
                                                 </div>
 
-                                                <div className="settings-input-group">
-                                                    <label>Цвет роли</label>
-                                                    <div className="role-color-editor">
-                                                        <input
-                                                            type="color"
-                                                            value={currentRole.color || '#99aab5'}
-                                                            onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
-                                                        />
+                                                <div className="role-editor-scrollable">
+                                                    <div className="settings-input-group">
+                                                        <label>Название роли</label>
                                                         <input
                                                             className="settings-input"
-                                                            value={currentRole.color || '#99aab5'}
-                                                            onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
+                                                            value={currentRole.name || ''}
+                                                            onChange={(e) => handleUpdateRole(editingRole, { name: e.target.value })}
+                                                            disabled={currentRole.name === '@everyone'}
                                                         />
                                                     </div>
-                                                </div>
 
-                                                <div className="permission-item">
-                                                    <div className="permission-info">
-                                                        <div className="permission-name">Показывать роль отдельно от остальных участников</div>
-                                                        <div className="permission-description">Участники с этой ролью будут отображаться в отдельной категории в списке участников.</div>
+                                                    <div className="settings-input-group">
+                                                        <label>Цвет роли</label>
+                                                        <div className="role-color-editor">
+                                                            <input
+                                                                type="color"
+                                                                value={currentRole.color || '#99aab5'}
+                                                                onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
+                                                            />
+                                                            <input
+                                                                className="settings-input"
+                                                                value={currentRole.color || '#99aab5'}
+                                                                onChange={(e) => handleUpdateRole(editingRole, { color: e.target.value })}
+                                                                style={{ width: '120px' }}
+                                                            />
+                                                        </div>
                                                     </div>
-                                                    <label className="switch">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={currentRole.hoist || false}
-                                                            onChange={(e) => handleUpdateRole(editingRole, { hoist: e.target.checked })}
-                                                        />
-                                                        <span className="slider round"></span>
-                                                    </label>
-                                                </div>
 
-                                                <div className="permissions-group-container">
-                                                    {Array.from(new Set(Object.values(PermissionMetadata).map(m => m.category))).map(category => (
-                                                        <div key={category} className="permission-category-wrapper">
-                                                            <div className="permissions-divider">{category}</div>
-                                                            <div className="permissions-list">
-                                                                {Object.entries(PermissionMetadata)
-                                                                    .filter(([_, data]) => data.category === category)
-                                                                    .map(([key, data]) => {
-                                                                        const bit = (Permissions as any)[key];
-                                                                        const hasPerm = hasPermission(BigInt(currentRole.permissions || '0'), bit);
-                                                                        return (
-                                                                            <div key={key} className="permission-item">
-                                                                                <div className="permission-info">
-                                                                                    <div className="permission-name">{data.label}</div>
-                                                                                    <div className="permission-description">{data.description}</div>
+                                                    <div className="permission-item">
+                                                        <div className="permission-info">
+                                                            <div className="permission-name">Показывать отдельно</div>
+                                                            <div className="permission-description">Участники будут отображаться в отдельной категории.</div>
+                                                        </div>
+                                                        <label className="switch">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={currentRole.hoist || false}
+                                                                onChange={(e) => handleUpdateRole(editingRole, { hoist: e.target.checked })}
+                                                            />
+                                                            <span className="slider round"></span>
+                                                        </label>
+                                                    </div>
+
+                                                    <div className="permissions-group-container">
+                                                        {Array.from(new Set(Object.values(PermissionMetadata).map(m => m.category))).map(category => (
+                                                            <div key={category} className="permission-category-wrapper">
+                                                                <div className="permissions-divider">{category}</div>
+                                                                <div className="permissions-list">
+                                                                    {Object.entries(PermissionMetadata)
+                                                                        .filter(([_, data]) => data.category === category)
+                                                                        .map(([key, data]) => {
+                                                                            const bit = (Permissions as any)[key];
+                                                                            const hasPerm = hasPermission(BigInt(currentRole!.permissions || '0'), bit);
+                                                                            return (
+                                                                                <div key={key} className="permission-item">
+                                                                                    <div className="permission-info">
+                                                                                        <div className="permission-name">{data.label}</div>
+                                                                                        <div className="permission-description">{data.description}</div>
+                                                                                    </div>
+                                                                                    <label className="switch">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            checked={hasPerm}
+                                                                                            onChange={(e) => {
+                                                                                                const currentPerms = BigInt(currentRole!.permissions || '0');
+                                                                                                const newPerms = e.target.checked ? currentPerms | bit : currentPerms & ~BigInt(bit);
+                                                                                                handleUpdateRole(editingRole!, { permissions: newPerms.toString() });
+                                                                                            }}
+                                                                                        />
+                                                                                        <span className="slider round"></span>
+                                                                                    </label>
                                                                                 </div>
-                                                                                <label className="switch">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        checked={hasPerm}
-                                                                                        onChange={(e) => {
-                                                                                            const currentPerms = BigInt(currentRole.permissions || '0');
-                                                                                            const newPerms = e.target.checked ? currentPerms | bit : currentPerms & ~BigInt(bit);
-                                                                                            handleUpdateRole(editingRole!, { permissions: newPerms.toString() });
-                                                                                        }}
-                                                                                    />
-                                                                                    <span className="slider round"></span>
-                                                                                </label>
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                {currentRole.name !== '@everyone' && (
-                                                    <div className="role-editor-footer">
-                                                        <button className="delete-role-btn" onClick={() => handleDeleteRole(editingRole!)}>
-                                                            <TrashIcon size={16} />
-                                                            Удалить роль
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })()
-                            ) : (
-                                <>
-                                    <div className="roles-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                        <h2>Роли сервера</h2>
-                                        <button className="save-button" onClick={handleCreateRole}><PlusIcon size={16} /> Создать роль</button>
-                                    </div>
-                                    <div className="role-list">
-                                        {[...roles].sort((a, b) => b.position - a.position).map(role => (
-                                            <div key={role._id} className="role-item" onClick={() => setEditingRole(role._id)} style={{ cursor: 'pointer' }}>
-                                                <div className="role-name-container">
-                                                    <div className="role-dot" style={{ backgroundColor: role.color }} />
-                                                    <span style={{ color: role.color }}>{role.name}</span>
-                                                </div>
-                                                <div className="role-actions">
-                                                    <div className="role-reorder-buttons" style={{ display: 'flex', flexDirection: 'column', marginRight: '8px' }}>
-                                                        <button
-                                                            className="action-button small"
-                                                            onClick={(e: any) => { e.stopPropagation(); handleMoveRole(role._id, 'up'); }}
-                                                            disabled={role.position >= roles.reduce((max, r) => Math.max(max, r.position), 0)}
-                                                        >
-                                                            <ChevronUpIcon size={12} />
-                                                        </button>
-                                                        <button
-                                                            className="action-button small"
-                                                            onClick={(e: any) => { e.stopPropagation(); handleMoveRole(role._id, 'down'); }}
-                                                            disabled={role.position <= 0}
-                                                        >
-                                                            <ChevronDownIcon size={12} />
-                                                        </button>
-                                                    </div>
-                                                    <button className="action-button danger" onClick={(e: any) => { e.stopPropagation(); handleDeleteRole(role._id); }}>
-                                                        <TrashIcon size={18} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'members' && (
-                        <div className="settings-section">
-                            <h2>Участники ({members.length})</h2>
-                            <div className="members-list-settings">
-                                {members.map((member: any) => (
-                                    <div key={member.user._id} className="member-row-wrapper">
-                                        <div className="member-row">
-                                            <div className="member-user-info">
-                                                <div className="member-avatar-small">
-                                                    {getAvatarUrl(member.user.avatar) ? <img src={getAvatarUrl(member.user.avatar)!} alt="" /> : <span>{member.user.username.charAt(0).toUpperCase()}</span>}
-                                                </div>
-                                                <div className="member-meta">
-                                                    <span className="member-username">{member.nickname || member.user.username} {member.nickname && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>({member.user.username})</span>}</span>
-                                                    <div className="member-roles-tags">
-                                                        {(member.roles || []).map((rid: string) => {
-                                                            const r = roles.find(ro => ro._id === rid);
-                                                            if (!r) return null;
-                                                            return (
-                                                                <div key={rid} className="role-tag" style={{ borderColor: r.color }}>
-                                                                    <div className="role-dot-mini" style={{ backgroundColor: r.color }} />
-                                                                    {r.name}
+                                                                            );
+                                                                        })}
                                                                 </div>
-                                                            );
-                                                        })}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                    {currentRole.name !== '@everyone' && (
+                                                        <div className="role-editor-footer">
+                                                            <button className="reset-button delete-role-btn" onClick={() => handleDeleteRole(editingRole!)} style={{ color: '#ff3b30', border: '1px solid rgba(255, 59, 48, 0.3)', padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <TrashIcon size={16} />
+                                                                Удалить роль
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()
+                                ) : (
+                                    <>
+                                        <div className="roles-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                                            <h2>Роли сервера</h2>
+                                            <button className="save-button" onClick={handleCreateRole}><PlusIcon size={16} /> Создать роль</button>
+                                        </div>
+                                        <div className="role-list">
+                                            {[...roles].sort((a, b) => b.position - a.position).map(role => (
+                                                <div key={role._id} className="role-item" onClick={() => setEditingRole(role._id)} style={{ cursor: 'pointer' }}>
+                                                    <div className="role-name-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <div className="role-dot" style={{ backgroundColor: role.color }} />
+                                                        <span style={{ color: role.color, fontWeight: 700 }}>{role.name}</span>
+                                                    </div>
+                                                    <div className="role-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                            <button className="action-button" onClick={(e: any) => { e.stopPropagation(); handleMoveRole(role._id, 'up'); }} style={{ width: '24px', height: '24px' }}><ChevronUpIcon size={10} /></button>
+                                                            <button className="action-button" onClick={(e: any) => { e.stopPropagation(); handleMoveRole(role._id, 'down'); }} style={{ width: '24px', height: '24px' }}><ChevronDownIcon size={10} /></button>
+                                                        </div>
+                                                        <button className="action-button danger" onClick={(e: any) => { e.stopPropagation(); handleDeleteRole(role._id); }}><TrashIcon size={16} /></button>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div className="member-actions">
-                                                <button className="action-button" onClick={() => setEditingMemberRoles(editingMemberRoles === member.user._id ? null : member.user._id)}>
-                                                    <PlusIcon size={18} />
-                                                </button>
-                                                <button className="action-button danger" onClick={() => handleKickMember(member.user._id)}><TrashIcon size={18} /></button>
-                                            </div>
+                                            ))}
                                         </div>
-                                        {editingMemberRoles === member.user._id && (
-                                            <div className="member-role-editor">
-                                                <h4>Правка ролей</h4>
-                                                <div className="role-selection-list">
-                                                    {roles.filter(r => r.name !== '@everyone').map(role => (
-                                                        <div
-                                                            key={role._id}
-                                                            className={`role-select-item ${member.roles?.includes(role._id) ? 'selected' : ''}`}
-                                                            onClick={() => handleToggleMemberRole(member.user._id, role._id)}
-                                                        >
-                                                            <div className="role-select-info">
-                                                                <div className="role-dot-mini" style={{ backgroundColor: role.color }} />
-                                                                {role.name}
-                                                            </div>
-                                                            {member.roles?.includes(role._id) && <span className="checkmark">✓</span>}
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'members' && (
+                            <div className="settings-section">
+                                <h2>Участники ({members.length})</h2>
+                                <div className="members-list-settings">
+                                    {members.map((member: any) => (
+                                        <div key={member.user._id} className="member-row-wrapper">
+                                            <div className="member-row" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <div className="member-user-info" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                    <div className="member-avatar-small">
+                                                        {getAvatarUrl(member.user.avatar) ? <img src={getAvatarUrl(member.user.avatar)!} alt="" /> : <span>{member.user.username.charAt(0).toUpperCase()}</span>}
+                                                    </div>
+                                                    <div className="member-meta">
+                                                        <span style={{ fontWeight: 700, fontSize: '16px' }}>{member.nickname || member.user.username}</span>
+                                                        <div className="member-roles-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                                                            {(member.roles || []).map((rid: string) => {
+                                                                const r = roles.find(ro => ro._id === rid);
+                                                                if (!r) return null;
+                                                                return (
+                                                                    <div key={rid} className="role-tag" style={{ color: r.color, borderColor: r.color + '44' }}>
+                                                                        {r.name}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
-                                                    ))}
+                                                    </div>
+                                                </div>
+                                                <div className="member-actions" style={{ display: 'flex', gap: '10px' }}>
+                                                    <button className="action-button" onClick={() => setEditingMemberRoles(editingMemberRoles === member.user._id ? null : member.user._id)}>
+                                                        <PlusIcon size={18} />
+                                                    </button>
+                                                    <button className="action-button danger" onClick={() => handleKickMember(member.user._id)}><TrashIcon size={18} /></button>
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+                                            {editingMemberRoles === member.user._id && (
+                                                <div className="member-role-editor" style={{ padding: '20px', background: 'rgba(0,0,0,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <h4 style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '16px', color: 'rgba(255,255,255,0.4)' }}>Управление ролями</h4>
+                                                    <div className="role-selection-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+                                                        {roles.filter(r => r.name !== '@everyone').map(role => (
+                                                            <div
+                                                                key={role._id}
+                                                                className={`role-select-item ${member.roles?.includes(role._id) ? 'selected' : ''}`}
+                                                                onClick={() => handleToggleMemberRole(member.user._id, role._id)}
+                                                                style={{
+                                                                    padding: '10px 14px', borderRadius: '10px', background: member.roles?.includes(role._id) ? 'rgba(0,229,255,0.1)' : 'rgba(255,255,255,0.03)',
+                                                                    border: '1px solid', borderColor: member.roles?.includes(role._id) ? 'var(--primary-neon)' : 'rgba(255,255,255,0.1)', cursor: 'pointer',
+                                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                                                }}
+                                                            >
+                                                                <span style={{ color: role.color, fontWeight: 700, fontSize: '13px' }}>{role.name}</span>
+                                                                {member.roles?.includes(role._id) && <span style={{ color: 'var(--primary-neon)', fontWeight: 800 }}>✓</span>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {hasChanges && (
+                        <div className="save-changes-bar slide-up">
+                            <span className="save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
+                            <div className="save-changes-buttons">
+                                <button className="reset-button" onClick={() => {
+                                    setServerName(server.name);
+                                    setServerDescription(server.description || '');
+                                    setBannerColor(server.bannerColor || '#5865f2');
+                                    setRoles(originalRoles);
+                                }}>Сбросить</button>
+                                <button className="save-button" onClick={handleSaveGlobal} disabled={loading}>
+                                    {loading ? 'Загрузка...' : 'Сохранить изменения'}
+                                </button>
                             </div>
                         </div>
                     )}
@@ -692,6 +669,8 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             {cropModal.isOpen && <ImageCropper image={cropModal.image} onCropComplete={handleCropComplete} onCancel={() => setCropModal(prev => ({ ...prev, isOpen: false }))} aspect={cropModal.type === 'icon' ? 1 : 16 / 9} />}
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 };
 
 export default ServerSettingsModal;

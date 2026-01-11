@@ -19,6 +19,8 @@ import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useNotifications } from '../contexts/NotificationContext';
+import JoinServerModal from '../components/JoinServerModal';
+import SettingsModal from '../components/SettingsModal';
 import './Main.css';
 
 const Main: React.FC = () => {
@@ -31,6 +33,7 @@ const Main: React.FC = () => {
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [initialUnreadCount, setInitialUnreadCount] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showFriends, setShowFriends] = useState(false);
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
@@ -50,9 +53,13 @@ const Main: React.FC = () => {
     offer?: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string };
   } | null>(null);
   const [showProfileUserId, setShowProfileUserId] = useState<string | null>(null);
+  const [profilePosition, setProfilePosition] = useState<{ x: number, y: number } | null>(null);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [showServerProfile, setShowServerProfile] = useState(false);
+  const [serverProfilePosition, setServerProfilePosition] = useState<{ x: number, y: number } | null>(null);
   const [showUserServerProfile, setShowUserServerProfile] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const isResizingRef = useRef(false);
@@ -348,11 +355,21 @@ const Main: React.FC = () => {
     } catch (error) { }
   };
 
-  const handleChannelSelect = (channel: Channel) => { setSelectedChannel(channel); setSelectedDM(null); setShowFriends(false); if (channel.type === 'voice') setMessages([]); };
+  const handleChannelSelect = (channel: Channel) => {
+    setInitialUnreadCount(unreadCounts[channel._id] || 0);
+    setSelectedChannel(channel);
+    setSelectedDM(null);
+    setShowFriends(false);
+    if (channel.type === 'voice') setMessages([]);
+  };
   const handleStartDM = async (userId: string) => {
     try {
       const response = await axios.get(`/api/direct-messages/user/${userId}`);
-      setSelectedDM(response.data); setSelectedChannel(null); setSelectedServer(null); setShowFriends(false);
+      setInitialUnreadCount(unreadCounts[response.data._id] || 0);
+      setSelectedDM(response.data);
+      setSelectedChannel(null);
+      setSelectedServer(null);
+      setShowFriends(false);
     } catch (error) { }
   };
   const handleStartDirectCall = (user: User, dmId: string) => { setActiveCall({ user, isIncoming: false, dmId }); };
@@ -363,6 +380,28 @@ const Main: React.FC = () => {
   const handleServerLeave = (serverId: string) => {
     setServers(prev => prev.filter(s => s._id !== serverId));
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
+  };
+
+  const handleUserClick = (userId: string, event?: React.MouseEvent | CustomEvent) => {
+    setShowProfileUserId(userId);
+    if (event) {
+      if ('clientX' in event) {
+        setProfilePosition({ x: event.clientX, y: event.clientY });
+      } else if (event.detail && typeof event.detail.x === 'number') {
+        setProfilePosition({ x: event.detail.x, y: event.detail.y });
+      }
+    } else {
+      setProfilePosition(null);
+    }
+  };
+
+  const handleServerProfileClick = (event?: React.MouseEvent) => {
+    setShowServerProfile(true);
+    if (event) {
+      setServerProfilePosition({ x: event.clientX, y: event.clientY });
+    } else {
+      setServerProfilePosition(null);
+    }
   };
 
   if (loading) return <div className="loading">Загрузка...</div>;
@@ -381,24 +420,34 @@ const Main: React.FC = () => {
         onServerJoined={(server) => { setServers((prev) => [...prev, server]); setSelectedServer(server); if (socket) socket.emit('join-server', server._id); if (server.channels.length > 0) setSelectedChannel(server.channels[0]); }}
         onLogout={logout} onShowFriends={() => { setShowFriends(true); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); }}
         onServerLeave={handleServerLeave}
+        onOpenJoinModal={() => setShowJoinModal(true)}
+        onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenProfile={handleUserClick}
       />
-      {showFriends && <FriendsPanel onStartDM={handleStartDM} onUserClick={setShowProfileUserId} unreadCounts={unreadCounts} />}
+      {showFriends && <FriendsPanel onStartDM={handleStartDM} onUserClick={handleUserClick} unreadCounts={unreadCounts} />}
       {selectedServer && !showFriends && (
         <>
           <ServerSidebar
             server={selectedServer} selectedChannel={selectedChannel} unreadCounts={unreadCounts} onChannelSelect={handleChannelSelect}
-            onChannelCreated={fetchServers} onUserClick={setShowProfileUserId} onOpenSettings={() => setShowServerSettings(true)}
-            onServerClick={() => setShowServerProfile(true)} style={{ width: `${sidebarWidth}px` }}
+            onChannelCreated={fetchServers} onUserClick={handleUserClick} onOpenSettings={() => setShowServerSettings(true)}
+            onServerClick={handleServerProfileClick} style={{ width: `${sidebarWidth}px` }}
           />
           <div className="sidebar-resizer" onMouseDown={startResizing} />
         </>
       )}
       {selectedChannel && !showFriends && (
         selectedChannel.type === 'text' ? (
-          <ChannelView channel={selectedChannel} server={selectedServer!} messages={messages} socket={socket} onUserClick={setShowProfileUserId} />
+          <ChannelView
+            channel={selectedChannel}
+            server={selectedServer!}
+            messages={messages}
+            socket={socket}
+            onUserClick={handleUserClick}
+            initialUnreadCount={initialUnreadCount}
+          />
         ) : (
           <VoiceChannelView
-            channel={selectedChannel} server={selectedServer!} onUserClick={setShowProfileUserId} onMessageClick={handleStartDM}
+            channel={selectedChannel} server={selectedServer!} onUserClick={handleUserClick} onMessageClick={handleStartDM}
             onCallClick={async (userId) => {
               try {
                 const response = await axios.get(`/api/direct-messages/user/${userId}`);
@@ -409,38 +458,62 @@ const Main: React.FC = () => {
           />
         )
       )}
-      {selectedServer && !showFriends && <ServerMembers server={selectedServer} onUserClick={setShowProfileUserId} />}
-      {selectedDM && !showFriends && <DMView dm={selectedDM} messages={dmMessages} socket={socket} onClose={() => setSelectedDM(null)} onStartCall={handleStartDirectCall} onUserClick={setShowProfileUserId} />}
+      {selectedServer && !showFriends && <ServerMembers server={selectedServer} onUserClick={handleUserClick} />}
+      {selectedDM && !showFriends && (
+        <DMView
+          dm={selectedDM}
+          messages={dmMessages}
+          socket={socket}
+          onClose={() => { setSelectedDM(null); setShowFriends(true); }}
+          onStartCall={handleStartDirectCall}
+          onUserClick={handleUserClick}
+          initialUnreadCount={initialUnreadCount}
+        />
+      )}
       {!selectedChannel && !selectedDM && !showFriends && (
         <div className="empty-view"><h2>Добро пожаловать в Zvon!</h2><p>Выберите сервер или откройте панель друзей, чтобы начать общение</p></div>
       )}
 
-      {activeChannelId && activeChannelId !== selectedChannel?._id && (() => {
-        let activeVoiceChannel: Channel | undefined;
-        for (const s of servers) {
-          activeVoiceChannel = s.channels.find(c => c._id === activeChannelId);
-          if (activeVoiceChannel) break;
-        }
-        if (activeVoiceChannel) {
-          return (
-            <ActiveVoiceOverlay
-              channel={activeVoiceChannel}
-              onReturn={() => {
-                const serverId = typeof activeVoiceChannel!.server === 'string' ? activeVoiceChannel!.server : activeVoiceChannel!.server._id;
-                const server = servers.find(s => s._id === serverId);
-                if (server) setSelectedServer(server);
-                handleChannelSelect(activeVoiceChannel!);
-              }}
-            />
-          );
-        }
-        return null;
-      })()}
       {activeCall && <VoiceCall socket={socket} otherUser={activeCall.user} dmId={activeCall.dmId} initialIncomingCall={activeCall.isIncoming} initialOffer={activeCall.offer} onEndCall={() => setActiveCall(null)} />}
-      {showProfileUserId && <UserProfileCard userId={showProfileUserId} onClose={() => setShowProfileUserId(null)} serverId={selectedServer?._id} />}
+      {showProfileUserId && (
+        <UserProfileCard
+          userId={showProfileUserId}
+          onClose={() => { setShowProfileUserId(null); setProfilePosition(null); }}
+          serverId={selectedServer?._id}
+          position={profilePosition}
+          onUserClick={handleUserClick}
+        />
+      )}
       {showServerSettings && selectedServer && <ServerSettingsModal isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} />}
-      {showServerProfile && selectedServer && <ServerProfileCard server={selectedServer} onClose={() => setShowServerProfile(false)} onLeave={handleServerLeave} />}
+      {showServerProfile && selectedServer && (
+        <ServerProfileCard
+          server={selectedServer}
+          onClose={() => { setShowServerProfile(false); setServerProfilePosition(null); }}
+          onLeave={handleServerLeave}
+          position={serverProfilePosition}
+          onUserClick={handleUserClick}
+        />
+      )}
       {showUserServerProfile && serverProfileServerId && <UserServerProfileModal isOpen={showUserServerProfile} onClose={() => setShowUserServerProfile(false)} serverId={serverProfileServerId} onUpdate={handleServerUpdate} />}
+      {showJoinModal && (
+        <JoinServerModal
+          isOpen={showJoinModal}
+          onClose={() => setShowJoinModal(false)}
+          onJoin={(server) => {
+            setServers((prev) => [...prev, server]);
+            setSelectedServer(server);
+            if (socket) socket.emit('join-server', server._id);
+            if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
+          }}
+          onCreate={handleCreateServer}
+        />
+      )}
+      {showSettingsModal && (
+        <SettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+        />
+      )}
     </div>
   );
 };

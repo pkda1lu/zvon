@@ -63,11 +63,13 @@ const InvitePage: React.FC = () => {
 
     if (loading || authLoading) {
         return (
-            <div className="invite-page-loading">
-                <div className="loading-spinner-rings">
-                    <div></div><div></div><div></div><div></div>
+            <div className="preview-container">
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '20px', zIndex: 10 }}>
+                    <div className="loading-spinner-rings" style={{ borderColor: 'var(--primary-neon) transparent' }}>
+                        <div></div><div></div><div></div><div></div>
+                    </div>
+                    <span style={{ color: 'white', fontWeight: 600, letterSpacing: '1px' }}>ПОДГОТОВКА ПРИГЛАШЕНИЯ...</span>
                 </div>
-                <span>Подготовка приглашения...</span>
             </div>
         );
     }
@@ -75,87 +77,78 @@ const InvitePage: React.FC = () => {
     const isElectron = (window as any).electron;
 
     return (
-        <div className="invite-page-wrapper">
-            <div className="invite-animated-bg">
-                <div className="invite-blob"></div>
-                <div className="invite-blob"></div>
-                <div className="invite-blob"></div>
-            </div>
+        <div className="preview-container">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', position: 'relative', zIndex: 5, padding: '20px' }}>
+                <div className="glass-panel-base" style={{ width: '100%', maxWidth: '500px', padding: '60px 40px 40px', textAlign: 'center', marginTop: '40px' }}>
 
-            <div className="invite-card-premium">
-                {error ? (
-                    <div className="invite-error-content">
-                        <div className="error-icon-glow">✕</div>
-                        <h3>Упс! Что-то не так</h3>
-                        <p>{error}</p>
-                        <button className="primary-action-btn" onClick={() => navigate('/')}>На главную</button>
-                    </div>
-                ) : (
-                    <div className="invite-success-content">
-                        <div className="server-preview-header">
-                            {invite.server.icon ? (
-                                <div className="server-icon-glass">
-                                    <img src={getAvatarUrl(invite.server.icon)!} alt="" />
-                                </div>
-                            ) : (
-                                <div className="server-icon-placeholder-lux">
-                                    {invite.server.name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
+                    {error ? (
+                        <div style={{ padding: '20px 0' }}>
+                            <div style={{
+                                margin: '0 auto 30px', width: '80px', height: '80px',
+                                background: 'rgba(255, 59, 48, 0.1)', border: '1px solid rgba(255, 59, 48, 0.3)',
+                                borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#ff3b30', fontSize: '32px', fontWeight: 'bold'
+                            }}>✕</div>
+                            <h2 style={{ color: 'white', marginBottom: '15px', fontSize: '24px' }}>Упс! Что-то не так</h2>
+                            <p style={{ color: 'var(--text-dim)', marginBottom: '30px' }}>{error}</p>
+                            <button className="neon-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white !important', border: '1px solid var(--glass-border)', boxShadow: 'none' }} onClick={() => navigate('/')}>На главную</button>
                         </div>
-
-                        <div className="invite-text-content">
-                            <span className="inviter-badge">{invite.inviter.username} приглашает вас</span>
-                            <h2 className="server-title-lux">{invite.server.name}</h2>
-
-                            {invite.server.description && (
-                                <p className="server-desc-premium">{invite.server.description}</p>
-                            )}
-
-                            <div className="server-metrics">
-                                <div className="metric-item">
-                                    <span className="status-dot-pulse"></span>
-                                    <strong>{invite.server.memberCount}</strong> участников
-                                </div>
+                    ) : (
+                        <div>
+                            {/* Server Icon Overlay */}
+                            <div style={{
+                                position: 'absolute', top: '-50px', left: '50%', transform: 'translateX(-50%)',
+                                width: '100px', height: '100px', background: 'var(--bg-dark)',
+                                borderRadius: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                border: '2px solid var(--primary-neon)', overflow: 'hidden',
+                                boxShadow: '0 20px 40px rgba(0, 229, 255, 0.3)'
+                            }}>
+                                {invite.server.icon ? (
+                                    <img src={getAvatarUrl(invite.server.icon)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                    <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--primary-neon)' }}>
+                                        {invite.server.name.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="invite-actions-lux">
+                            <div style={{ fontSize: '11px', color: 'var(--primary-neon)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px' }}>
+                                {invite.inviter.username} приглашает вас
+                            </div>
+                            <h1 style={{ color: 'white', fontSize: '32px', fontWeight: 800, marginBottom: '15px', letterSpacing: '-1px' }}>{invite.server.name}</h1>
+
+                            {invite.server.description && (
+                                <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.5', marginBottom: '25px' }}>{invite.server.description}</p>
+                            )}
+
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', marginBottom: '35px' }}>
+                                <span style={{ width: '8px', height: '8px', background: 'var(--primary-neon)', borderRadius: '50%', boxShadow: '0 0 10px var(--primary-neon)' }}></span>
+                                <span style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>{invite.server.memberCount} участников</span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 {!isElectron ? (
                                     <>
-                                        <button
-                                            className="primary-action-btn join-btn-shine"
-                                            onClick={() => { window.location.href = `zvon://invite/${code}`; }}
-                                        >
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px' }}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                                            Запустить в приложении Zvon
+                                        <button className="neon-btn" onClick={() => { window.location.href = `zvon://invite/${code}`; }}>
+                                            Открыть в приложении
                                         </button>
-
-                                        <div className="invite-browser-option">
-                                            <button
-                                                className="text-link-btn"
-                                                onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}
-                                            >
-                                                Установить ZVON
-                                            </button>
-                                        </div>
+                                        <button style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
+                                            Установить ZVON
+                                        </button>
                                     </>
                                 ) : (
-                                    <button
-                                        className="primary-action-btn join-btn-shine"
-                                        onClick={handleJoin}
-                                        disabled={joining}
-                                    >
+                                    <button className="neon-btn" onClick={handleJoin} disabled={joining}>
                                         {joining ? 'Выполняется вход...' : 'Принять приглашение'}
                                     </button>
                                 )}
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
-            <div className="invite-footer-brand">
-                <span>Zvon</span> • Новое поколение общения
+            <div style={{ position: 'absolute', bottom: '30px', left: '0', width: '100%', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>
+                ZVON • THE LIQUID FUTURE OF COMMUNICATION
             </div>
         </div>
     );

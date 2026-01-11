@@ -1,6 +1,6 @@
 {
   "name": "zvon-client",
-  "version": "0.93.44",
+  "version": "1.0.0",
   "private": true,
   "author": "pkda1lu",
   "description": "Zvon - Real-time communication platform",
@@ -16,7 +16,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-easy-crop": "^5.5.6",
-    "react-router-dom": "^6.20.1",
+    "react-router-dom": "^7.12.0",
     "socket.io-client": "^4.6.1",
     "web-vitals": "^2.1.4",
     "zvon-native-audio": "file:./native-audio"

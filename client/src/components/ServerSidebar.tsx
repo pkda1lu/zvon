@@ -17,7 +17,7 @@ interface ServerSidebarProps {
   selectedChannel: Channel | null;
   onChannelSelect: (channel: Channel) => void;
   onChannelCreated?: () => void;
-  onUserClick: (userId: string) => void;
+  onUserClick: (userId: string, event?: React.MouseEvent) => void;
   onOpenSettings: () => void;
   onServerClick: () => void;
   unreadCounts: Record<string, number>;
@@ -37,7 +37,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
-  const { speakingUsers } = useVoice();
+  const { speakingUsers, joinChannel, userStates } = useVoice();
 
   const isOwner = currentUser && server.owner && (
     (typeof server.owner === 'object' && String((server.owner as any)._id) === String(currentUser._id)) ||
@@ -150,7 +150,11 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 
               return (
                 <div key={channel._id}>
-                  <div className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`} onClick={() => onChannelSelect(channel)}>
+                  <div
+                    className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`}
+                    onClick={() => onChannelSelect(channel)}
+                    onDoubleClick={() => joinChannel(channel._id)}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                       <span className="channel-icon"><SpeakerIcon size={18} /></span>
                       <span className="channel-name">{channel.name}</span>
@@ -166,7 +170,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                   {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
                     <div className="voice-channel-users">
                       {voiceStates[channel._id].map(u => (
-                        <div key={u._id} className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`} onClick={(e) => { e.stopPropagation(); onUserClick(u._id); }} onContextMenu={(e) => handleContextMenu(e, u)}>
+                        <div key={u._id} className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`} onClick={(e) => { e.stopPropagation(); onUserClick(u._id, e); }} onContextMenu={(e) => handleContextMenu(e, u)}>
                           <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
                             {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" /> : <span>{u.username.charAt(0).toUpperCase()}</span>}
                           </div>
@@ -174,6 +178,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                             {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
                           </span>
                           <div className="voice-user-icons">
+                            {userStates.get(u._id)?.isScreenSharing && (
+                              <div className="live-badge nano">ЭФИР</div>
+                            )}
                             {((u as any).isDeafened || (u as any).isServerDeafened) ? (
                               <DeafenedIcon size={14} color="#f23f42" />
                             ) : ((u as any).isMuted || (u as any).isServerMuted) ? (

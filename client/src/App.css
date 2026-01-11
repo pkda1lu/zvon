@@ -4,21 +4,32 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: var(--bg-primary);
+  background-color: transparent !important;
+  background: transparent !important;
+  position: relative;
 }
 
-.app-content {
+.title-bar {
+  position: relative;
+  z-index: 2;
+}
+
+.app-content,
+.preview-container {
+  background-color: transparent !important;
+  background: transparent !important;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   position: relative;
+  z-index: 1;
 }
 
-/* Base styles to ensure frameless window looks good */
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: var(--bg-primary);
+  background-color: transparent !important;
+  background: transparent !important;
 }

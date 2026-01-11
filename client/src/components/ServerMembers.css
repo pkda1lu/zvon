@@ -1,27 +1,21 @@
 .server-members {
     width: 240px;
-    background: var(--bg-secondary);
-    border-left: 1px solid var(--border-divider);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--corner-radius);
     display: flex;
     flex-direction: column;
     height: 100%;
+    overflow: hidden;
 }
 
 .members-list {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 8px 8px 8px;
-    /* Increased top padding */
-}
-
-.members-list::-webkit-scrollbar {
-    width: 8px;
-    background-color: var(--bg-secondary);
-}
-
-.members-list::-webkit-scrollbar-thumb {
-    background-color: var(--bg-tertiary);
-    border-radius: 4px;
+    padding: 24px 12px 12px 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
 .member-group {
@@ -41,50 +35,56 @@
 .member-item {
     display: flex;
     align-items: center;
-    padding: 6px 8px;
-    border-radius: 4px;
+    padding: 8px 10px;
+    border-radius: 12px;
     cursor: pointer;
-    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-    gap: 8px;
-    color: var(--text-secondary);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 12px;
+    color: var(--text-muted);
+    margin: 2px 0;
+    border: 1px solid transparent;
 }
 
 .member-item:hover {
-    background: var(--channel-hover);
+    background: rgba(255, 255, 255, 0.04);
     transform: translateX(4px);
-    color: var(--text-primary);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.05);
 }
 
 .member-avatar {
     width: 32px;
     height: 32px;
-    border-radius: 50%;
+    border-radius: 10px;
+    /* Squircle */
     background: var(--bg-accent);
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 14px;
     position: relative;
     flex-shrink: 0;
+    border: 1px solid var(--glass-border);
 }
 
 .member-avatar img {
     width: 100%;
     height: 100%;
-    border-radius: 50%;
+    border-radius: 10px;
     object-fit: cover;
 }
 
 .status-indicator {
     position: absolute;
-    bottom: -2px;
-    right: -2px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    border: 3px solid var(--bg-secondary);
+    bottom: -3px;
+    right: -3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 5px;
+    /* Tiny squircle */
+    border: 2px solid #1a1a1a;
     background: #747f8d;
 }
 

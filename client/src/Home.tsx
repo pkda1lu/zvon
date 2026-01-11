@@ -1,6 +1,6 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import Landing from './pages/Landing';
 import { SocketProvider } from './contexts/SocketContext';
 import { VoiceProvider } from './contexts/VoiceContext';
 import Main from './pages/Main';
@@ -20,7 +20,7 @@ const Home: React.FC = () => {
     }
 
     if (!user) {
-        return <Landing />;
+        return <Navigate to="/login" replace />;
     }
 
     return (

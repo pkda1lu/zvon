@@ -10,6 +10,16 @@ import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
 import TitleBar from './components/TitleBar';
+import DesignPreview from './design-preview/DesignPreview';
+import LandingPreview from './design-preview/LandingPreview';
+import FriendsPreview from './design-preview/FriendsPreview';
+import VoicePreview from './design-preview/VoicePreview';
+import SettingsPreview from './design-preview/SettingsPreview';
+import DMChatPreview from './design-preview/DMChatPreview';
+import DMVoicePreview from './design-preview/DMVoicePreview';
+import InvitePreview from './design-preview/InvitePreview';
+import LoginPreview from './design-preview/LoginPreview';
+import RegisterPreview from './design-preview/RegisterPreview';
 
 const ElectronHandler: React.FC = () => {
   const navigate = useNavigate();
@@ -34,6 +44,80 @@ const ElectronHandler: React.FC = () => {
   return null;
 };
 
+import { useLocation } from 'react-router-dom';
+
+const AppBackground: React.FC = () => {
+  const location = useLocation();
+  const currentPath = (location.pathname + (location.hash || '')).toLowerCase();
+
+  // Checking for login, register, and invite. 
+  // We use direct check to make it robust across all routing types.
+  const isAuthPage = currentPath.includes('login') ||
+    currentPath.includes('register') ||
+    currentPath.includes('invite');
+
+  return (
+    <div
+      id="global-liquid-bg"
+      style={{
+        position: 'fixed',
+        inset: '-10%', // Oversized for liquidFloat animation
+        width: '120vw',
+        height: '120vh',
+        zIndex: 0,
+        backgroundColor: '#020205',
+        overflow: 'hidden',
+        animation: 'liquidFloat 60s ease-in-out infinite',
+        pointerEvents: 'none'
+      }}
+    >
+      {/* Base Liquid Gradient - Always active for "life" */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'linear-gradient(-45deg, #020204, #15082e, #0a1f38, #2e081c, #020204)',
+        backgroundSize: '300% 300%',
+        animation: 'gradientMove 30s ease infinite',
+        opacity: isAuthPage ? 0.4 : 1, // More subtle when bg.png is active
+        transition: 'opacity 0.5s ease'
+      }} />
+
+      {/* Auth Background Image Layer */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: isAuthPage ? 'url("/redesign-assets/bg.png")' : 'none',
+        backgroundPosition: 'center center',
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        opacity: isAuthPage ? 1 : 0,
+        transition: 'opacity 0.6s ease',
+        transform: isAuthPage ? 'scale(1.05)' : 'scale(1)', // Subtle scale shift
+      }} />
+
+      {/* Decorative spheres - Always present and moving */}
+      <div style={{
+        position: 'absolute',
+        top: '15%', left: '10%',
+        width: '300px', height: '300px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(0, 229, 255, 0.15), transparent 70%)',
+        filter: 'blur(60px)',
+        animation: 'float 15s infinite ease-in-out'
+      }}></div>
+      <div style={{
+        position: 'absolute',
+        bottom: '20%', right: '15%',
+        width: '400px', height: '400px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(161, 85, 255, 0.1), transparent 70%)',
+        filter: 'blur(80px)',
+        animation: 'float 22s infinite ease-in-out reverse'
+      }}></div>
+    </div>
+  );
+};
+
 function App() {
   const isElectron = !!(window as any).electron;
   const Router = isElectron ? HashRouter : BrowserRouter;
@@ -42,15 +126,26 @@ function App() {
     <AuthProvider>
       <AppearanceProvider>
         <NotificationProvider>
-          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <div className="App">
+          <Router>
+            <div className="App" style={{ position: 'relative' }}>
+              <AppBackground />
               <TitleBar />
               <ElectronHandler />
-              <div className="app-content">
+              <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/invite/:code" element={<InvitePage />} />
+                  <Route path="/redesign" element={<DesignPreview />} />
+                  <Route path="/redesign-landing" element={<LandingPreview />} />
+                  <Route path="/redesign-friends" element={<FriendsPreview />} />
+                  <Route path="/redesign-voice" element={<VoicePreview />} />
+                  <Route path="/redesign-settings" element={<SettingsPreview />} />
+                  <Route path="/redesign-dm-chat" element={<DMChatPreview />} />
+                  <Route path="/redesign-dm-voice" element={<DMVoicePreview />} />
+                  <Route path="/redesign-invite" element={<InvitePreview />} />
+                  <Route path="/redesign-login" element={<LoginPreview />} />
+                  <Route path="/redesign-register" element={<RegisterPreview />} />
                   <Route path="/" element={<Home />} />
                   <Route path="/*" element={<Home />} />
                 </Routes>

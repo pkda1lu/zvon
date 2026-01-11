@@ -9,7 +9,7 @@ import './FriendsPanel.css';
 
 interface FriendsPanelProps {
   onStartDM: (userId: string) => void;
-  onUserClick: (userId: string) => void;
+  onUserClick: (userId: string, event?: React.MouseEvent) => void;
   unreadCounts: Record<string, number>;
 }
 
@@ -95,18 +95,25 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
   return (
     <div className="friends-panel">
       <div className="friends-tabs">
-        <button className={activeTab === 'friends' ? 'active' : ''} onClick={() => setActiveTab('friends')}>Друзья ({friends.length})</button>
-        <button className={activeTab === 'pending' ? 'active' : ''} onClick={() => setActiveTab('pending')}>Запросы ({pendingRequests.length})</button>
+        <button className={activeTab === 'friends' ? 'active' : ''} onClick={() => setActiveTab('friends')}>Друзья</button>
+        <button className={activeTab === 'pending' ? 'active' : ''} onClick={() => setActiveTab('pending')}>Запросы</button>
         <button className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}>Добавить</button>
       </div>
-      <div className="friends-content">
+      <div className="friends-content custom-scrollbar">
         {activeTab === 'friends' && (
           <div className="friends-list">
             {friends.length === 0 ? <div className="empty-state">У вас пока нет друзей</div> : friends.map(f => (
               <div key={f._id} className="friend-item">
-                <div className="friend-avatar" onClick={() => onUserClick(f._id)} style={{ cursor: 'pointer' }}>{getAvatarUrl(f.avatar) ? <img src={getAvatarUrl(f.avatar)!} alt="" /> : <span>{f.username.charAt(0).toUpperCase()}</span>}<div className={`status-indicator ${f.status}`}></div></div>
-                <div className="friend-info" onClick={() => onUserClick(f._id)} style={{ cursor: 'pointer' }}><div className="friend-name">{f.username}{userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}</div><div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div></div>
-                <div className="friend-actions"><button className="dm-button" onClick={() => onStartDM(f._id)} title="Написать сообщение"><ChatIcon size={20} /></button><button className="remove-button" onClick={() => removeFriend((f as any).friendshipId)} title="Удалить из друзей"><CloseIcon size={20} /></button></div>
+                <div className="friend-avatar" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}>{getAvatarUrl(f.avatar) ? <img src={getAvatarUrl(f.avatar)!} alt="" /> : <span>{f.username.charAt(0).toUpperCase()}</span>}<div className={`status-indicator ${f.status}`}></div></div>
+                <div className="friend-info" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}><div className="friend-name">{f.username}{userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}</div><div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div></div>
+                <div className="friend-actions">
+                  <button className="test-action-btn" onClick={() => onStartDM(f._id)} title="Написать сообщение">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                  </button>
+                  <button className="test-action-btn remove" onClick={() => removeFriend((f as any).friendshipId)} title="Удалить из друзей">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -115,8 +122,8 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
           <div className="pending-requests">
             {pendingRequests.length === 0 ? <div className="empty-state">Нет входящих запросов</div> : pendingRequests.map(r => (
               <div key={r._id} className="request-item">
-                <div className="request-avatar" onClick={() => onUserClick(r.requester._id)} style={{ cursor: 'pointer' }}>{getAvatarUrl(r.requester.avatar) ? <img src={getAvatarUrl(r.requester.avatar)!} alt="" /> : <span>{r.requester.username.charAt(0).toUpperCase()}</span>}</div>
-                <div className="request-info" onClick={() => onUserClick(r.requester._id)} style={{ cursor: 'pointer' }}><div className="request-name">{r.requester.username}</div><div className="request-text">хочет добавить вас в друзья</div></div>
+                <div className="request-avatar" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}>{getAvatarUrl(r.requester.avatar) ? <img src={getAvatarUrl(r.requester.avatar)!} alt="" /> : <span>{r.requester.username.charAt(0).toUpperCase()}</span>}</div>
+                <div className="request-info" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}><div className="request-name">{r.requester.username}</div><div className="request-text">хочет добавить вас в друзья</div></div>
                 <div className="request-actions"><button className="accept-button" onClick={() => acceptRequest(r._id)}>Принять</button><button className="reject-button" onClick={() => removeFriend(r._id)}>Отклонить</button></div>
               </div>
             ))}
@@ -129,8 +136,8 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
             <div className="search-results">
               {searchResults.map(u => (
                 <div key={u._id} className="search-result-item">
-                  <div className="result-avatar" onClick={() => onUserClick(u._id)} style={{ cursor: 'pointer' }}>{getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" /> : <span>{u.username.charAt(0).toUpperCase()}</span>}</div>
-                  <div className="result-info" onClick={() => onUserClick(u._id)} style={{ cursor: 'pointer' }}><div className="result-name">{u.username}</div><div className="result-email">{u.email}</div></div>
+                  <div className="result-avatar" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}>{getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" /> : <span>{u.username.charAt(0).toUpperCase()}</span>}</div>
+                  <div className="result-info" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}><div className="result-name">{u.username}</div><div className="result-email">{u.email}</div></div>
                   <button className="add-button" onClick={() => sendFriendRequest(u._id)} disabled={!!loadingAction}>{loadingAction === u._id ? '...' : 'Добавить'}</button>
                 </div>
               ))}

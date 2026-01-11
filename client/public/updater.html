@@ -5,12 +5,22 @@
     <meta charset="UTF-8">
     <title>Zvon Updater</title>
     <style>
+        :root {
+            --primary-neon: #00e5ff;
+            --secondary-neon: #a155ff;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.5);
+            --bg-dark: #020205;
+        }
+
         body {
             margin: 0;
             padding: 0;
-            background: #1e1f22;
-            color: #dbdee1;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -20,183 +30,266 @@
             -webkit-app-region: drag;
         }
 
+        /* Ambient Background */
+        .ambient-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: radial-gradient(circle at 50% -20%, #1a0b2e 0%, #020205 60%);
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .orb-1 {
+            width: 300px;
+            height: 300px;
+            background: var(--primary-neon);
+            top: -50px;
+            left: -50px;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 400px;
+            height: 400px;
+            background: var(--secondary-neon);
+            bottom: -100px;
+            right: -100px;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(30px, -50px) scale(1.1);
+            }
+
+            66% {
+                transform: translate(-20px, 20px) scale(0.95);
+            }
+        }
+
         .container {
             text-align: center;
             padding: 40px;
-            width: 100%;
-        }
-
-        .z-loader {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 40px;
+            width: 320px;
+            background: rgba(20, 20, 30, 0.4);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
             position: relative;
+            overflow: hidden;
         }
 
-        .z-svg {
+        /* Logo Animation */
+        .logo-container {
             width: 80px;
             height: 80px;
-            filter: drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
-            animation: zFloat 3s ease-in-out infinite;
+            margin-bottom: 24px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .z-path {
-            fill: none;
-            stroke: #5865f2;
-            stroke-width: 8;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            stroke-dasharray: 300;
-            stroke-dashoffset: 300;
-            animation: zDraw 2.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
-        }
-
-        .z-glow {
+        .logo-ring {
             position: absolute;
-            width: 100px;
-            height: 100px;
-            background: radial-gradient(circle, rgba(88, 101, 242, 0.2) 0%, transparent 70%);
+            inset: 0;
             border-radius: 50%;
-            animation: zPulse 2s ease-in-out infinite;
+            border: 2px solid transparent;
+            border-top-color: var(--primary-neon);
+            border-left-color: rgba(0, 229, 255, 0.3);
+            animation: spin 3s linear infinite;
         }
 
-        @keyframes zDraw {
-            0% {
-                stroke-dashoffset: 300;
-                opacity: 0;
+        .logo-ring::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            border-bottom-color: var(--secondary-neon);
+            border-right-color: rgba(161, 85, 255, 0.3);
+            animation: spin 4s linear infinite reverse;
+        }
+
+        .z-logo {
+            font-size: 36px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #fff, rgba(255, 255, 255, 0.7));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.5));
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
             }
 
-            20% {
-                opacity: 1;
-            }
-
-            50% {
-                stroke-dashoffset: 0;
-            }
-
-            80% {
-                opacity: 1;
-            }
-
-            100% {
-                stroke-dashoffset: -300;
-                opacity: 0;
+            to {
+                transform: rotate(360deg);
             }
         }
 
-        @keyframes zPulse {
+        @keyframes pulse {
 
             0%,
             100% {
-                transform: scale(0.8);
-                opacity: 0.3;
+                opacity: 1;
+                transform: scale(1);
             }
 
             50% {
-                transform: scale(1.2);
-                opacity: 0.6;
-            }
-        }
-
-        @keyframes zFloat {
-
-            0%,
-            100% {
-                transform: translateY(0) rotate(0);
-            }
-
-            50% {
-                transform: translateY(-10px) rotate(5deg);
+                opacity: 0.8;
+                transform: scale(0.95);
             }
         }
 
         h1 {
-            font-size: 20px;
-            margin: 0 0 10px;
-            font-weight: 600;
-            color: #ffffff;
+            font-size: 24px;
+            margin: 0 0 8px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #fff, #ccc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .status {
-            font-size: 14px;
-            color: #b5bac1;
-            margin-bottom: 25px;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            min-height: 20px;
         }
 
-        .progress-container {
+        .progress-wrapper {
+            width: 100%;
+            display: none;
+            /* Hidden by default */
+        }
+
+        .progress-bg {
             width: 100%;
             height: 6px;
-            background: #2b2d31;
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 3px;
             overflow: hidden;
-            display: none;
+            position: relative;
         }
 
         .progress-bar {
             width: 0%;
             height: 100%;
-            background: #5865f2;
-            transition: width 0.3s ease;
+            background: linear-gradient(90deg, var(--primary-neon), var(--secondary-neon));
+            border-radius: 3px;
+            position: relative;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.6);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transform: translateX(-100%);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            100% {
+                transform: translateX(100%);
+            }
         }
 
         .loading-dots:after {
-            content: ' .';
-            animation: dots 1.5s steps(5, end) infinite;
+            content: '.';
+            animation: dots 1.5s steps(4, end) infinite;
         }
 
         @keyframes dots {
 
             0%,
             20% {
-                content: ' .';
+                content: '.';
             }
 
             40% {
-                content: ' . .';
+                content: '..';
             }
 
             60% {
-                content: ' . . .';
+                content: '...';
             }
 
             80%,
             100% {
-                content: ' . . . .';
+                content: '';
             }
         }
     </style>
 </head>
 
 <body>
+    <div class="ambient-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
     <div class="container">
-        <div class="z-loader">
-            <div class="z-glow"></div>
-            <svg class="z-svg" viewBox="0 0 100 100">
-                <path class="z-path" d="M20,20 L80,20 L20,80 L80,80" />
-            </svg>
+        <div class="logo-container">
+            <div class="logo-ring"></div>
+            <div class="z-logo">Z</div>
         </div>
         <h1>Zvon</h1>
         <div id="status" class="status">Проверка обновлений<span class="loading-dots"></span></div>
-        <div id="progress-container" class="progress-container">
-            <div id="progress-bar" class="progress-bar"></div>
+        <div id="progress-wrapper" class="progress-wrapper">
+            <div class="progress-bg">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
         </div>
     </div>
 
     <script>
         const { ipcRenderer } = require('electron');
         const statusElement = document.getElementById('status');
-        const progressContainer = document.getElementById('progress-container');
+        const progressWrapper = document.getElementById('progress-wrapper');
         const progressBar = document.getElementById('progress-bar');
+        const dotsElement = document.querySelector('.loading-dots');
 
         ipcRenderer.on('updater-message', (event, text) => {
             statusElement.innerText = text;
+            if (text.includes('Загрузка') || text.includes('установку') || text.includes('скачан')) {
+                // Keep loading dots hidden for clear states
+            } else {
+                // Might re-add dots logic here if needed, but text usually suffice
+            }
         });
 
         ipcRenderer.on('updater-progress', (event, percent) => {
-            progressContainer.style.display = 'block';
+            progressWrapper.style.display = 'block';
             progressBar.style.width = percent + '%';
             statusElement.innerText = `Загрузка обновления: ${Math.round(percent)}%`;
         });

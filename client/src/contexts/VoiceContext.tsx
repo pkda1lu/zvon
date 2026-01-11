@@ -207,6 +207,8 @@ interface VoiceContextType {
     isAutomaticSensitivity: boolean;
     setIsAutomaticSensitivity: (val: boolean) => void;
     currentInputLevel: number;
+    startTestStream: () => Promise<void>;
+    stopTestStream: () => void;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -298,6 +300,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const peerStatesRef = useRef<Map<string, { makingOffer: boolean; ignoreOffer: boolean; isSettingRemoteAnswerPending: boolean }>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
     const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+    const [testStream, setTestStream] = useState<MediaStream | null>(null);
+    const testStreamRef = useRef<MediaStream | null>(null);
     const speakingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -423,6 +427,29 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         return peersRef.current.get(targetUserId)!;
     }, [socket, user?._id]);
+
+    const startTestStream = useCallback(async () => {
+        if (localStreamRef.current || testStreamRef.current) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    deviceId: selectedInputDeviceId !== 'default' ? { exact: selectedInputDeviceId } : undefined,
+                }
+            });
+            testStreamRef.current = stream;
+            setTestStream(stream);
+        } catch (err) {
+            console.error("Failed to start test stream", err);
+        }
+    }, [selectedInputDeviceId]);
+
+    const stopTestStream = useCallback(() => {
+        if (testStreamRef.current) {
+            testStreamRef.current.getTracks().forEach(t => t.stop());
+            testStreamRef.current = null;
+            setTestStream(null);
+        }
+    }, []);
 
     const leaveChannel = useCallback(() => {
         if (!activeChannelId) return;
@@ -913,22 +940,30 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const lastSpeakingTimeRef = useRef<number>(0);
 
     useEffect(() => {
-        if (!isConnected) {
-            analysersRef.current.clear();
-            setSpeakingUsers(new Set());
-            return;
-        }
         const audioCtx = getAudioContext();
         const interval = setInterval(() => {
             const nowSpeaking = new Set<string>();
             const now = Date.now();
 
             // Analyze local user
-            if (localStreamRef.current && !isMuted && !isServerMuted) {
-                const analyser = analysersRef.current.get(user?._id || 'local');
+            const micStream = localStreamRef.current || testStreamRef.current;
+            if (micStream && !isMuted && !isServerMuted) {
+                let analyser = analysersRef.current.get(user?._id || 'local');
+
+                // If no analyser but we have a stream (e.g. test stream just started), create one
+                if (!analyser && micStream) {
+                    try {
+                        const source = audioCtx.createMediaStreamSource(micStream);
+                        analyser = audioCtx.createAnalyser();
+                        analyser.fftSize = 256;
+                        source.connect(analyser);
+                        analysersRef.current.set(user?._id || 'local', analyser);
+                    } catch (err) { }
+                }
+
                 if (analyser) {
                     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    dataArray.fill(128); // Pre-fill with silence
+                    dataArray.fill(128);
                     analyser.getByteTimeDomainData(dataArray);
 
                     let sumOfSquares = 0;
@@ -937,31 +972,32 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         sumOfSquares += normalized * normalized;
                     }
                     const rms = Math.sqrt(sumOfSquares / dataArray.length);
-                    const db = 20 * Math.log10(rms); // typically -100 to 0
+                    const db = 20 * Math.log10(rms);
 
                     if (isFinite(db)) {
                         setCurrentInputLevel(db);
                     }
 
-                    // Hysteresis logic and Hold Time
+                    // Hysteresis logic
                     const baseThreshold = isAutomaticSensitivity ? -60 : inputSensitivity;
-
                     if (db > baseThreshold) {
                         lastSpeakingTimeRef.current = now;
                     }
 
-                    const VAD_HOLD_TIME = 200; // ms
+                    const VAD_HOLD_TIME = 200;
                     const isVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
 
-                    if (isVADOpen) {
+                    if (isVADOpen && isConnected) {
                         if (user?._id) nowSpeaking.add(user._id);
                     }
 
-                    // Apply Gating to Tracks
-                    const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isVADOpen;
-                    localStreamRef.current.getAudioTracks().forEach(t => {
-                        if (t.enabled !== shouldBeEnabled) t.enabled = shouldBeEnabled;
-                    });
+                    // Apply Gating only if connected
+                    if (isConnected && localStreamRef.current) {
+                        const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isVADOpen;
+                        localStreamRef.current.getAudioTracks().forEach(t => {
+                            if (t.enabled !== shouldBeEnabled) t.enabled = shouldBeEnabled;
+                        });
+                    }
                 }
             } else {
                 setCurrentInputLevel(-100);
@@ -997,13 +1033,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const updateAnalysers = () => {
             analysersRef.current.clear();
-            if (rawMicStreamRef.current && user?._id && !isMuted) {
+            const micStream = localStreamRef.current || testStreamRef.current;
+            if (micStream && (user?._id || 'local') && !isMuted) {
                 try {
-                    const source = audioCtx.createMediaStreamSource(rawMicStreamRef.current);
+                    const source = audioCtx.createMediaStreamSource(micStream);
                     const analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 256;
                     source.connect(analyser);
-                    analysersRef.current.set(user._id, analyser);
+                    analysersRef.current.set(user?._id || 'local', analyser);
                 } catch (err) { }
             }
             remoteStreams.forEach((stream, userId) => {
@@ -1077,7 +1114,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices,
             isScreenSharing, screenStream, startScreenShare, stopScreenShare, remoteScreenStreams,
             screenVolumes, setScreenVolume, watchedScreenIds, setWatchingScreen,
-            inputSensitivity, setInputSensitivity, isAutomaticSensitivity, setIsAutomaticSensitivity, currentInputLevel
+            inputSensitivity, setInputSensitivity, isAutomaticSensitivity, setIsAutomaticSensitivity, currentInputLevel,
+            startTestStream, stopTestStream
         }}>
             {children}
             <div style={{ display: 'none' }}>

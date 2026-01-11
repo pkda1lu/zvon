@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
@@ -12,6 +12,8 @@ interface UserProfileCardProps {
     userId: string;
     onClose: () => void;
     serverId?: string;
+    position?: { x: number, y: number } | null;
+    onUserClick?: (userId: string, event?: React.MouseEvent) => void;
 }
 
 const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
@@ -32,7 +34,7 @@ const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
     return <div className="activity-time">{elapsed}</div>;
 };
 
-const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId }) => {
+const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId, position, onUserClick }) => {
     const { socket } = useSocket();
     const { user: currentUser } = useAuth();
     const [profileData, setProfileData] = useState<{
@@ -46,6 +48,32 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [memberData, setMemberData] = useState<any>(null);
     const [server, setServer] = useState<any>(null);
     const [showRoleSelector, setShowRoleSelector] = useState(false);
+    const cardRef = useRef<HTMLDivElement>(null);
+    const [adjustedPos, setAdjustedPos] = useState({ top: position?.y || 0, left: (position?.x || 0) + 20 });
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        if (!position || !cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        let finalX = position.x + 20;
+        let finalY = position.y;
+
+        if (finalX + rect.width > window.innerWidth) {
+            finalX = position.x - rect.width - 20;
+        }
+
+        if (finalY + rect.height > window.innerHeight) {
+            finalY = position.y - rect.height;
+        }
+
+        if (finalY + rect.height > window.innerHeight) finalY = window.innerHeight - rect.height - 10;
+        if (finalY < 10) finalY = 10;
+        if (finalX < 10) finalX = 10;
+        if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 10;
+
+        setAdjustedPos({ top: finalY, left: finalX });
+        setIsVisible(true);
+    }, [position]);
 
     const userPerms = (currentUser && server) ? computePermissions(currentUser._id, server) : 0n;
     const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES);
@@ -93,8 +121,19 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     }, [userId, serverId]);
 
     if (error) return (
-        <div className="user-profile-overlay" onClick={onClose}>
-            <div className="user-profile-card error" onClick={e => e.stopPropagation()}>
+        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+            <div
+                className={`user-profile-card error ${position ? 'popout' : ''}`}
+                onClick={e => e.stopPropagation()}
+                style={position ? {
+                    position: 'absolute',
+                    top: adjustedPos.top,
+                    left: adjustedPos.left,
+                    visibility: isVisible ? 'visible' : 'hidden',
+                    opacity: isVisible ? 1 : 0
+                } : undefined}
+                ref={cardRef}
+            >
                 <p>{error}</p>
                 <button onClick={onClose}>Закрыть</button>
             </div>
@@ -102,8 +141,19 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     );
 
     if (loading || !profileData) return (
-        <div className="user-profile-overlay" onClick={onClose}>
-            <div className="user-profile-card loading-skeleton" onClick={e => e.stopPropagation()}>
+        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+            <div
+                className={`user-profile-card loading-skeleton ${position ? 'popout' : ''}`}
+                onClick={e => e.stopPropagation()}
+                style={position ? {
+                    position: 'absolute',
+                    top: adjustedPos.top,
+                    left: adjustedPos.left,
+                    visibility: isVisible ? 'visible' : 'hidden',
+                    opacity: isVisible ? 1 : 0
+                } : undefined}
+                ref={cardRef}
+            >
                 <div className="profile-banner skeleton"></div>
                 <div className="profile-header"><div className="profile-avatar-container"><div className="profile-avatar skeleton"></div></div></div>
                 <div className="profile-body"><div className="skeleton-text large" style={{ width: '60%' }}></div></div>
@@ -130,8 +180,19 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const { user, mutualServers, mutualFriends } = profileData;
 
     return (
-        <div className="user-profile-overlay" onClick={onClose}>
-            <div className="user-profile-card" onClick={e => e.stopPropagation()}>
+        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+            <div
+                className={`user-profile-card ${position ? 'popout' : ''}`}
+                onClick={e => e.stopPropagation()}
+                style={position ? {
+                    position: 'absolute',
+                    top: adjustedPos.top,
+                    left: adjustedPos.left,
+                    visibility: isVisible ? 'visible' : 'hidden',
+                    opacity: isVisible ? 1 : 0
+                } : undefined}
+                ref={cardRef}
+            >
                 <div className="profile-banner" style={{ backgroundColor: '#5865f2', backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none', backgroundSize: 'cover' }}>
                     <button className="profile-close-button" onClick={onClose}><CloseIcon /></button>
                 </div>
@@ -238,7 +299,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                         {activeTab === 'mutualFriends' && (
                             <div className="mutual-list">
                                 {mutualFriends.length > 0 ? mutualFriends.map(friend => (
-                                    <div key={friend._id} className="mutual-item">
+                                    <div key={friend._id} className="mutual-item" onClick={(e) => onUserClick?.(friend._id, e)} style={{ cursor: 'pointer' }}>
                                         <div className="mutual-avatar">{getAvatarUrl(friend.avatar) ? <img src={getAvatarUrl(friend.avatar)!} alt="" /> : <span>{friend.username.charAt(0).toUpperCase()}</span>}</div>
                                         <span>{friend.username}</span>
                                     </div>

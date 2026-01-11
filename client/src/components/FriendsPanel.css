@@ -1,53 +1,67 @@
 .friends-panel {
   flex: 1;
-  background: var(--bg-primary);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--corner-radius);
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
 .friends-tabs {
   display: flex;
-  border-bottom: 1px solid var(--border-divider);
-  padding: 0 8px;
-  background: var(--bg-primary);
+  padding: 24px 30px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--glass-border);
+  gap: 16px;
+  flex-shrink: 0;
 }
 
 .friends-tabs button {
-  flex: 1;
-  padding: 12px 8px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  border-bottom: 2px solid transparent;
-  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 12px;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .friends-tabs button:hover {
-  color: var(--text-primary);
-  background: var(--channel-hover);
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
 }
 
 .friends-tabs button.active {
-  color: var(--text-primary);
-  border-bottom-color: var(--bg-accent);
+  color: #000;
+  background: var(--primary-neon);
+  border-color: var(--primary-neon);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
 }
 
 .friends-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 30px;
 }
 
-.friends-list,
-.pending-requests,
-.add-friend {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Custom scrollbar for glass panel */
+.friends-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.friends-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
 }
 
 .friend-item,
@@ -55,36 +69,47 @@
 .search-result-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 4px;
-  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--text-secondary);
+  gap: 15px;
+  padding: 15px 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 10px;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .friend-item:hover,
 .request-item:hover,
 .search-result-item:hover {
-  background: var(--channel-hover);
-  transform: translateX(4px);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
 }
 
 .friend-avatar,
 .request-avatar,
 .result-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--bg-accent);
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  /* Squircle */
+  background: var(--glass-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 800;
+  font-size: 20px;
   position: relative;
   flex-shrink: 0;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.friend-item:hover .friend-avatar {
+  transform: scale(1.05) rotate(-5deg);
+  border-color: var(--primary-neon);
 }
 
 .friend-avatar img,
@@ -92,23 +117,25 @@
 .result-avatar img {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  border-radius: 16px;
   object-fit: cover;
 }
 
 .status-indicator {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-primary);
-  background: #747f8d;
+  bottom: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  /* Tiny squircle */
+  border: 3px solid #0d0d15;
+  z-index: 5;
 }
 
 .status-indicator.online {
-  background: #43b581;
+  background: var(--primary-neon);
+  box-shadow: 0 0 10px var(--primary-neon);
 }
 
 .status-indicator.away {
@@ -116,12 +143,15 @@
 }
 
 .status-indicator.busy {
-  background: #f04747;
+  background: var(--accent-pink);
+  box-shadow: 0 0 10px var(--accent-pink);
 }
 
-.friend-info,
-.request-info,
-.result-info {
+.status-indicator.offline {
+  background: #747f8d;
+}
+
+.friend-info {
   flex: 1;
   min-width: 0;
 }
@@ -129,162 +159,170 @@
 .friend-name,
 .request-name,
 .result-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 4px;
+  letter-spacing: -0.5px;
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
 .unread-count-badge {
-  background: #f23f43;
+  background: #ff3b30;
   color: white;
-  border-radius: 10px;
-  padding: 0 6px;
+  border-radius: 6px;
+  padding: 2px 6px;
   font-size: 11px;
-  font-weight: 700;
-  height: 16px;
+  font-weight: 800;
+  margin-left: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
+  box-shadow: 0 0 10px rgba(255, 59, 48, 0.4);
+  min-width: 18px;
+  height: 18px;
+  line-height: 1;
 }
 
 .friend-status,
 .request-text,
 .result-email {
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.activity-status {
+  color: var(--primary-neon);
+  font-weight: 600;
 }
 
 .friend-actions,
 .request-actions {
   display: flex;
-  gap: 4px;
+  gap: 10px;
 }
 
-.dm-button,
-.remove-button,
-.accept-button,
-.reject-button,
-.add-button {
-  padding: 4px 8px;
-  border: none;
-  border-radius: 4px;
+.test-action-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.dm-button {
-  background: var(--bg-accent);
-  color: #fff;
+.test-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  transform: translateY(-2px);
 }
 
-.dm-button:hover {
-  background: #4752c4;
-  transform: scale(1.1);
-}
-
-.remove-button {
-  background: #f04747;
-  color: #fff;
-}
-
-.remove-button:hover {
-  background: #d84040;
-  transform: scale(1.1);
-}
-
-.accept-button {
-  background: #43b581;
-  color: #fff;
-}
-
-.accept-button:hover {
-  background: #3ca374;
-  transform: scale(1.1);
-}
-
-.reject-button {
-  background: #f04747;
-  color: #fff;
-}
-
-.reject-button:hover {
-  background: #d84040;
-}
-
-.add-button {
-  background: var(--bg-accent);
-  color: #fff;
-}
-
-.add-button:hover {
-  background: #4752c4;
-  transform: scale(1.1);
+.test-action-btn.remove:hover {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: rgba(255, 59, 48, 0.3);
+  color: #ff3b30;
 }
 
 .search-input {
   width: 100%;
-  padding: 8px 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid transparent;
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 14px;
-  margin-bottom: 8px;
+  padding: 15px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  color: white;
+  font-size: 15px;
+  margin-bottom: 25px;
   outline: none;
-  transition: border-color 0.2s;
-  z-index: 5;
+  transition: all 0.4s ease;
 }
 
 .search-input:focus {
-  background: var(--bg-secondary);
-  border-color: var(--bg-accent);
-}
-
-.panel-message {
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-bottom: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  animation: slideDown 0.2s ease-out;
-}
-
-.panel-message.success {
-  background: rgba(67, 181, 129, 0.1);
-  color: #43b581;
-  border: 1px solid rgba(67, 181, 129, 0.2);
-}
-
-.panel-message.error {
-  background: rgba(240, 71, 71, 0.1);
-  color: #f04747;
-  border: 1px solid rgba(240, 71, 71, 0.2);
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  border-color: var(--primary-neon);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
 }
 
 .empty-state {
   text-align: center;
+  color: var(--text-dim);
+  padding: 60px 20px;
+  font-size: 16px;
+  border: 1px dashed var(--glass-border);
+  border-radius: 20px;
+  margin-top: 20px;
+}
+
+.add-button {
+  background: transparent;
+  border: 1px solid var(--primary-neon);
+  color: var(--primary-neon);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-transform: uppercase;
+  min-width: 90px;
+  letter-spacing: 0.5px;
+}
+
+.add-button:hover {
+  background: var(--primary-neon);
+  color: #000;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.add-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: transparent;
   color: var(--text-muted);
-  padding: 32px 16px;
-  font-size: 14px;
+  border-color: var(--text-muted);
+}
+
+.accept-button {
+  background: #248046;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.accept-button:hover {
+  background: #1a6334;
+  box-shadow: 0 0 10px rgba(36, 128, 70, 0.4);
+}
+
+.reject-button {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.reject-button:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
+  border-color: #ff3b30;
 }
