@@ -10,16 +10,6 @@ import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
 import TitleBar from './components/TitleBar';
-import DesignPreview from './design-preview/DesignPreview';
-import LandingPreview from './design-preview/LandingPreview';
-import FriendsPreview from './design-preview/FriendsPreview';
-import VoicePreview from './design-preview/VoicePreview';
-import SettingsPreview from './design-preview/SettingsPreview';
-import DMChatPreview from './design-preview/DMChatPreview';
-import DMVoicePreview from './design-preview/DMVoicePreview';
-import InvitePreview from './design-preview/InvitePreview';
-import LoginPreview from './design-preview/LoginPreview';
-import RegisterPreview from './design-preview/RegisterPreview';
 
 const ElectronHandler: React.FC = () => {
   const navigate = useNavigate();
@@ -136,16 +126,6 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/invite/:code" element={<InvitePage />} />
-                  <Route path="/redesign" element={<DesignPreview />} />
-                  <Route path="/redesign-landing" element={<LandingPreview />} />
-                  <Route path="/redesign-friends" element={<FriendsPreview />} />
-                  <Route path="/redesign-voice" element={<VoicePreview />} />
-                  <Route path="/redesign-settings" element={<SettingsPreview />} />
-                  <Route path="/redesign-dm-chat" element={<DMChatPreview />} />
-                  <Route path="/redesign-dm-voice" element={<DMVoicePreview />} />
-                  <Route path="/redesign-invite" element={<InvitePreview />} />
-                  <Route path="/redesign-login" element={<LoginPreview />} />
-                  <Route path="/redesign-register" element={<RegisterPreview />} />
                   <Route path="/" element={<Home />} />
                   <Route path="/*" element={<Home />} />
                 </Routes>
