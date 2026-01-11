@@ -56,8 +56,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
       const scrollToTarget = () => {
         if (initialUnreadCount > 0 && unreadRef.current) {
           unreadRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
-        } else {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+        } else if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
         }
       };
       scrollToTarget();

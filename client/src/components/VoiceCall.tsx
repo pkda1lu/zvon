@@ -152,7 +152,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     if ((window as any).electron && (window as any).electron.setContentProtection) {
       (window as any).electron.setContentProtection(false);
     }
-    nativeAudioManager.stopCapture();
+    try {
+      if (nativeAudioManager && nativeAudioManager.stopCapture) {
+        nativeAudioManager.stopCapture();
+      }
+    } catch (e) {
+      console.warn('Failed to stop native audio capture:', e);
+    }
   };
 
   const setupPeerConnection = async () => {
@@ -370,7 +376,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         setScreenStream(null);
       }
       setIsScreenSharing(false);
-      nativeAudioManager.stopCapture();
+      try {
+        if (nativeAudioManager && nativeAudioManager.stopCapture) {
+          nativeAudioManager.stopCapture();
+        }
+      } catch (e) {
+        console.warn('Failed to stop native audio capture:', e);
+      }
       // Disable content protection
       if ((window as any).electron && (window as any).electron.setContentProtection) {
         (window as any).electron.setContentProtection(false);

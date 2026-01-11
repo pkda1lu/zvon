@@ -18,7 +18,13 @@ export class NativeAudioManager {
 
     public async startcapture(sourceId: string): Promise<MediaStream> {
         const electron = (window as any).electron;
-        if (!electron) throw new Error("Native audio not available");
+        if (!electron) {
+            console.warn("Native audio not available (electron missing). Returning empty stream.");
+            // Return dummy stream to prevent crash
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const dest = ctx.createMediaStreamDestination();
+            return dest.stream;
+        }
 
         // Re-create AudioContext to ensure fresh streams/tracks
         const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);

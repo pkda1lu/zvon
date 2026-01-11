@@ -61,7 +61,21 @@ const RemoteAudio: React.FC<{
             gainNodeRef.current.connect(ctx.destination);
         }
 
+        // Check and resume context if needed
+        if (ctx.state === 'suspended') {
+            ctx.resume()
+                .then(() => console.log("[Voice] AudioContext resumed for RemoteAudio"))
+                .catch(err => {
+                    console.error("[Voice] Failed to resume AudioContext, falling back to element:", err);
+                    if (audioRef.current) audioRef.current.muted = false;
+                });
+        }
+
         try {
+            // Use clone to avoid 'stealing' the stream if other sources are created (like analysers)
+            // although some browsers allow multiple sources, this is safer.
+            // Actually, for playback we want the original stream often, but let's try direct first.
+            // A better pattern for Web Audio playback:
             const source = ctx.createMediaStreamSource(stream);
             sourceNodeRef.current = source;
             source.connect(gainNodeRef.current);
@@ -84,18 +98,34 @@ const RemoteAudio: React.FC<{
     useEffect(() => {
         const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
 
-        if (gainNodeRef.current && sharedContext) {
-            // Web Audio Path
+        // Strict threshold: Only use Web Audio if we REALLY need the boost (> 1.0)
+        // And ensure we have a valid context.
+        const useWebAudio = !!sharedContext && (finalVolume > 1.0);
+
+        if (useWebAudio && gainNodeRef.current) {
+            // WEB AUDIO PATH
+            if (audioRef.current) audioRef.current.muted = true; // Silence the element directly
+
             try {
+                // Smooth transition
                 gainNodeRef.current.gain.cancelScheduledValues(sharedContext.currentTime);
                 gainNodeRef.current.gain.setTargetAtTime(finalVolume, sharedContext.currentTime, 0.05);
             } catch (e) {
+                // Fallback instant
                 gainNodeRef.current.gain.value = finalVolume;
             }
-        } else if (audioRef.current && !audioRef.current.muted) {
-            // Fallback: Direct Audio Element Volume (Clamped to 0-1)
-            // Note: HTMLAudioElement volume is 0.0 to 1.0. We lose the x1.5 boost capability here.
-            audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+        } else {
+            // DIRECT ELEMENT PATH (Standard)
+            // If gain node exists, silence it to save processing (or disconnect/ignore it)
+            if (gainNodeRef.current) {
+                try { gainNodeRef.current.gain.value = 0; } catch (e) { }
+            }
+
+            if (audioRef.current) {
+                audioRef.current.muted = false; // Unmute element
+                // HTML Audio volume is 0.0 -> 1.0
+                audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+            }
         }
     }, [voiceVolume, isDeafened, isLocalMuted, masterVolume, sharedContext]);
 
@@ -636,6 +666,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const joinChannel = useCallback(async (channelId: string) => {
         if (isConnectedRef.current) leaveChannel();
+
+        // Force resume context on join action
+        try {
+            const ctx = getAudioContext();
+            if (ctx.state === 'suspended') await ctx.resume();
+        } catch (e) { }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
@@ -1034,18 +1071,32 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const updateAnalysers = () => {
             analysersRef.current.clear();
             const micStream = localStreamRef.current || testStreamRef.current;
-            if (micStream && (user?._id || 'local') && !isMuted) {
+            if (micStream && (user?._id || 'local')) {
+                // Even if muted, we might want to see the visualizer if we are just "soft muted" in UI
+                // But typically if hardware muted, no data.
+                // We use a CLONE to ensure we don't screw up the sender track.
                 try {
-                    const source = audioCtx.createMediaStreamSource(micStream);
+                    const streamClone = micStream.clone();
+                    streamClone.getAudioTracks().forEach(t => t.enabled = true);
+
+                    const source = audioCtx.createMediaStreamSource(streamClone);
                     const analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 256;
                     source.connect(analyser);
                     analysersRef.current.set(user?._id || 'local', analyser);
-                } catch (err) { }
+                } catch (err) {
+                    console.warn("Failed to create local analyser", err);
+                }
             }
+
             remoteStreams.forEach((stream, userId) => {
                 try {
-                    const source = audioCtx.createMediaStreamSource(stream);
+                    // Use a clone for the analyser to avoid interfering with playback
+                    // IMPORTANT: Cloned tracks might start disabled or muted in some browsers, ensure they are active
+                    const streamClone = stream.clone();
+                    streamClone.getAudioTracks().forEach(t => t.enabled = true);
+
+                    const source = audioCtx.createMediaStreamSource(streamClone);
                     const analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 256;
                     source.connect(analyser);
@@ -1093,6 +1144,25 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
     }, []);
 
+    // Unlock AudioContext on user interaction
+    useEffect(() => {
+        const unlockAudio = () => {
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume().then(() => {
+                    console.log("[Voice] AudioContext unlocked by user interaction");
+                }).catch(console.error);
+            }
+            if (soundManager['audioContext'] && soundManager['audioContext'].state === 'suspended') {
+                soundManager['audioContext'].resume().catch(() => { });
+            }
+        };
+        window.addEventListener('click', unlockAudio);
+        window.addEventListener('keydown', unlockAudio);
+        return () => {
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+        };
+    }, []);
 
     // Determine effective mute state for logic that re-enables tracks dynamically
     useEffect(() => {

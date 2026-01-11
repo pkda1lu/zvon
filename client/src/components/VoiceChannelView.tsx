@@ -452,9 +452,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                 <div className="v-empty">
                   <div className="v-empty-icon"><SpeakerIcon size={64} /></div>
                   {!isConnectedToThisChannel && (
-                    <button className="btn-join" onClick={handleConnect}>
-                      Подключиться
-                    </button>
+                    <div className="v-empty-sub">Нажмите кнопку соединения внизу, чтобы начать</div>
                   )}
                 </div>
               )}

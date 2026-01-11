@@ -76,7 +76,7 @@ const AppBackground: React.FC = () => {
       <div style={{
         position: 'absolute',
         inset: 0,
-        backgroundImage: isAuthPage ? 'url("/redesign-assets/bg.png")' : 'none',
+        backgroundImage: isAuthPage ? 'url("redesign-assets/bg.png")' : 'none',
         backgroundPosition: 'center center',
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat',
