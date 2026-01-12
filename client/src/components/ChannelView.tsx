@@ -145,7 +145,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
     e.preventDefault();
     e.stopPropagation();
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { mode: 'cors' });
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -156,7 +156,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
-      // Fallback
+      console.warn('Fetch download failed, falling back to direct link:', error);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;

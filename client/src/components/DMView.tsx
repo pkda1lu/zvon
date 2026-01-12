@@ -95,7 +95,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
     e.preventDefault();
     e.stopPropagation();
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { mode: 'cors' });
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -106,6 +106,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
+      console.warn('Fetch download failed, falling back to direct link:', error);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;

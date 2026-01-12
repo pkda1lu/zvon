@@ -49,7 +49,15 @@ app.use('/api/direct-messages', require('./routes/directMessages'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/upload-files', require('./routes/uploads'));
-app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d', immutable: true }));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '7d',
+  immutable: true,
+  setHeaders: (res, path) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+}));
 
 // Serve static assets from the React app
 app.use(express.static(path.join(__dirname, '../client/build')));

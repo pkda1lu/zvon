@@ -43,7 +43,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const peerStateRef = useRef({ makingOffer: false, ignoreOffer: false });
+  const peerStateRef = useRef({ makingOffer: false, ignoreOffer: false, isSettingRemoteAnswerPending: false });
   const ringTimeoutRef = useRef<any>(null);
   const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(initialOffer?.offer || null);
@@ -264,8 +264,16 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         return;
       }
 
-      console.log('[DM Voice] Handling incoming offer');
-      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      if (offerCollision) {
+        console.log('[DM Voice] Collision detected, rolling back (polite)');
+        await Promise.all([
+          pc.setLocalDescription({ type: 'rollback' }),
+          pc.setRemoteDescription(new RTCSessionDescription(data.offer))
+        ]);
+      } else {
+        console.log('[DM Voice] Handling incoming offer');
+        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      }
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);

@@ -791,9 +791,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     return;
                 }
 
-                console.log(`[Voice] Handling offer from ${data.fromUserId}`);
-                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                if (offerCollision) {
+                    console.log(`[Voice] Collision detected, rolling back for ${data.fromUserId} (polite)`);
+                    await Promise.all([
+                        pc.setLocalDescription({ type: 'rollback' }),
+                        pc.setRemoteDescription(new RTCSessionDescription(data.offer))
+                    ]);
+                } else {
+                    console.log(`[Voice] Handling offer from ${data.fromUserId}`);
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                }
 
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.emit('voice-answer', { targetUserId: data.fromUserId, answer });
+
+                // Process queued candidates
                 const pending = pendingCandidatesRef.current.get(data.fromUserId);
                 if (pending) {
                     for (const candidate of pending) {
@@ -801,10 +814,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     }
                     pendingCandidatesRef.current.delete(data.fromUserId);
                 }
-
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                socket.emit('voice-answer', { targetUserId: data.fromUserId, answer });
             } catch (err) {
                 console.error(`[Voice] Error handling offer from ${data.fromUserId}:`, err);
             }
