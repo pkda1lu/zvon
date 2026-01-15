@@ -16,8 +16,8 @@ const Login: React.FC = () => {
     setError('');
 
     // Валидация на клиенте
-    if (!email || !email.includes('@')) {
-      setError('Пожалуйста, введите корректный email адрес');
+    if (!email) {
+      setError('Пожалуйста, введите email или имя пользователя');
       return;
     }
 
@@ -74,13 +74,13 @@ const Login: React.FC = () => {
             )}
 
             <div>
-              <label className="auth-label-neon">ЭЛЕКТРОННАЯ ПОЧТА</label>
+              <label className="auth-label-neon">EMAIL ИЛИ ИМЯ ПОЛЬЗОВАТЕЛЯ</label>
               <input
-                type="email"
+                type="text"
                 className="auth-input-glass"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                placeholder="your@email.com или username"
                 required
               />
             </div>

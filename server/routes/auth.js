@@ -27,17 +27,27 @@ router.post('/register', [
 });
 
 router.post('/login', [
-  body('email').isEmail().withMessage('Please provide a valid email'),
+  body('email').exists().withMessage('Email or Username is required'),
   body('password').exists().withMessage('Password is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+
+    // Search by email or username
+    const user = await User.findOne({
+      $or: [
+        { email: email.toLowerCase() },
+        { username: email }
+      ]
+    });
+
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
     user.status = 'online';
     await user.save();
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
