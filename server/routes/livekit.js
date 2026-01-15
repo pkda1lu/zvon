@@ -22,23 +22,29 @@ router.get('/token', auth, async (req, res) => {
             return res.status(500).json({ message: 'LiveKit configuration is missing on server' });
         }
 
+        const identityStr = String(identity);
+        const roomNameStr = String(roomName);
+
         const at = new AccessToken(apiKey, apiSecret, {
-            identity: identity,
-            name: identity, // Use identity as name as well
+            identity: identityStr,
+            name: identityStr,
         });
 
         at.addGrant({
             roomJoin: true,
-            room: roomName,
+            room: roomNameStr,
             canPublish: true,
             canSubscribe: true,
             canPublishData: true,
         });
 
-        res.json({ token: at.toJwt(), serverUrl: host });
+        const token = at.toJwt();
+        console.log(`[LiveKit] Generated token for ${identityStr} in ${roomNameStr}. Token length: ${token.length}`);
+
+        res.json({ token, serverUrl: host });
     } catch (err) {
         console.error('LiveKit token error:', err);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 });
 

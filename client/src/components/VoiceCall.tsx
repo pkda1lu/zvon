@@ -133,9 +133,16 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       const { data } = await axios.get('/api/livekit/token', {
         params: {
           roomName: `call-${dmId}`,
-          identity: user?._id
+          identity: user?._id?.toString()
         }
       });
+
+      const { token, serverUrl } = data;
+      console.log('[LiveKit DM] Received token. Type:', typeof token, 'Length:', token?.length);
+
+      if (typeof token !== 'string') {
+        throw new Error('Invalid token type: ' + typeof token);
+      }
 
       const room = new Room({
         adaptiveStream: true,
@@ -178,7 +185,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           }
         });
 
-      await room.connect(data.serverUrl, data.token);
+      await room.connect(serverUrl, token);
 
       // Publish local tracks
       await room.localParticipant.setMicrophoneEnabled(true);

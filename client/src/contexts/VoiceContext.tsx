@@ -615,11 +615,17 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const { data } = await axios.get('/api/livekit/token', {
                 params: {
                     roomName: `channel-${channelId}`,
-                    identity: user?._id
+                    identity: user?._id?.toString()
                 }
             });
 
             const { token, serverUrl } = data;
+            console.log('[LiveKit] Received token from server. Type:', typeof token, 'Length:', token?.length);
+
+            if (typeof token !== 'string') {
+                console.error('[LiveKit] Received invalid token type:', typeof token, token);
+                throw new Error('Invalid token received from server');
+            }
 
             // 2. Connect to LiveKit
             const room = new Room({
