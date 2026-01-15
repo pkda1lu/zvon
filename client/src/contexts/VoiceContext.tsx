@@ -26,7 +26,7 @@ import {
 const RemoteAudio: React.FC<{
     userId: string;
     stream: MediaStream;
-    voiceVolume: number; // User-specific volume adjustment
+    voiceVolume: number;
     isDeafened: boolean;
     isLocalMuted: boolean;
     sharedContext: AudioContext | null;
@@ -35,43 +35,39 @@ const RemoteAudio: React.FC<{
 }> = ({ userId, stream, voiceVolume, isDeafened, isLocalMuted, sharedContext, outputDeviceId, masterVolume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
 
-    // Handle Volume and Mute
     useEffect(() => {
         if (!audioRef.current) return;
         const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * masterVolume);
         audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
     }, [voiceVolume, isDeafened, isLocalMuted, masterVolume]);
 
-    // Setup Stream and Playback
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio || !stream) return;
 
-        audio.srcObject = stream;
-        audio.muted = false;
+        // Important for LiveKit in Electron/Browsers to reset srcObject when stream tracks change
+        if (audio.srcObject !== stream) {
+            audio.srcObject = stream;
+        }
 
-        const attemptPlay = () => {
+        audio.muted = false;
+        const play = () => {
             audio.play().catch(e => {
-                if (e.name === 'NotAllowedError') {
-                    console.log("[Voice] Playback blocked, waiting for interaction");
-                } else {
-                    console.warn("[Voice] Playback error:", e);
-                }
+                if (e.name !== 'AbortError') console.warn(`[Voice] Playback failed for ${userId}:`, e);
             });
         };
+        play();
 
-        attemptPlay();
+        // Extra insurance for audio context state
+        if (sharedContext?.state === 'suspended') sharedContext.resume().catch(() => { });
 
-        // Retry play on next interaction just in case
-        const unlock = () => { attemptPlay(); window.removeEventListener('click', unlock); };
-        window.addEventListener('click', unlock);
+    }, [stream, sharedContext]);
 
-        return () => window.removeEventListener('click', unlock);
-    }, [stream]);
-
+    // Handle Output Device (SinkId)
     useEffect(() => {
         if (audioRef.current && (audioRef.current as any).setSinkId) {
-            (audioRef.current as any).setSinkId(outputDeviceId).catch(() => { });
+            const devId = outputDeviceId === 'default' ? '' : outputDeviceId;
+            (audioRef.current as any).setSinkId(devId).catch((e: any) => console.error("[Voice] SinkId error:", e));
         }
     }, [outputDeviceId]);
 
@@ -720,6 +716,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
+                deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
             });
 
             if (roomRef.current !== room) {
@@ -731,9 +728,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             // Update local stream state for visualization
             const localAudioTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
             if (localAudioTrack?.track) {
-                const stream = new MediaStream([localAudioTrack.track.mediaStreamTrack!]);
+                const track = localAudioTrack.track.mediaStreamTrack!;
+                const stream = new MediaStream([track]);
                 setLocalStream(stream);
                 localStreamRef.current = stream;
+                // Also store as raw stream for noise suppression toggling
+                rawMicStreamRef.current = new MediaStream([track.clone()]);
+                console.log(`[Voice] Published mic: ${track.label} (ID: ${selectedInputDeviceId})`);
             }
 
             setActiveChannelId(channelId);
@@ -904,11 +905,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                 if (isFinite(db)) {
                     setCurrentInputLevel(db);
-                    const baseThreshold = isAutomaticSensitivity ? -60 : inputSensitivity;
+                    // Automatic threshold made more lenient (-70dB instead of -60dB)
+                    const baseThreshold = isAutomaticSensitivity ? -70 : inputSensitivity;
                     if (db > baseThreshold) lastSpeakingTimeRef.current = now;
                 }
 
-                const VAD_HOLD_TIME = 200;
+                const VAD_HOLD_TIME = 250; // Slightly longer hold for smoother speech
                 const isVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
                 if (isVADOpen) nowSpeaking.add(localId);
 
