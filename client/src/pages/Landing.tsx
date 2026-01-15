@@ -21,18 +21,18 @@ const Landing: React.FC = () => {
             <div className="blob blob-2"></div>
 
             <nav className="landing-nav">
-                <div className="nav-logo" onClick={() => navigate('/')}>
+                <div className="nav-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
                     <img src="/icon.png" alt="Zvon" />
                     <span>Zvon</span>
                 </div>
                 <div className="nav-links">
-                    <span className="nav-link">Возможности</span>
-                    <span className="nav-link">Загрузить</span>
-                    <span className="nav-link">Поддержка</span>
+                    <span className="nav-link" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Возможности</span>
+                    <span className="nav-link" onClick={() => document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' })}>Демонстрация</span>
+                    <span className="nav-link" onClick={() => document.getElementById('download')?.scrollIntoView({ behavior: 'smooth' })}>Загрузить</span>
                 </div>
                 <div className="nav-actions">
                     {!user && (
-                        <button className="btn-secondary" style={{ padding: '8px 20px', fontSize: '14px' }} onClick={() => { window.location.href = 'zvon://'; }}>
+                        <button className="btn-secondary nav-desktop-only" style={{ padding: '8px 20px', fontSize: '14px' }} onClick={() => { window.location.href = 'zvon://'; }}>
                             Запустить Zvon
                         </button>
                     )}
@@ -64,7 +64,7 @@ const Landing: React.FC = () => {
                 </div>
             </section>
 
-            <section className="features-section">
+            <section className="features-section" id="features">
                 <div className="features-grid">
                     <div className="feature-card">
                         <div className="feature-icon">
@@ -90,7 +90,7 @@ const Landing: React.FC = () => {
                 </div>
             </section>
 
-            <section className="showcase-section">
+            <section className="showcase-section" id="showcase">
                 <div className="showcase-content">
                     <div className="showcase-text">
                         <h2>Создайте свой мир.</h2>
@@ -108,7 +108,7 @@ const Landing: React.FC = () => {
                 </div>
             </section>
 
-            <section className="cta-section">
+            <section className="cta-section" id="download">
                 <div className="cta-card">
                     <h2>Готовы начать свое общение?</h2>
                     <p>Более 100,000 пользователей уже выбрали Zvon как основной инструмент для связи.</p>
@@ -118,7 +118,7 @@ const Landing: React.FC = () => {
                 </div>
             </section>
 
-            <footer>
+            <footer id="support">
                 <div className="footer-content">
                     <div className="footer-brand">
                         <h4>Zvon</h4>
@@ -128,25 +128,25 @@ const Landing: React.FC = () => {
                         <div className="footer-column">
                             <h5>Продукт</h5>
                             <ul>
-                                <li><a>Безопасность</a></li>
-                                <li><a>Обновления</a></li>
-                                <li><a>Сервера</a></li>
+                                <li><a onClick={() => navigate('/login')}>Безопасность</a></li>
+                                <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon', '_blank')}>Обновления</a></li>
+                                <li><a onClick={() => navigate('/register')}>Сервера</a></li>
                             </ul>
                         </div>
                         <div className="footer-column">
                             <h5>Компания</h5>
                             <ul>
-                                <li><a>О нас</a></li>
-                                <li><a>Карьера</a></li>
-                                <li><a>Блог</a></li>
+                                <li><a onClick={() => navigate('/')}>О нас</a></li>
+                                <li><a onClick={() => document.getElementById('download')?.scrollIntoView({ behavior: 'smooth' })}>Загрузить</a></li>
+                                <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon', '_blank')}>Github</a></li>
                             </ul>
                         </div>
                         <div className="footer-column">
                             <h5>Ресурсы</h5>
                             <ul>
-                                <li><a>Поддержка</a></li>
-                                <li><a>API</a></li>
-                                <li><a>Условия</a></li>
+                                <li><a onClick={() => window.alert('Поддержка: support@zvonserver.ru')}>Поддержка</a></li>
+                                <li><a onClick={() => window.alert('API скоро будет доступно')}>API</a></li>
+                                <li><a onClick={() => navigate('/policy')}>Условия</a></li>
                             </ul>
                         </div>
                     </div>

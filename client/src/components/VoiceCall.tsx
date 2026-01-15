@@ -147,31 +147,51 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
+        publishDefaults: {
+          dtx: true,
+          simulcast: true,
+          red: true,
+        }
       });
 
       roomRef.current = room;
 
       room
+        .on(RoomEvent.ConnectionStateChanged, (state) => {
+          console.log('[LiveKit DM] Connection state changed:', state);
+        })
+        .on(RoomEvent.Disconnected, (reason) => {
+          console.log('[LiveKit DM] Disconnected:', reason);
+        })
+        .on(RoomEvent.Reconnecting, () => console.log('[LiveKit DM] Reconnecting...'))
+        .on(RoomEvent.Reconnected, () => console.log('[LiveKit DM] Reconnected'))
         .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-          const stream = new MediaStream([track.mediaStreamTrack!]);
+          const userId = participant.identity;
           if (publication.source === Track.Source.ScreenShare) {
-            setRemoteScreenStream(stream);
-          } else if (track.kind === Track.Kind.Video) {
-            setRemoteStream(stream);
-          } else if (track.kind === Track.Kind.Audio) {
+            setRemoteScreenStream(prev => {
+              const tracks = prev ? [...prev.getTracks(), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
+              return new MediaStream(tracks);
+            });
+          } else {
             setRemoteStream(prev => {
-              if (prev) {
-                const newStream = new MediaStream(prev.getTracks());
-                newStream.addTrack(track.mediaStreamTrack!);
-                return newStream;
-              }
-              return new MediaStream([track.mediaStreamTrack!]);
+              const tracks = prev ? [...prev.getTracks(), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
+              return new MediaStream(tracks);
             });
           }
         })
-        .on(RoomEvent.TrackUnsubscribed, (track, publication) => {
+        .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           if (publication.source === Track.Source.ScreenShare) {
-            setRemoteScreenStream(null);
+            setRemoteScreenStream(prev => {
+              if (!prev) return null;
+              const remaining = prev.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
+              return remaining.length > 0 ? new MediaStream(remaining) : null;
+            });
+          } else {
+            setRemoteStream(prev => {
+              if (!prev) return null;
+              const remaining = prev.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
+              return remaining.length > 0 ? new MediaStream(remaining) : null;
+            });
           }
         })
         .on(RoomEvent.LocalTrackPublished, (publication) => {
@@ -186,6 +206,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         });
 
       await room.connect(serverUrl, token);
+
+      if (roomRef.current !== room) {
+        console.warn('[LiveKit DM] Join cancelled during connection');
+        await room.disconnect();
+        return;
+      }
 
       // Publish local tracks
       await room.localParticipant.setMicrophoneEnabled(true);
@@ -261,19 +287,93 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     }
   };
 
-  const toggleScreenShare = async (sourceId?: string) => {
+  const toggleScreenShare = async (sourceId?: string, options?: { resolution: string, frameRate: string }) => {
     if (isScreenSharing) {
-      if (roomRef.current) {
-        await roomRef.current.localParticipant.setScreenShareEnabled(false);
-      }
       setIsScreenSharing(false);
     } else if (sourceId && roomRef.current) {
       try {
-        await roomRef.current.localParticipant.setScreenShareEnabled(true, {
-          audio: true
+        const resolution = options?.resolution || '720';
+        const frameRate = parseInt(options?.frameRate || '30', 10);
+
+        let width = 1280;
+        let height = 720;
+        let bitrate = 8_000_000;
+
+        if (resolution === '2160') {
+          width = 3840;
+          height = 2160;
+          bitrate = frameRate >= 120 ? 100_000_000 : (frameRate >= 60 ? 60_000_000 : 40_000_000);
+        } else if (resolution === '1440') {
+          width = 2560;
+          height = 1440;
+          bitrate = frameRate >= 120 ? 40_000_000 : (frameRate >= 60 ? 25_000_000 : 18_000_000);
+        } else if (resolution === '1080') {
+          width = 1920;
+          height = 1080;
+          bitrate = frameRate >= 120 ? 25_000_000 : (frameRate >= 60 ? 15_000_000 : 10_000_000);
+        } else if (resolution === '720') {
+          width = 1280;
+          height = 720;
+          bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
+        } else if (resolution === '480') {
+          width = 854;
+          height = 480;
+          bitrate = frameRate >= 60 ? 3_000_000 : 2_000_000;
+        }
+
+        // Efficient Electron constraints
+        const constraints = {
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+              minWidth: width,
+              minHeight: height,
+              maxWidth: width > 1920 ? width : 3840,
+              maxHeight: height > 1080 ? height : 2160,
+              maxFrameRate: frameRate
+            }
+          } as any
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        try {
+          const audioStream = await nativeAudioManager.startcapture(sourceId);
+          audioStream.getAudioTracks().forEach((track: MediaStreamTrack) => stream.addTrack(track));
+        } catch (e) { console.warn('Native audio failed:', e); }
+
+        // Optimize for smoothness vs sharpness
+        stream.getVideoTracks().forEach(t => {
+          if (t.contentHint) {
+            (t as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
+          }
         });
+
+        if (roomRef.current) {
+          const videoTrack = stream.getVideoTracks()[0];
+          const audioTrack = stream.getAudioTracks()[0];
+          if (videoTrack) {
+            await roomRef.current.localParticipant.publishTrack(videoTrack, {
+              name: 'screen_video',
+              source: Track.Source.ScreenShare,
+              videoEncoding: {
+                maxBitrate: bitrate,
+                maxFramerate: frameRate,
+              },
+              videoCodec: 'h264',
+              simulcast: false
+            });
+          }
+          if (audioTrack) await roomRef.current.localParticipant.publishTrack(audioTrack, { name: 'screen_audio', source: Track.Source.ScreenShareAudio });
+        }
+
+        setScreenStream(stream);
         setIsScreenSharing(true);
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error(e);
+        alert('Ошибка при запуске демонстрации экрана: ' + (e as Error).message);
+      }
     }
   };
 
@@ -493,8 +593,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       {showScreenSelector && (
         <ScreenSourceSelector
           onClose={() => setShowScreenSelector(false)}
-          onSelect={(id) => {
-            toggleScreenShare(id);
+          onSelect={(id, opts) => {
+            toggleScreenShare(id, { resolution: opts.resolution, frameRate: opts.frameRate });
             setShowScreenSelector(false);
           }}
         />

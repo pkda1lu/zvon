@@ -4,6 +4,7 @@ import { useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { VoiceProvider } from './contexts/VoiceContext';
 import Main from './pages/Main';
+import Landing from './pages/Landing';
 
 const Home: React.FC = () => {
     const { user, loading } = useAuth();
@@ -20,7 +21,7 @@ const Home: React.FC = () => {
     }
 
     if (!user) {
-        return <Navigate to="/login" replace />;
+        return <Landing />;
     }
 
     return (

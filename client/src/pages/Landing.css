@@ -406,28 +406,128 @@ footer {
     color: #fff;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
     .landing-nav {
         padding: 20px 40px;
     }
+}
 
+@media (max-width: 1024px) {
     .hero-h1 {
         font-size: 56px;
     }
 
     .features-grid {
         grid-template-columns: 1fr;
+        padding: 0 20px;
     }
 
     .showcase-content {
         flex-direction: column;
         gap: 40px;
+        text-align: center;
     }
 
     .hero-buttons {
         flex-direction: column;
         width: 100%;
-        max-width: 300px;
+        max-width: 320px;
         margin: 0 auto;
     }
+
+    .btn-primary, .btn-secondary {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width: 768px) {
+    .landing-nav {
+        padding: 15px 20px;
+    }
+
+    .nav-links {
+        display: none; /* Hide nav links on mobile, or could implement a burger menu */
+    }
+
+    .nav-desktop-only {
+        display: none;
+    }
+
+    .hero-section {
+        padding: 140px 20px 60px;
+    }
+
+    .hero-h1 {
+        font-size: 42px;
+    }
+
+    .hero-p {
+        font-size: 16px;
+        margin-bottom: 30px;
+    }
+
+    .cta-card {
+        padding: 40px 20px;
+    }
+
+    .cta-card h2 {
+        font-size: 28px;
+    }
+
+    .footer-content {
+        flex-direction: column;
+        gap: 40px;
+        text-align: center;
+    }
+
+    .footer-links {
+        flex-wrap: wrap;
+        gap: 40px;
+        justify-content: center;
+    }
+
+    .footer-column {
+        min-width: 120px;
+    }
+    
+    .features-section, .showcase-section, .cta-section {
+        padding: 60px 20px;
+    }
+    
+    .showcase-text h2 {
+        font-size: 32px;
+    }
+    
+    .showcase-image {
+        border-width: 4px;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-h1 {
+        font-size: 36px;
+    }
+    
+    .nav-logo span {
+        font-size: 20px;
+    }
+    
+    .btn-login {
+        padding: 8px 16px;
+        font-size: 12px;
+    }
+}
+
+/* Fix for background-clip compatibility */
+.hero-h1 {
+    background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.7) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent; /* Fallback */
+}
+
+.footer-column a {
+    cursor: pointer;
 }

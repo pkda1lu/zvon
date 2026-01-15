@@ -34,128 +34,48 @@ const RemoteAudio: React.FC<{
     masterVolume: number;
 }> = ({ userId, stream, voiceVolume, isDeafened, isLocalMuted, sharedContext, outputDeviceId, masterVolume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
-    const gainNodeRef = useRef<GainNode | null>(null);
-    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-    // Apply Output Device ID
+    // Handle Volume and Mute
     useEffect(() => {
-        const applySinkId = async (element: HTMLAudioElement | null, deviceId: string) => {
-            if (element && (element as any).setSinkId) {
-                try {
-                    await (element as any).setSinkId(deviceId);
-                } catch (err) { }
-            }
+        if (!audioRef.current) return;
+        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * masterVolume);
+        audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume]);
+
+    // Setup Stream and Playback
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio || !stream) return;
+
+        audio.srcObject = stream;
+        audio.muted = false;
+
+        const attemptPlay = () => {
+            audio.play().catch(e => {
+                if (e.name === 'NotAllowedError') {
+                    console.log("[Voice] Playback blocked, waiting for interaction");
+                } else {
+                    console.warn("[Voice] Playback error:", e);
+                }
+            });
         };
-        applySinkId(audioRef.current, outputDeviceId);
+
+        attemptPlay();
+
+        // Retry play on next interaction just in case
+        const unlock = () => { attemptPlay(); window.removeEventListener('click', unlock); };
+        window.addEventListener('click', unlock);
+
+        return () => window.removeEventListener('click', unlock);
+    }, [stream]);
+
+    useEffect(() => {
+        if (audioRef.current && (audioRef.current as any).setSinkId) {
+            (audioRef.current as any).setSinkId(outputDeviceId).catch(() => { });
+        }
     }, [outputDeviceId]);
 
-    // Setup Audio Graph (Source -> Gain -> Destination) or Fallback
-    useEffect(() => {
-        if (!stream) return;
-
-        // basic setup
-        if (audioRef.current) {
-            audioRef.current.srcObject = stream;
-            // If we have an AudioContext, we mute the element and route through Web Audio
-            // If NOT, we unmute the element and play directly
-            audioRef.current.muted = !!sharedContext;
-            audioRef.current.play().catch(() => { });
-        }
-
-        if (!sharedContext) return;
-
-        const ctx = sharedContext;
-
-        // Cleanup previous source if any
-        if (sourceNodeRef.current) {
-            try { sourceNodeRef.current.disconnect(); } catch (e) { }
-        }
-
-        // Create new Gain Node if needed (persistent for this component instance usually)
-        if (!gainNodeRef.current) {
-            gainNodeRef.current = ctx.createGain();
-            gainNodeRef.current.connect(ctx.destination);
-        }
-
-        // Check and resume context if needed
-        if (ctx.state === 'suspended') {
-            ctx.resume()
-                .then(() => console.log("[Voice] AudioContext resumed for RemoteAudio"))
-                .catch(err => {
-                    console.error("[Voice] Failed to resume AudioContext, falling back to element:", err);
-                    if (audioRef.current) audioRef.current.muted = false;
-                });
-        }
-
-        try {
-            // Use clone to avoid 'stealing' the stream if other sources are created (like analysers)
-            // although some browsers allow multiple sources, this is safer.
-            // Actually, for playback we want the original stream often, but let's try direct first.
-            // A better pattern for Web Audio playback:
-            const source = ctx.createMediaStreamSource(stream);
-            sourceNodeRef.current = source;
-            source.connect(gainNodeRef.current);
-        } catch (err) {
-            console.error("Error creating media stream source", err);
-            // Fallback to direct playback if Web Audio fails
-            if (audioRef.current) {
-                audioRef.current.muted = false;
-            }
-        }
-
-        return () => {
-            if (sourceNodeRef.current) {
-                try { sourceNodeRef.current.disconnect(); } catch (e) { }
-            }
-        };
-    }, [stream, sharedContext]);
-
-    // Handle Volume Changes (Smoothly)
-    useEffect(() => {
-        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * 1.5 * masterVolume);
-
-        // Strict threshold: Only use Web Audio if we REALLY need the boost (> 1.0)
-        // And ensure we have a valid context.
-        const useWebAudio = !!sharedContext && (finalVolume > 1.0);
-
-        if (useWebAudio && gainNodeRef.current) {
-            // WEB AUDIO PATH
-            if (audioRef.current) audioRef.current.muted = true; // Silence the element directly
-
-            try {
-                // Smooth transition
-                gainNodeRef.current.gain.cancelScheduledValues(sharedContext.currentTime);
-                gainNodeRef.current.gain.setTargetAtTime(finalVolume, sharedContext.currentTime, 0.05);
-            } catch (e) {
-                // Fallback instant
-                gainNodeRef.current.gain.value = finalVolume;
-            }
-        } else {
-            // DIRECT ELEMENT PATH (Standard)
-            // If gain node exists, silence it to save processing (or disconnect/ignore it)
-            if (gainNodeRef.current) {
-                try { gainNodeRef.current.gain.value = 0; } catch (e) { }
-            }
-
-            if (audioRef.current) {
-                audioRef.current.muted = false; // Unmute element
-                // HTML Audio volume is 0.0 -> 1.0
-                audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
-            }
-        }
-    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume, sharedContext]);
-
-    // Cleanup Gain Node on unmount
-    useEffect(() => {
-        return () => {
-            if (gainNodeRef.current) {
-                try { gainNodeRef.current.disconnect(); } catch (e) { }
-                gainNodeRef.current = null;
-            }
-        };
-    }, []);
-
-    return <audio ref={audioRef} autoPlay playsInline muted style={{ display: 'none' }} />;
+    return <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />;
 };
 
 const RemoteScreen: React.FC<{
@@ -241,7 +161,7 @@ interface VoiceContextType {
     refreshDevices: () => Promise<void>;
     isScreenSharing: boolean;
     screenStream: MediaStream | null;
-    startScreenShare: (sourceId: string) => Promise<void>;
+    startScreenShare: (sourceId: string, options?: { resolution?: string, frameRate?: string }) => Promise<void>;
     stopScreenShare: () => void;
     remoteScreenStreams: Map<string, MediaStream>;
     screenVolumes: Map<string, number>;
@@ -343,6 +263,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [currentInputLevel, setCurrentInputLevel] = useState(-100);
 
     const roomRef = useRef<Room | null>(null);
+    const isJoiningRef = useRef(false);
     const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const testStreamRef = useRef<MediaStream | null>(null);
@@ -361,6 +282,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('isAutomaticSensitivity', String(isAutomaticSensitivity));
     }, [selectedInputDeviceId, selectedOutputDeviceId, selectedVideoDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity]);
 
+    // Cleanup on unmount of VoiceProvider
+    useEffect(() => {
+        return () => {
+            if (activeChannelId) {
+                leaveChannel();
+            }
+            if (roomRef.current) {
+                roomRef.current.disconnect();
+                roomRef.current = null;
+            }
+            if (audioContextRef.current) {
+                audioContextRef.current.close().catch(() => { });
+            }
+        };
+    }, []);
+
     const refreshDevices = useCallback(async () => {
         try {
             await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => { });
@@ -377,16 +314,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [refreshDevices]);
 
     const getAudioContext = useCallback(() => {
-        if (audioContextRef.current) {
-            if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume().catch(() => { });
-            return audioContextRef.current;
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            setAudioContext(audioContextRef.current); // Update React state
+            soundManager.setAudioContext(audioContextRef.current); // Initialize soundManager
         }
-        const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
-        const ctx = new AudioContextClass();
-        audioContextRef.current = ctx;
-        setAudioContext(ctx);
-        soundManager.setAudioContext(ctx);
-        return ctx;
+        if (audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume().catch(() => { });
+        }
+        return audioContextRef.current;
     }, []);
 
     const handleTrackSubscribed = (
@@ -395,27 +331,48 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         participant: RemoteParticipant
     ) => {
         if (track.kind === Track.Kind.Audio || track.kind === Track.Kind.Video) {
-            const stream = new MediaStream([track.mediaStreamTrack!]);
             const userId = participant.identity;
+            const isScreen = publication.source === Track.Source.ScreenShare ||
+                publication.source === Track.Source.ScreenShareAudio;
 
-            if (publication.source === Track.Source.ScreenShare) {
-                setRemoteScreenStreams(prev => new Map(prev).set(userId, stream));
-            } else {
-                setRemoteStreams(prev => new Map(prev).set(userId, stream));
+            console.log(`[Voice] Track subscribed: ${track.kind} from ${userId} (Source: ${publication.source})`);
 
-                // Setup analyser for speaking indicators
-                if (track.kind === Track.Kind.Audio) {
-                    try {
-                        const audioCtx = getAudioContext();
-                        const source = audioCtx.createMediaStreamSource(stream);
-                        const analyser = audioCtx.createAnalyser();
-                        analyser.fftSize = 256;
-                        source.connect(analyser);
-                        analysersRef.current.set(userId, analyser);
-                    } catch (err) {
-                        console.error('[Voice] Failed to create analyser for remote track:', err);
+            if (isScreen) {
+                setRemoteScreenStreams(prev => {
+                    const existing = prev.get(userId);
+                    const tracks = existing ? [...existing.getTracks().filter(t => t.kind !== track.kind), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
+                    return new Map(prev).set(userId, new MediaStream(tracks));
+                });
+
+                // Fallback: ensure UI knows screen is being shared if socket update missed
+                setUserStates(prev => {
+                    const state = prev.get(userId);
+                    if (state && !state.isScreenSharing) {
+                        const next = new Map(prev);
+                        next.set(userId, { ...state, isScreenSharing: true });
+                        return next;
                     }
-                }
+                    return prev;
+                });
+            } else {
+                setRemoteStreams(prev => {
+                    const existing = prev.get(userId);
+                    const tracks = existing ? [...existing.getTracks().filter(t => t.kind !== track.kind), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
+                    const stream = new MediaStream(tracks);
+
+                    if (track.kind === Track.Kind.Audio) {
+                        try {
+                            const ctx = getAudioContext();
+                            const source = ctx.createMediaStreamSource(stream);
+                            const analyser = ctx.createAnalyser();
+                            analyser.fftSize = 256;
+                            source.connect(analyser);
+                            analysersRef.current.set(userId, analyser);
+                        } catch (e) { console.warn('Analyser failed for', userId, e); }
+                    }
+
+                    return new Map(prev).set(userId, stream);
+                });
             }
         }
     };
@@ -426,19 +383,40 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         participant: RemoteParticipant
     ) => {
         const userId = participant.identity;
-        if (publication.source === Track.Source.ScreenShare) {
+        const isScreen = publication.source === Track.Source.ScreenShare ||
+            publication.source === Track.Source.ScreenShareAudio;
+
+        console.log(`[Voice] Track unsubscribed: ${track.kind} from ${userId} (Source: ${publication.source})`);
+
+        if (isScreen) {
             setRemoteScreenStreams(prev => {
-                const next = new Map(prev);
-                next.delete(userId);
-                return next;
+                const existing = prev.get(userId);
+                if (!existing) return prev;
+                const remaining = existing.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
+                if (remaining.length === 0) {
+                    const next = new Map(prev);
+                    next.delete(userId);
+                    return next;
+                }
+                return new Map(prev).set(userId, new MediaStream(remaining));
             });
         } else {
             setRemoteStreams(prev => {
-                const next = new Map(prev);
-                next.delete(userId);
-                return next;
+                const existing = prev.get(userId);
+                if (!existing) return prev;
+                const remaining = existing.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
+
+                if (track.kind === Track.Kind.Audio) {
+                    analysersRef.current.delete(userId);
+                }
+
+                if (remaining.length === 0) {
+                    const next = new Map(prev);
+                    next.delete(userId);
+                    return next;
+                }
+                return new Map(prev).set(userId, new MediaStream(remaining));
             });
-            analysersRef.current.delete(userId);
         }
     };
 
@@ -496,85 +474,115 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, activeChannelId]);
 
-    const startScreenShare = useCallback(async (sourceId: string) => {
+    const startScreenShare = useCallback(async (sourceId: string, options?: { resolution?: string, frameRate?: string }) => {
         try {
             const hasElectron = !!(window as any).electron;
             let stream: MediaStream;
 
-            if (hasElectron) {
-                // Get Video Only from Browser
-                stream = await navigator.mediaDevices.getUserMedia({
-                    audio: false,
-                    video: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: sourceId,
-                            maxWidth: 1920,
-                            maxHeight: 1080,
-                            maxFrameRate: 60,
-                            minFrameRate: 30
-                        }
-                    } as any
-                });
+            const resolution = options?.resolution || '720';
+            const frameRate = parseInt(options?.frameRate || '30', 10);
 
-                // Get Audio from Native Module
+            let width = 1280;
+            let height = 720;
+            let bitrate = 8_000_000;
+
+            if (resolution === '2160') {
+                width = 3840;
+                height = 2160;
+                // Bitrate: 35-45 Mbps (Good), 60 Mbps (Excellent). 120fps gets 100Mbps.
+                bitrate = frameRate >= 120 ? 100_000_000 : (frameRate >= 60 ? 60_000_000 : 40_000_000);
+            } else if (resolution === '1440') {
+                width = 2560;
+                height = 1440;
+                // Bitrate: 16-25 Mbps. 120fps gets 40Mbps.
+                bitrate = frameRate >= 120 ? 40_000_000 : (frameRate >= 60 ? 25_000_000 : 18_000_000);
+            } else if (resolution === '1080') {
+                width = 1920;
+                height = 1080;
+                // Bitrate: 12-15 Mbps. 120fps gets 25Mbps.
+                bitrate = frameRate >= 120 ? 25_000_000 : (frameRate >= 60 ? 15_000_000 : 10_000_000);
+            } else if (resolution === '720') {
+                width = 1280;
+                height = 720;
+                bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
+            } else if (resolution === '480') {
+                width = 854;
+                height = 480;
+                bitrate = frameRate >= 60 ? 3_000_000 : 2_000_000;
+            }
+
+            // Efficient Electron constraints
+            const constraints = {
+                audio: false,
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: sourceId,
+                        minWidth: width,
+                        minHeight: height,
+                        maxWidth: width > 1920 ? width : 3840,
+                        maxHeight: height > 1080 ? height : 2160,
+                        maxFrameRate: frameRate
+                    }
+                } as any
+            };
+            if (hasElectron) {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                // Add native audio if available
                 try {
                     const audioStream = await nativeAudioManager.startcapture(sourceId);
-                    const tracks = audioStream.getAudioTracks();
-                    console.log(`[Voice] Native audio capture started. Tracks: ${tracks.length}`);
-                    tracks.forEach(track => {
-                        console.log(`[Voice] Adding native audio track: ${track.id}`);
-                        stream.addTrack(track);
-                    });
+                    audioStream.getAudioTracks().forEach((track: MediaStreamTrack) => stream.addTrack(track));
                 } catch (err) {
-                    console.error("Native audio capture failed, proceeding with video only:", err);
+                    console.warn("Native audio capture failed, proceeding with video only:", err);
                 }
 
             } else {
                 // Standard Browser Implementation
-                stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: sourceId,
-                            echoCancellation: true,
-                            noiseSuppression: false,
-                            autoGainControl: false,
-                            googAutoGainControl: false,
-                            googNoiseSuppression: false,
-                            channelCount: 2,
-                            sampleRate: 48000
-                        }
-                    } as any,
+                stream = await (navigator.mediaDevices as any).getDisplayMedia({
                     video: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: sourceId,
-                            maxWidth: 1920,
-                            maxHeight: 1080,
-                            maxFrameRate: 60,
-                            minFrameRate: 30
-                        }
-                    } as any
+                        width: { ideal: width },
+                        height: { ideal: height },
+                        frameRate: { ideal: frameRate }
+                    },
+                    audio: true
                 });
             }
 
-            // Optimize for low latency (prioritize motion/framerate over detail)
-            const videoTrack = stream.getVideoTracks()[0];
-            if (videoTrack) {
-                if ('contentHint' in videoTrack) {
-                    (videoTrack as any).contentHint = 'motion';
+            // Optimize for smoothness vs sharpness
+            stream.getVideoTracks().forEach(t => {
+                if (t.contentHint) {
+                    // For 60/120fps, 'motion' is critical for smoothness
+                    (t as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
                 }
+            });
+
+            // Publish to LiveKit
+            if (roomRef.current) {
+                const videoTrack = stream.getVideoTracks()[0];
+                const audioTrack = stream.getAudioTracks()[0];
+
+                if (videoTrack) {
+                    await roomRef.current.localParticipant.publishTrack(videoTrack, {
+                        name: 'screen_video',
+                        source: Track.Source.ScreenShare,
+                        videoEncoding: {
+                            maxBitrate: bitrate,
+                            maxFramerate: frameRate,
+                        },
+                        videoCodec: 'h264',
+                        simulcast: false // Disable simulcast to use ALL bandwidth for the primary stream
+                    });
+                }
+                if (audioTrack) {
+                    await roomRef.current.localParticipant.publishTrack(audioTrack, { name: 'screen_audio', source: Track.Source.ScreenShareAudio });
+                }
+                console.log(`[Voice] Screen share published: ${resolution}p @ ${frameRate}fps (${bitrate}bps)`);
             }
 
-            // Enable WDA_EXCLUDEFROMCAPTURE to hide the application from the screen capture
-            if (roomRef.current) {
-                await roomRef.current.localParticipant.setScreenShareEnabled(true, {
-                    audio: true,
-                    // Note: resolution settings are handled by LiveKit more abstractly now or via CaptureOptions
-                });
-                console.log(`[Voice] Screen share enabled via LiveKit`);
-            }
+            screenStreamRef.current = stream;
+            setScreenStream(stream);
+            setIsScreenSharing(true);
 
             if (socket && activeChannelId) {
                 socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: true });
@@ -608,8 +616,17 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [socket, activeChannelId, isMuted, isDeafened]);
 
     const joinChannel = useCallback(async (channelId: string) => {
-        if (isConnectedRef.current) await leaveChannel();
+        if (isJoiningRef.current) {
+            console.warn('[LiveKit] Join already in progress, ignoring...');
+            return;
+        }
 
+        // Use either the flag or the presence of a room as a reason to cleanup first
+        if (isConnectedRef.current || roomRef.current) {
+            await leaveChannel();
+        }
+
+        isJoiningRef.current = true;
         try {
             // 1. Get token from server
             const { data } = await axios.get('/api/livekit/token', {
@@ -631,12 +648,38 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const room = new Room({
                 adaptiveStream: true,
                 dynacast: true,
+                publishDefaults: {
+                    dtx: true,
+                    simulcast: true,
+                    red: true,
+                }
             });
 
             roomRef.current = room;
 
             // 3. Setup Events
             room
+                .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+                    const ids = new Set(speakers.map(s => s.identity));
+                    setSpeakingUsers(prev => {
+                        // Check if local user is speaking (VAD logic handles it but LiveKit might too)
+                        // For now, merged LiveKit speakers with local VAD
+                        return ids;
+                    });
+                })
+                .on(RoomEvent.ConnectionStateChanged, (state) => {
+                    console.log('[LiveKit] Connection state changed:', state);
+                })
+                .on(RoomEvent.Disconnected, (reason) => {
+                    console.log('[LiveKit] Disconnected from room:', reason);
+                    if (reason !== undefined) {
+                        // Only trigger leave if it's an unexpected disconnect
+                        // setIsConnected(false);
+                        // setActiveChannelId(null);
+                    }
+                })
+                .on(RoomEvent.Reconnecting, () => console.log('[LiveKit] Reconnecting...'))
+                .on(RoomEvent.Reconnected, () => console.log('[LiveKit] Reconnected'))
                 .on(RoomEvent.ParticipantConnected, (participant) => {
                     console.log('[LiveKit] Participant connected:', participant.identity);
                 })
@@ -662,6 +705,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 });
 
             await room.connect(serverUrl, token);
+
+            // Safety check: verify we are still the current room
+            if (roomRef.current !== room) {
+                console.warn('[LiveKit] Join cancelled during connection');
+                await room.disconnect();
+                return;
+            }
+
             console.log('[LiveKit] Connected to room');
 
             // 4. Publish Audio
@@ -670,6 +721,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 noiseSuppression: true,
                 autoGainControl: true,
             });
+
+            if (roomRef.current !== room) {
+                console.warn('[LiveKit] Join cancelled after mic enabled');
+                await room.disconnect();
+                return;
+            }
 
             // Update local stream state for visualization
             const localAudioTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
@@ -689,7 +746,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         } catch (error) {
             console.error('Failed to join LiveKit room:', error);
+            // Cleanup on failure
+            if (roomRef.current) {
+                roomRef.current.disconnect();
+                roomRef.current = null;
+            }
             alert('Не удалось подключиться к голосовому каналу.');
+        } finally {
+            isJoiningRef.current = false;
         }
     }, [user?._id, leaveChannel, socket]);
 
@@ -817,76 +881,53 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const lastSpeakingTimeRef = useRef<number>(0);
 
+    // Unified VAD and Local Indicator Loop
     useEffect(() => {
-        const audioCtx = getAudioContext();
         const interval = setInterval(() => {
-            const nowSpeaking = new Set<string>();
             const now = Date.now();
+            const nowSpeaking = new Set<string>();
 
-            // Analyze local user
-            const micStream = localStreamRef.current || testStreamRef.current;
-            if (micStream && !isMuted && !isServerMuted) {
-                let analyser = analysersRef.current.get(user?._id || 'local');
+            // Analyze Local User
+            const localId = user?._id || 'local';
+            const localAnalyser = analysersRef.current.get(localId);
+            if (localAnalyser) {
+                const dataArray = new Uint8Array(localAnalyser.frequencyBinCount);
+                localAnalyser.getByteTimeDomainData(dataArray);
 
-                // If no analyser but we have a stream (e.g. test stream just started), create one
-                if (!analyser && micStream) {
-                    try {
-                        const source = audioCtx.createMediaStreamSource(micStream);
-                        analyser = audioCtx.createAnalyser();
-                        analyser.fftSize = 256;
-                        source.connect(analyser);
-                        analysersRef.current.set(user?._id || 'local', analyser);
-                    } catch (err) { }
+                let sumOfSquares = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    const normalized = (dataArray[i] - 128) / 128;
+                    sumOfSquares += normalized * normalized;
+                }
+                const rms = Math.sqrt(sumOfSquares / dataArray.length);
+                const db = 20 * Math.log10(rms);
+
+                if (isFinite(db)) {
+                    setCurrentInputLevel(db);
+                    const baseThreshold = isAutomaticSensitivity ? -60 : inputSensitivity;
+                    if (db > baseThreshold) lastSpeakingTimeRef.current = now;
                 }
 
-                if (analyser) {
-                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    dataArray.fill(128);
-                    analyser.getByteTimeDomainData(dataArray);
+                const VAD_HOLD_TIME = 200;
+                const isVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
+                if (isVADOpen) nowSpeaking.add(localId);
 
-                    let sumOfSquares = 0;
-                    for (let i = 0; i < dataArray.length; i++) {
-                        const normalized = (dataArray[i] - 128) / 128;
-                        sumOfSquares += normalized * normalized;
-                    }
-                    const rms = Math.sqrt(sumOfSquares / dataArray.length);
-                    const db = 20 * Math.log10(rms);
-
-                    if (isFinite(db)) {
-                        setCurrentInputLevel(db);
-                    }
-
-                    // Hysteresis logic
-                    const baseThreshold = isAutomaticSensitivity ? -60 : inputSensitivity;
-                    if (db > baseThreshold) {
-                        lastSpeakingTimeRef.current = now;
-                    }
-
-                    const VAD_HOLD_TIME = 200;
-                    const isVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
-
-                    if (isVADOpen && isConnected) {
-                        if (user?._id) nowSpeaking.add(user._id);
-                    }
-
-                    // Apply Gating only if connected
-                    if (isConnected && localStreamRef.current) {
-                        const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isVADOpen;
-                        localStreamRef.current.getAudioTracks().forEach(t => {
-                            if (t.enabled !== shouldBeEnabled) t.enabled = shouldBeEnabled;
-                        });
-                    }
+                // Apply Gating
+                if (isConnected && localStreamRef.current) {
+                    const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isVADOpen;
+                    localStreamRef.current.getAudioTracks().forEach(t => {
+                        if (t.enabled !== shouldBeEnabled) t.enabled = shouldBeEnabled;
+                    });
                 }
             } else {
                 setCurrentInputLevel(-100);
             }
 
-            // Analyze remote users
+            // Analyze Remote Users
             analysersRef.current.forEach((analyser, userId) => {
-                if (userId === user?._id) return;
+                if (userId === (user?._id || 'local')) return;
 
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                dataArray.fill(128);
                 analyser.getByteTimeDomainData(dataArray);
                 let sumOfSquares = 0;
                 for (let i = 0; i < dataArray.length; i++) {
@@ -901,57 +942,42 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 if (db > -50 && !isUserMuted) nowSpeaking.add(userId);
             });
 
-            setSpeakingUsers(prev => {
-                if (prev.size === nowSpeaking.size && Array.from(prev).every(u => nowSpeaking.has(u))) {
-                    return prev;
-                }
-                return nowSpeaking;
-            });
+            setSpeakingUsers(nowSpeaking);
         }, 50);
 
-        const updateAnalysers = () => {
-            analysersRef.current.clear();
-            const micStream = localStreamRef.current || testStreamRef.current;
-            if (micStream && (user?._id || 'local')) {
-                // Even if muted, we might want to see the visualizer if we are just "soft muted" in UI
-                // But typically if hardware muted, no data.
-                // We use a CLONE to ensure we don't screw up the sender track.
-                try {
-                    const streamClone = micStream.clone();
-                    streamClone.getAudioTracks().forEach(t => t.enabled = true);
+        return () => clearInterval(interval);
+    }, [isConnected, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, inputSensitivity, isAutomaticSensitivity, user?._id]);
 
-                    const source = audioCtx.createMediaStreamSource(streamClone);
-                    const analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 256;
-                    source.connect(analyser);
-                    analysersRef.current.set(user?._id || 'local', analyser);
-                } catch (err) {
-                    console.warn("Failed to create local analyser", err);
-                }
+    // Local Analyser Lifecycle (for initial setup or stream changes)
+    useEffect(() => {
+        const stream = localStream || testStream;
+        const localId = user?._id || 'local';
+
+        if (!stream) {
+            analysersRef.current.delete(localId);
+            return;
+        }
+
+        const createLocalAnalyser = async () => {
+            try {
+                const audioCtx = getAudioContext();
+                // Ensure room for new tracks
+                if (audioCtx.state === 'suspended') await audioCtx.resume().catch(() => { });
+
+                const source = audioCtx.createMediaStreamSource(stream);
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                analysersRef.current.set(localId, analyser);
+                console.log("[Voice] Created local analyser for", localId);
+            } catch (err) {
+                console.warn("[Voice] Local analyser failed:", err);
             }
-
-            remoteStreams.forEach((stream, userId) => {
-                try {
-                    // Use a clone for the analyser to avoid interfering with playback
-                    // IMPORTANT: Cloned tracks might start disabled or muted in some browsers, ensure they are active
-                    const streamClone = stream.clone();
-                    streamClone.getAudioTracks().forEach(t => t.enabled = true);
-
-                    const source = audioCtx.createMediaStreamSource(streamClone);
-                    const analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 256;
-                    source.connect(analyser);
-                    analysersRef.current.set(userId, analyser);
-                } catch (err) { }
-            });
         };
-        updateAnalysers();
-        return () => {
-            clearInterval(interval);
-            speakingTimeoutsRef.current.forEach(t => clearTimeout(t));
-            speakingTimeoutsRef.current.clear();
-        };
-    }, [isConnected, localStream, remoteStreams, user?._id, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, getAudioContext]);
+
+        createLocalAnalyser();
+    }, [localStream, testStream, user?._id, getAudioContext]);
+
 
     const setUserVolume = useCallback((userId: string, volume: number) => {
         setUserVolumes(prev => {

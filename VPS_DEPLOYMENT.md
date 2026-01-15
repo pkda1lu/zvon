@@ -143,7 +143,7 @@ NODE_ENV=production
 # LiveKit
 LIVEKIT_API_KEY=APIkQWmfsaTEiSd
 LIVEKIT_API_SECRET=CCbglNtxNW9rDnyxYBHMe4XmmfS3mCx3iwBgVqaQfMfB
-LIVEKIT_URL=wss://zvon-jl8smygu.livekit.cloud
+LIVEKIT_URL=wss://livekit.zvonserver.ru
 ```
 
 **Важно:** Сгенерируйте безопасный JWT_SECRET:

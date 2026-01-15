@@ -10,7 +10,7 @@ interface DesktopSource {
 }
 
 interface ScreenSourceSelectorProps {
-    onSelect: (sourceId: string, options: { withAudio: boolean }) => void;
+    onSelect: (sourceId: string, options: { withAudio: boolean, resolution: string, frameRate: string }) => void;
     onClose: () => void;
 }
 
@@ -56,7 +56,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
             // Entire screen usually carries system audio.
             // Individual windows usually don't carry audio unless it's a browser tab (not common for Electron yet).
             // However, we will pass true for withAudio and handle it in the provider.
-            onSelect(selectedSourceId, { withAudio: true });
+            onSelect(selectedSourceId, { withAudio: true, resolution, frameRate });
         }
     };
 
@@ -87,13 +87,13 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                     <div className="quality-section">
                         <div className="quality-label">Разрешение</div>
                         <div className="quality-options">
-                            {['480', '720', '1080'].map(res => (
+                            {['480', '720', '1080', '1440', '2160'].map(res => (
                                 <button
                                     key={res}
                                     className={`quality-option ${resolution === res ? 'active' : ''}`}
                                     onClick={() => setResolution(res)}
                                 >
-                                    {res}p
+                                    {res === '2160' ? '4K' : res === '1440' ? '2K' : res + 'p'}
                                 </button>
                             ))}
                         </div>
@@ -101,7 +101,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                     <div className="quality-section">
                         <div className="quality-label">Частота кадров</div>
                         <div className="quality-options">
-                            {['15', '30', '60'].map(fps => (
+                            {['15', '30', '60', '120'].map(fps => (
                                 <button
                                     key={fps}
                                     className={`quality-option ${frameRate === fps ? 'active' : ''}`}
@@ -133,7 +133,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                                     onClick={() => setSelectedSourceId(source.id)}
                                     onDoubleClick={() => {
                                         setSelectedSourceId(source.id);
-                                        onSelect(source.id, { withAudio: true });
+                                        onSelect(source.id, { withAudio: true, resolution, frameRate });
                                     }}
                                 >
                                     <div className="source-thumbnail-container">
