@@ -27,6 +27,7 @@ interface VoiceCallProps {
   dmId: string;
   onEndCall: () => void;
   initialIncomingCall?: boolean;
+  initialOffer?: any;
 }
 
 const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false }) => {
