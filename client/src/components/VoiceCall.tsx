@@ -10,6 +10,15 @@ import { SOUNDS, soundManager } from '../utils/sounds';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import { nativeAudioManager } from '../utils/nativeAudio';
+import {
+  Room,
+  RoomEvent,
+  RemoteTrack,
+  RemoteTrackPublication,
+  RemoteParticipant,
+  Track,
+  VideoPresets
+} from 'livekit-client';
 import './VoiceCall.css';
 
 interface VoiceCallProps {
@@ -18,13 +27,11 @@ interface VoiceCallProps {
   dmId: string;
   onEndCall: () => void;
   initialIncomingCall?: boolean;
-  initialOffer?: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string };
 }
 
-const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false, initialOffer }) => {
+const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false }) => {
   const { user } = useAuth();
   const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened, speakingUsers } = useVoice();
-  const isOtherSpeaking = speakingUsers.has(otherUser._id);
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
@@ -42,11 +49,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const peerStateRef = useRef({ makingOffer: false, ignoreOffer: false, isSettingRemoteAnswerPending: false });
+  const roomRef = useRef<Room | null>(null);
   const ringTimeoutRef = useRef<any>(null);
-  const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
-  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(initialOffer?.offer || null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
   const wasCallEstablishedRef = useRef(false);
@@ -84,12 +88,32 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       socket.emit('call-offer', { targetUserId: String(otherUser._id), dmId: String(dmId), offer: null });
       ringTimeoutRef.current = setTimeout(() => endCall(), 45000);
     }
+
+    const handleOtherUserJoined = (data: { userId: string }) => {
+      if (String(data.userId) === String(otherUser._id)) {
+        setIsRinging(false);
+        if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+        joinLiveKitRoom();
+      }
+    };
+
+    const handleExistingUsers = (users: string[]) => {
+      if (users.map(u => String(u)).includes(String(otherUser._id))) {
+        setIsRinging(false);
+        if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+        joinLiveKitRoom();
+      }
+    };
+
+    const handleIncomingOffer = () => {
+      if (!isCallActive) setIsIncomingCall(true);
+    };
+
     socket.on('call-offer', handleIncomingOffer);
-    socket.on('call-answer', handleCallAnswer);
-    socket.on('call-ice-candidate', handleIceCandidate);
-    socket.on('call-end', handleCallEnd);
+    socket.on('call-end', () => endCall());
     socket.on('dm-call-user-joined', handleOtherUserJoined);
     socket.on('dm-call-existing-users', handleExistingUsers);
+
     return () => {
       const duration = Date.now() - mountedAtRef.current;
       if (!initialIncomingCall && !wasCallEstablishedRef.current && !notificationSentRef.current && dmId && duration > 3000) {
@@ -97,237 +121,88 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         axios.post(`/api/direct-messages/${dmId}/messages`, { content: 'Пропущенный звонок', type: 'missed-call' }).catch(() => { });
       }
       if (dmId) socket.emit('leave-dm-call', { dmId });
-      socket.off('call-offer'); socket.off('call-answer'); socket.off('call-ice-candidate'); socket.off('call-end'); socket.off('dm-call-user-joined'); socket.off('dm-call-existing-users');
+      socket.off('call-offer'); socket.off('call-end'); socket.off('dm-call-user-joined'); socket.off('dm-call-existing-users');
       if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       cleanupStreams();
     };
   }, [socket, dmId]);
 
-  const handleOtherUserJoined = (data: { userId: string }) => {
-    if (String(data.userId) === String(otherUser._id)) {
-      console.log(`[DM Voice] Other user (${otherUser.username}) joined. My ID: ${user?._id}, Other ID: ${otherUser._id}`);
-      setIsRinging(false);
-      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
-      const isInitiator = user && String(user._id) < String(otherUser._id);
-      console.log(`[DM Voice] Am I initiator? ${isInitiator}`);
-      if (isInitiator) {
-        initiateWebRTC();
-      }
-    }
-  };
+  const joinLiveKitRoom = async () => {
+    if (roomRef.current) return;
+    try {
+      const { data } = await axios.get('/api/livekit/token', {
+        params: {
+          roomName: `call-${dmId}`,
+          identity: user?._id
+        }
+      });
 
-  const handleExistingUsers = (users: string[]) => {
-    console.log('[DM Voice] Existing users in room:', users);
-    const otherIdStr = String(otherUser._id);
-    if (users.map(u => String(u)).includes(otherIdStr)) {
-      console.log(`[DM Voice] Other user (${otherUser.username}) is already in room. My ID: ${user?._id}, Other ID: ${otherUser._id}`);
-      setIsRinging(false);
-      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
-      const isInitiator = user && String(user._id) < String(otherUser._id);
-      console.log(`[DM Voice] Am I initiator? ${isInitiator}`);
-      if (isInitiator) {
-        initiateWebRTC();
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      });
+
+      roomRef.current = room;
+
+      room
+        .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          const stream = new MediaStream([track.mediaStreamTrack!]);
+          if (publication.source === Track.Source.ScreenShare) {
+            setRemoteScreenStream(stream);
+          } else if (track.kind === Track.Kind.Video) {
+            setRemoteStream(stream);
+          } else if (track.kind === Track.Kind.Audio) {
+            setRemoteStream(prev => {
+              if (prev) {
+                const newStream = new MediaStream(prev.getTracks());
+                newStream.addTrack(track.mediaStreamTrack!);
+                return newStream;
+              }
+              return new MediaStream([track.mediaStreamTrack!]);
+            });
+          }
+        })
+        .on(RoomEvent.TrackUnsubscribed, (track, publication) => {
+          if (publication.source === Track.Source.ScreenShare) {
+            setRemoteScreenStream(null);
+          }
+        })
+        .on(RoomEvent.LocalTrackPublished, (publication) => {
+          if (publication.source === Track.Source.ScreenShare) {
+            setIsScreenSharing(true);
+          }
+        })
+        .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+          if (publication.source === Track.Source.ScreenShare) {
+            setIsScreenSharing(false);
+          }
+        });
+
+      await room.connect(data.serverUrl, data.token);
+
+      // Publish local tracks
+      await room.localParticipant.setMicrophoneEnabled(true);
+      if (isVideoEnabled) await room.localParticipant.setCameraEnabled(true);
+
+      const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      if (micTrack?.track) {
+        setLocalStream(new MediaStream([micTrack.track.mediaStreamTrack!]));
       }
+
+      setIsCallActive(true);
+      wasCallEstablishedRef.current = true;
+    } catch (e) {
+      console.error('[DM Voice] LiveKit join error:', e);
     }
   };
 
   const acceptCall = async () => {
-    setIsIncomingCall(false); setIsRinging(false);
+    setIsIncomingCall(false);
+    setIsRinging(false);
     if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
     if (socket) socket.emit('join-dm-call', { dmId });
-    if (pendingOfferRef.current) {
-      const offer = pendingOfferRef.current; pendingOfferRef.current = null;
-      await handleIncomingOffer({ offer });
-    }
+    await joinLiveKitRoom();
   };
-
-  const cleanupStreams = () => {
-    if (localStream) localStream.getTracks().forEach(track => track.stop());
-    if (screenStream) screenStream.getTracks().forEach(track => track.stop());
-    if (audioContextRef.current) { audioContextRef.current.close().catch(() => { }); audioContextRef.current = null; }
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.onicecandidate = null; peerConnectionRef.current.ontrack = null;
-      peerConnectionRef.current.close(); peerConnectionRef.current = null;
-    }
-    if ((window as any).electron && (window as any).electron.setContentProtection) {
-      (window as any).electron.setContentProtection(false);
-    }
-    try {
-      if (nativeAudioManager && nativeAudioManager.stopCapture) {
-        nativeAudioManager.stopCapture();
-      }
-    } catch (e) {
-      console.warn('Failed to stop native audio capture:', e);
-    }
-  };
-
-  const setupPeerConnection = async () => {
-    if (peerConnectionRef.current) return peerConnectionRef.current;
-
-    console.log(`[DM Voice] Setting up peer connection with ${otherUser.username}`);
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: isVideoEnabled
-    });
-
-    let usedStream = stream;
-    if (isNoiseSuppressionEnabled) {
-      try {
-        const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
-        audioContextRef.current = ctx;
-        if (ctx.state === 'suspended') await ctx.resume();
-        usedStream = await setupNoiseSuppression(ctx, stream);
-      } catch (e) { }
-    }
-    setLocalStream(usedStream);
-
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ]
-    });
-
-    pc.ontrack = (event) => {
-      const stream = event.streams[0];
-      console.log(`[DM Voice] Received track from ${otherUser.username}, stream ID: ${stream.id}`);
-      if (stream.id.startsWith('screen-') || (remoteStream && stream.id !== remoteStream.id)) {
-        setRemoteScreenStream(stream);
-      } else {
-        setRemoteStream(stream);
-      }
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socket) {
-        socket.emit('call-ice-candidate', { targetUserId: otherUser._id, candidate: event.candidate });
-      }
-    };
-
-    pc.onnegotiationneeded = async () => {
-      try {
-        peerStateRef.current.makingOffer = true;
-        console.log('[DM Voice] Negotiation needed. Making offer...');
-        await pc.setLocalDescription();
-        socket?.emit('call-offer', { targetUserId: otherUser._id, dmId, offer: pc.localDescription });
-      } catch (err) {
-        console.error('[DM Voice] Negotiation error:', err);
-      } finally {
-        peerStateRef.current.makingOffer = false;
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === 'failed') {
-        console.warn('[DM Voice] ICE failed. Restarting...');
-        pc.restartIce();
-      }
-    };
-
-    usedStream.getTracks().forEach(track => pc.addTrack(track, usedStream));
-
-    peerConnectionRef.current = pc;
-    return pc;
-  };
-
-
-  const initiateWebRTC = async () => {
-    if (isCallActive) return;
-    try {
-      await setupPeerConnection();
-      setIsCallActive(true); wasCallEstablishedRef.current = true;
-    } catch (err) {
-      console.error('[DM Voice] initiateWebRTC failed:', err);
-    }
-  };
-
-  const handleIncomingOffer = async (data: { offer: RTCSessionDescriptionInit | null }) => {
-    if (!data.offer) {
-      if (!isCallActive && initialIncomingCall) setIsIncomingCall(true);
-      return;
-    }
-
-    if (isIncomingCall) {
-      pendingOfferRef.current = data.offer;
-      return;
-    }
-
-    try {
-      const pc = await setupPeerConnection();
-      const polite = String(user?._id) > String(otherUser._id);
-      const offerCollision = peerStateRef.current.makingOffer || pc.signalingState !== 'stable';
-
-      peerStateRef.current.ignoreOffer = !polite && offerCollision;
-      if (peerStateRef.current.ignoreOffer) {
-        console.log('[DM Voice] Ignoring offer due to collision (impolite)');
-        return;
-      }
-
-      if (offerCollision) {
-        console.log('[DM Voice] Collision detected, rolling back (polite)');
-        await Promise.all([
-          pc.setLocalDescription({ type: 'rollback' }),
-          pc.setRemoteDescription(new RTCSessionDescription(data.offer))
-        ]);
-      } else {
-        console.log('[DM Voice] Handling incoming offer');
-        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-      }
-
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      if (socket) socket.emit('call-answer', { targetUserId: otherUser._id, answer });
-
-      setIsCallActive(true); wasCallEstablishedRef.current = true; setIsRinging(false);
-
-      while (iceCandidatesQueue.current.length > 0) {
-        const c = iceCandidatesQueue.current.shift();
-        if (c) try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { }
-      }
-    } catch (err) {
-      console.error('[DM Voice] Error handling incoming offer:', err);
-    }
-  };
-
-  const handleCallAnswer = async (data: { answer: RTCSessionDescriptionInit }) => {
-    if (!peerConnectionRef.current) return;
-    try {
-      console.log('[DM Voice] Handling incoming answer');
-      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-      setIsCallActive(true); wasCallEstablishedRef.current = true;
-      while (iceCandidatesQueue.current.length > 0) {
-        const c = iceCandidatesQueue.current.shift();
-        if (c) {
-          try {
-            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c));
-          } catch (e) {
-            console.warn('[DM Voice] Error adding queued ICE candidate after answer:', e);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('[DM Voice] Error handling incoming answer:', e);
-    }
-  };
-
-  const handleIceCandidate = async (data: { candidate: RTCIceCandidateInit }) => {
-    const pc = peerConnectionRef.current;
-    try {
-      if (pc && pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-      } else {
-        if (peerStateRef.current.ignoreOffer) return;
-        iceCandidatesQueue.current.push(data.candidate);
-      }
-    } catch (e) {
-      if (!peerStateRef.current.ignoreOffer) {
-        console.warn('[DM Voice] Error adding ICE candidate:', e);
-      }
-    }
-  };
-
-  const handleCallEnd = () => endCall();
 
   const endCall = async () => {
     cleanupStreams();
@@ -342,113 +217,55 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
     }
   };
 
+  const cleanupStreams = () => {
+    if (roomRef.current) {
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
+    if (localStream) localStream.getTracks().forEach(track => track.stop());
+    if (screenStream) screenStream.getTracks().forEach(track => track.stop());
+    if (audioContextRef.current) { audioContextRef.current.close().catch(() => { }); audioContextRef.current = null; }
+
+    if ((window as any).electron && (window as any).electron.setContentProtection) {
+      (window as any).electron.setContentProtection(false);
+    }
+    try {
+      if (nativeAudioManager && nativeAudioManager.stopCapture) {
+        nativeAudioManager.stopCapture();
+      }
+    } catch (e) {
+      console.warn('Failed to stop native audio capture:', e);
+    }
+  };
+
   const toggleMute = () => {
     const newMuted = !isMuted;
-    if (localStream) { localStream.getAudioTracks().forEach(t => t.enabled = !newMuted); setIsMuted(newMuted); }
+    setIsMuted(newMuted);
+    if (roomRef.current) {
+      roomRef.current.localParticipant.setMicrophoneEnabled(!newMuted);
+    }
   };
 
   const toggleVideo = async () => {
     const newState = !isVideoEnabled;
     setIsVideoEnabled(newState);
-    if (localStream) {
-      if (newState) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          const track = stream.getVideoTracks()[0];
-          localStream.addTrack(track);
-          if (peerConnectionRef.current) {
-            const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
-            if (videoSender) await videoSender.replaceTrack(track);
-            else peerConnectionRef.current.addTrack(track, localStream);
-          }
-        } catch (e) { setIsVideoEnabled(false); }
-      } else {
-        const track = localStream.getVideoTracks()[0];
-        if (track) {
-          track.stop(); localStream.removeTrack(track);
-          if (peerConnectionRef.current) {
-            const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
-            if (videoSender) {
-              peerConnectionRef.current.removeTrack(videoSender);
-            }
-          }
-        }
-      }
+    if (roomRef.current) {
+      await roomRef.current.localParticipant.setCameraEnabled(newState);
     }
   };
 
   const toggleScreenShare = async (sourceId?: string) => {
     if (isScreenSharing) {
-      if (screenStream) {
-        screenStream.getTracks().forEach(t => t.stop());
-        setScreenStream(null);
+      if (roomRef.current) {
+        await roomRef.current.localParticipant.setScreenShareEnabled(false);
       }
       setIsScreenSharing(false);
+    } else if (sourceId && roomRef.current) {
       try {
-        if (nativeAudioManager && nativeAudioManager.stopCapture) {
-          nativeAudioManager.stopCapture();
-        }
-      } catch (e) {
-        console.warn('Failed to stop native audio capture:', e);
-      }
-      // Disable content protection
-      if ((window as any).electron && (window as any).electron.setContentProtection) {
-        (window as any).electron.setContentProtection(false);
-      }
-      // Renegotiate
-      if (peerConnectionRef.current) {
-        // Just removing tracks triggers negotiation
-      }
-    } else if (sourceId) {
-      try {
-        const hasElectron = !!(window as any).electron;
-        let stream: MediaStream;
-
-        if (hasElectron) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: {
-              mandatory: {
-                chromeMediaSource: 'desktop',
-                chromeMediaSourceId: sourceId,
-                maxWidth: 4096,
-                maxHeight: 2160,
-                maxFrameRate: 60
-              }
-            } as any
-          });
-          try {
-            const audioStream = await nativeAudioManager.startcapture(sourceId);
-            audioStream.getAudioTracks().forEach(track => stream.addTrack(track));
-          } catch (e) {
-            console.error("Native audio capture failed", e);
-          }
-        } else {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, echoCancellation: true } } as any,
-            video: {
-              mandatory: {
-                chromeMediaSource: 'desktop',
-                chromeMediaSourceId: sourceId,
-                maxWidth: 4096,
-                maxHeight: 2160,
-                maxFrameRate: 60
-              }
-            } as any
-          });
-        }
-
-        // Enable content protection (WDA_EXCLUDEFROMCAPTURE)
-        if ((window as any).electron && (window as any).electron.setContentProtection) {
-          await (window as any).electron.setContentProtection(true);
-        }
-
-        Object.defineProperty(stream, 'id', { value: `screen-${user?._id}-${Date.now()}` });
-        setScreenStream(stream);
+        await roomRef.current.localParticipant.setScreenShareEnabled(true, {
+          audio: true
+        });
         setIsScreenSharing(true);
-        if (peerConnectionRef.current) {
-          stream.getTracks().forEach(track => peerConnectionRef.current!.addTrack(track, stream));
-        }
       } catch (e) { console.error(e); }
     }
   };
@@ -493,7 +310,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
             sumOfSquares += normalized * normalized;
           }
           const rms = Math.sqrt(sumOfSquares / localDataArray.length);
-          if (rms > 0.01) localSpeakingHold = 5; // Hold for 5 ticks (250ms)
+          if (rms > 0.01) localSpeakingHold = 5;
           else if (localSpeakingHold > 0) localSpeakingHold--;
 
           setLocalSpeaking(localSpeakingHold > 0);
@@ -574,7 +391,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       <main className="call-main">
         <div className="video-grid">
           <div className="main-video-slot">
-            {remoteStream && remoteStream.getVideoTracks().length > 0 ? (
+            {(remoteStream && remoteStream.getVideoTracks().length > 0) ? (
               <video ref={remoteVideoRef} autoPlay playsInline className={`remote-video-full ${remoteSpeaking ? 'speaking' : ''}`} />
             ) : (
               <div className="remote-audio-placeholder">
@@ -610,7 +427,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           </div>
 
           <div className={`pip-video-slot ${localSpeaking ? 'speaking' : ''}`}>
-            {localStream && localStream.getVideoTracks().length > 0 ? (
+            {(localStream && localStream.getVideoTracks().length > 0) ? (
               <video ref={localVideoRef} autoPlay playsInline muted className="local-video-pip" />
             ) : (
               <div className="local-audio-pip">
@@ -625,7 +442,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
             )}
             <div className="pip-label">Вы</div>
 
-            {screenStream && (
+            {isScreenSharing && (
               <div className="screen-share-overlay">
                 <MonitorIcon size={24} />
                 <span>Трансляция экрана</span>

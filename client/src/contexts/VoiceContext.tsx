@@ -5,6 +5,22 @@ import { User } from '../types';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { nativeAudioManager } from '../utils/nativeAudio';
+import axios from 'axios';
+import {
+    Room,
+    RoomEvent,
+    RemoteParticipant,
+    RemoteTrack,
+    RemoteTrackPublication,
+    LocalTrackPublication,
+    LocalParticipant,
+    Track,
+    Participant,
+    ConnectionState,
+    VideoPresets,
+    createAudioAnalyser,
+    TrackPublication
+} from 'livekit-client';
 
 // Remote Audio Component to handle lifecycle properly
 const RemoteAudio: React.FC<{
@@ -326,9 +342,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // For visualization in settings
     const [currentInputLevel, setCurrentInputLevel] = useState(-100);
 
-    const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-    const peerStatesRef = useRef<Map<string, { makingOffer: boolean; ignoreOffer: boolean; isSettingRemoteAnswerPending: boolean }>>(new Map());
-    const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+    const roomRef = useRef<Room | null>(null);
     const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const testStreamRef = useRef<MediaStream | null>(null);
@@ -375,88 +389,58 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return ctx;
     }, []);
 
-    const handleTrack = useCallback((userId: string, stream: MediaStream) => {
-        // Distinguish between voice and screen sharing streams
-        // Use video track presence as a reliable indicator for screen sharing in Zvon
-        const isScreen = stream.id.startsWith('screen-') || stream.getVideoTracks().length > 0;
+    const handleTrackSubscribed = (
+        track: RemoteTrack,
+        publication: RemoteTrackPublication,
+        participant: RemoteParticipant
+    ) => {
+        if (track.kind === Track.Kind.Audio || track.kind === Track.Kind.Video) {
+            const stream = new MediaStream([track.mediaStreamTrack!]);
+            const userId = participant.identity;
 
-        if (isScreen) {
-            setRemoteScreenStreams(prev => new Map(prev).set(userId, stream));
-        } else {
-            setRemoteStreams(prev => new Map(prev).set(userId, stream));
-        }
-    }, []);
+            if (publication.source === Track.Source.ScreenShare) {
+                setRemoteScreenStreams(prev => new Map(prev).set(userId, stream));
+            } else {
+                setRemoteStreams(prev => new Map(prev).set(userId, stream));
 
-    const createPeer = useCallback((targetUserId: string, initiator: boolean) => {
-        if (!peersRef.current.has(targetUserId)) {
-            console.log(`[Voice] Creating new peer for ${targetUserId}. Role: ${initiator ? 'Impolite (Initiator)' : 'Polite'}`);
-
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
-                ],
-            });
-
-            peersRef.current.set(targetUserId, pc);
-            peerStatesRef.current.set(targetUserId, {
-                makingOffer: false,
-                ignoreOffer: false,
-                isSettingRemoteAnswerPending: false
-            });
-
-            pc.ontrack = (event) => {
-                console.log(`[Voice] Received track from ${targetUserId}, stream ID: ${event.streams[0].id}`);
-                handleTrack(targetUserId, event.streams[0]);
-            };
-
-            pc.onicecandidate = (event) => {
-                if (event.candidate && socket) {
-                    socket.emit('voice-ice-candidate', { targetUserId, candidate: event.candidate });
-                }
-            };
-
-            pc.onnegotiationneeded = async () => {
-                const state = peerStatesRef.current.get(targetUserId);
-                if (!state) return;
-                try {
-                    state.makingOffer = true;
-                    console.log(`[Voice] Negotiation needed for ${targetUserId}. Making offer...`);
-                    await pc.setLocalDescription();
-                    if (socket) {
-                        socket.emit('voice-offer', { targetUserId, offer: pc.localDescription });
+                // Setup analyser for speaking indicators
+                if (track.kind === Track.Kind.Audio) {
+                    try {
+                        const audioCtx = getAudioContext();
+                        const source = audioCtx.createMediaStreamSource(stream);
+                        const analyser = audioCtx.createAnalyser();
+                        analyser.fftSize = 256;
+                        source.connect(analyser);
+                        analysersRef.current.set(userId, analyser);
+                    } catch (err) {
+                        console.error('[Voice] Failed to create analyser for remote track:', err);
                     }
-                } catch (err) {
-                    console.error(`[Voice] Offer creation failed for ${targetUserId}:`, err);
-                } finally {
-                    state.makingOffer = false;
                 }
-            };
-
-            pc.oniceconnectionstatechange = () => {
-                if (pc.iceConnectionState === 'failed') {
-                    console.warn(`[Voice] ICE failed for ${targetUserId}. Restarting...`);
-                    pc.restartIce();
-                }
-            };
-
-            // Add existing tracks
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => {
-                    pc.addTrack(track, localStreamRef.current!);
-                });
-            }
-
-            if (screenStreamRef.current) {
-                screenStreamRef.current.getTracks().forEach(track => {
-                    pc.addTrack(track, screenStreamRef.current!);
-                });
             }
         }
+    };
 
-        return peersRef.current.get(targetUserId)!;
-    }, [socket, user?._id]);
+    const handleTrackUnsubscribed = (
+        track: RemoteTrack,
+        publication: RemoteTrackPublication,
+        participant: RemoteParticipant
+    ) => {
+        const userId = participant.identity;
+        if (publication.source === Track.Source.ScreenShare) {
+            setRemoteScreenStreams(prev => {
+                const next = new Map(prev);
+                next.delete(userId);
+                return next;
+            });
+        } else {
+            setRemoteStreams(prev => {
+                const next = new Map(prev);
+                next.delete(userId);
+                return next;
+            });
+            analysersRef.current.delete(userId);
+        }
+    };
 
     const startTestStream = useCallback(async () => {
         if (localStreamRef.current || testStreamRef.current) return;
@@ -481,8 +465,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, []);
 
-    const leaveChannel = useCallback(() => {
-        if (!activeChannelId) return;
+    const leaveChannel = useCallback(async () => {
+        if (!activeChannelId && !roomRef.current) return;
+
+        if (roomRef.current) {
+            await roomRef.current.disconnect();
+            roomRef.current = null;
+        }
+
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
@@ -492,15 +482,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             rawMicStreamRef.current = null;
         }
         setLocalStream(null);
-        peersRef.current.forEach(pc => pc.close());
-        peersRef.current.clear();
-        peerStatesRef.current.clear();
-        pendingCandidatesRef.current.clear();
         setRemoteStreams(new Map());
+        setRemoteScreenStreams(new Map());
         setConnectedUsers([]);
-        if (socket && isConnectedRef.current) {
+
+        if (socket && isConnectedRef.current && activeChannelId) {
             socket.emit('leave-voice-channel', { channelId: activeChannelId });
         }
+
         setIsConnected(false);
         setActiveChannelId(null);
         stopScreenShare();
@@ -579,27 +568,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
 
             // Enable WDA_EXCLUDEFROMCAPTURE to hide the application from the screen capture
-            if ((window as any).electron && (window as any).electron.setContentProtection) {
-                await (window as any).electron.setContentProtection(true);
-            }
-
-            const newStream = new MediaStream(stream.getTracks());
-            Object.defineProperty(newStream, 'id', { value: `screen-${user?._id}-${Date.now()}` });
-
-            setScreenStream(newStream);
-            screenStreamRef.current = newStream;
-            setIsScreenSharing(true);
-            soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
-
-            // Important: sort tracks (video first, then audio) to keep SDP order consistent
-            const sortedTracks = newStream.getTracks().sort((a, b) => a.kind === 'video' ? -1 : 1);
-
-            peersRef.current.forEach(pc => {
-                sortedTracks.forEach(track => {
-                    console.log(`[Voice] Adding ${track.kind} track to peer:`, track.id);
-                    pc.addTrack(track, newStream);
+            if (roomRef.current) {
+                await roomRef.current.localParticipant.setScreenShareEnabled(true, {
+                    audio: true,
+                    // Note: resolution settings are handled by LiveKit more abstractly now or via CaptureOptions
                 });
-            });
+                console.log(`[Voice] Screen share enabled via LiveKit`);
+            }
 
             if (socket && activeChannelId) {
                 socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: true });
@@ -609,7 +584,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [socket, activeChannelId, isMuted, isDeafened, user?._id]);
 
-    const stopScreenShare = useCallback(() => {
+    const stopScreenShare = useCallback(async () => {
+        if (roomRef.current) {
+            await roomRef.current.localParticipant.setScreenShareEnabled(false);
+        }
         if (screenStreamRef.current) {
             screenStreamRef.current.getTracks().forEach(track => track.stop());
             screenStreamRef.current = null;
@@ -618,41 +596,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setScreenStream(null);
         setIsScreenSharing(false);
         soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.4);
-
-        // Remove tracks from peers
-        peersRef.current.forEach(async pc => {
-            if (pc.signalingState === 'closed') return;
-
-            const senders = pc.getSenders();
-            let changed = false;
-            senders.forEach(sender => {
-                if (!sender.track) return;
-
-                // If the track is not part of the local mic/camera stream, it's a screen share track.
-                const isLocalMic = localStreamRef.current?.getTracks().some(t => t.id === sender.track?.id);
-                if (!isLocalMic) {
-                    try {
-                        console.log('[Voice] Removing track from peer:', sender.track.kind);
-                        pc.removeTrack(sender);
-                        changed = true;
-                    } catch (e) {
-                        console.warn('[Voice] Error removing track:', e);
-                    }
-                }
-            });
-
-            // Re-negotiation happens if tracks were actually removed
-            if (changed && pc.signalingState === 'stable') {
-                try {
-                    const offer = await pc.createOffer();
-                    await pc.setLocalDescription(offer);
-                    const targetUserId = Array.from(peersRef.current.entries()).find(e => e[1] === pc)?.[0];
-                    if (targetUserId) socket?.emit('voice-offer', { targetUserId, offer: pc.localDescription });
-                } catch (e) {
-                    console.error('[Voice] Error during stop-negotiation:', e);
-                }
-            }
-        });
 
         if (socket && activeChannelId) {
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: false });
@@ -665,46 +608,84 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [socket, activeChannelId, isMuted, isDeafened]);
 
     const joinChannel = useCallback(async (channelId: string) => {
-        if (isConnectedRef.current) leaveChannel();
-
-        // Force resume context on join action
-        try {
-            const ctx = getAudioContext();
-            if (ctx.state === 'suspended') await ctx.resume();
-        } catch (e) { }
+        if (isConnectedRef.current) await leaveChannel();
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    deviceId: selectedInputDeviceId !== 'default' ? { exact: selectedInputDeviceId } : undefined,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                },
-                video: false
+            // 1. Get token from server
+            const { data } = await axios.get('/api/livekit/token', {
+                params: {
+                    roomName: `channel-${channelId}`,
+                    identity: user?._id
+                }
             });
-            rawMicStreamRef.current = stream;
-            rawMicStreamRef.current = stream;
-            let streamToUse = stream.clone();
-            if (isNoiseSuppressionEnabled) {
-                try {
-                    streamToUse = await setupNoiseSuppression(getAudioContext(), stream);
-                } catch (err) { }
+
+            const { token, serverUrl } = data;
+
+            // 2. Connect to LiveKit
+            const room = new Room({
+                adaptiveStream: true,
+                dynacast: true,
+            });
+
+            roomRef.current = room;
+
+            // 3. Setup Events
+            room
+                .on(RoomEvent.ParticipantConnected, (participant) => {
+                    console.log('[LiveKit] Participant connected:', participant.identity);
+                })
+                .on(RoomEvent.ParticipantDisconnected, (participant) => {
+                    console.log('[LiveKit] Participant disconnected:', participant.identity);
+                    setRemoteStreams(prev => {
+                        const next = new Map(prev);
+                        next.delete(participant.identity);
+                        return next;
+                    });
+                })
+                .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
+                .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
+                .on(RoomEvent.LocalTrackPublished, (publication) => {
+                    if (publication.source === Track.Source.ScreenShare) {
+                        setIsScreenSharing(true);
+                    }
+                })
+                .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+                    if (publication.source === Track.Source.ScreenShare) {
+                        setIsScreenSharing(false);
+                    }
+                });
+
+            await room.connect(serverUrl, token);
+            console.log('[LiveKit] Connected to room');
+
+            // 4. Publish Audio
+            await room.localParticipant.setMicrophoneEnabled(true, {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+            });
+
+            // Update local stream state for visualization
+            const localAudioTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+            if (localAudioTrack?.track) {
+                const stream = new MediaStream([localAudioTrack.track.mediaStreamTrack!]);
+                setLocalStream(stream);
+                localStreamRef.current = stream;
             }
-            setLocalStream(streamToUse);
-            localStreamRef.current = streamToUse;
-            // Respect server mute/deafen as well
-            const effectiveMuted = isMuted || isServerMuted;
-            const effectiveDeafened = isDeafened || isServerDeafened;
-            streamToUse.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
 
             setActiveChannelId(channelId);
             setIsConnected(true);
             soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
+
+            if (socket) {
+                socket.emit('join-voice-channel', { channelId });
+            }
+
         } catch (error) {
+            console.error('Failed to join LiveKit room:', error);
             alert('Не удалось подключиться к голосовому каналу.');
         }
-    }, [isMuted, isDeafened, isServerMuted, isServerDeafened, leaveChannel, selectedInputDeviceId, isNoiseSuppressionEnabled, getAudioContext]);
+    }, [user?._id, leaveChannel, socket]);
 
     const joinChannelRef = useRef(joinChannel);
     useEffect(() => {
@@ -713,149 +694,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     useEffect(() => {
         if (!socket || !isConnected || !activeChannelId || !localStreamRef.current) return;
-
-        const handleExistingUsers = (users: any[]) => {
-            const others = users.filter(u => u._id !== user?._id);
-            setConnectedUsers(others);
-
-            setUserStates(prev => {
-                const newMap = new Map(prev);
-                others.forEach(u => {
-                    newMap.set(u._id, {
-                        isMuted: u.isMuted || false,
-                        isDeafened: u.isDeafened || false,
-                        isScreenSharing: u.isScreenSharing || false,
-                        isServerMuted: u.isServerMuted || false,
-                        isServerDeafened: u.isServerDeafened || false
-                    });
-                });
-                return newMap;
-            });
-
-            others.forEach(u => {
-                const myId = String(user?._id);
-                const otherId = String(u._id);
-                const isInitiator = myId < otherId;
-                console.log(`[Voice] Creating peer for existing user ${u.username} (${u._id}). Initiator: ${isInitiator}`);
-                createPeer(u._id, isInitiator);
-            });
-        };
-
-        const handleUserJoined = (data: { userId: string; user: any }) => {
-            if (data.userId === user?._id) return;
-            setConnectedUsers(prev => prev.find(u => u._id === data.user._id) ? prev : [...prev, data.user]);
-
-            const myId = String(user?._id);
-            const otherId = String(data.userId);
-            const isInitiator = myId < otherId;
-            console.log(`[Voice] User joined: ${data.user.username} (${data.userId}). Initiator: ${isInitiator}`);
-            createPeer(data.userId, isInitiator);
-
-            if (data.user.isMuted !== undefined) {
-                setUserStates(prev => new Map(prev).set(data.userId, {
-                    isMuted: data.user.isMuted,
-                    isDeafened: data.user.isDeafened,
-                    isScreenSharing: data.user.isScreenSharing || false,
-                    isServerMuted: data.user.isServerMuted || false,
-                    isServerDeafened: data.user.isServerDeafened || false
-                }));
-            }
-        };
-
-        const handleUserLeft = (data: { userId: string }) => {
-            setConnectedUsers(prev => prev.filter(u => u._id !== data.userId));
-            const pc = peersRef.current.get(data.userId);
-            if (pc) {
-                pc.close();
-                peersRef.current.delete(data.userId);
-            }
-            setRemoteStreams(prev => {
-                const newMap = new Map(prev);
-                newMap.delete(data.userId);
-                return newMap;
-            });
-        };
-
-        const handleOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit }) => {
-            const pc = createPeer(data.fromUserId, false);
-            const state = peerStatesRef.current.get(data.fromUserId);
-            if (!state) return;
-
-            try {
-                const polite = String(user?._id) > String(data.fromUserId);
-                const offerCollision = state.makingOffer || pc.signalingState !== 'stable';
-
-                state.ignoreOffer = !polite && offerCollision;
-                if (state.ignoreOffer) {
-                    console.log(`[Voice] Ignoring offer from ${data.fromUserId} due to collision (impolite)`);
-                    return;
-                }
-
-                if (offerCollision) {
-                    console.log(`[Voice] Collision detected, rolling back for ${data.fromUserId} (polite)`);
-                    await Promise.all([
-                        pc.setLocalDescription({ type: 'rollback' }),
-                        pc.setRemoteDescription(new RTCSessionDescription(data.offer))
-                    ]);
-                } else {
-                    console.log(`[Voice] Handling offer from ${data.fromUserId}`);
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-                }
-
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                socket.emit('voice-answer', { targetUserId: data.fromUserId, answer });
-
-                // Process queued candidates
-                const pending = pendingCandidatesRef.current.get(data.fromUserId);
-                if (pending) {
-                    for (const candidate of pending) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { }
-                    }
-                    pendingCandidatesRef.current.delete(data.fromUserId);
-                }
-            } catch (err) {
-                console.error(`[Voice] Error handling offer from ${data.fromUserId}:`, err);
-            }
-        };
-
-        const handleAnswer = async (data: { fromUserId: string; answer: RTCSessionDescriptionInit }) => {
-            const pc = peersRef.current.get(data.fromUserId);
-            if (!pc) return;
-            try {
-                console.log(`[Voice] Handling answer from ${data.fromUserId}`);
-                await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                const pending = pendingCandidatesRef.current.get(data.fromUserId);
-                if (pending) {
-                    for (const candidate of pending) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { }
-                    }
-                    pendingCandidatesRef.current.delete(data.fromUserId);
-                }
-            } catch (err) {
-                console.error(`[Voice] Error handling answer from ${data.fromUserId}:`, err);
-            }
-        };
-
-        const handleCandidate = async (data: { fromUserId: string; candidate: RTCIceCandidateInit }) => {
-            const pc = peersRef.current.get(data.fromUserId);
-            const state = peerStatesRef.current.get(data.fromUserId);
-
-            try {
-                if (pc && pc.remoteDescription) {
-                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } else {
-                    if (state && state.ignoreOffer) return;
-                    const pending = pendingCandidatesRef.current.get(data.fromUserId) || [];
-                    pending.push(data.candidate);
-                    pendingCandidatesRef.current.set(data.fromUserId, pending);
-                }
-            } catch (err) {
-                if (!state || !state.ignoreOffer) {
-                    console.warn(`[Voice] Error adding ICE candidate from ${data.fromUserId}:`, err);
-                }
-            }
-        };
 
         const handleUserStateUpdate = (data: { userId: string; isMuted: boolean; isDeafened: boolean; isScreenSharing?: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }) => {
             setUserStates(prev => {
@@ -875,7 +713,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     isScreenSharing: data.isScreenSharing || false,
                     isServerMuted: data.isServerMuted || false,
                     isServerDeafened: data.isServerDeafened || false
-                } as any);
+                });
                 return newMap;
             });
         };
@@ -889,29 +727,19 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (data.isServerDeafened !== undefined) setIsServerDeafened(data.isServerDeafened);
         };
 
-        socket.on('voice-existing-users', handleExistingUsers);
-        socket.on('voice-user-joined', handleUserJoined);
-        socket.on('voice-user-left', handleUserLeft);
-        socket.on('voice-offer', handleOffer);
-        socket.on('voice-answer', handleAnswer);
-        socket.on('voice-ice-candidate', handleCandidate);
+        socket.on('voice-existing-users', (users) => setConnectedUsers(users.filter((u: any) => u._id !== user?._id)));
+        socket.on('voice-user-joined', (data) => {
+            if (data.userId !== user?._id) {
+                setConnectedUsers(prev => prev.find(u => u._id === data.user._id) ? prev : [...prev, data.user]);
+            }
+        });
+        socket.on('voice-user-left', (data) => setConnectedUsers(prev => prev.filter(u => u._id !== data.userId)));
         socket.on('voice-user-state-update', handleUserStateUpdate);
-
-        // New Handlers
         socket.on('force-join-voice', handleForceJoin);
         socket.on('voice-server-state-update', handleServerStateUpdate);
 
         const handleForceDisconnect = () => {
-            console.log('Forced disconnect from voice');
-            setActiveChannelId(null);
-            setIsConnected(false);
-            setConnectedUsers([]);
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
-                localStreamRef.current = null;
-                setLocalStream(null);
-            }
-            // We don't need to emit 'leave-voice-channel' because server already removed us
+            leaveChannel();
         };
         socket.on('force-disconnect-voice', handleForceDisconnect);
 
@@ -921,15 +749,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-existing-users');
             socket.off('voice-user-joined');
             socket.off('voice-user-left');
-            socket.off('voice-offer');
-            socket.off('voice-answer');
-            socket.off('voice-ice-candidate');
             socket.off('voice-user-state-update');
             socket.off('force-join-voice');
             socket.off('voice-server-state-update');
             socket.off('force-disconnect-voice');
         };
-    }, [socket, isConnected, activeChannelId, createPeer, user?._id]);
+    }, [socket, isConnected, activeChannelId, user?._id, leaveChannel]);
 
     const toggleMute = () => {
         const newMuted = !isMuted;
@@ -974,11 +799,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const effectiveDeafened = isDeafened || isServerDeafened;
             newStream.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
             const audioTrack = newStream.getAudioTracks()[0];
-            if (audioTrack) {
-                peersRef.current.forEach(async (pc) => {
-                    const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
-                    if (sender) await sender.replaceTrack(audioTrack).catch(() => { });
-                });
+            if (audioTrack && roomRef.current) {
+                // LiveKit track replacement
+                const trackPub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Microphone);
+                if (trackPub?.track) {
+                    (trackPub.track as any).replaceTrack(audioTrack);
+                }
             }
         }
     }, [isNoiseSuppressionEnabled, isMuted, isDeafened, getAudioContext]);

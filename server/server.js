@@ -49,6 +49,7 @@ app.use('/api/direct-messages', require('./routes/directMessages'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/upload-files', require('./routes/uploads'));
+app.use('/api/livekit', require('./routes/livekit'));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '7d',
   immutable: true,
@@ -231,13 +232,6 @@ io.on('connection', (socket) => {
     console.log(`[Call] Offer from ${socket.userId} to ${data.targetUserId}`);
     io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId });
   });
-  socket.on('call-answer', (data) => {
-    console.log(`[Call] Answer from ${socket.userId} to ${data.targetUserId}`);
-    io.to(`user-${data.targetUserId}`).emit('call-answer', { answer: data.answer });
-  });
-  socket.on('call-ice-candidate', (data) => {
-    io.to(`user-${data.targetUserId}`).emit('call-ice-candidate', { candidate: data.candidate });
-  });
   socket.on('call-end', (data) => {
     console.log(`[Call] End from ${socket.userId} to ${data.targetUserId}`);
     io.to(`user-${data.targetUserId}`).emit('call-end');
@@ -355,10 +349,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('leave-voice-channel', async (data) => { socket.leave(`voice-channel-${data.channelId}`); socket.voiceChannelId = null; io.to(`voice-channel-${data.channelId}`).emit('voice-user-left', { userId: socket.userId }); await notifyVoiceChannelUpdate(data.channelId); });
-
-  socket.on('voice-offer', async (data) => { if (socket.voiceChannelId) io.to(`user-${data.targetUserId}`).emit('voice-offer', { fromUserId: socket.userId, offer: data.offer }); });
-  socket.on('voice-answer', (data) => io.to(`user-${data.targetUserId}`).emit('voice-answer', { fromUserId: socket.userId, answer: data.answer }));
-  socket.on('voice-ice-candidate', (data) => io.to(`user-${data.targetUserId}`).emit('voice-ice-candidate', { fromUserId: socket.userId, candidate: data.candidate }));
 
   socket.on('admin-voice-move', async (data) => {
     try {
