@@ -38,7 +38,7 @@ router.get('/token', auth, async (req, res) => {
             canPublishData: true,
         });
 
-        const token = at.toJwt();
+        const token = await at.toJwt();
         console.log(`[LiveKit] Generated token for ${identityStr} in ${roomNameStr}. Token length: ${token.length}`);
 
         res.json({ token, serverUrl: host });
