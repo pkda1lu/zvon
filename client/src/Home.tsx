@@ -21,7 +21,8 @@ const Home: React.FC = () => {
     }
 
     if (!user) {
-        return <Landing />;
+        const isElectron = !!(window as any).electron;
+        return isElectron ? <Navigate to="/login" replace /> : <Landing />;
     }
 
     return (
