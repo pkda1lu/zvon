@@ -105,6 +105,8 @@ export interface Message {
   mentions?: User[];
   replyTo?: Message;
   type?: 'default' | 'missed-call' | 'call-ended';
+  pinned?: boolean;
+  pinnedAt?: string;
   createdAt: string;
 }
 

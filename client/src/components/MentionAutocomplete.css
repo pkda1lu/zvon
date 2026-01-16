@@ -10,7 +10,7 @@
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.05);
     margin-bottom: 12px;
     overflow: hidden;
-    z-index: 1000;
+    z-index: 10000;
     animation: mentionSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

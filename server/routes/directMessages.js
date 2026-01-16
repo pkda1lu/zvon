@@ -38,10 +38,20 @@ router.get('/user/:userId', auth, async (req, res) => {
 
 router.get('/:id/messages', auth, async (req, res) => {
   try {
+    const { limit = 50, before } = req.query;
     const dm = await DirectMessage.findById(req.params.id);
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
-    const messages = await Message.find({ channel: null, directMessage: dm._id }).populate('author', 'username avatar').sort({ createdAt: -1 }).limit(50).exec();
+
+    let query = { channel: null, directMessage: dm._id };
+    if (before) query.createdAt = { $lt: new Date(before) };
+
+    const messages = await Message.find(query)
+      .populate('author', 'username avatar')
+      .populate('mentions', 'username avatar')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .exec();
     res.json(messages.reverse());
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -60,6 +70,17 @@ router.post('/:id/messages', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) dm.participants.forEach(participantId => { io.to(`user-${participantId}`).emit('new-message', message); });
     res.status(201).json(message);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.get('/:id/pins', auth, async (req, res) => {
+  try {
+    const dmId = req.params.id;
+    const pins = await Message.find({ directMessage: dmId, pinned: true })
+      .populate('author', 'username avatar')
+      .populate('mentions', 'username avatar')
+      .sort({ pinnedAt: -1 });
+    res.json(pins);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

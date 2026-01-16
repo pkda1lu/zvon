@@ -57,6 +57,13 @@ const messageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  pinned: {
+    type: Boolean,
+    default: false
+  },
+  pinnedAt: {
+    type: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now

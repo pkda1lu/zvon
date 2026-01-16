@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
 import { Message, User } from '../types';
 import { SOUNDS, soundManager } from '../utils/sounds';
+import { getAvatarUrl } from '../utils/avatar';
 
 export interface InboxItem {
     id: string;
@@ -62,6 +63,30 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('zvon_inbox', JSON.stringify(items));
     }, [items]);
 
+    useEffect(() => {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    const sendNativeNotification = useCallback((title: string, body: string, iconUrl?: string | null) => {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+        // Don't show if window is focused (optional, but requested "all in windows")
+        // if (document.hasFocus()) return;
+
+        const notification = new Notification(title, {
+            body,
+            icon: iconUrl ? iconUrl : undefined,
+            silent: true // We use our own sound manager
+        });
+
+        notification.onclick = () => {
+            window.focus();
+            // Optional: navigate to the item
+        };
+    }, []);
+
     const addItem = useCallback((item: Omit<InboxItem, 'id' | 'timestamp' | 'read'>) => {
         const newItem: InboxItem = {
             ...item,
@@ -79,10 +104,15 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             avatar: item.author?.avatar || undefined,
             onClick: () => {
                 // Clicking toast could open inbox or directly the item
-                // For now, let's keep it simple
             }
         });
-    }, [addNotification]);
+
+        sendNativeNotification(
+            item.title,
+            item.content,
+            item.author?.avatar ? getAvatarUrl(item.author.avatar) : null
+        );
+    }, [addNotification, sendNativeNotification]);
 
     const markAsRead = useCallback((id: string) => {
         setItems(prev => prev.map(item => item.id === id ? { ...item, read: true } : item));

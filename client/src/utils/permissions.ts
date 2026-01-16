@@ -17,6 +17,7 @@ export const Permissions = {
     READ_MESSAGE_HISTORY: 1n << 16n,
     MENTION_EVERYONE: 1n << 17n,
     ADD_REACTIONS: 1n << 20n,
+    PIN_MESSAGES: 1n << 25n,
 
     // Voice Permissions
     CONNECT: 1n << 21n,

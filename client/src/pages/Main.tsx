@@ -68,6 +68,9 @@ const Main: React.FC = () => {
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const isResizingRef = useRef(false);
   const hasViewInitializedRef = useRef(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -191,15 +194,57 @@ const Main: React.FC = () => {
     try {
       const response = await axios.get(`/api/messages/channel/${channelId}`);
       setMessages(response.data);
+      setHasMore(response.data.length === 50);
+
+      const pinsRes = await axios.get(`/api/messages/channel/${channelId}/pins`);
+      setPinnedMessages(pinsRes.data);
     } catch (error) { }
   }, []);
+
+  const loadMoreMessages = useCallback(async () => {
+    if (!selectedChannel || isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    try {
+      const lastMessage = messages[0];
+      const response = await axios.get(`/api/messages/channel/${selectedChannel._id}`, {
+        params: { before: lastMessage.createdAt }
+      });
+      if (response.data.length > 0) {
+        setMessages(prev => [...response.data, ...prev]);
+        setHasMore(response.data.length === 50);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) { } finally { setIsLoadingMore(false); }
+  }, [selectedChannel, messages, isLoadingMore, hasMore]);
 
   const fetchDMMessages = useCallback(async (dmId: string) => {
     try {
       const response = await axios.get(`/api/direct-messages/${dmId}/messages`);
       setDmMessages(response.data);
+      setHasMore(response.data.length === 50);
+
+      const pinsRes = await axios.get(`/api/direct-messages/${dmId}/pins`);
+      setPinnedMessages(pinsRes.data);
     } catch (error) { }
   }, []);
+
+  const loadMoreDMMessages = useCallback(async () => {
+    if (!selectedDM || isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    try {
+      const lastMessage = dmMessages[0];
+      const response = await axios.get(`/api/direct-messages/${selectedDM._id}/messages`, {
+        params: { before: lastMessage.createdAt }
+      });
+      if (response.data.length > 0) {
+        setDmMessages(prev => [...response.data, ...prev]);
+        setHasMore(response.data.length === 50);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) { } finally { setIsLoadingMore(false); }
+  }, [selectedDM, dmMessages, isLoadingMore, hasMore]);
 
   useEffect(() => { fetchServers(); }, [fetchServers]);
 
@@ -324,6 +369,21 @@ const Main: React.FC = () => {
     };
     socket.on('new-message', handleGlobalMessage);
     return () => { socket.off('new-message', handleGlobalMessage); };
+    const handleMessagePinnedUpdate = (message: Message) => {
+      setMessages(prev => prev.map(m => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
+      setDmMessages(prev => prev.map(m => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
+
+      if (message.pinned) {
+        setPinnedMessages(prev => {
+          if (prev.some(p => p._id === message._id)) return prev;
+          return [message, ...prev].sort((a, b) => new Date(b.pinnedAt!).getTime() - new Date(a.pinnedAt!).getTime());
+        });
+      } else {
+        setPinnedMessages(prev => prev.filter(p => p._id !== message._id));
+      }
+    };
+    socket.on('message-pinned-update', handleMessagePinnedUpdate);
+    return () => { socket.off('message-pinned-update', handleMessagePinnedUpdate); };
   }, [socket, user, selectedChannel?._id, selectedDM?._id, servers, addNotification]);
 
   useEffect(() => {
@@ -455,7 +515,11 @@ const Main: React.FC = () => {
             messages={messages}
             socket={socket}
             onUserClick={handleUserClick}
-            initialUnreadCount={initialUnreadCount}
+            initialUnreadCount={unreadCounts[selectedChannel._id]}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={loadMoreMessages}
+            pinnedMessages={pinnedMessages}
           />
         ) : (
           <VoiceChannelView
@@ -479,7 +543,11 @@ const Main: React.FC = () => {
           onClose={() => { setSelectedDM(null); setShowFriends(true); }}
           onStartCall={handleStartDirectCall}
           onUserClick={handleUserClick}
-          initialUnreadCount={initialUnreadCount}
+          initialUnreadCount={unreadCounts[selectedDM._id]}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          onLoadMore={loadMoreDMMessages}
+          pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
         />
       )}
       {!selectedChannel && !selectedDM && !showFriends && (

@@ -2,13 +2,17 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Message = require('../models/Message');
+const Server = require('../models/Server');
+const Channel = require('../models/Channel');
+const { computePermissions, hasPermission } = require('../utils/permissionCalculator');
+const { Permissions } = require('../utils/permissions');
 
 router.get('/channel/:channelId', auth, async (req, res) => {
   try {
     const { limit = 50, before } = req.query;
     let query = { channel: req.params.channelId };
     if (before) query.createdAt = { $lt: new Date(before) };
-    const messages = await Message.find(query).populate('author', 'username avatar').populate('replyTo').sort({ createdAt: -1 }).limit(parseInt(limit)).exec();
+    const messages = await Message.find(query).populate('author', 'username avatar').populate('replyTo').populate('mentions', 'username avatar').sort({ createdAt: -1 }).limit(parseInt(limit)).exec();
     res.json(messages.reverse());
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -46,6 +50,65 @@ router.delete('/:id', auth, async (req, res) => {
     if (message.author.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Access denied' });
     await Message.findByIdAndDelete(req.params.id);
     res.json({ message: 'Message deleted' });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.get('/channel/:channelId/pins', auth, async (req, res) => {
+  try {
+    const pins = await Message.find({ channel: req.params.channelId, pinned: true })
+      .populate('author', 'username avatar')
+      .populate('mentions', 'username avatar')
+      .sort({ pinnedAt: -1 });
+    res.json(pins);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.patch('/:id/pin', auth, async (req, res) => {
+  try {
+    const message = await Message.findById(req.params.id);
+    if (!message) return res.status(404).json({ message: 'Message not found' });
+
+    if (message.channel) {
+      const channel = await Channel.findById(message.channel);
+      const server = await Server.findById(channel?.server);
+      if (server) {
+        const perms = computePermissions(req.user._id, server, channel);
+        if (!hasPermission(perms, Permissions.PIN_MESSAGES)) {
+          return res.status(403).json({ message: 'У вас нет прав для закрепления сообщений' });
+        }
+      }
+    }
+
+    message.pinned = !message.pinned;
+    if (message.pinned) {
+      message.pinnedAt = new Date();
+    } else {
+      message.pinnedAt = undefined;
+    }
+
+    await message.save();
+    await message.populate('author', 'username avatar');
+
+    const io = req.app.get('io');
+    if (io) {
+      const room = message.channel ? `channel-${message.channel}` : `dm-${message.directMessage}`;
+      // Note: dm- room name might be different, but in server.js it seems to use user specific rooms or channels
+      // but Message objects have channel or directMessage IDs.
+      if (message.channel) {
+        io.to(`channel-${message.channel}`).emit('message-pinned-update', message);
+      } else {
+        // For DMs, we notify participants
+        const DirectMessage = require('../models/DirectMessage');
+        const dm = await DirectMessage.findById(message.directMessage);
+        if (dm) {
+          dm.participants.forEach(p => {
+            io.to(`user-${p}`).emit('message-pinned-update', message);
+          });
+        }
+      }
+    }
+
+    res.json(message);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

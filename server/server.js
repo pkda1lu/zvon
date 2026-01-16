@@ -202,15 +202,30 @@ io.on('connection', (socket) => {
           const channel = await Channel.findById(data.channelId);
           const server = await Server.findById(channel?.server);
           if (server) {
+            const perms = computePermissions(socket.userId, server, channel);
+            const canMentionEveryone = hasPermission(perms, Permissions.MENTION_EVERYONE);
+
             server.roles.forEach(role => {
               if (message.content.includes(`@${role.name}`)) {
-                server.members.forEach(member => {
-                  if (member.roles.some(r => String(r) === String(role._id))) {
-                    foundMentions.push(member.user);
-                  }
-                });
+                // If it's a role mention, verify permission or if role is mentionable
+                if (canMentionEveryone || role.mentionable) {
+                  server.members.forEach(member => {
+                    if (member.roles.some(r => String(r) === String(role._id))) {
+                      foundMentions.push(member.user);
+                    }
+                  });
+                }
               }
             });
+
+            // Handle @everyone and @here
+            if (message.content.includes('@everyone') || message.content.includes('@here')) {
+              if (canMentionEveryone) {
+                server.members.forEach(member => {
+                  foundMentions.push(member.user);
+                });
+              }
+            }
           }
         }
 

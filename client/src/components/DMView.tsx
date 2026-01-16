@@ -4,15 +4,12 @@ import { DirectMessage, Message, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { PhoneIcon, DocumentIcon, PlusIcon, DownloadIcon } from './Icons';
+import { PhoneIcon, DocumentIcon, PlusIcon, DownloadIcon, PinIcon, ArrowDownIcon } from './Icons';
 import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
-import './DMView.css';
-import './Attachments.css';
-
 interface DMViewProps {
   dm: DirectMessage;
   messages: Message[];
@@ -21,9 +18,16 @@ interface DMViewProps {
   onStartCall: (user: User, dmId: string) => void;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   initialUnreadCount?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => Promise<void>;
+  pinnedMessages?: Message[];
 }
 
-const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartCall, onUserClick, initialUnreadCount = 0 }) => {
+const DMView: React.FC<DMViewProps> = ({
+  dm, messages, socket, onClose, onStartCall, onUserClick, initialUnreadCount = 0,
+  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = []
+}) => {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -43,6 +47,8 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [friends, setFriends] = useState<User[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showPins, setShowPins] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   const otherUser = dm.participants.find(p => p._id !== user?._id);
 
@@ -222,9 +228,20 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
     return parts.map((part, i) => {
       if (part.startsWith('@')) {
         const name = part.substring(1);
-        const isUserMention = mentions.some(m => m.username === name);
-        if (isUserMention) {
-          return <span key={i} className="mention-tag user-mention">{part}</span>;
+        const userMention = mentions.find(m => m.username === name);
+        if (userMention) {
+          return (
+            <span
+              key={i}
+              className="mention-tag user-mention"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUserClick(userMention._id, e);
+              }}
+            >
+              {part}
+            </span>
+          );
         }
       }
       return part;
@@ -254,10 +271,37 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
         if (isNearBottom) {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        } else {
+          setShowScrollBottom(true);
         }
       }
     }
   }, [messages, hasScrolledToNew]);
+
+  const handleScroll = async () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    setShowScrollBottom(!isAtBottom);
+
+    if (container.scrollTop < 50 && hasMore && !isLoadingMore && onLoadMore) {
+      const oldScrollHeight = container.scrollHeight;
+      await onLoadMore();
+      if (container) {
+        container.scrollTop = container.scrollHeight - oldScrollHeight;
+      }
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setShowScrollBottom(false);
+  };
+
+  const handleTogglePin = (messageId: string) => {
+    axios.patch(`/api/messages/${messageId}/pin`);
+  };
 
   return (
     <div
@@ -304,9 +348,40 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
           <button className="voice-call-button" onClick={() => otherUser && onStartCall(otherUser, dm._id)} title="Начать голосовой звонок">
             <PhoneIcon />
           </button>
+          <button className="voice-call-button" onClick={() => setShowPins(!showPins)} title="Закрепленные сообщения">
+            <PinIcon size={20} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
+          </button>
         </div>
 
-        <div className="messages-container" ref={scrollContainerRef}>
+        <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
+          {showPins && (
+            <div className="pins-overlay" onClick={() => setShowPins(false)}>
+              <div className="pins-modal glass-panel-base" onClick={e => e.stopPropagation()}>
+                <div className="pins-header">
+                  <h3>Закрепленные сообщения</h3>
+                  <button className="close-pins" onClick={() => setShowPins(false)}>×</button>
+                </div>
+                <div className="pins-list">
+                  {pinnedMessages.length === 0 ? (
+                    <div className="empty-pins">Нет закрепленных сообщений</div>
+                  ) : (
+                    pinnedMessages.map(msg => (
+                      <div key={msg._id} className="pin-item">
+                        <div className="pin-author">
+                          <img src={getAvatarUrl(msg.author.avatar) || ''} alt="" />
+                          <span className="pin-name">{msg.author.username}</span>
+                          <span className="pin-date">{formatDate(msg.createdAt)}</span>
+                        </div>
+                        <div className="pin-content">{msg.content}</div>
+                        <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {isLoadingMore && <div className="loading-more">Загрузка...</div>}
           <div className="messages-list">
             {messages.map((msg, idx) => {
               const prev = messages[idx - 1];
@@ -359,8 +434,29 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                           <div className="message-header">
                             <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
                             <span className="message-time">{formatDate(msg.createdAt)}</span>
+                            <div className="message-actions-hover">
+                              <button
+                                className="msg-action-btn"
+                                onClick={() => handleTogglePin(msg._id)}
+                                title={msg.pinned ? "Открепить" : "Закрепить"}
+                              >
+                                <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                              </button>
+                            </div>
                           </div>
                         )}
+                        {grouped && (
+                          <div className="message-actions-hover mini">
+                            <button
+                              className="msg-action-btn mini"
+                              onClick={() => handleTogglePin(msg._id)}
+                            >
+                              <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                            </button>
+                          </div>
+                        )}
+                        {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
+
                         <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
 
                         {msg.attachments && msg.attachments.length > 0 && (
@@ -453,6 +549,12 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
             </button>
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
             <div style={{ flex: 1, position: 'relative' }}>
+              {showScrollBottom && (
+                <button className="scroll-bottom-btn" onClick={scrollToBottom}>
+                  <ArrowDownIcon size={20} />
+                  <span>Новые сообщения</span>
+                </button>
+              )}
               {showMentions && (
                 <MentionAutocomplete
                   query={mentionQuery}

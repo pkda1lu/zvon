@@ -40,6 +40,7 @@ const PermissionMetadata: Record<string, { label: string; description: string; c
     READ_MESSAGE_HISTORY: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Чтение истории сообщений', description: 'Позволяет видеть сообщения, отправленные до входа в канал.' },
     MENTION_EVERYONE: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Упоминание @everyone', description: 'Позволяет использовать теги @everyone и @here для уведомления всех.' },
     ADD_REACTIONS: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Добавление реакций', description: 'Позволяет ставить эмодзи-реакции на сообщения.' },
+    PIN_MESSAGES: { category: 'ТЕКСТОВЫЕ КАНАЛЫ', label: 'Закрепление сообщений', description: 'Позволяет закреплять и откреплять сообщения.' },
 
     CONNECT: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Подключение', description: 'Позволяет заходить в голосовые каналы.' },
     SPEAK: { category: 'ГОЛОСОВЫЕ КАНАЛЫ', label: 'Говорить', description: 'Позволяет говорить в голосовых каналах.' },

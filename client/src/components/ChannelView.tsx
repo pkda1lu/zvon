@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Socket } from 'socket.io-client';
 import { Channel, Message, Server, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon } from './Icons';
 import './ChannelView.css';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
@@ -13,6 +13,7 @@ import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
 import { Role } from '../types';
+import { computePermissions, hasPermission, Permissions } from '../utils/permissions';
 
 interface ChannelViewProps {
   channel: Channel;
@@ -21,11 +22,27 @@ interface ChannelViewProps {
   socket: Socket | null;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   initialUnreadCount?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => Promise<void>;
+  pinnedMessages?: Message[];
 }
 
-const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, socket, onUserClick, initialUnreadCount = 0 }) => {
+const ChannelView: React.FC<ChannelViewProps> = ({
+  channel, server, messages, socket, onUserClick, initialUnreadCount = 0,
+  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = []
+}) => {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
+
+  const userPermissions = useMemo(() => {
+    if (!user) return 0n;
+    return computePermissions(user._id, server, channel);
+  }, [user, server, channel]);
+
+  const canPin = hasPermission(userPermissions, Permissions.PIN_MESSAGES);
+  const canMentionEveryone = hasPermission(userPermissions, Permissions.MENTION_EVERYONE);
+
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -42,6 +59,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showPins, setShowPins] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const lastScrollTopRef = useRef(0);
 
   const handleContextMenu = (e: React.MouseEvent, user: User) => {
     e.preventDefault();
@@ -82,10 +102,40 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
         if (isNearBottom) {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        } else {
+          setShowScrollBottom(true);
         }
       }
     }
   }, [messages, hasScrolledToNew]);
+
+  const handleScroll = async () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Check for "scroll to bottom" button visibility
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    setShowScrollBottom(!isAtBottom);
+
+    // Load more when reaching top
+    if (container.scrollTop < 50 && hasMore && !isLoadingMore && onLoadMore) {
+      const oldScrollHeight = container.scrollHeight;
+      await onLoadMore();
+      // Restore scroll position after loading
+      if (container) {
+        container.scrollTop = container.scrollHeight - oldScrollHeight;
+      }
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setShowScrollBottom(false);
+  };
+
+  const handleTogglePin = (messageId: string) => {
+    axios.patch(`/api/messages/${messageId}/pin`);
+  };
 
   useEffect(() => {
     if (!socket) return;
@@ -189,13 +239,23 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
         const name = part.substring(1);
         const isUserMention = mentions.some(m => m.username === name);
         const role = server.roles?.find(r => r.name === name);
+        const isSpecialMention = name === 'everyone' || name === 'here';
 
-        if (isUserMention || role) {
+        if (isUserMention || role || isSpecialMention) {
+          const userMention = mentions.find(m => m.username === name);
+          const color = role ? role.color : (isSpecialMention ? 'var(--primary-neon)' : 'inherit');
+
           return (
             <span
               key={i}
-              className={`mention-tag ${role ? 'role-mention' : 'user-mention'}`}
-              style={role ? { color: role.color } : {}}
+              className={`mention-tag ${role ? 'role-mention' : (isSpecialMention ? 'special-mention' : 'user-mention')}`}
+              style={color !== 'inherit' ? { color: color } : {}}
+              onClick={(e) => {
+                if (userMention) {
+                  e.stopPropagation();
+                  onUserClick(userMention._id, e);
+                }
+              }}
             >
               {part}
             </span>
@@ -330,9 +390,46 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
           <h3>{channel.name}</h3>
         </div>
         {channel.topic && <div className="channel-topic">{channel.topic}</div>}
+        <div style={{ flex: 1 }} />
+        <button
+          className="header-action-btn"
+          onClick={() => setShowPins(!showPins)}
+          title="Закрепленные сообщения"
+        >
+          <PinIcon size={20} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
+        </button>
       </div>
 
-      <div className="messages-container" ref={scrollContainerRef}>
+      <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
+        {showPins && (
+          <div className="pins-overlay" onClick={() => setShowPins(false)}>
+            <div className="pins-modal glass-panel-base" onClick={e => e.stopPropagation()}>
+              <div className="pins-header">
+                <h3>Закрепленные сообщения</h3>
+                <button className="close-pins" onClick={() => setShowPins(false)}>×</button>
+              </div>
+              <div className="pins-list">
+                {pinnedMessages.length === 0 ? (
+                  <div className="empty-pins">Нет закрепленных сообщений</div>
+                ) : (
+                  pinnedMessages.map(msg => (
+                    <div key={msg._id} className="pin-item">
+                      <div className="pin-author">
+                        <img src={getAvatarUrl(msg.author.avatar) || ''} alt="" />
+                        <span className="pin-name">{msg.author.username}</span>
+                        <span className="pin-date">{formatDate(msg.createdAt)}</span>
+                      </div>
+                      <div className="pin-content">{msg.content}</div>
+                      <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isLoadingMore && <div className="loading-more">Загрузка...</div>}
         <div className="messages-list">
           {messages.map((msg, index) => {
             const prev = messages[index - 1];
@@ -382,6 +479,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                           <span className="message-time">{formatDate(msg.createdAt)}</span>
                         </div>
                         <div className="message-actions-hover">
+                          {canPin && (
+                            <button
+                              className="msg-action-btn"
+                              onClick={() => handleTogglePin(msg._id)}
+                              title={msg.pinned ? "Открепить" : "Закрепить"}
+                            >
+                              <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                            </button>
+                          )}
                           {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
                             <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={16} /></button>
                           )}
@@ -391,11 +497,22 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
 
                     {grouped && (
                       <div className="message-actions-hover mini">
+                        {canPin && (
+                          <button
+                            className="msg-action-btn mini"
+                            onClick={() => handleTogglePin(msg._id)}
+                          >
+                            <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                          </button>
+                        )}
                         {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
                           <button className="msg-action-btn danger mini" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={14} /></button>
                         )}
                       </div>
                     )}
+
+                    {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
+
 
                     <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
                     {msg.attachments && msg.attachments.length > 0 && (
@@ -477,12 +594,22 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
           <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()}><PlusIcon /></button>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
           <div style={{ flex: 1, position: 'relative' }}>
+            {showScrollBottom && (
+              <button className="scroll-bottom-btn" onClick={scrollToBottom}>
+                <ArrowDownIcon size={20} />
+                <span>Новые сообщения</span>
+              </button>
+            )}
             {showMentions && (
               <MentionAutocomplete
                 query={mentionQuery}
                 items={[
                   ...server.members.map(m => m.user),
-                  ...(server.roles || [])
+                  ...(server.roles || []).filter(r => canMentionEveryone || r.mentionable),
+                  ...(canMentionEveryone ? [
+                    { _id: 'everyone', name: 'everyone', color: 'var(--primary-neon)' } as any,
+                    { _id: 'here', name: 'here', color: 'var(--primary-neon)' } as any
+                  ] : [])
                 ]}
                 onSelect={handleMentionSelect}
                 onClose={() => setShowMentions(false)}
