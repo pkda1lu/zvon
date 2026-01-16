@@ -337,6 +337,7 @@ const Main: React.FC = () => {
 
   useEffect(() => {
     if (!socket || !user) return;
+    const s = socket;
     const handleGlobalMessage = (message: Message) => {
       if (message.author._id !== user._id) {
         const isSelected = (selectedChannel && message.channel === selectedChannel._id) || (selectedDM && message.directMessage === selectedDM._id);
@@ -367,8 +368,8 @@ const Main: React.FC = () => {
         }
       }
     };
-    socket.on('new-message', handleGlobalMessage);
-    return () => { socket.off('new-message', handleGlobalMessage); };
+    s.on('new-message', handleGlobalMessage);
+
     const handleMessagePinnedUpdate = (message: Message) => {
       setMessages(prev => prev.map(m => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
       setDmMessages(prev => prev.map(m => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
@@ -382,37 +383,44 @@ const Main: React.FC = () => {
         setPinnedMessages(prev => prev.filter(p => p._id !== message._id));
       }
     };
-    socket.on('message-pinned-update', handleMessagePinnedUpdate);
-    return () => { socket.off('message-pinned-update', handleMessagePinnedUpdate); };
+
+    s.on('message-pinned-update', handleMessagePinnedUpdate);
+
+    return () => {
+      s.off('new-message', handleGlobalMessage);
+      s.off('message-pinned-update', handleMessagePinnedUpdate);
+    };
   }, [socket, user, selectedChannel?._id, selectedDM?._id, servers, addNotification]);
 
   useEffect(() => {
     if (!selectedChannel || !socket) return;
+    const s = socket;
     if (selectedChannel.type === 'text') {
       setMessages([]); setSelectedDM(null);
-      socket.emit('join-channel', selectedChannel._id);
+      s.emit('join-channel', selectedChannel._id);
       fetchMessages(selectedChannel._id);
       const handleNewMessage = (message: Message) => { if (message.channel === selectedChannel._id) setMessages((prev) => [...prev, message]); };
       const handleMessageDeleted = (messageId: string) => setMessages((prev) => prev.filter(m => m._id !== messageId));
-      socket.on('new-message', handleNewMessage);
-      socket.on('message-deleted', handleMessageDeleted);
+      s.on('new-message', handleNewMessage);
+      s.on('message-deleted', handleMessageDeleted);
       return () => {
-        socket.emit('leave-channel', selectedChannel._id);
-        socket.off('new-message', handleNewMessage);
-        socket.off('message-deleted', handleMessageDeleted);
+        s.emit('leave-channel', selectedChannel._id);
+        s.off('new-message', handleNewMessage);
+        s.off('message-deleted', handleMessageDeleted);
       };
     } else { setMessages([]); setSelectedDM(null); }
   }, [selectedChannel, socket, fetchMessages]);
 
   useEffect(() => {
     if (!selectedDM || !socket) return;
+    const s = socket;
     setDmMessages([]); setSelectedChannel(null);
     fetchDMMessages(selectedDM._id);
     const handleNewMessage = (message: Message) => { if (message.directMessage === selectedDM._id) setDmMessages((prev) => [...prev, message]); };
     const handleMessageDeleted = (messageId: string) => setDmMessages((prev) => prev.filter(m => m._id !== messageId));
-    socket.on('new-message', handleNewMessage);
-    socket.on('message-deleted', handleMessageDeleted);
-    return () => { socket.off('new-message', handleNewMessage); socket.off('message-deleted', handleMessageDeleted); };
+    s.on('new-message', handleNewMessage);
+    s.on('message-deleted', handleMessageDeleted);
+    return () => { s.off('new-message', handleNewMessage); s.off('message-deleted', handleMessageDeleted); };
   }, [selectedDM, socket, fetchDMMessages]);
 
   const handleCreateServer = async (name: string) => {
