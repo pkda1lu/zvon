@@ -9,6 +9,7 @@ import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
+import MentionAutocomplete from './MentionAutocomplete';
 import './DMView.css';
 import './Attachments.css';
 
@@ -37,6 +38,11 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   const [hasScrolledToNew, setHasScrolledToNew] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [friends, setFriends] = useState<User[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const otherUser = dm.participants.find(p => p._id !== user?._id);
 
@@ -161,7 +167,69 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
   };
   useEffect(() => {
     setHasScrolledToNew(false);
+    fetchFriends();
   }, [dm._id]);
+
+  const fetchFriends = async () => {
+    try {
+      const response = await axios.get('/api/friends');
+      setFriends(response.data);
+    } catch (e) { }
+  };
+
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessage(value);
+
+    const cursorPosition = e.target.selectionStart || 0;
+    const textBeforeCursor = value.substring(0, cursorPosition);
+    const lastAtSignIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtSignIndex !== -1) {
+      const query = textBeforeCursor.substring(lastAtSignIndex + 1);
+      if (!query.includes(' ')) {
+        setShowMentions(true);
+        setMentionQuery(query);
+        setMentionStartIndex(lastAtSignIndex);
+      } else {
+        setShowMentions(false);
+      }
+    } else {
+      setShowMentions(false);
+    }
+
+    if (!socket) return;
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    socket.emit('typing-start', { dmId: dm._id });
+    typingTimeoutRef.current = setTimeout(() => { socket.emit('typing-stop', { dmId: dm._id }); }, 3000);
+  };
+
+  const handleMentionSelect = (item: any) => {
+    const name = item.username;
+    const before = message.substring(0, mentionStartIndex);
+    const after = message.substring(mentionStartIndex + mentionQuery.length + 1);
+
+    const newMessage = `${before}@${name} ${after}`;
+    setMessage(newMessage);
+    setShowMentions(false);
+
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const renderMessageContent = (content: string, mentions: User[] = []) => {
+    if (!content) return null;
+    const parts = content.split(/(@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        const name = part.substring(1);
+        const isUserMention = mentions.some(m => m.username === name);
+        if (isUserMention) {
+          return <span key={i} className="mention-tag user-mention">{part}</span>;
+        }
+      }
+      return part;
+    });
+  };
 
   useEffect(() => {
     if (messages.length > 0 && !hasScrolledToNew) {
@@ -293,7 +361,7 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
                             <span className="message-time">{formatDate(msg.createdAt)}</span>
                           </div>
                         )}
-                        <div className="message-text">{msg.content}</div>
+                        <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
 
                         {msg.attachments && msg.attachments.length > 0 && (
                           <div className="message-attachments">
@@ -384,13 +452,25 @@ const DMView: React.FC<DMViewProps> = ({ dm, messages, socket, onClose, onStartC
               <PlusIcon />
             </button>
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
-            <input
-              type="text"
-              placeholder={`Написать ${otherUser?.username}...`}
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              className="message-input"
-            />
+            <div style={{ flex: 1, position: 'relative' }}>
+              {showMentions && (
+                <MentionAutocomplete
+                  query={mentionQuery}
+                  items={friends}
+                  onSelect={handleMentionSelect}
+                  onClose={() => setShowMentions(false)}
+                />
+              )}
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder={`Написать ${otherUser?.username}...`}
+                value={message}
+                onChange={handleTyping}
+                className="message-input"
+                style={{ width: '100%' }}
+              />
+            </div>
             <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>
               Отправить
             </button>

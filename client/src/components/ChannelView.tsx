@@ -11,6 +11,8 @@ import MemberContextMenu from './MemberContextMenu';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
+import MentionAutocomplete from './MentionAutocomplete';
+import { Role } from '../types';
 
 interface ChannelViewProps {
   channel: Channel;
@@ -36,6 +38,10 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   const [hasScrolledToNew, setHasScrolledToNew] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleContextMenu = (e: React.MouseEvent, user: User) => {
     e.preventDefault();
@@ -132,11 +138,72 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
   };
 
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setMessage(e.target.value);
+    const value = e.target.value;
+    setMessage(value);
+
+    const cursorPosition = e.target.selectionStart || 0;
+    const textBeforeCursor = value.substring(0, cursorPosition);
+    const lastAtSignIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtSignIndex !== -1) {
+      const query = textBeforeCursor.substring(lastAtSignIndex + 1);
+      // Valid query: no spaces between @ and cursor
+      if (!query.includes(' ')) {
+        setShowMentions(true);
+        setMentionQuery(query);
+        setMentionStartIndex(lastAtSignIndex);
+      } else {
+        setShowMentions(false);
+      }
+    } else {
+      setShowMentions(false);
+    }
+
     if (!socket) return;
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-start', { channelId: channel._id });
     typingTimeoutRef.current = setTimeout(() => { socket.emit('typing-stop', { channelId: channel._id }); }, 3000);
+  };
+
+  const handleMentionSelect = (item: User | Role) => {
+    const isUser = 'username' in item;
+    const name = isUser ? item.username : item.name;
+    const before = message.substring(0, mentionStartIndex);
+
+    // Find where the mention query ends (at cursor or next space)
+    const after = message.substring(mentionStartIndex + mentionQuery.length + 1);
+
+    const newMessage = `${before}@${name} ${after}`;
+    setMessage(newMessage);
+    setShowMentions(false);
+
+    // Return focus to input
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const renderMessageContent = (content: string, mentions: User[] = []) => {
+    if (!content) return null;
+    const parts = content.split(/(@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        const name = part.substring(1);
+        const isUserMention = mentions.some(m => m.username === name);
+        const role = server.roles?.find(r => r.name === name);
+
+        if (isUserMention || role) {
+          return (
+            <span
+              key={i}
+              className={`mention-tag ${role ? 'role-mention' : 'user-mention'}`}
+              style={role ? { color: role.color } : {}}
+            >
+              {part}
+            </span>
+          );
+        }
+      }
+      return part;
+    });
   };
 
   const removeAttachment = (index: number) => setAttachments(prev => prev.filter((_, i) => i !== index));
@@ -330,7 +397,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
                       </div>
                     )}
 
-                    <div className="message-text">{msg.content}</div>
+                    <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="message-attachments">
                         {msg.attachments.map((att, i) => (
@@ -409,7 +476,28 @@ const ChannelView: React.FC<ChannelViewProps> = ({ channel, server, messages, so
         <form onSubmit={handleSendMessage} className="message-form">
           <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()}><PlusIcon /></button>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
-          <input type="text" placeholder={`Написать в #${channel.name}`} value={message} onChange={handleTyping} className="message-input" />
+          <div style={{ flex: 1, position: 'relative' }}>
+            {showMentions && (
+              <MentionAutocomplete
+                query={mentionQuery}
+                items={[
+                  ...server.members.map(m => m.user),
+                  ...(server.roles || [])
+                ]}
+                onSelect={handleMentionSelect}
+                onClose={() => setShowMentions(false)}
+              />
+            )}
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder={`Написать в #${channel.name}`}
+              value={message}
+              onChange={handleTyping}
+              className="message-input"
+              style={{ width: '100%' }}
+            />
+          </div>
           <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>Отправить</button>
         </form>
       </div>

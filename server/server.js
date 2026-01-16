@@ -176,15 +176,18 @@ io.on('connection', (socket) => {
 
       // Parse mentions
       if (message.content) {
-        const mentionRegex = /@(\w+)/g;
-        let match;
         const foundMentions = [];
-        while ((match = mentionRegex.exec(message.content)) !== null) {
-          const username = match[1];
+
+        // Handle User Mentions
+        const userMentionRegex = /@(\w+)/g;
+        let userMatch;
+        while ((userMatch = userMentionRegex.exec(message.content)) !== null) {
+          const username = userMatch[1];
           const mentionedUser = await User.findOne({ username });
           if (mentionedUser) {
             if (data.channelId) {
-              const server = await Server.findById(data.channelId ? (await Channel.findById(data.channelId)).server : null);
+              const channel = await Channel.findById(data.channelId);
+              const server = await Server.findById(channel?.server);
               if (server && server.members.some(m => String(m.user) === String(mentionedUser._id))) {
                 foundMentions.push(mentionedUser._id);
               }
@@ -193,8 +196,26 @@ io.on('connection', (socket) => {
             }
           }
         }
+
+        // Handle Role Mentions (only in channels)
+        if (data.channelId) {
+          const channel = await Channel.findById(data.channelId);
+          const server = await Server.findById(channel?.server);
+          if (server) {
+            server.roles.forEach(role => {
+              if (message.content.includes(`@${role.name}`)) {
+                server.members.forEach(member => {
+                  if (member.roles.some(r => String(r) === String(role._id))) {
+                    foundMentions.push(member.user);
+                  }
+                });
+              }
+            });
+          }
+        }
+
         if (foundMentions.length > 0) {
-          message.mentions = [...new Set(foundMentions)];
+          message.mentions = [...new Set(foundMentions.map(id => String(id)))];
         }
       }
 

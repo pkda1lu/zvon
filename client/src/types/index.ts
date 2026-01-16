@@ -102,6 +102,7 @@ export interface Message {
     emoji: string;
     users: string[];
   }>;
+  mentions?: User[];
   replyTo?: Message;
   type?: 'default' | 'missed-call' | 'call-ended';
   createdAt: string;

@@ -294,15 +294,21 @@ const Main: React.FC = () => {
     if (!socket || !user) return;
     const handleGlobalMessage = (message: Message) => {
       if (message.author._id !== user._id) {
-        soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
-        if (!(selectedChannel && message.channel === selectedChannel._id) && !(selectedDM && message.directMessage === selectedDM._id)) {
+        const isSelected = (selectedChannel && message.channel === selectedChannel._id) || (selectedDM && message.directMessage === selectedDM._id);
+
+        if (!isSelected) {
           const id = message.directMessage || message.channel;
           if (id) setUnreadCounts(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-          addNotification({
-            title: message.author.username, content: message.content, type: 'message', avatar: message.author.avatar || undefined,
-            onClick: () => {
-              if (message.directMessage) window.dispatchEvent(new CustomEvent('start-dm-by-id', { detail: { dmId: message.directMessage } }));
-              else if (message.channel) {
+
+          // Only show old toast for channel messages WITHOUT mentions of current user. 
+          // DMs and Mentions are now handled by InboxContext (persistent + new toast).
+          const isMentioned = message.mentions?.some(m => m._id === user._id);
+
+          if (!message.directMessage && !isMentioned) {
+            soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
+            addNotification({
+              title: message.author.username, content: message.content, type: 'message', avatar: message.author.avatar || undefined,
+              onClick: () => {
                 const server = servers.find(s => s.channels.some(c => c._id === message.channel));
                 if (server) {
                   setSelectedServer(server);
@@ -311,8 +317,8 @@ const Main: React.FC = () => {
                   setShowFriends(false); setSelectedDM(null);
                 }
               }
-            }
-          });
+            });
+          }
         }
       }
     };

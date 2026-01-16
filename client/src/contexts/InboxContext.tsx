@@ -153,35 +153,14 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
         };
 
-        const handleNewMessage = (message: Message) => {
-            if (message.author._id !== user._id && message.directMessage) {
-                addItem({
-                    type: 'dm',
-                    title: `Личное сообщение от ${message.author.username}`,
-                    content: message.content,
-                    author: {
-                        _id: message.author._id,
-                        username: message.author.username,
-                        avatar: message.author.avatar || null
-                    },
-                    link: {
-                        dmId: message.directMessage as string
-                    },
-                    data: message
-                });
-            }
-        };
-
         socket.on('mention', handleMention);
         socket.on('friend-request', handleFriendRequest);
         socket.on('friend-request-accepted', handleFriendRequestAccepted);
-        socket.on('new-message', handleNewMessage);
 
         return () => {
             socket.off('mention', handleMention);
             socket.off('friend-request', handleFriendRequest);
             socket.off('friend-request-accepted', handleFriendRequestAccepted);
-            socket.off('new-message', handleNewMessage);
         };
     }, [socket, user, addItem]);
 
