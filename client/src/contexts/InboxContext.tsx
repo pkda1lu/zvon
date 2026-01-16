@@ -1,0 +1,203 @@
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import { useSocket } from './SocketContext';
+import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
+import { Message, User } from '../types';
+import { SOUNDS, soundManager } from '../utils/sounds';
+
+export interface InboxItem {
+    id: string;
+    type: 'mention' | 'dm' | 'friend_request';
+    title: string;
+    content: string;
+    timestamp: Date;
+    author?: {
+        _id: string;
+        username: string;
+        avatar: string | null;
+    };
+    link?: {
+        serverId?: string;
+        channelId?: string;
+        dmId?: string;
+    };
+    data?: any;
+    read: boolean;
+}
+
+interface InboxContextType {
+    items: InboxItem[];
+    unreadCount: number;
+    addItem: (item: Omit<InboxItem, 'id' | 'timestamp' | 'read'>) => void;
+    markAsRead: (id: string) => void;
+    markAllAsRead: () => void;
+    removeItem: (id: string) => void;
+    clearInbox: () => void;
+}
+
+const InboxContext = createContext<InboxContextType | undefined>(undefined);
+
+export const useInbox = () => {
+    const context = useContext(InboxContext);
+    if (!context) throw new Error('useInbox must be used within InboxProvider');
+    return context;
+};
+
+export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { socket } = useSocket();
+    const { user } = useAuth();
+    const { addNotification } = useNotifications();
+    const [items, setItems] = useState<InboxItem[]>(() => {
+        const saved = localStorage.getItem('zvon_inbox');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                return parsed.map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) }));
+            } catch (e) { return []; }
+        }
+        return [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('zvon_inbox', JSON.stringify(items));
+    }, [items]);
+
+    const addItem = useCallback((item: Omit<InboxItem, 'id' | 'timestamp' | 'read'>) => {
+        const newItem: InboxItem = {
+            ...item,
+            id: Math.random().toString(36).substring(2, 11),
+            timestamp: new Date(),
+            read: false
+        };
+        setItems(prev => [newItem, ...prev].slice(0, 50)); // Keep last 50 items
+        soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.4);
+
+        addNotification({
+            title: item.title,
+            content: item.content,
+            type: item.type === 'mention' ? 'message' : 'info',
+            avatar: item.author?.avatar || undefined,
+            onClick: () => {
+                // Clicking toast could open inbox or directly the item
+                // For now, let's keep it simple
+            }
+        });
+    }, [addNotification]);
+
+    const markAsRead = useCallback((id: string) => {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, read: true } : item));
+    }, []);
+
+    const markAllAsRead = useCallback(() => {
+        setItems(prev => prev.map(item => ({ ...item, read: true })));
+    }, []);
+
+    const removeItem = useCallback((id: string) => {
+        setItems(prev => prev.filter(item => item.id !== id));
+    }, []);
+
+    const clearInbox = useCallback(() => {
+        setItems([]);
+    }, []);
+
+    const unreadCount = useMemo(() => items.filter(i => !i.read).length, [items]);
+
+    useEffect(() => {
+        if (!socket || !user) return;
+
+        const handleMention = (message: Message) => {
+            addItem({
+                type: 'mention',
+                title: `@${user.username} упомянут в #${(message.channel as any)?.name || 'канале'}`,
+                content: message.content,
+                author: {
+                    _id: message.author._id,
+                    username: message.author.username,
+                    avatar: message.author.avatar || null
+                },
+                link: {
+                    serverId: (message.channel as any)?.server,
+                    channelId: message.channel as string
+                },
+                data: message
+            });
+        };
+
+        const handleFriendRequest = (friendship: any) => {
+            const requester = friendship.requester;
+            addItem({
+                type: 'friend_request',
+                title: 'Новый запрос в друзья',
+                content: `${requester.username} хочет добавить вас в друзья`,
+                author: {
+                    _id: requester._id,
+                    username: requester.username,
+                    avatar: requester.avatar || null
+                },
+                data: friendship
+            });
+        };
+
+        const handleFriendRequestAccepted = (friendship: any) => {
+            const other = friendship.recipient._id === user._id ? friendship.requester : friendship.recipient;
+            addItem({
+                type: 'friend_request',
+                title: 'Запрос в друзья принят',
+                content: `${other.username} принял ваш запрос в друзья`,
+                author: {
+                    _id: other._id,
+                    username: other.username,
+                    avatar: other.avatar || null
+                },
+                data: friendship
+            });
+        };
+
+        const handleNewMessage = (message: Message) => {
+            if (message.author._id !== user._id && message.directMessage) {
+                addItem({
+                    type: 'dm',
+                    title: `Личное сообщение от ${message.author.username}`,
+                    content: message.content,
+                    author: {
+                        _id: message.author._id,
+                        username: message.author.username,
+                        avatar: message.author.avatar || null
+                    },
+                    link: {
+                        dmId: message.directMessage as string
+                    },
+                    data: message
+                });
+            }
+        };
+
+        socket.on('mention', handleMention);
+        socket.on('friend-request', handleFriendRequest);
+        socket.on('friend-request-accepted', handleFriendRequestAccepted);
+        socket.on('new-message', handleNewMessage);
+
+        return () => {
+            socket.off('mention', handleMention);
+            socket.off('friend-request', handleFriendRequest);
+            socket.off('friend-request-accepted', handleFriendRequestAccepted);
+            socket.off('new-message', handleNewMessage);
+        };
+    }, [socket, user, addItem]);
+
+    const value = useMemo(() => ({
+        items,
+        unreadCount,
+        addItem,
+        markAsRead,
+        markAllAsRead,
+        removeItem,
+        clearInbox
+    }), [items, unreadCount, addItem, markAsRead, markAllAsRead, removeItem, clearInbox]);
+
+    return (
+        <InboxContext.Provider value={value}>
+            {children}
+        </InboxContext.Provider>
+    );
+};

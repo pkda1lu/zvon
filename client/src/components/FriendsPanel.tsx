@@ -56,8 +56,8 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
     const handleFriendshipAccepted = () => { fetchFriends(); if (activeTab === 'pending') fetchPendingRequests(); };
     socket.on('user-updated', handleUserUpdated);
     socket.on('friend-request', handleFriendRequest);
-    socket.on('friendship-accepted', handleFriendshipAccepted);
-    return () => { socket.off('user-updated', handleUserUpdated); socket.off('friend-request', handleFriendRequest); socket.off('friendship-accepted', handleFriendshipAccepted); };
+    socket.on('friend-request-accepted', handleFriendshipAccepted);
+    return () => { socket.off('user-updated', handleUserUpdated); socket.off('friend-request', handleFriendRequest); socket.off('friend-request-accepted', handleFriendshipAccepted); };
   }, [socket, activeTab]);
 
   const showMessage = (text: string, type: 'success' | 'error') => { setPanelMessage({ text, type }); setTimeout(() => setPanelMessage(null), 3000); };

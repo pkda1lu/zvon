@@ -3,7 +3,7 @@ import { User, Server } from '../types';
 import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
 import { getAvatarUrl } from '../utils/avatar';
-import { UsersIcon, PlusIcon, SettingsIcon } from './Icons';
+import { UsersIcon, PlusIcon, SettingsIcon, BellIcon } from './Icons';
 import ServerContextMenu from './ServerContextMenu';
 import './Sidebar.css';
 
@@ -21,6 +21,8 @@ interface SidebarProps {
   onOpenJoinModal: () => void;
   onOpenSettings: () => void;
   onOpenProfile: (userId: string, event?: React.MouseEvent) => void;
+  onToggleInbox: () => void;
+  inboxUnreadCount: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -36,7 +38,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onServerLeave,
   onOpenJoinModal,
   onOpenSettings,
-  onOpenProfile
+  onOpenProfile,
+  onToggleInbox,
+  inboxUnreadCount
 }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
 
@@ -57,6 +61,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="server-icon home-icon" onClick={onOpenJoinModal} title="Добавить сервер">
           <PlusIcon size={28} color="var(--primary-neon)" />
         </div>
+        <div className="server-icon inbox-sidebar-icon" onClick={onToggleInbox} title="Уведомления">
+          <BellIcon size={28} color="var(--secondary-neon)" />
+          {inboxUnreadCount > 0 && <div className="unread-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
+        </div>
+        <div className="sidebar-divider" />
         {servers.map((server) => (
           <div
             key={server._id}

@@ -53,6 +53,10 @@ const messageSchema = new mongoose.Schema({
     enum: ['default', 'missed-call', 'call-ended'],
     default: 'default'
   },
+  mentions: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   createdAt: {
     type: Date,
     default: Date.now

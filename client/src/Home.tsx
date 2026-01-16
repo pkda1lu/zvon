@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { VoiceProvider } from './contexts/VoiceContext';
+import { InboxProvider } from './contexts/InboxContext';
 import Main from './pages/Main';
 import Landing from './pages/Landing';
 
@@ -28,7 +29,9 @@ const Home: React.FC = () => {
     return (
         <SocketProvider>
             <VoiceProvider>
-                <Main />
+                <InboxProvider>
+                    <Main />
+                </InboxProvider>
             </VoiceProvider>
         </SocketProvider>
     );

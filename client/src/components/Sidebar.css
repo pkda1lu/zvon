@@ -57,16 +57,7 @@
   overflow: visible;
 }
 
-.unread-badge {
-  position: absolute;
-  bottom: 0px;
-  right: 0px;
-  width: 12px;
-  height: 12px;
-  background-color: #f23f43;
-  border-radius: 50%;
-  border: 3px solid var(--bg-tertiary);
-}
+
 
 .server-icon:hover {
   border-radius: 15px;
@@ -113,6 +104,46 @@
 .server-icon:hover img,
 .server-icon.active img {
   border-radius: 15px;
+}
+
+.sidebar-divider {
+  width: 32px;
+  height: 2px;
+  background: var(--glass-border);
+  border-radius: 1px;
+  margin: 8px 0;
+}
+
+.inbox-sidebar-icon {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+}
+
+.inbox-sidebar-icon:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--secondary-neon);
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(161, 85, 255, 0.3);
+}
+
+.unread-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  background-color: var(--accent-pink);
+  border-radius: 9px;
+  border: 2px solid var(--bg-dark);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 0 10px var(--accent-pink);
+  z-index: 10;
 }
 
 .home-icon {

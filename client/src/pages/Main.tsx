@@ -19,8 +19,10 @@ import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useInbox } from '../contexts/InboxContext';
 import JoinServerModal from '../components/JoinServerModal';
 import SettingsModal from '../components/SettingsModal';
+import Inbox from '../components/Inbox';
 import './Main.css';
 
 const Main: React.FC = () => {
@@ -28,6 +30,7 @@ const Main: React.FC = () => {
   const { socket } = useSocket();
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
+  const { unreadCount: inboxUnreadCount } = useInbox();
 
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
@@ -39,6 +42,7 @@ const Main: React.FC = () => {
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
   const [dmMessages, setDmMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showInbox, setShowInbox] = useState(false);
 
   const userRef = useRef(user);
   const selectedServerRef = useRef(selectedServer);
@@ -423,6 +427,8 @@ const Main: React.FC = () => {
         onOpenJoinModal={() => setShowJoinModal(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
         onOpenProfile={handleUserClick}
+        onToggleInbox={() => setShowInbox(!showInbox)}
+        inboxUnreadCount={inboxUnreadCount}
       />
       {showFriends && <FriendsPanel onStartDM={handleStartDM} onUserClick={handleUserClick} unreadCounts={unreadCounts} />}
       {selectedServer && !showFriends && (
@@ -513,6 +519,37 @@ const Main: React.FC = () => {
           isOpen={showSettingsModal}
           onClose={() => setShowSettingsModal(false)}
         />
+      )}
+
+      {showInbox && (
+        <>
+          <div className="inbox-backdrop" onClick={() => setShowInbox(false)} />
+          <Inbox
+            onClose={() => setShowInbox(false)}
+            onItemClick={(item) => {
+              if (item.type === 'mention' || item.type === 'dm') {
+                if (item.link?.dmId) {
+                  window.dispatchEvent(new CustomEvent('start-dm-by-id', { detail: { dmId: item.link.dmId } }));
+                } else if (item.link?.channelId) {
+                  const server = servers.find(s => s.channels.some(c => c._id === item.link?.channelId));
+                  if (server) {
+                    setSelectedServer(server);
+                    const channel = server.channels.find(c => c._id === item.link?.channelId);
+                    if (channel) setSelectedChannel(channel);
+                    setShowFriends(false);
+                    setSelectedDM(null);
+                  }
+                }
+              } else if (item.type === 'friend_request') {
+                setShowFriends(true);
+                setSelectedServer(null);
+                setSelectedChannel(null);
+                setSelectedDM(null);
+              }
+              setShowInbox(false);
+            }}
+          />
+        </>
       )}
     </div>
   );

@@ -173,8 +173,43 @@ io.on('connection', (socket) => {
         }
       }
       const message = new Message(messageData);
+
+      // Parse mentions
+      if (message.content) {
+        const mentionRegex = /@(\w+)/g;
+        let match;
+        const foundMentions = [];
+        while ((match = mentionRegex.exec(message.content)) !== null) {
+          const username = match[1];
+          const mentionedUser = await User.findOne({ username });
+          if (mentionedUser) {
+            if (data.channelId) {
+              const server = await Server.findById(data.channelId ? (await Channel.findById(data.channelId)).server : null);
+              if (server && server.members.some(m => String(m.user) === String(mentionedUser._id))) {
+                foundMentions.push(mentionedUser._id);
+              }
+            } else {
+              foundMentions.push(mentionedUser._id);
+            }
+          }
+        }
+        if (foundMentions.length > 0) {
+          message.mentions = [...new Set(foundMentions)];
+        }
+      }
+
       await message.save(); await message.populate('author', 'username avatar');
-      if (data.channelId) io.to(`channel-${data.channelId}`).emit('new-message', message);
+      if (data.channelId) {
+        const fullMessage = await Message.findById(message._id).populate('author', 'username avatar').populate('mentions', 'username');
+        io.to(`channel-${data.channelId}`).emit('new-message', fullMessage);
+
+        // Specifically notify mentioned users if they are not in the channel
+        message.mentions.forEach(userId => {
+          if (String(userId) !== String(socket.userId)) {
+            io.to(`user-${userId}`).emit('mention', fullMessage);
+          }
+        });
+      }
       else if (data.dmId) {
         const DirectMessage = require('./models/DirectMessage');
         const dm = await DirectMessage.findById(data.dmId).populate('participants');

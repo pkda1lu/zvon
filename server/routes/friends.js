@@ -42,6 +42,13 @@ router.post('/request', auth, async (req, res) => {
     await friendship.save();
     await friendship.populate('requester', 'username avatar status');
     await friendship.populate('recipient', 'username avatar status');
+
+    // Notify recipient
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${userId}`).emit('friend-request', friendship);
+    }
+
     res.status(201).json(friendship);
   } catch (error) { if (error.code === 11000) return res.status(400).json({ message: 'Friend request already exists' }); res.status(500).json({ message: 'Server error' }); }
 });
@@ -56,6 +63,13 @@ router.post('/accept/:id', auth, async (req, res) => {
     await friendship.save();
     await friendship.populate('requester', 'username avatar status');
     await friendship.populate('recipient', 'username avatar status');
+
+    // Notify requester
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${friendship.requester._id}`).emit('friend-request-accepted', friendship);
+    }
+
     res.json(friendship);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
