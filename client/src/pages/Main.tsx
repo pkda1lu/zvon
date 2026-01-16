@@ -11,6 +11,7 @@ import VoiceChannelView from '../components/VoiceChannelView';
 import ActiveVoiceOverlay from '../components/ActiveVoiceOverlay';
 import FriendsPanel from '../components/FriendsPanel';
 import DMView from '../components/DMView';
+import DMSidebar from '../components/DMSidebar';
 import VoiceCall from '../components/VoiceCall';
 import UserProfileCard from '../components/UserProfileCard';
 import ServerSettingsModal from '../components/ServerSettingsModal';
@@ -41,6 +42,7 @@ const Main: React.FC = () => {
   const [showFriends, setShowFriends] = useState(false);
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
   const [dmMessages, setDmMessages] = useState<Message[]>([]);
+  const [dms, setDms] = useState<DirectMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInbox, setShowInbox] = useState(false);
 
@@ -190,6 +192,13 @@ const Main: React.FC = () => {
     } catch (error) { } finally { setLoading(false); }
   }, []);
 
+  const fetchDMs = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/direct-messages');
+      setDms(response.data);
+    } catch (error) { }
+  }, []);
+
   const fetchMessages = useCallback(async (channelId: string) => {
     try {
       const response = await axios.get(`/api/messages/channel/${channelId}`);
@@ -246,7 +255,10 @@ const Main: React.FC = () => {
     } catch (error) { } finally { setIsLoadingMore(false); }
   }, [selectedDM, dmMessages, isLoadingMore, hasMore]);
 
-  useEffect(() => { fetchServers(); }, [fetchServers]);
+  useEffect(() => {
+    fetchServers();
+    fetchDMs();
+  }, [fetchServers, fetchDMs]);
 
   useEffect(() => {
     if (socket && servers.length > 0) {
@@ -504,65 +516,108 @@ const Main: React.FC = () => {
         onToggleInbox={() => setShowInbox(!showInbox)}
         inboxUnreadCount={inboxUnreadCount}
       />
-      {showFriends && <FriendsPanel onStartDM={handleStartDM} onUserClick={handleUserClick} unreadCounts={unreadCounts} />}
-      {selectedServer && !showFriends && (
-        <>
+
+      {/* --- SECOND SIDEBAR AREA --- */}
+      {selectedServer && !showFriends ? (
+        <div className="secondary-sidebar-container" style={{ width: sidebarWidth + 1 }}>
           <ServerSidebar
-            server={selectedServer} selectedChannel={selectedChannel} unreadCounts={unreadCounts} onChannelSelect={handleChannelSelect}
-            onChannelCreated={fetchServers} onUserClick={handleUserClick} onOpenSettings={() => setShowServerSettings(true)}
-            onServerClick={handleServerProfileClick} style={{ width: `${sidebarWidth}px` }}
+            server={selectedServer}
+            selectedChannel={selectedChannel}
+            unreadCounts={unreadCounts}
+            onChannelSelect={handleChannelSelect}
+            onChannelCreated={fetchServers}
+            onUserClick={handleUserClick}
+            onOpenSettings={() => setShowServerSettings(true)}
+            onServerClick={handleServerProfileClick}
+            style={{ width: sidebarWidth }}
           />
           <div className="sidebar-resizer" onMouseDown={startResizing} />
-        </>
-      )}
-      {selectedChannel && !showFriends && (
-        selectedChannel.type === 'text' ? (
-          <ChannelView
-            channel={selectedChannel}
-            server={selectedServer!}
-            messages={messages}
+        </div>
+      ) : !selectedServer ? (
+        <div className="secondary-sidebar-container" style={{ width: sidebarWidth + 1 }}>
+          <DMSidebar
+            dms={dms}
+            selectedDM={selectedDM}
+            onDMSelect={(dm) => {
+              setSelectedDM(dm);
+              setShowFriends(false);
+              setSelectedServer(null);
+            }}
+            onShowFriends={() => {
+              setShowFriends(true);
+              setSelectedDM(null);
+            }}
+            showFriends={showFriends}
+            currentUser={user!}
+            unreadCounts={unreadCounts}
+            style={{ width: sidebarWidth }}
+          />
+          <div className="sidebar-resizer" onMouseDown={startResizing} />
+        </div>
+      ) : null}
+
+      {/* --- CONTENT AREA --- */}
+      <div className="main-content-area">
+        {showFriends && <FriendsPanel onStartDM={handleStartDM} onUserClick={handleUserClick} unreadCounts={unreadCounts} />}
+
+        {selectedChannel && !showFriends && (
+          selectedChannel.type === 'text' ? (
+            <ChannelView
+              key={selectedChannel._id}
+              channel={selectedChannel}
+              server={selectedServer!}
+              messages={messages}
+              socket={socket}
+              onUserClick={handleUserClick}
+              initialUnreadCount={unreadCounts[selectedChannel._id]}
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+              onLoadMore={loadMoreMessages}
+              pinnedMessages={pinnedMessages}
+            />
+          ) : (
+            <VoiceChannelView
+              channel={selectedChannel} server={selectedServer!} onUserClick={handleUserClick} onMessageClick={handleStartDM}
+              onCallClick={async (userId) => {
+                try {
+                  const response = await axios.get(`/api/direct-messages/user/${userId}`);
+                  const other = response.data.participants.find((p: User) => p._id !== user?._id);
+                  if (other) handleStartDirectCall(other, response.data._id);
+                } catch (e) { }
+              }}
+            />
+          )
+        )}
+
+        {selectedDM && !showFriends && (
+          <DMView
+            key={selectedDM._id}
+            dm={selectedDM}
+            messages={dmMessages}
             socket={socket}
+            onClose={() => { setSelectedDM(null); setShowFriends(true); }}
+            onStartCall={handleStartDirectCall}
             onUserClick={handleUserClick}
-            initialUnreadCount={unreadCounts[selectedChannel._id]}
+            initialUnreadCount={unreadCounts[selectedDM._id]}
             hasMore={hasMore}
             isLoadingMore={isLoadingMore}
-            onLoadMore={loadMoreMessages}
-            pinnedMessages={pinnedMessages}
+            onLoadMore={loadMoreDMMessages}
+            pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
           />
-        ) : (
-          <VoiceChannelView
-            channel={selectedChannel} server={selectedServer!} onUserClick={handleUserClick} onMessageClick={handleStartDM}
-            onCallClick={async (userId) => {
-              try {
-                const response = await axios.get(`/api/direct-messages/user/${userId}`);
-                const other = response.data.participants.find((p: User) => p._id !== user?._id);
-                if (other) handleStartDirectCall(other, response.data._id);
-              } catch (e) { }
-            }}
-          />
-        )
-      )}
-      {selectedServer && !showFriends && <ServerMembers server={selectedServer} onUserClick={handleUserClick} />}
-      {selectedDM && !showFriends && (
-        <DMView
-          dm={selectedDM}
-          messages={dmMessages}
-          socket={socket}
-          onClose={() => { setSelectedDM(null); setShowFriends(true); }}
-          onStartCall={handleStartDirectCall}
-          onUserClick={handleUserClick}
-          initialUnreadCount={unreadCounts[selectedDM._id]}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-          onLoadMore={loadMoreDMMessages}
-          pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
-        />
-      )}
-      {!selectedChannel && !selectedDM && !showFriends && (
-        <div className="empty-view"><h2>Добро пожаловать в Zvon!</h2><p>Выберите сервер или откройте панель друзей, чтобы начать общение</p></div>
-      )}
+        )}
+
+        {selectedServer && !showFriends && <ServerMembers server={selectedServer} onUserClick={handleUserClick} />}
+
+        {!selectedChannel && !selectedDM && !showFriends && !selectedServer && (
+          <div className="empty-view">
+            <h2>Добро пожаловать в Zvon!</h2>
+            <p>Выберите друга или сервер, чтобы начать общение</p>
+          </div>
+        )}
+      </div>
 
       {activeCall && <VoiceCall socket={socket} otherUser={activeCall.user} dmId={activeCall.dmId} initialIncomingCall={activeCall.isIncoming} initialOffer={activeCall.offer} onEndCall={() => setActiveCall(null)} />}
+
       {showProfileUserId && (
         <UserProfileCard
           userId={showProfileUserId}
@@ -572,7 +627,9 @@ const Main: React.FC = () => {
           onUserClick={handleUserClick}
         />
       )}
+
       {showServerSettings && selectedServer && <ServerSettingsModal isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} />}
+
       {showServerProfile && selectedServer && (
         <ServerProfileCard
           server={selectedServer}
@@ -582,7 +639,9 @@ const Main: React.FC = () => {
           onUserClick={handleUserClick}
         />
       )}
+
       {showUserServerProfile && serverProfileServerId && <UserServerProfileModal isOpen={showUserServerProfile} onClose={() => setShowUserServerProfile(false)} serverId={serverProfileServerId} onUpdate={handleServerUpdate} />}
+
       {showJoinModal && (
         <JoinServerModal
           isOpen={showJoinModal}
@@ -596,6 +655,7 @@ const Main: React.FC = () => {
           onCreate={handleCreateServer}
         />
       )}
+
       {showSettingsModal && (
         <SettingsModal
           isOpen={showSettingsModal}

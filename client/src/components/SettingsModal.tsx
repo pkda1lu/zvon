@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { useVoice } from '../contexts/VoiceContext';
-import { useAppearance, ThemeType, DensityType } from '../contexts/AppearanceContext';
+import { useAppearance, ThemeType } from '../contexts/AppearanceContext';
+import { useChatSettings } from '../contexts/ChatSettingsContext';
 import {
   CloseIcon,
   UsersIcon,
@@ -67,6 +68,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     fontScale, setFontScale,
     appIcon, setAppIcon
   } = useAppearance();
+
+  const {
+    displayEmbeds, setDisplayEmbeds,
+    previewLinks, setPreviewLinks,
+    autoPlayGifs, setAutoPlayGifs,
+    showStickers, setShowStickers,
+    enableTTS, setEnableTTS,
+    mentionHighlight, setMentionHighlight,
+    autocompleteEmoji, setAutocompleteEmoji,
+    showHoverActions, setShowHoverActions
+  } = useChatSettings();
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
   // Account Form State
@@ -682,6 +695,98 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     </div>
   );
 
+  const renderChatSettings = () => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Настройки чата</h2>
+
+      <div className="settings-section-block">
+        <h3>Отображение контента</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Отображать предпросмотр контента</span>
+            <span className="checkbox-description">Отображать изображения и видео, прикрепленные к сообщениям.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={displayEmbeds} onChange={(e) => setDisplayEmbeds(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Предпросмотр ссылок</span>
+            <span className="checkbox-description">Показывать информацию о ссылках в сообщениях.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={previewLinks} onChange={(e) => setPreviewLinks(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Автоматическое воспроизведение GIF</span>
+            <span className="checkbox-description">Автоматически проигрывать GIF-анимации при появлении в чате.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={autoPlayGifs} onChange={(e) => setAutoPlayGifs(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Сообщения</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Подсветка упоминаний</span>
+            <span className="checkbox-description">Выделять сообщения, в которых вас упомянули.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={mentionHighlight} onChange={(e) => setMentionHighlight(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Автозаполнение эмодзи</span>
+            <span className="checkbox-description">Показывать подсказки при вводе : или @.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={autocompleteEmoji} onChange={(e) => setAutocompleteEmoji(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Панель действий при наведении</span>
+            <span className="checkbox-description">Показывать кнопки удаления, изменения и ответа при наведении на сообщение.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={showHoverActions} onChange={(e) => setShowHoverActions(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Дополнительно</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Преобразование текста в речь (TTS)</span>
+            <span className="checkbox-description">Позволяет прослушивать входящие сообщения (требуется поддержка системы).</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={enableTTS} onChange={(e) => setEnableTTS(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPlaceholder = (title: string, icon: React.ReactNode) => (
     <div className="settings-section-content">
       <h2 className="settings-section-title">{title}</h2>
@@ -796,7 +901,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
               {activeTab === 'appearance' && renderAppearanceSettings()}
               {activeTab === 'voice' && renderVoiceSettings()}
-              {activeTab === 'chat' && renderPlaceholder('Чат', <ChatIcon size={80} />)}
+              {activeTab === 'chat' && renderChatSettings()}
 
               {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
               {activeTab === 'windows' && renderPlaceholder('Настройки Windows', <MonitorIcon size={80} />)}

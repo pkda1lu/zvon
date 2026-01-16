@@ -242,3 +242,17 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
 }
+
+.message.mention-highlight {
+  background: rgba(255, 174, 0, 0.05) !important;
+  border-left: 3px solid #ffae00;
+  position: relative;
+}
+
+.message.mention-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 174, 0, 0.08) 0%, transparent 100%);
+  pointer-events: none;
+}

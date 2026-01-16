@@ -1,12 +1,13 @@
 .main-container {
   display: flex;
-  height: 100%;
-  width: 100%;
-  background: transparent;
-  padding: 15px;
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  bottom: 15px;
   gap: 15px;
-  position: relative;
   overflow: hidden;
+  background: transparent;
 }
 
 .loading {
@@ -50,17 +51,34 @@
 
 
 .sidebar-resizer {
-  width: 1px;
-  /* Thinner line for modern look */
+  width: 4px;
+  /* Increased slightly for better usability */
   cursor: col-resize;
-  background: var(--border-divider);
-  transition: background 0.2s;
+  background: var(--glass-border);
+  transition: all 0.2s;
   flex-shrink: 0;
   z-index: 10;
+  margin-left: -2px;
+  /* Pull it slightly over the sidebar border */
 }
 
 .sidebar-resizer:hover,
 .sidebar-resizer:active {
-  background: var(--bg-accent);
-  width: 2px;
+  background: var(--primary-neon);
+  box-shadow: 0 0 10px var(--primary-neon);
+}
+
+.secondary-sidebar-container {
+  display: flex;
+  height: 100%;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.main-content-area {
+  flex: 1;
+  display: flex;
+  gap: 15px;
+  min-width: 0;
+  overflow: hidden;
 }

@@ -108,6 +108,8 @@ const AppBackground: React.FC = () => {
   );
 };
 
+import { ChatSettingsProvider } from './contexts/ChatSettingsContext';
+
 function App() {
   const isElectron = !!(window as any).electron;
   const Router = isElectron ? HashRouter : BrowserRouter;
@@ -115,24 +117,26 @@ function App() {
   return (
     <AuthProvider>
       <AppearanceProvider>
-        <NotificationProvider>
-          <Router>
-            <div className="App" style={{ position: 'relative' }}>
-              <AppBackground />
-              <TitleBar />
-              <ElectronHandler />
-              <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/invite/:code" element={<InvitePage />} />
-                  <Route path="/" element={<Home />} />
-                  <Route path="/*" element={<Home />} />
-                </Routes>
+        <ChatSettingsProvider>
+          <NotificationProvider>
+            <Router>
+              <div className="App" style={{ position: 'relative' }}>
+                <AppBackground />
+                <TitleBar />
+                <ElectronHandler />
+                <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/invite/:code" element={<InvitePage />} />
+                    <Route path="/" element={<Home />} />
+                    <Route path="/*" element={<Home />} />
+                  </Routes>
+                </div>
               </div>
-            </div>
-          </Router>
-        </NotificationProvider>
+            </Router>
+          </NotificationProvider>
+        </ChatSettingsProvider>
       </AppearanceProvider>
     </AuthProvider>
   );

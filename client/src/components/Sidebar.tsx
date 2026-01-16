@@ -52,7 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar">
       <div className="sidebar-servers">
-        <div className="server-icon home-icon" onClick={onShowFriends} title="Друзья">
+        <div className={`server-icon home-icon ${!selectedServer ? 'active' : ''}`} onClick={onShowFriends} title="Друзья">
           <UsersIcon size={28} />
           {Object.entries(unreadCounts).some(([id, count]) => count > 0 && !servers.some(s => s.channels.some(c => c._id === id))) && (
             <div className="unread-badge"></div>

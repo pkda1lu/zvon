@@ -14,6 +14,7 @@ import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
 import { Role } from '../types';
 import { computePermissions, hasPermission, Permissions } from '../utils/permissions';
+import { useChatSettings } from '../contexts/ChatSettingsContext';
 
 interface ChannelViewProps {
   channel: Channel;
@@ -33,6 +34,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = []
 }) => {
   const { user } = useAuth();
+  const {
+    displayEmbeds,
+    showHoverActions,
+    mentionHighlight,
+    autocompleteEmoji,
+    enableTTS
+  } = useChatSettings();
   const [message, setMessage] = useState('');
 
   const userPermissions = useMemo(() => {
@@ -80,15 +88,16 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     // Initial jump to bottom or unread
     if (messages.length > 0 && !hasScrolledToNew) {
       const scrollToTarget = () => {
-        if (initialUnreadCount > 0 && unreadRef.current) {
-          unreadRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
-        } else if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        const container = scrollContainerRef.current;
+        if (initialUnreadCount > 0 && unreadRef.current && container) {
+          const element = unreadRef.current;
+          container.scrollTop = element.offsetTop - 100;
+        } else if (container) {
+          container.scrollTop = container.scrollHeight;
         }
       };
       scrollToTarget();
-      // Second attempt to ensure everything is rendered
-      const t = setTimeout(scrollToTarget, 50);
+      const t = setTimeout(scrollToTarget, 100);
       setHasScrolledToNew(true);
       return () => clearTimeout(t);
     }
@@ -99,15 +108,26 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     if (hasScrolledToNew) {
       const container = scrollContainerRef.current;
       if (container) {
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300;
         if (isNearBottom) {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } else {
           setShowScrollBottom(true);
         }
       }
     }
   }, [messages, hasScrolledToNew]);
+
+  // TTS Effect
+  useEffect(() => {
+    if (!enableTTS || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.author._id !== user?._id && hasScrolledToNew) {
+      const utterance = new SpeechSynthesisUtterance(`${lastMsg.author.username} сказал: ${lastMsg.content}`);
+      utterance.lang = 'ru-RU';
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [messages.length, enableTTS]);
 
   const handleScroll = async () => {
     const container = scrollContainerRef.current;
@@ -129,7 +149,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     setShowScrollBottom(false);
   };
 
@@ -195,7 +215,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     const textBeforeCursor = value.substring(0, cursorPosition);
     const lastAtSignIndex = textBeforeCursor.lastIndexOf('@');
 
-    if (lastAtSignIndex !== -1) {
+    if (lastAtSignIndex !== -1 && autocompleteEmoji) {
       const query = textBeforeCursor.substring(lastAtSignIndex + 1);
       // Valid query: no spaces between @ and cursor
       if (!query.includes(' ')) {
@@ -400,35 +420,35 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         </button>
       </div>
 
-      <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
-        {showPins && (
-          <div className="pins-overlay" onClick={() => setShowPins(false)}>
-            <div className="pins-modal glass-panel-base" onClick={e => e.stopPropagation()}>
-              <div className="pins-header">
-                <h3>Закрепленные сообщения</h3>
-                <button className="close-pins" onClick={() => setShowPins(false)}>×</button>
-              </div>
-              <div className="pins-list">
-                {pinnedMessages.length === 0 ? (
-                  <div className="empty-pins">Нет закрепленных сообщений</div>
-                ) : (
-                  pinnedMessages.map(msg => (
-                    <div key={msg._id} className="pin-item">
-                      <div className="pin-author">
-                        <img src={getAvatarUrl(msg.author.avatar) || ''} alt="" />
-                        <span className="pin-name">{msg.author.username}</span>
-                        <span className="pin-date">{formatDate(msg.createdAt)}</span>
-                      </div>
-                      <div className="pin-content">{msg.content}</div>
-                      <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
+      {showPins && (
+        <div className="pins-overlay" onClick={() => setShowPins(false)}>
+          <div className="pins-modal glass-panel-base" onClick={e => e.stopPropagation()}>
+            <div className="pins-header">
+              <h3>Закрепленные сообщения</h3>
+              <button className="close-pins" onClick={() => setShowPins(false)}>×</button>
+            </div>
+            <div className="pins-list">
+              {pinnedMessages.length === 0 ? (
+                <div className="empty-pins">Нет закрепленных сообщений</div>
+              ) : (
+                pinnedMessages.map(msg => (
+                  <div key={msg._id} className="pin-item">
+                    <div className="pin-author">
+                      <img src={getAvatarUrl(msg.author.avatar) || ''} alt="" />
+                      <span className="pin-name">{msg.author.username}</span>
+                      <span className="pin-date">{formatDate(msg.createdAt)}</span>
                     </div>
-                  ))
-                )}
-              </div>
+                    <div className="pin-content">{msg.content}</div>
+                    <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
+      <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
         {isLoadingMore && <div className="loading-more">Загрузка...</div>}
         <div className="messages-list">
           {messages.map((msg, index) => {
@@ -446,7 +466,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                     <div className="new-messages-line" />
                   </div>
                 )}
-                <div className={`message ${grouped ? 'grouped' : 'with-author'}`}>
+                <div className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''}`}>
                   {!grouped && (
                     <div className="message-author-avatar" onClick={(e) => onUserClick(msg.author._id, e)} onContextMenu={(e) => handleContextMenu(e, msg.author)} style={{ cursor: 'pointer' }}>
                       {getAvatarUrl(msg.author.avatar) ? <img src={getAvatarUrl(msg.author.avatar)!} alt="" /> : <span>{msg.author.username.charAt(0).toUpperCase()}</span>}
@@ -478,24 +498,26 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                           </span>
                           <span className="message-time">{formatDate(msg.createdAt)}</span>
                         </div>
-                        <div className="message-actions-hover">
-                          {canPin && (
-                            <button
-                              className="msg-action-btn"
-                              onClick={() => handleTogglePin(msg._id)}
-                              title={msg.pinned ? "Открепить" : "Закрепить"}
-                            >
-                              <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
-                            </button>
-                          )}
-                          {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
-                            <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={16} /></button>
-                          )}
-                        </div>
+                        {showHoverActions && (
+                          <div className="message-actions-hover">
+                            {canPin && (
+                              <button
+                                className="msg-action-btn"
+                                onClick={() => handleTogglePin(msg._id)}
+                                title={msg.pinned ? "Открепить" : "Закрепить"}
+                              >
+                                <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                              </button>
+                            )}
+                            {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
+                              <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={16} /></button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {grouped && (
+                    {grouped && showHoverActions && (
                       <div className="message-actions-hover mini">
                         {canPin && (
                           <button
@@ -515,7 +537,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
 
                     <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
-                    {msg.attachments && msg.attachments.length > 0 && (
+                    {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
                       <div className="message-attachments">
                         {msg.attachments.map((att, i) => (
                           <div key={i} className="attachment-item">

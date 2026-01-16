@@ -441,26 +441,28 @@
     transform: translateX(-50%);
     width: 90%;
     max-width: 800px;
-    background: linear-gradient(135deg, rgba(20, 20, 30, 0.95) 0%, rgba(10, 10, 15, 0.98) 100%);
-    backdrop-filter: blur(30px) saturate(180%);
-    padding: 16px 32px;
-    border-radius: 24px;
-    border: 1px solid rgba(0, 229, 255, 0.4);
+    background: linear-gradient(135deg, rgba(20, 20, 30, 0.95) 0%, rgba(30, 30, 45, 0.9) 100%);
+    backdrop-filter: blur(40px) saturate(180%);
+    padding: 12px 24px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 229, 255, 0.3);
     display: flex;
     align-items: center;
     justify-content: space-between;
     box-shadow:
         0 20px 50px rgba(0, 0, 0, 0.6),
-        0 0 30px rgba(0, 229, 255, 0.15);
+        0 0 40px rgba(0, 229, 255, 0.1),
+        inset 0 0 20px rgba(255, 255, 255, 0.02);
     z-index: 5500;
-    animation: bar-up 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: bar-up 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .save-changes-text {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     color: #fff;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    opacity: 0.9;
 }
 
 .save-changes-buttons {
@@ -470,38 +472,58 @@
 }
 
 .save-button {
-    background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%);
+    background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
     color: #fff;
     border: none;
-    height: 44px;
-    padding: 0 28px 3px 28px;
-    /* Added bottom padding to raise text */
-    border-radius: 22px;
+    height: 40px;
+    padding: 0 32px 3px 32px;
+    border-radius: 20px;
     font-weight: 800;
     font-size: 13px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);
+    gap: 8px;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow:
+        0 4px 15px rgba(14, 165, 233, 0.3),
+        inset 0 1px 1px rgba(255, 255, 255, 0.2);
     text-transform: uppercase;
     letter-spacing: 1px;
-    margin-top: 0;
-    margin-bottom: 0;
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+    margin: 0 !important;
+}
+
+.save-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: 0.5s;
+}
+
+.save-button:hover:not(:disabled)::before {
+    left: 100%;
 }
 
 .save-button:hover:not(:disabled) {
-    transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 0 30px var(--primary-neon);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 229, 255, 0.4);
+    filter: brightness(1.1);
 }
 
 .save-button:active:not(:disabled) {
-    transform: translateY(0) scale(0.98);
+    transform: translateY(0) scale(0.96);
 }
 
 .save-button:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.3);
@@ -512,16 +534,20 @@
     background: transparent;
     border: none;
     color: rgba(255, 255, 255, 0.5);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
-    padding: 8px 16px;
+    transition: all 0.3s ease;
+    padding: 8px 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 !important;
 }
 
 .reset-button:hover {
     color: #fff;
-    text-decoration: underline;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
 }
 
 /* Members List */
