@@ -66,6 +66,7 @@ router.post('/login', [
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     const { email, password } = req.body;
+    console.log('[Login] Attempting login for:', email);
 
     const user = await User.findOne({
       $or: [
@@ -74,11 +75,21 @@ router.post('/login', [
       ]
     });
 
-    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!user) {
+      console.log('[Login] User not found');
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
+    console.log('[Login] Comparing password for user:', user.username);
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      console.log('[Login] Password mismatch');
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    console.log('[Login] Verification check...');
     if (user.isVerified === false && user.verificationToken) {
+      console.log('[Login] Verification required');
       return res.status(403).json({
         message: 'Email not verified',
         requiresVerification: true,
@@ -86,17 +97,24 @@ router.post('/login', [
       });
     }
 
-    // Generate login code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.verificationCode = code;
-    user.verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
+
+    console.log('[Login] Saving 2FA code to database...');
     await user.save();
+    console.log('[Login] User saved');
 
     try {
+      console.log('[Login] Sending email via SMTP...');
       await sendLoginCode(user.email, code);
+      console.log('[Login] Email sent');
     } catch (mailError) {
-      console.error('Failed to send login code:', mailError);
-      return res.status(500).json({ message: 'Ошибка отправки кода на почту' });
+      console.error('[Login] SMTP Error:', mailError.message);
+      return res.status(500).json({
+        message: 'Ошибка отправки кода на почту',
+        details: mailError.message
+      });
     }
 
     res.json({
@@ -105,14 +123,11 @@ router.post('/login', [
       email: user.email
     });
   } catch (error) {
-    console.error('CRITICAL LOGIN ERROR:', {
-      message: error.message,
-      stack: error.stack,
-      body: req.body
-    });
+    console.error('[Login] CRITICAL ERROR:', error.message);
     res.status(500).json({
       message: 'Server error',
-      details: error.message
+      details: error.message,
+      stack: error.stack
     });
   }
 });
