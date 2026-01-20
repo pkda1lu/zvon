@@ -184,7 +184,12 @@ router.post('/forgot-password', [
   body('email').isEmail().withMessage('Please provide a valid email')
 ], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
     const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
     const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
@@ -205,6 +210,7 @@ router.post('/forgot-password', [
 
     res.json({ message: 'Код для сброса пароля отправлен на вашу почту' });
   } catch (error) {
+    console.error('Forgot password error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -242,6 +248,7 @@ router.post('/reset-password', [
 
     res.json({ message: 'Пароль успешно изменен' });
   } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
