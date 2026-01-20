@@ -4,22 +4,53 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const crypto = require('crypto');
+const { sendVerificationEmail, sendLoginCode } = require('../utils/mail');
 
 router.post('/register', [
   body('username').trim().isLength({ min: 3, max: 20 }).withMessage('Username must be 3-20 characters'),
   body('email').isEmail().withMessage('Please provide a valid email'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Пароль должен содержать минимум 8 символов')
+    .matches(/^[A-Za-z\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/)
+    .withMessage('Пароль содержит недопустимые символы')
+    .matches(/[A-Z]/)
+    .withMessage('Пароль должен содержать хотя бы одну заглавную букву')
+    .matches(/[\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/)
+    .withMessage('Пароль должен содержать хотя бы одну цифру или специальный символ')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { username, email, password } = req.body;
-    let user = await User.findOne({ $or: [{ email }, { username }] });
+
+    let user = await User.findOne({ $or: [{ email: email.toLowerCase() }, { username }] });
     if (user) return res.status(400).json({ message: 'User already exists' });
-    user = new User({ username, email, password });
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
+    user = new User({
+      username,
+      email: email.toLowerCase(),
+      password,
+      isVerified: false,
+      verificationToken
+    });
+
     await user.save();
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ token, user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar } });
+
+    try {
+      await sendVerificationEmail(user.email, verificationToken);
+    } catch (mailError) {
+      console.error('Failed to send verification email:', mailError);
+      // We still created the user, they can try to resend later
+    }
+
+    res.status(201).json({
+      message: 'Регистрация успешна. Пожалуйста, проверьте почту для подтверждения аккаунта.',
+      email: user.email
+    });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -36,7 +67,6 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // Search by email or username
     const user = await User.findOne({
       $or: [
         { email: email.toLowerCase() },
@@ -48,12 +78,104 @@ router.post('/login', [
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    user.status = 'online';
+    if (!user.isVerified) {
+      return res.status(403).json({
+        message: 'Email not verified',
+        requiresVerification: true,
+        email: user.email
+      });
+    }
+
+    // Generate login code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = code;
+    user.verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     await user.save();
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status } });
+
+    try {
+      await sendLoginCode(user.email, code);
+    } catch (mailError) {
+      console.error('Failed to send login code:', mailError);
+      return res.status(500).json({ message: 'Ошибка отправки кода на почту' });
+    }
+
+    res.json({
+      message: 'Код подтверждения отправлен на вашу почту',
+      requiresCode: true,
+      email: user.email
+    });
   } catch (error) {
     console.error('Login error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/verify-login', [
+  body('email').isEmail(),
+  body('code').isLength({ min: 6, max: 6 })
+], async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      verificationCode: code,
+      verificationCodeExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Неверный или просроченный код' });
+    }
+
+    // Clear code
+    user.verificationCode = undefined;
+    user.verificationCodeExpires = undefined;
+    user.status = 'online';
+    await user.save();
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({
+      token,
+      user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    const user = await User.findOne({ verificationToken: token });
+
+    if (!user) {
+      return res.status(400).send('<h1>Ошибка</h1><p>Неверная или устаревшая ссылка подтверждения.</p>');
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    await user.save();
+
+    res.send('<h1>Успех!</h1><p>Ваша почта подтверждена. Теперь вы можете войти в свой аккаунт.</p>');
+  } catch (error) {
+    res.status(500).send('<h1>Server error</h1>');
+  }
+});
+
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.isVerified) return res.status(400).json({ message: 'User already verified' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    user.verificationToken = token;
+    await user.save();
+
+    await sendVerificationEmail(user.email, token);
+    res.json({ message: 'Verification email resent' });
+  } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -69,3 +191,4 @@ router.get('/me', auth, async (req, res) => {
 });
 
 module.exports = router;
+

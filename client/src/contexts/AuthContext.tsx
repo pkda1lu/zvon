@@ -5,8 +5,9 @@ import { User } from '../types';
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<any>;
+  register: (username: string, email: string, password: string) => Promise<any>;
+  verifyLogin: (email: string, code: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
   updateUser: (user: Partial<User>) => void;
@@ -50,15 +51,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUser = (updatedUser: Partial<User>) => setUser(prev => prev ? { ...prev, ...updatedUser } : (updatedUser as User));
   const login = async (email: string, password: string) => {
     const response = await axios.post('/api/auth/login', { email, password }, { headers: { 'Content-Type': 'application/json' } });
-    const { token: newToken, user: newUser } = response.data;
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    if (response.data.token) {
+      const { token: newToken, user: newUser } = response.data;
+      setToken(newToken);
+      setUser(newUser);
+      localStorage.setItem('token', newToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    }
+    return response.data;
   };
 
   const register = async (username: string, email: string, password: string) => {
     const response = await axios.post('/api/auth/register', { username, email, password });
+    if (response.data.token) {
+      const { token: newToken, user: newUser } = response.data;
+      setToken(newToken);
+      setUser(newUser);
+      localStorage.setItem('token', newToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    }
+    return response.data;
+  };
+
+  const verifyLogin = async (email: string, code: string) => {
+    const response = await axios.post('/api/auth/verify-login', { email, code });
     const { token: newToken, user: newUser } = response.data;
     setToken(newToken);
     setUser(newUser);
@@ -69,5 +85,5 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => { setToken(null); setUser(null); localStorage.removeItem('token'); delete axios.defaults.headers.common['Authorization']; };
   const refreshUser = async () => { await fetchUser(); };
 
-  return <AuthContext.Provider value={{ user, token, login, register, logout, loading, updateUser, refreshUser }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, token, login, register, verifyLogin, logout, loading, updateUser, refreshUser }}>{children}</AuthContext.Provider>;
 };

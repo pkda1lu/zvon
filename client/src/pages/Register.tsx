@@ -9,20 +9,42 @@ const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     try {
-      await register(username, email, password);
-      const searchParams = new URLSearchParams(window.location.search);
-      const returnTo = searchParams.get('returnTo');
-      navigate(returnTo || '/');
+      // Local validation before submitting
+      const requirements = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        specialOrDigit: /[\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+      };
+
+      if (!requirements.length || !requirements.uppercase || !requirements.specialOrDigit) {
+        setError('Пароль должен содержать минимум 8 символов, хотя бы одну заглавную букву и цифру или спецсимвол');
+        return;
+      }
+
+      const data = await register(username, email, password);
+      if (data.token) {
+        const searchParams = new URLSearchParams(window.location.search);
+        const returnTo = searchParams.get('returnTo');
+        navigate(returnTo || '/');
+      } else {
+        setSuccess(data.message || 'Регистрация успешна! Пожалуйста, проверьте почту для подтверждения.');
+      }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка регистрации');
+      if (err.response?.data?.errors) {
+        setError(err.response.data.errors[0].msg);
+      } else {
+        setError(err.response?.data?.message || 'Ошибка регистрации');
+      }
     }
   };
 
@@ -54,6 +76,14 @@ const Register: React.FC = () => {
                 color: '#ff3b30', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
               }}>
                 {error}
+              </div>
+            )}
+            {success && (
+              <div style={{
+                background: 'rgba(0, 255, 127, 0.1)', border: '1px solid rgba(0, 255, 127, 0.3)',
+                color: '#00ff7f', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
+              }}>
+                {success}
               </div>
             )}
 
@@ -92,8 +122,11 @@ const Register: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={8}
               />
+              <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '8px' }}>
+                Минимум 8 символов, заглавная буква и цифра или спецсимвол
+              </p>
             </div>
 
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: '1.4', margin: '5px 0' }}>
