@@ -105,7 +105,8 @@ const Login: React.FC = () => {
         const validationErrors = err.response.data.errors.map((e: any) => e.msg).join(', ');
         setError(validationErrors);
       } else {
-        setError(err.response?.data?.message || 'Ошибка входа. Проверьте email и пароль.');
+        const detail = err.response?.data?.details || err.response?.data?.message;
+        setError(detail ? `Ошибка входа: ${detail}` : 'Ошибка входа. Проверьте email и пароль.');
       }
     }
   };

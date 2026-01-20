@@ -34,23 +34,33 @@ const sendVerificationEmail = async (email, token) => {
 };
 
 const sendLoginCode = async (email, code) => {
-  await transporter.sendMail({
-    from: `"Zvon" <${process.env.SMTP_USER}>`,
-    to: email,
-    subject: 'Код подтверждения входа Zvon',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-        <h2 style="color: #5865F2; text-align: center;">Код подтверждения</h2>
-        <p>Вы пытаетесь войти в свой аккаунт Zvon. Используйте следующий код для подтверждения:</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn('SMTP not configured, login code:', code);
+    return; // Proceed without sending email in dev if not configured
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"Zvon" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: 'Код подтверждения входа Zvon',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #5865F2; text-align: center;">Код подтверждения</h2>
+          <p>Вы пытаетесь войти в свой аккаунт Zvon. Используйте следующий код для подтверждения:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
+          </div>
+          <p>Код действителен в течение 10 минут.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 12px; color: #999;">Если это были не вы, немедленно смените пароль.</p>
         </div>
-        <p>Код действителен в течение 10 минут.</p>
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="font-size: 12px; color: #999;">Если это были не вы, немедленно смените пароль.</p>
-      </div>
-    `,
-  });
+      `,
+    });
+  } catch (error) {
+    console.error('Error sending login code email:', error);
+    throw error; // Re-throw to be caught by the route handler
+  }
 };
 
 const sendResetCode = async (email, code) => {

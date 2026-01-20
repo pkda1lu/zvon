@@ -105,8 +105,15 @@ router.post('/login', [
       email: user.email
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('CRITICAL LOGIN ERROR:', {
+      message: error.message,
+      stack: error.stack,
+      body: req.body
+    });
+    res.status(500).json({
+      message: 'Server error',
+      details: error.message
+    });
   }
 });
 
