@@ -78,7 +78,7 @@ router.post('/login', [
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    if (!user.isVerified) {
+    if (user.isVerified === false && user.verificationToken) {
       return res.status(403).json({
         message: 'Email not verified',
         requiresVerification: true,
