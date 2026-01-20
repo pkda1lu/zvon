@@ -97,6 +97,18 @@ router.post('/login', [
       });
     }
 
+    // GRANDFATHERING: If it's an old account (no verificationToken), skip 2FA
+    if (!user.verificationToken) {
+      console.log('[Login] Old account detected, skipping 2FA');
+      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      user.status = 'online';
+      await user.save();
+      return res.json({
+        token,
+        user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }
+      });
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.verificationCode = code;
     user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
