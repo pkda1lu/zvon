@@ -8,18 +8,26 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [requiresCode, setRequiresCode] = useState(false);
+  const [mode, setMode] = useState<'login' | 'mfa' | 'forgot' | 'reset'>('login');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const { login, verifyLogin } = useAuth();
+  const { login, verifyLogin, forgotPassword, resetPassword } = useAuth();
   const navigate = useNavigate();
+
+  const handleModeChange = (newMode: 'login' | 'mfa' | 'forgot' | 'reset') => {
+    setMode(newMode);
+    setError('');
+    setSuccess('');
+    setCode('');
+    setPassword('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (requiresCode) {
+    if (mode === 'mfa') {
       if (!code || code.length !== 6) {
         setError('Пожалуйста, введите 6-значный код');
         return;
@@ -35,20 +43,55 @@ const Login: React.FC = () => {
       return;
     }
 
+    if (mode === 'forgot') {
+      if (!email) {
+        setError('Пожалуйста, введите email');
+        return;
+      }
+      try {
+        await forgotPassword(email.trim());
+        setSuccess('Код для сброса пароля отправлен на вашу почту');
+        setMode('reset');
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Ошибка отправки кода');
+      }
+      return;
+    }
+
+    if (mode === 'reset') {
+      if (!code || code.length !== 6) {
+        setError('Пожалуйста, введите 6-значный код');
+        return;
+      }
+      if (!password || password.length < 8) {
+        setError('Новый пароль должен содержать минимум 8 символов');
+        return;
+      }
+      try {
+        await resetPassword(email, code, password);
+        setSuccess('Пароль успешно изменен. Теперь вы можете войти.');
+        handleModeChange('login');
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Ошибка смены пароля');
+      }
+      return;
+    }
+
+    // Default Login mode
     if (!email) {
       setError('Пожалуйста, введите email или имя пользователя');
       return;
     }
 
-    if (!password || password.length < 8) {
-      setError('Пароль должен содержать минимум 8 символов');
+    if (!password) {
+      setError('Пожалуйста, введите пароль');
       return;
     }
 
     try {
       const data = await login(email.trim(), password);
       if (data.requiresCode) {
-        setRequiresCode(true);
+        setMode('mfa');
         setSuccess('Код подтверждения отправлен на вашу почту');
       } else if (data.token) {
         const searchParams = new URLSearchParams(window.location.search);
@@ -64,6 +107,24 @@ const Login: React.FC = () => {
       } else {
         setError(err.response?.data?.message || 'Ошибка входа. Проверьте email и пароль.');
       }
+    }
+  };
+
+  const getTitle = () => {
+    switch (mode) {
+      case 'mfa': return 'Подтверждение';
+      case 'forgot': return 'Восстановление';
+      case 'reset': return 'Новый пароль';
+      default: return 'С возвращением!';
+    }
+  };
+
+  const getSubtitle = () => {
+    switch (mode) {
+      case 'mfa': return 'Мы отправили код на вашу почту';
+      case 'forgot': return 'Введите email для получения кода';
+      case 'reset': return 'Введите код из письма и новый пароль';
+      default: return 'Мы так рады видеть вас снова!';
     }
   };
 
@@ -86,10 +147,10 @@ const Login: React.FC = () => {
           </div>
 
           <h1 style={{ marginTop: '20px', fontSize: '32px', fontWeight: 800, marginBottom: '10px', color: 'white' }}>
-            {requiresCode ? 'Подтверждение' : 'С возвращением!'}
+            {getTitle()}
           </h1>
           <p style={{ color: 'var(--text-dim)', marginBottom: '40px', fontSize: '15px' }}>
-            {requiresCode ? 'Мы отправили код на вашу почту' : 'Мы так рады видеть вас снова!'}
+            {getSubtitle()}
           </p>
 
           <form onSubmit={handleSubmit} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -110,7 +171,7 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            {!requiresCode ? (
+            {mode === 'login' && (
               <>
                 <div>
                   <label className="auth-label-neon">EMAIL ИЛИ ИМЯ ПОЛЬЗОВАТЕЛЯ</label>
@@ -134,10 +195,37 @@ const Login: React.FC = () => {
                     placeholder="••••••••"
                     required
                   />
-                  <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--primary-neon)', cursor: 'pointer', textAlign: 'right', fontWeight: 600 }}>Забыли пароль?</div>
+                  <div
+                    onClick={() => handleModeChange('forgot')}
+                    style={{ marginTop: '10px', fontSize: '12px', color: 'var(--primary-neon)', cursor: 'pointer', textAlign: 'right', fontWeight: 600 }}
+                  >
+                    Забыли пароль?
+                  </div>
                 </div>
               </>
-            ) : (
+            )}
+
+            {mode === 'forgot' && (
+              <div>
+                <label className="auth-label-neon">EMAIL</label>
+                <input
+                  type="email"
+                  className="auth-input-glass"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  required
+                />
+                <div
+                  onClick={() => handleModeChange('login')}
+                  style={{ marginTop: '10px', fontSize: '12px', color: 'var(--primary-neon)', cursor: 'pointer', textAlign: 'center', fontWeight: 600 }}
+                >
+                  Вернуться к входу
+                </div>
+              </div>
+            )}
+
+            {(mode === 'mfa' || mode === 'reset') && (
               <div>
                 <label className="auth-label-neon">КОД ПОДТВЕРЖДЕНИЯ</label>
                 <input
@@ -149,20 +237,34 @@ const Login: React.FC = () => {
                   required
                   style={{ letterSpacing: '4px', textAlign: 'center', fontSize: '24px' }}
                 />
+                {mode === 'reset' && (
+                  <div style={{ marginTop: '24px' }}>
+                    <label className="auth-label-neon">НОВЫЙ ПАРОЛЬ</label>
+                    <input
+                      type="password"
+                      className="auth-input-glass"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                )}
                 <div
-                  onClick={() => setRequiresCode(false)}
+                  onClick={() => handleModeChange('login')}
                   style={{ marginTop: '10px', fontSize: '12px', color: 'var(--primary-neon)', cursor: 'pointer', textAlign: 'center', fontWeight: 600 }}
                 >
-                  Вернуться к вводу пароля
+                  Вернуться к входу
                 </div>
               </div>
             )}
 
             <button type="submit" className="neon-btn" style={{ marginTop: '15px', padding: '18px' }}>
-              {requiresCode ? 'Подтвердить код' : 'Войти в систему'}
+              {mode === 'login' ? 'Войти в систему' :
+                mode === 'mfa' ? 'Подтвердить код' :
+                  mode === 'forgot' ? 'Получить код' : 'Сбросить пароль'}
             </button>
           </form>
-
 
           <p style={{ marginTop: '30px', fontSize: '14px', color: 'var(--text-dim)' }}>
             Нужна учетная запись? <Link to="/register" style={{ color: 'var(--primary-neon)', fontWeight: 800, textDecoration: 'none' }}>Зарегистрироваться</Link>

@@ -53,7 +53,28 @@ const sendLoginCode = async (email, code) => {
   });
 };
 
+const sendResetCode = async (email, code) => {
+  await transporter.sendMail({
+    from: `"Zvon" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'Код для сброса пароля Zvon',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+        <h2 style="color: #5865F2; text-align: center;">Сброс пароля</h2>
+        <p>Вы запросили сброс пароля для вашего аккаунта Zvon. Используйте следующий код для подтверждения:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
+        </div>
+        <p>Код действителен в течение 10 минут.</p>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">Если вы не запрашивали сброс пароля, проигнорируйте это письмо.</p>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
   sendVerificationEmail,
   sendLoginCode,
+  sendResetCode,
 };

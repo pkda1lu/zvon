@@ -5,7 +5,7 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const crypto = require('crypto');
-const { sendVerificationEmail, sendLoginCode } = require('../utils/mail');
+const { sendVerificationEmail, sendLoginCode, sendResetCode } = require('../utils/mail');
 
 router.post('/register', [
   body('username').trim().isLength({ min: 3, max: 20 }).withMessage('Username must be 3-20 characters'),
@@ -175,6 +175,72 @@ router.post('/resend-verification', async (req, res) => {
 
     await sendVerificationEmail(user.email, token);
     res.json({ message: 'Verification email resent' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/forgot-password', [
+  body('email').isEmail().withMessage('Please provide a valid email')
+], async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.json({ message: 'Если аккаунт существует, код был отправлен на почту' });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetPasswordCode = code;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+
+    try {
+      await sendResetCode(user.email, code);
+    } catch (mailError) {
+      console.error('Failed to send reset code:', mailError);
+      return res.status(500).json({ message: 'Ошибка отправки почты' });
+    }
+
+    res.json({ message: 'Код для сброса пароля отправлен на вашу почту' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/reset-password', [
+  body('email').isEmail(),
+  body('code').isLength({ min: 6, max: 6 }),
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Пароль должен содержать минимум 8 символов')
+    .matches(/[A-Z]/)
+    .withMessage('Пароль должен содержать хотя бы одну заглавную букву')
+    .matches(/[\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/)
+    .withMessage('Пароль должен содержать хотя бы одну цифру или специальный символ')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const { email, code, password } = req.body;
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      resetPasswordCode: code,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Неверный или просроченный код' });
+    }
+
+    user.password = password;
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Пароль успешно изменен' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
