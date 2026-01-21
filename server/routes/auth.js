@@ -34,22 +34,26 @@ router.post('/register', [
       username,
       email: email.toLowerCase(),
       password,
-      isVerified: false,
-      verificationToken
+      isVerified: true, // Verification disabled
+      verificationToken: null
     });
 
     await user.save();
 
+    /* Verification email disabled
     try {
       await sendVerificationEmail(user.email, verificationToken);
     } catch (mailError) {
       console.error('Failed to send verification email:', mailError);
-      // We still created the user, they can try to resend later
     }
+    */
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
-      message: 'Регистрация успешна. Пожалуйста, проверьте почту для подтверждения аккаунта.',
-      email: user.email
+      message: 'Регистрация успешна.',
+      token,
+      user: { id: user._id, username: user.username, email: user.email, status: user.status }
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -87,52 +91,14 @@ router.post('/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    console.log('[Login] Verification check...');
-    if (user.isVerified === false && user.verificationToken) {
-      console.log('[Login] Verification required');
-      return res.status(403).json({
-        message: 'Email not verified',
-        requiresVerification: true,
-        email: user.email
-      });
-    }
-
-    // GRANDFATHERING: If it's an old account (no verificationToken), skip 2FA
-    if (!user.verificationToken) {
-      console.log('[Login] Old account detected, skipping 2FA');
-      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-      user.status = 'online';
-      await user.save();
-      return res.json({
-        token,
-        user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }
-      });
-    }
-
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationCode = code;
-    user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
-
-    console.log('[Login] Saving 2FA code to database...');
+    // Verification and 2FA disabled - returning token immediately
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    user.status = 'online';
     await user.save();
-    console.log('[Login] User saved');
 
-    try {
-      console.log('[Login] Sending email via SMTP...');
-      await sendLoginCode(user.email, code);
-      console.log('[Login] Email sent');
-    } catch (mailError) {
-      console.error('[Login] SMTP Error:', mailError.message);
-      return res.status(500).json({
-        message: 'Ошибка отправки кода на почту',
-        details: mailError.message
-      });
-    }
-
-    res.json({
-      message: 'Код подтверждения отправлен на вашу почту',
-      requiresCode: true,
-      email: user.email
+    return res.json({
+      token,
+      user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }
     });
   } catch (error) {
     console.error('[Login] CRITICAL ERROR:', error.message);
