@@ -1,5 +1,5 @@
 import React from 'react';
-import { useVoice } from '../contexts/VoiceContext';
+import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { Channel } from '../types';
 import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MaximizeIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,8 +18,8 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel, onRetu
         toggleMute,
         toggleDeafen,
         connectedUsers,
-        speakingUsers
     } = useVoice();
+    const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
     const { user } = useAuth();
 
     // Initial position: bottom right corner, approximate

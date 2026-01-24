@@ -108,6 +108,12 @@
   display: flex;
   flex-direction: column;
   animation: fadeIn 0.4s ease;
+  will-change: opacity;
+}
+
+:root.performance-mode .voice-call-full-view {
+  backdrop-filter: none !important;
+  background: rgba(10, 10, 15, 0.98);
 }
 
 .call-topbar {
@@ -135,7 +141,8 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--fast-transition);
+  will-change: transform, background-color;
 }
 
 .back-to-app-btn:hover {
@@ -176,17 +183,19 @@
   height: 100%;
   max-height: 800px;
   position: relative;
+  will-change: transform;
 }
 
 .main-video-slot {
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.2);
+  background: #000;
   border-radius: 42px;
   border: 1px solid var(--glass-border);
   box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   position: relative;
+  will-change: transform, box-shadow;
 }
 
 .remote-video-full {
@@ -195,11 +204,12 @@
   object-fit: cover;
   transition: all 0.3s ease;
   border: 2px solid transparent;
+  background: #000;
 }
 
 .remote-video-full.speaking {
-  border-color: var(--primary-neon);
-  box-shadow: inset 0 0 30px rgba(0, 229, 255, 0.3);
+  border-color: #00a2ff;
+  box-shadow: 0 0 20px rgba(0, 162, 255, 0.2);
 }
 
 .remote-audio-placeholder {
@@ -285,12 +295,13 @@
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   z-index: 10;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: var(--heavy-transition);
+  will-change: transform, box-shadow;
 }
 
 .pip-video-slot.speaking {
-  border-color: var(--primary-neon);
-  box-shadow: 0 0 40px rgba(0, 229, 255, 0.4), 0 20px 50px rgba(0, 0, 0, 0.5);
+  border-color: #00a2ff;
+  box-shadow: 0 0 40px rgba(0, 162, 255, 0.4), 0 20px 50px rgba(0, 0, 0, 0.5);
   transform: scale(1.02);
 }
 
@@ -351,20 +362,25 @@
 .remote-screen-slot {
   position: absolute;
   inset: 0;
-  background: black;
+  background: #000000 !important;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .remote-screen-video-full {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  background: #000000 !important;
+  display: block;
 }
 
 .screen-share-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 229, 255, 0.1);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -390,6 +406,12 @@
   border: 1px solid var(--glass-border);
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
   z-index: 100;
+  will-change: transform;
+}
+
+:root.performance-mode .call-controls-bar {
+  backdrop-filter: none !important;
+  background: rgba(20, 20, 25, 0.95);
 }
 
 .control-circle {
@@ -443,6 +465,131 @@
   background: #ff453a;
   box-shadow: 0 12px 35px rgba(255, 59, 48, 0.6);
   width: 90px;
+}
+
+/* --- DRAGGABLE OVERLAY (ActiveVoiceOverlay) --- */
+.voice-call-container {
+  position: fixed;
+  width: 320px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  z-index: 4500;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  will-change: left, top, transform;
+}
+
+:root.performance-mode .voice-call-container {
+  backdrop-filter: none !important;
+  background: rgba(20, 20, 25, 0.95);
+}
+
+.voice-call-header {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 8px 8px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.call-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.call-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.call-avatar.speaking {
+  box-shadow: 0 0 15px var(--primary-neon);
+  border-color: var(--primary-neon);
+  transform: scale(1.05);
+}
+
+.call-user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.call-username {
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+}
+
+.call-status {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.end-call-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--voice-danger);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.end-call-button:hover {
+  filter: brightness(1.2);
+  transform: scale(1.1);
+}
+
+.call-controls {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.control-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.control-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.control-button.muted,
+.control-button.deafened {
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff3b30;
+  border-color: rgba(255, 59, 48, 0.2);
+}
+
+.control-button.return-to-chat {
+  background: rgba(0, 229, 255, 0.1);
+  color: var(--primary-neon);
 }
 
 /* --- ANIMATIONS --- */

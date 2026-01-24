@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { useVoice } from '../contexts/VoiceContext';
+import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useAppearance, ThemeType } from '../contexts/AppearanceContext';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
 import {
@@ -57,16 +57,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     refreshDevices,
     inputSensitivity, setInputSensitivity,
     isAutomaticSensitivity, setIsAutomaticSensitivity,
-    currentInputLevel,
     startTestStream, stopTestStream
   } = useVoice();
+  const { currentInputLevel = -100 } = useVoiceLevels() || {};
   const {
     theme, setTheme,
     density, setDensity,
     messageSpacing, setMessageSpacing,
     groupSpacing, setGroupSpacing,
     fontScale, setFontScale,
-    appIcon, setAppIcon
+    appIcon, setAppIcon,
+    performanceMode, setPerformanceMode
   } = useAppearance();
 
   const {
@@ -458,9 +459,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             className={`app-icon-option ${appIcon === 'icon4' ? 'active' : ''}`}
             onClick={() => setAppIcon('icon4')}
           >
-            <img src="icon4.png" alt="Вариант 4" />
-            <span>Огонь</span>
+            <img src="icon4.png" alt="Космос" />
+            <span>Космос</span>
           </div>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Производительность</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Режим производительности</span>
+            <span className="checkbox-description">Отключает размытие (blur) и упрощает анимации для экономии ресурсов GPU.</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={performanceMode}
+              onChange={(e) => setPerformanceMode(e.target.checked)}
+            />
+            <span className="slider round"></span>
+          </label>
         </div>
       </div>
     </div>

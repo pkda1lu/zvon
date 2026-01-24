@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer, globalShortcut, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
@@ -13,6 +13,21 @@ let mainWindow;
 let updaterWindow;
 let tray = null;
 let isQuitting = false;
+let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false };
+
+// Performance Tuning
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-oop-rasterization');
+app.commandLine.appendSwitch('enable-accelerated-video-decode');
+app.commandLine.appendSwitch('enable-zero-copy'); // Reduces memory copy for video/audio
+app.commandLine.appendSwitch('ignore-gpu-blocklist'); // Ensure GPU is used even on older drivers
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096 --stack-size=2048');
+
+if (!isDev) {
+    app.commandLine.appendSwitch('force-device-scale-factor', '1'); // Consistent sizing
+}
 
 const stateFilePath = path.join(app.getPath('userData'), 'window-state.json');
 
@@ -69,12 +84,8 @@ function createTray() {
     const iconPath = path.join(__dirname, 'app_icon.ico');
     const trayIcon = nativeImage.createFromPath(iconPath);
     tray = new Tray(trayIcon);
-    const contextMenu = Menu.buildFromTemplate([
-        { label: 'Открыть Zvon', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
-        { label: 'Выйти', click: () => { isQuitting = true; app.quit(); } }
-    ]);
+    updateTrayMenu();
     tray.setToolTip('Zvon');
-    tray.setContextMenu(contextMenu);
     tray.on('click', () => {
         if (mainWindow) {
             if (mainWindow.isVisible()) {
@@ -83,6 +94,68 @@ function createTray() {
             } else { mainWindow.show(); mainWindow.focus(); }
         }
     });
+}
+
+function updateTrayMenu() {
+    if (!tray) return;
+    const contextMenu = Menu.buildFromTemplate([
+        { label: 'Открыть Zvon', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+        { type: 'separator' },
+        {
+            label: currentVoiceState.isMuted ? '✓ Микрофон выключен' : 'Выключить микрофон',
+            enabled: currentVoiceState.isConnected,
+            click: () => { if (mainWindow) mainWindow.webContents.send('toggle-mute-shortcut'); }
+        },
+        {
+            label: currentVoiceState.isDeafened ? '✓ Звук выключен' : 'Выключить звук',
+            enabled: currentVoiceState.isConnected,
+            click: () => { if (mainWindow) mainWindow.webContents.send('toggle-deafen-shortcut'); }
+        },
+        { type: 'separator' },
+        { label: 'Выйти', click: () => { isQuitting = true; app.quit(); } }
+    ]);
+    tray.setContextMenu(contextMenu);
+}
+
+function updateTrayStatus(state) {
+    if (!tray) return;
+    currentVoiceState = state;
+    const { isMuted, isDeafened, isConnected } = state;
+    let iconName = 'app_icon.ico';
+    let statusText = 'Zvon - В сети';
+
+    if (isDeafened) {
+        iconName = 'icon_deafened.ico';
+        statusText = 'Zvon - Звук выключен';
+    } else if (isMuted) {
+        iconName = 'icon_muted.ico';
+        statusText = 'Zvon - Микрофон выключен';
+    } else if (!isConnected) {
+        statusText = 'Zvon - Не в голосе';
+    }
+
+    const iconPath = path.join(__dirname, iconName);
+    if (fs.existsSync(iconPath)) {
+        tray.setImage(nativeImage.createFromPath(iconPath));
+    }
+    tray.setToolTip(statusText);
+    updateTrayMenu();
+}
+
+function registerGlobalShortcuts() {
+    // Toggle Mute: Ctrl+Shift+M
+    globalShortcut.register('CommandOrControl+Shift+M', () => {
+        if (mainWindow) mainWindow.webContents.send('toggle-mute-shortcut');
+    });
+
+    // Toggle Deafen: Ctrl+Shift+D
+    globalShortcut.register('CommandOrControl+Shift+D', () => {
+        if (mainWindow) mainWindow.webContents.send('toggle-deafen-shortcut');
+    });
+}
+
+function unregisterGlobalShortcuts() {
+    globalShortcut.unregisterAll();
 }
 
 function createUpdaterWindow() {
@@ -133,13 +206,25 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width, height, x, y, minWidth: 800, minHeight: 600,
         webPreferences: {
-            nodeIntegration: false, contextIsolation: true, enableRemoteModule: false, webSecurity: true, backgroundThrottling: false,
+            nodeIntegration: false,
+            contextIsolation: true,
+            enableRemoteModule: false,
+            webSecurity: true,
+            backgroundThrottling: false,
+            spellcheck: false, // Performance: Disable spellcheck
+            v8CacheOptions: 'bypass-heat-check-and-allow-code-cache', // Faster JIT
             preload: isDev ? path.join(__dirname, '../public/preload.js') : path.join(__dirname, 'preload.js')
         },
-        autoHideMenuBar: true, frame: false, backgroundColor: '#1e1f22', icon: path.join(__dirname, 'app_icon.ico')
+        autoHideMenuBar: true,
+        frame: false,
+        backgroundColor: '#1e1f22',
+        icon: path.join(__dirname, 'app_icon.ico'),
+        show: false // Performance: Use ready-to-show to prevent white flash
     });
-    if (windowState.isMaximized) mainWindow.maximize();
-    mainWindow.once('ready-to-show', () => { scanActivities(); });
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+        scanActivities();
+    });
     let saveTimeout;
     const debouncedSave = () => { clearTimeout(saveTimeout); saveTimeout = setTimeout(saveWindowState, 500); };
     mainWindow.on('resize', debouncedSave);
@@ -154,6 +239,11 @@ function createWindow() {
         saveWindowState();
     });
     if (!tray) createTray();
+    registerGlobalShortcuts();
+
+    app.on('will-quit', () => {
+        unregisterGlobalShortcuts();
+    });
     app.on('open-url', (event, url) => {
         event.preventDefault();
         if (mainWindow) mainWindow.webContents.send('deep-link', url);
@@ -178,10 +268,26 @@ function createWindow() {
     if (isDev) mainWindow.webContents.openDevTools();
 }
 
-ipcMain.handle('get-pending-deep-link', () => {
-    const link = pendingDeepLink;
-    pendingDeepLink = null;
-    return link;
+ipcMain.on('voice-state-sync', (event, state) => {
+    updateTrayStatus(state);
+});
+
+ipcMain.on('show-native-notification', (event, { title, body, silent }) => {
+    if (Notification.isSupported()) {
+        const notification = new Notification({
+            title,
+            body,
+            silent,
+            icon: path.join(__dirname, 'icon.png')
+        });
+        notification.show();
+        notification.on('click', () => {
+            if (mainWindow) {
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        });
+    }
 });
 
 ipcMain.on('clipboard-write', (event, text) => {
@@ -258,8 +364,10 @@ function scheduleNextScan() {
     currentScanTimeout = setTimeout(scanActivities, adaptiveInterval);
 }
 
-const FG_SCRIPT = `$processId = (Get-Process | Where-Object { $_.MainWindowHandle -eq (Add-Type -MemberDefinition @'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();'@ -Name "Win32" -Namespace "Win32" -PassThru)::GetForegroundWindow() }).Id
-if ($processId) { (Get-Process -Id $processId).ProcessName + ".exe" }`;
+const FG_SCRIPT = `$hwnd = (Add-Type -MemberDefinition @'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();'@ -Name "Win32" -Namespace "Win32" -PassThru)::GetForegroundWindow()
+if ($hwnd -ne 0) {
+    (Get-Process | Where-Object { $_.MainWindowHandle -eq $hwnd }).ProcessName + ".exe"
+}`;
 
 async function scanActivities() {
     if (process.platform !== 'win32' || scanInProgress) { scheduleNextScan(); return; }
@@ -267,10 +375,10 @@ async function scanActivities() {
     exec(`powershell -Command "${FG_SCRIPT.replace(/\n/g, '')}"`, (fgErr, fgStdout) => {
         const fgExe = fgStdout?.trim().toLowerCase();
         if (!fgErr && fgExe) {
+            const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
             for (const key in KNOWN_GAMES) {
                 const keyLower = key.toLowerCase();
-                const keyBase = keyLower.endsWith('.exe') ? keyLower.slice(0, -4) : keyLower;
-                if (fgExe === keyLower || fgExe === keyBase || fgExe === keyBase + ".exe") {
+                if (fgExe === keyLower || fgBase === keyLower || fgExe === keyLower.replace('.exe', '')) {
                     updateActivity(KNOWN_GAMES[key]);
                     scanInProgress = false;
                     adaptiveInterval = 2000;
@@ -287,8 +395,13 @@ function updateActivity(foundActivity) {
     const currentName = foundActivity ? foundActivity.name : null;
     const lastName = lastActivity ? lastActivity.name : null;
     if (currentName !== lastName) {
-        if (foundActivity) { lastActivity = { ...foundActivity }; activityStartTime = Date.now(); }
-        else { lastActivity = null; activityStartTime = null; }
+        if (foundActivity) {
+            lastActivity = { ...foundActivity };
+            activityStartTime = Date.now();
+        } else {
+            lastActivity = null;
+            activityStartTime = null;
+        }
         if (mainWindow && !mainWindow.webContents.isDestroyed()) {
             mainWindow.webContents.send('activity-changed', lastActivity ? { ...lastActivity, startTime: activityStartTime } : null);
         }
@@ -301,20 +414,21 @@ function performFullScan() {
         if (err) { adaptiveInterval = 5000; scheduleNextScan(); return; }
         const lines = stdout.split(/\r?\n/);
         let bestMatch = null;
+
+        // Optimize search by normalizing targets once
+        const normalizedGames = Object.keys(KNOWN_GAMES).map(k => ({ key: k, lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', '') }));
+
         for (const line of lines) {
             const parts = line.split('","');
             if (parts.length > 0) {
                 const exeNameLower = parts[0].replace(/"/g, '').trim().toLowerCase();
                 const baseName = exeNameLower.endsWith('.exe') ? exeNameLower.slice(0, -4) : exeNameLower;
-                for (const key in KNOWN_GAMES) {
-                    const keyLower = key.toLowerCase();
-                    const keyBase = keyLower.endsWith('.exe') ? keyLower.slice(0, -4) : keyLower;
-                    if (exeNameLower === keyLower || baseName === keyBase) {
-                        bestMatch = KNOWN_GAMES[key];
-                        break;
-                    }
+
+                const match = normalizedGames.find(g => exeNameLower === g.lower || baseName === g.base);
+                if (match) {
+                    bestMatch = KNOWN_GAMES[match.key];
+                    break;
                 }
-                if (bestMatch) break;
             }
         }
         updateActivity(bestMatch);
@@ -405,17 +519,36 @@ ipcMain.on('start-audio-capture', (event, { pid, mode }) => {
     }
     log.info(`[NativeAudio] Attempting to start capture. PID: ${pid}, Mode: ${mode}`);
     try {
-        let packetCount = 0;
+        let audioBuffer = [];
+        let bufferSizeThreshold = 3; // Batch 3 packets
+        let flushTimeout = null;
+
+        const flush = () => {
+            if (audioBuffer.length > 0 && event.sender && !event.sender.isDestroyed()) {
+                const totalLength = audioBuffer.reduce((acc, val) => acc + val.length, 0);
+                const mergedBuffer = Buffer.concat(audioBuffer, totalLength);
+                event.sender.send('audio-data-batch', mergedBuffer);
+                audioBuffer = [];
+            }
+            if (flushTimeout) {
+                clearTimeout(flushTimeout);
+                flushTimeout = null;
+            }
+        };
+
         const result = zvonAudio.start(pid, mode, (data) => {
             if (event.sender && !event.sender.isDestroyed()) {
                 if (!Buffer.isBuffer(data)) {
                     event.sender.send('audio-meta', data);
                 } else {
-                    packetCount++;
-                    if (packetCount % 100 === 0) {
-                        log.info(`[NativeAudio] Sent 100 packets to renderer. Last size: ${data.length} bytes`);
+                    audioBuffer.push(data);
+
+                    if (audioBuffer.length >= bufferSizeThreshold) {
+                        flush();
+                    } else if (!flushTimeout) {
+                        // Ensure we don't hold data too long
+                        flushTimeout = setTimeout(flush, 10);
                     }
-                    event.sender.send('audio-data', data);
                 }
             }
         });

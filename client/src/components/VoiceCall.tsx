@@ -3,7 +3,7 @@ import { Socket } from 'socket.io-client';
 import axios from 'axios';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { useVoice } from '../contexts/VoiceContext';
+import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { getAvatarUrl } from '../utils/avatar';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
@@ -32,7 +32,8 @@ interface VoiceCallProps {
 
 const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false }) => {
   const { user } = useAuth();
-  const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened, speakingUsers } = useVoice();
+  const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened } = useVoice();
+  const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);

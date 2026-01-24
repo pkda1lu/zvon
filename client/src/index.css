@@ -13,10 +13,10 @@
   --bg-dark: #020205;
   --glass-bg: rgba(255, 255, 255, 0.035);
   --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-blur: blur(50px) saturate(160%) brightness(1.05);
-  --primary-neon: #00e5ff;
-  --secondary-neon: #a155ff;
-  --accent-pink: #ff00e5;
+  --glass-blur: var(--glass-blur-actual);
+  --primary-neon: #006aff;
+  --secondary-neon: #7000ff;
+  --accent-pink: #ff00c8;
   --text-main: #ffffff;
   --text-dim: rgba(255, 255, 255, 0.45);
   --corner-radius: 36px;
@@ -25,6 +25,31 @@
   /* Layout Constants */
   --sidebar-width: 84px;
   --topbar-height: 80px;
+
+  /* Performance Tweaks */
+  --glass-blur-value: 50px;
+  --glass-blur-actual: blur(var(--glass-blur-value)) saturate(160%) brightness(1.05);
+  --heavy-transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  --fast-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Icon Tokens */
+  --icon-stroke: 2px;
+  --icon-color: currentColor;
+  --icon-transition: all 0.3s ease;
+}
+
+svg {
+  shape-rendering: auto;
+}
+
+.icon-animated {
+  transition: var(--icon-transition);
+  will-change: transform, opacity;
+}
+
+:root.performance-mode {
+  --glass-blur-actual: none;
+  --glass-bg: rgba(15, 15, 20, 0.92);
 }
 
 /* --- GLOBAL LIQUID COMPONENTS --- */
@@ -38,9 +63,10 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: var(--fast-transition);
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
   font-family: inherit;
+  will-change: transform, box-shadow;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -152,9 +178,15 @@ body {
   inset: -10%;
   background: linear-gradient(-45deg, #020204, #15082e, #0a1f38, #2e081c, #020204);
   background-size: 300% 300%;
-  animation: gradientMove 50s ease infinite, liquidFloat 75s ease-in-out infinite;
+  animation: gradientMove 50s linear infinite, liquidFloat 75s ease-in-out infinite;
   z-index: -1;
   pointer-events: none;
+  will-change: transform, background-position;
+}
+
+:root.performance-mode .liquid-bg-container {
+  animation: none;
+  background: var(--bg-dark);
 }
 
 .liquid-bg-container::before {
@@ -216,7 +248,13 @@ body {
     0 25px 50px -12px rgba(0, 0, 0, 0.25),
     inset 0 1px 1px rgba(255, 255, 255, 0.1);
   position: relative;
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: var(--heavy-transition);
+  will-change: transform, opacity;
+}
+
+:root.performance-mode .glass-panel-base {
+  backdrop-filter: none !important;
+  background: rgba(20, 20, 25, 0.98);
 }
 
 .mention-tag {

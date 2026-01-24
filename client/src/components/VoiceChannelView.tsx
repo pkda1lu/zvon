@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { useVoice } from '../contexts/VoiceContext';
+import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { Channel, User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
@@ -19,13 +19,13 @@ interface VoiceChannelViewProps {
   onCallClick: (userId: string) => void;
 }
 
-const VoiceParticipantCard: React.FC<{
+const VoiceParticipantCard = React.memo<{
   participant: any;
   isSpeaking: boolean;
   onUserClick: any;
   onContextMenu: any;
   getDisplayName: any;
-}> = ({ participant, isSpeaking, onUserClick, onContextMenu, getDisplayName }) => {
+}>(({ participant, isSpeaking, onUserClick, onContextMenu, getDisplayName }) => {
   return (
     <div
       className={`p-card ${isSpeaking ? 'is-speaking' : ''}`}
@@ -62,13 +62,13 @@ const VoiceParticipantCard: React.FC<{
         )}
         {isSpeaking ? (
           <div className="ind-icon">
-            <MicIcon size={18} color="#00f2ffa1" />
+            <MicIcon size={18} color="#ffffff" />
           </div>
         ) : null}
       </div>
     </div>
   );
-};
+});
 
 const VoiceStreamCard: React.FC<{
   item: any;
@@ -253,7 +253,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     toggleDeafen,
     connectedUsers: activeConnectedUsers,
     userStates,
-    speakingUsers,
     isScreenSharing,
     startScreenShare,
     stopScreenShare,
@@ -265,6 +264,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     watchedScreenIds,
     setWatchingScreen,
   } = useVoice();
+  const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; userId: string } | null>(null);

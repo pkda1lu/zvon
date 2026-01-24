@@ -51,21 +51,36 @@
 
 
 .sidebar-resizer {
-  width: 4px;
-  /* Increased slightly for better usability */
+  width: 12px;
   cursor: col-resize;
-  background: var(--glass-border);
-  transition: all 0.2s;
   flex-shrink: 0;
-  z-index: 10;
-  margin-left: -2px;
-  /* Pull it slightly over the sidebar border */
+  z-index: 100;
+  margin-left: -6px;
+  margin-right: -6px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--fast-transition);
+  position: relative;
 }
 
-.sidebar-resizer:hover,
-.sidebar-resizer:active {
+.sidebar-resizer::after {
+  content: '';
+  width: 2px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  transition: var(--fast-transition);
+  will-change: height, background-color, box-shadow;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer:active::after {
+  height: 60px;
   background: var(--primary-neon);
-  box-shadow: 0 0 10px var(--primary-neon);
+  box-shadow: 0 0 15px var(--primary-neon);
+  width: 3px;
 }
 
 .secondary-sidebar-container {

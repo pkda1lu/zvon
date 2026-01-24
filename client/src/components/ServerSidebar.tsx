@@ -6,7 +6,7 @@ import CreateChannelModal from './CreateChannelModal';
 import ChannelSettingsModal from './ChannelSettingsModal';
 import { HashtagIcon, SpeakerIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
-import { useVoice } from '../contexts/VoiceContext';
+import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './ServerSidebar.css';
 import InviteModal from './InviteModal';
@@ -37,7 +37,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
-  const { speakingUsers, joinChannel, userStates } = useVoice();
+  const { joinChannel, userStates } = useVoice();
+  const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
   const isOwner = currentUser && server.owner && (
     (typeof server.owner === 'object' && String((server.owner as any)._id) === String(currentUser._id)) ||
@@ -152,8 +153,10 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                 <div key={channel._id}>
                   <div
                     className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`}
-                    onClick={() => onChannelSelect(channel)}
-                    onDoubleClick={() => joinChannel(channel._id)}
+                    onClick={() => {
+                      onChannelSelect(channel);
+                      joinChannel(channel._id);
+                    }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                       <span className="channel-icon"><SpeakerIcon size={18} /></span>

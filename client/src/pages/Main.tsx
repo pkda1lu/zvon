@@ -278,6 +278,17 @@ const Main: React.FC = () => {
         try {
           const response = await axios.get<User>(`/api/users/${data.fromUserId}`);
           setActiveCall({ user: response.data, isIncoming: true, dmId: data.dmId || '', offer: data });
+
+          // Send Native Notification
+          // @ts-ignore
+          if (window.electron && window.electron.ipc) {
+            // @ts-ignore
+            window.electron.ipc.send('show-native-notification', {
+              title: 'Входящий звонок',
+              body: `Вам звонит ${response.data.username}`,
+              silent: false
+            });
+          }
         } catch (err) { }
       }
     };

@@ -11,6 +11,7 @@ interface AppearanceSettings {
     groupSpacing: number; // 0 to 48px
     fontScale: number; // 0.8 to 1.5
     appIcon: AppIconType;
+    performanceMode: boolean;
 }
 
 interface AppearanceContextType extends AppearanceSettings {
@@ -20,6 +21,7 @@ interface AppearanceContextType extends AppearanceSettings {
     setGroupSpacing: (spacing: number) => void;
     setFontScale: (scale: number) => void;
     setAppIcon: (icon: AppIconType) => void;
+    setPerformanceMode: (enabled: boolean) => void;
 }
 
 const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
@@ -29,8 +31,12 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const saved = localStorage.getItem('appearance-settings');
         if (saved) {
             const parsed = JSON.parse(saved);
-            // Ensure appIcon exists for backward compatibility
-            return { ...parsed, appIcon: parsed.appIcon || 'default' };
+            // Ensure performanceMode exists for backward compatibility
+            return {
+                ...parsed,
+                appIcon: parsed.appIcon || 'default',
+                performanceMode: parsed.performanceMode ?? false
+            };
         }
         return {
             theme: 'dark',
@@ -39,6 +45,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             groupSpacing: 16,
             fontScale: 1.0,
             appIcon: 'default',
+            performanceMode: false,
         };
     });
 
@@ -117,6 +124,14 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             root.style.setProperty('--message-padding-v', '8px');
             root.style.setProperty('--message-margin-v', '2px');
         }
+
+        // Performance Mode
+        root.style.setProperty('--performance-mode', s.performanceMode ? '1' : '0');
+        if (s.performanceMode) {
+            root.classList.add('performance-mode');
+        } else {
+            root.classList.remove('performance-mode');
+        }
     };
 
     const setTheme = (theme: ThemeType) => setSettings(prev => ({ ...prev, theme }));
@@ -125,6 +140,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const setGroupSpacing = (groupSpacing: number) => setSettings(prev => ({ ...prev, groupSpacing }));
     const setFontScale = (fontScale: number) => setSettings(prev => ({ ...prev, fontScale }));
     const setAppIcon = (appIcon: AppIconType) => setSettings(prev => ({ ...prev, appIcon }));
+    const setPerformanceMode = (performanceMode: boolean) => setSettings(prev => ({ ...prev, performanceMode }));
 
     return (
         <AppearanceContext.Provider value={{
@@ -134,7 +150,8 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setMessageSpacing,
             setGroupSpacing,
             setFontScale,
-            setAppIcon
+            setAppIcon,
+            setPerformanceMode
         }}>
             {children}
         </AppearanceContext.Provider>

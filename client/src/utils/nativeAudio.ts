@@ -61,9 +61,18 @@ export class NativeAudioManager {
             this.channels = meta.channels;
         });
 
-        this.removeDataListener = electron.ipc.on('audio-data', (event: any, buffer: Uint8Array) => {
+        const removeBatched = electron.ipc.on('audio-data-batch', (event: any, buffer: Uint8Array) => {
             this.handleAudioData(buffer);
         });
+
+        const removeLegacy = electron.ipc.on('audio-data', (event: any, buffer: Uint8Array) => {
+            this.handleAudioData(buffer);
+        });
+
+        this.removeDataListener = () => {
+            removeBatched();
+            removeLegacy();
+        };
 
         electron.ipc.send('start-audio-capture', { pid, mode });
 
@@ -79,8 +88,18 @@ export class NativeAudioManager {
         const electron = (window as any).electron;
         if (!electron) return;
         electron.ipc.send('stop-audio-capture');
-        if (this.removeDataListener) { this.removeDataListener(); this.removeDataListener = null; }
-        if (this.removeMetaListener) { this.removeMetaListener(); this.removeMetaListener = null; }
+        if (this.removeDataListener) {
+            this.removeDataListener();
+            this.removeDataListener = null;
+            // Also need to clear the specific IPC listeners if the above was just a wrapper
+            electron.ipc.removeAllListeners('audio-data-batch');
+            electron.ipc.removeAllListeners('audio-data');
+        }
+        if (this.removeMetaListener) {
+            this.removeMetaListener();
+            this.removeMetaListener = null;
+            electron.ipc.removeAllListeners('audio-meta');
+        }
 
         if (this.audioCtx) {
             this.audioCtx.close().catch(() => { });

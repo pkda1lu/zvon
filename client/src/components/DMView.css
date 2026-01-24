@@ -34,9 +34,15 @@
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.1),
     0 25px 50px -12px rgba(0, 0, 0, 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.05);
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
   overflow: hidden;
   position: relative;
+  transition: var(--heavy-transition);
+}
+
+:root.performance-mode .dm-container {
+  backdrop-filter: none !important;
+  background: var(--bg-dark);
 }
 
 .dm-header {
@@ -142,7 +148,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  will-change: transform, color;
 }
 
 .header-action-btn:hover {
@@ -169,7 +175,7 @@
   cursor: pointer;
   box-shadow: 0 4px 15px rgba(0, 229, 255, 0.4);
   z-index: 300;
-  animation: slideUpFade 0.3s ease-out;
+  will-change: transform, opacity;
 }
 
 .scroll-bottom-btn:hover {
@@ -200,7 +206,8 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--fast-transition);
+  will-change: transform, background-color;
   font-size: 20px;
 }
 
@@ -415,6 +422,7 @@
 
 .message.grouped .message-actions-hover {
   top: -12px;
+  will-change: transform;
 }
 
 .message:hover .message-actions-hover {

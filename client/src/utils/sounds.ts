@@ -3,8 +3,8 @@ export const SOUNDS = {
     CALL_RINGING: 'sounds/call_incoming.mp3',
     CALL_JOIN: 'sounds/voice_join.mp3',
     CALL_LEAVE: 'sounds/voice_leave.mp3',
-    MUTE: 'sounds/mute.mp3',
-    UNMUTE: 'sounds/unmute.mp3',
+    MUTE: 'sounds/message_notify.mp3', // Placeholder until mute.mp3 is added
+    UNMUTE: 'sounds/message_notify.mp3', // Placeholder until unmute.mp3 is added
     VOICE_JOIN: 'sounds/voice_join.mp3',
     VOICE_LEAVE: 'sounds/voice_leave.mp3',
     SCREENSHARE_ON: 'sounds/screenshare_on.mp3',
@@ -45,7 +45,6 @@ export class SoundManager {
                 audio.volume = volume;
                 return await audio.play();
             } catch (err) {
-                console.warn('[SoundManager] Fallback play failed:', err);
                 return;
             }
         }
@@ -54,11 +53,29 @@ export class SoundManager {
             let buffer = this.soundBuffers.get(soundPath);
             if (!buffer) {
                 const resp = await fetch(`${soundPath}?v=${Date.now()}`, { cache: 'no-store' });
-                if (!resp.ok) throw new Error(`Failed to fetch sound: ${resp.status}`);
+                if (!resp.ok) return;
+
+                // Crucial Check: Ensure we didn't get an HTML/JSON 404 page
+                const contentType = resp.headers.get('Content-Type');
+                if (contentType && !contentType.startsWith('audio/') && !contentType.startsWith('application/octet-stream')) {
+                    console.warn(`[SoundManager] Skipping ${soundPath}: Invalid content type ${contentType}`);
+                    return;
+                }
+
                 const arrayBuf = await resp.arrayBuffer();
-                buffer = await this.audioContext.decodeAudioData(arrayBuf);
-                this.soundBuffers.set(soundPath, buffer);
+                if (arrayBuf.byteLength === 0) return;
+
+                try {
+                    buffer = await this.audioContext.decodeAudioData(arrayBuf);
+                    this.soundBuffers.set(soundPath, buffer);
+                } catch (decodeErr) {
+                    console.warn(`[SoundManager] Failed to decode ${soundPath}. File might be corrupted or missing.`);
+                    return;
+                }
             }
+
+            if (!buffer) return;
+
             const source = this.audioContext.createBufferSource();
             const gainNode = this.audioContext.createGain();
             source.buffer = buffer;
@@ -67,7 +84,7 @@ export class SoundManager {
             gainNode.connect(this.audioContext.destination);
             source.start(0);
         } catch (err) {
-            console.error('[SoundManager] Web Audio play failed, trying fallback:', err);
+            // Final fallback
             try {
                 const audio = new Audio(soundPath);
                 audio.volume = volume;

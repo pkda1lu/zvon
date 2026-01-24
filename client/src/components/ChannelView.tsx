@@ -29,6 +29,182 @@ interface ChannelViewProps {
   pinnedMessages?: Message[];
 }
 
+const MessageItem = React.memo<{
+  msg: Message;
+  prev: Message | undefined;
+  user: User | null;
+  server: Server;
+  displayEmbeds: boolean;
+  showHoverActions: boolean;
+  mentionHighlight: boolean;
+  canPin: boolean;
+  onUserClick: (userId: string, event?: React.MouseEvent) => void;
+  onContextMenu: (e: React.MouseEvent, user: User) => void;
+  onTogglePin: (id: string) => void;
+  onDelete: (id: string) => void;
+  formatDate: (d: string) => string;
+  renderMessageContent: (c: string, m?: User[]) => any;
+  handleDownload: (e: React.MouseEvent, url: string, filename: string) => void;
+  setLightboxMedia: (m: any[]) => void;
+  setLightboxIndex: (i: number) => void;
+  setLightboxOpen: (o: boolean) => void;
+  allMessages: Message[];
+}>(({
+  msg, prev, user, server, displayEmbeds, showHoverActions, mentionHighlight, canPin,
+  onUserClick, onContextMenu, onTogglePin, onDelete, formatDate, renderMessageContent,
+  handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages
+}) => {
+  const shouldShowDate = (current: Message, previous: Message | undefined) => {
+    if (!previous) return true;
+    return new Date(current.createdAt).getDate() !== new Date(previous.createdAt).getDate();
+  };
+
+  const isGrouped = (current: Message, previous: Message | undefined) => {
+    if (!previous) return false;
+    if (current.author._id !== previous.author._id) return false;
+    if (shouldShowDate(current, previous)) return false;
+    const timeDiff = new Date(current.createdAt).getTime() - new Date(previous.createdAt).getTime();
+    return timeDiff < 5 * 60 * 1000;
+  };
+
+  const showDate = shouldShowDate(msg, prev);
+  const grouped = isGrouped(msg, prev);
+
+  const member = useMemo(() =>
+    server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id)),
+    [server.members, msg.author._id]
+  );
+
+  return (
+    <>
+      {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
+      <div className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''}`}>
+        {!grouped && (
+          <div className="message-author-avatar" onClick={(e) => onUserClick(msg.author._id, e)} onContextMenu={(e) => onContextMenu(e, msg.author)} style={{ cursor: 'pointer' }}>
+            {getAvatarUrl(msg.author.avatar) ? <img src={getAvatarUrl(msg.author.avatar)!} alt="" /> : <span>{msg.author.username.charAt(0).toUpperCase()}</span>}
+          </div>
+        )}
+        {grouped && <div className="message-time-mini">{new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
+        <div className="message-content">
+          {!grouped && (
+            <div className="message-header">
+              <div className="message-author-info">
+                <span
+                  className="message-author"
+                  onClick={(e) => onUserClick(msg.author._id, e)}
+                  onContextMenu={(e) => onContextMenu(e, msg.author)}
+                  style={{
+                    cursor: 'pointer',
+                    color: (() => {
+                      if (!member) return 'inherit';
+                      const roleIds = member.roles || [];
+                      const roles = (server.roles || []).filter(r => roleIds.includes(r._id));
+                      roles.sort((a, b) => (b.position || 0) - (a.position || 0));
+                      const colorRole = roles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
+                      return colorRole ? colorRole.color : 'inherit';
+                    })()
+                  }}
+                >
+                  {member?.nickname || msg.author.username}
+                </span>
+                <span className="message-time">{formatDate(msg.createdAt)}</span>
+              </div>
+              {showHoverActions && (
+                <div className="message-actions-hover">
+                  {canPin && (
+                    <button
+                      className="msg-action-btn"
+                      onClick={() => onTogglePin(msg._id)}
+                      title={msg.pinned ? "Открепить" : "Закрепить"}
+                    >
+                      <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                    </button>
+                  )}
+                  {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
+                    <button className="msg-action-btn danger" onClick={() => onDelete(msg._id)}><TrashIcon size={16} /></button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {grouped && showHoverActions && (
+            <div className="message-actions-hover mini">
+              {canPin && (
+                <button
+                  className="msg-action-btn mini"
+                  onClick={() => onTogglePin(msg._id)}
+                >
+                  <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                </button>
+              )}
+              {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
+                <button className="msg-action-btn danger mini" onClick={() => onDelete(msg._id)}><TrashIcon size={14} /></button>
+              )}
+            </div>
+          )}
+
+          {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
+
+          <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
+          {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
+            <div className="message-attachments">
+              {msg.attachments.map((att, i) => (
+                <div key={i} className="attachment-item">
+                  {att.type.startsWith('image/') ? (
+                    <div className="attachment-image-container">
+                      <img src={getFullUrl(att.url)!} alt="" className="attachment-image" onClick={() => {
+                        const allMedia = allMessages.flatMap((m: any) => m.attachments || []).filter((a: any) => a.type.startsWith('image/') || a.type.startsWith('video/'));
+                        setLightboxMedia(allMedia);
+                        setLightboxIndex(allMedia.findIndex((a: any) => a.url === att.url));
+                        setLightboxOpen(true);
+                      }} />
+                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
+                        <DownloadIcon size={16} />
+                      </button>
+                    </div>
+                  ) : att.type.startsWith('video/') ? (
+                    <div className="attachment-video-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
+                      <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
+                        const allMedia = allMessages.flatMap((m: any) => m.attachments || []).filter((a: any) => a.type.startsWith('image/') || a.type.startsWith('video/')).map((a: any) => ({ ...a }));
+                        const idx = allMedia.findIndex((a: any) => a.url === att.url);
+                        if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
+                        setLightboxMedia(allMedia);
+                        setLightboxIndex(idx);
+                        setLightboxOpen(true);
+                      }} />
+                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
+                        <DownloadIcon size={16} />
+                      </button>
+                    </div>
+                  ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
+                    <div className="attachment-audio-container">
+                      <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
+                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
+                        <DownloadIcon size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="attachment-file-container">
+                      <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
+                        <DocumentIcon size={18} /><span>{att.filename}</span>
+                      </a>
+                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
+                        <DownloadIcon size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {msg.edited && <span className="message-edited">(изменено)</span>}
+        </div>
+      </div>
+    </>
+  );
+});
+
 const ChannelView: React.FC<ChannelViewProps> = ({
   channel, server, messages, socket, onUserClick, initialUnreadCount = 0,
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = []
@@ -451,149 +627,38 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
         {isLoadingMore && <div className="loading-more">Загрузка...</div>}
         <div className="messages-list">
-          {messages.map((msg, index) => {
-            const prev = messages[index - 1];
-            const showDate = shouldShowDate(msg, prev);
-            const grouped = isGrouped(msg, prev);
-
-            return (
-              <React.Fragment key={msg._id}>
-                {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
-                {initialUnreadCount > 0 && index === messages.length - initialUnreadCount && (
-                  <div className="new-messages-marker" ref={unreadRef}>
-                    <div className="new-messages-line" />
-                    <span>Новые сообщения</span>
-                    <div className="new-messages-line" />
-                  </div>
-                )}
-                <div className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''}`}>
-                  {!grouped && (
-                    <div className="message-author-avatar" onClick={(e) => onUserClick(msg.author._id, e)} onContextMenu={(e) => handleContextMenu(e, msg.author)} style={{ cursor: 'pointer' }}>
-                      {getAvatarUrl(msg.author.avatar) ? <img src={getAvatarUrl(msg.author.avatar)!} alt="" /> : <span>{msg.author.username.charAt(0).toUpperCase()}</span>}
-                    </div>
-                  )}
-                  {grouped && <div className="message-time-mini">{new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
-                  <div className="message-content">
-                    {!grouped && (
-                      <div className="message-header">
-                        <div className="message-author-info">
-                          <span
-                            className="message-author"
-                            onClick={(e) => onUserClick(msg.author._id, e)}
-                            onContextMenu={(e) => handleContextMenu(e, msg.author)}
-                            style={{
-                              cursor: 'pointer',
-                              color: (() => {
-                                const member = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id));
-                                if (!member) return 'inherit';
-                                const roleIds = member.roles || [];
-                                const roles = (server.roles || []).filter(r => roleIds.includes(r._id));
-                                roles.sort((a, b) => (b.position || 0) - (a.position || 0));
-                                const colorRole = roles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
-                                return colorRole ? colorRole.color : 'inherit';
-                              })()
-                            }}
-                          >
-                            {server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id))?.nickname || msg.author.username}
-                          </span>
-                          <span className="message-time">{formatDate(msg.createdAt)}</span>
-                        </div>
-                        {showHoverActions && (
-                          <div className="message-actions-hover">
-                            {canPin && (
-                              <button
-                                className="msg-action-btn"
-                                onClick={() => handleTogglePin(msg._id)}
-                                title={msg.pinned ? "Открепить" : "Закрепить"}
-                              >
-                                <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
-                              </button>
-                            )}
-                            {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
-                              <button className="msg-action-btn danger" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={16} /></button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {grouped && showHoverActions && (
-                      <div className="message-actions-hover mini">
-                        {canPin && (
-                          <button
-                            className="msg-action-btn mini"
-                            onClick={() => handleTogglePin(msg._id)}
-                          >
-                            <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
-                          </button>
-                        )}
-                        {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
-                          <button className="msg-action-btn danger mini" onClick={() => handleDeleteMessage(msg._id)}><TrashIcon size={14} /></button>
-                        )}
-                      </div>
-                    )}
-
-                    {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
-
-
-                    <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
-                    {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
-                      <div className="message-attachments">
-                        {msg.attachments.map((att, i) => (
-                          <div key={i} className="attachment-item">
-                            {att.type.startsWith('image/') ? (
-                              <div className="attachment-image-container">
-                                <img src={getFullUrl(att.url)!} alt="" className="attachment-image" onClick={() => {
-                                  const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/'));
-                                  setLightboxMedia(allMedia);
-                                  setLightboxIndex(allMedia.findIndex(a => a.url === att.url));
-                                  setLightboxOpen(true);
-                                }} />
-                                <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
-                                  <DownloadIcon size={16} />
-                                </button>
-                              </div>
-                            ) : att.type.startsWith('video/') ? (
-                              <div className="attachment-video-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
-                                <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
-                                  const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/')).map(a => ({ ...a }));
-                                  const idx = allMedia.findIndex(a => a.url === att.url);
-                                  if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
-                                  setLightboxMedia(allMedia);
-                                  setLightboxIndex(idx);
-                                  setLightboxOpen(true);
-                                }} />
-                                <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
-                                  <DownloadIcon size={16} />
-                                </button>
-                              </div>
-                            ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
-                              <div className="attachment-audio-container">
-                                <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
-                                <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
-                                  <DownloadIcon size={16} />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="attachment-file-container">
-                                <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                                  <DocumentIcon size={18} /><span>{att.filename}</span>
-                                </a>
-                                <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
-                                  <DownloadIcon size={16} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {msg.edited && <span className="message-edited">(изменено)</span>}
-                  </div>
+          {messages.map((msg, index) => (
+            <React.Fragment key={msg._id}>
+              {initialUnreadCount > 0 && index === messages.length - initialUnreadCount && (
+                <div className="new-messages-marker" ref={unreadRef}>
+                  <div className="new-messages-line" />
+                  <span>Новые сообщения</span>
+                  <div className="new-messages-line" />
                 </div>
-              </React.Fragment>
-            );
-          })}
+              )}
+              <MessageItem
+                msg={msg}
+                prev={messages[index - 1]}
+                user={user}
+                server={server}
+                displayEmbeds={displayEmbeds}
+                showHoverActions={showHoverActions}
+                mentionHighlight={mentionHighlight}
+                canPin={canPin}
+                onUserClick={onUserClick}
+                onContextMenu={handleContextMenu}
+                onTogglePin={handleTogglePin}
+                onDelete={handleDeleteMessage}
+                formatDate={formatDate}
+                renderMessageContent={renderMessageContent}
+                handleDownload={handleDownload}
+                setLightboxMedia={setLightboxMedia}
+                setLightboxIndex={setLightboxIndex}
+                setLightboxOpen={setLightboxOpen}
+                allMessages={messages}
+              />
+            </React.Fragment>
+          ))}
           {typingUsers.size > 0 && <div className="typing-indicator">{typingUsers.size} пользователь(ей) печатает...</div>}
           <div ref={messagesEndRef} />
         </div>

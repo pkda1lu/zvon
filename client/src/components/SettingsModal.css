@@ -10,6 +10,7 @@
   z-index: 3000;
   animation: modalFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: 'Outfit', sans-serif;
+  will-change: opacity;
 }
 
 @keyframes modalFadeIn {
@@ -38,6 +39,7 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   overflow: hidden;
   position: relative;
+  will-change: transform, opacity;
 }
 
 /* --- SIDEBAR --- */
@@ -77,6 +79,7 @@
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  will-change: transform, background-color;
 }
 
 .sidebar-item:hover {
@@ -161,6 +164,12 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(20px);
   transition: transform 0.3s ease, border-color 0.3s ease;
+  will-change: transform, border-color;
+}
+
+:root.performance-mode .settings-section-block {
+  backdrop-filter: none !important;
+  background: rgba(30, 30, 40, 0.95);
 }
 
 .settings-section-block:hover {
@@ -394,7 +403,9 @@
 }
 
 .save-button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-left: auto;
   margin-top: 50px;
   background: linear-gradient(-45deg, var(--primary-neon), var(--secondary-neon), var(--primary-neon));
@@ -403,6 +414,8 @@
   color: #000;
   border: none;
   padding: 18px 55px;
+  padding-left: calc(55px + 2.5px);
+  /* Compensate for letter-spacing to center properly */
   border-radius: 100px;
   font-size: 13px;
   font-weight: 950;
@@ -413,6 +426,7 @@
   overflow: hidden;
   transition: all 0.5s ease;
   box-shadow: 0 10px 30px rgba(0, 229, 255, 0.2);
+  text-align: center;
 }
 
 .save-button::before {
@@ -602,6 +616,7 @@
   background-color: rgba(255, 255, 255, 0.1);
   transition: .4s cubic-bezier(0.16, 1, 0.3, 1);
   border-radius: 34px;
+  will-change: background-color, box-shadow;
 }
 
 .switch .slider:before {
@@ -838,6 +853,7 @@
   box-shadow: 0 0 15px currentColor;
   filter: brightness(1.2);
   transition: width 0.05s linear;
+  will-change: width;
 }
 
 .sensitivity-threshold-marker {

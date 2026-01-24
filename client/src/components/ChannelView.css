@@ -10,6 +10,12 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   height: 100%;
   min-height: 0;
+  transition: var(--heavy-transition);
+}
+
+:root.performance-mode .channel-view {
+  backdrop-filter: none !important;
+  background: var(--bg-dark);
 }
 
 .channel-header {
@@ -59,7 +65,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: var(--fast-transition);
+  will-change: transform, color;
 }
 
 .header-action-btn:hover {
@@ -87,6 +94,7 @@
   box-shadow: 0 4px 15px rgba(0, 229, 255, 0.4);
   z-index: 300;
   animation: slideUpFade 0.3s ease-out;
+  will-change: transform, opacity;
 }
 
 .scroll-bottom-btn:hover {
@@ -361,7 +369,8 @@
   flex-shrink: 0;
   border: 1px solid var(--glass-border);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s;
+  transition: var(--fast-transition);
+  will-change: transform;
 }
 
 .message:hover .message-author-avatar {
@@ -503,6 +512,11 @@
   border-color: rgba(0, 229, 255, 0.3);
   box-shadow: 0 12px 40px rgba(0, 229, 255, 0.1), 0 0 0 1px rgba(0, 229, 255, 0.2);
   transform: translateY(-2px);
+}
+
+:root.performance-mode .message-form {
+  backdrop-filter: none !important;
+  background: rgba(20, 20, 25, 0.98);
 }
 
 .message-input {

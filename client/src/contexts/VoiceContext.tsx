@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { User } from '../types';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { nativeAudioManager } from '../utils/nativeAudio';
+import vadWorkletUrl from '../utils/vad-worklet.js?url';
 import axios from 'axios';
 import {
     Room,
@@ -137,7 +138,6 @@ interface VoiceContextType {
     userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
-    speakingUsers: Set<string>;
     isNoiseSuppressionEnabled: boolean;
     toggleNoiseSuppression: () => void;
     audioContext: AudioContext | null;
@@ -168,16 +168,27 @@ interface VoiceContextType {
     setInputSensitivity: (val: number) => void;
     isAutomaticSensitivity: boolean;
     setIsAutomaticSensitivity: (val: boolean) => void;
-    currentInputLevel: number;
     startTestStream: () => Promise<void>;
     stopTestStream: () => void;
 }
 
+interface VoiceLevelContextType {
+    currentInputLevel: number;
+    speakingUsers: Set<string>;
+}
+
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
+const VoiceLevelContext = createContext<VoiceLevelContextType | undefined>(undefined);
 
 export const useVoice = () => {
     const context = useContext(VoiceContext);
     if (!context) throw new Error('useVoice must be used within VoiceProvider');
+    return context;
+};
+
+export const useVoiceLevels = () => {
+    const context = useContext(VoiceLevelContext);
+    if (!context) throw new Error('useVoiceLevels must be used within VoiceProvider');
     return context;
 };
 
@@ -261,10 +272,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const roomRef = useRef<Room | null>(null);
     const isJoiningRef = useRef(false);
     const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+    const sourcesRef = useRef<Map<string, MediaStreamAudioSourceNode>>(new Map());
+    const workletNodesRef = useRef<Map<string, AudioWorkletNode>>(new Map());
+    const vadStreamRef = useRef<MediaStream | null>(null);
+    const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const testStreamRef = useRef<MediaStream | null>(null);
     const speakingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const audioContextRef = useRef<AudioContext | null>(null);
+
+    // Sync refs for the interval to avoid re-creation
+    const inputSensitivityRef = useRef(inputSensitivity);
+    const isAutomaticSensitivityRef = useRef(isAutomaticSensitivity);
+    useEffect(() => { inputSensitivityRef.current = inputSensitivity; }, [inputSensitivity]);
+    useEffect(() => { isAutomaticSensitivityRef.current = isAutomaticSensitivity; }, [isAutomaticSensitivity]);
 
     useEffect(() => { isConnectedRef.current = isConnected; }, [isConnected]);
 
@@ -359,11 +380,19 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     if (track.kind === Track.Kind.Audio) {
                         try {
                             const ctx = getAudioContext();
+
+                            // Disconnect old source if exists
+                            if (sourcesRef.current.has(userId)) {
+                                sourcesRef.current.get(userId)?.disconnect();
+                            }
+
                             const source = ctx.createMediaStreamSource(stream);
                             const analyser = ctx.createAnalyser();
                             analyser.fftSize = 256;
                             source.connect(analyser);
+
                             analysersRef.current.set(userId, analyser);
+                            sourcesRef.current.set(userId, source);
                         } catch (e) { console.warn('Analyser failed for', userId, e); }
                     }
 
@@ -404,6 +433,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                 if (track.kind === Track.Kind.Audio) {
                     analysersRef.current.delete(userId);
+                    if (sourcesRef.current.has(userId)) {
+                        sourcesRef.current.get(userId)?.disconnect();
+                        sourcesRef.current.delete(userId);
+                    }
                 }
 
                 if (remaining.length === 0) {
@@ -436,8 +469,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             testStreamRef.current.getTracks().forEach(t => t.stop());
             testStreamRef.current = null;
             setTestStream(null);
+
+            // Cleanup worklet if it was for testing
+            const localId = user?._id || 'local';
+            if (workletNodesRef.current.has(localId)) {
+                workletNodesRef.current.get(localId)?.disconnect();
+                workletNodesRef.current.delete(localId);
+            }
         }
-    }, []);
+    }, [user?._id]);
 
     const leaveChannel = useCallback(async () => {
         if (!activeChannelId && !roomRef.current) return;
@@ -455,6 +495,29 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             rawMicStreamRef.current.getTracks().forEach(track => track.stop());
             rawMicStreamRef.current = null;
         }
+
+        // Cleanup local worklet
+        const localId = user?._id || 'local';
+        if (workletNodesRef.current.has(localId)) {
+            workletNodesRef.current.get(localId)?.disconnect();
+            workletNodesRef.current.delete(localId);
+        }
+
+        // Cleanup remote analysers and sources
+        analysersRef.current.forEach(a => a.disconnect());
+        analysersRef.current.clear();
+        sourcesRef.current.forEach(s => s.disconnect());
+        sourcesRef.current.clear();
+
+        if (vadSourceRef.current) {
+            vadSourceRef.current.disconnect();
+            vadSourceRef.current = null;
+        }
+        if (vadStreamRef.current) {
+            vadStreamRef.current.getTracks().forEach(t => t.stop());
+            vadStreamRef.current = null;
+        }
+
         setLocalStream(null);
         setRemoteStreams(new Map());
         setRemoteScreenStreams(new Map());
@@ -732,8 +795,17 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const stream = new MediaStream([track]);
                 setLocalStream(stream);
                 localStreamRef.current = stream;
-                // Also store as raw stream for noise suppression toggling
-                rawMicStreamRef.current = new MediaStream([track.clone()]);
+
+                // Store raw stream for noise suppression toggling
+                const rawTrack = track.clone();
+                rawTrack.enabled = true; // Ensure it's ALWAYS on for VAD/Internal use
+                rawMicStreamRef.current = new MediaStream([rawTrack]);
+
+                // Dedicated Stream for VAD (cloned from raw)
+                const vadTrack = track.clone();
+                vadTrack.enabled = true;
+                vadStreamRef.current = new MediaStream([vadTrack]);
+
                 console.log(`[Voice] Published mic: ${track.label} (ID: ${selectedInputDeviceId})`);
             }
 
@@ -830,6 +902,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const toggleMute = () => {
         const newMuted = !isMuted;
         setIsMuted(newMuted);
+
+        // Sound feedback
+        soundManager.play(newMuted ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.4);
+
         const effectiveMuted = newMuted || isServerMuted;
         const effectiveDeafened = isDeafened || isServerDeafened;
         if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
@@ -841,6 +917,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const toggleDeafen = () => {
         const newDeafened = !isDeafened;
         setIsDeafened(newDeafened);
+
+        // Sound feedback
+        soundManager.play(newDeafened ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.4); // Use mute sounds as fallback for now
+
         const effectiveMuted = isMuted || isServerMuted;
         const effectiveDeafened = newDeafened || isServerDeafened;
         if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
@@ -848,6 +928,39 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened: newDeafened, isScreenSharing });
         }
     };
+
+    // Electron Integration: Shortcuts and Tray Sync
+    useEffect(() => {
+        // @ts-ignore
+        if (window.electron && window.electron.ipc) {
+            // @ts-ignore
+            const uncurryMute = window.electron.ipc.on('toggle-mute-shortcut', () => {
+                toggleMute();
+            });
+            // @ts-ignore
+            const uncurryDeafen = window.electron.ipc.on('toggle-deafen-shortcut', () => {
+                toggleDeafen();
+            });
+
+            return () => {
+                uncurryMute();
+                uncurryDeafen();
+            };
+        }
+    }, [toggleMute, toggleDeafen]);
+
+    useEffect(() => {
+        // @ts-ignore
+        if (window.electron && window.electron.ipc) {
+            // @ts-ignore
+            window.electron.ipc.send('voice-state-sync', {
+                isMuted,
+                isDeafened,
+                isConnected
+            });
+        }
+    }, [isMuted, isDeafened, isConnected]);
+
 
     const toggleNoiseSuppression = useCallback(async () => {
         const newState = !isNoiseSuppressionEnabled;
@@ -882,52 +995,30 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const lastSpeakingTimeRef = useRef<number>(0);
 
-    // Unified VAD and Local Indicator Loop
+    // Unified VAD and Local Indicator Loop (Optimized for remote users only)
     useEffect(() => {
         const interval = setInterval(() => {
             const now = Date.now();
             const nowSpeaking = new Set<string>();
 
-            // Analyze Local User
+            // Local user speaking status (calculated via worklet message handler in another effect)
             const localId = user?._id || 'local';
-            const localAnalyser = analysersRef.current.get(localId);
-            if (localAnalyser) {
-                const dataArray = new Uint8Array(localAnalyser.frequencyBinCount);
-                localAnalyser.getByteTimeDomainData(dataArray);
+            const VAD_HOLD_TIME = 250;
+            const isLocalVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
+            if (isLocalVADOpen) nowSpeaking.add(localId);
 
-                let sumOfSquares = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                    const normalized = (dataArray[i] - 128) / 128;
-                    sumOfSquares += normalized * normalized;
+            // Apply Gating only when required
+            if (isConnected && localStreamRef.current) {
+                const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isLocalVADOpen;
+                const tracks = localStreamRef.current.getAudioTracks();
+                for (let i = 0; i < tracks.length; i++) {
+                    if (tracks[i].enabled !== shouldBeEnabled) tracks[i].enabled = shouldBeEnabled;
                 }
-                const rms = Math.sqrt(sumOfSquares / dataArray.length);
-                const db = 20 * Math.log10(rms);
-
-                if (isFinite(db)) {
-                    setCurrentInputLevel(db);
-                    // Automatic threshold made more lenient (-70dB instead of -60dB)
-                    const baseThreshold = isAutomaticSensitivity ? -70 : inputSensitivity;
-                    if (db > baseThreshold) lastSpeakingTimeRef.current = now;
-                }
-
-                const VAD_HOLD_TIME = 250; // Slightly longer hold for smoother speech
-                const isVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
-                if (isVADOpen) nowSpeaking.add(localId);
-
-                // Apply Gating
-                if (isConnected && localStreamRef.current) {
-                    const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isVADOpen;
-                    localStreamRef.current.getAudioTracks().forEach(t => {
-                        if (t.enabled !== shouldBeEnabled) t.enabled = shouldBeEnabled;
-                    });
-                }
-            } else {
-                setCurrentInputLevel(-100);
             }
 
-            // Analyze Remote Users
+            // Analyze Remote Users (Still using analysers for simpler integration)
             analysersRef.current.forEach((analyser, userId) => {
-                if (userId === (user?._id || 'local')) return;
+                if (userId === localId) return;
 
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
                 analyser.getByteTimeDomainData(dataArray);
@@ -937,47 +1028,101 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     sumOfSquares += normalized * normalized;
                 }
                 const rms = Math.sqrt(sumOfSquares / dataArray.length);
-                const db = 20 * Math.log10(rms);
+                const db = rms > 1e-5 ? 20 * Math.log10(rms) : -100;
                 const state = userStates.get(userId);
                 const isUserMuted = state?.isMuted || state?.isServerMuted || state?.isDeafened || state?.isServerDeafened;
 
                 if (db > -50 && !isUserMuted) nowSpeaking.add(userId);
             });
 
-            setSpeakingUsers(nowSpeaking);
-        }, 50);
+            // Deep comparison to prevent redundant state updates
+            setSpeakingUsers(prev => {
+                if (prev.size !== nowSpeaking.size) return nowSpeaking;
+                for (const id of nowSpeaking) {
+                    if (!prev.has(id)) return nowSpeaking;
+                }
+                return prev;
+            });
+        }, 60); // Slightly more relaxed interval for better performance
 
         return () => clearInterval(interval);
-    }, [isConnected, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, inputSensitivity, isAutomaticSensitivity, user?._id]);
+    }, [isConnected, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, user?._id]);
 
-    // Local Analyser Lifecycle (for initial setup or stream changes)
+    // Local Audio Monitoring with AudioWorklet
     useEffect(() => {
-        const stream = localStream || testStream;
+        // Use vadStream if in call, otherwise testStream for settings
+        const stream = vadStreamRef.current || testStream;
         const localId = user?._id || 'local';
 
         if (!stream) {
-            analysersRef.current.delete(localId);
+            if (workletNodesRef.current.has(localId)) {
+                workletNodesRef.current.get(localId)?.disconnect();
+                workletNodesRef.current.delete(localId);
+            }
+            if (vadSourceRef.current) {
+                vadSourceRef.current.disconnect();
+                vadSourceRef.current = null;
+            }
             return;
         }
 
-        const createLocalAnalyser = async () => {
+        const setupLocalWorklet = async () => {
             try {
                 const audioCtx = getAudioContext();
-                // Ensure room for new tracks
                 if (audioCtx.state === 'suspended') await audioCtx.resume().catch(() => { });
 
+                // Load worklet module if not already loaded
+                await audioCtx.audioWorklet.addModule(vadWorkletUrl);
+
+                if (vadSourceRef.current) {
+                    vadSourceRef.current.disconnect();
+                }
+
+                const source = audioCtx.createMediaStreamSource(stream);
+                const vadNode = new AudioWorkletNode(audioCtx, 'vad-processor');
+
+                vadNode.port.onmessage = (event) => {
+                    const { rms } = event.data;
+                    const db = rms > 1e-5 ? 20 * Math.log10(rms) : -100;
+
+                    setCurrentInputLevel(db);
+
+                    const baseThreshold = isAutomaticSensitivityRef.current ? -70 : inputSensitivityRef.current;
+                    if (db > baseThreshold) {
+                        lastSpeakingTimeRef.current = Date.now();
+                    }
+                };
+
+                source.connect(vadNode);
+                vadSourceRef.current = source;
+
+                // Cleanup old node
+                if (workletNodesRef.current.has(localId)) {
+                    workletNodesRef.current.get(localId)?.disconnect();
+                }
+
+                workletNodesRef.current.set(localId, vadNode);
+                console.log("[Voice] AudioWorklet VAD started for local user");
+            } catch (err) {
+                console.warn("[Voice] AudioWorklet setup failed, falling back to analayzer:", err);
+                // Fallback to Analyser if Worklet fails
+                const audioCtx = getAudioContext();
                 const source = audioCtx.createMediaStreamSource(stream);
                 const analyser = audioCtx.createAnalyser();
                 analyser.fftSize = 256;
                 source.connect(analyser);
                 analysersRef.current.set(localId, analyser);
-                console.log("[Voice] Created local analyser for", localId);
-            } catch (err) {
-                console.warn("[Voice] Local analyser failed:", err);
             }
         };
 
-        createLocalAnalyser();
+        setupLocalWorklet();
+
+        return () => {
+            if (workletNodesRef.current.has(localId)) {
+                workletNodesRef.current.get(localId)?.disconnect();
+                workletNodesRef.current.delete(localId);
+            }
+        };
     }, [localStream, testStream, user?._id, getAudioContext]);
 
 
@@ -1042,42 +1187,49 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [isServerMuted, isServerDeafened, isMuted, isDeafened]);
 
+    const voiceLevelValue = useMemo(() => ({
+        currentInputLevel,
+        speakingUsers
+    }), [currentInputLevel, speakingUsers]);
+
     return (
         <VoiceContext.Provider value={{
             isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened,
             isServerMuted, isServerDeafened, toggleMute, toggleDeafen,
             connectedUsers, localStream, remoteStreams, userVolumes, setUserVolume, userStates, localMutes,
-            toggleLocalMute, speakingUsers, isNoiseSuppressionEnabled, toggleNoiseSuppression, audioContext,
+            toggleLocalMute, isNoiseSuppressionEnabled, toggleNoiseSuppression, audioContext,
             inputDevices, outputDevices, videoDevices, selectedInputDeviceId, setSelectedInputDeviceId,
             selectedOutputDeviceId, setSelectedOutputDeviceId, selectedVideoDeviceId, setSelectedVideoDeviceId,
             inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices,
             isScreenSharing, screenStream, startScreenShare, stopScreenShare, remoteScreenStreams,
             screenVolumes, setScreenVolume, watchedScreenIds, setWatchingScreen,
-            inputSensitivity, setInputSensitivity, isAutomaticSensitivity, setIsAutomaticSensitivity, currentInputLevel,
+            inputSensitivity, setInputSensitivity, isAutomaticSensitivity, setIsAutomaticSensitivity,
             startTestStream, stopTestStream
         }}>
-            {children}
-            <div style={{ display: 'none' }}>
-                {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
-                    <RemoteAudio
-                        key={`audio-${userId}`} userId={userId} stream={stream}
-                        voiceVolume={userVolumes.get(userId) ?? 1}
-                        isDeafened={isDeafened || isServerDeafened}
-                        isLocalMuted={localMutes.has(userId) || (userStates.get(userId)?.isServerMuted ?? false)}
-                        sharedContext={audioContext}
-                        outputDeviceId={selectedOutputDeviceId}
-                        masterVolume={outputVolume}
-                    />
-                ))}
-                {Array.from(remoteScreenStreams.entries()).map(([userId, stream]) => (
-                    <RemoteScreen
-                        key={`screen-${userId}`} userId={userId} stream={stream}
-                        outputDeviceId={selectedOutputDeviceId} masterVolume={outputVolume}
-                        isWatching={watchedScreenIds.has(userId)}
-                        volume={screenVolumes.get(userId) ?? 1}
-                    />
-                ))}
-            </div>
+            <VoiceLevelContext.Provider value={voiceLevelValue}>
+                {children}
+                <div style={{ display: 'none' }}>
+                    {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
+                        <RemoteAudio
+                            key={`audio-${userId}`} userId={userId} stream={stream}
+                            voiceVolume={userVolumes.get(userId) ?? 1}
+                            isDeafened={isDeafened || isServerDeafened}
+                            isLocalMuted={localMutes.has(userId) || (userStates.get(userId)?.isServerMuted ?? false)}
+                            sharedContext={audioContext}
+                            outputDeviceId={selectedOutputDeviceId}
+                            masterVolume={outputVolume}
+                        />
+                    ))}
+                    {Array.from(remoteScreenStreams.entries()).map(([userId, stream]) => (
+                        <RemoteScreen
+                            key={`screen-${userId}`} userId={userId} stream={stream}
+                            outputDeviceId={selectedOutputDeviceId} masterVolume={outputVolume}
+                            isWatching={watchedScreenIds.has(userId)}
+                            volume={screenVolumes.get(userId) ?? 1}
+                        />
+                    ))}
+                </div>
+            </VoiceLevelContext.Provider>
         </VoiceContext.Provider>
     );
 };
