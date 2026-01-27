@@ -37,7 +37,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
-  const { joinChannel, userStates } = useVoice();
+  const { joinChannel, userStates, activeChannelId } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
   const isOwner = currentUser && server.owner && (
@@ -155,7 +155,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                     className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''}`}
                     onClick={() => {
                       onChannelSelect(channel);
-                      joinChannel(channel._id);
+                      if (activeChannelId !== channel._id) {
+                        joinChannel(channel._id);
+                      }
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>

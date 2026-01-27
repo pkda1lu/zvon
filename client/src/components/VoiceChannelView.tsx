@@ -389,7 +389,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     }
 
     const participant = item;
-    const isSpeaking = speakingUsers.has(participant._id);
+    const isSpeaking = speakingUsers.has(participant._id) && !participant.isMuted;
 
     return (
       <VoiceParticipantCard
@@ -469,21 +469,21 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               onClick={toggleMute}
               title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
             >
-              {isMuted ? <MicMutedIcon size={22} /> : <MicIcon size={22} />}
+              {isMuted ? <MicMutedIcon size={20} /> : <MicIcon size={20} />}
             </button>
             <button
               className={`ctrl-btn ${isDeafened ? 'active' : ''}`}
               onClick={toggleDeafen}
               title={isDeafened ? 'Включить звук' : 'Выключить звук'}
             >
-              {isDeafened ? <DeafenedIcon size={22} /> : <SpeakerIcon size={22} />}
+              {isDeafened ? <DeafenedIcon size={20} /> : <SpeakerIcon size={20} />}
             </button>
             <button
               className={`ctrl-btn ${isScreenSharing ? 'streaming' : ''}`}
               onClick={() => isScreenSharing ? stopScreenShare() : setShowScreenSelector(true)}
               title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}
             >
-              <MonitorIcon size={22} />
+              <MonitorIcon size={20} />
             </button>
             <div className="ctrl-sep"></div>
             <button
@@ -491,7 +491,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               onClick={handleDisconnect}
               title="Отключиться"
             >
-              <PhoneIcon size={22} />
+              <PhoneIcon size={20} />
             </button>
           </div>
         ) : (

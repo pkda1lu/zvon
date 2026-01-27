@@ -42,6 +42,13 @@ svg {
   shape-rendering: auto;
 }
 
+/* Global Video Fix for Green Borders */
+video {
+  background-color: #000000 !important;
+  background: #000000 !important;
+  object-fit: contain;
+}
+
 .icon-animated {
   transition: var(--icon-transition);
   will-change: transform, opacity;

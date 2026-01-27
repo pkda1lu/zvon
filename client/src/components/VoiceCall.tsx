@@ -323,21 +323,23 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           bitrate = frameRate >= 60 ? 3_000_000 : 2_000_000;
         }
 
-        // Efficient Electron constraints
+        // Efficient Electron constraints - Use ideal instead of mandatory for resolution
+        // to avoid 'green bars' padding from Electron's capture engine
         const constraints = {
           audio: false,
           video: {
             mandatory: {
               chromeMediaSource: 'desktop',
               chromeMediaSourceId: sourceId,
-              minWidth: width,
-              minHeight: height,
-              maxWidth: width > 1920 ? width : 3840,
-              maxHeight: height > 1080 ? height : 2160,
               maxFrameRate: frameRate
-            }
+            },
+            optional: [
+              { maxWidth: 3840 },
+              { maxHeight: 2160 }
+            ]
           } as any
         };
+
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         try {
@@ -422,7 +424,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
           if (rms > 0.01) localSpeakingHold = 5;
           else if (localSpeakingHold > 0) localSpeakingHold--;
 
-          setLocalSpeaking(localSpeakingHold > 0);
+          setLocalSpeaking(localSpeakingHold > 0 && !isMuted);
         }
 
         if (remoteAnalyser && remoteDataArray) {

@@ -16,6 +16,8 @@ let isQuitting = false;
 let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false };
 
 // Performance Tuning
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-oop-rasterization');
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
@@ -28,6 +30,10 @@ app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096 --stack-size
 if (!isDev) {
     app.commandLine.appendSwitch('force-device-scale-factor', '1'); // Consistent sizing
 }
+
+// Disable the yellow/green border on Windows 10/11 when capturing windows
+// Also disable Vulkan which can cause green screen/flickering on some GPUs
+app.commandLine.appendSwitch('disable-features', 'WinrtCaptureBorders,Vulkan');
 
 const stateFilePath = path.join(app.getPath('userData'), 'window-state.json');
 
@@ -224,6 +230,20 @@ function createWindow() {
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
         scanActivities();
+    });
+
+    // Handle Permissions (Essential for packaged apps)
+    mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+        if (permission === 'media' || permission === 'display-capture') return true;
+        return false;
+    });
+
+    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        if (permission === 'media' || permission === 'display-capture') {
+            callback(true);
+        } else {
+            callback(false);
+        }
     });
     let saveTimeout;
     const debouncedSave = () => { clearTimeout(saveTimeout); saveTimeout = setTimeout(saveWindowState, 500); };

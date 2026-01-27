@@ -13,11 +13,11 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 10px;
+    padding: 4px 10px;
     border-radius: 8px;
     cursor: pointer;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 500;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     position: relative;
@@ -34,9 +34,9 @@
 }
 
 .voice-user-avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
     /* Squircle */
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--glass-border);

@@ -52,7 +52,9 @@ export class SoundManager {
         try {
             let buffer = this.soundBuffers.get(soundPath);
             if (!buffer) {
-                const resp = await fetch(`${soundPath}?v=${Date.now()}`, { cache: 'no-store' });
+                // Remove query param for production file:// protocol support
+                const url = window.location.protocol === 'file:' ? soundPath : `${soundPath}?v=${Date.now()}`;
+                const resp = await fetch(url, { cache: 'no-store' });
                 if (!resp.ok) return;
 
                 // Crucial Check: Ensure we didn't get an HTML/JSON 404 page
@@ -98,7 +100,9 @@ export class SoundManager {
     }
 
     playLoop(soundPath: string, volume: number = 0.5): HTMLAudioElement {
-        const audio = new Audio(`${soundPath}?v=${Date.now()}`);
+        // Remove query param for production file:// protocol support
+        const url = window.location.protocol === 'file:' ? soundPath : `${soundPath}?v=${Date.now()}`;
+        const audio = new Audio(url);
         audio.loop = true;
         audio.volume = volume;
         audio.play().catch((err) => {

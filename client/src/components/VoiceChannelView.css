@@ -35,8 +35,8 @@
 
 /* --- TOPBAR --- */
 .voice-hdr {
-  height: 90px;
-  padding: 0 48px;
+  height: 60px;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -104,10 +104,10 @@
 }
 
 .voice-hdr h1 {
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 800;
   margin: 0;
-  letter-spacing: -1px;
+  letter-spacing: -0.5px;
   color: #ffffff;
 }
 
@@ -124,7 +124,7 @@
 /* --- PARTICIPANTS GRID --- */
 .grid-wrap {
   flex: 1;
-  padding: 32px;
+  padding: 12px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -137,6 +137,8 @@
 }
 
 .v-grid {
+  display: grid;
+  gap: 12px;
   width: 100%;
   margin: auto;
   will-change: transform;
@@ -145,25 +147,28 @@
 /* Dynamic Grid Logic */
 .v-grid.count-1 {
   grid-template-columns: 1fr;
-  max-width: 600px;
+  max-width: 450px;
 }
 
 .v-grid.count-2 {
   grid-template-columns: repeat(2, 1fr);
+  max-width: 900px;
 }
 
 .v-grid.count-3,
 .v-grid.count-4 {
   grid-template-columns: repeat(2, 1fr);
+  max-width: 900px;
 }
 
 .v-grid.count-5,
 .v-grid.count-6 {
   grid-template-columns: repeat(3, 1fr);
+  max-width: 1200px;
 }
 
 .v-grid:not(.count-1):not(.count-2):not(.count-3):not(.count-4):not(.count-5):not(.count-6) {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 /* --- PARTICIPANT CARD --- */
@@ -171,10 +176,10 @@
   position: relative;
   aspect-ratio: 16 / 9;
   background: var(--voice-glass-bg);
-  border-radius: var(--voice-card-radius);
+  border-radius: 16px;
   border: 1px solid var(--voice-glass-border);
   overflow: hidden;
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -197,7 +202,8 @@
 
 .p-card.is-speaking {
   border-color: var(--voice-accent-solid);
-  box-shadow: 0 0 25px rgba(0, 106, 255, 0.4);
+  /* Use a more blue/purple glow to avoid green tint on some displays */
+  box-shadow: 0 0 25px rgba(0, 106, 255, 0.3);
 }
 
 .p-card.is-expanded {
@@ -223,8 +229,8 @@
   border: 4px solid var(--voice-accent-solid);
   pointer-events: none;
   z-index: 10;
-  /* Ensure the border doesn't create a glow that looks green on black */
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+  /* Darken the inset shadow to swallow any color bleed */
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
   opacity: 1;
   transition: opacity 0.3s ease;
 }
@@ -268,9 +274,9 @@
 }
 
 .p-avatar {
-  width: 90px;
-  height: 90px;
-  border-radius: 32px;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
   background: #111;
   border: 3px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
@@ -298,16 +304,16 @@
 /* Labels & Badges */
 .p-info {
   position: absolute;
-  bottom: 24px;
-  left: 24px;
+  bottom: 16px;
+  left: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   z-index: 5;
-  padding: 10px 20px;
+  padding: 8px 16px;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(15px);
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -351,17 +357,17 @@
 
 .p-indicators {
   position: absolute;
-  top: 24px;
-  right: 24px;
+  top: 16px;
+  right: 16px;
   display: flex;
   gap: 10px;
   z-index: 5;
 }
 
 .ind-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,6 +390,19 @@
   z-index: 1;
   border-radius: inherit;
   overflow: hidden;
+  /* Ensure no border/outline is visible */
+  border: none !important;
+  outline: none !important;
+}
+
+.remote-screen-video-full {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000000 !important;
+  display: block;
+  /* Hide capture border */
+  transform: scale(1.01);
 }
 
 .stream-video {
@@ -559,8 +578,8 @@
 .stage-wrap {
   display: flex;
   flex: 1;
-  gap: 32px;
-  padding: 32px;
+  gap: 16px;
+  padding: 16px;
   height: 100%;
 }
 
@@ -573,14 +592,14 @@
 .stage-primary .p-card {
   height: 100%;
   aspect-ratio: auto;
-  border-radius: 32px;
+  border-radius: 20px;
 }
 
 .stage-aux {
-  width: 380px;
+  width: 300px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   overflow-y: auto;
   padding-right: 12px;
 }
@@ -600,7 +619,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 100px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -613,8 +632,8 @@
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
+  gap: 10px;
+  padding: 10px 20px;
   background: rgba(20, 20, 30, 0.6);
   backdrop-filter: blur(50px) saturate(180%);
   border-radius: 24px;
@@ -631,14 +650,14 @@
 }
 
 .voice-ctrls:hover {
-  transform: translateY(-10px);
+  transform: translateY(-5px);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 .ctrl-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(255, 255, 255, 0.03);
   color: #fff;

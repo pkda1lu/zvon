@@ -46,23 +46,30 @@ const RemoteAudio: React.FC<{
         const audio = audioRef.current;
         if (!audio || !stream) return;
 
-        // Important for LiveKit in Electron/Browsers to reset srcObject when stream tracks change
         if (audio.srcObject !== stream) {
             audio.srcObject = stream;
         }
 
         audio.muted = false;
-        const play = () => {
-            audio.play().catch(e => {
-                if (e.name !== 'AbortError') console.warn(`[Voice] Playback failed for ${userId}:`, e);
-            });
+        const play = async () => {
+            try {
+                await audio.play();
+                console.log(`[Voice] Playing stream for ${userId}`);
+            } catch (e: any) {
+                if (e.name !== 'AbortError') {
+                    console.warn(`[Voice] Playback failed for ${userId}:`, e);
+                    // Retry on click is handled by the global listener, 
+                    // but we can also try to resume context here
+                    if (sharedContext?.state === 'suspended') {
+                        await sharedContext.resume().catch(() => { });
+                        await audio.play().catch(() => { });
+                    }
+                }
+            }
         };
         play();
 
-        // Extra insurance for audio context state
-        if (sharedContext?.state === 'suspended') sharedContext.resume().catch(() => { });
-
-    }, [stream, sharedContext]);
+    }, [stream, sharedContext, userId]);
 
     // Handle Output Device (SinkId)
     useEffect(() => {
@@ -72,7 +79,7 @@ const RemoteAudio: React.FC<{
         }
     }, [outputDeviceId]);
 
-    return <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />;
+    return <audio ref={audioRef} autoPlay playsInline />;
 };
 
 const RemoteScreen: React.FC<{
@@ -278,8 +285,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const testStreamRef = useRef<MediaStream | null>(null);
-    const speakingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const audioContextRef = useRef<AudioContext | null>(null);
+    const isVadActiveRef = useRef(false);
+    const lastSpeakingTimeRef = useRef<number>(0);
+    const lastVadMessageTimeRef = useRef<number>(0);
 
     // Sync refs for the interval to avoid re-creation
     const inputSensitivityRef = useRef(inputSensitivity);
@@ -570,19 +579,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 bitrate = frameRate >= 60 ? 3_000_000 : 2_000_000;
             }
 
-            // Efficient Electron constraints
+            // Efficient Electron constraints - Use ideal instead of mandatory for resolution
+            // to avoid 'green bars' padding from Electron's capture engine
             const constraints = {
                 audio: false,
                 video: {
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: sourceId,
-                        minWidth: width,
-                        minHeight: height,
-                        maxWidth: width > 1920 ? width : 3840,
-                        maxHeight: height > 1080 ? height : 2160,
                         maxFrameRate: frameRate
-                    }
+                    },
+                    optional: [
+                        { maxWidth: 3840 },
+                        { maxHeight: 2160 }
+                    ]
                 } as any
             };
             if (hasElectron) {
@@ -897,7 +907,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-server-state-update');
             socket.off('force-disconnect-voice');
         };
-    }, [socket, isConnected, activeChannelId, user?._id, leaveChannel]);
+    }, [socket, isConnected, activeChannelId, localStream, user?._id, leaveChannel]);
 
     const toggleMute = () => {
         const newMuted = !isMuted;
@@ -993,7 +1003,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [isNoiseSuppressionEnabled, isMuted, isDeafened, getAudioContext]);
 
-    const lastSpeakingTimeRef = useRef<number>(0);
 
     // Unified VAD and Local Indicator Loop (Optimized for remote users only)
     useEffect(() => {
@@ -1009,10 +1018,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Apply Gating only when required
             if (isConnected && localStreamRef.current) {
-                const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isLocalVADOpen;
+                const now = Date.now();
+                // Watchdog: If VAD is supposed to be active but hasn't sent a message in 5s, it might be stuck
+                if (isVadActiveRef.current && (now - lastVadMessageTimeRef.current > 5000) && lastVadMessageTimeRef.current !== 0) {
+                    console.warn("[Voice] VAD watchdog triggered: No messages for 5s. Falling back to always-on.");
+                    isVadActiveRef.current = false;
+                }
+
+                // If VAD failed to init or got stuck, we just keep the mic open (fail-safe)
+                const isSpeaking = isVadActiveRef.current ? isLocalVADOpen : true;
+                const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isSpeaking;
                 const tracks = localStreamRef.current.getAudioTracks();
                 for (let i = 0; i < tracks.length; i++) {
-                    if (tracks[i].enabled !== shouldBeEnabled) tracks[i].enabled = shouldBeEnabled;
+                    if (tracks[i].enabled !== shouldBeEnabled) {
+                        tracks[i].enabled = shouldBeEnabled;
+                        console.log(`[Voice] Track ${tracks[i].label} enabled = ${shouldBeEnabled} (VAD: ${isVadActiveRef.current}, Speaking: ${isSpeaking})`);
+                    }
                 }
             }
 
@@ -1066,63 +1087,87 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return;
         }
 
-        const setupLocalWorklet = async () => {
+        const setupLocalVAD = async () => {
             try {
                 const audioCtx = getAudioContext();
                 if (audioCtx.state === 'suspended') await audioCtx.resume().catch(() => { });
 
-                // Load worklet module if not already loaded
-                await audioCtx.audioWorklet.addModule(vadWorkletUrl);
+                // VAD Worklet Source - Inlined for reliability in production
+                const vadWorkletCode = `
+class VADProcessor extends AudioWorkletProcessor {
+    constructor() {
+        super();
+        this._lastUpdate = 0;
+        this._rms = 0;
+    }
 
-                if (vadSourceRef.current) {
-                    vadSourceRef.current.disconnect();
-                }
+    process(inputs, outputs, parameters) {
+        const input = inputs[0];
+        if (input && input[0] && input[0].length > 0) {
+            const samples = input[0];
+            let sumOfSquares = 0;
+            for (let i = 0; i < samples.length; i++) {
+                sumOfSquares += samples[i] * samples[i];
+            }
+            this._rms = Math.sqrt(sumOfSquares / samples.length);
+
+            const now = Date.now();
+            if (now - this._lastUpdate > 40) {
+                this.port.postMessage({ rms: this._rms });
+                this._lastUpdate = now;
+            }
+        }
+        return true;
+    }
+}
+registerProcessor('vad-processor', VADProcessor);
+`;
+
+                const blob = new Blob([vadWorkletCode], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                await audioCtx.audioWorklet.addModule(url);
+
+                if (vadSourceRef.current) vadSourceRef.current.disconnect();
 
                 const source = audioCtx.createMediaStreamSource(stream);
                 const vadNode = new AudioWorkletNode(audioCtx, 'vad-processor');
 
                 vadNode.port.onmessage = (event) => {
                     const { rms } = event.data;
+                    lastVadMessageTimeRef.current = Date.now();
                     const db = rms > 1e-5 ? 20 * Math.log10(rms) : -100;
-
                     setCurrentInputLevel(db);
-
                     const baseThreshold = isAutomaticSensitivityRef.current ? -70 : inputSensitivityRef.current;
-                    if (db > baseThreshold) {
-                        lastSpeakingTimeRef.current = Date.now();
-                    }
+                    if (db > baseThreshold) lastSpeakingTimeRef.current = Date.now();
                 };
 
                 source.connect(vadNode);
                 vadSourceRef.current = source;
 
-                // Cleanup old node
                 if (workletNodesRef.current.has(localId)) {
                     workletNodesRef.current.get(localId)?.disconnect();
                 }
-
                 workletNodesRef.current.set(localId, vadNode);
-                console.log("[Voice] AudioWorklet VAD started for local user");
-            } catch (err) {
-                console.warn("[Voice] AudioWorklet setup failed, falling back to analayzer:", err);
-                // Fallback to Analyser if Worklet fails
-                const audioCtx = getAudioContext();
-                const source = audioCtx.createMediaStreamSource(stream);
-                const analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
-                analysersRef.current.set(localId, analyser);
+                isVadActiveRef.current = true;
+                console.log("[Voice] VAD initialized successfully");
+
+            } catch (error) {
+                console.warn('[Voice] VAD setup failed, falling back to analyzer:', error);
+                isVadActiveRef.current = false;
+
+                // Fallback to Analyser
+                try {
+                    const audioCtx = getAudioContext();
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    const analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    analysersRef.current.set(localId, analyser);
+                } catch (fallbackErr) { }
             }
         };
 
-        setupLocalWorklet();
-
-        return () => {
-            if (workletNodesRef.current.has(localId)) {
-                workletNodesRef.current.get(localId)?.disconnect();
-                workletNodesRef.current.delete(localId);
-            }
-        };
+        setupLocalVAD();
     }, [localStream, testStream, user?._id, getAudioContext]);
 
 
@@ -1160,15 +1205,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Unlock AudioContext on user interaction
     useEffect(() => {
-        const unlockAudio = () => {
-            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-                audioContextRef.current.resume().then(() => {
-                    console.log("[Voice] AudioContext unlocked by user interaction");
-                }).catch(console.error);
+        const unlockAudio = async () => {
+            console.log("[Voice] Global interaction detected, resuming all audio...");
+            if (audioContextRef.current) {
+                if (audioContextRef.current.state === 'suspended') {
+                    await audioContextRef.current.resume().catch(console.error);
+                }
             }
             if (soundManager['audioContext'] && soundManager['audioContext'].state === 'suspended') {
-                soundManager['audioContext'].resume().catch(() => { });
+                await soundManager['audioContext'].resume().catch(() => { });
             }
+
+            // Also try to find all audio tags and play them
+            const audios = document.querySelectorAll('audio');
+            audios.forEach(a => {
+                if (a.paused && a.srcObject) {
+                    a.play().catch(() => { });
+                }
+            });
         };
         window.addEventListener('click', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
@@ -1208,7 +1262,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}
-                <div style={{ display: 'none' }}>
+                <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none', opacity: 0 }}>
                     {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
                         <RemoteAudio
                             key={`audio-${userId}`} userId={userId} stream={stream}
