@@ -585,6 +585,7 @@ const Main: React.FC = () => {
               isLoadingMore={isLoadingMore}
               onLoadMore={loadMoreMessages}
               pinnedMessages={pinnedMessages}
+              setMessages={setMessages}
             />
           ) : (
             <VoiceChannelView
@@ -614,6 +615,7 @@ const Main: React.FC = () => {
             isLoadingMore={isLoadingMore}
             onLoadMore={loadMoreDMMessages}
             pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
+            setMessages={setDmMessages}
           />
         )}
 

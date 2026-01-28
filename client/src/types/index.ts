@@ -49,6 +49,14 @@ export interface PermissionOverwrite {
   deny: string;
 }
 
+export interface Emoji {
+  name: string;
+  url: string;
+  id: string;
+  animated: boolean;
+  author?: string;
+}
+
 export interface Server {
   _id: string;
   name: string;
@@ -69,6 +77,7 @@ export interface Server {
     banner?: string;
   }>;
   channels: Channel[];
+  emojis?: Emoji[];
   createdAt: string;
 }
 

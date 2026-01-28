@@ -17,7 +17,7 @@ interface ServerSettingsModalProps {
     onServerDelete: (serverId: string) => void;
 }
 
-type SettingsTab = 'overview' | 'roles' | 'members';
+type SettingsTab = 'overview' | 'roles' | 'emojis' | 'members';
 
 const PermissionMetadata: Record<string, { label: string; description: string; category: string }> = {
     ADMINISTRATOR: { category: 'ОСНОВНЫЕ ПРАВА', label: 'Администратор', description: 'Предоставляет все права доступа, а также позволяет обходить ограничения в каналах. Это опасное право.' },
@@ -362,6 +362,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                     <div className="sidebar-header">{server.name}</div>
                     <div className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => { setActiveTab('overview'); setEditingRole(null); }}>Обзор</div>
                     <div className={`sidebar-item ${activeTab === 'roles' ? 'active' : ''}`} onClick={() => { setActiveTab('roles'); setEditingRole(null); }}>Роли</div>
+                    <div className={`sidebar-item ${activeTab === 'emojis' ? 'active' : ''}`} onClick={() => { setActiveTab('emojis'); setEditingRole(null); }}>Эмодзи</div>
                     <div className="sidebar-header">Управление</div>
                     <div className={`sidebar-item ${activeTab === 'members' ? 'active' : ''}`} onClick={() => { setActiveTab('members'); setEditingRole(null); }}>Участники</div>
                     <div style={{ flex: 1 }} />
@@ -584,6 +585,83 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                         </div>
                                     </>
                                 )}
+                            </div>
+                        )}
+
+                        {activeTab === 'emojis' && (
+                            <div className="settings-section emojis-tab">
+                                <div className="roles-header" style={{ marginBottom: '16px' }}>
+                                    <h2>Эмодзи сервера</h2>
+                                    <p style={{ opacity: 0.6, fontSize: '14px', marginTop: '8px' }}>
+                                        Добавьте до 50 пользовательских эмодзи, которыми сможет пользоваться любой участник этого сервера.
+                                    </p>
+                                </div>
+
+                                <div className="emoji-upload-area" style={{ marginBottom: '32px' }}>
+                                    <button
+                                        className="save-button"
+                                        onClick={() => {
+                                            const input = document.createElement('input');
+                                            input.type = 'file';
+                                            input.accept = 'image/*';
+                                            input.onchange = async (e: any) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+
+                                                const formData = new FormData();
+                                                formData.append('emoji', file);
+                                                formData.append('name', file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, ''));
+
+                                                try {
+                                                    setLoading(true);
+                                                    const res = await axios.post(`/api/servers/${server._id}/emojis`, formData);
+                                                    onServerUpdate(res.data);
+                                                } catch (err: any) {
+                                                    alert(err.response?.data?.message || 'Ошибка при загрузке эмодзи');
+                                                } finally {
+                                                    setLoading(false);
+                                                }
+                                            };
+                                            input.click();
+                                        }}
+                                        disabled={loading}
+                                    >
+                                        <PlusIcon size={16} /> Загрузить эмодзи
+                                    </button>
+                                </div>
+
+                                <div className="server-emojis-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '20px' }}>
+                                    {(server.emojis || []).map(emoji => (
+                                        <div key={emoji.id} className="server-emoji-card" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', position: 'relative' }}>
+                                            <img src={getAvatarUrl(emoji.url)!} alt={emoji.name} style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
+                                            <span style={{ fontSize: '12px', fontWeight: 600, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>:{emoji.name}:</span>
+                                            <button
+                                                className="action-button danger mini"
+                                                style={{ position: 'absolute', top: '4px', right: '4px', padding: '4px' }}
+                                                onClick={async () => {
+                                                    if (window.confirm(`Удалить эмодзи :${emoji.name}:?`)) {
+                                                        try {
+                                                            setLoading(true);
+                                                            const res = await axios.delete(`/api/servers/${server._id}/emojis/${emoji.id}`);
+                                                            onServerUpdate(res.data);
+                                                        } catch (err) {
+                                                            alert('Ошибка при удалении эмодзи');
+                                                        } finally {
+                                                            setLoading(false);
+                                                        }
+                                                    }
+                                                }}
+                                            >
+                                                <TrashIcon size={12} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {(server.emojis || []).length === 0 && (
+                                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', opacity: 0.5 }}>
+                                            У вас пока нет пользовательских эмодзи.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
 

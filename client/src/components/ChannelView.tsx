@@ -15,6 +15,10 @@ import MentionAutocomplete from './MentionAutocomplete';
 import { Role } from '../types';
 import { computePermissions, hasPermission, Permissions } from '../utils/permissions';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
+import EmojiPicker from './EmojiPicker';
+import Reactions from './Reactions';
+import { SmileIcon } from './Icons';
+import { createPortal } from 'react-dom';
 
 interface ChannelViewProps {
   channel: Channel;
@@ -27,6 +31,7 @@ interface ChannelViewProps {
   isLoadingMore?: boolean;
   onLoadMore?: () => Promise<void>;
   pinnedMessages?: Message[];
+  setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
 const MessageItem = React.memo<{
@@ -38,6 +43,7 @@ const MessageItem = React.memo<{
   showHoverActions: boolean;
   mentionHighlight: boolean;
   canPin: boolean;
+  canReact: boolean;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent, user: User) => void;
   onTogglePin: (id: string) => void;
@@ -49,11 +55,14 @@ const MessageItem = React.memo<{
   setLightboxIndex: (i: number) => void;
   setLightboxOpen: (o: boolean) => void;
   allMessages: Message[];
+  onReact: (messageId: string, emoji: string) => void;
 }>(({
-  msg, prev, user, server, displayEmbeds, showHoverActions, mentionHighlight, canPin,
+  msg, prev, user, server, displayEmbeds, showHoverActions, mentionHighlight, canPin, canReact,
   onUserClick, onContextMenu, onTogglePin, onDelete, formatDate, renderMessageContent,
-  handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages
+  handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
+  onReact
 }) => {
+  const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number } | null>(null);
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
     if (!previous) return true;
     return new Date(current.createdAt).getDate() !== new Date(previous.createdAt).getDate();
@@ -85,9 +94,10 @@ const MessageItem = React.memo<{
           </div>
         )}
         {grouped && <div className="message-time-mini">{new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
+
         <div className="message-content">
-          {!grouped && (
-            <div className="message-header">
+          <div className="message-header">
+            {!grouped && (
               <div className="message-author-info">
                 <span
                   className="message-author"
@@ -109,44 +119,41 @@ const MessageItem = React.memo<{
                 </span>
                 <span className="message-time">{formatDate(msg.createdAt)}</span>
               </div>
-              {showHoverActions && (
-                <div className="message-actions-hover">
-                  {canPin && (
-                    <button
-                      className="msg-action-btn"
-                      onClick={() => onTogglePin(msg._id)}
-                      title={msg.pinned ? "Открепить" : "Закрепить"}
-                    >
-                      <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
-                    </button>
-                  )}
-                  {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
-                    <button className="msg-action-btn danger" onClick={() => onDelete(msg._id)}><TrashIcon size={16} /></button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+            )}
 
-          {grouped && showHoverActions && (
-            <div className="message-actions-hover mini">
-              {canPin && (
-                <button
-                  className="msg-action-btn mini"
-                  onClick={() => onTogglePin(msg._id)}
-                >
-                  <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
-                </button>
-              )}
-              {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
-                <button className="msg-action-btn danger mini" onClick={() => onDelete(msg._id)}><TrashIcon size={14} /></button>
-              )}
-            </div>
-          )}
+            {showHoverActions && (
+              <div className={`message-actions-hover ${grouped ? 'mini' : ''}`}>
+                {canPin && (
+                  <button
+                    className={`msg-action-btn ${grouped ? 'mini' : ''}`}
+                    onClick={() => onTogglePin(msg._id)}
+                    title={msg.pinned ? "Открепить" : "Закрепить"}
+                  >
+                    <PinIcon size={grouped ? 14 : 16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                  </button>
+                )}
+                {canReact && (
+                  <button
+                    className={`msg-action-btn ${grouped ? 'mini' : ''}`}
+                    onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY })}
+                    title="Добавить реакцию"
+                  >
+                    <SmileIcon size={grouped ? 14 : 16} />
+                  </button>
+                )}
+                {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
+                  <button className={`msg-action-btn danger ${grouped ? 'mini' : ''}`} onClick={() => onDelete(msg._id)}>
+                    <TrashIcon size={grouped ? 14 : 16} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
 
           <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
+
           {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
             <div className="message-attachments">
               {msg.attachments.map((att, i) => (
@@ -198,16 +205,49 @@ const MessageItem = React.memo<{
               ))}
             </div>
           )}
+
           {msg.edited && <span className="message-edited">(изменено)</span>}
+
+          <Reactions
+            reactions={msg.reactions || []}
+            currentUserId={user?._id || ''}
+            onReact={(emoji) => onReact(msg._id, emoji)}
+          />
         </div>
       </div>
+
+      {showEmojiPicker && createPortal(
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+          onClick={() => setShowEmojiPicker(null)}
+        >
+          <div
+            style={{
+              position: 'fixed',
+              top: Math.min(showEmojiPicker.y, window.innerHeight - 420),
+              left: Math.min(showEmojiPicker.x, window.innerWidth - 340),
+              zIndex: 10000
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <EmojiPicker
+              server={server}
+              onSelect={(emoji) => {
+                onReact(msg._id, emoji);
+                setShowEmojiPicker(null);
+              }}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 });
 
 const ChannelView: React.FC<ChannelViewProps> = ({
   channel, server, messages, socket, onUserClick, initialUnreadCount = 0,
-  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = []
+  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages
 }) => {
   const { user } = useAuth();
   const {
@@ -225,6 +265,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   }, [user, server, channel]);
 
   const canPin = hasPermission(userPermissions, Permissions.PIN_MESSAGES);
+  const canReact = hasPermission(userPermissions, Permissions.ADD_REACTIONS);
   const canMentionEveryone = hasPermission(userPermissions, Permissions.MENTION_EVERYONE);
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
@@ -351,11 +392,24 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     };
     socket.on('user-typing', handleTyping);
     socket.on('user-stopped-typing', handleStoppedTyping);
+
+    const handleReactionsUpdate = (data: { messageId: string, reactions: any[] }) => {
+      if (setMessages) {
+        setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
+      }
+    };
+    socket.on('message-reactions-update', handleReactionsUpdate);
+
     return () => {
       socket.off('user-typing', handleTyping);
       socket.off('user-stopped-typing', handleStoppedTyping);
+      socket.off('message-reactions-update', handleReactionsUpdate);
     };
-  }, [socket, channel._id, user?._id]);
+  }, [socket, channel._id, user?._id, setMessages]);
+
+  const handleReact = (messageId: string, emoji: string) => {
+    axios.post(`/api/messages/${messageId}/reactions`, { emoji });
+  };
 
   const [attachments, setAttachments] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -645,6 +699,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 showHoverActions={showHoverActions}
                 mentionHighlight={mentionHighlight}
                 canPin={canPin}
+                canReact={canReact}
                 onUserClick={onUserClick}
                 onContextMenu={handleContextMenu}
                 onTogglePin={handleTogglePin}
@@ -656,6 +711,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 setLightboxIndex={setLightboxIndex}
                 setLightboxOpen={setLightboxOpen}
                 allMessages={messages}
+                onReact={handleReact}
               />
             </React.Fragment>
           ))}

@@ -11,6 +11,10 @@ import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
+import { createPortal } from 'react-dom';
+import EmojiPicker from './EmojiPicker';
+import Reactions from './Reactions';
+import { SmileIcon } from './Icons';
 import './DMView.css';
 import './Attachments.css';
 
@@ -26,11 +30,12 @@ interface DMViewProps {
   isLoadingMore?: boolean;
   onLoadMore?: () => Promise<void>;
   pinnedMessages?: Message[];
+  setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
 const DMView: React.FC<DMViewProps> = ({
   dm, messages, socket, onClose, onStartCall, onUserClick, initialUnreadCount = 0,
-  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = []
+  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages
 }) => {
   const { user } = useAuth();
   const {
@@ -60,6 +65,24 @@ const DMView: React.FC<DMViewProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [showPins, setShowPins] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleReactionsUpdate = (data: { messageId: string, reactions: any[] }) => {
+      if (setMessages) {
+        setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
+      }
+    };
+    socket.on('message-reactions-update', handleReactionsUpdate);
+    return () => {
+      socket.off('message-reactions-update', handleReactionsUpdate);
+    };
+  }, [socket, setMessages]);
+
+  const handleReact = (messageId: string, emoji: string) => {
+    axios.post(`/api/messages/${messageId}/reactions`, { emoji });
+  };
 
   const otherUser = dm.participants.find(p => p._id !== user?._id);
 
@@ -469,6 +492,13 @@ const DMView: React.FC<DMViewProps> = ({
                                 >
                                   <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
                                 </button>
+                                <button
+                                  className="msg-action-btn"
+                                  onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
+                                  title="Добавить реакцию"
+                                >
+                                  <SmileIcon size={16} />
+                                </button>
                               </div>
                             )}
                           </div>
@@ -481,11 +511,23 @@ const DMView: React.FC<DMViewProps> = ({
                             >
                               <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
                             </button>
+                            <button
+                              className="msg-action-btn mini"
+                              onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
+                            >
+                              <SmileIcon size={14} />
+                            </button>
                           </div>
                         )}
                         {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
 
                         <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
+
+                        <Reactions
+                          reactions={msg.reactions || []}
+                          currentUserId={user?._id || ''}
+                          onReact={(emoji) => handleReact(msg._id, emoji)}
+                        />
 
                         {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
                           <div className="message-attachments">
@@ -607,8 +649,32 @@ const DMView: React.FC<DMViewProps> = ({
           </form>
         </div>
         <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />
-      </div>
-    </div>
+      </div >
+      {showEmojiPicker && createPortal(
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+          onClick={() => setShowEmojiPicker(null)}
+        >
+          <div
+            style={{
+              position: 'fixed',
+              top: Math.min(showEmojiPicker.y, window.innerHeight - 420),
+              left: Math.min(showEmojiPicker.x, window.innerWidth - 340),
+              zIndex: 10000
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <EmojiPicker
+              onSelect={(emoji) => {
+                handleReact(showEmojiPicker.msgId, emoji);
+                setShowEmojiPicker(null);
+              }}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
+    </div >
   );
 };
 
