@@ -4,6 +4,7 @@ const fs = require('fs');
 const isDev = require('electron-is-dev');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
+const axios = require('axios');
 
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
@@ -321,6 +322,11 @@ let scanInProgress = false;
 let currentScanTimeout = null;
 let adaptiveInterval = 3000;
 
+// API Keys and Cache
+// USER: Replace with your actual SteamGridDB API Key
+const STEAMGRID_API_KEY = '84d5caff741db867dcb433b3e3a7fd37';
+const gameMetadataCache = new Map();
+
 const KNOWN_GAMES = {
     'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575_IGDB-285x380.jpg', type: 'game' },
     'VALORANT.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575_IGDB-285x380.jpg', type: 'game' },
@@ -389,26 +395,144 @@ if ($hwnd -ne 0) {
     (Get-Process | Where-Object { $_.MainWindowHandle -eq $hwnd }).ProcessName + ".exe"
 }`;
 
+const STEAM_ID_SCRIPT = `Get-ItemProperty -Path 'HKCU:\\Software\\Valve\\Steam' -Name 'RunningAppID' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty RunningAppID`;
+
+async function getSteamAppId() {
+    return new Promise((resolve) => {
+        exec(`powershell -Command "${STEAM_ID_SCRIPT}"`, (err, stdout) => {
+            if (err || !stdout.trim()) resolve(null);
+            else resolve(stdout.trim());
+        });
+    });
+}
+
+async function getGameMetadata(appId, exeName = null) {
+    const cacheKey = appId || exeName;
+    if (gameMetadataCache.has(cacheKey)) return gameMetadataCache.get(cacheKey);
+
+    let metadata = { name: 'Unknown Game', icon: null, type: 'game' };
+
+    try {
+        // If we don't have a key, we can't do much with SGDB
+        if (!STEAMGRID_API_KEY) {
+            if (appId) {
+                const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
+                if (steamRes.data[appId]?.success) {
+                    metadata.name = steamRes.data[appId].data.name;
+                    metadata.icon = `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`;
+                }
+            } else if (exeName && KNOWN_GAMES[exeName]) {
+                metadata = { ...KNOWN_GAMES[exeName] };
+            }
+            gameMetadataCache.set(cacheKey, metadata);
+            return metadata;
+        }
+
+        const headers = { 'Authorization': `Bearer ${STEAMGRID_API_KEY}` };
+
+        // 1. Get Game Object and Name
+        let sgdbGameId = null;
+        if (appId) {
+            try {
+                const gameRes = await axios.get(`https://www.steamgriddb.com/api/v2/games/steam/${appId}`, { headers });
+                if (gameRes.data.success) {
+                    metadata.name = gameRes.data.data.name;
+                    sgdbGameId = gameRes.data.data.id;
+                }
+            } catch (e) { log.warn(`SGDB Game lookup failed for Steam ID ${appId}`); }
+        }
+
+        // Fallback for name if SGDB lookup failed but we have appId
+        if (appId && metadata.name === 'Unknown Game') {
+            const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
+            if (steamRes.data[appId]?.success) {
+                metadata.name = steamRes.data[appId].data.name;
+            }
+        } else if (!appId && exeName && KNOWN_GAMES[exeName]) {
+            metadata.name = KNOWN_GAMES[exeName].name;
+        }
+
+        // 2. Search by name if we still don't have a SGDB ID
+        if (!sgdbGameId && metadata.name !== 'Unknown Game') {
+            const searchRes = await axios.get(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(metadata.name)}`, { headers });
+            if (searchRes.data.success && searchRes.data.data.length > 0) {
+                sgdbGameId = searchRes.data.data[0].id;
+            }
+        }
+
+        // 3. Get Assets (Grids)
+        if (sgdbGameId) {
+            const assetsRes = await axios.get(`https://www.steamgriddb.com/api/v2/grids/game/${sgdbGameId}?dimensions=342x482,600x900`, { headers });
+            if (assetsRes.data.success && assetsRes.data.data.length > 0) {
+                metadata.icon = assetsRes.data.data[0].url;
+            }
+        }
+
+        // Final fallbacks for icons
+        if (!metadata.icon) {
+            if (appId) {
+                metadata.icon = `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`;
+            } else if (exeName && KNOWN_GAMES[exeName]) {
+                metadata.icon = KNOWN_GAMES[exeName].icon;
+            }
+        }
+
+        gameMetadataCache.set(cacheKey, metadata);
+        return metadata;
+    } catch (e) {
+        log.error("Failed to fetch game metadata", e);
+        return metadata.name !== 'Unknown Game' ? metadata : null;
+    }
+}
+
 async function scanActivities() {
     if (process.platform !== 'win32' || scanInProgress) { scheduleNextScan(); return; }
     scanInProgress = true;
-    exec(`powershell -Command "${FG_SCRIPT.replace(/\n/g, '')}"`, (fgErr, fgStdout) => {
-        const fgExe = fgStdout?.trim().toLowerCase();
-        if (!fgErr && fgExe) {
-            const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
-            for (const key in KNOWN_GAMES) {
-                const keyLower = key.toLowerCase();
-                if (fgExe === keyLower || fgBase === keyLower || fgExe === keyLower.replace('.exe', '')) {
-                    updateActivity(KNOWN_GAMES[key]);
+
+    try {
+        // Priority 1: Steam Registry Detection
+        const steamAppId = await getSteamAppId();
+        if (steamAppId && steamAppId !== '0') {
+            const metadata = await getGameMetadata(steamAppId);
+            if (metadata) {
+                updateActivity(metadata);
+                scanInProgress = false;
+                adaptiveInterval = 5000;
+                scheduleNextScan();
+                return;
+            }
+        }
+
+        // Priority 2: Foreground Window EXE detection
+        exec(`powershell -Command "${FG_SCRIPT.replace(/\n/g, '')}"`, async (fgErr, fgStdout) => {
+            const fgExe = fgStdout?.trim().toLowerCase();
+            if (!fgErr && fgExe) {
+                const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
+
+                // Match with KNOWN_GAMES or attempt meta lookup by exe base name
+                let foundKey = Object.keys(KNOWN_GAMES).find(key => {
+                    const kLower = key.toLowerCase();
+                    return fgExe === kLower || fgBase === kLower || fgExe === kLower.replace('.exe', '');
+                });
+
+                if (foundKey) {
+                    const metadata = await getGameMetadata(null, foundKey);
+                    updateActivity(metadata);
                     scanInProgress = false;
-                    adaptiveInterval = 2000;
+                    adaptiveInterval = 3000;
                     scheduleNextScan();
                     return;
                 }
             }
-        }
-        performFullScan();
-    });
+
+            // Priority 3: Full Scan fallback
+            performFullScan();
+        });
+    } catch (err) {
+        log.error("Activity scan error:", err);
+        scanInProgress = false;
+        scheduleNextScan();
+    }
 }
 
 function updateActivity(foundActivity) {

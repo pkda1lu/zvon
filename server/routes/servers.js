@@ -631,4 +631,48 @@ router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (
   }
 });
 
+router.post('/:id/emojis', auth, checkPermission(Permissions.MANAGE_GUILD), upload.single('emoji'), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!req.file || !name) return res.status(400).json({ message: 'File and name required' });
+
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const emojiUrl = `/api/uploads/${req.file.filename}`;
+    const newEmoji = {
+      name,
+      url: emojiUrl,
+      id: Math.random().toString(36).substring(2, 11),
+      animated: req.file.mimetype === 'image/gif',
+      author: req.user._id
+    };
+
+    if (!server.emojis) server.emojis = [];
+    server.emojis.push(newEmoji);
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-emojis-updated', { serverId: server._id, emojis: server.emojis });
+
+    res.status(201).json(newEmoji);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/:id/emojis/:emojiId', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    server.emojis = server.emojis.filter(e => e.id !== req.params.emojiId);
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-emojis-updated', { serverId: server._id, emojis: server.emojis });
+
+    res.json({ message: 'Emoji deleted' });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 module.exports = router;
+

@@ -111,13 +111,17 @@ const serverSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  emojis: [{
+    name: String,
+    url: String,
+    id: String, // Unique ID for the emoji within the server
+    animated: Boolean,
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }]
 });
 
 module.exports = mongoose.model('Server', serverSchema);
-
-
-
-
-
-

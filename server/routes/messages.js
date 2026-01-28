@@ -112,4 +112,49 @@ router.patch('/:id/pin', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.post('/:id/reactions', auth, async (req, res) => {
+  try {
+    const { emoji } = req.body;
+    const message = await Message.findById(req.params.id);
+    if (!message) return res.status(404).json({ message: 'Message not found' });
+
+    let reaction = message.reactions.find(r => r.emoji === emoji);
+    if (reaction) {
+      const userIndex = reaction.users.indexOf(req.user._id);
+      if (userIndex > -1) {
+        // Toggle off
+        reaction.users.splice(userIndex, 1);
+        if (reaction.users.length === 0) {
+          message.reactions = message.reactions.filter(r => r.emoji !== emoji);
+        }
+      } else {
+        // Add user
+        reaction.users.push(req.user._id);
+      }
+    } else {
+      // New reaction
+      message.reactions.push({ emoji, users: [req.user._id] });
+    }
+
+    await message.save();
+
+    // Notify via Socket.io
+    const io = req.app.get('io');
+    if (io) {
+      const payload = { messageId: message._id, reactions: message.reactions };
+      if (message.channel) {
+        io.to(`channel-${message.channel}`).emit('message-reactions-update', payload);
+      } else if (message.directMessage) {
+        const DirectMessage = require('../models/DirectMessage');
+        const dm = await DirectMessage.findById(message.directMessage);
+        if (dm) {
+          dm.participants.forEach(p => io.to(`user-${p}`).emit('message-reactions-update', payload));
+        }
+      }
+    }
+
+    res.json(message.reactions);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 module.exports = router;
