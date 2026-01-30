@@ -467,6 +467,19 @@
   font-size: 0.75rem;
 }
 
+.bot-badge {
+  background: var(--primary-neon);
+  color: black;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-left: 4px;
+  line-height: 1;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
 .message-text {
   color: var(--text-secondary);
   font-size: 1rem;

@@ -81,6 +81,20 @@ const userSchema = new mongoose.Schema({
       smallText: String
     }
   },
+  isBot: {
+    type: Boolean,
+    default: false
+  },
+  botToken: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  owner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

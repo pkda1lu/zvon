@@ -48,6 +48,7 @@ app.use('/api/friends', require('./routes/friends'));
 app.use('/api/direct-messages', require('./routes/directMessages'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/invites', require('./routes/invites'));
+app.use('/api/bots', require('./routes/bots'));
 app.use('/api/upload-files', require('./routes/uploads'));
 app.use('/api/livekit', require('./routes/livekit'));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
@@ -108,10 +109,20 @@ app.get('/api/channels/:id/voice-participants', async (req, res) => {
 });
 
 app.set('io', io);
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (token) {
     try {
+      if (token.startsWith('bot_')) {
+        const User = require('./models/User');
+        const bot = await User.findOne({ botToken: token, isBot: true });
+        if (bot) {
+          socket.userId = bot._id;
+          socket.isBot = true;
+          return next();
+        }
+      }
+
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.userId;
@@ -252,6 +263,33 @@ io.on('connection', (socket) => {
         if (dm) dm.participants.forEach(p => io.to(`user-${p._id}`).emit('new-message', message));
       }
     } catch (error) { socket.emit('error', { message: 'Failed to send message' }); }
+  });
+
+  socket.on('edit-message', async (data) => {
+    try {
+      const { messageId, content } = data;
+      const message = await Message.findById(messageId);
+      if (!message) return;
+
+      if (message.author.toString() !== socket.userId.toString()) {
+        return socket.emit('error', { message: 'You can only edit your own messages' });
+      }
+
+      message.content = content;
+      message.edited = true;
+      message.editedAt = new Date();
+      await message.save();
+      await message.populate('author', 'username avatar');
+      await message.populate('mentions', 'username');
+
+      if (message.channel) {
+        io.to(`channel-${message.channel}`).emit('message-updated', message);
+      } else if (message.directMessage) {
+        const DirectMessage = require('./models/DirectMessage');
+        const dm = await DirectMessage.findById(message.directMessage);
+        if (dm) dm.participants.forEach(p => io.to(`user-${p._id}`).emit('message-updated', message));
+      }
+    } catch (error) { socket.emit('error', { message: 'Failed to edit message' }); }
   });
 
   socket.on('delete-message', async (data) => {

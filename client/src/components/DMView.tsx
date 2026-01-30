@@ -482,6 +482,7 @@ const DMView: React.FC<DMViewProps> = ({
                         {!grouped && (
                           <div className="message-header">
                             <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                            {msg.author.isBot && <span className="bot-badge">БOТ</span>}
                             <span className="message-time">{formatDate(msg.createdAt)}</span>
                             {showHoverActions && (
                               <div className="message-actions-hover">

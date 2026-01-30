@@ -27,6 +27,7 @@ export interface User {
   servers?: string[];
   blockedUsers?: string[];
   notes?: Record<string, string>;
+  isBot?: boolean;
   createdAt: string;
 }
 

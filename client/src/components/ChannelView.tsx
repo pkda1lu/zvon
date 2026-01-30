@@ -117,6 +117,7 @@ const MessageItem = React.memo<{
                 >
                   {member?.nickname || msg.author.username}
                 </span>
+                {msg.author.isBot && <span className="bot-badge">БOТ</span>}
                 <span className="message-time">{formatDate(msg.createdAt)}</span>
               </div>
             )}

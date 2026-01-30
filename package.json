@@ -20,6 +20,9 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "electron-updater": "^6.6.2"
+    "@livekit/rtc-node": "^0.13.24",
+    "axios": "^1.13.4",
+    "electron-updater": "^6.6.2",
+    "socket.io-client": "^4.8.3"
   }
 }

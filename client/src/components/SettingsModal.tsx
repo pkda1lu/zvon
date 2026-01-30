@@ -20,7 +20,8 @@ import {
   LogOutIcon,
   SmartphoneIcon,
   EllipsisIcon,
-  CameraIcon
+  CameraIcon,
+  BotIcon
 } from './Icons';
 import ImageCropper from './ImageCropper';
 import './SettingsModal.css';
@@ -41,7 +42,8 @@ type SettingsTab =
   | 'windows'
   | 'streamer'
   | 'advanced'
-  | 'activity';
+  | 'activity'
+  | 'bots';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
@@ -844,6 +846,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             >
               <SmartphoneIcon size={18} /> Устройства
             </div>
+            <div
+              className={`sidebar-item ${activeTab === 'bots' ? 'active' : ''}`}
+              onClick={() => setActiveTab('bots')}
+            >
+              <BotIcon size={18} /> Мои боты
+            </div>
 
             <div className="sidebar-separator" />
 
@@ -921,6 +929,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               {activeTab === 'appearance' && renderAppearanceSettings()}
               {activeTab === 'voice' && renderVoiceSettings()}
               {activeTab === 'chat' && renderChatSettings()}
+              {activeTab === 'bots' && <BotsSettings />}
 
               {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
               {activeTab === 'windows' && renderPlaceholder('Настройки Windows', <MonitorIcon size={80} />)}
@@ -936,6 +945,183 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
+      </div>
+    </div>
+  );
+};
+
+const BotsSettings = () => {
+  const [bots, setBots] = useState<any[]>([]);
+  const [userServers, setUserServers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [botName, setBotName] = useState('');
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [showServerSelect, setShowServerSelect] = useState<string | null>(null);
+
+  const fetchBots = async () => {
+    try {
+      const response = await axios.get('/api/bots/my');
+      setBots(response.data);
+    } catch (e) { }
+  };
+
+  const fetchUserServers = async () => {
+    try {
+      const response = await axios.get('/api/servers/me');
+      setUserServers(response.data);
+    } catch (e) { }
+  };
+
+  useEffect(() => {
+    fetchBots();
+    fetchUserServers();
+  }, []);
+
+  const createBot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!botName.trim()) return;
+    setLoading(true);
+    try {
+      await axios.post('/api/bots/create', { name: botName });
+      setBotName('');
+      fetchBots();
+    } catch (e) {
+      alert('Ошибка создания бота');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteBot = async (id: string) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этого бота?')) return;
+    try {
+      await axios.delete(`/api/bots/${id}`);
+      fetchBots();
+    } catch (e) { }
+  };
+
+  const copyToken = (token: string) => {
+    navigator.clipboard.writeText(token);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
+
+  const regenerateToken = async (id: string) => {
+    if (!window.confirm('Вы уверены? Старый токен перестанет работать.')) return;
+    try {
+      await axios.post(`/api/bots/${id}/regenerate-token`);
+      fetchBots();
+    } catch (e) { }
+  };
+
+  const addBotToServer = async (botId: string, serverId: string) => {
+    try {
+      await axios.post(`/api/bots/${botId}/add-to-server`, { serverId });
+      alert('Бот успешно добавлен на сервер!');
+      setShowServerSelect(null);
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Ошибка при добавлении бота');
+    }
+  };
+
+  return (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Мои боты</h2>
+      <p style={{ color: 'var(--text-dim)', marginBottom: '20px' }}>
+        Создавайте ботов для автоматизации или интеграций. Боты работают через WebSocket.
+      </p>
+
+      <form onSubmit={createBot} className="bot-create-form" style={{ marginBottom: '30px', display: 'flex', gap: '10px' }}>
+        <input
+          type="text"
+          placeholder="Имя бота"
+          value={botName}
+          onChange={e => setBotName(e.target.value)}
+          className="settings-input"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '10px', color: 'white' }}
+        />
+        <button type="submit" className="save-button" style={{ margin: 0, padding: '10px 20px' }} disabled={loading}>
+          Создать
+        </button>
+      </form>
+
+      <div className="bots-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        {bots.length === 0 && <div className="placeholder-settings" style={{ padding: '40px' }}>У вас пока нет ботов.</div>}
+        {bots.map(bot => (
+          <div key={bot._id} className="bot-item glass-panel-base" style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', background: 'var(--primary-neon)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 800 }}>
+                  <BotIcon size={24} color="black" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px' }}>{bot.username}</h3>
+                  <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>ID: {bot._id}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  className="save-button"
+                  style={{ margin: 0, padding: '5px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
+                  onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}
+                >
+                  Добавить на сервер
+                </button>
+                <button className="msg-action-btn danger" onClick={() => deleteBot(bot._id)}>Удалить</button>
+              </div>
+            </div>
+
+            {showServerSelect === bot._id && (
+              <div className="server-selector" style={{ marginBottom: '15px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--primary-neon)' }}>
+                <p style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 600 }}>Выберите сервер:</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {userServers.map(server => (
+                    <div
+                      key={server._id}
+                      onClick={() => addBotToServer(bot._id, server._id)}
+                      style={{
+                        padding: '8px 12px',
+                        background: 'rgba(255,255,255,0.05)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                      onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    >
+                      <span>{server.name}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Нажмите, чтобы добавить</span>
+                    </div>
+                  ))}
+                  {userServers.length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>У вас нет доступных серверов.</p>}
+                </div>
+              </div>
+            )}
+
+            <div className="bot-token-area" style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <code style={{ flex: 1, fontSize: '13px', color: 'var(--primary-neon)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {bot.botToken}
+              </code>
+              <button
+                className="save-button"
+                style={{ margin: 0, padding: '5px 10px', fontSize: '12px', background: copiedToken === bot.botToken ? '#43b581' : 'var(--primary-neon)' }}
+                onClick={() => copyToken(bot.botToken)}
+              >
+                {copiedToken === bot.botToken ? 'Скопировано!' : 'Копировать'}
+              </button>
+              <button
+                className="save-button"
+                style={{ margin: 0, padding: '5px 10px', fontSize: '12px', background: 'transparent', border: '1px solid var(--glass-border)', color: 'white' }}
+                onClick={() => regenerateToken(bot._id)}
+              >
+                Обновить
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
