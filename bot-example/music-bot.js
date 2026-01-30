@@ -60,6 +60,9 @@ socket.on("ready", async (data) => {
         }
     } catch (err) {
         console.error("Error fetching servers:", err.message);
+        if (err.response) {
+            console.error("Server response:", err.response.data);
+        }
     }
 });
 

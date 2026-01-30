@@ -107,6 +107,13 @@ router.post('/:id/add-to-server', auth, async (req, res) => {
         server.members.push({ user: botId });
         await server.save();
 
+        // Also update bot's servers array
+        if (!bot.servers) bot.servers = [];
+        if (!bot.servers.includes(serverId)) {
+            bot.servers.push(serverId);
+            await bot.save();
+        }
+
         res.json({ message: 'Бот успешно добавлен на сервер' });
     } catch (error) {
         console.error('Add bot to server error:', error);

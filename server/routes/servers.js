@@ -56,7 +56,20 @@ router.post('/', auth, async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    const userServerIds = user?.servers || [];
+    let userServerIds = user?.servers || [];
+
+    // Fallback if servers array is empty (common for bots or desynced state)
+    if (userServerIds.length === 0) {
+      const serversJoined = await Server.find({ 'members.user': req.user._id }, '_id');
+      userServerIds = serversJoined.map(s => s._id);
+
+      // Update the user document if it was desynced
+      if (userServerIds.length > 0 && user) {
+        user.servers = userServerIds;
+        await user.save();
+      }
+    }
+
     const allServers = await Server.find({ _id: { $in: userServerIds } }).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status').sort({ createdAt: -1 });
     res.json(allServers);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
