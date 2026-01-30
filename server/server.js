@@ -133,6 +133,7 @@ io.use(async (socket, next) => {
 
 io.on('connection', (socket) => {
   socket.join(`user-${String(socket.userId)}`);
+  socket.emit('ready', { userId: socket.userId });
   const updateStatusOnConnect = async () => {
     try {
       const user = await User.findById(socket.userId);

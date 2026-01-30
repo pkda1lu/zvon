@@ -20,9 +20,10 @@ const {
  * 2. npm install @livekit/rtc-node socket.io-client axios
  */
 
-const TOKEN = "YOUR_BOT_TOKEN_HERE";
-const SERVER_URL = "http://localhost:5000";
+const TOKEN = "bot_e43739c7bbfdb16d40fb58062c9038b0ebc07742b8b0bbeb45a2001a05747861";
+const SERVER_URL = "https://zvonserver.ru";
 
+console.log("Starting music bot...");
 const socket = io(SERVER_URL, {
     auth: { token: TOKEN }
 });
@@ -34,10 +35,51 @@ socket.on("connect", () => {
     console.log("Music Bot Connected to Zvon!");
 });
 
+socket.on("ready", async (data) => {
+    socket.userId = data.userId;
+    console.log("Bot User ID:", socket.userId);
+
+    try {
+        // Fetch all servers the bot is in
+        const res = await axios.get(`${SERVER_URL}/api/servers/me`, {
+            headers: { Authorization: `Bearer ${TOKEN}` }
+        });
+        const servers = res.data;
+        console.log(`Bot is in ${servers.length} servers.`);
+
+        for (const server of servers) {
+            console.log(`Joining server: ${server.name}`);
+            socket.emit("join-server", server._id);
+
+            for (const channel of server.channels) {
+                if (channel.type === "text") {
+                    console.log(`Joining text channel: ${channel.name} (${channel._id})`);
+                    socket.emit("join-channel", channel._id);
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Error fetching servers:", err.message);
+    }
+});
+
+socket.on("connect_error", (err) => {
+    console.error("Socket Connection Error:", err.message);
+});
+
+const YANDEX_TOKEN = "y0__xDvo5iwBBje-AYghJDMnxYwjqm0hQhXgYlVwLXfMHVMjTu7ZEZPKDY4SA";
+const { YandexMusicClient } = require("yandex-music-client"); // npm install yandex-music-client
+
+const yandexClient = new YandexMusicClient({
+    token: YANDEX_TOKEN
+});
+
 socket.on("new-message", async (msg) => {
+    console.log(`[Debug] Message received from ${msg.author.username}: ${msg.content}`);
     if (msg.author._id === socket.userId) return;
 
     const content = msg.content.trim();
+    console.log(`[Debug] Processing command: ${content}`);
 
     // Command: !play <url>
     if (content.startsWith("!play ")) {
@@ -48,25 +90,35 @@ socket.on("new-message", async (msg) => {
         // For this demo, let's assume we need to join a specific channel or get it from context.
 
         socket.emit("send-message", {
-            content: `🔍 Ищу музыку: ${query}...`,
+            content: `🔍 Ищу в Яндекс.Музыке: ${query}...`,
             channelId: msg.channel,
             dmId: msg.directMessage
         });
 
         try {
-            // Here you would use Yandex Music or VK API to get a direct MP3 link
-            // For example purposes, we'll use a placeholder or a direct link if provided
-            let streamUrl = query;
+            let streamUrl = "";
+            let trackInfo = "";
 
-            if (query.includes("yandex.ru") || query.includes("vk.com")) {
-                // TODO: Implement actual scraping or API call here
-                // streamUrl = await getDirectLink(query);
+            // Поиск трека
+            const searchResult = await yandexClient.search(query);
+            const track = searchResult.tracks?.results?.[0];
+
+            if (!track) {
+                throw new Error("Трек не найден");
             }
+
+            // Получаем ссылку на поток
+            const downloadInfo = await yandexClient.getTrackDownloadInfo(track.id);
+            // Выбираем лучшее качество (обычно последний в списке)
+            const directLink = await yandexClient.getTrackDirectLink(downloadInfo[downloadInfo.length - 1].downloadInfoUrl);
+
+            streamUrl = directLink;
+            trackInfo = `${track.artists[0].name} - ${track.title}`;
 
             await playMusic(streamUrl, msg.channel);
 
             socket.emit("send-message", {
-                content: `🎶 Сейчас играет: ${query}`,
+                content: `🎶 Сейчас играет: **${trackInfo}**`,
                 channelId: msg.channel
             });
         } catch (err) {

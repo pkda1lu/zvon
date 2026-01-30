@@ -957,6 +957,7 @@ const BotsSettings = () => {
   const [botName, setBotName] = useState('');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [showServerSelect, setShowServerSelect] = useState<string | null>(null);
+  const [revealedTokenId, setRevealedTokenId] = useState<string | null>(null);
 
   const fetchBots = async () => {
     try {
@@ -1001,9 +1002,21 @@ const BotsSettings = () => {
   };
 
   const copyToken = (token: string) => {
-    navigator.clipboard.writeText(token);
-    setCopiedToken(token);
-    setTimeout(() => setCopiedToken(null), 2000);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(token)
+        .then(() => {
+          setCopiedToken(token);
+          setTimeout(() => setCopiedToken(null), 2000);
+        })
+        .catch(err => {
+          console.error('Clipboard error:', err);
+          // Fallback if Write permission denied or other error
+          window.prompt("Копирование не удалось автоматически. Скопируйте токен вручную:", token);
+        });
+    } else {
+      // Very old browsers or insecure contexts
+      window.prompt("Скопируйте токен вручную:", token);
+    }
   };
 
   const regenerateToken = async (id: string) => {
@@ -1102,23 +1115,32 @@ const BotsSettings = () => {
             )}
 
             <div className="bot-token-area" style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <code style={{ flex: 1, fontSize: '13px', color: 'var(--primary-neon)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {bot.botToken}
+              <code style={{ flex: 1, fontSize: '13px', color: 'var(--primary-neon)', overflow: 'hidden', textOverflow: 'ellipsis', userSelect: revealedTokenId === bot._id ? 'all' : 'none' }}>
+                {revealedTokenId === bot._id ? bot.botToken : '••••••••••••••••••••••••••••••••'}
               </code>
-              <button
-                className="save-button"
-                style={{ margin: 0, padding: '5px 10px', fontSize: '12px', background: copiedToken === bot.botToken ? '#43b581' : 'var(--primary-neon)' }}
-                onClick={() => copyToken(bot.botToken)}
-              >
-                {copiedToken === bot.botToken ? 'Скопировано!' : 'Копировать'}
-              </button>
-              <button
-                className="save-button"
-                style={{ margin: 0, padding: '5px 10px', fontSize: '12px', background: 'transparent', border: '1px solid var(--glass-border)', color: 'white' }}
-                onClick={() => regenerateToken(bot._id)}
-              >
-                Обновить
-              </button>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                <button
+                  className="msg-action-btn"
+                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                  onClick={() => setRevealedTokenId(revealedTokenId === bot._id ? null : bot._id)}
+                >
+                  {revealedTokenId === bot._id ? 'Скрыть' : 'Показать'}
+                </button>
+                <button
+                  className="msg-action-btn"
+                  style={{ padding: '4px 8px', fontSize: '11px', background: copiedToken === bot.botToken ? 'var(--success-color)' : '' }}
+                  onClick={() => copyToken(bot.botToken)}
+                >
+                  {copiedToken === bot.botToken ? 'Готово!' : 'Копировать'}
+                </button>
+                <button
+                  className="msg-action-btn"
+                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                  onClick={() => regenerateToken(bot._id)}
+                >
+                  Обновить
+                </button>
+              </div>
             </div>
           </div>
         ))}
