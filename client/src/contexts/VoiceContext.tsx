@@ -289,6 +289,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const isVadActiveRef = useRef(false);
     const lastSpeakingTimeRef = useRef<number>(0);
     const lastVadMessageTimeRef = useRef<number>(0);
+    const registeredWorkletsRef = useRef<Set<string>>(new Set());
 
     // Sync refs for the interval to avoid re-creation
     const inputSensitivityRef = useRef(inputSensitivity);
@@ -838,7 +839,96 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } finally {
             isJoiningRef.current = false;
         }
-    }, [user?._id, leaveChannel, socket]);
+    }, [user?._id, leaveChannel, socket, selectedInputDeviceId]);
+
+    // Effect to handle input device changes in real-time
+    useEffect(() => {
+        const handleDeviceChange = async () => {
+            // Update Test Stream if it exists
+            if (testStreamRef.current) {
+                console.log(`[Voice] Switching test stream to device: ${selectedInputDeviceId}`);
+                testStreamRef.current.getTracks().forEach(t => t.stop());
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            deviceId: selectedInputDeviceId !== 'default' ? { exact: selectedInputDeviceId } : undefined,
+                        }
+                    });
+                    testStreamRef.current = stream;
+                    setTestStream(stream);
+                } catch (err) {
+                    console.error("[Voice] Failed to switch test stream device:", err);
+                }
+            }
+
+            // Update LiveKit track if connected
+            if (roomRef.current && isConnected) {
+                console.log(`[Voice] Switching LiveKit microphone to device: ${selectedInputDeviceId}`);
+                try {
+                    await roomRef.current.localParticipant.setMicrophoneEnabled(true, {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
+                    });
+
+                    // Update local context streams from the new track
+                    const localAudioTrack = roomRef.current.localParticipant.getTrackPublication(Track.Source.Microphone);
+                    if (localAudioTrack?.track) {
+                        const baseTrack = localAudioTrack.track.mediaStreamTrack!;
+
+                        // Cleanup old clones before creating new ones
+                        if (rawMicStreamRef.current) {
+                            rawMicStreamRef.current.getTracks().forEach(t => t.stop());
+                        }
+                        if (vadStreamRef.current) {
+                            vadStreamRef.current.getTracks().forEach(t => t.stop());
+                        }
+
+                        // Store raw clean track for noise suppression input
+                        const rawTrack = baseTrack.clone();
+                        rawTrack.enabled = true;
+                        rawMicStreamRef.current = new MediaStream([rawTrack]);
+
+                        // Dedicated Stream for VAD
+                        const vadTrack = baseTrack.clone();
+                        vadTrack.enabled = true;
+                        vadStreamRef.current = new MediaStream([vadTrack]);
+
+                        // Handle Noise Suppression re-application
+                        let finalTrack = baseTrack;
+                        if (isNoiseSuppressionEnabled) {
+                            try {
+                                const suppressedStream = await setupNoiseSuppression(getAudioContext(), rawMicStreamRef.current);
+                                const suppressedTrack = suppressedStream.getAudioTracks()[0];
+                                if (suppressedTrack) {
+                                    await (localAudioTrack.track as any).replaceTrack(suppressedTrack);
+                                    finalTrack = suppressedTrack;
+                                }
+                            } catch (e) {
+                                console.warn("[Voice] NS re-apply failed during device switch:", e);
+                            }
+                        }
+
+                        // Apply current mute state to the final track
+                        const effectiveMuted = isMuted || isServerMuted;
+                        const effectiveDeafened = isDeafened || isServerDeafened;
+                        finalTrack.enabled = !effectiveMuted && !effectiveDeafened;
+
+                        const stream = new MediaStream([finalTrack]);
+                        setLocalStream(stream);
+                        localStreamRef.current = stream;
+
+                        console.log(`[Voice] Switched mic to: ${finalTrack.label} (NS: ${isNoiseSuppressionEnabled}, Muted: ${effectiveMuted})`);
+                    }
+                } catch (err) {
+                    console.error("[Voice] Failed to switch microphone in call:", err);
+                }
+            }
+        };
+
+        handleDeviceChange();
+    }, [selectedInputDeviceId, isConnected, isNoiseSuppressionEnabled, isMuted, isDeafened, isServerMuted, isServerDeafened, getAudioContext]);
 
     const joinChannelRef = useRef(joinChannel);
     useEffect(() => {
@@ -1125,7 +1215,13 @@ registerProcessor('vad-processor', VADProcessor);
 
                 const blob = new Blob([vadWorkletCode], { type: 'application/javascript' });
                 const url = URL.createObjectURL(blob);
-                await audioCtx.audioWorklet.addModule(url);
+
+                // Only register if not already registered for this context
+                if (!registeredWorkletsRef.current.has('vad-processor')) {
+                    await audioCtx.audioWorklet.addModule(url);
+                    registeredWorkletsRef.current.add('vad-processor');
+                    console.log("[Voice] VAD Worklet module added");
+                }
 
                 if (vadSourceRef.current) vadSourceRef.current.disconnect();
 
