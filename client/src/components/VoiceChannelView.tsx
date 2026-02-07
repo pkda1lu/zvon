@@ -263,6 +263,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     setScreenVolume,
     watchedScreenIds,
     setWatchingScreen,
+    remoteStreams,
   } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
@@ -311,18 +312,58 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const displayParticipants = useMemo(() => {
     let items: any[] = [];
     if (isConnectedToThisChannel && currentUser) {
+      // Create a set of IDs we've already added to avoid duplicates
+      const seenIds = new Set<string>();
+
+      // 1. Add Me
       items.push({ ...currentUser, isMe: true, isMuted, isDeafened, isScreenSharing, type: 'user' });
+      seenIds.add(currentUser._id);
+
       if (isScreenSharing) {
         items.push({ _id: `local-stream`, type: 'stream', isMe: true });
       }
+
+      // 2. Add Socket-connected users (Users we officially know are in channel)
       activeConnectedUsers.forEach(u => {
-        const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false };
-        items.push({ ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened, isScreenSharing: state.isScreenSharing, type: 'user' });
-        if (state.isScreenSharing && remoteScreenStreams.has(u._id)) {
+        if (!seenIds.has(u._id)) {
+          const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false };
+          items.push({ ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened, isScreenSharing: state.isScreenSharing, type: 'user' });
+          seenIds.add(u._id);
+        }
+
+        const state = userStates.get(u._id);
+        if (state?.isScreenSharing && remoteScreenStreams.has(u._id)) {
           items.push({ _id: `stream-${u._id}`, userId: u._id, type: 'stream', isMe: false });
         }
       });
+
+      // 3. Fallback: Add users who are ACTUALLY in LiveKit room but missed by Socket events
+      // This prevents participants from "ghosting" (hearing but not seeing them)
+      remoteStreams.forEach((stream, userId) => {
+        if (!seenIds.has(userId)) {
+          // Look up user info in externalParticipants (pre-fetched from API)
+          const backupUser = externalParticipants.find(p => p._id === userId);
+          if (backupUser) {
+            const state = userStates.get(userId) || { isMuted: false, isDeafened: false, isScreenSharing: false };
+            items.push({
+              ...backupUser,
+              isMe: false,
+              isMuted: state.isMuted,
+              isDeafened: state.isDeafened,
+              isScreenSharing: state.isScreenSharing,
+              type: 'user',
+              isGhost: true // Optional: tag them as ghost for debugging
+            });
+            seenIds.add(userId);
+
+            if (state.isScreenSharing && remoteScreenStreams.has(userId)) {
+              items.push({ _id: `stream-${userId}`, userId: userId, type: 'stream', isMe: false });
+            }
+          }
+        }
+      });
     } else {
+      // Not connected view (sidebar preview or before joining)
       externalParticipants.forEach(u => {
         const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false };
         items.push({
@@ -339,7 +380,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       });
     }
     return items;
-  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, externalParticipants, userStates, remoteScreenStreams]);
+  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, externalParticipants, userStates, remoteScreenStreams, remoteStreams]);
 
   useEffect(() => {
     if (!isConnectedToThisChannel) {

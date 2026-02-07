@@ -749,3 +749,145 @@
     transform: translateY(-15px);
   }
 }
+
+/* --- REPLIES --- */
+.message.has-reply {
+  padding-top: 32px;
+}
+
+.message-reply-preview {
+  position: absolute;
+  top: 8px;
+  left: 74px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 100px);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.message-reply-preview:hover {
+  opacity: 1;
+}
+
+.reply-line {
+  position: absolute;
+  top: 8px;
+  left: -20px;
+  width: 16px;
+  height: 12px;
+  border-left: 2px solid var(--text-dim);
+  border-top: 2px solid var(--text-dim);
+  border-top-left-radius: 6px;
+}
+
+.reply-icon-mini {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.reply-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.reply-author {
+  font-weight: 700;
+  font-size: 13px;
+  color: white;
+  white-space: nowrap;
+}
+
+.reply-content {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Reply Input Preview */
+.reply-input-preview {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: slideInBottom 0.2s ease;
+}
+
+.reply-input-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+}
+
+.reply-input-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.reply-input-text span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.reply-input-snippet {
+  font-size: 13px;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+.cancel-reply-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.cancel-reply-btn:hover {
+  color: white;
+}
+
+@keyframes slideInBottom {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.highlight-flash {
+  animation: bgFlash 2s ease;
+}
+
+@keyframes bgFlash {
+  0% {
+    background: rgba(0, 229, 255, 0.1);
+  }
+
+  100% {
+    background: transparent;
+  }
+}

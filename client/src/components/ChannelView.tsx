@@ -4,7 +4,7 @@ import { Channel, Message, Server, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon } from './Icons';
 import './ChannelView.css';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
@@ -56,11 +56,13 @@ const MessageItem = React.memo<{
   setLightboxOpen: (o: boolean) => void;
   allMessages: Message[];
   onReact: (messageId: string, emoji: string) => void;
+  onReply: (msg: Message) => void;
+  scrollToMessage: (msgId: string) => void;
 }>(({
   msg, prev, user, server, displayEmbeds, showHoverActions, mentionHighlight, canPin, canReact,
   onUserClick, onContextMenu, onTogglePin, onDelete, formatDate, renderMessageContent,
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
-  onReact
+  onReact, onReply, scrollToMessage
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number } | null>(null);
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
@@ -87,7 +89,16 @@ const MessageItem = React.memo<{
   return (
     <>
       {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
-      <div className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''}`}>
+      <div id={`msg-${msg._id}`} className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}>
+        {msg.replyTo && (
+          <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
+            <div className="reply-line" />
+            <ReplyIcon size={12} className="reply-icon-mini" />
+            <img src={getAvatarUrl(msg.replyTo.author.avatar) || ''} alt="" className="reply-avatar" />
+            <span className="reply-author">{msg.replyTo.author.username}</span>
+            <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
+          </div>
+        )}
         {!grouped && (
           <div className="message-author-avatar" onClick={(e) => onUserClick(msg.author._id, e)} onContextMenu={(e) => onContextMenu(e, msg.author)} style={{ cursor: 'pointer' }}>
             {getAvatarUrl(msg.author.avatar) ? <img src={getAvatarUrl(msg.author.avatar)!} alt="" /> : <span>{msg.author.username.charAt(0).toUpperCase()}</span>}
@@ -142,6 +153,13 @@ const MessageItem = React.memo<{
                     <SmileIcon size={grouped ? 14 : 16} />
                   </button>
                 )}
+                <button
+                  className={`msg-action-btn ${grouped ? 'mini' : ''}`}
+                  onClick={() => onReply(msg)}
+                  title="Ответить"
+                >
+                  <ReplyIcon size={grouped ? 14 : 16} />
+                </button>
                 {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
                   <button className={`msg-action-btn danger ${grouped ? 'mini' : ''}`} onClick={() => onDelete(msg._id)}>
                     <TrashIcon size={grouped ? 14 : 16} />
@@ -259,6 +277,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     enableTTS
   } = useChatSettings();
   const [message, setMessage] = useState('');
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
 
   const userPermissions = useMemo(() => {
     if (!user) return 0n;
@@ -375,6 +394,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     axios.patch(`/api/messages/${messageId}/pin`);
   };
 
+  const scrollToMessage = (msgId: string) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-flash');
+      setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+    }
+  };
+
   useEffect(() => {
     if (!socket) return;
     const handleTyping = (data: { userId: string; channelId: string }) => {
@@ -418,9 +446,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
-    socket.emit('send-message', { content: message.trim(), channelId: channel._id, attachments });
+    socket.emit('send-message', {
+      content: message.trim(),
+      channelId: channel._id,
+      attachments,
+      replyToId: replyToMessage?._id
+    });
     setMessage('');
     setAttachments([]);
+    setReplyToMessage(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { channelId: channel._id });
   };
@@ -713,6 +747,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 setLightboxOpen={setLightboxOpen}
                 allMessages={messages}
                 onReact={handleReact}
+                onReply={(m) => {
+                  setReplyToMessage(m);
+                  inputRef.current?.focus();
+                }}
+                scrollToMessage={scrollToMessage}
               />
             </React.Fragment>
           ))}
@@ -722,6 +761,18 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       </div>
 
       <div className="message-input-container">
+        {replyToMessage && (
+          <div className="reply-input-preview">
+            <div className="reply-input-content">
+              <ReplyIcon size={16} color="var(--primary-neon)" />
+              <div className="reply-input-text">
+                <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
+                <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
+              </div>
+            </div>
+            <button className="cancel-reply-btn" onClick={() => setReplyToMessage(null)}>×</button>
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="attachments-preview">
             <div className="attachments-preview-list">

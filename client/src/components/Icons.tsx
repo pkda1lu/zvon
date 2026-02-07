@@ -359,3 +359,10 @@ export const BotIcon: React.FC<{ size?: number; color?: string; className?: stri
         <line x1="16" y1="16" x2="16" y2="16" />
     </svg>
 );
+
+export const ReplyIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="9 17 4 12 9 7" />
+        <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+    </svg>
+);

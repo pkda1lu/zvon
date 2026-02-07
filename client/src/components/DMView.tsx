@@ -4,7 +4,7 @@ import { DirectMessage, Message, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { PhoneIcon, DocumentIcon, PlusIcon, DownloadIcon, PinIcon, ArrowDownIcon } from './Icons';
+import { PhoneIcon, DocumentIcon, PlusIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon } from './Icons';
 import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -66,6 +66,7 @@ const DMView: React.FC<DMViewProps> = ({
   const [showPins, setShowPins] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
 
   useEffect(() => {
     if (!socket) return;
@@ -119,9 +120,15 @@ const DMView: React.FC<DMViewProps> = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
-    socket.emit('send-message', { content: message.trim(), dmId: dm._id, attachments });
+    socket.emit('send-message', {
+      content: message.trim(),
+      dmId: dm._id,
+      attachments,
+      replyToId: replyToMessage?._id
+    });
     setMessage('');
     setAttachments([]);
+    setReplyToMessage(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { dmId: dm._id });
   };
@@ -351,6 +358,15 @@ const DMView: React.FC<DMViewProps> = ({
     axios.patch(`/api/messages/${messageId}/pin`);
   };
 
+  const scrollToMessage = (msgId: string) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-flash');
+      setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+    }
+  };
+
   return (
     <div
       className={`dm-view ${isDragging ? 'dragging' : ''}`}
@@ -467,7 +483,16 @@ const DMView: React.FC<DMViewProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <div className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''}`}>
+                    <div id={`msg-${msg._id}`} className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}>
+                      {msg.replyTo && (
+                        <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
+                          <div className="reply-line" />
+                          <ReplyIcon size={12} className="reply-icon-mini" />
+                          <img src={getAvatarUrl(msg.replyTo.author.avatar) || ''} alt="" className="reply-avatar" />
+                          <span className="reply-author">{msg.replyTo.author.username}</span>
+                          <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
+                        </div>
+                      )}
                       {!grouped && (
                         <div className="message-author-avatar" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>
                           {getAvatarUrl(msg.author.avatar) ? (
@@ -495,6 +520,16 @@ const DMView: React.FC<DMViewProps> = ({
                                 </button>
                                 <button
                                   className="msg-action-btn"
+                                  onClick={(e) => {
+                                    setReplyToMessage(msg);
+                                    inputRef.current?.focus();
+                                  }}
+                                  title="Ответить"
+                                >
+                                  <ReplyIcon size={16} />
+                                </button>
+                                <button
+                                  className="msg-action-btn"
                                   onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
                                   title="Добавить реакцию"
                                 >
@@ -506,6 +541,16 @@ const DMView: React.FC<DMViewProps> = ({
                         )}
                         {grouped && showHoverActions && (
                           <div className="message-actions-hover mini">
+                            <button
+                              className="msg-action-btn mini"
+                              onClick={() => {
+                                setReplyToMessage(msg);
+                                inputRef.current?.focus();
+                              }}
+                              title="Ответить"
+                            >
+                              <ReplyIcon size={14} />
+                            </button>
                             <button
                               className="msg-action-btn mini"
                               onClick={() => handleTogglePin(msg._id)}
@@ -598,6 +643,18 @@ const DMView: React.FC<DMViewProps> = ({
         </div>
 
         <div className="message-input-container">
+          {replyToMessage && (
+            <div className="reply-input-preview">
+              <div className="reply-input-content">
+                <ReplyIcon size={16} color="var(--primary-neon)" />
+                <div className="reply-input-text">
+                  <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
+                  <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
+                </div>
+              </div>
+              <button className="cancel-reply-btn" onClick={() => setReplyToMessage(null)}>×</button>
+            </div>
+          )}
           {attachments.length > 0 && (
             <div className="attachments-preview">
               <div className="attachments-preview-list" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', borderRadius: '16px 16px 0 0' }}>

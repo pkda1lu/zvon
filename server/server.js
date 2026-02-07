@@ -167,7 +167,15 @@ io.on('connection', (socket) => {
 
   socket.on('send-message', async (data) => {
     try {
-      const messageData = { content: data.content || '', author: socket.userId, channel: data.channelId || null, directMessage: data.dmId || null, attachments: [] };
+      const messageData = {
+        content: data.content || '',
+        author: socket.userId,
+        channel: data.channelId || null,
+        directMessage: data.dmId || null,
+        attachments: [],
+        replyTo: data.replyToId || null
+      };
+
       if (data.attachments) {
         let raw = data.attachments;
         if (typeof raw === 'string' && (raw.startsWith('[') || raw.startsWith('{'))) { try { raw = JSON.parse(raw); } catch (e) { } }
@@ -246,9 +254,23 @@ io.on('connection', (socket) => {
         }
       }
 
-      await message.save(); await message.populate('author', 'username avatar');
+      await message.save();
+      await message.populate('author', 'username avatar');
+      if (message.replyTo) {
+        await message.populate({
+          path: 'replyTo',
+          populate: { path: 'author', select: 'username avatar' }
+        });
+      }
+
       if (data.channelId) {
-        const fullMessage = await Message.findById(message._id).populate('author', 'username avatar').populate('mentions', 'username');
+        const fullMessage = await Message.findById(message._id)
+          .populate('author', 'username avatar')
+          .populate('mentions', 'username')
+          .populate({
+            path: 'replyTo',
+            populate: { path: 'author', select: 'username avatar' }
+          });
         io.to(`channel-${data.channelId}`).emit('new-message', fullMessage);
 
         // Specifically notify mentioned users if they are not in the channel

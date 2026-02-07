@@ -1006,9 +1006,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Sound feedback
         soundManager.play(newMuted ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.4);
 
-        const effectiveMuted = newMuted || isServerMuted;
-        const effectiveDeafened = isDeafened || isServerDeafened;
-        if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
+        const effectiveMuted = (newMuted || isServerMuted);
+        const effectiveDeafened = (isDeafened || isServerDeafened);
+
+        // Robust LiveKit track management
+        if (roomRef.current) {
+            roomRef.current.localParticipant.setMicrophoneEnabled(!effectiveMuted && !effectiveDeafened).catch(err => {
+                console.warn("[Voice] Failed to sync LiveKit mic state:", err);
+            });
+        }
+
+        if (localStreamRef.current) {
+            localStreamRef.current.getAudioTracks().forEach(t => {
+                t.enabled = !effectiveMuted && !effectiveDeafened;
+            });
+        }
+
         if (socket && activeChannelId) {
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted: newMuted, isDeafened, isScreenSharing });
         }
@@ -1021,9 +1034,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Sound feedback
         soundManager.play(newDeafened ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.4); // Use mute sounds as fallback for now
 
-        const effectiveMuted = isMuted || isServerMuted;
-        const effectiveDeafened = newDeafened || isServerDeafened;
-        if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
+        const effectiveMuted = (isMuted || isServerMuted);
+        const effectiveDeafened = (newDeafened || isServerDeafened);
+
+        // If deafened, we should also mute locally to avoid feedback/confusion
+        if (roomRef.current) {
+            roomRef.current.localParticipant.setMicrophoneEnabled(!effectiveMuted && !effectiveDeafened).catch(err => {
+                console.warn("[Voice] Failed to sync LiveKit mic state via deafen:", err);
+            });
+        }
+
+        if (localStreamRef.current) {
+            localStreamRef.current.getAudioTracks().forEach(t => {
+                t.enabled = !effectiveMuted && !effectiveDeafened;
+            });
+        }
+
         if (socket && activeChannelId) {
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened: newDeafened, isScreenSharing });
         }
@@ -1333,9 +1359,15 @@ registerProcessor('vad-processor', VADProcessor);
         if (localStreamRef.current) {
             const effectiveMuted = isMuted || isServerMuted;
             const effectiveDeafened = isDeafened || isServerDeafened;
+
+            // Sync hardware/LiveKit track
+            if (roomRef.current) {
+                roomRef.current.localParticipant.setMicrophoneEnabled(!effectiveMuted && !effectiveDeafened).catch(() => { });
+            }
+
             localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
         }
-    }, [isServerMuted, isServerDeafened, isMuted, isDeafened]);
+    }, [isServerMuted, isServerDeafened, isMuted, isDeafened, isConnected]);
 
     const voiceLevelValue = useMemo(() => ({
         currentInputLevel,
