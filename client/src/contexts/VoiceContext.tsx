@@ -352,6 +352,57 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return audioContextRef.current;
     }, []);
 
+    const handleLocalMicPublication = useCallback(async (publication: TrackPublication) => {
+        const track = publication.track;
+        if (!track) return;
+
+        console.log(`[Voice] Local microphone handling for: ${track.sid || 'initial'}`);
+
+        // Re-apply noise suppression if needed
+        if (isNoiseSuppressionEnabled && track.kind === Track.Kind.Audio) {
+            const rawTrack = track.mediaStreamTrack!;
+            // Only apply if it's not already a suppressed track (we check custom property)
+            if (!(track.mediaStreamTrack as any).__isSuppressed) {
+                try {
+                    const ctx = getAudioContext();
+                    const suppressedStream = await setupNoiseSuppression(ctx, new MediaStream([rawTrack]));
+                    const suppressedTrack = suppressedStream.getAudioTracks()[0];
+                    if (suppressedTrack) {
+                        // Mark as suppressed to avoid infinite loops if this is called again
+                        (suppressedTrack as any).__isSuppressed = true;
+                        console.log("[Voice] Re-applying noise suppression to mic track");
+                        await (track as any).replaceTrack(suppressedTrack);
+                    }
+                } catch (e) {
+                    console.warn("[Voice] Failed to re-apply NS:", e);
+                }
+            }
+        }
+
+        const finalTrack = track.mediaStreamTrack!;
+        const effectiveMuted = isMuted || isServerMuted;
+        const effectiveDeafened = isDeafened || isServerDeafened;
+
+        finalTrack.enabled = !effectiveMuted && !effectiveDeafened;
+
+        const newStream = new MediaStream([finalTrack]);
+        setLocalStream(newStream);
+        localStreamRef.current = newStream;
+
+        // Sync RAW streams for VAD (always enabled)
+        if (rawMicStreamRef.current) rawMicStreamRef.current.getTracks().forEach(t => t.stop());
+        const rawClone = finalTrack.clone();
+        rawClone.enabled = true;
+        rawMicStreamRef.current = new MediaStream([rawClone]);
+
+        if (vadStreamRef.current) vadStreamRef.current.getTracks().forEach(t => t.stop());
+        const vadClone = finalTrack.clone();
+        vadClone.enabled = true;
+        vadStreamRef.current = new MediaStream([vadClone]);
+
+        console.log(`[Voice] Local stream sync complete. Enabled: ${finalTrack.enabled}`);
+    }, [isNoiseSuppressionEnabled, isMuted, isServerMuted, isDeafened, isServerDeafened, getAudioContext]);
+
     const handleTrackSubscribed = (
         track: RemoteTrack,
         publication: RemoteTrackPublication,
@@ -767,6 +818,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     if (publication.source === Track.Source.ScreenShare) {
                         setIsScreenSharing(true);
                     }
+                    if (publication.source === Track.Source.Microphone) {
+                        console.log("[Voice] Local microphone published, initializing...");
+                        handleLocalMicPublication(publication);
+                    }
                 })
                 .on(RoomEvent.LocalTrackUnpublished, (publication) => {
                     if (publication.source === Track.Source.ScreenShare) {
@@ -799,25 +854,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 return;
             }
 
-            // Update local stream state for visualization
+            // Track details will be handled by the LocalTrackPublished event listener
+            // but we can also trigger a manual sync if it's already published
             const localAudioTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-            if (localAudioTrack?.track) {
-                const track = localAudioTrack.track.mediaStreamTrack!;
-                const stream = new MediaStream([track]);
-                setLocalStream(stream);
-                localStreamRef.current = stream;
-
-                // Store raw stream for noise suppression toggling
-                const rawTrack = track.clone();
-                rawTrack.enabled = true; // Ensure it's ALWAYS on for VAD/Internal use
-                rawMicStreamRef.current = new MediaStream([rawTrack]);
-
-                // Dedicated Stream for VAD (cloned from raw)
-                const vadTrack = track.clone();
-                vadTrack.enabled = true;
-                vadStreamRef.current = new MediaStream([vadTrack]);
-
-                console.log(`[Voice] Published mic: ${track.label} (ID: ${selectedInputDeviceId})`);
+            if (localAudioTrack) {
+                handleLocalMicPublication(localAudioTrack);
             }
 
             setActiveChannelId(channelId);
@@ -839,7 +880,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } finally {
             isJoiningRef.current = false;
         }
-    }, [user?._id, leaveChannel, socket, selectedInputDeviceId]);
+    }, [user?._id, leaveChannel, socket, selectedInputDeviceId, handleLocalMicPublication]);
 
     // Effect to handle input device changes in real-time
     useEffect(() => {
@@ -874,52 +915,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                     // Update local context streams from the new track
                     const localAudioTrack = roomRef.current.localParticipant.getTrackPublication(Track.Source.Microphone);
-                    if (localAudioTrack?.track) {
-                        const baseTrack = localAudioTrack.track.mediaStreamTrack!;
-
-                        // Cleanup old clones before creating new ones
-                        if (rawMicStreamRef.current) {
-                            rawMicStreamRef.current.getTracks().forEach(t => t.stop());
-                        }
-                        if (vadStreamRef.current) {
-                            vadStreamRef.current.getTracks().forEach(t => t.stop());
-                        }
-
-                        // Store raw clean track for noise suppression input
-                        const rawTrack = baseTrack.clone();
-                        rawTrack.enabled = true;
-                        rawMicStreamRef.current = new MediaStream([rawTrack]);
-
-                        // Dedicated Stream for VAD
-                        const vadTrack = baseTrack.clone();
-                        vadTrack.enabled = true;
-                        vadStreamRef.current = new MediaStream([vadTrack]);
-
-                        // Handle Noise Suppression re-application
-                        let finalTrack = baseTrack;
-                        if (isNoiseSuppressionEnabled) {
-                            try {
-                                const suppressedStream = await setupNoiseSuppression(getAudioContext(), rawMicStreamRef.current);
-                                const suppressedTrack = suppressedStream.getAudioTracks()[0];
-                                if (suppressedTrack) {
-                                    await (localAudioTrack.track as any).replaceTrack(suppressedTrack);
-                                    finalTrack = suppressedTrack;
-                                }
-                            } catch (e) {
-                                console.warn("[Voice] NS re-apply failed during device switch:", e);
-                            }
-                        }
-
-                        // Apply current mute state to the final track
-                        const effectiveMuted = isMuted || isServerMuted;
-                        const effectiveDeafened = isDeafened || isServerDeafened;
-                        finalTrack.enabled = !effectiveMuted && !effectiveDeafened;
-
-                        const stream = new MediaStream([finalTrack]);
-                        setLocalStream(stream);
-                        localStreamRef.current = stream;
-
-                        console.log(`[Voice] Switched mic to: ${finalTrack.label} (NS: ${isNoiseSuppressionEnabled}, Muted: ${effectiveMuted})`);
+                    if (localAudioTrack) {
+                        await handleLocalMicPublication(localAudioTrack);
                     }
                 } catch (err) {
                     console.error("[Voice] Failed to switch microphone in call:", err);
@@ -999,7 +996,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
     }, [socket, isConnected, activeChannelId, localStream, user?._id, leaveChannel]);
 
-    const toggleMute = () => {
+    const toggleMute = async () => {
         const newMuted = !isMuted;
         setIsMuted(newMuted);
 
@@ -1011,9 +1008,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         // Robust LiveKit track management
         if (roomRef.current) {
-            roomRef.current.localParticipant.setMicrophoneEnabled(!effectiveMuted && !effectiveDeafened).catch(err => {
+            try {
+                await roomRef.current.localParticipant.setMicrophoneEnabled(!effectiveMuted && !effectiveDeafened);
+                // After re-enabling, we might need to re-sync our local stream
+                if (!effectiveMuted && !effectiveDeafened) {
+                    const pub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Microphone);
+                    if (pub) handleLocalMicPublication(pub);
+                }
+            } catch (err) {
                 console.warn("[Voice] Failed to sync LiveKit mic state:", err);
-            });
+            }
         }
 
         if (localStreamRef.current) {
@@ -1356,18 +1360,29 @@ registerProcessor('vad-processor', VADProcessor);
 
     // Determine effective mute state for logic that re-enables tracks dynamically
     useEffect(() => {
-        if (localStreamRef.current) {
-            const effectiveMuted = isMuted || isServerMuted;
-            const effectiveDeafened = isDeafened || isServerDeafened;
+        const syncMuteState = async () => {
+            if (localStreamRef.current || roomRef.current) {
+                const effectiveMuted = isMuted || isServerMuted;
+                const effectiveDeafened = isDeafened || isServerDeafened;
 
-            // Sync hardware/LiveKit track
-            if (roomRef.current) {
-                roomRef.current.localParticipant.setMicrophoneEnabled(!effectiveMuted && !effectiveDeafened).catch(() => { });
+                // Sync hardware/LiveKit track
+                if (roomRef.current) {
+                    try {
+                        await roomRef.current.localParticipant.setMicrophoneEnabled(!effectiveMuted && !effectiveDeafened);
+                        if (!effectiveMuted && !effectiveDeafened) {
+                            const pub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Microphone);
+                            if (pub) handleLocalMicPublication(pub);
+                        }
+                    } catch (err) { }
+                }
+
+                if (localStreamRef.current) {
+                    localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
+                }
             }
-
-            localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
-        }
-    }, [isServerMuted, isServerDeafened, isMuted, isDeafened, isConnected]);
+        };
+        syncMuteState();
+    }, [isServerMuted, isServerDeafened, isMuted, isDeafened, isConnected, handleLocalMicPublication]);
 
     const voiceLevelValue = useMemo(() => ({
         currentInputLevel,
