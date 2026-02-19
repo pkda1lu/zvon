@@ -35,9 +35,11 @@ const ElectronHandler: React.FC = () => {
 };
 
 import { useLocation } from 'react-router-dom';
+import { useAppearance } from './contexts/AppearanceContext';
 
 const AppBackground: React.FC = () => {
   const location = useLocation();
+  const { theme, performanceMode } = useAppearance();
   const currentPath = (location.pathname + (location.hash || '')).toLowerCase();
 
   // Checking for login, register, and invite. 
@@ -45,6 +47,25 @@ const AppBackground: React.FC = () => {
   const isAuthPage = currentPath.includes('login') ||
     currentPath.includes('register') ||
     currentPath.includes('invite');
+
+  const getBaseBgColor = () => {
+    if (theme === 'amoled') return '#000000';
+    if (theme === 'light') return '#ffffff';
+    return '#020205';
+  };
+
+  const getGradient = () => {
+    if (theme === 'light') {
+      // Soft Pearl Liquid
+      return 'linear-gradient(-45deg, #ffffff, #f0f4ff, #fff0f5, #f5f0ff, #ffffff)';
+    }
+    if (theme === 'amoled') {
+      // Deep Void Liquid (Subtle oil slick)
+      return 'linear-gradient(-45deg, #000000, #050010, #000810, #080005, #000000)';
+    }
+    // Standard Dark (Deep Space Liquid)
+    return 'linear-gradient(-45deg, #020204, #15082e, #0a1f38, #2e081c, #020204)';
+  };
 
   return (
     <div
@@ -55,9 +76,9 @@ const AppBackground: React.FC = () => {
         width: '120vw',
         height: '120vh',
         zIndex: 0,
-        backgroundColor: '#020205',
+        backgroundColor: getBaseBgColor(),
         overflow: 'hidden',
-        animation: 'liquidFloat 60s ease-in-out infinite',
+        animation: performanceMode ? 'none' : 'liquidFloat 60s ease-in-out infinite',
         pointerEvents: 'none'
       }}
     >
@@ -65,9 +86,9 @@ const AppBackground: React.FC = () => {
       <div style={{
         position: 'absolute',
         inset: 0,
-        background: 'linear-gradient(-45deg, #020204, #15082e, #0a1f38, #2e081c, #020204)',
+        backgroundImage: getGradient(),
         backgroundSize: '300% 300%',
-        animation: 'gradientMove 30s ease infinite',
+        animation: performanceMode ? 'none' : 'gradientMove 30s ease infinite',
         opacity: isAuthPage ? 0.4 : 1, // More subtle when bg.png is active
         transition: 'opacity 0.5s ease'
       }} />
@@ -86,29 +107,34 @@ const AppBackground: React.FC = () => {
       }} />
 
       {/* Decorative spheres - Always present and moving */}
-      <div style={{
-        position: 'absolute',
-        top: '15%', left: '10%',
-        width: '300px', height: '300px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(0, 229, 255, 0.15), transparent 70%)',
-        filter: 'blur(60px)',
-        animation: 'float 15s infinite ease-in-out'
-      }}></div>
-      <div style={{
-        position: 'absolute',
-        bottom: '20%', right: '15%',
-        width: '400px', height: '400px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(161, 85, 255, 0.1), transparent 70%)',
-        filter: 'blur(80px)',
-        animation: 'float 22s infinite ease-in-out reverse'
-      }}></div>
+      {!performanceMode && theme !== 'light' && (
+        <>
+          <div style={{
+            position: 'absolute',
+            top: '15%', left: '10%',
+            width: '300px', height: '300px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(0, 229, 255, 0.15), transparent 70%)',
+            filter: 'blur(60px)',
+            animation: 'float 15s infinite ease-in-out'
+          }}></div>
+          <div style={{
+            position: 'absolute',
+            bottom: '20%', right: '15%',
+            width: '400px', height: '400px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(161, 85, 255, 0.1), transparent 70%)',
+            filter: 'blur(80px)',
+            animation: 'float 22s infinite ease-in-out reverse'
+          }}></div>
+        </>
+      )}
     </div>
   );
 };
 
 import { ChatSettingsProvider } from './contexts/ChatSettingsContext';
+import { WindowSettingsProvider } from './contexts/WindowSettingsContext';
 
 function App() {
   const isElectron = !!(window as any).electron;
@@ -118,24 +144,26 @@ function App() {
     <AuthProvider>
       <AppearanceProvider>
         <ChatSettingsProvider>
-          <NotificationProvider>
-            <Router>
-              <div className="App" style={{ position: 'relative' }}>
-                <AppBackground />
-                <TitleBar />
-                <ElectronHandler />
-                <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
-                  <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/invite/:code" element={<InvitePage />} />
-                    <Route path="/" element={<Home />} />
-                    <Route path="/*" element={<Home />} />
-                  </Routes>
+          <WindowSettingsProvider>
+            <NotificationProvider>
+              <Router>
+                <div className="App" style={{ position: 'relative' }}>
+                  <AppBackground />
+                  <TitleBar />
+                  <ElectronHandler />
+                  <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
+                    <Routes>
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/register" element={<Register />} />
+                      <Route path="/invite/:code" element={<InvitePage />} />
+                      <Route path="/" element={<Home />} />
+                      <Route path="/*" element={<Home />} />
+                    </Routes>
+                  </div>
                 </div>
-              </div>
-            </Router>
-          </NotificationProvider>
+              </Router>
+            </NotificationProvider>
+          </WindowSettingsProvider>
         </ChatSettingsProvider>
       </AppearanceProvider>
     </AuthProvider>

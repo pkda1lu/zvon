@@ -29,7 +29,7 @@
   /* Performance Tweaks */
   --glass-blur-value: 50px;
   --glass-blur-actual: blur(var(--glass-blur-value)) saturate(160%) brightness(1.05);
-  --heavy-transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  --heavy-transition: var(--performance-mode-transition, all 0.5s cubic-bezier(0.16, 1, 0.3, 1));
   --fast-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Icon Tokens */
@@ -56,7 +56,7 @@ video {
 
 :root.performance-mode {
   --glass-blur-actual: none;
-  --glass-bg: rgba(15, 15, 20, 0.92);
+  --performance-mode-transition: none;
 }
 
 /* --- GLOBAL LIQUID COMPONENTS --- */
@@ -163,6 +163,7 @@ body {
   overflow: hidden;
   height: 100vh;
   width: 100vw;
+  font-size: var(--base-font-size, 16px);
 }
 
 body {

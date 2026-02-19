@@ -501,7 +501,7 @@
 }
 
 .theme-card.dark .theme-preview {
-  background: #0b0c10;
+  background: #1e1f22;
 }
 
 .theme-card.amoled .theme-preview {
@@ -510,6 +510,50 @@
 
 .theme-card.light .theme-preview {
   background: #fff;
+}
+
+.theme-preview {
+  display: flex;
+}
+
+.preview-sidebar {
+  width: 25%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.theme-card.light .preview-sidebar {
+  background: rgba(0, 0, 0, 0.05);
+  border-right-color: rgba(0, 0, 0, 0.05);
+}
+
+.preview-content {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-bubble {
+  height: 8px;
+  width: 80%;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.preview-bubble.short {
+  width: 50%;
+}
+
+.theme-card.light .preview-bubble {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.theme-card.dark .preview-bubble,
+.theme-card.amoled .preview-bubble {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .density-selection {

@@ -1,15 +1,11 @@
 {
   "name": "zvon-client",
-  "version": "1.2.53",
+  "version": "1.2.61",
   "private": true,
   "author": "pkda1lu",
   "description": "Zvon - Real-time communication platform",
   "dependencies": {
     "@sapphi-red/web-noise-suppressor": "^0.3.5",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "@types/react-window": "^1.8.8",
     "axios": "^1.6.2",
     "electron-is-dev": "^2.0.0",
     "electron-log": "^5.4.3",
@@ -81,6 +77,10 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/react-window": "^1.8.8",
     "@types/jest": "^27.5.2",
     "@types/node": "^20.19.0",
     "@types/react": "^18.2.42",

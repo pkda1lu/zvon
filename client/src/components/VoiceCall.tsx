@@ -30,6 +30,59 @@ interface VoiceCallProps {
   initialOffer?: any;
 }
 
+const RemoteAudioPlayer: React.FC<{
+  stream: MediaStream;
+  volume: number;
+  muted: boolean;
+}> = ({ stream, volume, muted }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+
+  useEffect(() => {
+    if (!stream) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      const source = ctx.createMediaStreamSource(stream);
+      const gain = ctx.createGain();
+      const dest = ctx.createMediaStreamDestination();
+
+      source.connect(gain);
+      gain.connect(dest);
+      gainNodeRef.current = gain;
+
+      audio.srcObject = dest.stream;
+      audio.play().catch(() => { });
+    } catch (e) {
+      audio.srcObject = stream;
+      audio.play().catch(() => { });
+    }
+
+    return () => {
+      audioCtxRef.current?.close().catch(() => { });
+      audioCtxRef.current = null;
+    };
+  }, [stream]);
+
+  useEffect(() => {
+    if (gainNodeRef.current) {
+      const v = muted ? 0 : volume;
+      gainNodeRef.current.gain.setTargetAtTime(v, audioCtxRef.current?.currentTime || 0, 0.1);
+      if (audioRef.current) audioRef.current.volume = 1;
+    } else if (audioRef.current) {
+      audioRef.current.volume = Math.min(Math.max(muted ? 0 : volume, 0), 1);
+    }
+  }, [volume, muted]);
+
+  return <audio ref={audioRef} autoPlay playsInline />;
+};
+
 const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false }) => {
   const { user } = useAuth();
   const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened } = useVoice();
@@ -582,15 +635,17 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
       </div>
 
       {remoteStream && (
-        <audio
-          ref={(el) => { if (el) { el.srcObject = remoteStream; el.volume = userVolumes.get(otherUser._id) ?? 1; el.muted = isGlobalDeafened; el.play().catch(() => { }); } }}
-          autoPlay
+        <RemoteAudioPlayer
+          stream={remoteStream}
+          volume={userVolumes.get(otherUser._id) ?? 1}
+          muted={isGlobalDeafened}
         />
       )}
       {remoteScreenStream && remoteScreenStream.getAudioTracks().length > 0 && (
-        <audio
-          autoPlay
-          ref={el => { if (el) { el.srcObject = remoteScreenStream; el.play().catch(() => { }); } }}
+        <RemoteAudioPlayer
+          stream={remoteScreenStream}
+          volume={1}
+          muted={false}
         />
       )}
 

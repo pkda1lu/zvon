@@ -63,49 +63,46 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const applySettings = (s: AppearanceSettings) => {
         const root = document.documentElement;
 
-        // Theme Colors
+        // Theme Colors & Design Tokens
         if (s.theme === 'dark') {
             root.style.setProperty('--bg-primary', '#36393f');
-            root.style.setProperty('--bg-secondary', '#2f3136');
-            root.style.setProperty('--bg-tertiary', '#202225');
-            root.style.setProperty('--bg-floating', '#18191c');
-            root.style.setProperty('--text-primary', '#ffffff');
-            root.style.setProperty('--text-secondary', '#b9bbbe');
-            root.style.setProperty('--text-muted', '#72767d');
+            root.style.setProperty('--bg-dark', '#020205');
+            root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.04)');
+            root.style.setProperty('--glass-bg-subtle', 'rgba(255, 255, 255, 0.02)');
+            root.style.setProperty('--glass-bg-active', 'rgba(255, 255, 255, 0.1)');
+            root.style.setProperty('--glass-bg-accent', 'rgba(255, 255, 255, 0.05)');
+            root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.08)');
+            root.style.setProperty('--text-main', '#ffffff');
+            root.style.setProperty('--text-dim', 'rgba(255, 255, 255, 0.45)');
             root.style.setProperty('--header-primary', '#ffffff');
-            root.style.setProperty('--channel-hover', 'rgba(79, 84, 92, 0.32)');
-            root.style.setProperty('--message-hover', 'rgba(4, 4, 5, 0.07)');
-            root.style.setProperty('--border-subtle', 'rgba(255, 255, 255, 0.05)');
-            root.style.setProperty('--border-divider', 'rgba(0, 0, 0, 0.2)');
-            root.style.setProperty('--slider-track', '#4f545c');
+            root.style.setProperty('--border-divider', 'rgba(255, 255, 255, 0.06)');
+            root.style.setProperty('--glass-blur-value', s.performanceMode ? '0px' : '50px');
         } else if (s.theme === 'amoled') {
             root.style.setProperty('--bg-primary', '#000000');
-            root.style.setProperty('--bg-secondary', '#000000');
-            root.style.setProperty('--bg-tertiary', '#000000');
-            root.style.setProperty('--bg-floating', '#000000');
-            root.style.setProperty('--text-primary', '#ffffff');
-            root.style.setProperty('--text-secondary', '#b9bbbe');
-            root.style.setProperty('--text-muted', '#72767d');
+            root.style.setProperty('--bg-dark', '#000000');
+            root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.04)');
+            root.style.setProperty('--glass-bg-subtle', 'rgba(255, 255, 255, 0.02)');
+            root.style.setProperty('--glass-bg-active', 'rgba(255, 255, 255, 0.08)');
+            root.style.setProperty('--glass-bg-accent', 'rgba(255, 255, 255, 0.04)');
+            root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.1)');
+            root.style.setProperty('--text-main', '#ffffff');
+            root.style.setProperty('--text-dim', 'rgba(255, 255, 255, 0.5)');
             root.style.setProperty('--header-primary', '#ffffff');
-            root.style.setProperty('--channel-hover', 'rgba(255, 255, 255, 0.1)');
-            root.style.setProperty('--message-hover', 'rgba(255, 255, 255, 0.05)');
-            root.style.setProperty('--border-subtle', 'rgba(255, 255, 255, 0.1)');
-            root.style.setProperty('--border-divider', 'rgba(255, 255, 255, 0.12)');
-            root.style.setProperty('--slider-track', '#202225');
+            root.style.setProperty('--border-divider', 'rgba(255, 255, 255, 0.1)');
+            root.style.setProperty('--glass-blur-value', s.performanceMode ? '0px' : '50px');
         } else if (s.theme === 'light') {
             root.style.setProperty('--bg-primary', '#ffffff');
-            root.style.setProperty('--bg-secondary', '#f2f3f5');
-            root.style.setProperty('--bg-tertiary', '#e3e5e8');
-            root.style.setProperty('--bg-floating', '#ffffff');
-            root.style.setProperty('--text-primary', '#060607');
-            root.style.setProperty('--text-secondary', '#4f5660');
-            root.style.setProperty('--text-muted', '#5e6772');
+            root.style.setProperty('--bg-dark', '#ffffff');
+            root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.04)');
+            root.style.setProperty('--glass-bg-subtle', 'rgba(0, 0, 0, 0.015)');
+            root.style.setProperty('--glass-bg-active', 'rgba(0, 0, 0, 0.05)');
+            root.style.setProperty('--glass-bg-accent', 'rgba(0, 0, 0, 0.03)');
+            root.style.setProperty('--glass-border', 'rgba(0, 0, 0, 0.06)');
+            root.style.setProperty('--text-main', '#060607');
+            root.style.setProperty('--text-dim', 'rgba(0, 0, 0, 0.5)');
             root.style.setProperty('--header-primary', '#060607');
-            root.style.setProperty('--channel-hover', 'rgba(116, 127, 141, 0.08)');
-            root.style.setProperty('--message-hover', 'rgba(116, 127, 141, 0.04)');
-            root.style.setProperty('--border-subtle', 'rgba(0, 0, 0, 0.08)');
             root.style.setProperty('--border-divider', 'rgba(0, 0, 0, 0.1)');
-            root.style.setProperty('--slider-track', '#e3e5e8');
+            root.style.setProperty('--glass-blur-value', s.performanceMode ? '0px' : '50px');
         }
 
         // Spacing
@@ -120,15 +117,19 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (s.density === 'compact') {
             root.style.setProperty('--message-padding-v', '2px');
             root.style.setProperty('--message-margin-v', '0px');
+            root.style.setProperty('--avatar-size', '32px');
+            root.style.setProperty('--avatar-radius', '10px');
         } else {
-            root.style.setProperty('--message-padding-v', '8px');
+            root.style.setProperty('--message-padding-v', '10px');
             root.style.setProperty('--message-margin-v', '2px');
+            root.style.setProperty('--avatar-size', '42px');
+            root.style.setProperty('--avatar-radius', '14px');
         }
 
         // Performance Mode
-        root.style.setProperty('--performance-mode', s.performanceMode ? '1' : '0');
         if (s.performanceMode) {
             root.classList.add('performance-mode');
+            root.style.setProperty('--glass-blur-value', '0px');
         } else {
             root.classList.remove('performance-mode');
         }

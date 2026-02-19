@@ -24,10 +24,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if (token) {
-      const newSocket = io(SOCKET_URL, { auth: { token }, transports: ['websocket', 'polling'] });
-      newSocket.on('connect', () => setConnected(true));
+      const newSocket = io(SOCKET_URL, {
+        auth: { token },
+        transports: ['websocket'], // Prefer websocket for performance
+        reconnection: true,
+        reconnectionAttempts: 5
+      });
+      newSocket.on('connect', () => {
+        console.log('Successfully connected to Socket.io at', SOCKET_URL);
+        setConnected(true);
+      });
       newSocket.on('disconnect', () => setConnected(false));
-      newSocket.on('connect_error', () => setConnected(false));
+      newSocket.on('connect_error', (err) => {
+        console.warn('Socket connection error to', SOCKET_URL, err);
+        setConnected(false);
+      });
       setSocket(newSocket);
       return () => { newSocket.close(); };
     }

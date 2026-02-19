@@ -111,7 +111,7 @@ const VoiceStreamCard: React.FC<{
 
     useEffect(() => {
       if (videoRef.current && !isMe) {
-        videoRef.current.volume = volume;
+        videoRef.current.volume = Math.min(Math.max(volume, 0), 1);
       }
     }, [volume, isMe]);
 
@@ -165,7 +165,7 @@ const VoiceStreamCard: React.FC<{
                 playsInline
                 ref={videoRef}
                 className="stream-video"
-                muted={isMe}
+                muted={true} // Audio is handled by RemoteScreen in VoiceContext to prevent duplicates
               />
               <div className="stream-controls-overlay top" onClick={e => e.stopPropagation()}>
                 <div className="stream-controls-left">
@@ -343,8 +343,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         if (!seenIds.has(userId)) {
           // Look up user info in externalParticipants (pre-fetched from API)
           const backupUser = externalParticipants.find(p => p._id === userId);
+          const state = userStates.get(userId) || { isMuted: false, isDeafened: false, isScreenSharing: false };
+
           if (backupUser) {
-            const state = userStates.get(userId) || { isMuted: false, isDeafened: false, isScreenSharing: false };
             items.push({
               ...backupUser,
               isMe: false,
@@ -352,13 +353,25 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               isDeafened: state.isDeafened,
               isScreenSharing: state.isScreenSharing,
               type: 'user',
-              isGhost: true // Optional: tag them as ghost for debugging
+              isGhost: true
             });
-            seenIds.add(userId);
+          } else {
+            // Ultimate fallback: we know they are here because we have their stream
+            items.push({
+              _id: userId,
+              username: `User ${userId.slice(-4)}`,
+              isMe: false,
+              isMuted: state.isMuted,
+              isDeafened: state.isDeafened,
+              isScreenSharing: state.isScreenSharing,
+              type: 'user',
+              isPlaceholder: true
+            });
+          }
+          seenIds.add(userId);
 
-            if (state.isScreenSharing && remoteScreenStreams.has(userId)) {
-              items.push({ _id: `stream-${userId}`, userId: userId, type: 'stream', isMe: false });
-            }
+          if (state.isScreenSharing && remoteScreenStreams.has(userId)) {
+            items.push({ _id: `stream-${userId}`, userId: userId, type: 'stream', isMe: false });
           }
         }
       });

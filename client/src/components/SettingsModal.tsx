@@ -6,6 +6,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useAppearance, ThemeType } from '../contexts/AppearanceContext';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
+import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import {
   CloseIcon,
   UsersIcon,
@@ -82,6 +83,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     autocompleteEmoji, setAutocompleteEmoji,
     showHoverActions, setShowHoverActions
   } = useChatSettings();
+
+  const {
+    autoStart, setAutoStart,
+    minimizeToTray, setMinimizeToTray,
+    closeToTray, setCloseToTray,
+    startMinimized, setStartMinimized,
+    hardwareAcceleration, setHardwareAcceleration,
+    appVersion
+  } = useWindowSettings();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
@@ -344,21 +354,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             className={`theme-card dark ${theme === 'dark' ? 'active' : ''}`}
             onClick={() => setTheme('dark')}
           >
-            <div className="theme-preview" />
+            <div className="theme-preview">
+              <div className="preview-sidebar" />
+              <div className="preview-content">
+                <div className="preview-bubble" />
+                <div className="preview-bubble short" />
+              </div>
+            </div>
             <span>Тёмная</span>
           </div>
           <div
             className={`theme-card amoled ${theme === 'amoled' ? 'active' : ''}`}
             onClick={() => setTheme('amoled')}
           >
-            <div className="theme-preview" />
+            <div className="theme-preview">
+              <div className="preview-sidebar" />
+              <div className="preview-content">
+                <div className="preview-bubble" />
+                <div className="preview-bubble short" />
+              </div>
+            </div>
             <span>AMOLED</span>
           </div>
           <div
             className={`theme-card light ${theme === 'light' ? 'active' : ''}`}
             onClick={() => setTheme('light')}
           >
-            <div className="theme-preview" />
+            <div className="theme-preview">
+              <div className="preview-sidebar" />
+              <div className="preview-content">
+                <div className="preview-bubble" />
+                <div className="preview-bubble short" />
+              </div>
+            </div>
             <span>Светлая</span>
           </div>
         </div>
@@ -808,6 +836,100 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     </div>
   );
 
+  const renderWindowsSettings = () => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Настройки Windows</h2>
+
+      <div className="settings-section-block">
+        <h3>Запуск приложения</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Запускать Zvon при старте системы</span>
+            <span className="checkbox-description">Автоматически открывать приложение при входе в Windows.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={autoStart} onChange={(e) => setAutoStart(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Запускать свернутым</span>
+            <span className="checkbox-description">Приложение будет открываться сразу в системном трее.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={startMinimized} onChange={(e) => setStartMinimized(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Поведение окна</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Сворачивать в трей при нажатии «Закрыть»</span>
+            <span className="checkbox-description">Приложение продолжит работать в фоновом режиме в системном трее.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={closeToTray} onChange={(e) => setCloseToTray(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Сворачивать в системный трей</span>
+            <span className="checkbox-description">При минимизации окна оно будет скрываться с панели задач.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={minimizeToTray} onChange={(e) => setMinimizeToTray(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Расширенные системные настройки</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Аппаратное ускорение</span>
+            <span className="checkbox-description">Использует GPU для плавности интерфейса (требуется перезапуск).</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={hardwareAcceleration} onChange={(e) => setHardwareAcceleration(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+        {hardwareAcceleration !== JSON.parse(localStorage.getItem('window-settings') || '{}').hardwareAcceleration && (
+          <div className="restart-notice" style={{ marginTop: '10px', color: 'var(--primary-neon)', fontSize: '13px' }}>
+            Требуется перезапуск приложения для применения этой настройки.
+            <button
+              className="save-button"
+              style={{ marginLeft: '10px', padding: '4px 12px', fontSize: '12px' }}
+              onClick={() => (window as any).electron?.ipc?.send('restart-app')}
+            >
+              Перезапустить
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Информация о приложении</h3>
+        <div className="app-info-row" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)', fontSize: '14px' }}>
+          <span>Версия:</span>
+          <span>{appVersion} Stable</span>
+        </div>
+        <div className="app-info-row" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)', fontSize: '14px', marginTop: '8px' }}>
+          <span>Среда выполнения:</span>
+          <span>Electron {window.navigator.userAgent.includes('Electron') ? 'Stable' : 'Web Fallback'}</span>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPlaceholder = (title: string, icon: React.ReactNode) => (
     <div className="settings-section-content">
       <h2 className="settings-section-title">{title}</h2>
@@ -932,7 +1054,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               {activeTab === 'bots' && <BotsSettings />}
 
               {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
-              {activeTab === 'windows' && renderPlaceholder('Настройки Windows', <MonitorIcon size={80} />)}
+              {activeTab === 'windows' && renderWindowsSettings()}
               {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
               {activeTab === 'advanced' && renderPlaceholder('Расширенные', <EllipsisIcon size={80} />)}
               {activeTab === 'activity' && renderPlaceholder('Конфиденциальность активности', <ShieldIcon size={80} />)}

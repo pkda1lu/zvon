@@ -16,6 +16,45 @@ let tray = null;
 let isQuitting = false;
 let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false };
 
+let appSettings = {
+    minimizeToTray: true,
+    closeToTray: true,
+    startMinimized: false
+};
+
+// --- IPC Handlers (Registered early to prevent renderer errors) ---
+ipcMain.handle('get-app-version', () => app.getVersion());
+
+ipcMain.handle('get-pending-deep-link', () => {
+    const link = pendingDeepLink;
+    pendingDeepLink = null;
+    return link;
+});
+
+ipcMain.handle('toggle-autostart', (event, enable) => {
+    try {
+        app.setLoginItemSettings({
+            openAtLogin: enable,
+            path: app.getPath('exe'),
+        });
+        return app.getLoginItemSettings().openAtLogin;
+    } catch (e) {
+        return false;
+    }
+});
+
+ipcMain.handle('get-autostart-status', () => app.getLoginItemSettings().openAtLogin);
+
+ipcMain.on('update-window-settings', (event, settings) => {
+    appSettings = { ...appSettings, ...settings };
+});
+
+ipcMain.on('restart-app', () => {
+    app.relaunch();
+    app.exit();
+});
+// -------------------------------------------------------------
+
 // Performance Tuning
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
@@ -229,7 +268,9 @@ function createWindow() {
         show: false // Performance: Use ready-to-show to prevent white flash
     });
     mainWindow.once('ready-to-show', () => {
-        mainWindow.show();
+        if (!appSettings.startMinimized) {
+            mainWindow.show();
+        }
         scanActivities();
     });
 
@@ -250,8 +291,14 @@ function createWindow() {
     const debouncedSave = () => { clearTimeout(saveTimeout); saveTimeout = setTimeout(saveWindowState, 500); };
     mainWindow.on('resize', debouncedSave);
     mainWindow.on('move', debouncedSave);
+    mainWindow.on('minimize', (event) => {
+        if (appSettings.minimizeToTray) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
+    });
     mainWindow.on('close', (event) => {
-        if (!isQuitting) {
+        if (!isQuitting && appSettings.closeToTray) {
             event.preventDefault();
             saveWindowState();
             mainWindow.hide();
