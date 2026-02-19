@@ -35,43 +35,75 @@ const RemoteAudio: React.FC<{
     masterVolume: number;
 }> = ({ userId, stream, voiceVolume, isDeafened, isLocalMuted, sharedContext, outputDeviceId, masterVolume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
+    const gainNodeRef = useRef<GainNode | null>(null);
+    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+
+    useEffect(() => {
+        if (!sharedContext || !stream) return;
+
+        try {
+            sourceNodeRef.current?.disconnect();
+            gainNodeRef.current?.disconnect();
+
+            const source = sharedContext.createMediaStreamSource(stream);
+            const gain = sharedContext.createGain();
+            const dest = sharedContext.createMediaStreamDestination();
+
+            source.connect(gain);
+            gain.connect(dest);
+
+            sourceNodeRef.current = source;
+            gainNodeRef.current = gain;
+            destNodeRef.current = dest;
+
+            if (audioRef.current) {
+                audioRef.current.srcObject = dest.stream;
+            }
+        } catch (e) {
+            if (audioRef.current) audioRef.current.srcObject = stream;
+        }
+
+        return () => {
+            sourceNodeRef.current?.disconnect();
+            gainNodeRef.current?.disconnect();
+        };
+    }, [sharedContext, stream]);
+
+    useEffect(() => {
+        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * masterVolume);
+        if (gainNodeRef.current) {
+            const now = sharedContext?.currentTime || 0;
+            // Limit to 2.0 to support the slider range while being safe
+            gainNodeRef.current.gain.setTargetAtTime(Math.min(finalVolume, 4), now, 0.05);
+            if (audioRef.current) audioRef.current.volume = 1.0;
+        } else if (audioRef.current) {
+            audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+        }
+    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume, sharedContext]);
 
     useEffect(() => {
         const audio = audioRef.current;
-        if (!audio || !stream) return;
-
-        if (audio.srcObject !== stream) {
-            audio.srcObject = stream;
-        }
+        if (!audio || (!stream && !destNodeRef.current)) return;
 
         audio.muted = false;
         const play = async () => {
             try {
                 await audio.play();
-                console.log(`[Voice] Playing stream for ${userId}`);
             } catch (e: any) {
-                if (e.name !== 'AbortError') {
-                    if (sharedContext?.state === 'suspended') {
-                        await sharedContext.resume().catch(() => { });
-                        await audio.play().catch(() => { });
-                    }
+                if (e.name !== 'AbortError' && sharedContext?.state === 'suspended') {
+                    await sharedContext.resume().catch(() => { });
+                    await audio.play().catch(() => { });
                 }
             }
         };
         play();
-    }, [stream, sharedContext, userId]);
-
-    useEffect(() => {
-        if (!audioRef.current) return;
-        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * masterVolume);
-        // Capped at 1.0 (standard browser behavior)
-        audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
-    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume]);
+    }, [stream, sharedContext]);
 
     useEffect(() => {
         if (audioRef.current && (audioRef.current as any).setSinkId) {
             const devId = outputDeviceId === 'default' ? '' : outputDeviceId;
-            (audioRef.current as any).setSinkId(devId).catch((e: any) => console.error("[Voice] SinkId error:", e));
+            (audioRef.current as any).setSinkId(devId).catch(() => { });
         }
     }, [outputDeviceId]);
 
@@ -89,6 +121,9 @@ const RemoteScreen: React.FC<{
 }> = ({ userId, stream, sharedContext, outputDeviceId, masterVolume, isWatching, volume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const gainNodeRef = useRef<GainNode | null>(null);
+    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
     useEffect(() => {
         if (audioRef.current && (audioRef.current as any).setSinkId) {
@@ -98,36 +133,63 @@ const RemoteScreen: React.FC<{
     }, [outputDeviceId]);
 
     useEffect(() => {
-        if (!stream) return;
+        if (!sharedContext || !stream) return;
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0) return;
 
-        if (videoRef.current && videoRef.current.srcObject !== stream) {
-            videoRef.current.srcObject = stream;
+        try {
+            sourceNodeRef.current?.disconnect();
+            gainNodeRef.current?.disconnect();
+
+            const source = sharedContext.createMediaStreamSource(new MediaStream(audioTracks));
+            const gain = sharedContext.createGain();
+            const dest = sharedContext.createMediaStreamDestination();
+
+            source.connect(gain);
+            gain.connect(dest);
+
+            sourceNodeRef.current = source;
+            gainNodeRef.current = gain;
+            destNodeRef.current = dest;
+
+            if (audioRef.current) {
+                audioRef.current.srcObject = dest.stream;
+            }
+        } catch (e) {
+            if (audioRef.current) audioRef.current.srcObject = new MediaStream(audioTracks);
         }
 
-        if (audioRef.current) {
-            const audioTracks = stream.getAudioTracks();
-            if (audioTracks.length > 0) {
-                const audioStream = new MediaStream(audioTracks);
-                if (audioRef.current.srcObject !== audioStream) {
-                    audioRef.current.srcObject = audioStream;
-                }
-            } else {
-                audioRef.current.srcObject = null;
-            }
+        return () => {
+            sourceNodeRef.current?.disconnect();
+            gainNodeRef.current?.disconnect();
+        };
+    }, [sharedContext, stream]);
+
+    useEffect(() => {
+        if (!stream) return;
+        if (videoRef.current && videoRef.current.srcObject !== stream) {
+            videoRef.current.srcObject = stream;
         }
     }, [stream]);
 
     useEffect(() => {
         if (!audioRef.current) return;
         const finalVolume = isWatching ? (volume * masterVolume) : 0;
-        audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+
+        if (gainNodeRef.current) {
+            const now = sharedContext?.currentTime || 0;
+            gainNodeRef.current.gain.setTargetAtTime(finalVolume, now, 0.05);
+            audioRef.current.volume = 1.0;
+        } else {
+            audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+        }
 
         if (isWatching) {
             audioRef.current.play().catch(() => { });
         } else {
             audioRef.current.pause();
         }
-    }, [isWatching, volume, masterVolume]);
+    }, [isWatching, volume, masterVolume, sharedContext]);
 
     return (
         <div style={{ display: 'none' }}>
@@ -297,6 +359,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const testStreamRef = useRef<MediaStream | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
+    const localGainNodeRef = useRef<GainNode | null>(null); // NEW: Stable ref for local mic gain
     const isVadActiveRef = useRef(false);
     const lastSpeakingTimeRef = useRef<number>(0);
     const lastVadMessageTimeRef = useRef<number>(0);
@@ -396,11 +459,36 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         finalTrack.enabled = !effectiveMuted && !effectiveDeafened;
 
-        const newStream = new MediaStream([finalTrack]);
-        setLocalStream(newStream);
-        localStreamRef.current = newStream;
+        // Stable gain pipeline — reuse localGainNodeRef to avoid recreating the stream on volume changes
+        try {
+            const ctx = getAudioContext();
 
-        // Sync RAW streams for VAD (always enabled)
+            // Disconnect stale nodes if any
+            if (localGainNodeRef.current) {
+                try { localGainNodeRef.current.disconnect(); } catch (_) { }
+            }
+
+            const gain = ctx.createGain();
+            gain.gain.value = inputVolume;
+            localGainNodeRef.current = gain;
+
+            const source = ctx.createMediaStreamSource(new MediaStream([finalTrack]));
+            const dest = ctx.createMediaStreamDestination();
+            source.connect(gain);
+            gain.connect(dest);
+
+            const processedTrack = dest.stream.getAudioTracks()[0];
+            const newStream = new MediaStream([processedTrack]);
+            setLocalStream(newStream);
+            localStreamRef.current = newStream;
+        } catch (e) {
+            console.error("[Voice] Local gain pipeline failed:", e);
+            const fallbackStream = new MediaStream([finalTrack]);
+            setLocalStream(fallbackStream);
+            localStreamRef.current = fallbackStream;
+        }
+
+        // Clone tracks for VAD — VAD always runs on the raw track (not the gain output)
         if (rawMicStreamRef.current) rawMicStreamRef.current.getTracks().forEach(t => t.stop());
         const rawClone = finalTrack.clone();
         rawClone.enabled = true;
@@ -411,7 +499,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         vadClone.enabled = true;
         vadStreamRef.current = new MediaStream([vadClone]);
 
-        console.log(`[Voice] Local stream sync complete. Enabled: ${finalTrack.enabled}`);
+        console.log(`[Voice] Local stream synced. Volume: ${inputVolume}, Enabled: ${finalTrack.enabled}`);
+        // NOTE: inputVolume deliberately excluded — volume changes are handled by the separate effect below
     }, [isNoiseSuppressionEnabled, isMuted, isServerMuted, isDeafened, isServerDeafened, getAudioContext]);
 
     const handleTrackSubscribed = (
@@ -1238,13 +1327,27 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return () => clearInterval(interval);
     }, [isConnected, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, user?._id]);
 
+    // Unified Effect for volume synchronization to prevent re-publication lag
+    useEffect(() => {
+        if (localGainNodeRef.current) {
+            const ctx = audioContextRef.current;
+            if (ctx) {
+                localGainNodeRef.current.gain.setTargetAtTime(inputVolume, ctx.currentTime, 0.02);
+            } else {
+                localGainNodeRef.current.gain.value = inputVolume;
+            }
+        }
+    }, [inputVolume]);
+
     // Local Audio Monitoring with AudioWorklet
     useEffect(() => {
-        // Use vadStream if in call, otherwise testStream for settings
-        const stream = vadStreamRef.current || testStream;
+        // In settings: use testStream directly.
+        // In call: vadStreamRef is populated by handleLocalMicPublication when localStream changes.
+        const stream = testStream || vadStreamRef.current;
         const localId = user?._id || 'local';
 
         if (!stream) {
+            setCurrentInputLevel(-100);
             if (workletNodesRef.current.has(localId)) {
                 workletNodesRef.current.get(localId)?.disconnect();
                 workletNodesRef.current.delete(localId);
@@ -1338,6 +1441,24 @@ registerProcessor('vad-processor', VADProcessor);
                     analyser.fftSize = 256;
                     source.connect(analyser);
                     analysersRef.current.set(localId, analyser);
+
+                    // Start monitoring loop for fallback
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    const updateLevel = () => {
+                        if (!analysersRef.current.has(localId)) return;
+                        analyser.getByteFrequencyData(dataArray);
+                        let sum = 0;
+                        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+                        const avg = sum / bufferLength;
+                        const db = avg > 0 ? (avg / 255) * 100 - 100 : -100;
+                        setCurrentInputLevel(db);
+                        if (db > (isAutomaticSensitivityRef.current ? -70 : inputSensitivityRef.current)) {
+                            lastSpeakingTimeRef.current = Date.now();
+                        }
+                        requestAnimationFrame(updateLevel);
+                    };
+                    updateLevel();
                 } catch (fallbackErr) { }
             }
         };
