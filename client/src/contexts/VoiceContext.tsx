@@ -35,67 +35,12 @@ const RemoteAudio: React.FC<{
     masterVolume: number;
 }> = ({ userId, stream, voiceVolume, isDeafened, isLocalMuted, sharedContext, outputDeviceId, masterVolume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
-    const gainNodeRef = useRef<GainNode | null>(null);
-    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-
-    useEffect(() => {
-        if (!sharedContext || !stream) return;
-
-        try {
-            // Clean up previous nodes if they exist
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-
-            const source = sharedContext.createMediaStreamSource(stream);
-            const gain = sharedContext.createGain();
-            const dest = sharedContext.createMediaStreamDestination();
-
-            source.connect(gain);
-            gain.connect(dest);
-
-            sourceNodeRef.current = source;
-            gainNodeRef.current = gain;
-            destNodeRef.current = dest;
-
-            if (audioRef.current) {
-                audioRef.current.srcObject = dest.stream;
-            }
-        } catch (e) {
-            console.error("[Voice] Gain setup failed for user:", userId, e);
-            if (audioRef.current) audioRef.current.srcObject = stream;
-        }
-
-        return () => {
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-            sourceNodeRef.current = null;
-            gainNodeRef.current = null;
-            destNodeRef.current = null;
-        };
-    }, [sharedContext, stream, userId]);
-
-    useEffect(() => {
-        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * masterVolume);
-
-        if (gainNodeRef.current) {
-            // Web Audio allows gain > 1.0 (e.g. 2.0 per user slider)
-            const now = sharedContext?.currentTime || 0;
-            gainNodeRef.current.gain.setTargetAtTime(finalVolume, now, 0.05);
-            // Keep HTML element at 1.0 to let Web Audio handle the full range
-            if (audioRef.current) audioRef.current.volume = 1.0;
-        } else if (audioRef.current) {
-            // Fallback for direct stream
-            audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
-        }
-    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume, sharedContext]);
 
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio || !stream) return;
 
-        // If we didn't use Web Audio, we still need to set srcObject
-        if (!destNodeRef.current && audio.srcObject !== stream) {
+        if (audio.srcObject !== stream) {
             audio.srcObject = stream;
         }
 
@@ -114,8 +59,14 @@ const RemoteAudio: React.FC<{
             }
         };
         play();
-
     }, [stream, sharedContext, userId]);
+
+    useEffect(() => {
+        if (!audioRef.current) return;
+        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * masterVolume);
+        // Capped at 1.0 (standard browser behavior)
+        audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume]);
 
     useEffect(() => {
         if (audioRef.current && (audioRef.current as any).setSinkId) {
@@ -138,9 +89,6 @@ const RemoteScreen: React.FC<{
 }> = ({ userId, stream, sharedContext, outputDeviceId, masterVolume, isWatching, volume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const gainNodeRef = useRef<GainNode | null>(null);
-    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
     useEffect(() => {
         if (audioRef.current && (audioRef.current as any).setSinkId) {
@@ -150,62 +98,36 @@ const RemoteScreen: React.FC<{
     }, [outputDeviceId]);
 
     useEffect(() => {
-        if (!sharedContext || !stream) return;
-        const audioTracks = stream.getAudioTracks();
-        if (audioTracks.length === 0) return;
-
-        try {
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-
-            const source = sharedContext.createMediaStreamSource(new MediaStream(audioTracks));
-            const gain = sharedContext.createGain();
-            const dest = sharedContext.createMediaStreamDestination();
-
-            source.connect(gain);
-            gain.connect(dest);
-
-            sourceNodeRef.current = source;
-            gainNodeRef.current = gain;
-            destNodeRef.current = dest;
-
-            if (audioRef.current) {
-                audioRef.current.srcObject = dest.stream;
-            }
-        } catch (e) {
-            if (audioRef.current) audioRef.current.srcObject = new MediaStream(audioTracks);
-        }
-
-        return () => {
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-        };
-    }, [sharedContext, stream]);
-
-    useEffect(() => {
         if (!stream) return;
+
         if (videoRef.current && videoRef.current.srcObject !== stream) {
             videoRef.current.srcObject = stream;
         }
 
         if (audioRef.current) {
-            const finalVolume = isWatching ? (volume * masterVolume) : 0;
-
-            if (gainNodeRef.current) {
-                const now = sharedContext?.currentTime || 0;
-                gainNodeRef.current.gain.setTargetAtTime(finalVolume, now, 0.05);
-                audioRef.current.volume = 1.0;
+            const audioTracks = stream.getAudioTracks();
+            if (audioTracks.length > 0) {
+                const audioStream = new MediaStream(audioTracks);
+                if (audioRef.current.srcObject !== audioStream) {
+                    audioRef.current.srcObject = audioStream;
+                }
             } else {
-                audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
-            }
-
-            if (isWatching) {
-                audioRef.current.play().catch(() => { });
-            } else {
-                audioRef.current.pause();
+                audioRef.current.srcObject = null;
             }
         }
-    }, [stream, masterVolume, isWatching, volume, sharedContext]);
+    }, [stream]);
+
+    useEffect(() => {
+        if (!audioRef.current) return;
+        const finalVolume = isWatching ? (volume * masterVolume) : 0;
+        audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
+
+        if (isWatching) {
+            audioRef.current.play().catch(() => { });
+        } else {
+            audioRef.current.pause();
+        }
+    }, [isWatching, volume, masterVolume]);
 
     return (
         <div style={{ display: 'none' }}>
@@ -686,7 +608,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsConnected(false);
         setActiveChannelId(null);
         stopScreenShare();
-        soundManager.play(SOUNDS.VOICE_LEAVE, 0.7);
+        soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, activeChannelId]);
 
     const startScreenShare = useCallback(async (sourceId: string, options?: { resolution?: string, frameRate?: string }) => {
@@ -958,7 +880,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             setActiveChannelId(channelId);
             setIsConnected(true);
-            soundManager.play(SOUNDS.VOICE_JOIN, 0.7);
+            soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
 
             if (socket) {
                 socket.emit('join-voice-channel', { channelId });
@@ -1128,7 +1050,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsMuted(newMuted);
 
         // Sound feedback
-        soundManager.play(newMuted ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.6);
+        soundManager.play(newMuted ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.4);
 
         const effectiveMuted = (newMuted || isServerMuted);
         const effectiveDeafened = (isDeafened || isServerDeafened);
@@ -1163,7 +1085,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsDeafened(newDeafened);
 
         // Sound feedback
-        soundManager.play(newDeafened ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.6); // Use mute sounds as fallback for now
+        soundManager.play(newDeafened ? SOUNDS.MUTE : SOUNDS.UNMUTE, 0.4); // Use mute sounds as fallback for now
 
         const effectiveMuted = (isMuted || isServerMuted);
         const effectiveDeafened = (newDeafened || isServerDeafened);

@@ -36,47 +36,22 @@ const RemoteAudioPlayer: React.FC<{
   muted: boolean;
 }> = ({ stream, volume, muted }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
 
   useEffect(() => {
     if (!stream) return;
     const audio = audioRef.current;
     if (!audio) return;
 
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      const ctx = audioCtxRef.current;
-      const source = ctx.createMediaStreamSource(stream);
-      const gain = ctx.createGain();
-      const dest = ctx.createMediaStreamDestination();
-
-      source.connect(gain);
-      gain.connect(dest);
-      gainNodeRef.current = gain;
-
-      audio.srcObject = dest.stream;
-      audio.play().catch(() => { });
-    } catch (e) {
+    if (audio.srcObject !== stream) {
       audio.srcObject = stream;
-      audio.play().catch(() => { });
     }
-
-    return () => {
-      audioCtxRef.current?.close().catch(() => { });
-      audioCtxRef.current = null;
-    };
+    audio.play().catch(() => { });
   }, [stream]);
 
   useEffect(() => {
-    if (gainNodeRef.current) {
+    if (audioRef.current) {
       const v = muted ? 0 : volume;
-      gainNodeRef.current.gain.setTargetAtTime(v, audioCtxRef.current?.currentTime || 0, 0.1);
-      if (audioRef.current) audioRef.current.volume = 1;
-    } else if (audioRef.current) {
-      audioRef.current.volume = Math.min(Math.max(muted ? 0 : volume, 0), 1);
+      audioRef.current.volume = Math.min(Math.max(v, 0), 1);
     }
   }, [volume, muted]);
 
