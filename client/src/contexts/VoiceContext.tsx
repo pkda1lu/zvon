@@ -33,82 +33,44 @@ const RemoteAudio: React.FC<{
     sharedContext: AudioContext | null;
     outputDeviceId: string;
     masterVolume: number;
-}> = ({ userId, stream, voiceVolume, isDeafened, isLocalMuted, sharedContext, outputDeviceId, masterVolume }) => {
+}> = ({ userId, stream, voiceVolume, isDeafened, isLocalMuted, outputDeviceId, masterVolume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
-    const gainNodeRef = useRef<GainNode | null>(null);
-    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
-    useEffect(() => {
-        if (!sharedContext || !stream) return;
-
-        try {
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-
-            const source = sharedContext.createMediaStreamSource(stream);
-            const gain = sharedContext.createGain();
-            const dest = sharedContext.createMediaStreamDestination();
-
-            source.connect(gain);
-            gain.connect(dest);
-
-            sourceNodeRef.current = source;
-            gainNodeRef.current = gain;
-            destNodeRef.current = dest;
-
-            if (audioRef.current) {
-                audioRef.current.srcObject = dest.stream;
-            }
-        } catch (e) {
-            if (audioRef.current) audioRef.current.srcObject = stream;
-        }
-
-        return () => {
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-        };
-    }, [sharedContext, stream]);
-
-    useEffect(() => {
-        const finalVolume = (isDeafened || isLocalMuted) ? 0 : (voiceVolume * masterVolume);
-        if (gainNodeRef.current) {
-            const now = sharedContext?.currentTime || 0;
-            // Limit to 2.0 to support the slider range while being safe
-            gainNodeRef.current.gain.setTargetAtTime(Math.min(finalVolume, 4), now, 0.05);
-            if (audioRef.current) audioRef.current.volume = 1.0;
-        } else if (audioRef.current) {
-            audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
-        }
-    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume, sharedContext]);
-
+    // Set stream as soon as it's available
     useEffect(() => {
         const audio = audioRef.current;
-        if (!audio || (!stream && !destNodeRef.current)) return;
-
-        audio.muted = false;
-        const play = async () => {
-            try {
-                await audio.play();
-            } catch (e: any) {
-                if (e.name !== 'AbortError' && sharedContext?.state === 'suspended') {
-                    await sharedContext.resume().catch(() => { });
-                    await audio.play().catch(() => { });
-                }
+        if (!audio || !stream) return;
+        if (audio.srcObject !== stream) {
+            audio.srcObject = stream;
+            audio.muted = false;
+        }
+        audio.play().catch((e) => {
+            if (e.name !== 'AbortError') {
+                setTimeout(() => audio.play().catch(() => { }), 300);
             }
-        };
-        play();
-    }, [stream, sharedContext]);
+        });
+    }, [stream]);
 
+    // Volume control
     useEffect(() => {
-        if (audioRef.current && (audioRef.current as any).setSinkId) {
+        const audio = audioRef.current;
+        if (!audio) return;
+        const vol = (isDeafened || isLocalMuted) ? 0 : Math.min(voiceVolume * masterVolume, 1);
+        audio.volume = Math.max(0, vol);
+    }, [voiceVolume, isDeafened, isLocalMuted, masterVolume]);
+
+    // Output device
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (audio && (audio as any).setSinkId) {
             const devId = outputDeviceId === 'default' ? '' : outputDeviceId;
-            (audioRef.current as any).setSinkId(devId).catch(() => { });
+            (audio as any).setSinkId(devId).catch(() => { });
         }
     }, [outputDeviceId]);
 
     return <audio ref={audioRef} autoPlay playsInline />;
 };
+
 
 const RemoteScreen: React.FC<{
     userId: string;
@@ -118,78 +80,50 @@ const RemoteScreen: React.FC<{
     masterVolume: number;
     isWatching: boolean;
     volume: number;
-}> = ({ userId, stream, sharedContext, outputDeviceId, masterVolume, isWatching, volume }) => {
+}> = ({ userId, stream, outputDeviceId, masterVolume, isWatching, volume }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const gainNodeRef = useRef<GainNode | null>(null);
-    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
+    // Output device
     useEffect(() => {
-        if (audioRef.current && (audioRef.current as any).setSinkId) {
+        const audio = audioRef.current;
+        if (audio && (audio as any).setSinkId) {
             const devId = outputDeviceId === 'default' ? '' : outputDeviceId;
-            (audioRef.current as any).setSinkId(devId).catch((e: any) => { });
+            (audio as any).setSinkId(devId).catch(() => { });
         }
     }, [outputDeviceId]);
 
+    // Video stream
     useEffect(() => {
-        if (!sharedContext || !stream) return;
+        const video = videoRef.current;
+        if (!stream || !video) return;
+        if (video.srcObject !== stream) video.srcObject = stream;
+    }, [stream]);
+
+    // Audio stream — set directly, always
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio || !stream) return;
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length === 0) return;
-
-        try {
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-
-            const source = sharedContext.createMediaStreamSource(new MediaStream(audioTracks));
-            const gain = sharedContext.createGain();
-            const dest = sharedContext.createMediaStreamDestination();
-
-            source.connect(gain);
-            gain.connect(dest);
-
-            sourceNodeRef.current = source;
-            gainNodeRef.current = gain;
-            destNodeRef.current = dest;
-
-            if (audioRef.current) {
-                audioRef.current.srcObject = dest.stream;
-            }
-        } catch (e) {
-            if (audioRef.current) audioRef.current.srcObject = new MediaStream(audioTracks);
-        }
-
-        return () => {
-            sourceNodeRef.current?.disconnect();
-            gainNodeRef.current?.disconnect();
-        };
-    }, [sharedContext, stream]);
-
-    useEffect(() => {
-        if (!stream) return;
-        if (videoRef.current && videoRef.current.srcObject !== stream) {
-            videoRef.current.srcObject = stream;
+        const audioStream = new MediaStream(audioTracks);
+        if (audio.srcObject !== audioStream) {
+            audio.srcObject = audioStream;
         }
     }, [stream]);
 
+    // Volume + play/pause
     useEffect(() => {
-        if (!audioRef.current) return;
-        const finalVolume = isWatching ? (volume * masterVolume) : 0;
-
-        if (gainNodeRef.current) {
-            const now = sharedContext?.currentTime || 0;
-            gainNodeRef.current.gain.setTargetAtTime(finalVolume, now, 0.05);
-            audioRef.current.volume = 1.0;
-        } else {
-            audioRef.current.volume = Math.min(Math.max(finalVolume, 0), 1);
-        }
-
+        const audio = audioRef.current;
+        if (!audio) return;
+        const vol = isWatching ? Math.min(volume * masterVolume, 1) : 0;
+        audio.volume = Math.max(0, vol);
         if (isWatching) {
-            audioRef.current.play().catch(() => { });
+            audio.play().catch(() => { });
         } else {
-            audioRef.current.pause();
+            audio.pause();
         }
-    }, [isWatching, volume, masterVolume, sharedContext]);
+    }, [isWatching, volume, masterVolume]);
 
     return (
         <div style={{ display: 'none' }}>
@@ -198,6 +132,7 @@ const RemoteScreen: React.FC<{
         </div>
     );
 };
+
 
 interface VoiceContextType {
     isConnected: boolean;
@@ -359,10 +294,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const testStreamRef = useRef<MediaStream | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
-    const localGainNodeRef = useRef<GainNode | null>(null); // NEW: Stable ref for local mic gain
+    const localGainNodeRef = useRef<GainNode | null>(null);
+    const livekitTrackRef = useRef<MediaStreamTrack | null>(null); // The REAL LiveKit track for VAD gating
     const isVadActiveRef = useRef(false);
     const lastSpeakingTimeRef = useRef<number>(0);
     const lastVadMessageTimeRef = useRef<number>(0);
+    const vadInitTimeRef = useRef<number>(0); // when VAD was last initialized
     const registeredWorkletsRef = useRef<Set<string>>(new Set());
 
     // Sync refs for the interval to avoid re-creation
@@ -454,20 +391,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         const finalTrack = track.mediaStreamTrack!;
+        livekitTrackRef.current = finalTrack; // Store original LiveKit track for VAD gating
         const effectiveMuted = isMuted || isServerMuted;
         const effectiveDeafened = isDeafened || isServerDeafened;
 
+        // Gate the REAL LiveKit track
         finalTrack.enabled = !effectiveMuted && !effectiveDeafened;
 
-        // Stable gain pipeline — reuse localGainNodeRef to avoid recreating the stream on volume changes
+        // Build gain pipeline for LOCAL PREVIEW only.
+        // LiveKit transmits the original finalTrack — we don't touch that.
         try {
             const ctx = getAudioContext();
-
-            // Disconnect stale nodes if any
             if (localGainNodeRef.current) {
                 try { localGainNodeRef.current.disconnect(); } catch (_) { }
             }
-
             const gain = ctx.createGain();
             gain.gain.value = inputVolume;
             localGainNodeRef.current = gain;
@@ -477,10 +414,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             source.connect(gain);
             gain.connect(dest);
 
-            const processedTrack = dest.stream.getAudioTracks()[0];
-            const newStream = new MediaStream([processedTrack]);
-            setLocalStream(newStream);
-            localStreamRef.current = newStream;
+            // localStream is for LOCAL preview UI only (e.g. local video tile)
+            const previewStream = new MediaStream([dest.stream.getAudioTracks()[0]]);
+            setLocalStream(previewStream);
+            localStreamRef.current = previewStream;
         } catch (e) {
             console.error("[Voice] Local gain pipeline failed:", e);
             const fallbackStream = new MediaStream([finalTrack]);
@@ -488,7 +425,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             localStreamRef.current = fallbackStream;
         }
 
-        // Clone tracks for VAD — VAD always runs on the raw track (not the gain output)
+        // Clone tracks for VAD — raw, always enabled to monitor level
         if (rawMicStreamRef.current) rawMicStreamRef.current.getTracks().forEach(t => t.stop());
         const rawClone = finalTrack.clone();
         rawClone.enabled = true;
@@ -499,8 +436,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         vadClone.enabled = true;
         vadStreamRef.current = new MediaStream([vadClone]);
 
-        console.log(`[Voice] Local stream synced. Volume: ${inputVolume}, Enabled: ${finalTrack.enabled}`);
-        // NOTE: inputVolume deliberately excluded — volume changes are handled by the separate effect below
+        console.log(`[Voice] Local stream synced. Enabled: ${finalTrack.enabled}`);
     }, [isNoiseSuppressionEnabled, isMuted, isServerMuted, isDeafened, isServerDeafened, getAudioContext]);
 
     const handleTrackSubscribed = (
@@ -1159,9 +1095,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         if (localStreamRef.current) {
+            // Gate the preview stream for local UI feedback
             localStreamRef.current.getAudioTracks().forEach(t => {
                 t.enabled = !effectiveMuted && !effectiveDeafened;
             });
+        }
+        // Gate the REAL LiveKit track
+        if (livekitTrackRef.current) {
+            livekitTrackRef.current.enabled = !effectiveMuted && !effectiveDeafened;
         }
 
         if (socket && activeChannelId) {
@@ -1187,9 +1128,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         if (localStreamRef.current) {
+            // Gate the preview stream for local UI feedback
             localStreamRef.current.getAudioTracks().forEach(t => {
                 t.enabled = !effectiveMuted && !effectiveDeafened;
             });
+        }
+        // Gate the REAL LiveKit track
+        if (livekitTrackRef.current) {
+            livekitTrackRef.current.enabled = !effectiveMuted && !effectiveDeafened;
         }
 
         if (socket && activeChannelId) {
@@ -1277,22 +1223,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             // Apply Gating only when required
             if (isConnected && localStreamRef.current) {
                 const now = Date.now();
-                // Watchdog: If VAD is supposed to be active but hasn't sent a message in 5s, it might be stuck
-                if (isVadActiveRef.current && (now - lastVadMessageTimeRef.current > 5000) && lastVadMessageTimeRef.current !== 0) {
-                    console.warn("[Voice] VAD watchdog triggered: No messages for 5s. Falling back to always-on.");
+                // Watchdog: if VAD says it's active but sent 0 messages in 5s since init, fall back to always-on
+                const vadSilentSinceInit = lastVadMessageTimeRef.current === 0 && (now - vadInitTimeRef.current > 5000) && vadInitTimeRef.current > 0;
+                const vadSilentAfterMessages = lastVadMessageTimeRef.current !== 0 && (now - lastVadMessageTimeRef.current > 5000);
+                if (isVadActiveRef.current && (vadSilentSinceInit || vadSilentAfterMessages)) {
+                    console.warn("[Voice] VAD watchdog: no messages received. Disabling VAD gating (always-on).");
                     isVadActiveRef.current = false;
                 }
 
-                // If VAD failed to init or got stuck, we just keep the mic open (fail-safe)
-                const isSpeaking = isVadActiveRef.current ? isLocalVADOpen : true;
-                const shouldBeEnabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened && isSpeaking;
-                const tracks = localStreamRef.current.getAudioTracks();
-                for (let i = 0; i < tracks.length; i++) {
-                    if (tracks[i].enabled !== shouldBeEnabled) {
-                        tracks[i].enabled = shouldBeEnabled;
-                        console.log(`[Voice] Track ${tracks[i].label} enabled = ${shouldBeEnabled} (VAD: ${isVadActiveRef.current}, Speaking: ${isSpeaking})`);
-                    }
-                }
+                // NOTE: We intentionally do NOT gate livekitTrackRef here.
+                // LiveKit uses DTX (discontinuous transmission) to suppress silent audio automatically.
+                // Manual gating caused permanent silence when the VAD worklet failed silently.
+                // Track gating for mute/deafen is handled by toggleMute/toggleDeafen/syncMuteState.
             }
 
             // Analyze Remote Users (Still using analysers for simpler integration)
@@ -1427,6 +1369,8 @@ registerProcessor('vad-processor', VADProcessor);
                 }
                 workletNodesRef.current.set(localId, vadNode);
                 isVadActiveRef.current = true;
+                vadInitTimeRef.current = Date.now();
+                lastVadMessageTimeRef.current = 0; // reset so watchdog can detect silence
                 console.log("[Voice] VAD initialized successfully");
 
             } catch (error) {
@@ -1546,8 +1490,13 @@ registerProcessor('vad-processor', VADProcessor);
                     } catch (err) { }
                 }
 
+                // Gate the preview stream for UI
                 if (localStreamRef.current) {
                     localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
+                }
+                // Gate the REAL LiveKit track
+                if (livekitTrackRef.current) {
+                    livekitTrackRef.current.enabled = !effectiveMuted && !effectiveDeafened;
                 }
             }
         };
