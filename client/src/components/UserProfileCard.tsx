@@ -55,26 +55,55 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
     useEffect(() => {
         if (!position || !cardRef.current) return;
-        const rect = cardRef.current.getBoundingClientRect();
-        let finalX = position.x + 20;
-        let finalY = position.y;
 
-        if (finalX + rect.width > window.innerWidth) {
-            finalX = position.x - rect.width - 20;
-        }
+        let isDisposed = false;
 
-        if (finalY + rect.height > window.innerHeight) {
-            finalY = position.y - rect.height;
-        }
+        const updatePosition = () => {
+            if (!cardRef.current || isDisposed) return;
+            const rect = cardRef.current.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
 
-        if (finalY + rect.height > window.innerHeight) finalY = window.innerHeight - rect.height - 10;
-        if (finalY < 10) finalY = 10;
-        if (finalX < 10) finalX = 10;
-        if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 10;
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
 
-        setAdjustedPos({ top: finalY, left: finalX });
-        setIsVisible(true);
-    }, [position]);
+            let finalX = position.x + 20;
+            let finalY = position.y;
+
+            // Horizontal flip logic
+            if (finalX + rect.width > winW - 20) {
+                finalX = position.x - rect.width - 20;
+            }
+
+            // Vertical flip logic
+            if (finalY + rect.height > winH - 20) {
+                finalY = position.y - rect.height;
+            }
+
+            // Safety boundaries (clamping)
+            if (finalY + rect.height > winH - 10) finalY = winH - rect.height - 10;
+            if (finalY < 10) finalY = 10;
+            if (finalX < 10) finalX = 10;
+            if (finalX + rect.width > winW - 10) finalX = winW - rect.width - 10;
+
+            setAdjustedPos({ top: finalY, left: finalX });
+            setIsVisible(true);
+        };
+
+        // Initial attempt
+        updatePosition();
+
+        // Sequence of checks as content renders
+        const t1 = setTimeout(updatePosition, 30);
+        const t2 = setTimeout(updatePosition, 100);
+        const t3 = setTimeout(updatePosition, 300);
+
+        return () => {
+            isDisposed = true;
+            clearTimeout(t1);
+            clearTimeout(t2);
+            clearTimeout(t3);
+        };
+    }, [position, profileData, loading]);
 
     const userPerms = (currentUser && server) ? computePermissions(currentUser._id, server) : 0n;
     const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES);

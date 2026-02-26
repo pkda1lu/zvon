@@ -15,6 +15,7 @@ let updaterWindow;
 let tray = null;
 let isQuitting = false;
 let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false };
+const isOpenedHidden = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
 
 let appSettings = {
     minimizeToTray: true,
@@ -36,6 +37,7 @@ ipcMain.handle('toggle-autostart', (event, enable) => {
         app.setLoginItemSettings({
             openAtLogin: enable,
             path: app.getPath('exe'),
+            args: ['--hidden']
         });
         return app.getLoginItemSettings().openAtLogin;
     } catch (e) {
@@ -121,6 +123,7 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     app.whenReady().then(() => {
+        if (!tray) createTray();
         if (isDev) createWindow();
         else createUpdaterWindow();
     });
@@ -208,7 +211,7 @@ function createUpdaterWindow() {
     updaterWindow = new BrowserWindow({ width: 400, height: 500, frame: false, backgroundColor: '#1e1f22', show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
     updaterWindow.loadFile(path.join(__dirname, 'updater.html'));
     updaterWindow.once('ready-to-show', () => {
-        updaterWindow.show();
+        if (!isOpenedHidden) updaterWindow.show();
         if (!isDev) {
             autoUpdater.checkForUpdates();
             const safetyTimeout = setTimeout(() => { createWindow(); if (updaterWindow && !updaterWindow.isDestroyed()) updaterWindow.close(); }, 10000);
@@ -268,7 +271,7 @@ function createWindow() {
         show: false // Performance: Use ready-to-show to prevent white flash
     });
     mainWindow.once('ready-to-show', () => {
-        if (!appSettings.startMinimized) {
+        if (!appSettings.startMinimized && !isOpenedHidden) {
             mainWindow.show();
         }
         scanActivities();

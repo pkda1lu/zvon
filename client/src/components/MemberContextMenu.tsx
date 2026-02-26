@@ -347,7 +347,10 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 <>
                     <div className="menu-separator" />
                     <div className="menu-group">
-                        <div className="menu-label">Громкость пользователя</div>
+                        <div className="menu-label">
+                            <span>Громкость пользователя</span>
+                            <span className="volume-percent">{Math.round(currentVolume * 100)}%</span>
+                        </div>
                         <div className="volume-slider-container">
                             <input type="range" min="0" max="2" step="0.01" value={currentVolume} onChange={(e) => setUserVolume(targetUser._id, parseFloat(e.target.value))} className="menu-volume-slider" onClick={(e) => e.stopPropagation()} />
                         </div>

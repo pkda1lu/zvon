@@ -75,6 +75,18 @@ const Main: React.FC = () => {
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
 
   useEffect(() => {
+    if (selectedServer) {
+      localStorage.setItem('lastServerId', selectedServer._id);
+    }
+  }, [selectedServer]);
+
+  useEffect(() => {
+    if (selectedChannel) {
+      localStorage.setItem('lastChannelId', selectedChannel._id);
+    }
+  }, [selectedChannel]);
+
+  useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizingRef.current) return;
       const newWidth = e.clientX - 72;
@@ -180,15 +192,31 @@ const Main: React.FC = () => {
   const fetchServers = useCallback(async () => {
     try {
       const response = await axios.get('/api/servers/me');
-      setServers(response.data);
-      if (!hasViewInitializedRef.current && response.data.length > 0 && !selectedServerRef.current) {
+      const serversData = response.data;
+      setServers(serversData);
+
+      if (!hasViewInitializedRef.current && serversData.length > 0 && !selectedServerRef.current) {
         hasViewInitializedRef.current = true;
-        const firstServer = response.data[0];
-        setSelectedServer(firstServer);
-        const firstTextChannel = firstServer.channels.find((c: any) => c.type === 'text');
-        if (firstTextChannel) setSelectedChannel(firstTextChannel);
-        else if (firstServer.channels.length > 0) setSelectedChannel(firstServer.channels[0]);
-      } else if (!hasViewInitializedRef.current) hasViewInitializedRef.current = true;
+
+        const lastServerId = localStorage.getItem('lastServerId');
+        const savedServer = lastServerId ? serversData.find((s: any) => s._id === lastServerId) : null;
+        const targetServer = savedServer || serversData[0];
+
+        setSelectedServer(targetServer);
+
+        const lastChannelId = localStorage.getItem('lastChannelId');
+        const savedChannel = lastChannelId ? targetServer.channels.find((c: any) => c._id === lastChannelId) : null;
+
+        if (savedChannel) {
+          setSelectedChannel(savedChannel);
+        } else {
+          const firstTextChannel = targetServer.channels.find((c: any) => c.type === 'text');
+          if (firstTextChannel) setSelectedChannel(firstTextChannel);
+          else if (targetServer.channels.length > 0) setSelectedChannel(targetServer.channels[0]);
+        }
+      } else if (!hasViewInitializedRef.current) {
+        hasViewInitializedRef.current = true;
+      }
     } catch (error) { } finally { setLoading(false); }
   }, []);
 
