@@ -11,6 +11,8 @@ import { Permissions, hasPermission, computePermissions } from '../utils/permiss
 import './ServerSidebar.css';
 import InviteModal from './InviteModal';
 import MemberContextMenu from './MemberContextMenu';
+import UserAvatar from './UserAvatar';
+import VoiceControlPanel from './VoiceControlPanel';
 
 interface ServerSidebarProps {
   server: Server;
@@ -161,7 +163,16 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                      <span className="channel-icon"><SpeakerIcon size={18} /></span>
+                      <span className="channel-icon">
+                        {activeChannelId === channel._id ? (
+                          <div className="voice-status-indicator sidebar-inline">
+                            <div className="pulse-ring"></div>
+                            <div className="status-dot"></div>
+                          </div>
+                        ) : (
+                          <SpeakerIcon size={18} />
+                        )}
+                      </span>
                       <span className="channel-name">{channel.name}</span>
                     </div>
                     <div className="channel-actions">
@@ -221,6 +232,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
         />
       )}
       {contextMenu && <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onOpenProfile={onUserClick} />}
+
+      <VoiceControlPanel />
     </div>
   );
 };

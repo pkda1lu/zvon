@@ -458,6 +458,7 @@ const Main: React.FC = () => {
 
   const handleChannelSelect = (channel: Channel) => {
     setInitialUnreadCount(unreadCounts[channel._id] || 0);
+    setMessages([]);
     setSelectedChannel(channel);
     setSelectedDM(null);
     setShowFriends(false);
@@ -467,6 +468,7 @@ const Main: React.FC = () => {
     try {
       const response = await axios.get(`/api/direct-messages/user/${userId}`);
       setInitialUnreadCount(unreadCounts[response.data._id] || 0);
+      setDmMessages([]);
       setSelectedDM(response.data);
       setSelectedChannel(null);
       setSelectedServer(null);
@@ -514,7 +516,11 @@ const Main: React.FC = () => {
         onServerSelect={(server) => {
           setSelectedServer(server); setShowFriends(false); setSelectedDM(null);
           const firstTextChannel = server.channels.find(c => c.type === 'text');
-          if (firstTextChannel) { setSelectedChannel(firstTextChannel); fetchMessages(firstTextChannel._id); }
+          if (firstTextChannel) {
+            setMessages([]);
+            setSelectedChannel(firstTextChannel);
+            fetchMessages(firstTextChannel._id);
+          }
           else if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
         }}
         onCreateServer={handleCreateServer}

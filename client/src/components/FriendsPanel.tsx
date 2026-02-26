@@ -5,6 +5,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import { ChatIcon, CloseIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
+import UserAvatar from './UserAvatar';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
@@ -104,7 +105,15 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
           <div className="friends-list">
             {friends.length === 0 ? <div className="empty-state">У вас пока нет друзей</div> : friends.map(f => (
               <div key={f._id} className="friend-item">
-                <div className="friend-avatar" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}>{getAvatarUrl(f.avatar) ? <img src={getAvatarUrl(f.avatar)!} alt="" /> : <span>{f.username.charAt(0).toUpperCase()}</span>}<div className={`status-indicator ${f.status}`}></div></div>
+                <div className="friend-avatar-wrap">
+                  <UserAvatar
+                    user={f}
+                    size={38}
+                    className="friend-avatar"
+                    onClick={(e) => onUserClick(f._id, e)}
+                  />
+                  <div className={`status-indicator ${f.status}`}></div>
+                </div>
                 <div className="friend-info" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}><div className="friend-name">{f.username}{userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}</div><div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div></div>
                 <div className="friend-actions">
                   <button className="test-action-btn" onClick={() => onStartDM(f._id)} title="Написать сообщение">
@@ -122,7 +131,12 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
           <div className="pending-requests">
             {pendingRequests.length === 0 ? <div className="empty-state">Нет входящих запросов</div> : pendingRequests.map(r => (
               <div key={r._id} className="request-item">
-                <div className="request-avatar" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}>{getAvatarUrl(r.requester.avatar) ? <img src={getAvatarUrl(r.requester.avatar)!} alt="" /> : <span>{r.requester.username.charAt(0).toUpperCase()}</span>}</div>
+                <UserAvatar
+                  user={r.requester}
+                  size={38}
+                  className="request-avatar"
+                  onClick={(e) => onUserClick(r.requester._id, e)}
+                />
                 <div className="request-info" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}><div className="request-name">{r.requester.username}</div><div className="request-text">хочет добавить вас в друзья</div></div>
                 <div className="request-actions"><button className="accept-button" onClick={() => acceptRequest(r._id)}>Принять</button><button className="reject-button" onClick={() => removeFriend(r._id)}>Отклонить</button></div>
               </div>
@@ -136,7 +150,12 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
             <div className="search-results">
               {searchResults.map(u => (
                 <div key={u._id} className="search-result-item">
-                  <div className="result-avatar" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}>{getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" /> : <span>{u.username.charAt(0).toUpperCase()}</span>}</div>
+                  <UserAvatar
+                    user={u}
+                    size={40}
+                    className="result-avatar"
+                    onClick={(e) => onUserClick(u._id, e)}
+                  />
                   <div className="result-info" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}><div className="result-name">{u.username}</div><div className="result-email">{u.email}</div></div>
                   <button className="add-button" onClick={() => sendFriendRequest(u._id)} disabled={!!loadingAction}>{loadingAction === u._id ? '...' : 'Добавить'}</button>
                 </div>

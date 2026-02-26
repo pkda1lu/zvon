@@ -9,6 +9,7 @@ import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
+import UserAvatar from './UserAvatar';
 import { nativeAudioManager } from '../utils/nativeAudio';
 import {
   Room,
@@ -114,10 +115,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const mountedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    const shouldRing = (initialIncomingCall && isIncomingCall) || (!initialIncomingCall && isRinging && !isCallActive);
-    if (shouldRing) {
+    const shouldRingIncoming = initialIncomingCall && isIncomingCall;
+    const shouldRingOutgoing = !initialIncomingCall && isRinging && !isCallActive;
+
+    if (shouldRingIncoming || shouldRingOutgoing) {
       if (!ringtoneRef.current) {
-        ringtoneRef.current = soundManager.playLoop(SOUNDS.CALL_RINGING, 0.5);
+        const soundPath = shouldRingIncoming ? SOUNDS.CALL_RINGING : SOUNDS.CALL_OUTGOING;
+        ringtoneRef.current = soundManager.playLoop(soundPath, 0.5);
       }
     } else if (ringtoneRef.current) {
       ringtoneRef.current.pause();
@@ -224,6 +228,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           const userId = participant.identity;
           if (publication.source === Track.Source.ScreenShare) {
+            soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
             setRemoteScreenStream(prev => {
               const tracks = prev ? [...prev.getTracks(), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
               return new MediaStream(tracks);
@@ -237,6 +242,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         })
         .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           if (publication.source === Track.Source.ScreenShare) {
+            soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
             setRemoteScreenStream(prev => {
               if (!prev) return null;
               const remaining = prev.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
@@ -346,6 +352,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
   const toggleScreenShare = async (sourceId?: string, options?: { resolution: string, frameRate: string }) => {
     if (isScreenSharing) {
       setIsScreenSharing(false);
+      soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
     } else if (sourceId && roomRef.current) {
       try {
         const resolution = options?.resolution || '720';
@@ -428,6 +435,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
 
         setScreenStream(stream);
         setIsScreenSharing(true);
+        soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
       } catch (e) {
         console.error(e);
         alert('Ошибка при запуске демонстрации экрана: ' + (e as Error).message);
@@ -561,13 +569,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
             ) : (
               <div className="remote-audio-placeholder">
                 <div className={`placeholder-avatar-ring ${remoteSpeaking ? 'speaking' : ''}`}>
-                  <div className="call-avatar-large">
-                    {getAvatarUrl(otherUser.avatar) ? (
-                      <img src={getAvatarUrl(otherUser.avatar)!} alt="" />
-                    ) : (
-                      <span>{otherUser.username.charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
+                  <UserAvatar
+                    user={otherUser}
+                    size={160}
+                    animate={true}
+                    className="call-avatar-large"
+                  />
                 </div>
                 <div className="placeholder-info">
                   <h3>{otherUser.username}</h3>
@@ -596,13 +603,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
               <video ref={localVideoRef} autoPlay playsInline muted className="local-video-pip" />
             ) : (
               <div className="local-audio-pip">
-                <div className={`pip-avatar ${localSpeaking ? 'speaking' : ''}`}>
-                  {getAvatarUrl(user?.avatar) ? (
-                    <img src={getAvatarUrl(user?.avatar)!} alt="" />
-                  ) : (
-                    <span>{user?.username.charAt(0).toUpperCase()}</span>
-                  )}
-                </div>
+                <UserAvatar
+                  user={user}
+                  size={48}
+                  animate={true}
+                  className={`pip-avatar ${localSpeaking ? 'speaking' : ''}`}
+                />
               </div>
             )}
             <div className="pip-label">Вы</div>

@@ -2,6 +2,8 @@ import React from 'react';
 import { DirectMessage, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { UsersIcon, PlusIcon } from './Icons';
+import UserAvatar from './UserAvatar';
+import VoiceControlPanel from './VoiceControlPanel';
 import './DMSidebar.css';
 
 interface DMSidebarProps {
@@ -61,14 +63,12 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                                 className={`dm-item ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''}`}
                                 onClick={() => onDMSelect(dm)}
                             >
-                                <div className="dm-avatar">
-                                    {getAvatarUrl(otherUser.avatar) ? (
-                                        <img src={getAvatarUrl(otherUser.avatar)!} alt="" />
-                                    ) : (
-                                        <div className="avatar-placeholder">
-                                            {otherUser.username.charAt(0).toUpperCase()}
-                                        </div>
-                                    )}
+                                <div className="dm-avatar-wrap">
+                                    <UserAvatar
+                                        user={otherUser}
+                                        size={32}
+                                        className="dm-avatar"
+                                    />
                                     <div className={`status-indicator ${otherUser.status}`}></div>
                                 </div>
                                 <div className="dm-info">
@@ -85,6 +85,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                     })}
                 </div>
             </div>
+            <VoiceControlPanel />
         </div>
     );
 };

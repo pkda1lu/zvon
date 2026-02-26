@@ -140,8 +140,10 @@ io.on('connection', (socket) => {
       if (user) {
         if (user.servers) user.servers.forEach(s => socket.join(`server-${s}`));
         if (user.status === 'offline') {
-          user.status = 'online'; await user.save();
-          io.emit('user-updated', { _id: user._id, status: 'online' });
+          const newStatus = user.statusPreference || 'online';
+          user.status = newStatus;
+          await user.save();
+          io.emit('user-updated', { _id: user._id, status: newStatus });
         }
       }
     } catch (err) { }

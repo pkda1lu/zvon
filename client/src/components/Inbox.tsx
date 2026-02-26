@@ -1,7 +1,7 @@
 import React from 'react';
 import { useInbox, InboxItem } from '../contexts/InboxContext';
-import { getAvatarUrl } from '../utils/avatar';
 import { TrashIcon, CheckIcon, MailIcon } from './Icons';
+import UserAvatar from './UserAvatar';
 import './Inbox.css';
 
 interface InboxProps {
@@ -47,11 +47,7 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                             }}
                         >
                             <div className="inbox-item-avatar">
-                                {item.author?.avatar ? (
-                                    <img src={getAvatarUrl(item.author.avatar)!} alt="" />
-                                ) : (
-                                    <span>{item.author?.username.charAt(0).toUpperCase() || '?'}</span>
-                                )}
+                                <UserAvatar user={item.author} size={48} />
                             </div>
                             <div className="inbox-item-body">
                                 <div className="inbox-item-title">{item.title}</div>

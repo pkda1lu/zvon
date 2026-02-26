@@ -407,27 +407,26 @@
   align-items: center;
   justify-content: center;
   margin-left: auto;
-  margin-top: 50px;
+  margin-top: 30px;
   background: linear-gradient(-45deg, var(--primary-neon), var(--secondary-neon), var(--primary-neon));
   background-size: 200% auto;
   animation: gradientMove 4s linear infinite;
   color: #000;
   border: none;
-  min-width: 240px;
-  height: 54px;
-  padding: 0 30px;
+  min-width: 160px;
+  height: 40px;
+  padding: 0 20px;
   border-radius: 100px;
-  font-size: 13px;
-  font-weight: 950;
+  font-size: 10.5px;
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 2.5px;
-  text-indent: 2.5px;
-  /* Compels the text to be centered accounting for letter-spacing */
+  letter-spacing: 1.8px;
+  text-indent: 1.8px;
   cursor: pointer;
   position: relative;
   overflow: hidden;
   transition: all 0.5s ease;
-  box-shadow: 0 10px 30px rgba(0, 229, 255, 0.2);
+  box-shadow: 0 6px 20px rgba(0, 229, 255, 0.2);
 }
 
 .save-button::before {
@@ -826,10 +825,11 @@
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
 }
 
-.status-dot {
+.settings-modal-container .status-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .status-dot.online {

@@ -92,18 +92,17 @@
   border-radius: 12px;
 }
 
-.server-icon img {
+.server-icon-avatar {
   width: 100%;
   height: 100%;
-  border-radius: 18px;
-  /* Default squircle */
+  border-radius: 18px !important;
   object-fit: cover;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.server-icon:hover img,
-.server-icon.active img {
-  border-radius: 15px;
+.server-icon:hover .server-icon-avatar,
+.server-icon.active .server-icon-avatar {
+  border-radius: 15px !important;
 }
 
 .sidebar-divider {
@@ -219,7 +218,7 @@
   object-fit: cover;
 }
 
-.user-avatar .status-indicator {
+.status-indicator {
   position: absolute;
   bottom: 0;
   right: 0;
@@ -230,22 +229,22 @@
   z-index: 10;
 }
 
-.user-avatar .status-indicator.online {
+.status-indicator.online {
   background: #43b581;
   box-shadow: 0 0 10px #43b581;
 }
 
-.user-avatar .status-indicator.away {
+.status-indicator.away {
   background: #faa61a;
   box-shadow: 0 0 10px #faa61a;
 }
 
-.user-avatar .status-indicator.busy {
+.status-indicator.busy {
   background: #f04747;
   box-shadow: 0 0 10px #f04747;
 }
 
-.user-avatar .status-indicator.offline {
+.status-indicator.offline {
   background: #747f8d;
 }
 

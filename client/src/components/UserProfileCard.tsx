@@ -6,6 +6,7 @@ import { CloseIcon, PlusIcon } from './Icons';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
+import UserAvatar from './UserAvatar';
 import './UserProfileCard.css';
 
 interface UserProfileCardProps {
@@ -199,14 +200,13 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
                 <div className="profile-header">
                     <div className="profile-avatar-container">
-                        <div className={`profile-avatar ${user.status}`}>
-                            {getAvatarUrl(memberData?.avatar || user.avatar) ? (
-                                <img src={getAvatarUrl(memberData?.avatar || user.avatar)!} alt="" />
-                            ) : (
-                                <span>{user.username.charAt(0).toUpperCase()}</span>
-                            )}
-                            <div className={`profile-status-indicator ${user.status}`}></div>
-                        </div>
+                        <UserAvatar
+                            user={user}
+                            size={80}
+                            className={`profile-avatar ${user.status}`}
+                            animate={true}
+                        />
+                        <div className={`profile-status-indicator ${user.status}`}></div>
                     </div>
                 </div>
 
@@ -300,7 +300,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                             <div className="mutual-list">
                                 {mutualFriends.length > 0 ? mutualFriends.map(friend => (
                                     <div key={friend._id} className="mutual-item" onClick={(e) => onUserClick?.(friend._id, e)} style={{ cursor: 'pointer' }}>
-                                        <div className="mutual-avatar">{getAvatarUrl(friend.avatar) ? <img src={getAvatarUrl(friend.avatar)!} alt="" /> : <span>{friend.username.charAt(0).toUpperCase()}</span>}</div>
+                                        <UserAvatar user={friend} size={32} className="mutual-avatar" />
                                         <span>{friend.username}</span>
                                     </div>
                                 )) : <div className="empty-mutual">Нет общих друзей.</div>}

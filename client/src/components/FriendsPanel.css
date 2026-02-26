@@ -90,37 +90,19 @@
 .friend-avatar,
 .request-avatar,
 .result-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  /* Squircle */
-  background: var(--glass-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: 800;
-  font-size: 20px;
-  position: relative;
-  flex-shrink: 0;
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border-radius: 16px !important;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .friend-item:hover .friend-avatar {
   transform: scale(1.05) rotate(-5deg);
-  border-color: var(--primary-neon);
 }
 
-.friend-avatar img,
-.request-avatar img,
-.result-avatar img {
-  width: 100%;
-  height: 100%;
-  border-radius: 16px;
-  object-fit: cover;
+.friend-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
 }
+
 
 .status-indicator {
   position: absolute;

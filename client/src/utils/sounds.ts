@@ -1,14 +1,15 @@
 export const SOUNDS = {
-    MESSAGE_NOTIFY: 'sounds/message_notify.mp3',
-    CALL_RINGING: 'sounds/call_incoming.mp3',
-    CALL_JOIN: 'sounds/voice_join.mp3',
-    CALL_LEAVE: 'sounds/voice_leave.mp3',
-    MUTE: 'sounds/message_notify.mp3', // Placeholder until mute.mp3 is added
-    UNMUTE: 'sounds/message_notify.mp3', // Placeholder until unmute.mp3 is added
-    VOICE_JOIN: 'sounds/voice_join.mp3',
-    VOICE_LEAVE: 'sounds/voice_leave.mp3',
-    SCREENSHARE_ON: 'sounds/screenshare_on.mp3',
-    SCREENSHARE_TOGGLE: 'sounds/screenshare_toggle.mp3'
+    MESSAGE_NOTIFY: 'sounds/новое сообщение или упоминание.wav',
+    CALL_RINGING: 'sounds/Входящий_звонок.wav',
+    CALL_OUTGOING: 'sounds/Исходящий_гудок.wav',
+    CALL_JOIN: 'sounds/Подключение к гч на сервере.wav',
+    CALL_LEAVE: 'sounds/выход из гч сервера.wav',
+    MUTE: 'sounds/микрофон вкл и выкл.wav',
+    UNMUTE: 'sounds/микрофон вкл и выкл.wav',
+    VOICE_JOIN: 'sounds/Подключение к гч на сервере.wav',
+    VOICE_LEAVE: 'sounds/выход из гч сервера.wav',
+    SCREENSHARE_ON: 'sounds/запуск стрима.wav',
+    SCREENSHARE_OFF: 'sounds/выкл стрим.wav'
 };
 
 export class SoundManager {

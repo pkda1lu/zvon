@@ -9,6 +9,7 @@ import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIco
 import ScreenSourceSelector from './ScreenSourceSelector';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
+import UserAvatar from './UserAvatar';
 import './VoiceChannelView.css';
 
 interface VoiceChannelViewProps {
@@ -40,13 +41,12 @@ const VoiceParticipantCard = React.memo<{
       )}
 
       <div className="p-avatar-wrap">
-        <div className="p-avatar">
-          {getAvatarUrl(participant.avatar) ? (
-            <img src={getAvatarUrl(participant.avatar)!} alt={participant.username} />
-          ) : (
-            <div className="avatar-placeholder-inner">{getDisplayName(participant).charAt(0).toUpperCase()}</div>
-          )}
-        </div>
+        <UserAvatar
+          user={participant}
+          size={64}
+          animate={true}
+          className="p-avatar"
+        />
       </div>
 
       <div className="p-info">
@@ -467,13 +467,18 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     <div className="voice-channel-view">
       <header className="voice-hdr">
         <div className="hdr-left">
-          <div className="channel-status">
-            <div className="status-dot"></div>
-            <span className="status-txt">Connected</span>
-          </div>
-          <h1>{channel.name}</h1>
+          <h1>
+            <div className="voice-status-indicator inline">
+              <div className="pulse-ring"></div>
+              <div className="status-dot"></div>
+            </div>
+            {channel.name}
+          </h1>
         </div>
-        {channel.topic && <div className="channel-topic-tag">{channel.topic}</div>}
+        <div className="hdr-right">
+          {channel.topic && <div className="channel-topic-tag">{channel.topic}</div>}
+          <div className="channel-status-badge">Подключено</div>
+        </div>
       </header>
 
       {contextMenu && (

@@ -12,8 +12,10 @@ import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
 import { createPortal } from 'react-dom';
+import UserAvatar from './UserAvatar';
 import EmojiPicker from './EmojiPicker';
 import Reactions from './Reactions';
+import StickyPins from './StickyPins';
 import { SmileIcon } from './Icons';
 import './DMView.css';
 import './Attachments.css';
@@ -290,23 +292,35 @@ const DMView: React.FC<DMViewProps> = ({
   };
 
   useEffect(() => {
+    // Initial jump to bottom or unread
     if (messages.length > 0 && !hasScrolledToNew) {
-      const scrollToTarget = () => {
-        const container = scrollContainerRef.current;
-        if (initialUnreadCount > 0 && unreadRef.current && container) {
-          // Calculate offset to scroll to the unread marker
-          const element = unreadRef.current;
-          container.scrollTop = element.offsetTop - 100; // Show some context above
-        } else if (container) {
-          container.scrollTop = container.scrollHeight;
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+
+      const performScroll = () => {
+        if (initialUnreadCount > 0 && unreadRef.current) {
+          scrollContainer.scrollTop = unreadRef.current.offsetTop - 100;
+        } else {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
         }
       };
-      scrollToTarget();
-      const t = setTimeout(scrollToTarget, 100);
+
+      // Execute immediately and then after a short delay for late-rendering elements
+      performScroll();
+      const t1 = setTimeout(performScroll, 50);
+      const t2 = setTimeout(performScroll, 200);
+      const t3 = setTimeout(performScroll, 500);
+
       setHasScrolledToNew(true);
-      return () => clearTimeout(t);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    } else if (messages.length === 0 && hasScrolledToNew) {
+      setHasScrolledToNew(false);
     }
-  }, [dm._id, messages.length, initialUnreadCount, hasScrolledToNew]);
+  }, [messages.length, initialUnreadCount, hasScrolledToNew, dm._id]);
 
   useEffect(() => {
     if (hasScrolledToNew) {
@@ -393,14 +407,15 @@ const DMView: React.FC<DMViewProps> = ({
           </button>
 
           <div className="dm-header-info" onClick={(e) => otherUser && onUserClick(otherUser._id, e)} style={{ cursor: 'pointer' }}>
-            <div className="dm-avatar">
-              {getAvatarUrl(otherUser?.avatar) ? (
-                <img src={getAvatarUrl(otherUser?.avatar)!} alt="" />
-              ) : (
-                <span>{otherUser?.username.charAt(0).toUpperCase()}</span>
-              )}
-              <div className={`status-indicator ${otherUser?.status}`}></div>
-            </div>
+            <UserAvatar
+              user={otherUser}
+              size={40}
+              className="dm-avatar"
+              onClick={(e) => {
+                e.stopPropagation();
+                otherUser && onUserClick(otherUser._id, e);
+              }}
+            />
             <div>
               <h3>{otherUser?.username}</h3>
               <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
@@ -431,7 +446,7 @@ const DMView: React.FC<DMViewProps> = ({
                   pinnedMessages.map(msg => (
                     <div key={msg._id} className="pin-item">
                       <div className="pin-author">
-                        <img src={getAvatarUrl(msg.author.avatar) || ''} alt="" />
+                        <UserAvatar user={msg.author} size={24} className="pin-avatar-comp" />
                         <span className="pin-name">{msg.author.username}</span>
                         <span className="pin-date">{formatDate(msg.createdAt)}</span>
                       </div>
@@ -444,6 +459,8 @@ const DMView: React.FC<DMViewProps> = ({
             </div>
           </div>
         )}
+
+        <StickyPins pinnedMessages={pinnedMessages} onOpenPins={() => setShowPins(true)} />
 
         <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
           {isLoadingMore && <div className="loading-more">Загрузка...</div>}
@@ -488,18 +505,19 @@ const DMView: React.FC<DMViewProps> = ({
                         <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
                           <div className="reply-line" />
                           <ReplyIcon size={12} className="reply-icon-mini" />
-                          <img src={getAvatarUrl(msg.replyTo.author.avatar) || ''} alt="" className="reply-avatar" />
+                          <UserAvatar user={msg.replyTo.author} size={16} className="reply-avatar" />
                           <span className="reply-author">{msg.replyTo.author.username}</span>
                           <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
                         </div>
                       )}
                       {!grouped && (
-                        <div className="message-author-avatar" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>
-                          {getAvatarUrl(msg.author.avatar) ? (
-                            <img src={getAvatarUrl(msg.author.avatar)!} alt="" />
-                          ) : (
-                            <span>{msg.author.username.charAt(0).toUpperCase()}</span>
-                          )}
+                        <div className="message-author-avatar-wrap">
+                          <UserAvatar
+                            user={msg.author}
+                            size={40}
+                            className="message-author-avatar"
+                            onClick={(e) => onUserClick(msg.author._id, e)}
+                          />
                         </div>
                       )}
                       {grouped && <div className="message-time-mini">{new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}

@@ -746,6 +746,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             screenStreamRef.current = stream;
             setScreenStream(stream);
             setIsScreenSharing(true);
+            soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
 
             if (socket && activeChannelId) {
                 socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: true });
@@ -766,7 +767,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         nativeAudioManager.stopCapture();
         setScreenStream(null);
         setIsScreenSharing(false);
-        soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.4);
+        soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
 
         if (socket && activeChannelId) {
             socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing: false });
@@ -984,7 +985,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     if (data.isScreenSharing && (!oldState || !oldState.isScreenSharing)) {
                         soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
                     } else if (!data.isScreenSharing && oldState && oldState.isScreenSharing) {
-                        soundManager.play(SOUNDS.SCREENSHARE_TOGGLE, 0.4);
+                        soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
                     }
                 }
 
@@ -1032,6 +1033,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         socket.on('voice-user-joined', (data) => {
             if (data.userId !== user?._id) {
                 setConnectedUsers(prev => prev.find(u => u._id === data.user._id) ? prev : [...prev, data.user]);
+                soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
 
                 // Initialize user state
                 setUserStates(prev => {
@@ -1047,7 +1049,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 });
             }
         });
-        socket.on('voice-user-left', (data) => setConnectedUsers(prev => prev.filter(u => u._id !== data.userId)));
+        socket.on('voice-user-left', (data) => {
+            setConnectedUsers(prev => prev.filter(u => u._id !== data.userId));
+            soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
+        });
         socket.on('voice-user-state-update', handleUserStateUpdate);
         socket.on('force-join-voice', handleForceJoin);
         socket.on('voice-server-state-update', handleServerStateUpdate);

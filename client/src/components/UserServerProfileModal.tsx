@@ -4,6 +4,7 @@ import { Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { CloseIcon, PlusIcon } from './Icons';
+import UserAvatar from './UserAvatar';
 import './UserServerProfileModal.css';
 
 interface UserServerProfileModalProps {
@@ -84,7 +85,21 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
                             <div className="preview-banner" style={{ backgroundImage: banner ? `url(${getFullUrl(banner)})` : (user.banner ? `url(${getFullUrl(user.banner)})` : 'none'), backgroundColor: '#5865f2' }}>
                                 <button className="edit-banner-btn" onClick={() => bannerInputRef.current?.click()}>Изменить баннер</button>
                             </div>
-                            <div className="preview-header"><div className="preview-avatar-container"><div className="preview-avatar"><img src={getAvatarUrl(avatar || user.avatar)!} alt="" /><div className="avatar-edit-overlay" onClick={() => avatarInputRef.current?.click()}><PlusIcon size={20} /></div></div></div></div>
+                            <div className="preview-header">
+                                <div className="preview-avatar-container">
+                                    <div className="preview-avatar-wrap">
+                                        <UserAvatar
+                                            user={{ ...user, avatar: avatar || user.avatar }}
+                                            size={80}
+                                            animate={true}
+                                            className="preview-avatar"
+                                        />
+                                        <div className="avatar-edit-overlay" onClick={() => avatarInputRef.current?.click()}>
+                                            <PlusIcon size={20} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div className="preview-info"><div className="preview-name">{nickname || user.username}</div><div className="preview-username">{user.username}</div><div className="preview-divider" /><div className="preview-bio-label">О СЕБЕ</div><div className="preview-bio">{bio || user.bio || 'Нет описания'}</div></div>
                         </div>
                     </div>

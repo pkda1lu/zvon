@@ -39,7 +39,10 @@ router.put('/profile', auth, async (req, res) => {
       if (existingUser && existingUser._id.toString() !== req.user._id.toString()) return res.status(400).json({ message: 'Username already taken' });
       req.user.username = username;
     }
-    if (status) req.user.status = status;
+    if (status) {
+      req.user.status = status;
+      req.user.statusPreference = status;
+    }
     if (bio !== undefined) req.user.bio = bio;
     await req.user.save();
     const io = req.app.get('io');
@@ -54,6 +57,7 @@ router.put('/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
     req.user.status = status;
+    req.user.statusPreference = status;
     await req.user.save();
     const io = req.app.get('io');
     if (io) io.emit('user-updated', { _id: req.user._id, status: req.user.status });

@@ -93,7 +93,7 @@ router.post('/login', [
 
     // Verification and 2FA disabled - returning token immediately
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    user.status = 'online';
+    user.status = user.statusPreference || 'online';
     await user.save();
 
     return res.json({
@@ -129,7 +129,7 @@ router.post('/verify-login', [
     // Clear code
     user.verificationCode = undefined;
     user.verificationCodeExpires = undefined;
-    user.status = 'online';
+    user.status = user.statusPreference || 'online';
     await user.save();
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });

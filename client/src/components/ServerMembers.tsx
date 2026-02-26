@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Server, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import MemberContextMenu from './MemberContextMenu';
+import UserAvatar from './UserAvatar';
 import './ServerMembers.css';
 
 interface ServerMembersProps {
@@ -73,12 +74,12 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                     onClick={(e) => onUserClick(member.user._id, e)}
                                                     onContextMenu={(e) => handleContextMenu(e, member.user)}
                                                 >
-                                                    <div className="member-avatar">
-                                                        {getAvatarUrl(member.avatar || member.user.avatar) ? (
-                                                            <img src={getAvatarUrl(member.avatar || member.user.avatar)!} alt={member.user.username} />
-                                                        ) : (
-                                                            <span>{(member.nickname || member.user.username).charAt(0).toUpperCase()}</span>
-                                                        )}
+                                                    <div className="member-avatar-wrap">
+                                                        <UserAvatar
+                                                            user={member.user}
+                                                            size={32}
+                                                            className="member-avatar"
+                                                        />
                                                         <div className={`status-indicator ${member.user.status}`}></div>
                                                     </div>
                                                     <div className="member-info">
@@ -117,12 +118,12 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                 onClick={(e) => onUserClick(member.user._id, e)}
                                                 onContextMenu={(e) => handleContextMenu(e, member.user)}
                                             >
-                                                <div className="member-avatar">
-                                                    {getAvatarUrl(member.avatar || member.user.avatar) ? (
-                                                        <img src={getAvatarUrl(member.avatar || member.user.avatar)!} alt={member.user.username} />
-                                                    ) : (
-                                                        <span>{(member.nickname || member.user.username).charAt(0).toUpperCase()}</span>
-                                                    )}
+                                                <div className="member-avatar-wrap">
+                                                    <UserAvatar
+                                                        user={member.user}
+                                                        size={32}
+                                                        className="member-avatar"
+                                                    />
                                                     <div className={`status-indicator ${member.user.status}`}></div>
                                                 </div>
                                                 <div className="member-info">
@@ -158,12 +159,12 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                 onClick={(e) => onUserClick(member.user._id, e)}
                                                 onContextMenu={(e) => handleContextMenu(e, member.user)}
                                             >
-                                                <div className="member-avatar">
-                                                    {getAvatarUrl(member.avatar || member.user.avatar) ? (
-                                                        <img src={getAvatarUrl(member.avatar || member.user.avatar)!} alt={member.user.username} />
-                                                    ) : (
-                                                        <span>{(member.nickname || member.user.username).charAt(0).toUpperCase()}</span>
-                                                    )}
+                                                <div className="member-avatar-wrap">
+                                                    <UserAvatar
+                                                        user={member.user}
+                                                        size={32}
+                                                        className="member-avatar"
+                                                    />
                                                     <div className={`status-indicator ${member.user.status}`}></div>
                                                 </div>
                                                 <span className="member-name" style={{ color: memberColor }}>

@@ -3,6 +3,7 @@ import { User, Server } from '../types';
 import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
 import { getAvatarUrl } from '../utils/avatar';
+import UserAvatar from './UserAvatar';
 import { UsersIcon, PlusIcon, SettingsIcon, BellIcon } from './Icons';
 import ServerContextMenu from './ServerContextMenu';
 import './Sidebar.css';
@@ -74,11 +75,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             onContextMenu={(e) => handleContextMenu(e, server)}
             title={server.name}
           >
-            {server.icon ? (
-              <img src={getAvatarUrl(server.icon)!} alt={server.name} />
-            ) : (
-              <span>{server.name.charAt(0).toUpperCase()}</span>
-            )}
+            <UserAvatar
+              user={{ username: server.name, avatar: server.icon }}
+              size={48}
+              className="server-icon-avatar"
+            />
             {server.channels.some(c => unreadCounts[c._id] > 0) && (
               <div className="unread-badge"></div>
             )}
@@ -88,15 +89,16 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="sidebar-user">
         <div
-          className="user-avatar"
+          className="user-avatar-wrapper"
           title={`${user.username} (${user.status})`}
           onClick={(e) => onOpenProfile(user._id, e)}
+          style={{ position: 'relative' }}
         >
-          {getAvatarUrl(user.avatar) ? (
-            <img src={getAvatarUrl(user.avatar)!} alt={user.username} />
-          ) : (
-            <span>{user.username.charAt(0).toUpperCase()}</span>
-          )}
+          <UserAvatar
+            user={user}
+            size={38}
+            className="user-avatar"
+          />
           <div className={`status-indicator ${user.status}`}></div>
         </div>
         <button className="logout-button" onClick={onOpenSettings} title="Настройки">

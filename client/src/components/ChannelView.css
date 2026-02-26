@@ -354,34 +354,16 @@
 }
 
 .message-author-avatar {
-  width: var(--avatar-size, 42px);
-  height: var(--avatar-size, 42px);
-  border-radius: var(--avatar-radius, 14px);
-  /* Squircle */
-  background: var(--bg-accent, #5865f2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: 600;
-  font-size: 16px;
-  margin-right: 16px;
+  border-radius: var(--avatar-radius, 14px) !important;
   flex-shrink: 0;
-  border: 1px solid var(--glass-border);
+  overflow: hidden;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   transition: var(--fast-transition);
-  will-change: transform;
 }
 
-.message:hover .message-author-avatar {
-  transform: scale(1.05);
-}
-
-.message-author-avatar img {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--avatar-radius, 14px);
-  object-fit: cover;
+.message-author-avatar-wrap {
+  margin-right: 16px;
+  flex-shrink: 0;
 }
 
 .message-content {

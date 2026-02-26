@@ -48,6 +48,11 @@ const userSchema = new mongoose.Schema({
     enum: ['online', 'offline', 'away', 'busy'],
     default: 'offline'
   },
+  statusPreference: {
+    type: String,
+    enum: ['online', 'away', 'busy', 'offline'],
+    default: 'online'
+  },
   servers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Server'

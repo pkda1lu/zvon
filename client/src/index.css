@@ -302,3 +302,15 @@ body {
   background: linear-gradient(90deg, rgba(255, 174, 0, 0.08) 0%, transparent 100%);
   pointer-events: none;
 }
+
+@keyframes voicePulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}

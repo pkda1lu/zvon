@@ -115,11 +115,15 @@
 }
 
 .attachment-image-container,
-.attachment-video-wrapper,
+.attachment-video-wrapper {
+    position: relative;
+    line-height: 0;
+}
+
 .attachment-audio-container,
 .attachment-file-container {
     position: relative;
-    line-height: 0;
+    line-height: normal;
 }
 
 .attachment-image {
@@ -188,6 +192,14 @@
     border: 1px solid var(--glass-border);
     transition: all 0.2s;
     font-weight: 500;
+    flex: 1;
+    min-width: 0;
+}
+
+.attachment-file span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .attachment-file:hover {

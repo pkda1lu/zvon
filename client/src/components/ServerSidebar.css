@@ -243,6 +243,36 @@
   color: var(--text-muted);
   transition: all 0.2s;
   opacity: 0.7;
+  width: 20px;
+}
+
+.voice-status-indicator.sidebar-inline {
+  width: 14px;
+  height: 14px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-status-indicator.sidebar-inline .status-dot {
+  width: 6px;
+  height: 6px;
+  background: #23a559;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #23a559;
+  position: absolute;
+  z-index: 2;
+}
+
+.voice-status-indicator.sidebar-inline .pulse-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1.5px solid #23a559;
+  animation: voicePulse 2s infinite;
+  z-index: 1;
 }
 
 .channel-item:hover .channel-icon,
