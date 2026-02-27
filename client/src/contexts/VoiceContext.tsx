@@ -286,6 +286,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const roomRef = useRef<Room | null>(null);
     const isJoiningRef = useRef(false);
+    const remoteSpeakingUsersRef = useRef<Set<string>>(new Set());
     const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
     const sourcesRef = useRef<Map<string, MediaStreamAudioSourceNode>>(new Map());
     const workletNodesRef = useRef<Map<string, AudioWorkletNode>>(new Map());
@@ -480,25 +481,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     const tracks = existing ? [...existing.getTracks().filter(t => t.kind !== track.kind), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
                     const stream = new MediaStream(tracks);
 
-                    if (track.kind === Track.Kind.Audio) {
-                        try {
-                            const ctx = getAudioContext();
-
-                            // Disconnect old source if exists
-                            if (sourcesRef.current.has(userId)) {
-                                sourcesRef.current.get(userId)?.disconnect();
-                            }
-
-                            const source = ctx.createMediaStreamSource(stream);
-                            const analyser = ctx.createAnalyser();
-                            analyser.fftSize = 256;
-                            source.connect(analyser);
-
-                            analysersRef.current.set(userId, analyser);
-                            sourcesRef.current.set(userId, source);
-                        } catch (e) { console.warn('Analyser failed for', userId, e); }
-                    }
-
                     return new Map(prev).set(userId, stream);
                 });
             }
@@ -533,14 +515,6 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const existing = prev.get(userId);
                 if (!existing) return prev;
                 const remaining = existing.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
-
-                if (track.kind === Track.Kind.Audio) {
-                    analysersRef.current.delete(userId);
-                    if (sourcesRef.current.has(userId)) {
-                        sourcesRef.current.get(userId)?.disconnect();
-                        sourcesRef.current.delete(userId);
-                    }
-                }
 
                 if (remaining.length === 0) {
                     const next = new Map(prev);
@@ -611,6 +585,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         analysersRef.current.clear();
         sourcesRef.current.forEach(s => s.disconnect());
         sourcesRef.current.clear();
+        remoteSpeakingUsersRef.current.clear();
 
         if (vadSourceRef.current) {
             vadSourceRef.current.disconnect();
@@ -825,11 +800,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             room
                 .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
                     const ids = new Set(speakers.map(s => s.identity));
-                    setSpeakingUsers(prev => {
-                        // Check if local user is speaking (VAD logic handles it but LiveKit might too)
-                        // For now, merged LiveKit speakers with local VAD
-                        return ids;
-                    });
+                    remoteSpeakingUsersRef.current = ids;
                 })
                 .on(RoomEvent.ConnectionStateChanged, (state) => {
                     console.log('[LiveKit] Connection state changed:', state);
@@ -849,6 +820,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 })
                 .on(RoomEvent.ParticipantDisconnected, (participant) => {
                     console.log('[LiveKit] Participant disconnected:', participant.identity);
+                    remoteSpeakingUsersRef.current.delete(participant.identity);
                     setRemoteStreams(prev => {
                         const next = new Map(prev);
                         next.delete(participant.identity);
@@ -1242,23 +1214,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 // Track gating for mute/deafen is handled by toggleMute/toggleDeafen/syncMuteState.
             }
 
-            // Analyze Remote Users (Still using analysers for simpler integration)
-            analysersRef.current.forEach((analyser, userId) => {
+            // Add remote speakers known from LiveKit ActiveSpeakersChanged
+            remoteSpeakingUsersRef.current.forEach(userId => {
                 if (userId === localId) return;
-
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                analyser.getByteTimeDomainData(dataArray);
-                let sumOfSquares = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                    const normalized = (dataArray[i] - 128) / 128;
-                    sumOfSquares += normalized * normalized;
-                }
-                const rms = Math.sqrt(sumOfSquares / dataArray.length);
-                const db = rms > 1e-5 ? 20 * Math.log10(rms) : -100;
                 const state = userStates.get(userId);
                 const isUserMuted = state?.isMuted || state?.isServerMuted || state?.isDeafened || state?.isServerDeafened;
-
-                if (db > -50 && !isUserMuted) nowSpeaking.add(userId);
+                if (!isUserMuted) nowSpeaking.add(userId);
             });
 
             // Deep comparison to prevent redundant state updates

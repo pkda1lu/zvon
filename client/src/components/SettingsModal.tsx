@@ -1038,6 +1038,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <LogOutIcon size={18} /> Выйти из аккаунта
             </div>
 
+            <div className="settings-sidebar-footer" style={{ marginTop: '20px', textAlign: 'center', fontSize: '11px', color: 'var(--text-dim)' }}>
+              <a
+                href="https://t.me/vless_outline_channel"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary-neon)'}
+                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+              >
+                prod by Vlyne {"<3"}
+              </a>
+            </div>
+
           </div>
         </div>
 

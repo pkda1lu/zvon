@@ -16,11 +16,12 @@ import { Role } from '../types';
 import { computePermissions, hasPermission, Permissions } from '../utils/permissions';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
 import EmojiPicker from './EmojiPicker';
+import GifPicker from './GifPicker';
 import Reactions from './Reactions';
-import { SmileIcon } from './Icons';
 import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
 import StickyPins from './StickyPins';
+import { SmileIcon } from './Icons';
 
 interface ChannelViewProps {
   channel: Channel;
@@ -286,6 +287,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   } = useChatSettings();
   const [message, setMessage] = useState('');
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
 
   const userPermissions = useMemo(() => {
     if (!user) return 0n;
@@ -479,6 +481,21 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     socket.emit('typing-stop', { channelId: channel._id });
   };
 
+  const handleGifSelect = (url: string) => {
+    if (!socket) return;
+    const attachment = { url, filename: 'tenor.gif', type: 'image/gif', size: 0 };
+    socket.emit('send-message', {
+      content: '',
+      channelId: channel._id,
+      attachments: [attachment],
+      replyToId: replyToMessage?._id
+    });
+    setShowGifPicker(null);
+    setReplyToMessage(null);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    socket.emit('typing-stop', { channelId: channel._id });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const formData = new FormData();
@@ -488,6 +505,27 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         setAttachments(prev => [...prev, ...response.data]);
       } catch (error) {
         alert('Ошибка загрузки файла');
+      }
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+      // Allow default paste if it's just text, prevent default if it's a file to avoid text pasting of filename
+      const items = Array.from(e.clipboardData.items);
+      const isFile = items.some(item => item.kind === 'file');
+
+      if (isFile) {
+        e.preventDefault();
+        const files = Array.from(e.clipboardData.files);
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+        try {
+          const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+          setAttachments(prev => [...prev, ...response.data]);
+        } catch (error) {
+          alert('Ошибка загрузки файла');
+        }
       }
     }
   };
@@ -537,38 +575,78 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const renderMessageContent = (content: string, mentions: User[] = []) => {
-    if (!content) return null;
-    const parts = content.split(/(@\w+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
-        const name = part.substring(1);
-        const isUserMention = mentions.some(m => m.username === name);
-        const role = server.roles?.find(r => r.name === name);
-        const isSpecialMention = name === 'everyone' || name === 'here';
+    const parts = content.split(/(@\w+)|(```[\s\S]*?```)/g);
 
-        if (isUserMention || role || isSpecialMention) {
-          const userMention = mentions.find(m => m.username === name);
-          const color = role ? role.color : (isSpecialMention ? 'var(--primary-neon)' : 'inherit');
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (!part) return null;
 
-          return (
-            <span
-              key={i}
-              className={`mention-tag ${role ? 'role-mention' : (isSpecialMention ? 'special-mention' : 'user-mention')}`}
-              style={color !== 'inherit' ? { color: color } : {}}
-              onClick={(e) => {
-                if (userMention) {
-                  e.stopPropagation();
-                  onUserClick(userMention._id, e);
-                }
-              }}
-            >
-              {part}
-            </span>
-          );
-        }
-      }
-      return part;
-    });
+          if (typeof part !== 'string') return null;
+
+          if (part.startsWith('```') && part.endsWith('```')) {
+            const match = part.match(/```(\w*)\n?([\s\S]*?)```/);
+            if (match) {
+              const lang = match[1] || 'text';
+              const code = match[2];
+              return (
+                <div
+                  key={`code-${i}`}
+                  className="code-block-wrapper"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    margin: '8px 0',
+                    borderRadius: '6px',
+                    background: '#1e1e1e',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '12px',
+                    overflowX: 'auto',
+                    fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                    fontSize: '13px',
+                    color: '#d4d4d4'
+                  }}
+                >
+                  {lang && <div style={{ color: '#569cd6', marginBottom: '8px', fontSize: '11px', textTransform: 'uppercase', userSelect: 'none' }}>{lang}</div>}
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    <code>{code.replace(/^\n/, '').replace(/\n$/, '')}</code>
+                  </pre>
+                </div>
+              );
+            }
+          }
+
+          if (part.startsWith('@')) {
+            const name = part.substring(1);
+            const isUserMention = mentions.some(m => m.username === name);
+            const role = server.roles?.find(r => r.name === name);
+            const isSpecialMention = name === 'everyone' || name === 'here';
+
+            if (isUserMention || role || isSpecialMention) {
+              const userMention = mentions.find(m => m.username === name);
+              const color = role ? role.color : (isSpecialMention ? 'var(--primary-neon)' : 'inherit');
+
+              return (
+                <span
+                  key={`mention-${i}`}
+                  className={`mention-tag ${role ? 'role-mention' : (isSpecialMention ? 'special-mention' : 'user-mention')}`}
+                  style={color !== 'inherit' ? { color: color } : {}}
+                  onClick={(e) => {
+                    if (userMention) {
+                      e.stopPropagation();
+                      onUserClick(userMention._id, e);
+                    }
+                  }}
+                >
+                  {part}
+                </span>
+              );
+            }
+          }
+
+          return <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>;
+        })}
+      </>
+    );
   };
 
   const removeAttachment = (index: number) => setAttachments(prev => prev.filter((_, i) => i !== index));
@@ -808,7 +886,12 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           </div>
         )}
         <form onSubmit={handleSendMessage} className="message-form">
-          <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()}><PlusIcon /></button>
+          <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">
+            <PlusIcon />
+          </button>
+          <button type="button" className="attachment-button" onClick={(e) => setShowGifPicker(showGifPicker ? null : { x: e.clientX, y: e.clientY - 400 })} title="Отправить GIF">
+            <div style={{ fontWeight: 800, fontSize: '10px', border: '2px solid currentColor', borderRadius: '4px', padding: '1px 3px', display: 'flex' }}>GIF</div>
+          </button>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
           <div style={{ flex: 1, position: 'relative' }}>
             {showScrollBottom && (
@@ -838,6 +921,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               placeholder={`Написать в #${channel.name}`}
               value={message}
               onChange={handleTyping}
+              onPaste={handlePaste}
               className="message-input"
               style={{ width: '100%' }}
             />
@@ -847,6 +931,28 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       </div>
       {contextMenu && (
         <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onMention={handleMention} onOpenProfile={onUserClick} />
+      )}
+      {showGifPicker && createPortal(
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+          onClick={() => setShowGifPicker(null)}
+        >
+          <div
+            style={{
+              position: 'fixed',
+              top: Math.max(10, showGifPicker.y),
+              left: Math.max(10, showGifPicker.x),
+              zIndex: 10000
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <GifPicker
+              onSelect={handleGifSelect}
+              onClose={() => setShowGifPicker(null)}
+            />
+          </div>
+        </div>,
+        document.body
       )}
       <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />
     </div>

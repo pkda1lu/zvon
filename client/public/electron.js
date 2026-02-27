@@ -328,6 +328,28 @@ function createWindow() {
         const allowed = ['media', 'microphone', 'camera'];
         return allowed.includes(permission);
     });
+
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        const template = [];
+        if (params.isEditable) {
+            template.push({ role: 'undo', label: 'Отменить' });
+            template.push({ role: 'redo', label: 'Повторить' });
+            template.push({ type: 'separator' });
+            template.push({ role: 'cut', label: 'Вырезать' });
+        }
+        if (params.selectionText.trim().length > 0 || params.isEditable) {
+            template.push({ role: 'copy', label: 'Копировать' });
+        }
+        if (params.isEditable) {
+            template.push({ role: 'paste', label: 'Вставить' });
+            template.push({ role: 'selectAll', label: 'Выбрать все' });
+        }
+        if (template.length > 0) {
+            const menu = Menu.buildFromTemplate(template);
+            menu.popup({ window: mainWindow });
+        }
+    });
+
     mainWindow.webContents.on('did-finish-load', () => {
         if (pendingDeepLink) mainWindow.webContents.send('deep-link', pendingDeepLink);
     });
