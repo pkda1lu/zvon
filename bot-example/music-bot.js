@@ -210,10 +210,22 @@ socket.on("new-message", async (msg) => {
                     if (query.includes("playlists/")) {
                         const parts = cleanUrl.split("/");
                         const kind = parts[parts.indexOf("playlists") + 1];
+                        let owner = null;
                         if (query.includes("/users/")) {
-                            res = await yandexClient.playlists.getPlaylistById(parts[parts.indexOf("users") + 1], kind);
-                        } else {
-                            // Try search first
+                            owner = parts[parts.indexOf("users") + 1];
+                        }
+
+                        // Try direct API with owner and kind if possible
+                        if (owner && kind) {
+                            try {
+                                res = await yandexClient.playlists.getPlaylistById(owner, kind);
+                            } catch (e) {
+                                console.warn(`[Yandex] Direct API failed for ${owner}/${kind}: ${e.message}`);
+                            }
+                        }
+
+                        // If still no res, try searching for the playlist metadata
+                        if (!res?.result?.tracks?.length) {
                             const sRes = await yandexClient.search.search(kind, 0, 'playlist');
                             const disc = sRes.result.playlists?.results?.find(p => p.playlistUuid === kind || p.kind.toString() === kind);
                             if (disc) res = await yandexClient.playlists.getPlaylistById(disc.owner.uid || disc.owner.login, disc.kind);
@@ -230,12 +242,12 @@ socket.on("new-message", async (msg) => {
                         const html = hRes.data;
 
                         const tIds = [
-                            ...html.matchAll(/track\/(\d+)/g),
+                            ...html.matchAll(/\/track\/(\d+)/g),
                             ...html.matchAll(/"id":"(\d+)"/g),
                             ...html.matchAll(/"trackId":(\d+)/g),
-                            ...html.matchAll(/data-id="(\d+)"/g), // Match numeric data-id
+                            ...html.matchAll(/data-id="(\d+)"/g),
                             ...html.matchAll(/track-id="(\d+)"/g)
-                        ].map(m => m[1] || m[2] || m[3]);
+                        ].map(m => m[1]);
                         const uniqueIds = [...new Set(tIds)].filter(id => id && id.length > 3);
 
                         if (uniqueIds.length) {
