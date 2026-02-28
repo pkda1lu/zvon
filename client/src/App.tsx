@@ -5,6 +5,8 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import InvitePage from './pages/InvitePage';
+import Docs from './pages/Docs';
+import Policy from './pages/Policy';
 import Home from './Home';
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
@@ -158,6 +160,8 @@ function App() {
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="/invite/:code" element={<InvitePage />} />
+                        <Route path="/docs" element={<Docs />} />
+                        <Route path="/policy" element={<Policy />} />
                         <Route path="/" element={<Home />} />
                         <Route path="/*" element={<Home />} />
                       </Routes>
