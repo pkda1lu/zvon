@@ -275,31 +275,43 @@ socket.on("new-message", async (msg) => {
                             });
                             const html = hRes.data;
 
-                            // 1. Try to find Next.js hydration data (most reliable)
+                            // Find all track IDs in links (/album/XXX/track/ID or /track/ID)
+                            // We use a Set to keep them unique and in order
+                            const tIds = [];
+
+                            // 1. Links /track/12345
+                            const linkMatches = [...html.matchAll(/\/track\/(\d+)/g)];
+                            linkMatches.forEach(m => tIds.push(m[1]));
+
+                            // 2. Data attributes (common in mobile/older views)
+                            const dataIdMatches = [...html.matchAll(/data-id="(\d+)"/g)];
+                            dataIdMatches.forEach(m => tIds.push(m[1]));
+
+                            // 3. Search in all script tags for track-related JSON
+                            const scriptMatches = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
+                            scriptMatches.forEach(script => {
+                                const content = script[1];
+                                // Look for "track":{..."id":1234} within a track object
+                                const trackJsonMatches = [...content.matchAll(/"track"\s*:\s*{[^}]*"id"\s*:\s*(\d+)/g)];
+                                trackJsonMatches.forEach(m => tIds.push(m[1]));
+
+                                // Look for "trackId":1234
+                                const trackIdMatches = [...content.matchAll(/"trackId"\s*:\s*(\d+)/g)];
+                                trackIdMatches.forEach(m => tIds.push(m[1]));
+                            });
+
+                            // 4. Special Next.js hydration check (decoded)
                             const nextData = html.match(/self\.__next_f\.push\(\[1,"(.*?)",/);
                             if (nextData) {
-                                // This is a bit complex, but let's try to find "trackId":XXXX in the decoded string
                                 const decoded = nextData[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
                                 const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
-                                if (matches.length > 0) {
-                                    return { ids: [...new Set(matches)], html: html };
-                                }
+                                matches.forEach(m => tIds.push(m));
                             }
 
-                            // 2. Strict regex for track links in the main list
-                            // We look for /album/X/track/Y and take the Y
-                            const trackLinkMatches = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
-
-                            // 3. Last resort: JSON script tags
-                            let jsonIds = [];
-                            if (trackLinkMatches.length < 5) {
-                                // Look for track metadata blocks
-                                const trackBlocks = [...html.matchAll(/"track":{[^}]*"id":(\d+)/g)].map(m => m[1]);
-                                jsonIds = trackBlocks;
-                            }
-
-                            const resultIds = trackLinkMatches.length >= 5 ? trackLinkMatches : jsonIds;
-                            return { ids: [...new Set(resultIds)].filter(id => id && id.length > 4), html: html };
+                            // Filter: IDs are usually 5+ digits. Remove any ID that appears too few times if there are many others?
+                            // No, just unique them.
+                            const uniqueIds = [...new Set(tIds)].filter(id => id && id.length >= 6);
+                            return { ids: uniqueIds, html: html };
                         };
 
                         // 1. Desktop Try
@@ -317,24 +329,38 @@ socket.on("new-message", async (msg) => {
                         }
 
                         if (uniqueIds.length) {
-                            console.log(`[Yandex] Scraper: Found ${uniqueIds.length} track IDs.`);
-                            const trks = await yandexClient.tracks.getTracks({ 'track-ids': uniqueIds.slice(0, 100) });
-                            res = {
-                                result: {
-                                    tracks: trks.result.map(t => ({ track: t })),
-                                    title: scrapedHtml.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+                            console.log(`[Yandex] Scraper: Found ${uniqueIds.length} candidate track IDs. Requesting metadata...`);
+                            try {
+                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': uniqueIds.slice(0, 100) });
+                                if (trks && trks.result && trks.result.length > 0) {
+                                    res = {
+                                        result: {
+                                            tracks: trks.result.map(t => ({ track: t })),
+                                            title: scrapedHtml.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+                                        }
+                                    };
+                                } else {
+                                    console.log("[Yandex] getTracks returned no results for these IDs.");
                                 }
-                            };
+                            } catch (e) {
+                                console.error(`[Yandex] getTracks API error: ${e.message}`);
+                            }
                         }
                     }
 
-                    if (!res?.result?.tracks?.length) throw new Error("Плейлист пуст или недоступен (чекните ссылку).");
+                    if (!res?.result?.tracks?.length) {
+                        console.warn("[Yandex] Final check: No tracks found. IDs were:", uniqueIds?.slice(0, 5));
+                        throw new Error("Плейлист пуст или недоступен (чекните ссылку).");
+                    }
                     added = res.result.tracks.map(t => {
                         const trk = t.track || t;
                         return { ...trk, id: trk.id.toString().split(':')[0] };
                     });
                     socket.emit("send-message", { content: `📂 Загружено **${added.length}** треков: **${res.result.title || 'Плейлист'}**`, channelId: msg.channel });
-                } catch (e) { throw new Error(`Ошибка загрузки: ${e.message}`); }
+                } catch (e) {
+                    console.error("[Yandex] Playlist load error:", e.message);
+                    throw new Error(`Ошибка загрузки: ${e.message}`);
+                }
             } else {
                 const sRes = await yandexClient.search.search(query, 0, 'all');
                 const t = sRes.result.tracks?.results?.find(trk => trk.durationMs > 40000) || sRes.result.tracks?.results?.[0];
