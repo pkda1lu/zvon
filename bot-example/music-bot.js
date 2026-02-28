@@ -109,27 +109,37 @@ async function getTrackUrlCustom(trackId, attempt = 0) {
             'X-Yandex-Music-Client': 'Android/20.01.2'
         };
 
-        // If one mirror fails, try another if available
         try {
             const downloadUrl = info.downloadInfoUrl + (info.downloadInfoUrl.includes('?') ? '&' : '?') + "format=json";
             const directRes = await axios.get(downloadUrl, { headers, timeout: 5000 });
-            const { host, path, ts, s } = directRes.data;
-            const sign = crypto.createHash('md5').update('XGRwNC9wZnduYm9n' + path.substring(1) + s).digest('hex');
-            return `https://${host}/get-mp3/${sign}/${ts}${path}`;
+
+            if (directRes.data && directRes.data.host) {
+                const { host, path, ts, s } = directRes.data;
+                const sign = crypto.createHash('md5').update('XGRwNC9wZnduYm9n' + path.substring(1) + s).digest('hex');
+                const finalUrl = `https://${host}/get-mp3/${sign}/${ts}${path}`;
+
+                // Final head check to verify Forbidden
+                try {
+                    await axios.head(finalUrl, { timeout: 3000 });
+                    return finalUrl;
+                } catch (headErr) {
+                    if (headErr.response?.status === 403 && attempt < 2) {
+                        console.log(`[Yandex] Mirror Forbidden for ${id}, retrying...`);
+                        return await getTrackUrlCustom(trackId, attempt + 1);
+                    }
+                    throw headErr;
+                }
+            }
+            throw new Error("Invalid mirror response");
         } catch (axiosErr) {
-            // If Forbidden and we have more info objects, try the next one
-            if (sortedInfo.length > 1 && attempt < sortedInfo.length - 1) {
-                console.log(`[Yandex] Mirror failed for track ${id}, trying alternative...`);
+            if (attempt < 2) {
+                console.log(`[Yandex] Mirror failed for track ${id}, retry ${attempt + 1}...`);
+                await new Promise(r => setTimeout(r, 1000));
                 return await getTrackUrlCustom(trackId, attempt + 1);
             }
             throw axiosErr;
         }
     } catch (err) {
-        if (attempt < 2) {
-            console.log(`[Yandex] Retry ${attempt + 1} for track ${id}...`);
-            await new Promise(r => setTimeout(r, 1000));
-            return await getTrackUrlCustom(trackId, attempt + 1);
-        }
         throw new Error(`Track ${id} error: ${err.message}`);
     }
 }
@@ -265,28 +275,37 @@ socket.on("new-message", async (msg) => {
                             });
                             const html = hRes.data;
 
-                            // Find all track IDs in links (/album/XXX/track/ID or /track/ID)
-                            const tIds = [
-                                ...html.matchAll(/\/track\/(\d+)/g),
-                                ...html.matchAll(/"trackId":(\d+)/g),
-                                ...html.matchAll(/"id":(\d+)/g),
-                                ...html.matchAll(/"id":"(\d+)"/g),
-                                ...html.matchAll(/data-id="(\d+)"/g)
-                            ].map(m => m[1]);
-
-                            // Special check for Next.js payloads if no easy matches
-                            if (tIds.length < 5) {
-                                // Extract anything that looks like "id":12345678 or "trackId":12345678 in scripts
-                                const rawIds = html.match(/"id":(\d{7,12})/g);
-                                if (rawIds) rawIds.forEach(idMatch => tIds.push(idMatch.split(':')[1]));
+                            // 1. Try to find Next.js hydration data (most reliable)
+                            const nextData = html.match(/self\.__next_f\.push\(\[1,"(.*?)",/);
+                            if (nextData) {
+                                // This is a bit complex, but let's try to find "trackId":XXXX in the decoded string
+                                const decoded = nextData[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                                const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
+                                if (matches.length > 0) {
+                                    return { ids: [...new Set(matches)], html: html };
+                                }
                             }
 
-                            return { ids: [...new Set(tIds)].filter(id => id && id.length > 3), html: html };
+                            // 2. Strict regex for track links in the main list
+                            // We look for /album/X/track/Y and take the Y
+                            const trackLinkMatches = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
+
+                            // 3. Last resort: JSON script tags
+                            let jsonIds = [];
+                            if (trackLinkMatches.length < 5) {
+                                // Look for track metadata blocks
+                                const trackBlocks = [...html.matchAll(/"track":{[^}]*"id":(\d+)/g)].map(m => m[1]);
+                                jsonIds = trackBlocks;
+                            }
+
+                            const resultIds = trackLinkMatches.length >= 5 ? trackLinkMatches : jsonIds;
+                            return { ids: [...new Set(resultIds)].filter(id => id && id.length > 4), html: html };
                         };
 
                         // 1. Desktop Try
                         let scrapeResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
                         let uniqueIds = scrapeResult.ids;
+
                         scrapedHtml = scrapeResult.html;
 
                         // 2. Mobile Try (if desktop failed)
