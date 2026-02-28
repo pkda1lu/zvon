@@ -199,16 +199,6 @@ function shuffleQueue() {
     }
 }
 
-function stopMusic() {
-    isPlaying = false;
-    if (currentFFmpeg) { currentFFmpeg.kill(); currentFFmpeg = null; }
-    if (livekitRoom) { livekitRoom.disconnect(); livekitRoom = null; }
-    if (socket.voiceChannelId) {
-        socket.emit("leave-voice-channel", { channelId: socket.voiceChannelId });
-        socket.voiceChannelId = null;
-    }
-}
-
 // --- COMMAND HANDLER ---
 
 socket.on("new-message", async (msg) => {
@@ -230,135 +220,89 @@ socket.on("new-message", async (msg) => {
             if (query.includes("playlists/") || query.includes("album/")) {
                 const cleanUrl = query.split('?')[0].split('#')[0];
                 let res = null;
+                let uniqueIds = [];
 
                 try {
-                    if (query.includes("playlists/")) {
+                    // 1. ALBUM HANDLING
+                    if (query.includes("album/")) {
+                        const albumId = cleanUrl.split("album/")[1].split("/")[0];
+                        const albumRes = await yandexClient.albums.getAlbumWithTracks(albumId);
+                        res = {
+                            result: {
+                                tracks: (albumRes.result.volumes?.[0] || []).map(t => ({ track: t })),
+                                title: albumRes.result.title
+                            }
+                        };
+                    }
+                    // 2. PLAYLIST HANDLING
+                    else if (query.includes("playlists/")) {
                         const parts = cleanUrl.split("/");
                         const kind = parts[parts.indexOf("playlists") + 1];
                         let owner = null;
-                        if (query.includes("/users/")) {
-                            owner = parts[parts.indexOf("users") + 1];
-                        }
+                        if (query.includes("/users/")) owner = parts[parts.indexOf("users") + 1];
 
-                        // Try direct API with owner and kind if possible
+                        // Attempt API
                         if (owner && kind) {
-                            try {
-                                res = await yandexClient.playlists.getPlaylistById(owner, kind);
-                            } catch (e) {
-                                console.warn(`[Yandex] Direct API failed for ${owner}/${kind}: ${e.message}`);
-                            }
+                            try { res = await yandexClient.playlists.getPlaylistById(owner, kind); } catch (e) { }
                         }
-
-                        // If still no res, try searching for the playlist metadata
                         if (!res?.result?.tracks?.length) {
                             const sRes = await yandexClient.search.search(kind, 0, 'playlist');
                             const disc = sRes.result.playlists?.results?.find(p => p.playlistUuid === kind || p.kind.toString() === kind);
                             if (disc) res = await yandexClient.playlists.getPlaylistById(disc.owner.uid || disc.owner.login, disc.kind);
                         }
-                    } else if (query.includes("album/")) {
-                        const albumId = cleanUrl.split("album/")[1].split("/")[0];
-                        const albumRes = await yandexClient.albums.getAlbumWithTracks(albumId);
-                        res = { result: { tracks: albumRes.result.volumes?.[0] || [], title: albumRes.result.title } };
-                    }
 
-                    if (!res?.result?.tracks?.length) {
-                        console.log(`[Yandex] API failed, trying Scraper for: ${cleanUrl}`);
-
-                        let scrapedHtml = null;
-                        const tryScrape = async (userAgent) => {
-                            const hRes = await axios.get(cleanUrl, {
-                                headers: {
-                                    'User-Agent': userAgent,
-                                    'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-                                    'Referer': 'https://music.yandex.ru/'
+                        // 3. SCRAPER FALLBACK (only for playlists)
+                        if (!res?.result?.tracks?.length) {
+                            console.log(`[Yandex] API failed, trying Scraper for: ${cleanUrl}`);
+                            let scrapedHtml = null;
+                            const tryScrape = async (userAgent) => {
+                                const hRes = await axios.get(cleanUrl, {
+                                    headers: { 'User-Agent': userAgent, 'Referer': 'https://music.yandex.ru/' }
+                                });
+                                const html = hRes.data;
+                                const nextData = html.match(/self\.__next_f\.push\(\[1,"(.*?)",/);
+                                let tIds = [];
+                                if (nextData) {
+                                    const decoded = nextData[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                                    tIds = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
                                 }
-                            });
-                            const html = hRes.data;
+                                if (tIds.length < 5) {
+                                    tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
+                                }
+                                return { ids: [...new Set(tIds)].filter(id => id.length >= 7), html };
+                            };
 
-                            // Find all track IDs in links (/album/XXX/track/ID or /track/ID)
-                            // We use a Set to keep them unique and in order
-                            const tIds = [];
+                            let sResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+                            uniqueIds = sResult.ids;
+                            scrapedHtml = sResult.html;
 
-                            // 1. Links /track/12345
-                            const linkMatches = [...html.matchAll(/\/track\/(\d+)/g)];
-                            linkMatches.forEach(m => tIds.push(m[1]));
-
-                            // 2. Data attributes (common in mobile/older views)
-                            const dataIdMatches = [...html.matchAll(/data-id="(\d+)"/g)];
-                            dataIdMatches.forEach(m => tIds.push(m[1]));
-
-                            // 3. Search in all script tags for track-related JSON
-                            const scriptMatches = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
-                            scriptMatches.forEach(script => {
-                                const content = script[1];
-                                // Look for "track":{..."id":1234} within a track object
-                                const trackJsonMatches = [...content.matchAll(/"track"\s*:\s*{[^}]*"id"\s*:\s*(\d+)/g)];
-                                trackJsonMatches.forEach(m => tIds.push(m[1]));
-
-                                // Look for "trackId":1234
-                                const trackIdMatches = [...content.matchAll(/"trackId"\s*:\s*(\d+)/g)];
-                                trackIdMatches.forEach(m => tIds.push(m[1]));
-                            });
-
-                            // 4. Special Next.js hydration check (decoded)
-                            const nextData = html.match(/self\.__next_f\.push\(\[1,"(.*?)",/);
-                            if (nextData) {
-                                const decoded = nextData[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                                const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
-                                matches.forEach(m => tIds.push(m));
+                            if (uniqueIds.length === 0) {
+                                sResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15');
+                                uniqueIds = sResult.ids;
+                                scrapedHtml = sResult.html;
                             }
 
-                            // Filter: IDs are usually 5+ digits. Remove any ID that appears too few times if there are many others?
-                            // No, just unique them.
-                            const uniqueIds = [...new Set(tIds)].filter(id => id && id.length >= 6);
-                            return { ids: uniqueIds, html: html };
-                        };
-
-                        // 1. Desktop Try
-                        let scrapeResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-                        let uniqueIds = scrapeResult.ids;
-
-                        scrapedHtml = scrapeResult.html;
-
-                        // 2. Mobile Try (if desktop failed)
-                        if (uniqueIds.length === 0) {
-                            console.log(`[Yandex] Desktop scraper found nothing, trying Mobile UA...`);
-                            scrapeResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
-                            uniqueIds = scrapeResult.ids;
-                            scrapedHtml = scrapeResult.html;
-                        }
-
-                        if (uniqueIds.length) {
-                            console.log(`[Yandex] Scraper: Found ${uniqueIds.length} candidate track IDs. Requesting metadata...`);
-                            try {
+                            if (uniqueIds.length > 0) {
                                 const trks = await yandexClient.tracks.getTracks({ 'track-ids': uniqueIds.slice(0, 100) });
-                                if (trks && trks.result && trks.result.length > 0) {
-                                    res = {
-                                        result: {
-                                            tracks: trks.result.map(t => ({ track: t })),
-                                            title: scrapedHtml.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
-                                        }
-                                    };
-                                } else {
-                                    console.log("[Yandex] getTracks returned no results for these IDs.");
-                                }
-                            } catch (e) {
-                                console.error(`[Yandex] getTracks API error: ${e.message}`);
+                                res = {
+                                    result: {
+                                        tracks: trks.result.map(t => ({ track: t })),
+                                        title: scrapedHtml.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+                                    }
+                                };
                             }
                         }
                     }
 
-                    if (!res?.result?.tracks?.length) {
-                        console.warn("[Yandex] Final check: No tracks found. IDs were:", uniqueIds?.slice(0, 5));
-                        throw new Error("Плейлист пуст или недоступен (чекните ссылку).");
-                    }
+                    if (!res?.result?.tracks?.length) throw new Error("Плейлист пуст или недоступен.");
+
                     added = res.result.tracks.map(t => {
                         const trk = t.track || t;
                         return { ...trk, id: trk.id.toString().split(':')[0] };
                     });
                     socket.emit("send-message", { content: `📂 Загружено **${added.length}** треков: **${res.result.title || 'Плейлист'}**`, channelId: msg.channel });
                 } catch (e) {
-                    console.error("[Yandex] Playlist load error:", e.message);
+                    console.error("[Yandex] Load error:", e.message);
                     throw new Error(`Ошибка загрузки: ${e.message}`);
                 }
             } else {
@@ -373,6 +317,7 @@ socket.on("new-message", async (msg) => {
             else if (added.length === 1) socket.emit("send-message", { content: `➕ В очереди: **${added[0].title}**`, channelId: msg.channel });
         } catch (err) { socket.emit("send-message", { content: `❌ ${err.message}`, channelId: msg.channel }); }
     }
+
     if (content === "!skip") skipTrack(voiceChannel?._id);
     if (content === "!prev") prevTrack(voiceChannel?._id);
     if (content === "!shuffle") {
