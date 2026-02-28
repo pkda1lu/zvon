@@ -27,27 +27,41 @@ const VoiceParticipantCard = React.memo<{
   onContextMenu: any;
   getDisplayName: any;
 }>(({ participant, isSpeaking, onUserClick, onContextMenu, getDisplayName }) => {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (participant.cameraStream && videoRef.current && videoRef.current.srcObject !== participant.cameraStream) {
+      videoRef.current.srcObject = participant.cameraStream;
+    }
+  }, [participant.cameraStream]);
+
   return (
     <div
-      className={`p-card ${isSpeaking ? 'is-speaking' : ''}`}
+      className={`p-card ${isSpeaking ? 'is-speaking' : ''} ${participant.cameraStream ? 'has-video' : ''}`}
       onClick={(e) => onUserClick(participant._id, e)}
       onContextMenu={onContextMenu}
     >
-      {participant.banner && (
+      {participant.cameraStream && (
+        <video ref={videoRef} autoPlay playsInline muted className="p-camera-video" />
+      )}
+
+      {!participant.cameraStream && participant.banner && (
         <div
           className="p-bg"
           style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }}
         />
       )}
 
-      <div className="p-avatar-wrap">
-        <UserAvatar
-          user={participant}
-          size={64}
-          animate={true}
-          className="p-avatar"
-        />
-      </div>
+      {!participant.cameraStream && (
+        <div className="p-avatar-wrap">
+          <UserAvatar
+            user={participant}
+            size={64}
+            animate={true}
+            className="p-avatar"
+          />
+        </div>
+      )}
 
       <div className="p-info">
         <span className="p-name">{getDisplayName(participant)}{participant.isMe ? ' (Вы)' : ''}</span>
@@ -264,6 +278,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     watchedScreenIds,
     setWatchingScreen,
     remoteStreams,
+    isVideoOn,
+    toggleVideo,
+    localCameraStream
   } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
@@ -316,7 +333,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       const seenIds = new Set<string>();
 
       // 1. Add Me
-      items.push({ ...currentUser, isMe: true, isMuted, isDeafened, isScreenSharing, type: 'user' });
+      items.push({ ...currentUser, isMe: true, isMuted, isDeafened, isScreenSharing, type: 'user', isVideoOn, cameraStream: isVideoOn ? localCameraStream : null });
       seenIds.add(currentUser._id);
 
       if (isScreenSharing) {
@@ -326,8 +343,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       // 2. Add Socket-connected users (Users we officially know are in channel)
       activeConnectedUsers.forEach(u => {
         if (!seenIds.has(u._id)) {
-          const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false };
-          items.push({ ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened, isScreenSharing: state.isScreenSharing, type: 'user' });
+          const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false, isVideoOn: false };
+          items.push({ ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened, isScreenSharing: state.isScreenSharing, isVideoOn: state.isVideoOn, cameraStream: state.isVideoOn ? remoteStreams.get(u._id) : null, type: 'user' });
           seenIds.add(u._id);
         }
 
@@ -343,7 +360,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         if (!seenIds.has(userId)) {
           // Look up user info in externalParticipants (pre-fetched from API)
           const backupUser = externalParticipants.find(p => p._id === userId);
-          const state = userStates.get(userId) || { isMuted: false, isDeafened: false, isScreenSharing: false };
+          const state = userStates.get(userId) || { isMuted: false, isDeafened: false, isScreenSharing: false, isVideoOn: false };
 
           if (backupUser) {
             items.push({
@@ -352,6 +369,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               isMuted: state.isMuted,
               isDeafened: state.isDeafened,
               isScreenSharing: state.isScreenSharing,
+              isVideoOn: state.isVideoOn,
+              cameraStream: state.isVideoOn ? stream : null,
               type: 'user',
               isGhost: true
             });
@@ -364,6 +383,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               isMuted: state.isMuted,
               isDeafened: state.isDeafened,
               isScreenSharing: state.isScreenSharing,
+              isVideoOn: state.isVideoOn,
+              cameraStream: state.isVideoOn ? stream : null,
               type: 'user',
               isPlaceholder: true
             });
@@ -378,13 +399,15 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     } else {
       // Not connected view (sidebar preview or before joining)
       externalParticipants.forEach(u => {
-        const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false };
+        const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isScreenSharing: false, isVideoOn: false };
         items.push({
           ...u,
           isMe: u._id === currentUser?._id,
           isMuted: state.isMuted,
           isDeafened: state.isDeafened,
           isScreenSharing: state.isScreenSharing,
+          isVideoOn: state.isVideoOn,
+          cameraStream: null, // Don't preview video if not connected
           type: 'user'
         });
         if (state.isScreenSharing && remoteScreenStreams.has(u._id)) {
@@ -393,7 +416,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       });
     }
     return items;
-  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, externalParticipants, userStates, remoteScreenStreams, remoteStreams]);
+  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, isVideoOn, localCameraStream, externalParticipants, userStates, remoteScreenStreams, remoteStreams]);
 
   useEffect(() => {
     if (!isConnectedToThisChannel) {
@@ -536,6 +559,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               title={isDeafened ? 'Включить звук' : 'Выключить звук'}
             >
               {isDeafened ? <DeafenedIcon size={20} /> : <SpeakerIcon size={20} />}
+            </button>
+            <button
+              className={`ctrl-btn ${isVideoOn ? 'streaming' : ''}`}
+              onClick={toggleVideo}
+              title={isVideoOn ? 'Выключить камеру' : 'Включить камеру'}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
             </button>
             <button
               className={`ctrl-btn ${isScreenSharing ? 'streaming' : ''}`}

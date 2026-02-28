@@ -130,7 +130,7 @@ const Register: React.FC = () => {
             </div>
 
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: '1.4', margin: '5px 0' }}>
-              Продолжая, вы соглашаетесь с нашими <span style={{ color: 'var(--primary-neon)', cursor: 'pointer' }}>Условиями обслуживания</span> и <span style={{ color: 'var(--primary-neon)', cursor: 'pointer' }}>Политикой конфиденциальности</span>.
+              Продолжая, вы соглашаетесь с нашими <span style={{ color: '#ffffff', cursor: 'pointer', textDecoration: 'underline' }}>Условиями обслуживания</span> и <span style={{ color: '#ffffff', cursor: 'pointer', textDecoration: 'underline' }}>Политикой конфиденциальности</span>.
             </p>
 
             <button type="submit" className="neon-btn" style={{ padding: '18px' }}>
@@ -139,7 +139,7 @@ const Register: React.FC = () => {
           </form>
 
           <p style={{ marginTop: '30px', fontSize: '14px', color: 'var(--text-dim)' }}>
-            Уже есть аккаунт? <Link to="/login" style={{ color: 'var(--primary-neon)', fontWeight: 800, textDecoration: 'none' }}>Войти</Link>
+            Уже есть аккаунт? <Link to="/login" style={{ color: '#ffffff', fontWeight: 800, textDecoration: 'underline' }}>Войти</Link>
           </p>
         </div>
       </div>

@@ -29,6 +29,11 @@ const messageSchema = new mongoose.Schema({
     default: null
   },
   attachments: [attachmentSchema],
+  buttons: [{
+    label: String,
+    url: String,
+    style: { type: String, enum: ['primary', 'secondary', 'danger', 'success'], default: 'primary' }
+  }],
   edited: {
     type: Boolean,
     default: false

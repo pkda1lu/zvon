@@ -150,7 +150,7 @@ interface VoiceContextType {
     remoteStreams: Map<string, MediaStream>;
     userVolumes: Map<string, number>;
     setUserVolume: (userId: string, volume: number) => void;
-    userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>;
+    userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isVideoOn?: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
     isNoiseSuppressionEnabled: boolean;
@@ -175,6 +175,10 @@ interface VoiceContextType {
     startScreenShare: (sourceId: string, options?: { resolution?: string, frameRate?: string }) => Promise<void>;
     stopScreenShare: () => void;
     remoteScreenStreams: Map<string, MediaStream>;
+
+    isVideoOn: boolean;
+    toggleVideo: () => Promise<void>;
+    localCameraStream: MediaStream | null;
     screenVolumes: Map<string, number>;
     setScreenVolume: (userId: string, volume: number) => void;
     watchedScreenIds: Set<string>;
@@ -253,7 +257,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         return new Map();
     });
-    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>>(new Map());
+    const [userStates, setUserStates] = useState<Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isVideoOn?: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>>(new Map());
     const [localMutes, setLocalMutes] = useState<Set<string>>(() => {
         const stored = localStorage.getItem('localMutes');
         if (stored) {
@@ -274,6 +278,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
     const [screenVolumes, setScreenVolumes] = useState<Map<string, number>>(new Map());
     const [watchedScreenIds, setWatchedScreenIds] = useState<Set<string>>(new Set());
+
+    const [isVideoOn, setIsVideoOn] = useState(false);
+    const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
+    const cameraStreamRef = useRef<MediaStream | null>(null);
 
     // Input Sensitivity (VAD)
     const [inputSensitivity, setInputSensitivity] = useState(() => Number(localStorage.getItem('inputSensitivity')) || -50);
@@ -449,6 +457,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const userId = participant.identity;
             const isScreen = publication.source === Track.Source.ScreenShare ||
                 publication.source === Track.Source.ScreenShareAudio;
+            const isCamera = publication.source === Track.Source.Camera;
 
             console.log(`[Voice] Track subscribed: ${track.kind} from ${userId} (Source: ${publication.source})`);
 
@@ -475,14 +484,27 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     }
                     return prev;
                 });
-            } else {
+            } else { // Handle Camera and Microphone Tracks
                 setRemoteStreams(prev => {
                     const existing = prev.get(userId);
-                    const tracks = existing ? [...existing.getTracks().filter(t => t.kind !== track.kind), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
-                    const stream = new MediaStream(tracks);
+                    const tracks = existing ? [...existing.getTracks().filter(t => t.kind !== track.kind || (t.kind === 'video' && isCamera && existing.getVideoTracks().length === 0)), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
+                    // Clean up any old video tracks if this is a new video track
+                    const finalTracks = tracks.filter((t, i, arr) => {
+                        if (t.kind !== 'video') return true;
+                        return arr.filter(ot => ot.kind === 'video').indexOf(t) === arr.filter(ot => ot.kind === 'video').length - 1;
+                    });
+                    const stream = new MediaStream(finalTracks);
 
                     return new Map(prev).set(userId, stream);
                 });
+
+                if (isCamera) {
+                    // Update user state for video
+                    setUserStates(prev => {
+                        const state = prev.get(userId) || { isMuted: false, isDeafened: false, isScreenSharing: false };
+                        return new Map(prev).set(userId, { ...state, isVideoOn: true });
+                    });
+                }
             }
         }
     };
@@ -597,6 +619,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         setLocalStream(null);
+        setLocalCameraStream(null);
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(t => t.stop());
+            cameraStreamRef.current = null;
+        }
+        setIsVideoOn(false);
         setRemoteStreams(new Map());
         setRemoteScreenStreams(new Map());
         setConnectedUsers([]);
@@ -754,6 +782,33 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [socket, activeChannelId, isMuted, isDeafened]);
 
+    const toggleVideo = useCallback(async () => {
+        const newState = !isVideoOn;
+        setIsVideoOn(newState);
+
+        if (roomRef.current) {
+            await roomRef.current.localParticipant.setCameraEnabled(newState, {
+                deviceId: selectedVideoDeviceId !== 'default' ? selectedVideoDeviceId : undefined,
+                resolution: VideoPresets.h720,
+            });
+
+            if (newState) {
+                const cameraTrack = roomRef.current.localParticipant.getTrackPublication(Track.Source.Camera);
+                if (cameraTrack?.track) {
+                    setLocalCameraStream(new MediaStream([cameraTrack.track.mediaStreamTrack!]));
+                    cameraStreamRef.current = new MediaStream([cameraTrack.track.mediaStreamTrack!]);
+                }
+            } else {
+                setLocalCameraStream(null);
+                cameraStreamRef.current = null;
+            }
+        }
+
+        if (socket && activeChannelId) {
+            socket.emit('voice-state-update', { channelId: activeChannelId, isMuted, isDeafened, isScreenSharing, isVideoOn: newState });
+        }
+    }, [isVideoOn, selectedVideoDeviceId, socket, activeChannelId, isMuted, isDeafened, isScreenSharing]);
+
     const joinChannel = useCallback(async (channelId: string) => {
         if (isJoiningRef.current) {
             console.warn('[LiveKit] Join already in progress, ignoring...');
@@ -830,17 +885,28 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
                 .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
                 .on(RoomEvent.LocalTrackPublished, (publication) => {
-                    if (publication.source === Track.Source.ScreenShare) {
-                        setIsScreenSharing(true);
-                    }
+                    const track = publication.track;
+                    if (!track) return;
+
                     if (publication.source === Track.Source.Microphone) {
                         console.log("[Voice] Local microphone published, initializing...");
                         handleLocalMicPublication(publication);
+                    } else if (publication.source === Track.Source.ScreenShare) {
+                        setIsScreenSharing(true);
+                    } else if (publication.source === Track.Source.Camera) {
+                        setIsVideoOn(true);
+                        setLocalCameraStream(new MediaStream([track.mediaStreamTrack!]));
+                        cameraStreamRef.current = new MediaStream([track.mediaStreamTrack!]);
                     }
                 })
                 .on(RoomEvent.LocalTrackUnpublished, (publication) => {
                     if (publication.source === Track.Source.ScreenShare) {
                         setIsScreenSharing(false);
+                    }
+                    if (publication.source === Track.Source.Camera) {
+                        setIsVideoOn(false);
+                        setLocalCameraStream(null);
+                        cameraStreamRef.current = null;
                     }
                 });
 
@@ -874,6 +940,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const localAudioTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
             if (localAudioTrack) {
                 handleLocalMicPublication(localAudioTrack);
+            }
+
+            // Check if camera is already enabled (e.g., from a previous session or settings)
+            if (room.localParticipant.isCameraEnabled) {
+                setIsVideoOn(true);
+                const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+                if (pub?.track) {
+                    setLocalCameraStream(new MediaStream([pub.track.mediaStreamTrack!]));
+                }
             }
 
             setActiveChannelId(channelId);
@@ -1485,8 +1560,15 @@ registerProcessor('vad-processor', VADProcessor);
             inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices,
             isScreenSharing, screenStream, startScreenShare, stopScreenShare, remoteScreenStreams,
             screenVolumes, setScreenVolume, watchedScreenIds, setWatchingScreen,
-            inputSensitivity, setInputSensitivity, isAutomaticSensitivity, setIsAutomaticSensitivity,
-            startTestStream, stopTestStream
+            inputSensitivity,
+            setInputSensitivity,
+            isAutomaticSensitivity,
+            setIsAutomaticSensitivity,
+            startTestStream,
+            stopTestStream,
+            isVideoOn,
+            toggleVideo,
+            localCameraStream
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}

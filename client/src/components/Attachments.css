@@ -4,8 +4,7 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    margin-bottom: -1px;
-    /* Overlap with input border */
+    margin-bottom: 8px;
 }
 
 .attachments-preview-list {
@@ -14,10 +13,8 @@
     padding: 16px 20px;
     background: rgba(255, 255, 255, 0.02);
     backdrop-filter: blur(20px);
-    border-top-left-radius: 20px;
-    border-top-right-radius: 20px;
+    border-radius: 20px;
     border: 1px solid var(--glass-border);
-    border-bottom: none;
     overflow-x: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.1) transparent;

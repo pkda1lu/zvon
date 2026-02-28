@@ -62,7 +62,7 @@ video {
 /* --- GLOBAL LIQUID COMPONENTS --- */
 .neon-btn {
   background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
-  color: #000 !important;
+  color: #ffffff !important;
   border: none;
   padding: 14px 28px;
   border-radius: 16px;
@@ -95,7 +95,7 @@ video {
 
 .auth-label-neon {
   font-size: 10px;
-  color: var(--primary-neon);
+  color: #ffffff;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 2px;

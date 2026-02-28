@@ -234,6 +234,16 @@ const MessageItem = React.memo<{
             </div>
           )}
 
+          {msg.buttons && msg.buttons.length > 0 && (
+            <div className="message-interactive-buttons">
+              {msg.buttons.map((btn, i) => (
+                <a key={i} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
+                  {btn.label}
+                </a>
+              ))}
+            </div>
+          )}
+
           {msg.edited && <span className="message-edited">(изменено)</span>}
 
           <Reactions

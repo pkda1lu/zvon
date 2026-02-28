@@ -3,6 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 // Create a new bot
 router.post('/create', auth, async (req, res) => {
@@ -43,7 +44,7 @@ router.post('/create', auth, async (req, res) => {
 // Get user's bots
 router.get('/my', auth, async (req, res) => {
     try {
-        const bots = await User.find({ owner: req.user._id, isBot: true }).select('username botToken createdAt');
+        const bots = await User.find({ owner: req.user._id, isBot: true }).select('username botToken createdAt bio avatar banner');
         res.json(bots);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -117,6 +118,85 @@ router.post('/:id/add-to-server', auth, async (req, res) => {
         res.json({ message: 'Бот успешно добавлен на сервер' });
     } catch (error) {
         console.error('Add bot to server error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Update bot profile (name, bio)
+router.patch('/:id', auth, async (req, res) => {
+    try {
+        const { username, bio } = req.body;
+        const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
+        if (!bot) return res.status(404).json({ message: 'Bot not found' });
+
+        if (username) bot.username = username;
+        if (bio !== undefined) bot.bio = bio;
+
+        await bot.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('user-updated', { _id: bot._id, username: bot.username, bio: bot.bio });
+        }
+
+        res.json({ message: 'Бот обновлен', bot });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Update bot avatar
+router.post('/:id/avatar', auth, (req, res, next) => {
+    upload.single('avatar')(req, res, (err) => {
+        if (err) return res.status(400).json({ message: err.message || 'File upload failed' });
+        next();
+    });
+}, async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+        const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
+        if (!bot) return res.status(404).json({ message: 'Bot not found' });
+
+        const avatarUrl = `/api/uploads/${req.file.filename}`;
+        bot.avatar = avatarUrl;
+        await bot.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('user-updated', { _id: bot._id, avatar: avatarUrl });
+        }
+
+        res.json({ message: 'Аватар обновлен', avatar: avatarUrl });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Update bot banner
+router.post('/:id/banner', auth, (req, res, next) => {
+    upload.single('banner')(req, res, (err) => {
+        if (err) return res.status(400).json({ message: err.message || 'File upload failed' });
+        next();
+    });
+}, async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+        const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
+        if (!bot) return res.status(404).json({ message: 'Bot not found' });
+
+        const bannerUrl = `/api/uploads/${req.file.filename}`;
+        bot.banner = bannerUrl;
+        await bot.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('user-updated', { _id: bot._id, banner: bannerUrl });
+        }
+
+        res.json({ message: 'Баннер обновлен', banner: bannerUrl });
+    } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
 });

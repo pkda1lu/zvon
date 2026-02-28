@@ -1093,6 +1093,63 @@ const BotsSettings = () => {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [showServerSelect, setShowServerSelect] = useState<string | null>(null);
   const [revealedTokenId, setRevealedTokenId] = useState<string | null>(null);
+  const [editingBot, setEditingBot] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editAvatar, setEditAvatar] = useState<File | null>(null);
+  const [editBanner, setEditBanner] = useState<File | null>(null);
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+  const [previewBanner, setPreviewBanner] = useState<string | null>(null);
+
+  const startEdit = (bot: any) => {
+    setEditingBot(bot);
+    setEditName(bot.username);
+    setEditBio(bot.bio || '');
+    setEditAvatar(null);
+    setEditBanner(null);
+    setPreviewAvatar(bot.avatar ? getFullUrl(bot.avatar) : null);
+    setPreviewBanner(bot.banner ? getFullUrl(bot.banner) : null);
+  };
+
+  const saveEdit = async () => {
+    if (!editingBot) return;
+    setLoading(true);
+    try {
+      await axios.patch(`/api/bots/${editingBot._id}`, { username: editName, bio: editBio });
+      if (editAvatar) {
+        const fd = new FormData();
+        fd.append('avatar', editAvatar);
+        await axios.post(`/api/bots/${editingBot._id}/avatar`, fd);
+      }
+      if (editBanner) {
+        const fd = new FormData();
+        fd.append('banner', editBanner);
+        await axios.post(`/api/bots/${editingBot._id}/banner`, fd);
+      }
+      setEditingBot(null);
+      fetchBots();
+    } catch (e) {
+      alert('Ошибка при сохранении профиля');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditAvatar(file);
+      setPreviewAvatar(URL.createObjectURL(file));
+    }
+  };
+
+  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditBanner(file);
+      setPreviewBanner(URL.createObjectURL(file));
+    }
+  };
 
   const fetchBots = async () => {
     try {
@@ -1199,8 +1256,8 @@ const BotsSettings = () => {
           <div key={bot._id} className="bot-item glass-panel-base" style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', background: 'var(--primary-neon)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 800 }}>
-                  <BotIcon size={24} color="black" />
+                <div style={{ width: '40px', height: '40px', background: 'var(--primary-neon)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 800, overflow: 'hidden' }}>
+                  {bot.avatar ? <img src={getFullUrl(bot.avatar) || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <BotIcon size={24} color="black" />}
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '16px' }}>{bot.username}</h3>
@@ -1208,6 +1265,12 @@ const BotsSettings = () => {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  className="msg-action-btn"
+                  onClick={() => startEdit(bot)}
+                >
+                  Настроить
+                </button>
                 <button
                   className="save-button"
                   style={{ margin: 0, padding: '5px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
@@ -1277,6 +1340,54 @@ const BotsSettings = () => {
                 </button>
               </div>
             </div>
+
+            {editingBot?._id === bot._id && (
+              <div className="bot-edit-area" style={{ marginTop: '15px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ marginBottom: '15px' }}>
+                  <label className="settings-label">ИМЯ БОТА</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                </div>
+                <div style={{ marginBottom: '15px' }}>
+                  <label className="settings-label">О БОТЕ</label>
+                  <textarea
+                    className="settings-textarea"
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    placeholder="Описание бота..."
+                    rows={3}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="settings-label">АВАТАРКА</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', overflow: 'hidden', flexShrink: 0 }}>
+                        {previewAvatar ? <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <BotIcon size={40} />}
+                      </div>
+                      <input type="file" accept="image/*" onChange={handleAvatarSelect} style={{ fontSize: '12px' }} />
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="settings-label">БАННЕР</label>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ width: '100%', height: '60px', borderRadius: '8px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                        {previewBanner && <img src={previewBanner} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      </div>
+                      <input type="file" accept="image/*" onChange={handleBannerSelect} style={{ fontSize: '12px' }} />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button className="msg-action-btn" onClick={() => setEditingBot(null)}>Отмена</button>
+                  <button className="save-button" onClick={saveEdit} disabled={loading}>Сохранить</button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

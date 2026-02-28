@@ -667,6 +667,16 @@ const DMView: React.FC<DMViewProps> = ({
 
                         <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
 
+                        {msg.buttons && msg.buttons.length > 0 && (
+                          <div className="message-interactive-buttons">
+                            {msg.buttons.map((btn, idx) => (
+                              <a key={idx} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
+                                {btn.label}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
                         <Reactions
                           reactions={msg.reactions || []}
                           currentUserId={user?._id || ''}
@@ -755,9 +765,9 @@ const DMView: React.FC<DMViewProps> = ({
           )}
           {attachments.length > 0 && (
             <div className="attachments-preview">
-              <div className="attachments-preview-list" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', borderRadius: '16px 16px 0 0' }}>
+              <div className="attachments-preview-list">
                 {attachments.map((att, i) => (
-                  <div key={i} className="input-attachment-preview" style={{ borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                  <div key={i} className="input-attachment-preview">
                     {att.type.startsWith('image/') ? (
                       <img src={getFullUrl(att.url)!} alt="" />
                     ) : (
@@ -769,7 +779,7 @@ const DMView: React.FC<DMViewProps> = ({
               </div>
             </div>
           )}
-          <form onSubmit={handleSendMessage} className="message-form" style={attachments.length > 0 ? { borderRadius: '0 0 20px 20px', borderTop: 'none' } : {}}>
+          <form onSubmit={handleSendMessage} className="message-form">
             <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">
               <PlusIcon />
             </button>

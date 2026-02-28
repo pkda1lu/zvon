@@ -269,6 +269,24 @@ socket.on("new-message", async (msg) => {
         stopMusic();
         socket.emit("send-message", { content: "⏹️ Остановлено.", channelId: msg.channel });
     }
+
+    if (content === "!help") {
+        axios.post(`${SERVER_URL}/api/webhooks/${TOKEN}/${msg.channel}`, {
+            content: "👋 Привет! Я **Zvon Music Bot**!\n\n**Команды:**\n- `!play <Поиск или ссылка>`: Включить трек или плейлист (Yandex Music)\n- `!skip`: Следующий трек\n- `!prev`: Предыдущий трек\n- `!stop`: Остановить музыку и выйти\n- `!queue`: Показать очередь\n- `!shuffle`: Перемешать очередь",
+            buttons: [
+                {
+                    label: "Наш GitHub",
+                    url: "https://github.com/vlyne/zvon",
+                    style: "primary"
+                },
+                {
+                    label: "Yandex Music",
+                    url: "https://music.yandex.ru",
+                    style: "secondary"
+                }
+            ]
+        }).catch(err => console.error("Webhook help error:", err.message));
+    }
 });
 
 // --- CORE STREAMING LOGIC ---

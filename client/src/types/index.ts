@@ -106,6 +106,11 @@ export interface Message {
     size: number;
     type: string;
   }>;
+  buttons?: Array<{
+    label: string;
+    url: string;
+    style?: 'primary' | 'secondary' | 'danger' | 'success';
+  }>;
   edited: boolean;
   editedAt?: string;
   reactions?: Array<{

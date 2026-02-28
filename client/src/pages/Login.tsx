@@ -196,11 +196,13 @@ const Login: React.FC = () => {
                     placeholder="••••••••"
                     required
                   />
-                  <div
-                    onClick={() => handleModeChange('forgot')}
-                    style={{ marginTop: '10px', fontSize: '12px', color: 'var(--primary-neon)', cursor: 'pointer', textAlign: 'right', fontWeight: 600 }}
-                  >
-                    Забыли пароль?
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                    <span
+                      onClick={() => handleModeChange('forgot')}
+                      style={{ fontSize: '12px', color: '#ffffff', cursor: 'pointer', fontWeight: 600, display: 'inline-block', padding: '4px' }}
+                    >
+                      Забыли пароль?
+                    </span>
                   </div>
                 </div>
               </>
@@ -217,11 +219,13 @@ const Login: React.FC = () => {
                   placeholder="your@email.com"
                   required
                 />
-                <div
-                  onClick={() => handleModeChange('login')}
-                  style={{ marginTop: '10px', fontSize: '12px', color: 'var(--primary-neon)', cursor: 'pointer', textAlign: 'center', fontWeight: 600 }}
-                >
-                  Вернуться к входу
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+                  <span
+                    onClick={() => handleModeChange('login')}
+                    style={{ fontSize: '12px', color: '#ffffff', cursor: 'pointer', fontWeight: 600, display: 'inline-block', padding: '4px' }}
+                  >
+                    Вернуться к входу
+                  </span>
                 </div>
               </div>
             )}
@@ -251,11 +255,13 @@ const Login: React.FC = () => {
                     />
                   </div>
                 )}
-                <div
-                  onClick={() => handleModeChange('login')}
-                  style={{ marginTop: '10px', fontSize: '12px', color: 'var(--primary-neon)', cursor: 'pointer', textAlign: 'center', fontWeight: 600 }}
-                >
-                  Вернуться к входу
+                <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                  <span
+                    onClick={() => handleModeChange('login')}
+                    style={{ fontSize: '12px', color: '#ffffff', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Вернуться к входу
+                  </span>
                 </div>
               </div>
             )}
@@ -268,7 +274,7 @@ const Login: React.FC = () => {
           </form>
 
           <p style={{ marginTop: '30px', fontSize: '14px', color: 'var(--text-dim)' }}>
-            Нужна учетная запись? <Link to="/register" style={{ color: 'var(--primary-neon)', fontWeight: 800, textDecoration: 'none' }}>Зарегистрироваться</Link>
+            Нужна учетная запись? <Link to="/register" style={{ color: '#ffffff', fontWeight: 800, textDecoration: 'underline' }}>Зарегистрироваться</Link>
           </p>
         </div>
       </div>
