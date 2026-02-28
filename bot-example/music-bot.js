@@ -237,32 +237,60 @@ socket.on("new-message", async (msg) => {
                     }
 
                     if (!res?.result?.tracks?.length) {
-                        console.log(`[Yandex] API failed or empty, trying HTML Scraper for: ${cleanUrl}`);
-                        const hRes = await axios.get(cleanUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } });
-                        const html = hRes.data;
+                        console.log(`[Yandex] API failed, trying Scraper for: ${cleanUrl}`);
 
-                        const tIds = [
-                            ...html.matchAll(/\/track\/(\d+)/g),
-                            ...html.matchAll(/"id":"(\d+)"/g),
-                            ...html.matchAll(/"trackId":(\d+)/g),
-                            ...html.matchAll(/data-id="(\d+)"/g),
-                            ...html.matchAll(/track-id="(\d+)"/g)
-                        ].map(m => m[1]);
-                        const uniqueIds = [...new Set(tIds)].filter(id => id && id.length > 3);
+                        let scrapedHtml = null;
+                        const tryScrape = async (userAgent) => {
+                            const hRes = await axios.get(cleanUrl, {
+                                headers: {
+                                    'User-Agent': userAgent,
+                                    'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+                                    'Referer': 'https://music.yandex.ru/'
+                                }
+                            });
+                            const html = hRes.data;
+
+                            // Find all track IDs in links (/album/XXX/track/ID or /track/ID)
+                            const tIds = [
+                                ...html.matchAll(/\/track\/(\d+)/g),
+                                ...html.matchAll(/"trackId":(\d+)/g),
+                                ...html.matchAll(/"id":(\d+)/g),
+                                ...html.matchAll(/"id":"(\d+)"/g),
+                                ...html.matchAll(/data-id="(\d+)"/g)
+                            ].map(m => m[1]);
+
+                            // Special check for Next.js payloads if no easy matches
+                            if (tIds.length < 5) {
+                                // Extract anything that looks like "id":12345678 or "trackId":12345678 in scripts
+                                const rawIds = html.match(/"id":(\d{7,12})/g);
+                                if (rawIds) rawIds.forEach(idMatch => tIds.push(idMatch.split(':')[1]));
+                            }
+
+                            return { ids: [...new Set(tIds)].filter(id => id && id.length > 3), html: html };
+                        };
+
+                        // 1. Desktop Try
+                        let scrapeResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+                        let uniqueIds = scrapeResult.ids;
+                        scrapedHtml = scrapeResult.html;
+
+                        // 2. Mobile Try (if desktop failed)
+                        if (uniqueIds.length === 0) {
+                            console.log(`[Yandex] Desktop scraper found nothing, trying Mobile UA...`);
+                            scrapeResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
+                            uniqueIds = scrapeResult.ids;
+                            scrapedHtml = scrapeResult.html;
+                        }
 
                         if (uniqueIds.length) {
-                            console.log(`[Yandex] HTML Scraper: Found ${uniqueIds.length} track IDs.`);
-                            // Limited to first 100 tracks to avoid massive requests
-                            const limitedIds = uniqueIds.slice(0, 100);
-                            const trks = await yandexClient.tracks.getTracks({ 'track-ids': limitedIds });
+                            console.log(`[Yandex] Scraper: Found ${uniqueIds.length} track IDs.`);
+                            const trks = await yandexClient.tracks.getTracks({ 'track-ids': uniqueIds.slice(0, 100) });
                             res = {
                                 result: {
                                     tracks: trks.result.map(t => ({ track: t })),
-                                    title: html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+                                    title: scrapedHtml.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
                                 }
                             };
-                        } else {
-                            console.log("[Yandex] Scraper: No tracks found in HTML. Check if page structure changed or if it's private.");
                         }
                     }
 
