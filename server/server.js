@@ -176,6 +176,7 @@ io.on('connection', (socket) => {
         channel: data.channelId || null,
         directMessage: data.dmId || null,
         attachments: [],
+        buttons: Array.isArray(data.buttons) ? data.buttons.map(b => ({ label: b.label, url: b.url, actionId: b.actionId, style: b.style })) : [],
         replyTo: data.replyToId || null
       };
 
