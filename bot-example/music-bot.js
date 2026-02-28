@@ -202,53 +202,65 @@ socket.on("new-message", async (msg) => {
             socket.voiceChannelId = voiceChannel._id;
 
             let added = [];
-            if (query.includes("playlists/")) {
+            if (query.includes("playlists/") || query.includes("album/")) {
                 const cleanUrl = query.split('?')[0].split('#')[0];
-                const parts = cleanUrl.split("/");
-                const kind = parts[parts.indexOf("playlists") + 1];
                 let res = null;
 
                 try {
-                    if (query.includes("/users/")) {
-                        res = await yandexClient.playlists.getPlaylistById(parts[parts.indexOf("users") + 1], kind);
-                    } else {
-                        const sRes = await yandexClient.search.search(kind, 0, 'playlist');
-                        const disc = sRes.result.playlists?.results?.find(p => p.playlistUuid === kind || p.kind.toString() === kind);
-                        if (disc) res = await yandexClient.playlists.getPlaylistById(disc.owner.uid || disc.owner.login, disc.kind);
-                        else {
-                            console.log(`[Yandex] HTML Scraper: Fetching tracks from ${cleanUrl}`);
-                            const hRes = await axios.get(cleanUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } });
-                            const html = hRes.data;
+                    if (query.includes("playlists/")) {
+                        const parts = cleanUrl.split("/");
+                        const kind = parts[parts.indexOf("playlists") + 1];
+                        if (query.includes("/users/")) {
+                            res = await yandexClient.playlists.getPlaylistById(parts[parts.indexOf("users") + 1], kind);
+                        } else {
+                            // Try search first
+                            const sRes = await yandexClient.search.search(kind, 0, 'playlist');
+                            const disc = sRes.result.playlists?.results?.find(p => p.playlistUuid === kind || p.kind.toString() === kind);
+                            if (disc) res = await yandexClient.playlists.getPlaylistById(disc.owner.uid || disc.owner.login, disc.kind);
+                        }
+                    } else if (query.includes("album/")) {
+                        const albumId = cleanUrl.split("album/")[1].split("/")[0];
+                        const albumRes = await yandexClient.albums.getAlbumWithTracks(albumId);
+                        res = { result: { tracks: albumRes.result.volumes?.[0] || [], title: albumRes.result.title } };
+                    }
 
-                            // 1. Try to find track IDs directly
-                            const tIds = [
-                                ...html.matchAll(/track\/(\d+)/g),
-                                ...html.matchAll(/"id":"(\d+)"/g),
-                                ...html.matchAll(/"trackId":(\d+)/g)
-                            ].map(m => m[1] || m[2] || m[3]);
-                            const uniqueIds = [...new Set(tIds)].filter(id => id && id.length > 3);
+                    if (!res?.result?.tracks?.length) {
+                        console.log(`[Yandex] API failed or empty, trying HTML Scraper for: ${cleanUrl}`);
+                        const hRes = await axios.get(cleanUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } });
+                        const html = hRes.data;
 
-                            if (uniqueIds.length) {
-                                console.log(`[Yandex] HTML Scraper: Found ${uniqueIds.length} track IDs via regex.`);
-                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': uniqueIds });
-                                res = { result: { tracks: trks.result.map(t => ({ track: t })), title: html.match(/<title>(.*?)<\/title>/)?.[1]?.split('—')[0]?.trim() || "Плейлист" } };
-                            } else {
-                                // 2. Fallback: try to find owner and kind in HTML to use API
-                                const ownerMatch = html.match(/"owner":\{.*?"login":"(.*?)"/);
-                                const kindMatch = html.match(/"kind":(\d+)/);
-                                if (ownerMatch && kindMatch) {
-                                    console.log(`[Yandex] HTML Scraper: Found owner ${ownerMatch[1]} and kind ${kindMatch[1]}. Retrying via API...`);
-                                    res = await yandexClient.playlists.getPlaylistById(ownerMatch[1], parseInt(kindMatch[1]));
-                                } else {
-                                    console.warn(`[Yandex] HTML Scraper: Failed to find tracks or metadata in HTML.`);
+                        const tIds = [
+                            ...html.matchAll(/track\/(\d+)/g),
+                            ...html.matchAll(/"id":"(\d+)"/g),
+                            ...html.matchAll(/"trackId":(\d+)/g),
+                            ...html.matchAll(/data-id="(\d+)"/g), // Match numeric data-id
+                            ...html.matchAll(/track-id="(\d+)"/g)
+                        ].map(m => m[1] || m[2] || m[3]);
+                        const uniqueIds = [...new Set(tIds)].filter(id => id && id.length > 3);
+
+                        if (uniqueIds.length) {
+                            console.log(`[Yandex] HTML Scraper: Found ${uniqueIds.length} track IDs.`);
+                            // Limited to first 100 tracks to avoid massive requests
+                            const limitedIds = uniqueIds.slice(0, 100);
+                            const trks = await yandexClient.tracks.getTracks({ 'track-ids': limitedIds });
+                            res = {
+                                result: {
+                                    tracks: trks.result.map(t => ({ track: t })),
+                                    title: html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
                                 }
-                            }
+                            };
+                        } else {
+                            console.log("[Yandex] Scraper: No tracks found in HTML. Check if page structure changed or if it's private.");
                         }
                     }
+
                     if (!res?.result?.tracks?.length) throw new Error("Плейлист пуст или недоступен (чекните ссылку).");
-                    added = res.result.tracks.map(t => { const trk = t.track || t; return { ...trk, id: trk.id.toString().split(':')[0] }; });
+                    added = res.result.tracks.map(t => {
+                        const trk = t.track || t;
+                        return { ...trk, id: trk.id.toString().split(':')[0] };
+                    });
                     socket.emit("send-message", { content: `📂 Загружено **${added.length}** треков: **${res.result.title || 'Плейлист'}**`, channelId: msg.channel });
-                } catch (e) { throw new Error(`Плейлист: ${e.message}`); }
+                } catch (e) { throw new Error(`Ошибка загрузки: ${e.message}`); }
             } else {
                 const sRes = await yandexClient.search.search(query, 0, 'all');
                 const t = sRes.result.tracks?.results?.find(trk => trk.durationMs > 40000) || sRes.result.tracks?.results?.[0];
@@ -278,16 +290,14 @@ socket.on("new-message", async (msg) => {
 
     if (content === "!help") {
         axios.post(`${SERVER_URL}/api/webhooks/${TOKEN}/${msg.channel}`, {
-            content: "👋 Привет! Я **Zvon Music Bot**!\n\n**Команды:**\n- `!play <Поиск или ссылка>`: Включить трек или плейлист (Yandex Music)\n- `!skip`: Следующий трек\n- `!prev`: Предыдущий трек\n- `!stop`: Остановить музыку и выйти\n- `!queue`: Показать очередь\n- `!shuffle`: Перемешать очередь",
+            content: "👋 Привет! Я **Zvon Music Bot**!\n\nТеперь у меня есть **Интерактивные Кнопки**! Они появляются под каждым играющим треком.\n\n**Команды:**\n- `!play <Поиск или ссылка>`: Включить трек или плейлист (Yandex Music)\n- `!skip`: Следующий трек\n- `!prev`: Предыдущий трек\n- `!stop`: Остановить и выйти\n- `!queue`: Показать очередь\n- `!shuffle`: Перемешать",
             buttons: [
+                { label: "⏮️ Prev", actionId: "prev_track", style: "secondary" },
+                { label: "⏹️ Stop", actionId: "stop_track", style: "danger" },
+                { label: "⏭️ Skip", actionId: "skip_track", style: "primary" },
                 {
                     label: "Наш GitHub",
                     url: "https://github.com/vlyne/zvon",
-                    style: "primary"
-                },
-                {
-                    label: "Yandex Music",
-                    url: "https://music.yandex.ru",
                     style: "secondary"
                 }
             ]
