@@ -93,29 +93,44 @@ socket.on("ready", async (data) => {
 
 // --- HELPER FUNCTIONS ---
 
-async function getTrackUrlCustom(trackId) {
+async function getTrackUrlCustom(trackId, attempt = 0) {
     const id = trackId.toString().split(':')[0];
     try {
         const infoRes = await yandexClient.tracks.getDownloadInfo(id);
-        // Find full track, fallback to preview
-        const info = infoRes.result.find(i => i.codec === 'mp3' && !i.preview) || infoRes.result[0];
+        if (!infoRes.result || infoRes.result.length === 0) throw new Error("No download info");
 
-        console.log(`[Yandex] Track ${id} metadata: codec=${info.codec}, preview=${info.preview}, bitrate=${info.bitrateKbps}kbps`);
-        if (info.preview) {
-            console.warn(`[Yandex] WARNING: Only 30s preview available for track ${id}.`);
-        }
+        // Prefer higher bitrates, and non-preview tracks
+        const sortedInfo = infoRes.result.sort((a, b) => b.bitrateKbps - a.bitrateKbps);
+        const info = sortedInfo.find(i => i.codec === 'mp3' && !i.preview) || sortedInfo[0];
 
         const headers = {
             'Authorization': `OAuth ${YANDEX_TOKEN}`,
             'User-Agent': 'Yandex-Music-API',
             'X-Yandex-Music-Client': 'Android/20.01.2'
         };
-        const directRes = await axios.get(info.downloadInfoUrl + "&format=json", { headers });
-        const { host, path, ts, s } = directRes.data;
-        const sign = crypto.createHash('md5').update('XGRwNC9wZnduYm9n' + path.substring(1) + s).digest('hex');
-        return `https://${host}/get-mp3/${sign}/${ts}${path}`;
+
+        // If one mirror fails, try another if available
+        try {
+            const downloadUrl = info.downloadInfoUrl + (info.downloadInfoUrl.includes('?') ? '&' : '?') + "format=json";
+            const directRes = await axios.get(downloadUrl, { headers, timeout: 5000 });
+            const { host, path, ts, s } = directRes.data;
+            const sign = crypto.createHash('md5').update('XGRwNC9wZnduYm9n' + path.substring(1) + s).digest('hex');
+            return `https://${host}/get-mp3/${sign}/${ts}${path}`;
+        } catch (axiosErr) {
+            // If Forbidden and we have more info objects, try the next one
+            if (sortedInfo.length > 1 && attempt < sortedInfo.length - 1) {
+                console.log(`[Yandex] Mirror failed for track ${id}, trying alternative...`);
+                return await getTrackUrlCustom(trackId, attempt + 1);
+            }
+            throw axiosErr;
+        }
     } catch (err) {
-        throw new Error(`Track ${id} URL error: ${err.message}`);
+        if (attempt < 2) {
+            console.log(`[Yandex] Retry ${attempt + 1} for track ${id}...`);
+            await new Promise(r => setTimeout(r, 1000));
+            return await getTrackUrlCustom(trackId, attempt + 1);
+        }
+        throw new Error(`Track ${id} error: ${err.message}`);
     }
 }
 
