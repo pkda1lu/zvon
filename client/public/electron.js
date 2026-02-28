@@ -358,6 +358,14 @@ function createWindow() {
     mainWindow.loadURL(isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, 'index.html')}`);
     mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
     mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
+
+    // Disable backward/forward navigation using mouse side buttons (App commands)
+    mainWindow.on('app-command', (e, cmd) => {
+        if (cmd === 'browser-backward' || cmd === 'browser-forward') {
+            e.preventDefault();
+        }
+    });
+
     if (isDev) mainWindow.webContents.openDevTools();
 }
 

@@ -7,6 +7,7 @@ import { CloseIcon, TrashIcon, PlusIcon, ChevronUpIcon, ChevronDownIcon, Chevron
 import ImageCropper from './ImageCropper';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import './ServerSettingsModal.css';
 
 interface ServerSettingsModalProps {
@@ -58,6 +59,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     onServerDelete
 }) => {
     const { user: currentUser } = useAuth();
+    const { confirm, alert } = useDialog();
     const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
     const [serverName, setServerName] = useState(server.name);
     const [serverDescription, setServerDescription] = useState(server.description || '');
@@ -163,7 +165,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
             setHasChanges(false);
         } catch (err) {
-            alert('Ошибка при сохранении настроек');
+            await alert('Ошибка при сохранении настроек');
         } finally {
             setLoading(false);
         }
@@ -182,7 +184,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 setServerIcon(res.data.icon);
                 onServerUpdate({ ...server, icon: res.data.icon });
             } catch (err) {
-                alert('Ошибка при загрузке иконки');
+                await alert('Ошибка при загрузке иконки');
             } finally {
                 setLoading(false);
             }
@@ -208,7 +210,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 setServerBanner(res.data.banner);
                 onServerUpdate({ ...server, banner: res.data.banner });
             } catch (err) {
-                alert('Ошибка при загрузке баннера');
+                await alert('Ошибка при загрузке баннера');
             } finally {
                 setLoading(false);
             }
@@ -239,26 +241,26 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 onServerUpdate({ ...server, banner: res.data.banner });
             }
         } catch (err) {
-            alert(`Ошибка при загрузке ${type === 'icon' ? 'иконки' : 'баннера'}`);
+            await alert(`Ошибка при загрузке ${type === 'icon' ? 'иконки' : 'баннера'}`);
         } finally {
             setLoading(false);
         }
     };
 
     const handleDeleteServer = async () => {
-        if (window.confirm('Вы уверены, что хотите удалить сервер? Это действие необратимо.')) {
+        if (await confirm('Вы уверены, что хотите удалить сервер? Это действие необратимо.')) {
             try {
                 await axios.delete(`/api/servers/${server._id}`);
                 onServerDelete(server._id);
                 onClose();
             } catch (err) {
-                alert('Ошибка при удалении сервера');
+                await alert('Ошибка при удалении сервера');
             }
         }
     };
 
     const handleKickMember = async (userId: string) => {
-        if (window.confirm('Выгнать этого участника?')) {
+        if (await confirm('Выгнать этого участника?')) {
             try {
                 await axios.delete(`/api/servers/${server._id}/members/${userId}`);
                 setMembers(members.filter(m => (m.user as any)._id !== userId));
@@ -273,7 +275,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             setRoles([...roles, newRole]);
             onServerUpdate({ ...server, roles: [...roles, newRole] });
             setEditingRole(newRole._id);
-        } catch (err) { alert('Ошибка при создании роли'); }
+        } catch (err) { await alert('Ошибка при создании роли'); }
     };
 
     const handleUpdateRole = (roleId: string | null, updates: any) => {
@@ -294,14 +296,14 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
     const handleDeleteRole = async (roleId: string | null) => {
         if (!roleId) return;
-        if (!window.confirm('Удалить эту роль?')) return;
+        if (!(await confirm('Удалить эту роль?'))) return;
         try {
             await axios.delete(`/api/servers/${server._id}/roles/${roleId}`);
             const updatedRoles = roles.filter(r => r._id !== roleId);
             setRoles(updatedRoles);
             onServerUpdate({ ...server, roles: updatedRoles });
             if (editingRole === roleId) setEditingRole(null);
-        } catch (err) { alert('Ошибка при удалении роли'); }
+        } catch (err) { await alert('Ошибка при удалении роли'); }
     };
 
     const handleToggleMemberRole = async (userId: string, roleId: string) => {
@@ -318,7 +320,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             const updatedMembers = members.map(m => (m.user as any)._id === userId ? { ...m, roles: res.data.roles } : m);
             setMembers(updatedMembers);
             onServerUpdate({ ...server, members: updatedMembers });
-        } catch (err) { alert('Ошибка при обновлении ролей участника'); }
+        } catch (err) { await alert('Ошибка при обновлении ролей участника'); }
     };
 
     const handleMoveRole = async (roleId: string, direction: 'up' | 'down') => {
@@ -349,7 +351,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             onServerUpdate({ ...server, roles: newRoles });
         } catch (err) {
             setRoles(roles);
-            alert('Не удалось переместить роль');
+            await alert('Не удалось переместить роль');
         }
     };
 
@@ -617,7 +619,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                                     const res = await axios.post(`/api/servers/${server._id}/emojis`, formData);
                                                     onServerUpdate(res.data);
                                                 } catch (err: any) {
-                                                    alert(err.response?.data?.message || 'Ошибка при загрузке эмодзи');
+                                                    await alert(err.response?.data?.message || 'Ошибка при загрузке эмодзи');
                                                 } finally {
                                                     setLoading(false);
                                                 }
@@ -639,13 +641,13 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                                 className="action-button danger mini"
                                                 style={{ position: 'absolute', top: '4px', right: '4px', padding: '4px' }}
                                                 onClick={async () => {
-                                                    if (window.confirm(`Удалить эмодзи :${emoji.name}:?`)) {
+                                                    if (await confirm(`Удалить эмодзи :${emoji.name}:?`)) {
                                                         try {
                                                             setLoading(true);
                                                             const res = await axios.delete(`/api/servers/${server._id}/emojis/${emoji.id}`);
                                                             onServerUpdate(res.data);
                                                         } catch (err) {
-                                                            alert('Ошибка при удалении эмодзи');
+                                                            await alert('Ошибка при удалении эмодзи');
                                                         } finally {
                                                             setLoading(false);
                                                         }

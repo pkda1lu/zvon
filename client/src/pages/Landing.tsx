@@ -1,11 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import './Landing.css';
 
 const Landing: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { alert } = useDialog();
 
     const handleOpenApp = () => {
         if (user) {
@@ -144,8 +146,8 @@ const Landing: React.FC = () => {
                         <div className="footer-column">
                             <h5>Ресурсы</h5>
                             <ul>
-                                <li><a onClick={() => window.alert('Поддержка: support@zvonserver.ru')}>Поддержка</a></li>
-                                <li><a onClick={() => window.alert('API скоро будет доступно')}>API</a></li>
+                                <li><a onClick={async () => await alert('Поддержка: support@zvonserver.ru')}>Поддержка</a></li>
+                                <li><a onClick={async () => await alert('API скоро будет доступно')}>API</a></li>
                                 <li><a onClick={() => navigate('/policy')}>Условия</a></li>
                             </ul>
                         </div>

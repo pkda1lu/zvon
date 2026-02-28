@@ -5,6 +5,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import { ChatIcon, CloseIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import UserAvatar from './UserAvatar';
 import './FriendsPanel.css';
 
@@ -19,6 +20,7 @@ interface DMDict { [userId: string]: string; }
 const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unreadCounts }) => {
   const { socket } = useSocket();
   const { user: currentUser } = useAuth();
+  const { confirm } = useDialog();
   const [friends, setFriends] = useState<User[]>([]);
   const [userDMs, setUserDMs] = useState<DMDict>({});
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
@@ -88,7 +90,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
   };
 
   const removeFriend = async (id: string) => {
-    if (!window.confirm('Вы уверены?')) return;
+    if (!(await confirm('Вы уверены?'))) return;
     try { await axios.delete(`/api/friends/${id}`); await fetchFriends(); await fetchPendingRequests(); showMessage('Выполнено', 'success'); }
     catch (e) { showMessage('Ошибка', 'error'); }
   };

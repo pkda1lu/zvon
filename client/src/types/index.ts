@@ -108,7 +108,8 @@ export interface Message {
   }>;
   buttons?: Array<{
     label: string;
-    url: string;
+    url?: string;
+    actionId?: string;
     style?: 'primary' | 'secondary' | 'danger' | 'success';
   }>;
   edited: boolean;

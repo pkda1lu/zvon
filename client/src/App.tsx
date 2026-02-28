@@ -135,38 +135,41 @@ const AppBackground: React.FC = () => {
 
 import { ChatSettingsProvider } from './contexts/ChatSettingsContext';
 import { WindowSettingsProvider } from './contexts/WindowSettingsContext';
+import { DialogProvider } from './contexts/DialogContext';
 
 function App() {
   const isElectron = !!(window as any).electron;
   const Router = isElectron ? HashRouter : BrowserRouter;
 
   return (
-    <AuthProvider>
-      <AppearanceProvider>
-        <ChatSettingsProvider>
-          <WindowSettingsProvider>
-            <NotificationProvider>
-              <Router>
-                <div className="App" style={{ position: 'relative' }}>
-                  <AppBackground />
-                  <TitleBar />
-                  <ElectronHandler />
-                  <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
-                    <Routes>
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/register" element={<Register />} />
-                      <Route path="/invite/:code" element={<InvitePage />} />
-                      <Route path="/" element={<Home />} />
-                      <Route path="/*" element={<Home />} />
-                    </Routes>
+    <DialogProvider>
+      <AuthProvider>
+        <AppearanceProvider>
+          <ChatSettingsProvider>
+            <WindowSettingsProvider>
+              <NotificationProvider>
+                <Router>
+                  <div className="App" style={{ position: 'relative' }}>
+                    <AppBackground />
+                    <TitleBar />
+                    <ElectronHandler />
+                    <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
+                      <Routes>
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/invite/:code" element={<InvitePage />} />
+                        <Route path="/" element={<Home />} />
+                        <Route path="/*" element={<Home />} />
+                      </Routes>
+                    </div>
                   </div>
-                </div>
-              </Router>
-            </NotificationProvider>
-          </WindowSettingsProvider>
-        </ChatSettingsProvider>
-      </AppearanceProvider>
-    </AuthProvider>
+                </Router>
+              </NotificationProvider>
+            </WindowSettingsProvider>
+          </ChatSettingsProvider>
+        </AppearanceProvider>
+      </AuthProvider>
+    </DialogProvider>
   );
 }
 

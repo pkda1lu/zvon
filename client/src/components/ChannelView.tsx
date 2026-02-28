@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Socket } from 'socket.io-client';
 import { Channel, Message, Server, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon } from './Icons';
@@ -61,11 +62,12 @@ const MessageItem = React.memo<{
   onReact: (messageId: string, emoji: string) => void;
   onReply: (msg: Message) => void;
   scrollToMessage: (msgId: string) => void;
+  onInteractiveButtonClick: (messageId: string, actionId: string) => void;
 }>(({
   msg, prev, user, server, displayEmbeds, showHoverActions, mentionHighlight, canPin, canReact,
   onUserClick, onContextMenu, onTogglePin, onDelete, formatDate, renderMessageContent,
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
-  onReact, onReply, scrollToMessage
+  onReact, onReply, scrollToMessage, onInteractiveButtonClick
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number } | null>(null);
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
@@ -237,9 +239,19 @@ const MessageItem = React.memo<{
           {msg.buttons && msg.buttons.length > 0 && (
             <div className="message-interactive-buttons">
               {msg.buttons.map((btn, i) => (
-                <a key={i} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
-                  {btn.label}
-                </a>
+                btn.actionId ? (
+                  <button
+                    key={i}
+                    onClick={() => onInteractiveButtonClick(msg._id, btn.actionId!)}
+                    className={`msg-button ${btn.style || 'primary'}`}
+                  >
+                    {btn.label}
+                  </button>
+                ) : (
+                  <a key={i} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
+                    {btn.label}
+                  </a>
+                )
               ))}
             </div>
           )}
@@ -288,6 +300,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages
 }) => {
   const { user } = useAuth();
+  const { confirm, alert } = useDialog();
   const {
     displayEmbeds,
     showHoverActions,
@@ -514,7 +527,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setAttachments(prev => [...prev, ...response.data]);
       } catch (error) {
-        alert('Ошибка загрузки файла');
+        await alert('Ошибка загрузки файла');
       }
     }
   };
@@ -534,7 +547,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
           setAttachments(prev => [...prev, ...response.data]);
         } catch (error) {
-          alert('Ошибка загрузки файла');
+          await alert('Ошибка загрузки файла');
         }
       }
     }
@@ -725,13 +738,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         });
         setAttachments(prev => [...prev, ...response.data]);
       } catch (error) {
-        alert('Ошибка загрузки файла');
+        await alert('Ошибка загрузки файла');
       }
     }
   };
 
-  const handleDeleteMessage = (messageId: string) => {
-    if (window.confirm('Удалить это сообщение?')) {
+  const handleDeleteMessage = async (messageId: string) => {
+    if (await confirm('Удалить это сообщение?')) {
       socket?.emit('delete-message', { messageId, channelId: channel._id });
     }
   };
@@ -862,6 +875,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                   inputRef.current?.focus();
                 }}
                 scrollToMessage={scrollToMessage}
+                onInteractiveButtonClick={(messageId, actionId) => socket?.emit('interactive-button-click', { messageId, actionId, channelId: channel._id })}
               />
             </React.Fragment>
           ))}

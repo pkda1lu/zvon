@@ -4,6 +4,7 @@ import { User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
+import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './MemberContextMenu.css';
@@ -33,6 +34,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
     const { userVolumes, setUserVolume, localMutes, toggleLocalMute } = useVoice();
+    const { confirm, alert } = useDialog();
     const [isFriend, setIsFriend] = useState(false);
     const [friendshipId, setFriendshipId] = useState<string | null>(null);
     const [note, setNote] = useState('');
@@ -87,10 +89,10 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     };
 
     const handleBan = async () => {
-        if (window.confirm(`Вы уверены, что хотите забанить ${targetUser.username}?`)) {
+        if (await confirm(`Вы уверены, что хотите забанить ${targetUser.username}?`)) {
             try {
                 await axios.post(`/api/servers/${server._id}/bans`, { userId: targetUser._id });
-            } catch (err) { alert('Не удалось забанить пользователя.'); }
+            } catch (err) { await alert('Не удалось забанить пользователя.'); }
             onClose();
         }
     };
@@ -210,7 +212,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     break;
             }
         } catch (err) {
-            alert('Действие не удалось.');
+            await alert('Действие не удалось.');
         }
         onClose();
     };

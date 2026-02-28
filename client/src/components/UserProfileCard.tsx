@@ -5,6 +5,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { CloseIcon, PlusIcon } from './Icons';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import UserAvatar from './UserAvatar';
 import './UserProfileCard.css';
@@ -38,6 +39,7 @@ const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId, position, onUserClick }) => {
     const { socket } = useSocket();
     const { user: currentUser } = useAuth();
+    const { alert } = useDialog();
     const [profileData, setProfileData] = useState<{
         user: User;
         mutualServers: Array<{ _id: string; name: string; icon: string }>;
@@ -203,7 +205,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             const res = await axios.put(`/api/servers/${serverId}/members/${userId}`, { roles: newRoles });
             setMemberData({ ...memberData, roles: res.data.roles });
         } catch (err) {
-            alert('Не удалось обновить роли');
+            await alert('Не удалось обновить роли');
         }
     };
 

@@ -291,6 +291,23 @@ io.on('connection', (socket) => {
     } catch (error) { socket.emit('error', { message: 'Failed to send message' }); }
   });
 
+  socket.on('interactive-button-click', async (data) => {
+    try {
+      const { messageId, actionId, channelId } = data;
+      if (!channelId || !messageId || !actionId) return;
+
+      const userPayload = { _id: socket.user?._id, username: socket.user?.username };
+      io.to(`channel-${channelId}`).emit('interactive-button-click', {
+        messageId,
+        actionId,
+        channelId,
+        user: userPayload
+      });
+    } catch (err) {
+      console.error('interative-button-click error:', err);
+    }
+  });
+
   socket.on('edit-message', async (data) => {
     try {
       const { messageId, content } = data;

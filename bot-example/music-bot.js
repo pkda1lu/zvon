@@ -133,7 +133,13 @@ async function startPlayback(channelId) {
         const link = await getTrackUrlCustom(track.id);
         socket.emit("send-message", {
             content: `🎶 Играет (**${currentIndex + 1}/${playlistQueue.length}**): **${track.artists?.[0]?.name || '?'} - ${track.title}**`,
-            channelId: lastUsedChannelId
+            channelId: lastUsedChannelId,
+            buttons: [
+                { label: "⏮️ Prev", actionId: "prev_track", style: "secondary" },
+                { label: "⏹️ Stop", actionId: "stop_track", style: "danger" },
+                { label: "⏭️ Skip", actionId: "skip_track", style: "primary" },
+                { label: "🔀 Shuffle", actionId: "shuffle_queue", style: "secondary" }
+            ]
         });
         await playTrackStream(link, channelId);
     } catch (err) {
@@ -286,6 +292,27 @@ socket.on("new-message", async (msg) => {
                 }
             ]
         }).catch(err => console.error("Webhook help error:", err.message));
+    }
+});
+
+socket.on("interactive-button-click", (data) => {
+    if (!socket.voiceChannelId) return;
+
+    const channelId = socket.voiceChannelId;
+    const { actionId, user } = data;
+
+    if (actionId === "skip_track") {
+        socket.emit("send-message", { content: `⏭️ **${user.username}** пропустил трек.`, channelId: lastUsedChannelId });
+        skipTrack(channelId);
+    } else if (actionId === "prev_track") {
+        socket.emit("send-message", { content: `⏮️ **${user.username}** включил предыдущий трек.`, channelId: lastUsedChannelId });
+        prevTrack(channelId);
+    } else if (actionId === "stop_track") {
+        socket.emit("send-message", { content: `⏹️ **${user.username}** остановил музыку.`, channelId: lastUsedChannelId });
+        stopMusic();
+    } else if (actionId === "shuffle_queue") {
+        shuffleQueue();
+        socket.emit("send-message", { content: `🔀 **${user.username}** перемешал очередь.`, channelId: lastUsedChannelId });
     }
 });
 

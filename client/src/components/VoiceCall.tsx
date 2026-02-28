@@ -7,6 +7,7 @@ import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { getAvatarUrl } from '../utils/avatar';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
+import { useDialog } from '../contexts/DialogContext';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import UserAvatar from './UserAvatar';
@@ -87,6 +88,7 @@ const RemoteAudioPlayer: React.FC<{
 
 const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCall, initialIncomingCall = false }) => {
   const { user } = useAuth();
+  const { alert } = useDialog();
   const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
@@ -438,7 +440,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({ socket, otherUser, dmId, onEndCal
         soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
       } catch (e) {
         console.error(e);
-        alert('Ошибка при запуске демонстрации экрана: ' + (e as Error).message);
+        await alert('Ошибка при запуске демонстрации экрана: ' + (e as Error).message);
       }
     }
   };

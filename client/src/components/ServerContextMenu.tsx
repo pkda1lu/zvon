@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Server } from '../types';
 import axios from 'axios';
+import { useDialog } from '../contexts/DialogContext';
 import './MemberContextMenu.css'; // Reusing context menu styles
 
 interface ServerContextMenuProps {
@@ -14,6 +15,7 @@ interface ServerContextMenuProps {
 
 const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ server, x, y, onClose, onLeave }) => {
     const menuRef = useRef<HTMLDivElement>(null);
+    const { confirm, alert } = useDialog();
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -26,13 +28,13 @@ const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ server, x, y, onC
     }, [onClose]);
 
     const handleLeaveServer = async () => {
-        if (window.confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
+        if (await confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
             try {
                 await axios.post(`/api/servers/${server._id}/leave`);
                 onLeave(server._id);
                 onClose();
             } catch (err) {
-                alert('Не удалось покинуть сервер');
+                await alert('Не удалось покинуть сервер');
             }
         }
     };

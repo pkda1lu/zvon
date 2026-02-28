@@ -7,6 +7,7 @@ import { SOUNDS, soundManager } from '../utils/sounds';
 import { nativeAudioManager } from '../utils/nativeAudio';
 import vadWorkletUrl from '../utils/vad-worklet.js?url';
 import axios from 'axios';
+import { useDialog } from './DialogContext';
 import {
     Room,
     RoomEvent,
@@ -214,6 +215,7 @@ export const useVoiceLevels = () => {
 export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { socket } = useSocket();
     const { user } = useAuth();
+    const { alert } = useDialog();
 
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -966,7 +968,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 roomRef.current.disconnect();
                 roomRef.current = null;
             }
-            alert('Не удалось подключиться к голосовому каналу.');
+            await alert('Не удалось подключиться к голосовому каналу.');
         } finally {
             isJoiningRef.current = false;
         }

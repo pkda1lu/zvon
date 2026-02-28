@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Socket } from 'socket.io-client';
 import { DirectMessage, Message, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon } from './Icons';
@@ -40,6 +41,7 @@ const DMView: React.FC<DMViewProps> = ({
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages
 }) => {
   const { user } = useAuth();
+  const { alert } = useDialog();
   const {
     displayEmbeds,
     showHoverActions,
@@ -159,7 +161,7 @@ const DMView: React.FC<DMViewProps> = ({
       try {
         const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setAttachments(prev => [...prev, ...response.data]);
-      } catch (error) { alert('Ошибка загрузки файла'); }
+      } catch (error) { await alert('Ошибка загрузки файла'); }
     }
   };
 
@@ -177,7 +179,7 @@ const DMView: React.FC<DMViewProps> = ({
           const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
           setAttachments(prev => [...prev, ...response.data]);
         } catch (error) {
-          alert('Ошибка загрузки файла');
+          await alert('Ошибка загрузки файла');
         }
       }
     }
@@ -247,7 +249,7 @@ const DMView: React.FC<DMViewProps> = ({
         });
         setAttachments(prev => [...prev, ...response.data]);
       } catch (error) {
-        alert('Ошибка загрузки файла');
+        await alert('Ошибка загрузки файла');
       }
     }
   };

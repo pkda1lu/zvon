@@ -7,6 +7,7 @@ import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useAppearance, ThemeType } from '../contexts/AppearanceContext';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
+import { useDialog } from '../contexts/DialogContext';
 import {
   CloseIcon,
   UsersIcon,
@@ -49,6 +50,7 @@ type SettingsTab =
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, refreshUser, logout } = useAuth();
+  const { confirm, prompt, alert } = useDialog();
   const {
     isNoiseSuppressionEnabled, toggleNoiseSuppression,
     inputDevices, outputDevices, videoDevices,
@@ -1129,7 +1131,7 @@ const BotsSettings = () => {
       setEditingBot(null);
       fetchBots();
     } catch (e) {
-      alert('Ошибка при сохранении профиля');
+      await alert('Ошибка при сохранении профиля');
     } finally {
       setLoading(false);
     }
@@ -1179,40 +1181,40 @@ const BotsSettings = () => {
       setBotName('');
       fetchBots();
     } catch (e) {
-      alert('Ошибка создания бота');
+      await alert('Ошибка создания бота');
     } finally {
       setLoading(false);
     }
   };
 
   const deleteBot = async (id: string) => {
-    if (!window.confirm('Вы уверены, что хотите удалить этого бота?')) return;
+    if (!(await confirm('Вы уверены, что хотите удалить этого бота?'))) return;
     try {
       await axios.delete(`/api/bots/${id}`);
       fetchBots();
     } catch (e) { }
   };
 
-  const copyToken = (token: string) => {
+  const copyToken = async (token: string) => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(token)
         .then(() => {
           setCopiedToken(token);
           setTimeout(() => setCopiedToken(null), 2000);
         })
-        .catch(err => {
+        .catch(async err => {
           console.error('Clipboard error:', err);
           // Fallback if Write permission denied or other error
-          window.prompt("Копирование не удалось автоматически. Скопируйте токен вручную:", token);
+          await prompt("Копирование не удалось автоматически. Скопируйте токен вручную:", token);
         });
     } else {
       // Very old browsers or insecure contexts
-      window.prompt("Скопируйте токен вручную:", token);
+      await prompt("Скопируйте токен вручную:", token);
     }
   };
 
   const regenerateToken = async (id: string) => {
-    if (!window.confirm('Вы уверены? Старый токен перестанет работать.')) return;
+    if (!(await confirm('Вы уверены? Старый токен перестанет работать.'))) return;
     try {
       await axios.post(`/api/bots/${id}/regenerate-token`);
       fetchBots();
@@ -1222,10 +1224,10 @@ const BotsSettings = () => {
   const addBotToServer = async (botId: string, serverId: string) => {
     try {
       await axios.post(`/api/bots/${botId}/add-to-server`, { serverId });
-      alert('Бот успешно добавлен на сервер!');
+      await alert('Бот успешно добавлен на сервер!');
       setShowServerSelect(null);
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Ошибка при добавлении бота');
+      await alert(e.response?.data?.message || 'Ошибка при добавлении бота');
     }
   };
 
@@ -1342,49 +1344,56 @@ const BotsSettings = () => {
             </div>
 
             {editingBot?._id === bot._id && (
-              <div className="bot-edit-area" style={{ marginTop: '15px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ marginBottom: '15px' }}>
-                  <label className="settings-label">ИМЯ БОТА</label>
+              <div className="bot-edit-area" style={{ marginTop: '25px', padding: '25px', background: 'rgba(0,0,0,0.15)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', color: 'white' }}>Редактирование бота</h3>
+
+                <div className="user-settings-account-card" style={{ marginBottom: '25px' }}>
+                  <div
+                    className="account-banner"
+                    style={{ background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--primary-neon)' }}
+                  >
+                    <label className="change-banner-button" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                      Изменить баннер
+                      <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
+                    </label>
+                    <label className="account-avatar-wrapper" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {previewAvatar ? <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <BotIcon size={60} color="black" />}
+                      <input type="file" accept="image/*" onChange={handleAvatarSelect} hidden />
+                    </label>
+                  </div>
+
+                  <div className="account-info-banner" style={{ padding: '60px 40px 30px' }}>
+                    <div className="account-details">
+                      <h3 style={{ color: 'white' }}>{editName || 'Имя бота'}</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="settings-form-group">
+                  <label>Имя бота</label>
                   <input
                     type="text"
-                    className="settings-input"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Название бота"
                   />
                 </div>
-                <div style={{ marginBottom: '15px' }}>
-                  <label className="settings-label">О БОТЕ</label>
+
+                <div className="settings-form-group" style={{ marginTop: '15px' }}>
+                  <label>О боте</label>
                   <textarea
-                    className="settings-textarea"
                     value={editBio}
                     onChange={(e) => setEditBio(e.target.value)}
-                    placeholder="Описание бота..."
+                    placeholder="Описание возможностей и предназначения бота..."
                     rows={3}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label className="settings-label">АВАТАРКА</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', overflow: 'hidden', flexShrink: 0 }}>
-                        {previewAvatar ? <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <BotIcon size={40} />}
-                      </div>
-                      <input type="file" accept="image/*" onChange={handleAvatarSelect} style={{ fontSize: '12px' }} />
-                    </div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label className="settings-label">БАННЕР</label>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ width: '100%', height: '60px', borderRadius: '8px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-                        {previewBanner && <img src={previewBanner} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                      </div>
-                      <input type="file" accept="image/*" onChange={handleBannerSelect} style={{ fontSize: '12px' }} />
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button className="msg-action-btn" onClick={() => setEditingBot(null)}>Отмена</button>
-                  <button className="save-button" onClick={saveEdit} disabled={loading}>Сохранить</button>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginTop: '30px' }}>
+                  <button className="msg-action-btn" onClick={() => setEditingBot(null)} style={{ padding: '10px 20px', borderRadius: '12px' }}>Отмена</button>
+                  <button className="save-button" onClick={saveEdit} disabled={loading} style={{ margin: 0 }}>
+                    {loading ? 'Сохранение...' : 'Сохранить изменения'}
+                  </button>
                 </div>
               </div>
             )}

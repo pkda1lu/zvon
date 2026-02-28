@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Channel, Server, Role, PermissionOverwrite } from '../types';
 import { Permissions, hasPermission } from '../utils/permissions';
 import { getAvatarUrl } from '../utils/avatar';
+import { useDialog } from '../contexts/DialogContext';
 import { CloseIcon, TrashIcon, PlusIcon } from './Icons';
 import './ChannelSettingsModal.css';
 
@@ -26,6 +27,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     onChannelUpdate,
     onChannelDelete
 }) => {
+    const { confirm } = useDialog();
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const [name, setName] = useState(channel.name);
     const [topic, setTopic] = useState(channel.topic || '');
@@ -72,7 +74,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     };
 
     const handleDelete = async () => {
-        if (window.confirm(`Вы уверены, что хотите удалить ${channel.type === 'voice' ? 'голосовой' : 'текстовый'} канал "${channel.name}"? Это действие невозможно отменить.`)) {
+        if (await confirm(`Вы уверены, что хотите удалить ${channel.type === 'voice' ? 'голосовой' : 'текстовый'} канал "${channel.name}"? Это действие невозможно отменить.`)) {
             try {
                 await axios.delete(`/api/channels/${channel._id}`);
                 onChannelDelete(channel._id);

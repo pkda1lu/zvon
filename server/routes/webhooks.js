@@ -45,7 +45,7 @@ router.post('/:botToken/:channelId', async (req, res) => {
             content,
             author: bot._id,
             channel: channelId,
-            buttons: buttons.map(b => ({ label: b.label || 'Link', url: b.url || '#', style: b.style || 'primary' }))
+            buttons: buttons.map(b => ({ label: b.label || 'Link', url: b.url, actionId: b.actionId, style: b.style || 'primary' }))
         };
 
         const message = new Message(messageData);

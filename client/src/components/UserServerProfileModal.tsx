@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { CloseIcon, PlusIcon } from './Icons';
 import UserAvatar from './UserAvatar';
@@ -16,6 +17,7 @@ interface UserServerProfileModalProps {
 
 const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen, onClose, serverId, onUpdate }) => {
     const { user } = useAuth();
+    const { alert } = useDialog();
     const [server, setServer] = useState<Server | null>(null);
     const [nickname, setNickname] = useState('');
     const [bio, setBio] = useState('');
@@ -56,7 +58,7 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
                 const res = await axios.post('/api/upload-files', formData);
                 if (type === 'avatar') setAvatar(res.data[0].url);
                 else setBanner(res.data[0].url);
-            } catch (err) { alert('Ошибка загрузки'); }
+            } catch (err) { await alert('Ошибка загрузки'); }
         }
     };
 
@@ -68,7 +70,7 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
             const updatedServerRes = await axios.get(`/api/servers/${server._id}`);
             if (onUpdate) onUpdate(updatedServerRes.data);
             onClose();
-        } catch (err) { alert('Не удалось сохранить изменения'); }
+        } catch (err) { await alert('Не удалось сохранить изменения'); }
         finally { setSaving(false); }
     };
 

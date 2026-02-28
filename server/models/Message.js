@@ -32,6 +32,7 @@ const messageSchema = new mongoose.Schema({
   buttons: [{
     label: String,
     url: String,
+    actionId: String,
     style: { type: String, enum: ['primary', 'secondary', 'danger', 'success'], default: 'primary' }
   }],
   edited: {

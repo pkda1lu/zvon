@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Server } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
+import { useDialog } from '../contexts/DialogContext';
 import { CloseIcon } from './Icons';
 import './ServerProfileCard.css';
 
@@ -15,6 +16,7 @@ interface ServerProfileCardProps {
 
 const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, onLeave, position, onUserClick }) => {
     const cardRef = useRef<HTMLDivElement>(null);
+    const { confirm, alert } = useDialog();
     const [adjustedPos, setAdjustedPos] = useState({ top: position?.y || 0, left: (position?.x || 0) + 20 });
     const [isVisible, setIsVisible] = useState(false);
 
@@ -41,13 +43,13 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
         setIsVisible(true);
     }, [position]);
     const handleLeave = async () => {
-        if (window.confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
+        if (await confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
             try {
                 await axios.post(`/api/servers/${server._id}/leave`);
                 onLeave(server._id);
                 onClose();
             } catch (err) {
-                alert('Не удалось покинуть сервер');
+                await alert('Не удалось покинуть сервер');
             }
         }
     };
