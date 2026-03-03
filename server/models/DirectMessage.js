@@ -6,6 +6,15 @@ const directMessageSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   }],
+  name: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  icon: {
+    type: String,
+    default: null
+  },
   messages: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Message'

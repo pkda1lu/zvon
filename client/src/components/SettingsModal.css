@@ -938,6 +938,7 @@
   gap: 20px;
   margin-bottom: 25px;
 }
+
 .stop-logo-button {
   background: rgba(255, 59, 48, 0.1);
   color: #ff3b30 !important;
@@ -962,4 +963,48 @@
 
 .stop-logo-button:active {
   transform: translateY(0) scale(0.98);
+}
+
+/* --- CAMERA PREVIEW --- */
+.camera-preview-container {
+  margin-top: 20px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.camera-preview-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.camera-preview-error {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.camera-preview-error span {
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 80%;
+}
+
+.camera-preview-error svg {
+  opacity: 0.3;
 }

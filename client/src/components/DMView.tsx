@@ -91,6 +91,9 @@ const DMView: React.FC<DMViewProps> = ({
   };
 
   const otherUser = dm.participants.find(p => p._id !== user?._id);
+  const isGroup = dm.participants.length > 2 || !!dm.name;
+  const otherParticipants = dm.participants.filter(p => p._id !== user?._id);
+  const displayName = dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username);
 
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
@@ -488,27 +491,37 @@ const DMView: React.FC<DMViewProps> = ({
             </svg>
           </button>
 
-          <div className="dm-header-info" onClick={(e) => otherUser && onUserClick(otherUser._id, e)} style={{ cursor: 'pointer' }}>
+          <div className="dm-header-info" onClick={(e) => !isGroup && otherUser && onUserClick(otherUser._id, e)} style={{ cursor: isGroup ? 'default' : 'pointer' }}>
             <UserAvatar
-              user={otherUser}
+              user={isGroup ? null : otherUser}
               size={40}
               className="dm-avatar"
               onClick={(e) => {
+                if (isGroup) return;
                 e.stopPropagation();
                 otherUser && onUserClick(otherUser._id, e);
               }}
             />
-            <div>
-              <h3>{otherUser?.username}</h3>
-              <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
-                {otherUser?.status === 'online' ? 'В сети' : otherUser?.status === 'away' ? 'Нет на месте' : otherUser?.status === 'busy' ? 'Занят' : 'Не в сети'}
-              </div>
+            <div className="dm-header-text-info">
+              <h3 className="dm-display-name">{displayName}</h3>
+              {!isGroup && (
+                <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
+                  {otherUser?.status === 'online' ? 'В сети' : otherUser?.status === 'away' ? 'Нет на месте' : otherUser?.status === 'busy' ? 'Занят' : 'Не в сети'}
+                </div>
+              )}
+              {isGroup && (
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 600, opacity: 0.8 }}>
+                  {dm.participants.length} участников
+                </div>
+              )}
             </div>
           </div>
 
-          <button className="voice-call-button" onClick={() => otherUser && onStartCall(otherUser, dm._id)} title="Начать голосовой звонок">
-            <PhoneIcon />
-          </button>
+          {!isGroup && (
+            <button className="voice-call-button" onClick={() => otherUser && onStartCall(otherUser, dm._id)} title="Начать голосовой звонок">
+              <PhoneIcon />
+            </button>
+          )}
           <button className="voice-call-button" onClick={() => setShowPins(!showPins)} title="Закрепленные сообщения">
             <PinIcon size={20} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
           </button>

@@ -36,6 +36,33 @@ router.get('/user/:userId', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.post('/group', auth, async (req, res) => {
+  try {
+    const { userIds, name } = req.body;
+    if (!userIds || !Array.isArray(userIds) || userIds.length < 1) {
+      return res.status(400).json({ message: 'At least one other user is required' });
+    }
+
+    // Include the creator in the participants
+    const participants = [...new Set([...userIds, req.user._id.toString()])];
+
+    // If it's just 2 people total, check if a DM already exists
+    if (participants.length === 2) {
+      let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate('participants', 'username avatar status');
+      if (dm) return res.json(dm);
+    }
+
+    const dm = new DirectMessage({
+      participants,
+      name: name || null
+    });
+
+    await dm.save();
+    await dm.populate('participants', 'username avatar status');
+    res.status(201).json(dm);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.get('/:id/messages', auth, async (req, res) => {
   try {
     const { limit = 50, before } = req.query;

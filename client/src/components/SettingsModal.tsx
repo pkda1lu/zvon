@@ -47,6 +47,51 @@ type SettingsTab =
   | 'activity'
   | 'bots';
 
+const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+
+    const startPreview = async () => {
+      try {
+        setError(null);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId === 'default' ? true : { deviceId: { exact: deviceId } }
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err: any) {
+        console.error("Camera preview error:", err);
+        setError("Не удалось получить доступ к камере или устройство занято");
+      }
+    };
+
+    startPreview();
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [deviceId]);
+
+  return (
+    <div className="camera-preview-container">
+      {error ? (
+        <div className="camera-preview-error">
+          <CameraIcon size={48} />
+          <span>{error}</span>
+        </div>
+      ) : (
+        <video ref={videoRef} autoPlay playsInline muted className="camera-preview-video" />
+      )}
+    </div>
+  );
+};
+
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, refreshUser, logout } = useAuth();
@@ -688,9 +733,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </select>
         </div>
         {videoDevices.length > 0 && (
-          <div className="camera-preview-placeholder">
-            <div className="camera-preview-text">Предпросмотр камеры (Здесь будет видео)</div>
-          </div>
+          <CameraPreview deviceId={selectedVideoDeviceId} />
         )}
       </div>
 

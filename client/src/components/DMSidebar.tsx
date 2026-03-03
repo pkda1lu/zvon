@@ -14,6 +14,7 @@ interface DMSidebarProps {
     showFriends: boolean;
     currentUser: User;
     unreadCounts: Record<string, number>;
+    onAddDM?: () => void;
     style?: React.CSSProperties;
 }
 
@@ -25,6 +26,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     showFriends,
     currentUser,
     unreadCounts,
+    onAddDM,
     style
 }) => {
     return (
@@ -44,37 +46,47 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
             <div className="dm-list-container custom-scrollbar">
                 <div className="dm-list-title">
                     <span>ЛИЧНЫЕ СООБЩЕНИЯ</span>
-                    <button className="add-dm-button" title="Начать переписку">
+                    <button
+                        className="add-dm-button"
+                        title="Начать переписку"
+                        onClick={onAddDM}
+                    >
                         <PlusIcon size={16} />
                     </button>
                 </div>
 
                 <div className="dm-list">
                     {dms.map(dm => {
-                        const otherUser = dm.participants.find(p => p._id !== currentUser._id);
-                        if (!otherUser) return null;
+                        const isGroup = dm.participants.length > 2 || !!dm.name;
+                        const otherParticipants = dm.participants.filter(p => p._id !== currentUser._id);
+                        const otherUser = otherParticipants[0];
+                        if (!otherUser && !isGroup) return null;
 
                         const isSelected = selectedDM?._id === dm._id;
                         const unreadCount = unreadCounts[dm._id] || 0;
+                        const displayName = dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username);
 
                         return (
                             <div
                                 key={dm._id}
-                                className={`dm-item ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''}`}
+                                className={`dm-item ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''} ${isGroup ? 'group-dm' : ''}`}
                                 onClick={() => onDMSelect(dm)}
                             >
                                 <div className="dm-avatar-wrap">
                                     <UserAvatar
-                                        user={otherUser}
+                                        user={isGroup ? null : otherUser}
                                         size={32}
                                         className="dm-avatar"
                                     />
-                                    <div className={`status-indicator ${otherUser.status}`}></div>
+                                    {!isGroup && otherUser && <div className={`status-indicator ${otherUser.status}`}></div>}
                                 </div>
                                 <div className="dm-info">
-                                    <span className="dm-name">{otherUser.username}</span>
-                                    {otherUser.activity && (
+                                    <span className="dm-name">{displayName}</span>
+                                    {!isGroup && otherUser?.activity && (
                                         <span className="dm-activity">Играет в {otherUser.activity.name}</span>
+                                    )}
+                                    {isGroup && (
+                                        <span className="dm-activity">{dm.participants.length} участников</span>
                                     )}
                                 </div>
                                 {unreadCount > 0 && (

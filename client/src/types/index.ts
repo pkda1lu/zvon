@@ -137,6 +137,8 @@ export interface Friendship {
 export interface DirectMessage {
   _id: string;
   participants: User[];
+  name?: string | null;
+  icon?: string | null;
   messages?: Message[];
   createdAt: string;
   updatedAt: string;

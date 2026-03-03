@@ -24,6 +24,7 @@ import { useInbox } from '../contexts/InboxContext';
 import JoinServerModal from '../components/JoinServerModal';
 import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
+import CreateGroupDMModal from '../components/CreateGroupDMModal';
 import './Main.css';
 
 const Main: React.FC = () => {
@@ -43,8 +44,10 @@ const Main: React.FC = () => {
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
   const [dmMessages, setDmMessages] = useState<Message[]>([]);
   const [dms, setDms] = useState<DirectMessage[]>([]);
+  const [friends, setFriends] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInbox, setShowInbox] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
 
   const userRef = useRef(user);
   const selectedServerRef = useRef(selectedServer);
@@ -227,6 +230,13 @@ const Main: React.FC = () => {
     } catch (error) { }
   }, []);
 
+  const fetchFriends = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/friends');
+      setFriends(response.data);
+    } catch (error) { }
+  }, []);
+
   const fetchMessages = useCallback(async (channelId: string) => {
     try {
       const response = await axios.get(`/api/messages/channel/${channelId}`);
@@ -286,7 +296,8 @@ const Main: React.FC = () => {
   useEffect(() => {
     fetchServers();
     fetchDMs();
-  }, [fetchServers, fetchDMs]);
+    fetchFriends();
+  }, [fetchServers, fetchDMs, fetchFriends]);
 
   useEffect(() => {
     if (socket && servers.length > 0) {
@@ -592,6 +603,7 @@ const Main: React.FC = () => {
               setShowFriends(true);
               setSelectedDM(null);
             }}
+            onAddDM={() => setShowCreateGroupModal(true)}
             showFriends={showFriends}
             currentUser={user!}
             unreadCounts={unreadCounts}
@@ -707,6 +719,22 @@ const Main: React.FC = () => {
         <SettingsModal
           isOpen={showSettingsModal}
           onClose={() => setShowSettingsModal(false)}
+        />
+      )}
+
+      {showCreateGroupModal && (
+        <CreateGroupDMModal
+          isOpen={showCreateGroupModal}
+          onClose={() => setShowCreateGroupModal(false)}
+          friends={friends}
+          onCreated={async (dmId) => {
+            try {
+              const res = await axios.get(`/api/direct-messages/${dmId}`);
+              setDms(prev => [res.data, ...prev.filter(d => d._id !== dmId)]);
+              setSelectedDM(res.data);
+              setShowFriends(false);
+            } catch (e) { }
+          }}
         />
       )}
 
