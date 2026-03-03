@@ -381,13 +381,40 @@ io.on('connection', (socket) => {
     } catch (err) { }
   });
 
-  socket.on('call-offer', (data) => {
-    console.log(`[Call] Offer from ${socket.userId} to ${data.targetUserId}`);
-    io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId });
+  socket.on('call-offer', async (data) => {
+    if (data.dmId && !data.targetUserId) {
+      // Group call offer
+      try {
+        const DirectMessage = require('./models/DirectMessage');
+        const dm = await DirectMessage.findById(data.dmId);
+        if (dm) {
+          console.log(`[Call] Group offer from ${socket.userId} in DM ${data.dmId}`);
+          dm.participants.forEach(p => {
+            if (String(p) !== String(socket.userId)) {
+              io.to(`user-${String(p)}`).emit('call-offer', {
+                fromUserId: String(socket.userId),
+                offer: data.offer,
+                dmId: data.dmId,
+                isGroup: true
+              });
+            }
+          });
+        }
+      } catch (err) { }
+    } else {
+      console.log(`[Call] Offer from ${socket.userId} to ${data.targetUserId}`);
+      io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId });
+    }
   });
-  socket.on('call-end', (data) => {
-    console.log(`[Call] End from ${socket.userId} to ${data.targetUserId}`);
-    io.to(`user-${data.targetUserId}`).emit('call-end');
+
+  socket.on('call-end', async (data) => {
+    if (data.dmId && !data.targetUserId) {
+      // Notify all in DM room
+      io.to(`dm-call-${data.dmId}`).emit('call-end', { fromUserId: socket.userId });
+    } else {
+      console.log(`[Call] End from ${socket.userId} to ${data.targetUserId}`);
+      io.to(`user-${data.targetUserId}`).emit('call-end');
+    }
   });
 
   socket.on('join-dm-call', (data) => {

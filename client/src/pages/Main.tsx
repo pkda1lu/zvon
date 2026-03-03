@@ -59,7 +59,9 @@ const Main: React.FC = () => {
     user: User;
     isIncoming: boolean;
     dmId: string;
-    offer?: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string };
+    offer?: any;
+    isGroup?: boolean;
+    dmName?: string;
   } | null>(null);
   const [showProfileUserId, setShowProfileUserId] = useState<string | null>(null);
   const [profilePosition, setProfilePosition] = useState<{ x: number, y: number } | null>(null);
@@ -312,19 +314,35 @@ const Main: React.FC = () => {
 
   useEffect(() => {
     if (!socket) return;
-    const handleCallOffer = async (data: { fromUserId: string; offer: RTCSessionDescriptionInit; dmId: string }) => {
+    const handleCallOffer = async (data: any) => {
       if (!activeCall) {
         try {
           const response = await axios.get<User>(`/api/users/${data.fromUserId}`);
-          setActiveCall({ user: response.data, isIncoming: true, dmId: data.dmId || '', offer: data });
+          let dmName = '';
+          if (data.isGroup && data.dmId) {
+            try {
+              const dmRes = await axios.get(`/api/direct-messages/${data.dmId}`);
+              const dm = dmRes.data;
+              dmName = dm.name || dm.participants.filter((p: any) => p._id !== user?._id).map((p: any) => p.username).join(', ');
+            } catch (e) { }
+          }
+
+          setActiveCall({
+            user: response.data,
+            isIncoming: true,
+            dmId: data.dmId || '',
+            offer: data,
+            isGroup: !!data.isGroup,
+            dmName
+          });
 
           // Send Native Notification
           // @ts-ignore
           if (window.electron && window.electron.ipc) {
             // @ts-ignore
             window.electron.ipc.send('show-native-notification', {
-              title: 'Входящий звонок',
-              body: `Вам звонит ${response.data.username}`,
+              title: data.isGroup ? 'Групповой звонок' : 'Входящий звонок',
+              body: data.isGroup ? `${response.data.username} начал звонок в группе` : `Вам звонит ${response.data.username}`,
               silent: false
             });
           }
@@ -514,7 +532,18 @@ const Main: React.FC = () => {
       setShowFriends(false);
     } catch (error) { }
   };
-  const handleStartDirectCall = (user: User, dmId: string) => { setActiveCall({ user, isIncoming: false, dmId }); };
+  const handleStartDirectCall = (user: User, dmId: string) => { setActiveCall({ user, isIncoming: false, dmId, isGroup: false }); };
+  const handleStartGroupCall = () => {
+    if (!selectedDM || !user) return;
+    const dmName = selectedDM.name || selectedDM.participants.filter(p => p._id !== user._id).map(p => p.username).join(', ');
+    setActiveCall({
+      user: user, // Current user is the one starting, but in group calls this simplifies things
+      isIncoming: false,
+      dmId: selectedDM._id,
+      isGroup: true,
+      dmName
+    });
+  };
   const handleServerDelete = (serverId: string) => {
     setServers(prev => prev.filter(s => s._id !== serverId));
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
@@ -655,6 +684,7 @@ const Main: React.FC = () => {
             socket={socket}
             onClose={() => { setSelectedDM(null); setShowFriends(true); }}
             onStartCall={handleStartDirectCall}
+            onStartGroupCall={handleStartGroupCall}
             onUserClick={handleUserClick}
             initialUnreadCount={unreadCounts[selectedDM._id]}
             hasMore={hasMore}
@@ -675,7 +705,18 @@ const Main: React.FC = () => {
         )}
       </div>
 
-      {activeCall && <VoiceCall socket={socket} otherUser={activeCall.user} dmId={activeCall.dmId} initialIncomingCall={activeCall.isIncoming} initialOffer={activeCall.offer} onEndCall={() => setActiveCall(null)} />}
+      {activeCall && (
+        <VoiceCall
+          socket={socket}
+          otherUser={activeCall.user}
+          dmId={activeCall.dmId}
+          isGroup={activeCall.isGroup}
+          dmName={activeCall.dmName}
+          initialIncomingCall={activeCall.isIncoming}
+          initialOffer={activeCall.offer}
+          onEndCall={() => setActiveCall(null)}
+        />
+      )}
 
       {showProfileUserId && (
         <UserProfileCard

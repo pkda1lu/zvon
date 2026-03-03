@@ -27,6 +27,7 @@ interface DMViewProps {
   socket: Socket | null;
   onClose: () => void;
   onStartCall: (user: User, dmId: string) => void;
+  onStartGroupCall: () => void;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   initialUnreadCount?: number;
   hasMore?: boolean;
@@ -37,7 +38,7 @@ interface DMViewProps {
 }
 
 const DMView: React.FC<DMViewProps> = ({
-  dm, messages, socket, onClose, onStartCall, onUserClick, initialUnreadCount = 0,
+  dm, messages, socket, onClose, onStartCall, onStartGroupCall, onUserClick, initialUnreadCount = 0,
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages
 }) => {
   const { user } = useAuth();
@@ -517,11 +518,13 @@ const DMView: React.FC<DMViewProps> = ({
             </div>
           </div>
 
-          {!isGroup && (
-            <button className="voice-call-button" onClick={() => otherUser && onStartCall(otherUser, dm._id)} title="Начать голосовой звонок">
-              <PhoneIcon />
-            </button>
-          )}
+          <button
+            className="voice-call-button"
+            onClick={() => isGroup ? onStartGroupCall() : (otherUser && onStartCall(otherUser, dm._id))}
+            title={isGroup ? "Начать групповой звонок" : "Начать голосовой звонок"}
+          >
+            <PhoneIcon />
+          </button>
           <button className="voice-call-button" onClick={() => setShowPins(!showPins)} title="Закрепленные сообщения">
             <PinIcon size={20} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
           </button>
