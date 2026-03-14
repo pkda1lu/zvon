@@ -21,7 +21,8 @@ import {
     ConnectionState,
     VideoPresets,
     createAudioAnalyser,
-    TrackPublication
+    TrackPublication,
+    ConnectionQuality
 } from 'livekit-client';
 
 // Remote Audio Component to handle lifecycle properly
@@ -190,6 +191,8 @@ interface VoiceContextType {
     setIsAutomaticSensitivity: (val: boolean) => void;
     startTestStream: () => Promise<void>;
     stopTestStream: () => void;
+    ping: number;
+    connectionQuality: ConnectionQuality;
 }
 
 interface VoiceLevelContextType {
@@ -304,6 +307,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const testStreamRef = useRef<MediaStream | null>(null);
+    const [ping, setPing] = useState<number>(0);
+    const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>(ConnectionQuality.Unknown);
     const audioContextRef = useRef<AudioContext | null>(null);
     const localGainNodeRef = useRef<GainNode | null>(null);
     const livekitTrackRef = useRef<MediaStreamTrack | null>(null); // The REAL LiveKit track for VAD gating
@@ -1308,8 +1313,27 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 return prev;
             });
         }, 60); // Slightly more relaxed interval for better performance
+        
+        const statsInterval = setInterval(() => {
+            if (roomRef.current && isConnected) {
+                const lp = roomRef.current.localParticipant;
+                if (lp) {
+                    // Try to get RTT from track stats or fallback to signaling RTT
+                    const rtt = (typeof (lp as any).getRTT === 'function' ? (lp as any).getRTT() : 0) || 
+                               (roomRef.current as any).engine?.client?.rtt || 0;
+                    setPing(Math.round(rtt));
+                    setConnectionQuality(lp.connectionQuality);
+                }
+            } else if (!isConnected) {
+                setPing(0);
+                setConnectionQuality(ConnectionQuality.Unknown);
+            }
+        }, 2000);
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            clearInterval(statsInterval);
+        };
     }, [isConnected, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, user?._id]);
 
     // Unified Effect for volume synchronization to prevent re-publication lag
@@ -1570,7 +1594,9 @@ registerProcessor('vad-processor', VADProcessor);
             stopTestStream,
             isVideoOn,
             toggleVideo,
-            localCameraStream
+            localCameraStream,
+            ping,
+            connectionQuality
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}

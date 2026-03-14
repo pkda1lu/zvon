@@ -3,6 +3,7 @@ import { Server, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import './ServerMembers.css';
 
 interface ServerMembersProps {
@@ -83,9 +84,12 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                         <div className={`status-indicator ${member.user.status}`}></div>
                                                     </div>
                                                     <div className="member-info">
-                                                        <span className="member-name" style={{ color: memberColor }}>
-                                                            {member.nickname || member.user.username}
-                                                        </span>
+                                                        <div className="member-name-row">
+                                                            <span className="member-name" style={{ color: memberColor }}>
+                                                                {member.nickname || member.user.username}
+                                                            </span>
+                                                            <UserBadges badges={member.user.badges} size={14} />
+                                                        </div>
                                                         {member.user.activity && (
                                                             <div className="member-activity">
                                                                 <span className="activity-text">
@@ -127,7 +131,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                     <div className={`status-indicator ${member.user.status}`}></div>
                                                 </div>
                                                 <div className="member-info">
-                                                    <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.username}</span>
+                                                    <div className="member-name-row">
+                                                        <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.username}</span>
+                                                        <UserBadges badges={member.user.badges} size={14} />
+                                                    </div>
                                                     {member.user.activity && (
                                                         <div className="member-activity">
                                                             <span className="activity-text">
@@ -167,9 +174,12 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
                                                     />
                                                     <div className={`status-indicator ${member.user.status}`}></div>
                                                 </div>
-                                                <span className="member-name" style={{ color: memberColor }}>
-                                                    {member.nickname || member.user.username}
-                                                </span>
+                                                <div className="member-name-row">
+                                                    <span className="member-name" style={{ color: memberColor }}>
+                                                        {member.nickname || member.user.username}
+                                                    </span>
+                                                    <UserBadges badges={member.user.badges} size={14} />
+                                                </div>
                                             </div>
                                         );
                                     })}

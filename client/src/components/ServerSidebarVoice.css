@@ -67,6 +67,14 @@
     transition: all 0.2s;
 }
 
+.voice-user-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+    flex: 1;
+}
+
 .voice-user-item:hover .voice-user-name {
     color: white;
 }

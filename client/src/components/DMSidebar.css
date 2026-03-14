@@ -139,6 +139,13 @@
     transition: color 0.2s;
 }
 
+.dm-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+}
+
 .dm-item:hover .dm-name,
 .dm-item.active .dm-name {
     color: white;

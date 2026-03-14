@@ -33,7 +33,7 @@ router.get('/profile/:id', auth, async (req, res) => {
 
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { username, status, bio } = req.body;
+    const { username, status, bio, badges } = req.body;
     if (username) {
       const existingUser = await User.findOne({ username });
       if (existingUser && existingUser._id.toString() !== req.user._id.toString()) return res.status(400).json({ message: 'Username already taken' });
@@ -44,12 +44,13 @@ router.put('/profile', auth, async (req, res) => {
       req.user.statusPreference = status;
     }
     if (bio !== undefined) req.user.bio = bio;
+    if (badges !== undefined) req.user.badges = badges;
     await req.user.save();
     const io = req.app.get('io');
     if (io) {
-      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner });
+      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, badges: req.user.badges });
     }
-    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bio: req.user.bio, status: req.user.status });
+    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bio: req.user.bio, status: req.user.status, badges: req.user.badges });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

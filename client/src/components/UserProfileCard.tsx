@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import './UserProfileCard.css';
 
 interface UserProfileCardProps {
@@ -243,7 +244,10 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
                 <div className="profile-body">
                     <div className="profile-names">
-                        {memberData?.nickname && <span className="profile-nickname">{memberData.nickname}</span>}
+                        <div className="profile-names-top">
+                            {memberData?.nickname && <span className="profile-nickname">{memberData.nickname}</span>}
+                            <UserBadges badges={user.badges} size={18} className="profile-badges" />
+                        </div>
                         <span className={memberData?.nickname ? "profile-username sub" : "profile-username"}>{user.username}</span>
                     </div>
 
@@ -333,6 +337,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                     <div key={friend._id} className="mutual-item" onClick={(e) => onUserClick?.(friend._id, e)} style={{ cursor: 'pointer' }}>
                                         <UserAvatar user={friend} size={32} className="mutual-avatar" />
                                         <span>{friend.username}</span>
+                                        <UserBadges badges={friend.badges} size={14} />
                                     </div>
                                 )) : <div className="empty-mutual">Нет общих друзей.</div>}
                             </div>

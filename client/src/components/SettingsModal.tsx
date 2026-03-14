@@ -150,6 +150,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [bannerPreview, setBannerPreview] = useState<string | null>(getAvatarUrl(user?.banner) || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedBadges, setSelectedBadges] = useState<string[]>(user?.badges || []);
+
+  const AVAILABLE_BADGES = [
+    { id: 'dev', label: 'Разработчик', icon: '🛠️' },
+    { id: 'premium', label: 'Премиум', icon: '💎' },
+    { id: 'moderator', label: 'Модератор', icon: '🛡️' },
+    { id: 'artist', label: 'Художник', icon: '🎨' },
+    { id: 'gamer', label: 'Геймер', icon: '🎮' },
+    { id: 'meow', label: 'Котик', icon: '🐈' },
+    { id: 'staff', label: 'Персонал', icon: '👔' },
+    { id: 'bug_hunter', label: 'Охотник за багами', icon: '🐛' }
+  ];
 
   // Cropper State
   const [cropModal, setCropModal] = useState<{
@@ -172,6 +184,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       setBio(user.bio || '');
       setAvatarPreview(getAvatarUrl(user.avatar));
       setBannerPreview(getAvatarUrl(user.banner));
+      setSelectedBadges(user.badges || []);
     }
   }, [user]);
 
@@ -278,7 +291,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
     setError('');
     try {
-      await axios.put('/api/users/profile', { username, bio, status });
+      await axios.put('/api/users/profile', { username, bio, status, badges: selectedBadges });
       await refreshUser();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Ошибка сохранения профиля');
@@ -360,6 +373,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             >
               <div className={`status-dot ${opt.color}`} />
               <span className="status-text">{opt.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="settings-form-group">
+        <label>Значки профиля</label>
+        <div className="badges-selector-grid">
+          {AVAILABLE_BADGES.map(badge => (
+            <div
+              key={badge.id}
+              className={`badge-option ${selectedBadges.includes(badge.id) ? 'active' : ''}`}
+              onClick={() => {
+                setSelectedBadges(prev => 
+                  prev.includes(badge.id) 
+                    ? prev.filter(id => id !== badge.id) 
+                    : [...prev, badge.id]
+                );
+              }}
+              title={badge.label}
+            >
+              <span className="badge-icon">{badge.icon}</span>
+              <span className="badge-label">{badge.label}</span>
             </div>
           ))}
         </div>

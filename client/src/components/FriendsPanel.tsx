@@ -7,6 +7,7 @@ import { ChatIcon, CloseIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
@@ -116,7 +117,14 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
                   />
                   <div className={`status-indicator ${f.status}`}></div>
                 </div>
-                <div className="friend-info" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}><div className="friend-name">{f.username}{userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}</div><div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div></div>
+                <div className="friend-info" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}>
+                  <div className="friend-name">
+                    {f.username}
+                    <UserBadges badges={f.badges} size={14} />
+                    {userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}
+                  </div>
+                  <div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div>
+                </div>
                 <div className="friend-actions">
                   <button className="test-action-btn" onClick={() => onStartDM(f._id)} title="Написать сообщение">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
@@ -139,7 +147,13 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
                   className="request-avatar"
                   onClick={(e) => onUserClick(r.requester._id, e)}
                 />
-                <div className="request-info" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}><div className="request-name">{r.requester.username}</div><div className="request-text">хочет добавить вас в друзья</div></div>
+                <div className="request-info" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}>
+                  <div className="request-name">
+                    {r.requester.username}
+                    <UserBadges badges={r.requester.badges} size={14} />
+                  </div>
+                  <div className="request-text">хочет добавить вас в друзья</div>
+                </div>
                 <div className="request-actions"><button className="accept-button" onClick={() => acceptRequest(r._id)}>Принять</button><button className="reject-button" onClick={() => removeFriend(r._id)}>Отклонить</button></div>
               </div>
             ))}
@@ -158,7 +172,13 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
                     className="result-avatar"
                     onClick={(e) => onUserClick(u._id, e)}
                   />
-                  <div className="result-info" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}><div className="result-name">{u.username}</div><div className="result-email">{u.email}</div></div>
+                  <div className="result-info" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}>
+                    <div className="result-name">
+                      {u.username}
+                      <UserBadges badges={u.badges} size={14} />
+                    </div>
+                    <div className="result-email">{u.email}</div>
+                  </div>
                   <button className="add-button" onClick={() => sendFriendRequest(u._id)} disabled={!!loadingAction}>{loadingAction === u._id ? '...' : 'Добавить'}</button>
                 </div>
               ))}

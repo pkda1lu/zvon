@@ -28,6 +28,7 @@ export interface User {
   blockedUsers?: string[];
   notes?: Record<string, string>;
   isBot?: boolean;
+  badges?: string[];
   createdAt: string;
 }
 

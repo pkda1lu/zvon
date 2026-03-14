@@ -100,6 +100,10 @@ const userSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  badges: {
+    type: [String],
+    default: []
+  },
   createdAt: {
     type: Date,
     default: Date.now

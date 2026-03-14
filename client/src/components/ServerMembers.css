@@ -96,6 +96,14 @@
     text-overflow: ellipsis;
 }
 
+.member-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+    max-width: 100%;
+}
+
 .member-item:hover .member-name {
     color: var(--text-primary);
 }

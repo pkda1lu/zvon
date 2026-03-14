@@ -18,6 +18,7 @@ import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import Reactions from './Reactions';
 import StickyPins from './StickyPins';
+import UserBadges from './UserBadges';
 import './DMView.css';
 import './Attachments.css';
 
@@ -623,6 +624,7 @@ const DMView: React.FC<DMViewProps> = ({
                         {!grouped && (
                           <div className="message-header">
                             <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                            <UserBadges badges={msg.author.badges} size={14} />
                             {msg.author.isBot && <span className="bot-badge">БOТ</span>}
                             <span className="message-time">{formatDate(msg.createdAt)}</span>
                             {showHoverActions && (

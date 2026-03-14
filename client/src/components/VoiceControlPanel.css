@@ -28,7 +28,7 @@
     flex-shrink: 0;
 }
 
-.voice-status-indicator .status-dot {
+.voice-status-dot {
     width: 8px;
     height: 8px;
     background: #23a559;
@@ -138,3 +138,94 @@
 .voice-action-btn.sharing:hover {
     background: rgba(0, 229, 255, 0.2);
 }
+
+/* Connection Tooltip */
+.voice-connection-tooltip {
+    position: absolute;
+    bottom: calc(100% + 20px);
+    left: -10px;
+    min-width: 180px;
+    padding: 12px;
+    z-index: 9999; /* Higher z-index */
+    pointer-events: none;
+    animation: tooltipFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: bottom left;
+    background: rgba(15, 15, 25, 0.98) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
+}
+
+.voice-connection-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 15px;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(25, 25, 35, 0.95);
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.tooltip-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tooltip-header span {
+    font-size: 11px;
+    font-weight: 800;
+    color: #8e9297;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tooltip-header .tooltip-header-dot {
+    width: 6px;
+    height: 6px;
+    background: #23a559;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #23a559;
+    flex-shrink: 0;
+}
+
+.tooltip-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tooltip-row .label {
+    font-size: 12px;
+    color: #b9bbbe;
+}
+
+.tooltip-row .value {
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+}
+
+.value.quality-excellent { color: #23a559 !important; }
+.value.quality-good { color: #f29332 !important; }
+.value.quality-poor { color: #ff4d4d !important; }
+.value.quality-lost { color: #747f8d !important; }

@@ -10,6 +10,7 @@ import ScreenSourceSelector from './ScreenSourceSelector';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import './VoiceChannelView.css';
 
 interface VoiceChannelViewProps {
@@ -64,7 +65,10 @@ const VoiceParticipantCard = React.memo<{
       )}
 
       <div className="p-info">
-        <span className="p-name">{getDisplayName(participant)}{participant.isMe ? ' (Вы)' : ''}</span>
+        <div className="p-name-row">
+          <span className="p-name">{getDisplayName(participant)}{participant.isMe ? ' (Вы)' : ''}</span>
+          <UserBadges badges={participant.badges} size={14} />
+        </div>
         {participant.isMe && <span className="p-badge badge-host">HOST</span>}
       </div>
 

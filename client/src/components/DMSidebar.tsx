@@ -4,6 +4,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { UsersIcon, PlusIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
+import UserBadges from './UserBadges';
 import './DMSidebar.css';
 
 interface DMSidebarProps {
@@ -81,7 +82,10 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                                     {!isGroup && otherUser && <div className={`status-indicator ${otherUser.status}`}></div>}
                                 </div>
                                 <div className="dm-info">
-                                    <span className="dm-name">{displayName}</span>
+                                    <div className="dm-name-row">
+                                        <span className="dm-name">{displayName}</span>
+                                        {!isGroup && otherUser && <UserBadges badges={otherUser.badges} size={12} />}
+                                    </div>
                                     {!isGroup && otherUser?.activity && (
                                         <span className="dm-activity">Играет в {otherUser.activity.name}</span>
                                     )}

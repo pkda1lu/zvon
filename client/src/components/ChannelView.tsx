@@ -22,6 +22,7 @@ import Reactions from './Reactions';
 import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
 import StickyPins from './StickyPins';
+import UserBadges from './UserBadges';
 import { SmileIcon } from './Icons';
 
 interface ChannelViewProps {
@@ -139,6 +140,7 @@ const MessageItem = React.memo<{
                 >
                   {member?.nickname || msg.author.username}
                 </span>
+                <UserBadges badges={msg.author.badges} size={14} />
                 {msg.author.isBot && <span className="bot-badge">БOТ</span>}
                 <span className="message-time">{formatDate(msg.createdAt)}</span>
               </div>

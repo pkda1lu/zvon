@@ -15,12 +15,25 @@ const VoiceControlPanel: React.FC = () => {
         leaveChannel,
         isScreenSharing,
         startScreenShare,
-        stopScreenShare
+        stopScreenShare,
+        ping,
+        connectionQuality
     } = useVoice();
 
     const [showSourceSelector, setShowSourceSelector] = React.useState(false);
+    const [showTooltip, setShowTooltip] = useState(false);
 
     if (!activeChannelId) return null;
+
+    const getConnectionQualityText = (quality: string) => {
+        switch (quality) {
+            case 'excellent': return 'Отличное';
+            case 'good': return 'Хорошее';
+            case 'poor': return 'Низкое';
+            case 'lost': return 'Потеряно';
+            default: return 'Ожидание...';
+        }
+    };
 
     const handleShareClick = () => {
         if (isScreenSharing) {
@@ -38,9 +51,34 @@ const VoiceControlPanel: React.FC = () => {
     return (
         <div className="voice-control-panel glass-panel-base">
             <div className="voice-info">
-                <div className="voice-status-indicator">
+                <div 
+                    className="voice-status-indicator"
+                    onMouseEnter={() => setShowTooltip(true)}
+                    onMouseLeave={() => setShowTooltip(false)}
+                >
                     <div className="pulse-ring"></div>
-                    <div className="status-dot"></div>
+                    <div className="voice-status-dot"></div>
+                    
+                    {showTooltip && (
+                        <div className="voice-connection-tooltip glass-panel-base">
+                            <div className="tooltip-header">
+                                <div className="tooltip-header-dot"></div>
+                                <span>Статус соединения</span>
+                            </div>
+                            <div className="tooltip-content">
+                                <div className="tooltip-row">
+                                    <span className="label">Задержка</span>
+                                    <span className="value">{ping} мс</span>
+                                </div>
+                                <div className="tooltip-row">
+                                    <span className="label">Качество</span>
+                                    <span className={`value quality-${connectionQuality}`}>
+                                        {getConnectionQualityText(connectionQuality)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="voice-details">
                     <span className="voice-connection-status">Голосовая связь</span>

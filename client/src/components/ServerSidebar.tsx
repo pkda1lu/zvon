@@ -12,6 +12,7 @@ import './ServerSidebar.css';
 import InviteModal from './InviteModal';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
 
 interface ServerSidebarProps {
@@ -190,9 +191,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                           <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
                             {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" /> : <span>{u.username.charAt(0).toUpperCase()}</span>}
                           </div>
-                          <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                            {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
-                          </span>
+                          <div className="voice-user-name-row">
+                            <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
+                              {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
+                            </span>
+                            <UserBadges badges={u.badges} size={12} />
+                          </div>
                           <div className="voice-user-icons">
                             {userStates.get(u._id)?.isScreenSharing && (
                               <div className="live-badge nano">ЭФИР</div>
