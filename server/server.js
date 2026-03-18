@@ -171,6 +171,18 @@ io.on('connection', (socket) => {
 
   socket.on('send-message', async (data) => {
     try {
+      const user = await User.findById(socket.userId);
+      if (user && user.isBanned) {
+        if (user.banExpires && user.banExpires < Date.now()) {
+          user.isBanned = false;
+          user.banExpires = undefined;
+          user.banReason = undefined;
+          await user.save();
+        } else {
+          return socket.emit('error', { message: 'Ваш аккаунт заблокирован. Вы не можете отправлять сообщения.' });
+        }
+      }
+
       const messageData = {
         content: data.content || '',
         author: socket.userId,
@@ -383,6 +395,18 @@ io.on('connection', (socket) => {
   });
 
   socket.on('call-offer', async (data) => {
+    const user = await User.findById(socket.userId);
+    if (user && user.isBanned) {
+      if (user.banExpires && user.banExpires < Date.now()) {
+        user.isBanned = false;
+        user.banExpires = undefined;
+        user.banReason = undefined;
+        await user.save();
+      } else {
+        return socket.emit('error', { message: 'Ваш аккаунт заблокирован. Звонки запрещены.' });
+      }
+    }
+
     if (data.dmId && !data.targetUserId) {
       // Group call offer
       try {
@@ -443,6 +467,18 @@ io.on('connection', (socket) => {
 
   socket.on('join-voice-channel', async (data) => {
     try {
+      const user = await User.findById(socket.userId);
+      if (user && user.isBanned) {
+        if (user.banExpires && user.banExpires < Date.now()) {
+          user.isBanned = false;
+          user.banExpires = undefined;
+          user.banReason = undefined;
+          await user.save();
+        } else {
+          return socket.emit('error', { message: 'Ваш аккаунт заблокирован. Доступ в голосовые каналы запрещен.' });
+        }
+      }
+
       const channelId = data.channelId;
       const channel = await Channel.findById(channelId);
       if (!channel) return;

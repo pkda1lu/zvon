@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
+
 
 interface SocketContextType {
   socket: Socket | null;
@@ -18,7 +20,9 @@ export const useSocket = () => {
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://zvonserver.ru';
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
+  const { addNotification } = useNotifications();
+
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
 
@@ -39,7 +43,27 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.warn('Socket connection error to', SOCKET_URL, err);
         setConnected(false);
       });
+
+      newSocket.on('notification', (data: any) => {
+        addNotification({
+          title: 'Модерация',
+          content: data.message,
+          type: data.type === 'moderation_violation' ? 'warning' : 'info'
+        });
+      });
+
+      newSocket.on('account-banned', (data: any) => {
+        addNotification({
+          title: 'Блокировка аккаунта',
+          content: data.message,
+          type: 'error'
+        });
+        // Optionally logout or enforce UI refresh
+        setTimeout(() => logout(), 5000);
+      });
+
       setSocket(newSocket);
+
       return () => { newSocket.close(); };
     }
   }, [token]);

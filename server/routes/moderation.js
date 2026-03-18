@@ -71,7 +71,21 @@ router.post('/reports/:id/resolve', [auth, isModerator], async (req, res) => {
       status,
       resolvedBy: req.user._id,
       resolutionNote: note
-    }, { new: true });
+    }, { new: true }).populate('reportedUser').populate('reporter');
+    
+    // Notify the offender if resolved (meaning a violation was confirmed)
+    if (status === 'resolved' && report.reportedUser) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user-${report.reportedUser._id}`).emit('notification', {
+          type: 'moderation_violation',
+          message: `На ваш аккаунт поступила жалоба, которая была одобрена модератором: ${note}`,
+          reason: report.reason,
+          timestamp: new Date()
+        });
+      }
+    }
+    
     res.json(report);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -100,6 +114,19 @@ router.post('/ban', [auth, isModerator], async (req, res) => {
     }
     
     await user.save();
+    
+    // Notify user of their ban status immediately via socket
+    const io = req.app.get('io');
+    if (io) {
+      const expiresMsg = user.banExpires ? ` до ${new Date(user.banExpires).toLocaleString()}` : ' НАВСЕГДА';
+      io.to(`user-${user._id}`).emit('account-banned', {
+        type,
+        reason,
+        expires: user.banExpires,
+        message: `Ваш аккаунт заблокирован${expiresMsg}. Причина: ${reason}`
+      });
+    }
+
     res.json({ message: 'Пользователь успешно забанен' });
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера' });

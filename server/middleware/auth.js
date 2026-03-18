@@ -23,6 +23,24 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: 'Token is not valid' });
     }
 
+    // Check ban
+    if (user.isBanned) {
+      if (user.banExpires && user.banExpires < Date.now()) {
+        user.isBanned = false;
+        user.banExpires = undefined;
+        user.banReason = undefined;
+        await user.save();
+      } else {
+        const expiresMsg = user.banExpires ? ` до ${new Date(user.banExpires).toLocaleString()}` : ' НАВСЕГДА';
+        return res.status(403).json({
+          message: `Ваш аккаунт заблокирован${expiresMsg}. Причина: ${user.banReason || 'Не указана'}`,
+          isBanned: true,
+          banReason: user.banReason,
+          banExpires: user.banExpires
+        });
+      }
+    }
+
     req.user = user;
     next();
   } catch (error) {
