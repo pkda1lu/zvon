@@ -1,0 +1,118 @@
+.report-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(10px);
+}
+
+.report-modal-content {
+  background: var(--bg-secondary, #2b2d31);
+  width: 100%;
+  max-width: 440px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: modalScaleIn 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes modalScaleIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.report-modal-header {
+  padding: 24px 24px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.report-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #fff;
+}
+
+.report-modal-header .close-btn {
+  background: transparent;
+  border: none;
+  color: #b5bac1;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.report-modal-body {
+  padding: 0 24px 24px;
+}
+
+.report-modal-body .form-group {
+  margin-bottom: 20px;
+}
+
+.report-modal-body .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #b5bac1;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.report-select, .report-modal-body textarea {
+  width: 100%;
+  padding: 12px;
+  background: var(--bg-tertiary, #1e1f22);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  color: #dbdee1;
+  font-size: 14px;
+}
+
+.report-modal-body textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.report-modal-footer {
+  padding: 16px 24px 24px;
+  background: var(--bg-tertiary, #1e1f22);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cancel-btn {
+  background: transparent;
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 10px 20px;
+}
+
+.submit-btn {
+  background: #da373c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.submit-btn:hover {
+  background: #a12829;
+}

@@ -52,6 +52,7 @@ app.use('/api/bots', require('./routes/bots'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/upload-files', require('./routes/uploads'));
 app.use('/api/livekit', require('./routes/livekit'));
+app.use('/api/moderation', require('./routes/moderation'));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '7d',
   immutable: true,

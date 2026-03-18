@@ -106,8 +106,19 @@ const userSchema = new mongoose.Schema({
   },
   is2FAEnabled: {
     type: Boolean,
+    default: true
+  },
+  role: {
+    type: String,
+    enum: ['user', 'moderator', 'admin'],
+    default: 'user'
+  },
+  isBanned: {
+    type: Boolean,
     default: false
   },
+  banExpires: Date,
+  banReason: String,
   createdAt: {
     type: Date,
     default: Date.now

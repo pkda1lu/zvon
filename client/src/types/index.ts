@@ -30,6 +30,10 @@ export interface User {
   isBot?: boolean;
   badges?: string[];
   is2FAEnabled?: boolean;
+  role?: 'user' | 'moderator' | 'admin';
+  isBanned?: boolean;
+  banExpires?: string;
+  banReason?: string;
   createdAt: string;
 }
 

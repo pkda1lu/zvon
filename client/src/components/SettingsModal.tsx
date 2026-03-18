@@ -45,7 +45,8 @@ type SettingsTab =
   | 'streamer'
   | 'advanced'
   | 'activity'
-  | 'bots';
+  | 'bots'
+  | 'moderation';
 
 const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -141,6 +142,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   } = useWindowSettings();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
+  const [reports, setReports] = useState<any[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
 
   // Account Form State
   const [username, setUsername] = useState(user?.username || '');
@@ -151,6 +154,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedBadges, setSelectedBadges] = useState<string[]>(user?.badges || []);
+
+  useEffect(() => {
+    if (activeTab === 'moderation') {
+      fetchReports();
+    }
+  }, [activeTab]);
+
+  const fetchReports = async () => {
+    setReportsLoading(true);
+    try {
+      const res = await axios.get('/api/moderation/reports');
+      setReports(res.data);
+    } catch (err) { }
+    setReportsLoading(false);
+  };
+
 
   const AVAILABLE_BADGES = [
     { id: 'dev', label: 'Разработчик', icon: '🛠️' },
@@ -1110,6 +1129,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <BotIcon size={18} /> Мои боты
             </div>
 
+            {(user?.role === 'moderator' || user?.role === 'admin') && (
+              <div
+                className={`sidebar-item ${activeTab === 'moderation' ? 'active' : ''}`}
+                onClick={() => setActiveTab('moderation')}
+              >
+                <ShieldIcon size={18} /> Модерация
+              </div>
+            )}
+
             <div className="sidebar-separator" />
 
             <div className="sidebar-header">Настройки приложения</div>
@@ -1200,6 +1228,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               {activeTab === 'voice' && renderVoiceSettings()}
               {activeTab === 'chat' && renderChatSettings()}
               {activeTab === 'bots' && <BotsSettings />}
+              {activeTab === 'moderation' && <ModerationSettings />}
 
               {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
               {activeTab === 'windows' && renderWindowsSettings()}
@@ -1220,7 +1249,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   );
 };
 
-const BotsSettings = () => {
+function BotsSettings() {
   const [bots, setBots] = useState<any[]>([]);
   const [userServers, setUserServers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1537,4 +1566,106 @@ const BotsSettings = () => {
   );
 };
 
+function ModerationSettings() {
+  const { user } = useAuth();
+  const { confirm, prompt, alert } = useDialog();
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/moderation/reports');
+      setReports(res.data);
+    } catch (err) { }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  return (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Система модерации</h2>
+      
+      <div className="moderation-header" style={{ marginBottom: '20px' }}>
+        <div className="moderation-stat-card glass-panel-base" style={{ padding: '20px', borderRadius: '12px', display: 'inline-block' }}>
+          <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--primary-neon)' }}>{reports.length}</span>
+          <span style={{ marginLeft: '10px', color: 'var(--text-dim)' }}>Активных жалоб</span>
+        </div>
+      </div>
+
+      <div className="reports-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <h3>Список жалоб</h3>
+        {loading ? (
+          <div className="placeholder-settings">Загрузка...</div>
+        ) : reports.length === 0 ? (
+          <div className="placeholder-settings" style={{ padding: '40px' }}>Жалоб нет. Всё спокойно! 🛡️</div>
+        ) : (
+          reports.map(report => (
+            <div key={report._id} className="report-card glass-panel-base" style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', marginBottom: '5px' }}>
+                    <strong style={{ color: 'var(--text-dim)' }}>От:</strong> {report.reporter?.username}
+                  </div>
+                  <div style={{ fontSize: '14px' }}>
+                    <strong style={{ color: 'var(--text-dim)' }}>На:</strong> {report.reportedUser?.username}
+                  </div>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                  {new Date(report.createdAt).toLocaleString()}
+                </div>
+              </div>
+              <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                <div style={{ fontWeight: 600, color: 'var(--primary-neon)', marginBottom: '5px' }}>
+                  {report.reason === 'harassment' ? 'Домогательства' :
+                   report.reason === 'spam' ? 'Спам' :
+                   report.reason === 'inappropriate_content' ? 'Контент' :
+                   report.reason === 'scam' ? 'Мошенничество' : 'Другое'}
+                </div>
+                {report.description && <div style={{ fontSize: '13px' }}>{report.description}</div>}
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button className="msg-action-btn" onClick={async () => {
+                  try {
+                    await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'dismissed', note: 'Отклонено модератором' });
+                    fetchReports();
+                  } catch (e) {}
+                }}>Отклонить</button>
+                <button className="msg-action-btn" style={{ background: 'rgba(255,165,0,0.2)', color: 'orange' }} onClick={async () => {
+                  const reason = await prompt('Укажите причину временного бана:', 'Нарушение правил сообщества');
+                  if (reason) {
+                    try {
+                      await axios.post('/api/moderation/ban', { userId: report.reportedUser._id, type: 'temporary', durationHours: 24, reason });
+                      await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Временный бан на 24ч' });
+                      fetchReports();
+                      await alert('Пользователь забанен на 24 часа');
+                    } catch (e) {}
+                  }
+                }}>Бан 24ч</button>
+                <button className="msg-action-btn danger" onClick={async () => {
+                  if (await confirm(`Вы уверены, что хотите забанить ${report.reportedUser.username} НАВСЕГДА?`)) {
+                    const reason = await prompt('Укажите причину перманентного бана:', 'Грубое нарушение правил');
+                    if (reason) {
+                      try {
+                        await axios.post('/api/moderation/ban', { userId: report.reportedUser._id, type: 'permanent', reason });
+                        await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Перманентный бан' });
+                        fetchReports();
+                        await alert('Пользователь забанен навсегда');
+                      } catch (e) {}
+                    }
+                  }
+                }}>Пермабан</button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default SettingsModal;
+

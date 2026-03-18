@@ -9,6 +9,7 @@ import axios from 'axios';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './MemberContextMenu.css';
 import InputModal from './InputModal';
+import ReportModal from './ReportModal';
 
 interface MemberContextMenuProps {
     user: User;
@@ -48,6 +49,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
         type?: 'text' | 'number';
         onSubmit: (val: string) => void;
     }>({ title: '', onSubmit: () => { } });
+    const [showReportModal, setShowReportModal] = useState(false);
     const [adjustedPos, setAdjustedPos] = useState({ top: y, left: x });
     const [isVisible, setIsVisible] = useState(false);
 
@@ -210,6 +212,25 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 case 'server-profile':
                     window.dispatchEvent(new CustomEvent('open-server-profile-settings', { detail: { serverId: server._id } }));
                     break;
+                case 'report':
+                    setShowReportModal(true);
+                    return;
+                case 'assign-moderator':
+                    if (await confirm(`Вы уверены, что хотите назначить ${targetUser.username} модератором?`)) {
+                        try {
+                            await axios.post('/api/moderation/assign-role', { userId: targetUser._id, role: 'moderator' });
+                            await alert('Пользователь теперь модератор.');
+                        } catch (err) { await alert('Ошибка назначения роли.'); }
+                    }
+                    break;
+                case 'assign-user':
+                    if (await confirm(`Вы уверены, что хотите снять права модератора с ${targetUser.username}?`)) {
+                        try {
+                            await axios.post('/api/moderation/assign-role', { userId: targetUser._id, role: 'user' });
+                            await alert('Пользователь теперь обычный пользователь.');
+                        } catch (err) { await alert('Ошибка снятия роли.'); }
+                    }
+                    break;
             }
         } catch (err) {
             await alert('Действие не удалось.');
@@ -235,6 +256,25 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 type={inputModalConfig.type}
                 onClose={() => { setShowInputModal(false); onClose(); }}
                 onSubmit={inputModalConfig.onSubmit}
+            />,
+            document.body
+        );
+    }
+
+    if (showReportModal) {
+        return ReactDOM.createPortal(
+            <ReportModal
+                isOpen={showReportModal}
+                username={targetUser.username}
+                onClose={() => { setShowReportModal(false); onClose(); }}
+                onSubmit={async (data) => {
+                    try {
+                        await axios.post('/api/moderation/report', { ...data, userId: targetUser._id });
+                        await alert('Жалоба отправлена. Модераторы проверят её в ближайшее время.');
+                    } catch (err) { await alert('Не удалось отправить жалобу.'); }
+                    setShowReportModal(false);
+                    onClose();
+                }}
             />,
             document.body
         );
@@ -344,7 +384,21 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 )}
                 {!isSelf && (isFriend ? <div className="menu-item destructive" onClick={() => handleAction('remove-friend')}>Удалить из друзей</div> : <div className="menu-item" onClick={() => handleAction('add-friend')}>Добавить в друзья</div>)}
                 {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('block')}>Заблокировать</div>}
+                {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>}
             </div>
+            {currentUser?.role === 'admin' && !isSelf && (
+                <>
+                    <div className="menu-separator" />
+                    <div className="menu-group">
+                        <div className="menu-label">АДМИН: ПРАВА</div>
+                        {targetUser.role !== 'moderator' ? (
+                            <div className="menu-item" onClick={() => handleAction('assign-moderator')}>Назначить модератором</div>
+                        ) : (
+                            <div className="menu-item destructive" onClick={() => handleAction('assign-user')}>Снять права модератора</div>
+                        )}
+                    </div>
+                </>
+            )}
             {!isSelf && (
                 <>
                     <div className="menu-separator" />
