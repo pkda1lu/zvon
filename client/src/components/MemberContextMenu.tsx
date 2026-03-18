@@ -268,12 +268,12 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 username={targetUser.username}
                 onClose={() => { setShowReportModal(false); onClose(); }}
                 onSubmit={async (data) => {
+                    setShowReportModal(false);
+                    onClose();
                     try {
                         await axios.post('/api/moderation/report', { ...data, userId: targetUser._id });
                         await alert('Жалоба отправлена. Модераторы проверят её в ближайшее время.');
                     } catch (err) { await alert('Не удалось отправить жалобу.'); }
-                    setShowReportModal(false);
-                    onClose();
                 }}
             />,
             document.body

@@ -1571,37 +1571,42 @@ function ModerationSettings() {
   const { confirm, prompt, alert } = useDialog();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
 
-  const fetchReports = async () => {
+  const fetchReports = async (status: string) => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/moderation/reports');
+      const res = await axios.get(`/api/moderation/reports?status=${status}`);
       setReports(res.data);
     } catch (err) { }
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchReports();
-  }, []);
+    fetchReports(filter);
+  }, [filter]);
 
   return (
     <div className="settings-section-content">
       <h2 className="settings-section-title">Система модерации</h2>
       
-      <div className="moderation-header" style={{ marginBottom: '20px' }}>
-        <div className="moderation-stat-card glass-panel-base" style={{ padding: '20px', borderRadius: '12px', display: 'inline-block' }}>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--primary-neon)' }}>{reports.length}</span>
-          <span style={{ marginLeft: '10px', color: 'var(--text-dim)' }}>Активных жалоб</span>
+      <div className="moderation-header" style={{ marginBottom: '20px', display: 'flex', gap: '15px' }}>
+        <div className={`filter-tab ${filter === 'pending' ? 'active' : ''}`} onClick={() => setFilter('pending')} style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'pending' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'pending' ? 'black' : 'white', borderRadius: '8px', fontWeight: 600 }}>
+          Ожидают ({filter === 'pending' ? reports.length : '...'})
+        </div>
+        <div className={`filter-tab ${filter === 'resolved' ? 'active' : ''}`} onClick={() => setFilter('resolved')} style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'resolved' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'resolved' ? 'black' : 'white', borderRadius: '8px', fontWeight: 600 }}>
+          Решено
+        </div>
+        <div className={`filter-tab ${filter === 'dismissed' ? 'active' : ''}`} onClick={() => setFilter('dismissed')} style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'dismissed' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'dismissed' ? 'black' : 'white', borderRadius: '8px', fontWeight: 600 }}>
+          Отклонено
         </div>
       </div>
 
       <div className="reports-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <h3>Список жалоб</h3>
         {loading ? (
           <div className="placeholder-settings">Загрузка...</div>
         ) : reports.length === 0 ? (
-          <div className="placeholder-settings" style={{ padding: '40px' }}>Жалоб нет. Всё спокойно! 🛡️</div>
+          <div className="placeholder-settings" style={{ padding: '40px' }}>{filter === 'pending' ? 'Жалоб нет. Всё спокойно! 🛡️' : 'Список пока пуст.'}</div>
         ) : (
           reports.map(report => (
             <div key={report._id} className="report-card glass-panel-base" style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
@@ -1614,8 +1619,9 @@ function ModerationSettings() {
                     <strong style={{ color: 'var(--text-dim)' }}>На:</strong> {report.reportedUser?.username}
                   </div>
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                  {new Date(report.createdAt).toLocaleString()}
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'right' }}>
+                  <div>{new Date(report.createdAt).toLocaleString()}</div>
+                  {report.status !== 'pending' && <div style={{ color: 'var(--primary-neon)', fontWeight: 600, marginTop: '5px' }}>{report.status === 'resolved' ? 'РЕШЕНО' : 'ОТКЛОНЕНО'}</div>}
                 </div>
               </div>
               <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
@@ -1627,38 +1633,47 @@ function ModerationSettings() {
                 </div>
                 {report.description && <div style={{ fontSize: '13px' }}>{report.description}</div>}
               </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button className="msg-action-btn" onClick={async () => {
-                  try {
-                    await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'dismissed', note: 'Отклонено модератором' });
-                    fetchReports();
-                  } catch (e) {}
-                }}>Отклонить</button>
-                <button className="msg-action-btn" style={{ background: 'rgba(255,165,0,0.2)', color: 'orange' }} onClick={async () => {
-                  const reason = await prompt('Укажите причину временного бана:', 'Нарушение правил сообщества');
-                  if (reason) {
+
+              {report.status !== 'pending' && (
+                <div style={{ fontSize: '13px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-dim)' }}>
+                  <strong>Решение модератора ({report.resolvedBy?.username}):</strong> {report.resolutionNote || 'Без комментария'}
+                </div>
+              )}
+
+              {report.status === 'pending' && (
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button className="msg-action-btn" onClick={async () => {
                     try {
-                      await axios.post('/api/moderation/ban', { userId: report.reportedUser._id, type: 'temporary', durationHours: 24, reason });
-                      await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Временный бан на 24ч' });
-                      fetchReports();
-                      await alert('Пользователь забанен на 24 часа');
+                      await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'dismissed', note: 'Отклонено модератором' });
+                      fetchReports(filter);
                     } catch (e) {}
-                  }
-                }}>Бан 24ч</button>
-                <button className="msg-action-btn danger" onClick={async () => {
-                  if (await confirm(`Вы уверены, что хотите забанить ${report.reportedUser.username} НАВСЕГДА?`)) {
-                    const reason = await prompt('Укажите причину перманентного бана:', 'Грубое нарушение правил');
+                  }}>Отклонить</button>
+                  <button className="msg-action-btn" style={{ background: 'rgba(255,165,0,0.2)', color: 'orange' }} onClick={async () => {
+                    const reason = await prompt('Укажите причину временного бана:', 'Нарушение правил сообщества');
                     if (reason) {
                       try {
-                        await axios.post('/api/moderation/ban', { userId: report.reportedUser._id, type: 'permanent', reason });
-                        await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Перманентный бан' });
-                        fetchReports();
-                        await alert('Пользователь забанен навсегда');
+                        await axios.post('/api/moderation/ban', { userId: report.reportedUser._id, type: 'temporary', durationHours: 24, reason });
+                        await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Временный бан на 24ч' });
+                        fetchReports(filter);
+                        await alert('Пользователь забанен на 24 часа');
                       } catch (e) {}
                     }
-                  }
-                }}>Пермабан</button>
-              </div>
+                  }}>Бан 24ч</button>
+                  <button className="msg-action-btn danger" onClick={async () => {
+                    if (await confirm(`Вы уверены, что хотите забанить ${report.reportedUser.username} НАВСЕГДА?`)) {
+                      const reason = await prompt('Укажите причину перманентного бана:', 'Грубое нарушение правил');
+                      if (reason) {
+                        try {
+                          await axios.post('/api/moderation/ban', { userId: report.reportedUser._id, type: 'permanent', reason });
+                          await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Перманентный бан' });
+                          fetchReports(filter);
+                          await alert('Пользователь забанен навсегда');
+                        } catch (e) {}
+                      }
+                    }
+                  }}>Пермабан</button>
+                </div>
+              )}
             </div>
           ))
         )}

@@ -45,12 +45,16 @@ router.post('/report', auth, [
   }
 });
 
-// Get all reports (Moderator only)
+// Get reports (Moderator only)
 router.get('/reports', [auth, isModerator], async (req, res) => {
   try {
-    const reports = await Report.find({ status: 'pending' })
+    const { status } = req.query;
+    const query = status ? { status } : { status: 'pending' };
+    
+    const reports = await Report.find(query)
       .populate('reporter', 'username avatar')
       .populate('reportedUser', 'username avatar')
+      .populate('resolvedBy', 'username')
       .populate('messageContext')
       .sort('-createdAt');
     res.json(reports);
