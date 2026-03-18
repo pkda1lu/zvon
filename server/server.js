@@ -497,7 +497,7 @@ io.on('connection', (socket) => {
       }
       const existingUsers = await getVoiceChannelUsers(channelId);
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
-      const user = await User.findById(socket.userId);
+      // user is already declared above
       socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', {
         userId: socket.userId,
         user: {
