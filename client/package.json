@@ -9,6 +9,7 @@
     "electron-is-dev": "^2.0.0",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.6.2",
+    "lucide-react": "^0.577.0",
     "react-syntax-highlighter": "^16.1.1",
     "tenorjs": "^1.0.10",
     "zvon-native-audio": "file:./native-audio"
