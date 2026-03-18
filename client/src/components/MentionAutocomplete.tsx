@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Role } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
+import UserBadges from './UserBadges';
 import './MentionAutocomplete.css';
 
 interface MentionAutocompleteProps {
@@ -83,6 +84,7 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({ query, items,
                             )}
                             <div className="mention-item-name" style={{ color: !isUser ? item.color : 'inherit' }}>
                                 {name}
+                                {isUser && <UserBadges badges={item.badges} size={12} />}
                                 {!isUser && <span className="role-tag">Роль</span>}
                             </div>
                         </div>

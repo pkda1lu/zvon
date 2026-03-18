@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User } from '../types';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import { CloseIcon, SearchIcon, PlusIcon } from './Icons';
 import './CreateGroupDMModal.css';
 
@@ -106,6 +107,7 @@ const CreateGroupDMModal: React.FC<CreateGroupDMModalProps> = ({ isOpen, onClose
                                     <div className="user-info">
                                         <UserAvatar user={f} size={32} />
                                         <span className="username">{f.username}</span>
+                                        <UserBadges badges={f.badges} size={12} />
                                     </div>
                                     <div className={`checkbox ${selectedUsers.some(u => u._id === f._id) ? 'checked' : ''}`}>
                                         {selectedUsers.some(u => u._id === f._id) && <div style={{ transform: 'rotate(45deg)', display: 'flex' }}><PlusIcon size={12} /></div>}

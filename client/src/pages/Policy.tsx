@@ -5,15 +5,15 @@ const Policy: React.FC = () => {
     const navigate = useNavigate();
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            background: '#0b0d12',
-            color: '#fff',
-            padding: '80px 40px',
-            fontFamily: 'Inter, sans-serif',
-            maxWidth: '1200px',
-            margin: '0 auto'
-        }}>
+        <div className="docs-container" style={{ padding: '40px' }}>
+            <div className="policy-content" style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                borderRadius: '24px',
+                padding: '60px',
+                maxWidth: '900px',
+                margin: '80px auto'
+            }}>
             <button onClick={() => navigate('/')} style={{
                 background: 'rgba(255,255,255,0.05)',
                 border: '1px solid rgba(255,255,255,0.1)',
@@ -44,6 +44,7 @@ const Policy: React.FC = () => {
                 <p>Использование API разрешено для создания вспомогательных инструментов. Запрещено использовать ботов для спама или нарушения работы серверов.</p>
             </section>
         </div>
+    </div>
     );
 };
 

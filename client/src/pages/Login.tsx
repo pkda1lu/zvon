@@ -90,7 +90,7 @@ const Login: React.FC = () => {
 
     try {
       const data = await login(email.trim(), password);
-      if (data.requiresCode) {
+      if (data.requires2FA) {
         setMode('mfa');
         setSuccess('Код подтверждения отправлен на вашу почту');
       } else if (data.token) {

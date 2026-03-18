@@ -29,6 +29,7 @@ export interface User {
   notes?: Record<string, string>;
   isBot?: boolean;
   badges?: string[];
+  is2FAEnabled?: boolean;
   createdAt: string;
 }
 

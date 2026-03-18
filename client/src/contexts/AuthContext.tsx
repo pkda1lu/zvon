@@ -14,6 +14,7 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   forgotPassword: (email: string) => Promise<any>;
   resetPassword: (email: string, code: string, password: string) => Promise<any>;
+  toggle2FA: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -97,5 +98,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return response.data;
   };
 
-  return <AuthContext.Provider value={{ user, token, login, register, verifyLogin, logout, loading, updateUser, refreshUser, forgotPassword, resetPassword }}>{children}</AuthContext.Provider>;
+  const toggle2FA = async () => {
+    const response = await axios.post('/api/auth/toggle-2fa');
+    if (user) {
+      setUser({ ...user, is2FAEnabled: response.data.is2FAEnabled });
+    }
+    return response.data.is2FAEnabled;
+  };
+
+  return <AuthContext.Provider value={{ user, token, login, register, verifyLogin, logout, loading, updateUser, refreshUser, forgotPassword, resetPassword, toggle2FA }}>{children}</AuthContext.Provider>;
 };

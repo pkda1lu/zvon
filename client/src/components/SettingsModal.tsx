@@ -94,7 +94,7 @@ const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout, toggle2FA } = useAuth();
   const { confirm, prompt, alert } = useDialog();
   const {
     isNoiseSuppressionEnabled, toggleNoiseSuppression,
@@ -388,8 +388,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               onClick={() => {
                 setSelectedBadges(prev => 
                   prev.includes(badge.id) 
-                    ? prev.filter(id => id !== badge.id) 
-                    : [...prev, badge.id]
+                    ? [] 
+                    : [badge.id]
                 );
               }}
               title={badge.label}
@@ -422,6 +422,60 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           onCancel={() => setCropModal(prev => ({ ...prev, isOpen: false }))}
         />
       )}
+    </div>
+  );
+
+  const renderPrivacySettings = () => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Данные и конфиденциальность</h2>
+
+      <div className="settings-section-block">
+        <h3>Безопасность учетной записи</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Двухфакторная аутентификация (2FA)</span>
+            <span className="checkbox-description">
+              Защитите свой аккаунт дополнительным кодом, который будет приходить на вашу почту при входе.
+            </span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={user?.is2FAEnabled || false}
+              onChange={async () => {
+                const confirmed = await confirm(
+                  user?.is2FAEnabled 
+                    ? 'Вы уверены, что хотите ОТКЛЮЧИТЬ двухфакторную аутентификацию?' 
+                    : 'Вы уверены, что хотите ВКЛЮЧИТЬ двухфакторную аутентификацию?'
+                );
+                if (confirmed) {
+                  try {
+                    const newState = await toggle2FA();
+                    await alert(newState ? '2FA успешно включена!' : '2FA отключена');
+                  } catch (err) {
+                    await alert('Ошибка при изменении настроек 2FA');
+                  }
+                }
+              }}
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Приватность сообщений</h3>
+        <div className="settings-form-group-checkbox disabled">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Разрешить личные сообщения от участников сервера</span>
+            <span className="checkbox-description">Эту настройку можно переопределить для каждого сервера отдельно.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={true} disabled />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
     </div>
   );
 
@@ -1140,7 +1194,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           <div className="settings-content-wrapper">
             <div className="settings-content-inner">
               {activeTab === 'account' && renderAccountSettings()}
-              {activeTab === 'privacy' && renderPlaceholder('Данные и конфиденциальность', <ShieldIcon size={80} />)}
+              {activeTab === 'privacy' && renderPrivacySettings()}
               {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
               {activeTab === 'appearance' && renderAppearanceSettings()}
               {activeTab === 'voice' && renderVoiceSettings()}

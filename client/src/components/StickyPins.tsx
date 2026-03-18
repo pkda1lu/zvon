@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Message } from '../types';
 import { PinIcon, ChevronDownIcon, ChevronUpIcon } from './Icons';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import './StickyPins.css';
 
 interface StickyPinsProps {
@@ -23,7 +24,9 @@ const StickyPins: React.FC<StickyPinsProps> = ({ pinnedMessages, onOpenPins }) =
                 <div className="sticky-pin-content">
                     <span className="sticky-pin-label">Закрепленное сообщение</span>
                     <div className="sticky-pin-snippet">
-                        <strong>{latestPin.author.username}:</strong> {latestPin.content || (latestPin.attachments?.length ? 'Вложение' : '')}
+                        <strong>{latestPin.author.username}</strong>
+                        <UserBadges badges={latestPin.author.badges} size={12} />
+                        <strong>:</strong> {latestPin.content || (latestPin.attachments?.length ? 'Вложение' : '')}
                     </div>
                 </div>
                 <div className="sticky-pin-count">

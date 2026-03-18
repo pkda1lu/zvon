@@ -101,6 +101,12 @@
   letter-spacing: -0.5px;
 }
 
+.dm-display-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .voice-call-button {
   width: 44px;
   height: 44px;

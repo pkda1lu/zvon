@@ -1,8 +1,10 @@
 .docs-container {
-    min-height: 100vh;
+    height: 100vh;
+    overflow-y: auto;
     background: #0b0d12;
     color: #e2e8f0;
     font-family: 'Inter', sans-serif;
+    scroll-behavior: smooth;
 }
 
 .docs-nav {

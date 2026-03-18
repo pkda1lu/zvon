@@ -91,7 +91,17 @@ router.post('/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Verification and 2FA disabled - returning token immediately
+    if (user.is2FAEnabled) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      user.verificationCode = code;
+      user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
+      await user.save();
+      await sendLoginCode(user.email, code).catch(err => {
+        console.error('Failed to send login code:', err);
+      });
+      return res.json({ requires2FA: true, email: user.email });
+    }
+
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     user.status = user.statusPreference || 'online';
     await user.save();
@@ -249,6 +259,19 @@ router.post('/reset-password', [
     res.json({ message: 'Пароль успешно изменен' });
   } catch (error) {
     console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/toggle-2fa', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.is2FAEnabled = !user.is2FAEnabled;
+    await user.save();
+    res.json({ is2FAEnabled: user.is2FAEnabled });
+  } catch (error) {
+    console.error('Toggle 2FA error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

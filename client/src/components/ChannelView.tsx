@@ -102,6 +102,7 @@ const MessageItem = React.memo<{
             <ReplyIcon size={12} className="reply-icon-mini" />
             <UserAvatar user={msg.replyTo.author} size={16} className="reply-avatar" />
             <span className="reply-author">{msg.replyTo.author.username}</span>
+            <UserBadges badges={msg.replyTo.author.badges} size={10} />
             <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
           </div>
         )}
@@ -824,6 +825,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                     <div className="pin-author">
                       <UserAvatar user={msg.author} size={24} className="pin-avatar-comp" />
                       <span className="pin-name">{msg.author.username}</span>
+                      <UserBadges badges={msg.author.badges} size={12} />
                       <span className="pin-date">{formatDate(msg.createdAt)}</span>
                     </div>
                     <div className="pin-content">{msg.content}</div>
@@ -893,6 +895,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               <ReplyIcon size={16} color="var(--primary-neon)" />
               <div className="reply-input-text">
                 <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
+                <UserBadges badges={replyToMessage.author.badges} size={12} />
                 <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
               </div>
             </div>

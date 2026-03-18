@@ -34,7 +34,8 @@ const Landing: React.FC = () => {
                 </div>
                 <div className="nav-actions">
                     {!user && (
-                        <button className="btn-secondary nav-desktop-only" style={{ padding: '8px 20px', fontSize: '14px' }} onClick={() => { window.location.href = 'zvon://'; }}>
+                        <button className="btn-nav-neon nav-desktop-only" onClick={() => { window.location.href = 'zvon://'; }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
                             Запустить Zvon
                         </button>
                     )}
@@ -46,21 +47,30 @@ const Landing: React.FC = () => {
 
             <section className="hero-section">
                 <div className="hero-bg"></div>
-                {/* Hero Image - Abstract Glassmorphism */}
+                {/* Hero Image - Premium 3D Abstract */}
+                <div className="hero-image-container">
+                    <img
+                        src="/landing_hero_premium.png" // We expect this to be available
+                        className="hero-main-img"
+                        alt="Zvon Premium UI"
+                        onError={(e) => {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200';
+                        }}
+                    />
+                </div>
                 <div className="hero-content">
-                    <h1 className="hero-h1">Место, где можно отдохнуть.</h1>
+                    <h1 className="hero-h1">Место, где звук <br/> становится чувством.</h1>
                     <p className="hero-p">
-                        Zvon — это не просто чат. Это место, где вы можете проводить время с друзьями,
-                        делиться игровыми моментами в 4K и кристально чистым звуком.
-                        Всегда вместе, даже если вы далеко.
+                        Zvon — это революционная платформа для общения.
+                        Погрузитесь в атмосферу кристально чистого звука и стриминга в 4K.
+                        Создано для геймеров, разработчиков и тех, кто ценит качество.
                     </p>
                     <div className="hero-buttons">
-                        <button className="btn-secondary" onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                            Загрузить для Windows
+                        <button className="btn-primary-neon" onClick={handleOpenApp}>
+                            Запустить в браузере
                         </button>
-                        <button className="btn-primary" onClick={handleOpenApp}>
-                            Открыть Zvon в браузере
+                        <button className="btn-secondary-outline" onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
+                            Скачать для Windows
                         </button>
                     </div>
                 </div>
@@ -125,14 +135,20 @@ const Landing: React.FC = () => {
                     <div className="footer-brand">
                         <h4>Zvon</h4>
                         <p>© 2026 Zvon Platform. Все права защищены.</p>
+                        <div className="bot-api-showcase">
+                            <h3>Мощный Bot API</h3>
+                            <p>Создавайте уникальные интеграции с помощью Webhooks и Socket.io SDK. Музыкальные боты, управление ролями и кастомные команды.</p>
+                            <button className="btn-link" onClick={() => navigate('/docs')}>Читать документацию →</button>
+                        </div>
                     </div>
                     <div className="footer-links">
                         <div className="footer-column">
                             <h5>Продукт</h5>
                             <ul>
                                 <li><a onClick={() => navigate('/login')}>Безопасность</a></li>
-                                <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon', '_blank')}>Обновления</a></li>
-                                <li><a onClick={() => navigate('/register')}>Сервера</a></li>
+                                <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon/commits/main', '_blank')}>Список изменений</a></li>
+                                <li><a onClick={() => navigate('/register')}>Серверы</a></li>
+                                <li><a onClick={() => navigate('/docs')}>API для ботов</a></li>
                             </ul>
                         </div>
                         <div className="footer-column">

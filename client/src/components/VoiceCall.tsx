@@ -11,6 +11,7 @@ import { useDialog } from '../contexts/DialogContext';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import UserAvatar from './UserAvatar';
+import UserBadges from './UserBadges';
 import { nativeAudioManager } from '../utils/nativeAudio';
 import {
   Room,
@@ -364,7 +365,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <UserAvatar user={isGroup ? null : otherUser} size={48} />
           </div>
           <div className="notification-info">
-            <div className="notification-name">{isGroup ? (dmName || 'Групповой звонок') : otherUser.username}</div>
+            <div className="notification-name">
+              {isGroup ? (dmName || 'Групповой звонок') : otherUser.username}
+              {!isGroup && <UserBadges badges={otherUser.badges} size={14} />}
+            </div>
             <div className="notification-status">Входящий звонок...</div>
           </div>
           <div className="notification-actions">
@@ -385,6 +389,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           </button>
           <div className="call-title">
             {isGroup ? (dmName || 'Групповой звонок') : `Звонок: ${otherUser.username}`}
+            {!isGroup && <UserBadges badges={otherUser.badges} size={16} />}
           </div>
         </div>
         <div className="call-duration">{isCallActive ? 'В эфире' : 'Подключение...'}</div>
@@ -409,7 +414,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                 ) : (
                   <div className="participant-placeholder">
                     <UserAvatar user={userMeta || (p.isMe ? user : null)} size={allParticipants.length > 2 ? 80 : 120} animate={isSpeaking} />
-                    <span>{userMeta?.username || 'Загрузка...'}</span>
+                    <div className="participant-placeholder-name">
+                      <span>{userMeta?.username || 'Загрузка...'}</span>
+                      {userMeta && <UserBadges badges={userMeta.badges} size={16} />}
+                    </div>
                   </div>
                 )}
                 {screenShare && (
@@ -417,7 +425,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                     <video autoPlay playsInline muted={p.isMe} ref={el => { if (el && el.srcObject !== screenShare) el.srcObject = screenShare; }} />
                   </div>
                 )}
-                <div className="participant-label">{userMeta?.username || p.identity} {p.isMe && '(Вы)'}</div>
+                <div className="participant-label">
+                  {userMeta?.username || p.identity} {p.isMe && '(Вы)'}
+                  {userMeta && <UserBadges badges={userMeta.badges} size={12} />}
+                </div>
               </div>
             );
           })}

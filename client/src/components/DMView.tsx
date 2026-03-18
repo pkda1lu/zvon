@@ -505,7 +505,10 @@ const DMView: React.FC<DMViewProps> = ({
               }}
             />
             <div className="dm-header-text-info">
-              <h3 className="dm-display-name">{displayName}</h3>
+              <div className="dm-display-name-row">
+                <h3 className="dm-display-name">{displayName}</h3>
+                {!isGroup && otherUser && <UserBadges badges={otherUser.badges} size={16} />}
+              </div>
               {!isGroup && (
                 <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
                   {otherUser?.status === 'online' ? 'В сети' : otherUser?.status === 'away' ? 'Нет на месте' : otherUser?.status === 'busy' ? 'Занят' : 'Не в сети'}
@@ -547,6 +550,7 @@ const DMView: React.FC<DMViewProps> = ({
                       <div className="pin-author">
                         <UserAvatar user={msg.author} size={24} className="pin-avatar-comp" />
                         <span className="pin-name">{msg.author.username}</span>
+                        <UserBadges badges={msg.author.badges} size={12} />
                         <span className="pin-date">{formatDate(msg.createdAt)}</span>
                       </div>
                       <div className="pin-content">{msg.content}</div>
@@ -593,6 +597,7 @@ const DMView: React.FC<DMViewProps> = ({
                       <div className="system-message-content" style={{ marginLeft: '15px' }}>
                         <div className="system-message-header">
                           <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                          <UserBadges badges={msg.author.badges} size={14} />
                           <span className="message-time">{formatDate(msg.createdAt)}</span>
                         </div>
                         <div className="system-message-text">Пропущенный звонок</div>
@@ -605,7 +610,8 @@ const DMView: React.FC<DMViewProps> = ({
                           <div className="reply-line" />
                           <ReplyIcon size={12} className="reply-icon-mini" />
                           <UserAvatar user={msg.replyTo.author} size={16} className="reply-avatar" />
-                          <span className="reply-author">{msg.replyTo.author.username}</span>
+                           <span className="reply-author">{msg.replyTo.author.username}</span>
+                           <UserBadges badges={msg.replyTo.author.badges} size={10} />
                           <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
                         </div>
                       )}
@@ -776,7 +782,8 @@ const DMView: React.FC<DMViewProps> = ({
               <div className="reply-input-content">
                 <ReplyIcon size={16} color="var(--primary-neon)" />
                 <div className="reply-input-text">
-                  <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
+                   <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
+                   <UserBadges badges={replyToMessage.author.badges} size={12} />
                   <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
                 </div>
               </div>
