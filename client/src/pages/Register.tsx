@@ -10,8 +10,32 @@ const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const { register } = useAuth();
+  const [resendTimer, setResendTimer] = useState(0);
+  const { register, resendVerification } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const handleResendVerification = async () => {
+    if (resendTimer > 0) return;
+    setError('');
+    setSuccess('');
+    try {
+      await resendVerification(email);
+      setSuccess('Новое письмо с подтверждением отправлено');
+      setResendTimer(60);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Ошибка отправки письма');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +62,7 @@ const Register: React.FC = () => {
         navigate(returnTo || '/');
       } else {
         setSuccess(data.message || 'Регистрация успешна! Пожалуйста, проверьте почту для подтверждения.');
+        setResendTimer(60);
       }
     } catch (err: any) {
       if (err.response?.data?.errors) {
@@ -79,11 +104,26 @@ const Register: React.FC = () => {
               </div>
             )}
             {success && (
-              <div style={{
-                background: 'rgba(0, 255, 127, 0.1)', border: '1px solid rgba(0, 255, 127, 0.3)',
-                color: '#00ff7f', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
-              }}>
-                {success}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                <div style={{
+                  background: 'rgba(0, 255, 127, 0.1)', border: '1px solid rgba(0, 255, 127, 0.3)',
+                  color: '#00ff7f', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
+                }}>
+                  {success}
+                </div>
+                {resendTimer >= 0 && (
+                  <button 
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendTimer > 0}
+                    style={{
+                      background: 'none', border: 'none', color: resendTimer > 0 ? 'var(--text-dim)' : 'var(--primary-neon)',
+                      fontSize: '12px', cursor: resendTimer > 0 ? 'default' : 'pointer', fontWeight: 600
+                    }}
+                  >
+                    {resendTimer > 0 ? `Отправить повторно через ${resendTimer}с` : 'Отправить письмо повторно'}
+                  </button>
+                )}
               </div>
             )}
 

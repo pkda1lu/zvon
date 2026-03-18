@@ -15,6 +15,7 @@ interface AuthContextType {
   forgotPassword: (email: string) => Promise<any>;
   resetPassword: (email: string, code: string, password: string) => Promise<any>;
   toggle2FA: () => Promise<boolean>;
+  resendVerification: (email: string) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -106,5 +107,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return response.data.is2FAEnabled;
   };
 
-  return <AuthContext.Provider value={{ user, token, login, register, verifyLogin, logout, loading, updateUser, refreshUser, forgotPassword, resetPassword, toggle2FA }}>{children}</AuthContext.Provider>;
+  const resendVerification = async (email: string) => {
+    const response = await axios.post('/api/auth/resend-verification', { email });
+    return response.data;
+  };
+
+  return <AuthContext.Provider value={{ user, token, login, register, verifyLogin, logout, loading, updateUser, refreshUser, forgotPassword, resetPassword, toggle2FA, resendVerification }}>{children}</AuthContext.Provider>;
 };

@@ -48,7 +48,7 @@ router.post('/register', [
     }
     */
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
 
     res.status(201).json({
       message: 'Регистрация успешна.',
@@ -91,16 +91,15 @@ router.post('/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    if (user.is2FAEnabled) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      user.verificationCode = code;
-      user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
-      await user.save();
-      await sendLoginCode(user.email, code).catch(err => {
-        console.error('Failed to send login code:', err);
-      });
-      return res.json({ requires2FA: true, email: user.email });
-    }
+    // Mandatory 2FA for all users
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = code;
+    user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
+    await user.save();
+    await sendLoginCode(user.email, code).catch(err => {
+      console.error('Failed to send login code:', err);
+    });
+    return res.json({ requires2FA: true, email: user.email });
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     user.status = user.statusPreference || 'online';
@@ -142,7 +141,7 @@ router.post('/verify-login', [
     user.status = user.statusPreference || 'online';
     await user.save();
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
     res.json({
       token,
       user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }

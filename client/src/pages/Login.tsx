@@ -11,6 +11,7 @@ const Login: React.FC = () => {
   const [mode, setMode] = useState<'login' | 'mfa' | 'forgot' | 'reset'>('login');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
   const { login, verifyLogin, forgotPassword, resetPassword } = useAuth();
   const navigate = useNavigate();
 
@@ -20,6 +21,42 @@ const Login: React.FC = () => {
     setSuccess('');
     setCode('');
     setPassword('');
+    // Start timer if going to a mode that needs a code
+    if (newMode === 'mfa' || newMode === 'reset') {
+      setResendTimer(60);
+    } else {
+      setResendTimer(0);
+    }
+  };
+
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const handleResendCode = async () => {
+    if (resendTimer > 0) return;
+    
+    setError('');
+    setSuccess('');
+    
+    try {
+      if (mode === 'mfa') {
+        await login(email, password); // This will trigger a new 2FA code
+        setSuccess('Новый код подтверждения отправлен');
+      } else if (mode === 'reset' || mode === 'forgot') {
+        await forgotPassword(email);
+        setSuccess('Новый код сброса пароля отправлен');
+      }
+      setResendTimer(60);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Ошибка отправки кода');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,7 +88,7 @@ const Login: React.FC = () => {
       try {
         await forgotPassword(email.trim());
         setSuccess('Код для сброса пароля отправлен на вашу почту');
-        setMode('reset');
+        handleModeChange('reset');
       } catch (err: any) {
         setError(err.response?.data?.message || 'Ошибка отправки кода');
       }
@@ -91,7 +128,7 @@ const Login: React.FC = () => {
     try {
       const data = await login(email.trim(), password);
       if (data.requires2FA) {
-        setMode('mfa');
+        handleModeChange('mfa');
         setSuccess('Код подтверждения отправлен на вашу почту');
       } else if (data.token) {
         const searchParams = new URLSearchParams(window.location.search);
@@ -255,7 +292,20 @@ const Login: React.FC = () => {
                     />
                   </div>
                 )}
-                <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                <div style={{ textAlign: 'center', marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <span
+                    onClick={handleResendCode}
+                    style={{ 
+                      fontSize: '13px', 
+                      color: resendTimer > 0 ? 'var(--text-dim)' : 'var(--primary-neon)', 
+                      cursor: resendTimer > 0 ? 'default' : 'pointer',
+                      fontWeight: 700,
+                      textDecoration: resendTimer > 0 ? 'none' : 'underline'
+                    }}
+                  >
+                    {resendTimer > 0 ? `Отправить код повторно через ${resendTimer}с` : 'Отправить код повторно'}
+                  </span>
+                  
                   <span
                     onClick={() => handleModeChange('login')}
                     style={{ fontSize: '12px', color: '#ffffff', cursor: 'pointer', fontWeight: 600 }}
