@@ -1635,8 +1635,22 @@ function ModerationSettings() {
               </div>
 
               {report.status !== 'pending' && (
-                <div style={{ fontSize: '13px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-dim)' }}>
-                  <strong>Решение модератора ({report.resolvedBy?.username}):</strong> {report.resolutionNote || 'Без комментария'}
+                <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
+                    <strong>Решение модератора ({report.resolvedBy?.username}):</strong> {report.resolutionNote || 'Без комментария'}
+                  </div>
+                  <button className="msg-action-btn" style={{ fontSize: '11px', padding: '5px 10px' }} onClick={async () => {
+                    if (await confirm('Вы уверены, что хотите отменить вердикт и вернуть жалобу в список ожидания?')) {
+                      try {
+                        await axios.post(`/api/moderation/reports/${report._id}/unresolve`);
+                        if (report.status === 'resolved' && await confirm('Хотите также РАЗБАНИТЬ этого пользователя?')) {
+                          await axios.post('/api/moderation/unban', { userId: report.reportedUser._id });
+                          await alert('Пользователь разбанен.');
+                        }
+                        fetchReports(filter);
+                      } catch (e) { }
+                    }
+                  }}>Отменить решение</button>
                 </div>
               )}
 

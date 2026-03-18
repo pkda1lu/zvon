@@ -144,4 +144,36 @@ router.post('/assign-role', [auth, isAdmin], async (req, res) => {
   }
 });
 
+// Unban user (Moderator only)
+router.post('/unban', [auth, isModerator], async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+
+    user.isBanned = false;
+    user.banExpires = undefined;
+    user.banReason = undefined;
+    await user.save();
+
+    res.json({ message: 'Пользователь успешно разбанен' });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Unresolve report (Moderator only)
+router.post('/reports/:id/unresolve', [auth, isModerator], async (req, res) => {
+  try {
+    const report = await Report.findByIdAndUpdate(req.params.id, {
+      status: 'pending',
+      resolvedBy: null,
+      resolutionNote: null
+    }, { new: true });
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 module.exports = router;
