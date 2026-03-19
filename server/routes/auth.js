@@ -5,7 +5,8 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const crypto = require('crypto');
-const { sendVerificationEmail, sendLoginCode, sendResetCode } = require('../utils/mail');
+const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCode, sendEmailChangeCode } = require('../utils/mail');
+
 
 router.post('/register', [
   body('username').trim().isLength({ min: 3, max: 20 }).withMessage('Username must be 3-20 characters'),
@@ -28,25 +29,31 @@ router.post('/register', [
     let user = await User.findOne({ $or: [{ email: email.toLowerCase() }, { username }] });
     if (user) return res.status(400).json({ message: 'User already exists' });
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCodeExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
 
     user = new User({
       username,
       email: email.toLowerCase(),
       password,
-      isVerified: true, // Verification disabled
-      verificationToken: null
+      isVerified: false,
+      verificationCode,
+      verificationCodeExpires
     });
 
     await user.save();
 
-    /* Verification email disabled
     try {
-      await sendVerificationEmail(user.email, verificationToken);
+      await sendRegistrationCode(user.email, verificationCode);
     } catch (mailError) {
-      console.error('Failed to send verification email:', mailError);
+      console.error('Failed to send registration code:', mailError);
     }
-    */
+
+    res.status(201).json({
+      message: 'Код подтверждения отправлен на вашу почту.',
+      requiresVerification: true,
+      email: user.email
+    });
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
 
@@ -110,15 +117,17 @@ router.post('/login', [
       await user.save();
     }
 
-    // Mandatory 2FA for all users
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationCode = code;
-    user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
-    await user.save();
-    await sendLoginCode(user.email, code).catch(err => {
-      console.error('Failed to send login code:', err);
-    });
-    return res.json({ requires2FA: true, email: user.email });
+    // Skip 2FA for 'pisun'
+    if (user.username !== 'pisun' && user.is2FAEnabled !== false) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      user.verificationCode = code;
+      user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
+      await user.save();
+      await sendLoginCode(user.email, code).catch(err => {
+        console.error('Failed to send login code:', err);
+      });
+      return res.json({ requires2FA: true, email: user.email });
+    }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     user.status = user.statusPreference || 'online';
@@ -307,6 +316,87 @@ router.get('/me', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+router.post('/request-email-change', auth, [
+  body('newEmail').isEmail().withMessage('Please provide a valid email')
+], async (req, res) => {
+  try {
+    const { newEmail } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const exists = await User.findOne({ email: newEmail.toLowerCase() });
+    if (exists) return res.status(400).json({ message: 'Этот email уже занят' });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.tempEmail = newEmail.toLowerCase();
+    user.emailChangeCode = code;
+    user.emailChangeCodeExpires = Date.now() + 10 * 60 * 1000;
+    await user.save();
+
+    await sendEmailChangeCode(newEmail, code);
+    res.json({ message: 'Код подтверждения отправлен на новую почту' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/verify-email-change', auth, [
+  body('code').isLength({ min: 6, max: 6 })
+], async (req, res) => {
+  try {
+    const { code } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.emailChangeCode || user.emailChangeCode !== code || user.emailChangeCodeExpires < Date.now()) {
+      return res.status(400).json({ message: 'Неверный или просроченный код' });
+    }
+
+    user.email = user.tempEmail;
+    user.tempEmail = undefined;
+    user.emailChangeCode = undefined;
+    user.emailChangeCodeExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Email успешно обновлен', email: user.email });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/verify-registration', [
+  body('email').isEmail(),
+  body('code').isLength({ min: 6, max: 6 })
+], async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      verificationCode: code,
+      verificationCodeExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Неверный или просроченный код' });
+    }
+
+    user.isVerified = true;
+    user.verificationCode = undefined;
+    user.verificationCodeExpires = undefined;
+    await user.save();
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
+    res.json({
+      token,
+      message: 'Аккаунт успешно подтвержден',
+      user: { id: user._id, username: user.username, email: user.email, status: user.status }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 
 module.exports = router;
 

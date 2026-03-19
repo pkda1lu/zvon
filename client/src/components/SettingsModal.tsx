@@ -95,7 +95,7 @@ const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { user, refreshUser, logout, toggle2FA } = useAuth();
+  const { user, refreshUser, logout, toggle2FA, requestEmailChange, verifyEmailChange } = useAuth();
   const { confirm, prompt, alert } = useDialog();
   const {
     isNoiseSuppressionEnabled, toggleNoiseSuppression,
@@ -154,6 +154,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedBadges, setSelectedBadges] = useState<string[]>(user?.badges || []);
+  const [emailChangeState, setEmailChangeState] = useState<{
+    isChanging: boolean;
+    step: 1 | 2;
+    newEmail: string;
+    code: string;
+    loading: boolean;
+    error: string;
+  }>({
+    isChanging: false,
+    step: 1,
+    newEmail: '',
+    code: '',
+    loading: false,
+    error: ''
+  });
+
 
   useEffect(() => {
     if (activeTab === 'moderation') {
@@ -395,6 +411,89 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="settings-form-group">
+        <label>Электронная почта</label>
+        {!emailChangeState.isChanging ? (
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input type="text" value={user?.email || ''} readOnly disabled style={{ opacity: 0.7 }} />
+            <button 
+              className="msg-action-btn" 
+              onClick={() => setEmailChangeState({ ...emailChangeState, isChanging: true, step: 1, error: '' })}
+            >Изменить</button>
+          </div>
+        ) : (
+          <div className="email-change-wizard" style={{ padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            {emailChangeState.step === 1 ? (
+              <>
+                <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px' }}>Введите новый адрес почты. Мы отправим на него код подтверждения.</p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input 
+                    type="email" 
+                    placeholder="new@email.com"
+                    value={emailChangeState.newEmail}
+                    onChange={e => setEmailChangeState({ ...emailChangeState, newEmail: e.target.value })}
+                  />
+                  <button 
+                    className="save-button" 
+                    style={{ padding: '8px 16px', fontSize: '12px' }}
+                    disabled={emailChangeState.loading}
+                    onClick={async () => {
+                      setEmailChangeState(s => ({ ...s, loading: true, error: '' }));
+                      try {
+                        await requestEmailChange(emailChangeState.newEmail);
+                        setEmailChangeState(s => ({ ...s, loading: false, step: 2 }));
+                      } catch (err: any) {
+                        setEmailChangeState(s => ({ ...s, loading: false, error: err.response?.data?.message || 'Ошибка' }));
+                      }
+                    }}
+                  >{emailChangeState.loading ? '...' : 'Далее'}</button>
+                  <button 
+                    className="msg-action-btn"
+                    onClick={() => setEmailChangeState({ ...emailChangeState, isChanging: false })}
+                  >Отмена</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px' }}>Код отправлен на <strong>{emailChangeState.newEmail}</strong>. Введите его ниже:</p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="123456"
+                    maxLength={6}
+                    value={emailChangeState.code}
+                    onChange={e => setEmailChangeState({ ...emailChangeState, code: e.target.value })}
+                    style={{ textAlign: 'center', letterSpacing: '4px' }}
+                  />
+                  <button 
+                    className="save-button" 
+                    style={{ padding: '8px 16px', fontSize: '12px' }}
+                    disabled={emailChangeState.loading}
+                    onClick={async () => {
+                      setEmailChangeState(s => ({ ...s, loading: true, error: '' }));
+                      try {
+                        await verifyEmailChange(emailChangeState.code);
+                        await alert('Почта успешно изменена!');
+                        setEmailChangeState({ ...emailChangeState, isChanging: false, loading: false });
+                      } catch (err: any) {
+                        setEmailChangeState(s => ({ ...s, loading: false, error: err.response?.data?.message || 'Неверный код' }));
+                      }
+                    }}
+                  >{emailChangeState.loading ? '...' : 'Подтвердить'}</button>
+                  <button 
+                    className="msg-action-btn"
+                    onClick={() => setEmailChangeState({ ...emailChangeState, step: 1 })}
+                  >Назад</button>
+                </div>
+              </>
+            )}
+            {emailChangeState.error && (
+              <p style={{ color: '#ff3b30', fontSize: '11px', marginTop: '10px' }}>{emailChangeState.error}</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="settings-form-group">

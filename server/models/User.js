@@ -30,6 +30,9 @@ const userSchema = new mongoose.Schema({
   verificationCodeExpires: Date,
   resetPasswordCode: String,
   resetPasswordExpires: Date,
+  tempEmail: String,
+  emailChangeCode: String,
+  emailChangeCodeExpires: Date,
   avatar: {
     type: String,
     default: null

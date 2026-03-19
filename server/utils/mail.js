@@ -83,8 +83,49 @@ const sendResetCode = async (email, code) => {
   });
 };
 
+const sendRegistrationCode = async (email, code) => {
+  await transporter.sendMail({
+    from: `"Zvon" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'Код регистрации в Zvon',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+        <h2 style="color: #5865F2; text-align: center;">Код регистрации</h2>
+        <p>Для завершения регистрации в Zvon, пожалуйста, введите следующий код:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">Если это были не вы, проигнорируйте это письмо.</p>
+      </div>
+    `,
+  });
+};
+
+const sendEmailChangeCode = async (email, code) => {
+  await transporter.sendMail({
+    from: `"Zvon" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'Код подтверждения смены почты Zvon',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+        <h2 style="color: #5865F2; text-align: center;">Смена почты</h2>
+        <p>Вы пытаетесь привязать эту почту к вашему аккаунту Zvon. Используйте следующий код:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
+        </div>
+        <p>Код действителен в течение 10 минут.</p>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">Если вы не запрашивали смену почты, немедленно смените пароль.</p>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
   sendVerificationEmail,
   sendLoginCode,
   sendResetCode,
+  sendRegistrationCode,
+  sendEmailChangeCode,
 };
