@@ -193,6 +193,7 @@ interface VoiceContextType {
     stopTestStream: () => void;
     ping: number;
     connectionQuality: ConnectionQuality;
+    roomConnectionState: ConnectionState;
 }
 
 interface VoiceLevelContextType {
@@ -309,6 +310,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const testStreamRef = useRef<MediaStream | null>(null);
     const [ping, setPing] = useState<number>(0);
     const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>(ConnectionQuality.Unknown);
+    const [roomConnectionState, setRoomConnectionState] = useState<ConnectionState>(ConnectionState.Disconnected);
     const audioContextRef = useRef<AudioContext | null>(null);
     const localGainNodeRef = useRef<GainNode | null>(null);
     const livekitTrackRef = useRef<MediaStreamTrack | null>(null); // The REAL LiveKit track for VAD gating
@@ -641,6 +643,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         setIsConnected(false);
+        setRoomConnectionState(ConnectionState.Disconnected);
         setActiveChannelId(null);
         stopScreenShare();
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
@@ -866,17 +869,25 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 })
                 .on(RoomEvent.ConnectionStateChanged, (state) => {
                     console.log('[LiveKit] Connection state changed:', state);
+                    setRoomConnectionState(state);
                 })
                 .on(RoomEvent.Disconnected, (reason) => {
                     console.log('[LiveKit] Disconnected from room:', reason);
+                    setRoomConnectionState(ConnectionState.Disconnected);
                     if (reason !== undefined) {
                         // Only trigger leave if it's an unexpected disconnect
                         // setIsConnected(false);
                         // setActiveChannelId(null);
                     }
                 })
-                .on(RoomEvent.Reconnecting, () => console.log('[LiveKit] Reconnecting...'))
-                .on(RoomEvent.Reconnected, () => console.log('[LiveKit] Reconnected'))
+                .on(RoomEvent.Reconnecting, () => {
+                    console.log('[LiveKit] Reconnecting...');
+                    setRoomConnectionState(ConnectionState.Reconnecting);
+                })
+                .on(RoomEvent.Reconnected, () => {
+                    console.log('[LiveKit] Reconnected');
+                    setRoomConnectionState(ConnectionState.Connected);
+                })
                 .on(RoomEvent.ParticipantConnected, (participant) => {
                     console.log('[LiveKit] Participant connected:', participant.identity);
                 })
@@ -1596,7 +1607,8 @@ registerProcessor('vad-processor', VADProcessor);
             toggleVideo,
             localCameraStream,
             ping,
-            connectionQuality
+            connectionQuality,
+            roomConnectionState
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}

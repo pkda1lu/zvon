@@ -38,6 +38,15 @@
     z-index: 2;
 }
 
+.voice-status-indicator.connecting .voice-status-dot {
+    background: #f29332;
+    box-shadow: 0 0 10px #f29332;
+}
+
+.voice-status-indicator.connecting .pulse-ring {
+    border-color: #f29332;
+}
+
 .pulse-ring {
     position: absolute;
     width: 100%;
@@ -62,6 +71,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.3s;
+}
+
+.voice-connection-status.connecting {
+    color: #f29332;
 }
 
 .voice-channel-name {
@@ -70,6 +84,17 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.voice-channel-name.connecting {
+    color: #f29332;
+    animation: connectingPulse 1.5s infinite;
+}
+
+@keyframes connectingPulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
 }
 
 .voice-disconnect-btn {

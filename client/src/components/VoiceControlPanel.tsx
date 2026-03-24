@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useVoice } from '../contexts/VoiceContext';
 import { MicIcon, MicMutedIcon, DeafenedIcon, SpeakerIcon, PhoneIcon, ScreenShareIcon, StopScreenShareIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
+import { ConnectionState } from 'livekit-client';
 import './VoiceControlPanel.css';
 
 const VoiceControlPanel: React.FC = () => {
@@ -17,7 +18,8 @@ const VoiceControlPanel: React.FC = () => {
         startScreenShare,
         stopScreenShare,
         ping,
-        connectionQuality
+        connectionQuality,
+        roomConnectionState
     } = useVoice();
 
     const [showSourceSelector, setShowSourceSelector] = React.useState(false);
@@ -52,7 +54,7 @@ const VoiceControlPanel: React.FC = () => {
         <div className="voice-control-panel glass-panel-base">
             <div className="voice-info">
                 <div 
-                    className="voice-status-indicator"
+                    className={`voice-status-indicator ${roomConnectionState === ConnectionState.Connecting || roomConnectionState === ConnectionState.Reconnecting ? 'connecting' : ''}`}
                     onMouseEnter={() => setShowTooltip(true)}
                     onMouseLeave={() => setShowTooltip(false)}
                 >
@@ -81,8 +83,16 @@ const VoiceControlPanel: React.FC = () => {
                     )}
                 </div>
                 <div className="voice-details">
-                    <span className="voice-connection-status">Голосовая связь</span>
-                    <span className="voice-channel-name">Подключено</span>
+                    <span className={`voice-connection-status ${roomConnectionState === ConnectionState.Connecting || roomConnectionState === ConnectionState.Reconnecting ? 'connecting' : ''}`}>
+                        {roomConnectionState === ConnectionState.Connecting ? 'Подключение...' : 
+                         roomConnectionState === ConnectionState.Reconnecting ? 'Переподключение...' : 
+                         'Голосовая связь'}
+                    </span>
+                    <span className={`voice-channel-name ${roomConnectionState === ConnectionState.Connecting || roomConnectionState === ConnectionState.Reconnecting ? 'connecting' : ''}`}>
+                        {roomConnectionState === ConnectionState.Connecting ? 'Соединение' : 
+                         roomConnectionState === ConnectionState.Reconnecting ? 'Восстановление' : 
+                         'Подключено'}
+                    </span>
                 </div>
                 <button className="voice-disconnect-btn" onClick={leaveChannel} title="Отключиться">
                     <PhoneIcon size={20} color="#ff4d4d" />

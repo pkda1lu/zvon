@@ -14,6 +14,7 @@ import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
+import { ConnectionState } from 'livekit-client';
 
 interface ServerSidebarProps {
   server: Server;
@@ -40,7 +41,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
-  const { joinChannel, userStates, activeChannelId } = useVoice();
+  const { joinChannel, userStates, activeChannelId, roomConnectionState } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
   const isOwner = currentUser && server.owner && (
@@ -166,7 +167,10 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                       <span className="channel-icon">
                         {activeChannelId === channel._id ? (
-                          <div className="voice-status-indicator sidebar-inline">
+                          <div className={`voice-status-indicator sidebar-inline ${
+                            roomConnectionState === ConnectionState.Connecting || 
+                            roomConnectionState === ConnectionState.Reconnecting ? 'connecting' : ''
+                          }`}>
                             <div className="pulse-ring"></div>
                             <div className="status-dot"></div>
                           </div>
