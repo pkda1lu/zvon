@@ -108,7 +108,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     refreshDevices,
     inputSensitivity, setInputSensitivity,
     isAutomaticSensitivity, setIsAutomaticSensitivity,
-    startTestStream, stopTestStream
+    startTestStream, stopTestStream,
+    isOverlayEnabled, toggleOverlay,
+    overlayPosition, setOverlayPosition,
+    overlayOpacity, setOverlayOpacity,
+    overlaySize, setOverlaySize
   } = useVoice();
   const { currentInputLevel = -100 } = useVoiceLevels() || {};
   const {
@@ -993,6 +997,79 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             <span className="slider round"></span>
           </label>
         </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Игровой оверлей</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Включить внутриигровой оверлей</span>
+            <span className="checkbox-description">
+              Отображает список говорящих участников поверх игры. 
+              Работает в большинстве игр в оконном режиме или полноэкранном режиме без полей.
+            </span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={isOverlayEnabled}
+              onChange={toggleOverlay}
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
+
+        {isOverlayEnabled && (
+          <div className="voice-volume-controls" style={{ marginTop: '20px' }}>
+            <div className="settings-form-group">
+              <label>Позиция оверлея</label>
+              <select 
+                value={overlayPosition} 
+                onChange={(e) => setOverlayPosition(e.target.value)}
+                className="settings-select"
+              >
+                <option value="top-left">Сверху слева</option>
+                <option value="top-right">Сверху справа</option>
+                <option value="middle-left">Посередине слева</option>
+                <option value="middle-right">Посередине справа</option>
+                <option value="bottom-left">Снизу слева</option>
+                <option value="bottom-right">Снизу справа</option>
+              </select>
+            </div>
+
+            <div className="settings-form-group">
+              <div className="slider-header-row">
+                <label>Прозрачность</label>
+                <span className="slider-value">{Math.round(overlayOpacity * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="1"
+                step="0.05"
+                value={overlayOpacity}
+                onChange={(e) => setOverlayOpacity(parseFloat(e.target.value))}
+                className="settings-slider"
+              />
+            </div>
+
+            <div className="settings-form-group">
+              <div className="slider-header-row">
+                <label>Размер</label>
+                <span className="slider-value">{Math.round(overlaySize * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="3"
+                step="0.1"
+                value={overlaySize}
+                onChange={(e) => setOverlaySize(parseFloat(e.target.value))}
+                className="settings-slider"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

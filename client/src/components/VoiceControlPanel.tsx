@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useVoice } from '../contexts/VoiceContext';
-import { MicIcon, MicMutedIcon, DeafenedIcon, SpeakerIcon, PhoneIcon, ScreenShareIcon, StopScreenShareIcon } from './Icons';
+import { MicIcon, MicMutedIcon, DeafenedIcon, SpeakerIcon, PhoneIcon, ScreenShareIcon, StopScreenShareIcon, VideoIcon, CameraIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import { ConnectionState } from 'livekit-client';
 import './VoiceControlPanel.css';
@@ -19,7 +19,9 @@ const VoiceControlPanel: React.FC = () => {
         stopScreenShare,
         ping,
         connectionQuality,
-        roomConnectionState
+        roomConnectionState,
+        isVideoOn,
+        toggleVideo
     } = useVoice();
 
     const [showSourceSelector, setShowSourceSelector] = React.useState(false);
@@ -113,6 +115,13 @@ const VoiceControlPanel: React.FC = () => {
                     title={isDeafened ? "Включить звук" : "Выключить звук"}
                 >
                     {isDeafened ? <DeafenedIcon size={20} color="#ff4d4d" /> : <SpeakerIcon size={20} />}
+                </button>
+                <button
+                    className={`voice-action-btn ${isVideoOn ? 'active' : ''}`}
+                    onClick={toggleVideo}
+                    title={isVideoOn ? "Выключить камеру" : "Включить камеру"}
+                >
+                    {isVideoOn ? <VideoIcon size={20} color="var(--primary-neon)" /> : <CameraIcon size={20} />}
                 </button>
                 <button
                     className={`voice-action-btn ${isScreenSharing ? 'sharing' : ''}`}

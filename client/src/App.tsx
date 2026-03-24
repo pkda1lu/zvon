@@ -12,6 +12,7 @@ import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
 import TitleBar from './components/TitleBar';
+import Overlay from './pages/Overlay';
 
 const ElectronHandler: React.FC = () => {
   const navigate = useNavigate();
@@ -69,7 +70,10 @@ const AppBackground: React.FC = () => {
     return 'linear-gradient(-45deg, #020204, #15082e, #0a1f38, #2e081c, #020204)';
   };
 
-  return (
+   const isOverlay = currentPath.includes('/overlay');
+   if (isOverlay) return null;
+
+   return (
     <div
       id="global-liquid-bg"
       style={{
@@ -144,36 +148,41 @@ function App() {
   const Router = isElectron ? HashRouter : BrowserRouter;
 
   return (
-    <DialogProvider>
-      <AuthProvider>
-        <AppearanceProvider>
-          <ChatSettingsProvider>
-            <WindowSettingsProvider>
-              <NotificationProvider>
-                <Router>
-                  <div className="App" style={{ position: 'relative' }}>
-                    <AppBackground />
-                    <TitleBar />
-                    <ElectronHandler />
-                    <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
-                      <Routes>
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} />
-                        <Route path="/invite/:code" element={<InvitePage />} />
-                        <Route path="/docs" element={<Docs />} />
-                        <Route path="/policy" element={<Policy />} />
-                        <Route path="/" element={<Home />} />
-                        <Route path="/*" element={<Home />} />
-                      </Routes>
-                    </div>
-                  </div>
-                </Router>
-              </NotificationProvider>
-            </WindowSettingsProvider>
-          </ChatSettingsProvider>
-        </AppearanceProvider>
-      </AuthProvider>
-    </DialogProvider>
+    <Router>
+      <Routes>
+        <Route path="/overlay" element={<Overlay />} />
+        <Route path="*" element={
+          <DialogProvider>
+            <AuthProvider>
+              <AppearanceProvider>
+                <ChatSettingsProvider>
+                  <WindowSettingsProvider>
+                    <NotificationProvider>
+                      <div className="App" style={{ position: 'relative' }}>
+                        <AppBackground />
+                        <TitleBar />
+                        <ElectronHandler />
+                        <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
+                          <Routes>
+                            <Route path="/login" element={<Login />} />
+                            <Route path="/register" element={<Register />} />
+                            <Route path="/invite/:code" element={<InvitePage />} />
+                            <Route path="/docs" element={<Docs />} />
+                            <Route path="/policy" element={<Policy />} />
+                            <Route path="/" element={<Home />} />
+                            <Route path="/*" element={<Home />} />
+                          </Routes>
+                        </div>
+                      </div>
+                    </NotificationProvider>
+                  </WindowSettingsProvider>
+                </ChatSettingsProvider>
+              </AppearanceProvider>
+            </AuthProvider>
+          </DialogProvider>
+        } />
+      </Routes>
+    </Router>
   );
 }
 

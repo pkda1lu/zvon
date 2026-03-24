@@ -13,6 +13,7 @@ let pendingDeepLink = null;
 let mainWindow;
 let updaterWindow;
 let tray = null;
+let overlayWindow = null;
 let isQuitting = false;
 let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false };
 const isOpenedHidden = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
@@ -22,6 +23,7 @@ let appSettings = {
     closeToTray: true,
     startMinimized: false
 };
+let isOverlayEnabled = true; // Default enabled
 
 // --- IPC Handlers (Registered early to prevent renderer errors) ---
 ipcMain.handle('get-app-version', () => app.getVersion());
@@ -465,15 +467,23 @@ const SHARING_BLACKLIST = [
     'Action Center'
 ];
 
+const NEUTRAL_PROCESSES = [
+    'powershell.exe',
+    'cmd.exe',
+    'idle.exe',
+    'electron.exe',
+    'zvon.exe',
+    'searchhost.exe',
+    'startmenuexperiencehost.exe',
+    'taskmgr.exe'
+];
+
 function scheduleNextScan() {
     if (currentScanTimeout) clearTimeout(currentScanTimeout);
     currentScanTimeout = setTimeout(scanActivities, adaptiveInterval);
 }
 
-const FG_SCRIPT = `$hwnd = (Add-Type -MemberDefinition @'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();'@ -Name "Win32" -Namespace "Win32" -PassThru)::GetForegroundWindow()
-if ($hwnd -ne 0) {
-    (Get-Process | Where-Object { $_.MainWindowHandle -eq $hwnd }).ProcessName + ".exe"
-}`;
+const FG_SCRIPT = `$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);'; $t = Add-Type -MemberDefinition $code -Name 'W32' -Namespace 'W32' -PassThru; $hwnd = $t::GetForegroundWindow(); if($hwnd -ne 0){ $pidOut=0; $t::GetWindowThreadProcessId($hwnd, [ref]$pidOut); if ($pidOut -ne $pid) { (Get-Process -Id $pidOut).ProcessName + '.exe' } }`;
 
 const STEAM_ID_SCRIPT = `Get-ItemProperty -Path 'HKCU:\\Software\\Valve\\Steam' -Name 'RunningAppID' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty RunningAppID`;
 
@@ -570,26 +580,21 @@ async function scanActivities() {
     scanInProgress = true;
 
     try {
-        // Priority 1: Steam Registry Detection
+        // Priority 0: Steam API detection (identifies what Steam thinks is running)
         const steamAppId = await getSteamAppId();
-        if (steamAppId && steamAppId !== '0') {
-            const metadata = await getGameMetadata(steamAppId);
-            if (metadata) {
-                updateActivity(metadata);
-                scanInProgress = false;
-                adaptiveInterval = 5000;
-                scheduleNextScan();
-                return;
-            }
+        let steamMetadata = null;
+        if (steamAppId && steamAppId !== '0' && steamAppId !== 'null') {
+            steamMetadata = await getGameMetadata(steamAppId);
         }
 
-        // Priority 2: Foreground Window EXE detection
-        exec(`powershell -Command "${FG_SCRIPT.replace(/\n/g, '')}"`, async (fgErr, fgStdout) => {
+        // Priority 1: Foreground Window EXE detection
+        exec(`powershell -Command "${FG_SCRIPT}"`, async (fgErr, fgStdout) => {
             const fgExe = fgStdout?.trim().toLowerCase();
+            
             if (!fgErr && fgExe) {
                 const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
 
-                // Match with KNOWN_GAMES or attempt meta lookup by exe base name
+                // Match with KNOWN_GAMES, or the Steam game we just found, or meta lookup
                 let foundKey = Object.keys(KNOWN_GAMES).find(key => {
                     const kLower = key.toLowerCase();
                     return fgExe === kLower || fgBase === kLower || fgExe === kLower.replace('.exe', '');
@@ -597,16 +602,32 @@ async function scanActivities() {
 
                 if (foundKey) {
                     const metadata = await getGameMetadata(null, foundKey);
-                    updateActivity(metadata);
+                    updateActivity(metadata, true, fgExe);
                     scanInProgress = false;
-                    adaptiveInterval = 3000;
+                    adaptiveInterval = 2000;
+                    scheduleNextScan();
+                    return;
+                }
+
+                // If foreground matches Steam game name
+                if (steamMetadata && (fgExe.includes(steamMetadata.name.toLowerCase()) || steamMetadata.name.toLowerCase().includes(fgBase))) {
+                    updateActivity(steamMetadata, true, fgExe);
+                    scanInProgress = false;
+                    adaptiveInterval = 2000;
                     scheduleNextScan();
                     return;
                 }
             }
-
-            // Priority 3: Full Scan fallback
-            performFullScan();
+            
+            // Priority 2: Full Scan fallback (KNOWN_GAMES) or Steam fallback
+            if (steamMetadata) {
+                updateActivity(steamMetadata, false, fgExe);
+                scanInProgress = false;
+                adaptiveInterval = 3000;
+                scheduleNextScan();
+            } else {
+                performFullScan(fgExe);
+            }
         });
     } catch (err) {
         log.error("Activity scan error:", err);
@@ -615,9 +636,11 @@ async function scanActivities() {
     }
 }
 
-function updateActivity(foundActivity) {
+function updateActivity(foundActivity, isForeground = false, currentForegroundExe = '') {
     const currentName = foundActivity ? foundActivity.name : null;
     const lastName = lastActivity ? lastActivity.name : null;
+    
+    // 1. Manage Activity State (Rich Presence)
     if (currentName !== lastName) {
         if (foundActivity) {
             lastActivity = { ...foundActivity };
@@ -629,10 +652,37 @@ function updateActivity(foundActivity) {
         if (mainWindow && !mainWindow.webContents.isDestroyed()) {
             mainWindow.webContents.send('activity-changed', lastActivity ? { ...lastActivity, startTime: activityStartTime } : null);
         }
+        // Always notify overlay of activity data change
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.webContents.send('activity-changed', lastActivity ? { ...lastActivity, startTime: activityStartTime } : null);
+        }
+    }
+
+    // 2. Manage Overlay Visibility (Foreground sync)
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+        const isNeutral = NEUTRAL_PROCESSES.includes(currentForegroundExe?.trim().toLowerCase() || '');
+        
+        // Final visibility decision
+        let shouldShow;
+        if (isNeutral && lastActivity) {
+            // Neutral process -> Keep showing if we have an active game activity
+            // BUT: If the game was detected via Steam AND it's not in Priority 1, 
+            // we should be careful about "phantom" games.
+            shouldShow = isOverlayEnabled;
+        } else {
+            // Specific app check -> Only show if it's the game in foreground
+            shouldShow = foundActivity && isForeground && isOverlayEnabled;
+        }
+        
+        if (shouldShow) {
+            overlayWindow.showInactive();
+        } else {
+            overlayWindow.hide();
+        }
     }
 }
 
-function performFullScan() {
+function performFullScan(fgExe = '') {
     exec('tasklist /NH /FO CSV', (err, stdout) => {
         scanInProgress = false;
         if (err) { adaptiveInterval = 5000; scheduleNextScan(); return; }
@@ -655,7 +705,7 @@ function performFullScan() {
                 }
             }
         }
-        updateActivity(bestMatch);
+        updateActivity(bestMatch, false, fgExe); // false = game not confirmed in foreground
         adaptiveInterval = bestMatch ? 3000 : 5000;
         scheduleNextScan();
     });
@@ -797,4 +847,114 @@ ipcMain.handle('get-pid-from-hwnd', (event, hwnd) => {
 });
 // ----------------------------------------
 
+function createOverlayWindow() {
+    if (overlayWindow) return;
+
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.bounds;
+
+    overlayWindow = new BrowserWindow({
+        width: 300,
+        height: 500,
+        x: 20,
+        y: 20,
+        transparent: true,
+        frame: false,
+        alwaysOnTop: true,
+        resizable: false,
+        movable: true,
+        focusable: false,
+        skipTaskbar: true,
+        hasShadow: false,
+        show: false,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            backgroundThrottling: false,
+            preload: isDev ? path.join(__dirname, '../public/preload.js') : path.join(__dirname, 'preload.js')
+        }
+    });
+
+    overlayWindow.webContents.setFrameRate(60);
+
+    const url = isDev ? 'http://localhost:3000/#/overlay' : `file://${path.join(__dirname, 'index.html')}#/overlay`;
+    console.log('[Electron] Loading Overlay URL:', url);
+    
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    overlayWindow.setFullScreenable(false);
+    
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    overlayWindow.loadURL(url);
+
+    overlayWindow.on('closed', () => {
+        overlayWindow = null;
+    });
+
+    overlayWindow.webContents.on('did-fail-load', (e, errorCode, errorDescription) => {
+        console.error('Overlay failed to load:', errorCode, errorDescription);
+    });
+
+    let isShown = false;
+    overlayWindow.once('ready-to-show', () => {
+        if (!isShown && overlayWindow && lastActivity) {
+            overlayWindow.showInactive();
+            isShown = true;
+        }
+    });
+
+    // We no longer fallback to show inactive here. 
+    // updateActivity will handle showing it when a game is found.
+}
+
+ipcMain.on('toggle-overlay', (event, enabled) => {
+    console.log('[Electron] Toggling overlay:', enabled);
+    isOverlayEnabled = enabled;
+    
+    if (enabled) {
+        if (!overlayWindow) {
+            createOverlayWindow();
+        }
+        // Force evaluation of foreground game
+        scanActivities();
+    } else {
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.hide();
+        }
+    }
+});
+
+ipcMain.on('update-overlay-data', (event, data) => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('overlay-data', data);
+    }
+});
+
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+ipcMain.on('update-overlay-config', (event, config) => {
+    if (overlayWindow && !overlayWindow.isDestroyed() && config.position) {
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width, height } = primaryDisplay.workAreaSize;
+        
+        const sizeMultiplier = config.size || 1;
+        const winWidth = Math.round(300 * sizeMultiplier);
+        const winHeight = Math.round(600 * sizeMultiplier);
+        let x = 20;
+        let y = 20;
+        
+        switch (config.position) {
+            case 'top-left': x = 20; y = 20; break;
+            case 'top-right': x = width - winWidth - 20; y = 20; break;
+            case 'middle-left': x = 20; y = Math.round((height / 2) - (winHeight / 2)); break;
+            case 'middle-right': x = width - winWidth - 20; y = Math.round((height / 2) - (winHeight / 2)); break;
+            case 'bottom-left': x = 20; y = height - winHeight - 20; break;
+            case 'bottom-right': x = width - winWidth - 20; y = height - winHeight - 20; break;
+        }
+        
+        overlayWindow.setBounds({ x, y, width: winWidth, height: winHeight });
+        overlayWindow.webContents.send('overlay-config', config);
+    }
+});
+
+// -------------------------------------------------------------

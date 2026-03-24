@@ -8,6 +8,7 @@ import { nativeAudioManager } from '../utils/nativeAudio';
 import vadWorkletUrl from '../utils/vad-worklet.js?url';
 import axios from 'axios';
 import { useDialog } from './DialogContext';
+import { getAvatarUrl } from '../utils/avatar';
 import {
     Room,
     RoomEvent,
@@ -128,7 +129,7 @@ const RemoteScreen: React.FC<{
     }, [isWatching, volume, masterVolume]);
 
     return (
-        <div style={{ display: 'none' }}>
+        <div>
             <video ref={videoRef} autoPlay playsInline muted />
             <audio ref={audioRef} autoPlay muted={!isWatching} />
         </div>
@@ -194,6 +195,14 @@ interface VoiceContextType {
     ping: number;
     connectionQuality: ConnectionQuality;
     roomConnectionState: ConnectionState;
+    isOverlayEnabled: boolean;
+    toggleOverlay: () => void;
+    overlayPosition: string;
+    setOverlayPosition: (pos: string) => void;
+    overlayOpacity: number;
+    setOverlayOpacity: (opacity: number) => void;
+    overlaySize: number;
+    setOverlaySize: (size: number) => void;
 }
 
 interface VoiceLevelContextType {
@@ -295,6 +304,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const stored = localStorage.getItem('isAutomaticSensitivity');
         return stored === null ? true : stored === 'true';
     });
+    const [isOverlayEnabled, setIsOverlayEnabled] = useState<boolean>(() => {
+        const stored = localStorage.getItem('isOverlayEnabled');
+        return stored === null ? true : stored === 'true';
+    });
+    const [overlayPosition, setOverlayPosition] = useState(() => localStorage.getItem('overlayPosition') || 'top-left');
+    const [overlayOpacity, setOverlayOpacity] = useState(() => Number(localStorage.getItem('overlayOpacity')) || 1.0);
+    const [overlaySize, setOverlaySize] = useState(() => Number(localStorage.getItem('overlaySize')) || 1.0);
+
     // For visualization in settings
     const [currentInputLevel, setCurrentInputLevel] = useState(-100);
 
@@ -337,6 +354,28 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('inputSensitivity', String(inputSensitivity));
         localStorage.setItem('isAutomaticSensitivity', String(isAutomaticSensitivity));
     }, [selectedInputDeviceId, selectedOutputDeviceId, selectedVideoDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity]);
+
+    const toggleOverlay = useCallback(() => {
+        setIsOverlayEnabled(prev => {
+            const next = !prev;
+            localStorage.setItem('isOverlayEnabled', String(next));
+            // @ts-ignore
+            if (window.electron) {
+                window.electron.ipc.send('toggle-overlay', next);
+            }
+            return next;
+        });
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('overlayPosition', overlayPosition);
+        localStorage.setItem('overlayOpacity', String(overlayOpacity));
+        localStorage.setItem('overlaySize', String(overlaySize));
+        // @ts-ignore
+        if (window.electron) {
+            window.electron.ipc.send('update-overlay-config', { position: overlayPosition, opacity: overlayOpacity, size: overlaySize });
+        }
+    }, [overlayPosition, overlayOpacity, overlaySize]);
 
     // Cleanup on unmount of VoiceProvider
     useEffect(() => {
@@ -1309,10 +1348,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Add remote speakers known from LiveKit ActiveSpeakersChanged
             remoteSpeakingUsersRef.current.forEach(userId => {
-                if (userId === localId) return;
                 const state = userStates.get(userId);
                 const isUserMuted = state?.isMuted || state?.isServerMuted || state?.isDeafened || state?.isServerDeafened;
-                if (!isUserMuted) nowSpeaking.add(userId);
+                if (!isUserMuted) {
+                    // Safety: if LiveKit says local user is speaking, trust it even if local VAD is silent/stuck
+                    nowSpeaking.add(userId);
+                }
             });
 
             // Deep comparison to prevent redundant state updates
@@ -1346,6 +1387,56 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             clearInterval(statsInterval);
         };
     }, [isConnected, isMuted, isServerMuted, isDeafened, isServerDeafened, userStates, user?._id]);
+    
+    // Sync to Overlay
+    useEffect(() => {
+        // @ts-ignore
+        const electron = window.electron;
+        if (!electron || !electron.ipc) return;
+
+        const syncOverlay = () => {
+            if (!isOverlayEnabled) return;
+            if (!isConnected) {
+                electron.ipc.send('update-overlay-data', { users: [], channelName: '' });
+                return;
+            }
+            const localUser = user;
+            
+            const overlayUsers = [
+                ...(localUser ? [{
+                    id: localUser._id,
+                    username: localUser.username,
+                    avatar: getAvatarUrl(localUser.avatar) || undefined,
+                    isSpeaking: speakingUsers.has(localUser._id),
+                    isMuted: isMuted || isServerMuted,
+                    isDeafened: isDeafened || isServerDeafened
+                }] : []),
+                ...connectedUsers.map(u => ({
+                    id: u._id,
+                    username: u.username,
+                    avatar: getAvatarUrl(u.avatar) || undefined,
+                    isSpeaking: speakingUsers.has(u._id),
+                    isMuted: userStates.get(u._id)?.isMuted || userStates.get(u._id)?.isServerMuted,
+                    isDeafened: userStates.get(u._id)?.isDeafened || userStates.get(u._id)?.isServerDeafened
+                }))
+            ];
+
+            electron.ipc.send('update-overlay-data', {
+                users: overlayUsers,
+                channelName: 'Голосовой чат' 
+            });
+        };
+
+        syncOverlay();
+    }, [speakingUsers, connectedUsers, isConnected, isMuted, isDeafened, isServerMuted, isServerDeafened, userStates, user, activeChannelId, isOverlayEnabled]);
+
+    // Initial overlay toggle sync
+    useEffect(() => {
+        // @ts-ignore
+        if (window.electron && isOverlayEnabled) {
+            window.electron.ipc.send('toggle-overlay', true);
+        }
+    }, []);
 
     // Unified Effect for volume synchronization to prevent re-publication lag
     useEffect(() => {
@@ -1382,7 +1473,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const setupLocalVAD = async () => {
             try {
                 const audioCtx = getAudioContext();
-                if (audioCtx.state === 'suspended') await audioCtx.resume().catch(() => { });
+                if (audioCtx.state === 'suspended') {
+                    console.log("[Voice] AudioContext is suspended, attempting to resume...");
+                    await audioCtx.resume().catch((e) => console.warn("[Voice] Resume failed:", e));
+                }
 
                 // VAD Worklet Source - Inlined for reliability in production
                 const vadWorkletCode = `
@@ -1420,9 +1514,12 @@ registerProcessor('vad-processor', VADProcessor);
 
                 // Only register if not already registered for this context
                 if (!registeredWorkletsRef.current.has('vad-processor')) {
+                    console.log("[Voice] Adding VAD Worklet module...");
                     await audioCtx.audioWorklet.addModule(url);
                     registeredWorkletsRef.current.add('vad-processor');
                     console.log("[Voice] VAD Worklet module added");
+                } else {
+                    console.log("[Voice] VAD Worklet already registered, skipping addModule");
                 }
 
                 if (vadSourceRef.current) vadSourceRef.current.disconnect();
@@ -1441,6 +1538,7 @@ registerProcessor('vad-processor', VADProcessor);
 
                 source.connect(vadNode);
                 vadSourceRef.current = source;
+                console.log("[Voice] VAD source connected to stream:", stream.id);
 
                 if (workletNodesRef.current.has(localId)) {
                     workletNodesRef.current.get(localId)?.disconnect();
@@ -1449,7 +1547,7 @@ registerProcessor('vad-processor', VADProcessor);
                 isVadActiveRef.current = true;
                 vadInitTimeRef.current = Date.now();
                 lastVadMessageTimeRef.current = 0; // reset so watchdog can detect silence
-                console.log("[Voice] VAD initialized successfully");
+                console.log("[Voice] VAD initialized successfully for", localId);
 
             } catch (error) {
                 console.warn('[Voice] VAD setup failed, falling back to analyzer:', error);
@@ -1608,7 +1706,12 @@ registerProcessor('vad-processor', VADProcessor);
             localCameraStream,
             ping,
             connectionQuality,
-            roomConnectionState
+            roomConnectionState,
+            isOverlayEnabled,
+            toggleOverlay,
+            overlayPosition, setOverlayPosition,
+            overlayOpacity, setOverlayOpacity,
+            overlaySize, setOverlaySize
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}
