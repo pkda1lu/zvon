@@ -5,6 +5,7 @@
   "author": "pkda1lu",
   "description": "Zvon - Real-time communication platform",
   "dependencies": {
+    "axios": "^1.6.2",
     "electron-is-dev": "^2.0.0",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.6.2",
@@ -94,7 +95,6 @@
     "vite-tsconfig-paths": "^6.0.3",
     "wait-on": "^9.0.3",
     "web-vitals": "^2.1.4",
-    "axios": "^1.6.2",
     "lucide-react": "^0.577.0",
     "react-syntax-highlighter": "^16.1.1",
     "tenorjs": "^1.0.10"
