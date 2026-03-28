@@ -733,13 +733,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: sourceId,
-                        maxFrameRate: frameRate
+                        maxFrameRate: frameRate,
+                        minFrameRate: frameRate
                     },
                     optional: [
                         { maxWidth: 3840 },
-                        { maxHeight: 2160 },
-                        { googLeakyBucket: true },
-                        { googTemporalLayeredScreencast: true }
+                        { maxHeight: 2160 }
                     ]
                 } as any
             };
@@ -796,8 +795,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                                 priority: 'high'
                             }
                         },
-                        scalabilityMode: 'L1T3', // Optimized temporal scalability for smoothness
-                        degradationPreference: 'maintain-framerate', // FPS is priority!
+                        scalabilityMode: 'L3T3_KEY', // SVC with regular Keyframes
                         simulcast: false 
                     });
                 }
