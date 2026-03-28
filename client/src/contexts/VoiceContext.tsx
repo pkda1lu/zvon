@@ -130,17 +130,7 @@ const RemoteScreen: React.FC<{
 
     return (
         <div>
-            <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted 
-                style={{ 
-                    objectFit: 'contain', 
-                    imageRendering: 'crisp-edges', // Improve text sharpness
-                    filter: 'contrast(1.05) brightness(1.02)' // Subtle sharpening effect
-                }} 
-            />
+            <video ref={videoRef} autoPlay playsInline muted />
             <audio ref={audioRef} autoPlay muted={!isWatching} />
         </div>
     );
@@ -704,7 +694,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             let stream: MediaStream;
 
             const resolution = options?.resolution || '720';
-            const frameRate = parseInt(options?.frameRate || '60', 10);
+            const frameRate = parseInt(options?.frameRate || '30', 10);
 
             let width = 1280;
             let height = 720;
@@ -713,23 +703,26 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (resolution === '2160') {
                 width = 3840;
                 height = 2160;
-                bitrate = 50_000_000; // 50 Mbps for 4K
+                // Bitrate: 35-45 Mbps (Good), 60 Mbps (Excellent). 120fps gets 100Mbps.
+                bitrate = frameRate >= 120 ? 100_000_000 : (frameRate >= 60 ? 60_000_000 : 40_000_000);
             } else if (resolution === '1440') {
                 width = 2560;
                 height = 1440;
-                bitrate = 30_000_000; // 30 Mbps for 2K
+                // Bitrate: 16-25 Mbps. 120fps gets 40Mbps.
+                bitrate = frameRate >= 120 ? 40_000_000 : (frameRate >= 60 ? 25_000_000 : 18_000_000);
             } else if (resolution === '1080') {
                 width = 1920;
                 height = 1080;
-                bitrate = 15_000_000; // 15 Mbps for 1080p
+                // Bitrate: 12-15 Mbps. 120fps gets 25Mbps.
+                bitrate = frameRate >= 120 ? 25_000_000 : (frameRate >= 60 ? 15_000_000 : 10_000_000);
             } else if (resolution === '720') {
                 width = 1280;
                 height = 720;
-                bitrate = 8_000_000;
+                bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
             } else if (resolution === '480') {
                 width = 854;
                 height = 480;
-                bitrate = 4_000_000;
+                bitrate = frameRate >= 60 ? 3_000_000 : 2_000_000;
             }
 
             // Efficient Electron constraints - Use ideal instead of mandatory for resolution
@@ -740,11 +733,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: sourceId,
+                        maxFrameRate: frameRate
                     },
-                    // Higher quality capture settings for Electron
-                    width: { ideal: width, max: width },
-                    height: { ideal: height, max: height },
-                    frameRate: { ideal: frameRate, max: frameRate },
+                    optional: [
+                        { maxWidth: 3840 },
+                        { maxHeight: 2160 },
+                        { googLeakyBucket: true },
+                        { googTemporalLayeredScreencast: true }
+                    ]
                 } as any
             };
             if (hasElectron) {
@@ -770,10 +766,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 });
             }
 
-            // Optimize for sharpness (essential for text and UI)
+            // Optimize for smoothness vs sharpness
             stream.getVideoTracks().forEach(t => {
                 if ('contentHint' in t || (t as any).contentHint !== undefined) {
-                    (t as any).contentHint = 'detail';
+                    (t as any).contentHint = 'motion';
                 }
             });
 
@@ -783,7 +779,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const audioTrack = stream.getAudioTracks()[0];
 
                 if (videoTrack) {
-                    const publication = await roomRef.current.localParticipant.publishTrack(videoTrack, {
+                    await roomRef.current.localParticipant.publishTrack(videoTrack, {
                         name: 'screen_video',
                         source: Track.Source.ScreenShare,
                         videoEncoding: {
@@ -791,7 +787,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                             maxFramerate: frameRate,
                             priority: 'high'
                         },
-                        videoCodec: 'av1', // AV1 is superior for screen content
+                        videoCodec: 'av1',
                         backupCodec: {
                             codec: 'h264',
                             encoding: {
@@ -800,34 +796,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                                 priority: 'high'
                             }
                         },
-                        scalabilityMode: 'L1T3', 
-                        degradationPreference: 'maintain-resolution', 
+                        scalabilityMode: 'L1T3', // Optimized temporal scalability for smoothness
+                        degradationPreference: 'maintain-framerate', // FPS is priority!
                         simulcast: false 
                     });
-
-                    // Force degradationPreference on the sender for maximum reliability
-                    try {
-                        // @ts-ignore - access internal sender to fix certain WebRTC behaviors
-                        const sender = publication.track?.sender;
-                        if (sender) {
-                            const params = sender.getParameters();
-                            if (params) {
-                                params.degradationPreference = 'maintain-resolution';
-                                await (sender as any).setParameters(params);
-                                console.log("[Voice] Manual sender parameters applied: maintain-resolution");
-                            }
-                        }
-                    } catch (e) {
-                        console.warn("[Voice] Failed to set manual sender parameters:", e);
-                    }
                 }
-
                 if (audioTrack) {
-                    await roomRef.current.localParticipant.publishTrack(audioTrack, { 
-                        name: 'screen_audio', 
-                        source: Track.Source.ScreenShareAudio,
-                        dtx: true
-                    });
+                    await roomRef.current.localParticipant.publishTrack(audioTrack, { name: 'screen_audio', source: Track.Source.ScreenShareAudio });
                 }
                 console.log(`[Voice] Screen share published: ${resolution}p @ ${frameRate}fps (${bitrate}bps) [AV1/DXGI]`);
             }
@@ -926,17 +901,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // 2. Connect to LiveKit
             const room = new Room({
-                adaptiveStream: false, // Disable for screen share quality priority
-                dynacast: false, // Disable to prevent layer switching quality drops
+                adaptiveStream: true,
+                dynacast: true,
                 publishDefaults: {
                     dtx: true,
-                    simulcast: true, // Keep enabled for camera, screen share overrides this
+                    simulcast: true,
                     red: true,
-                    videoEncoding: {
-                        maxBitrate: 15_000_000,
-                        maxFramerate: 60,
-                        priority: 'high',
-                    }
                 }
             });
 
