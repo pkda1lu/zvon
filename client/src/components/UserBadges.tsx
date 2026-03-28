@@ -1,13 +1,13 @@
 import React from 'react';
 import './UserBadges.css';
 
-export interface Badge {
+interface Badge {
   id: string;
   label: string;
   icon: string;
 }
 
-export const BADGES: Record<string, Badge> = {
+const BADGES: Record<string, Badge> = {
   dev: { id: 'dev', label: 'Разработчик', icon: '🛠️' },
   premium: { id: 'premium', label: 'Премиум', icon: '💎' },
   moderator: { id: 'moderator', label: 'Модератор', icon: '🛡️' },
