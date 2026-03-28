@@ -694,36 +694,35 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             let stream: MediaStream;
 
             const resolution = options?.resolution || '720';
-            const frameRate = parseInt(options?.frameRate || '60', 10);
+            const frameRate = parseInt(options?.frameRate || '30', 10);
 
             let width = 1280;
             let height = 720;
             let bitrate = 8_000_000;
 
-            if (resolution === 'source') {
-                width = 3840; // Allow native up to 4K
-                height = 2160;
-                bitrate = 30_000_000;
-            } else if (resolution === '2160') {
+            if (resolution === '2160') {
                 width = 3840;
                 height = 2160;
-                bitrate = 40_000_000;
+                // Bitrate: 35-45 Mbps (Good), 60 Mbps (Excellent). 120fps gets 100Mbps.
+                bitrate = frameRate >= 120 ? 100_000_000 : (frameRate >= 60 ? 60_000_000 : 40_000_000);
             } else if (resolution === '1440') {
                 width = 2560;
                 height = 1440;
-                bitrate = 30_000_000;
+                // Bitrate: 16-25 Mbps. 120fps gets 40Mbps.
+                bitrate = frameRate >= 120 ? 40_000_000 : (frameRate >= 60 ? 25_000_000 : 18_000_000);
             } else if (resolution === '1080') {
                 width = 1920;
                 height = 1080;
-                bitrate = 20_000_000;
+                // Bitrate: 12-15 Mbps. 120fps gets 25Mbps.
+                bitrate = frameRate >= 120 ? 25_000_000 : (frameRate >= 60 ? 15_000_000 : 10_000_000);
             } else if (resolution === '720') {
                 width = 1280;
                 height = 720;
-                bitrate = 12_000_000;
+                bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
             } else if (resolution === '480') {
                 width = 854;
                 height = 480;
-                bitrate = 6_000_000;
+                bitrate = frameRate >= 60 ? 3_000_000 : 2_000_000;
             }
 
             // Efficient Electron constraints - Use ideal instead of mandatory for resolution
@@ -786,8 +785,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                             maxBitrate: bitrate,
                             maxFramerate: frameRate,
                         },
-                        videoCodec: (resolution === 'source' || resolution === '2160' || resolution === '1440') ? 'vp9' : 'h264',
-                        simulcast: false
+                        videoCodec: 'h264',
+                        simulcast: false // Disable simulcast to use ALL bandwidth for the primary stream
                     });
                 }
                 if (audioTrack) {
@@ -953,47 +952,28 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         setIsScreenSharing(true);
                         
                         // Force high quality for screen sharing
-                        const forceParams = async () => {
+                        setTimeout(async () => {
                             try {
                                 const pc = (room as any).engine?.pc;
                                 if (pc) {
                                     const sender = pc.getSenders().find((s: any) => s.track?.id === track.mediaStreamTrack?.id);
                                     if (sender) {
                                         const params = sender.getParameters();
-                                        if (params.encodings && params.encodings.length > 0) {
-                                            const settings = track.mediaStreamTrack?.getSettings();
-                                            const resH = settings?.height || 720;
-                                            
-                                            // Dynamic bitrate based on current resolution
-                                            let targetBitrate = 10_000_000;
-                                            if (resH >= 2160) targetBitrate = 40_000_000;
-                                            else if (resH >= 1440) targetBitrate = 25_000_000;
-                                            else if (resH >= 1080) targetBitrate = 18_000_000;
-                                            else if (resH >= 720) targetBitrate = 12_000_000;
-
-                                            params.encodings.forEach((enc: any) => {
-                                                enc.maxBitrate = targetBitrate;
-                                                enc.minBitrate = Math.floor(targetBitrate / 2.5); // 40% floor to keep quality
-                                                enc.maxFramerate = 60;
-                                                enc.scaleResolutionDownBy = 1;
-                                                enc.priority = "high";
-                                                enc.networkPriority = "high";
-                                            });
-                                            params.degradationPreference = "maintain-resolution";
-                                            await sender.setParameters(params);
-                                            console.log(`[Voice] Forced ${targetBitrate}bps (min ${Math.floor(targetBitrate / 2.5)}) for ${publication.source}`);
-                                        }
+                                        params.encodings = [{
+                                            maxBitrate: 20000000,
+                                            minBitrate: 10000000,
+                                            maxFramerate: 60,
+                                            scaleResolutionDownBy: 1
+                                        }];
+                                        params.degradationPreference = "maintain-resolution";
+                                        await sender.setParameters(params);
+                                        console.log("[Voice] Forced 20Mbps for screen share");
                                     }
                                 }
                             } catch (e) {
-                                console.warn(`[Voice] Failed to force ${publication.source} params:`, e);
+                                console.warn("[Voice] Failed to force screen share params:", e);
                             }
-                        };
-
-                        // Multiple attempts to override internal LiveKit updates
-                        setTimeout(forceParams, 500);
-                        setTimeout(forceParams, 2000);
-                        setTimeout(forceParams, 5000);
+                        }, 500);
 
                     } else if (publication.source === Track.Source.Camera) {
                         setIsVideoOn(true);
@@ -1001,34 +981,28 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         cameraStreamRef.current = new MediaStream([track.mediaStreamTrack!]);
 
                         // Force high quality for camera
-                        const forceParams = async () => {
+                        setTimeout(async () => {
                             try {
                                 const pc = (room as any).engine?.pc;
                                 if (pc) {
                                     const sender = pc.getSenders().find((s: any) => s.track?.id === track.mediaStreamTrack?.id);
                                     if (sender) {
                                         const params = sender.getParameters();
-                                        if (params.encodings && params.encodings.length > 0) {
-                                            params.encodings.forEach((enc: any) => {
-                                                enc.maxBitrate = 20000000;
-                                                enc.minBitrate = 10000000;
-                                                enc.maxFramerate = 60;
-                                                enc.scaleResolutionDownBy = 1;
-                                            });
-                                            params.degradationPreference = "maintain-resolution";
-                                            await sender.setParameters(params);
-                                            console.log(`[Voice] Forced high quality params for ${publication.source}`);
-                                        }
+                                        params.encodings = [{
+                                            maxBitrate: 20000000,
+                                            minBitrate: 10000000,
+                                            maxFramerate: 60,
+                                            scaleResolutionDownBy: 1
+                                        }];
+                                        params.degradationPreference = "maintain-resolution";
+                                        await sender.setParameters(params);
+                                        console.log("[Voice] Forced 20Mbps for camera");
                                     }
                                 }
                             } catch (e) {
-                                console.warn(`[Voice] Failed to force ${publication.source} params:`, e);
+                                console.warn("[Voice] Failed to force camera params:", e);
                             }
-                        };
-
-                        setTimeout(forceParams, 500);
-                        setTimeout(forceParams, 2000);
-                        setTimeout(forceParams, 5000);
+                        }, 500);
                     }
                 })
                 .on(RoomEvent.LocalTrackUnpublished, (publication) => {
