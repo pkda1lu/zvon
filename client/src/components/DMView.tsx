@@ -709,82 +709,63 @@ const DMView: React.FC<DMViewProps> = ({
                           onReact={(emoji) => handleReact(msg._id, emoji)}
                         />
 
-                        {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (() => {
-                          const isMedia = (a: any) => a.type?.startsWith('image/') || a.type?.startsWith('video/') || /\.(jpg|jpeg|png|gif|webp|mov|mp4|webm|avif)$/i.test(a.filename || '');
-                          const media = msg.attachments!.filter(isMedia);
-                          const files = msg.attachments!.filter(a => !isMedia(a));
-                          
-                          const gridClass = media.length === 1 ? 'grid-1' : 
-                                           media.length === 2 ? 'grid-2' : 
-                                           media.length === 3 ? 'grid-3' : 
-                                           media.length === 4 ? 'grid-4' : 
-                                           media.length >= 5 ? 'grid-5-plus' : '';
-
-                          return (
-                            <div className="message-attachments-wrapper">
-                              {media.length > 0 && (
-                                <div className={`message-attachments ${gridClass}`}>
-                                  {media.map((att, i) => (
-                                    <div key={i} className="attachment-item">
-                                      {(att.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(att.filename || '')) ? (
-                                        <div className="attachment-image-container" style={{ height: '100%' }}>
-                                          <img src={getFullUrl(att.url)!} alt="" className="attachment-image" onClick={() => {
-                                            const allMedia = messages.flatMap(m => m.attachments || []).filter(isMedia);
-                                            setLightboxMedia(allMedia);
-                                            setLightboxIndex(allMedia.findIndex(a => a.url === att.url));
-                                            setLightboxOpen(true);
-                                          }} />
-                                          <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
-                                            <DownloadIcon size={16} />
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="attachment-video-wrapper" style={{ height: '100%' }}>
-                                          <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
-                                            const allMedia = messages.flatMap(m => m.attachments || []).filter(isMedia).map(a => ({ ...a }));
-                                            const idx = allMedia.findIndex(a => a.url === att.url);
-                                            if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
-                                            setLightboxMedia(allMedia);
-                                            setLightboxIndex(idx);
-                                            setLightboxOpen(true);
-                                          }} style={{ height: '100%', maxWidth: 'none' }} />
-                                          <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
-                                            <DownloadIcon size={16} />
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {files.length > 0 && (
-                                <div className="message-attachments files-only">
-                                  {files.map((att, i) => (
-                                    <div key={i} className="attachment-item">
-                                      {(att.type?.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
-                                        <div className="attachment-audio-container">
-                                          <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
-                                          <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
-                                            <DownloadIcon size={16} />
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="attachment-file-container">
-                                          <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                                            <DocumentIcon size={18} /><span>{att.filename}</span>
-                                          </a>
-                                          <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
-                                            <DownloadIcon size={16} />
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
+                          <div className="message-attachments">
+                            {msg.attachments.map((att, i) => (
+                              <div key={i} className="attachment-item">
+                                {att.type.startsWith('image/') ? (
+                                  <div className="attachment-image-container">
+                                    <img
+                                      src={getFullUrl(att.url)!}
+                                      alt=""
+                                      className="attachment-image"
+                                      onClick={() => {
+                                        const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/'));
+                                        setLightboxMedia(allMedia);
+                                        setLightboxIndex(allMedia.findIndex(a => a.url === att.url));
+                                        setLightboxOpen(true);
+                                      }}
+                                    />
+                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
+                                      <DownloadIcon size={16} />
+                                    </button>
+                                  </div>
+                                ) : att.type.startsWith('video/') ? (
+                                  <div className="attachment-video-wrapper">
+                                    <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
+                                      const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/')).map(a => ({ ...a }));
+                                      const idx = allMedia.findIndex(a => a.url === att.url);
+                                      if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
+                                      setLightboxMedia(allMedia);
+                                      setLightboxIndex(idx);
+                                      setLightboxOpen(true);
+                                    }} />
+                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
+                                      <DownloadIcon size={16} />
+                                    </button>
+                                  </div>
+                                ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
+                                  <div className="attachment-audio-container">
+                                    <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
+                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
+                                      <DownloadIcon size={16} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="attachment-file-container">
+                                    <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
+                                      <DocumentIcon size={18} />
+                                      <span>{att.filename}</span>
+                                    </a>
+                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
+                                      <DownloadIcon size={16} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
