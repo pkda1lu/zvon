@@ -34,7 +34,7 @@ export const Permissions = {
     MANAGE_ROLES: 1n << 33n,
 };
 
-const DEFAULT_PERMISSIONS =
+export const DEFAULT_PERMISSIONS =
     Permissions.VIEW_CHANNEL |
     Permissions.SEND_MESSAGES |
     Permissions.READ_MESSAGE_HISTORY |

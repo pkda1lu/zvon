@@ -733,8 +733,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     mandatory: {
                         chromeMediaSource: 'desktop',
                         chromeMediaSourceId: sourceId,
-                        maxFrameRate: frameRate,
-                        minFrameRate: frameRate
+                        maxFrameRate: frameRate
                     },
                     optional: [
                         { maxWidth: 3840 },
@@ -767,8 +766,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Optimize for smoothness vs sharpness
             stream.getVideoTracks().forEach(t => {
-                if ('contentHint' in t || (t as any).contentHint !== undefined) {
-                    (t as any).contentHint = 'motion';
+                if (t.contentHint) {
+                    // For 60/120fps, 'motion' is critical for smoothness
+                    (t as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
                 }
             });
 

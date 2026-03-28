@@ -1,7 +1,7 @@
 // Native Audio Manager handles the communication with the native Electron audio module
 // Note: We avoid declaring global window interfaces here to prevent conflicts with other files.
 
-class NativeAudioManager {
+export class NativeAudioManager {
     private audioCtx!: AudioContext;
     private destination!: MediaStreamAudioDestinationNode;
     private nextStartTime: number = 0;

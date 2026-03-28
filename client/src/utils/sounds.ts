@@ -12,7 +12,7 @@ export const SOUNDS = {
     SCREENSHARE_OFF: 'sounds/выкл стрим.wav'
 };
 
-class SoundManager {
+export class SoundManager {
     private static instance: SoundManager;
     private audioContext: AudioContext | null = null;
     private soundBuffers: Map<string, AudioBuffer> = new Map();
