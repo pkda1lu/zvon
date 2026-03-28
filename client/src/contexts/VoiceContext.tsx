@@ -361,7 +361,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             localStorage.setItem('isOverlayEnabled', String(next));
             // @ts-ignore
             if (window.electron) {
-                window.electron.ipc.send('toggle-overlay', next);
+                (window as any).electron.ipc.send('toggle-overlay', next);
             }
             return next;
         });
@@ -373,7 +373,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('overlaySize', String(overlaySize));
         // @ts-ignore
         if (window.electron) {
-            window.electron.ipc.send('update-overlay-config', { position: overlayPosition, opacity: overlayOpacity, size: overlaySize });
+            (window as any).electron.ipc.send('update-overlay-config', { position: overlayPosition, opacity: overlayOpacity, size: overlaySize });
         }
     }, [overlayPosition, overlayOpacity, overlaySize]);
 
@@ -784,15 +784,25 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         videoEncoding: {
                             maxBitrate: bitrate,
                             maxFramerate: frameRate,
+                            priority: 'high'
                         },
-                        videoCodec: 'h264',
-                        simulcast: false // Disable simulcast to use ALL bandwidth for the primary stream
+                        videoCodec: 'av1',
+                        backupCodec: {
+                            codec: 'h264',
+                            encoding: {
+                                maxBitrate: bitrate,
+                                maxFramerate: frameRate,
+                                priority: 'high'
+                            }
+                        },
+                        scalabilityMode: 'L3T3_KEY', // SVC with regular Keyframes
+                        simulcast: false 
                     });
                 }
                 if (audioTrack) {
                     await roomRef.current.localParticipant.publishTrack(audioTrack, { name: 'screen_audio', source: Track.Source.ScreenShareAudio });
                 }
-                console.log(`[Voice] Screen share published: ${resolution}p @ ${frameRate}fps (${bitrate}bps)`);
+                console.log(`[Voice] Screen share published: ${resolution}p @ ${frameRate}fps (${bitrate}bps) [AV1/DXGI]`);
             }
 
             screenStreamRef.current = stream;
@@ -1434,7 +1444,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     useEffect(() => {
         // @ts-ignore
         if (window.electron && isOverlayEnabled) {
-            window.electron.ipc.send('toggle-overlay', true);
+            (window as any).electron.ipc.send('toggle-overlay', true);
         }
     }, []);
 

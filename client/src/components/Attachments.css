@@ -9,15 +9,15 @@
 
 .attachments-preview-list {
     display: flex;
-    gap: 16px;
-    padding: 16px 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px;
     background: rgba(255, 255, 255, 0.02);
     backdrop-filter: blur(20px);
     border-radius: 20px;
     border: 1px solid var(--glass-border);
-    overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .input-attachment-preview {
@@ -100,15 +100,16 @@
 
 .attachment-item {
     position: relative;
-    max-width: 450px;
-    border-radius: 16px;
+    border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .attachment-item:hover {
     transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
 .attachment-image-container,
@@ -161,6 +162,17 @@
     transform: translateY(0);
 }
 
+.message-attachments.files-only {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.message-attachments.files-only .attachment-item {
+    max-width: 450px;
+}
+
 .attachment-download-btn:hover {
     background: var(--primary-neon);
     color: black;
@@ -208,4 +220,79 @@
     display: flex;
     align-items: center;
     width: 100%;
+}
+
+/* Grid Layouts - Fixed Priority and Uniformity */
+.message-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.message-attachments[class*="grid-"] {
+    display: grid;
+    gap: 4px;
+    max-width: 600px;
+    width: 100%;
+}
+
+.message-attachments.grid-1 {
+    display: block;
+    max-width: 450px;
+}
+
+.message-attachments.grid-1 .attachment-image,
+.message-attachments.grid-1 .custom-video-player {
+    max-height: 450px;
+    width: auto;
+    object-fit: contain;
+}
+
+.message-attachments.grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 280px;
+}
+
+.message-attachments.grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 160px 160px;
+}
+
+.message-attachments.grid-3 .attachment-item:nth-child(1) {
+    grid-row: span 2;
+}
+
+.message-attachments.grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 160px 160px;
+}
+
+.message-attachments.grid-5-plus {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 150px;
+    max-width: 700px;
+}
+
+/* Enforce uniformity for all media inside any grid */
+.message-attachments[class*="grid-"] .attachment-item {
+    max-width: none !important;
+    height: 100% !important;
+    width: 100% !important;
+}
+
+.message-attachments[class*="grid-"] .attachment-image,
+.message-attachments[class*="grid-"] .custom-video-player,
+.message-attachments[class*="grid-"] .video-element {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    max-width: none !important;
+    object-fit: cover !important;
+    border-radius: 8px;
+}
+
+/* Fix for custom video player internal constraints */
+.message-attachments[class*="grid-"] .custom-video-player {
+    aspect-ratio: auto !important;
 }

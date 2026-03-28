@@ -59,24 +59,24 @@ ipcMain.on('restart-app', () => {
 });
 // -------------------------------------------------------------
 
-// Performance Tuning
+// Performance & Hardware Acceleration Tuning
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-oop-rasterization');
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
-app.commandLine.appendSwitch('enable-zero-copy'); // Reduces memory copy for video/audio
-app.commandLine.appendSwitch('ignore-gpu-blocklist'); // Ensure GPU is used even on older drivers
+app.commandLine.appendSwitch('enable-accelerated-video-encode');
+app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
+app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096 --stack-size=2048');
+app.commandLine.appendSwitch('force-gpu-mem-available-mb', '4096');
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
 
-if (!isDev) {
-    app.commandLine.appendSwitch('force-device-scale-factor', '1'); // Consistent sizing
-}
-
-// Disable the yellow/green border on Windows 10/11 when capturing windows
-// Also disable Vulkan which can cause green screen/flickering on some GPUs
+// Screen Sharing Optimizations: Force DXGI (Desktop Duplication API) on Windows
+app.commandLine.appendSwitch('enable-features', 'WebRtcAllowDxgiGdiCapturer,DxgiAdapterMultiProcess,WebRtcMetronomeTaskQueue');
 app.commandLine.appendSwitch('disable-features', 'WinrtCaptureBorders,Vulkan');
 
 const stateFilePath = path.join(app.getPath('userData'), 'window-state.json');
