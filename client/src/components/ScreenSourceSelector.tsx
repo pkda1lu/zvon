@@ -19,8 +19,8 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
     const [selectedTab, setSelectedTab] = useState<'screen' | 'window'>('screen');
     const [loading, setLoading] = useState(true);
     const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
-    const [resolution, setResolution] = useState('720');
-    const [frameRate, setFrameRate] = useState('30');
+    const [resolution, setResolution] = useState('1080');
+    const [frameRate, setFrameRate] = useState('60');
 
     useEffect(() => {
         const fetchSources = async () => {
@@ -87,13 +87,13 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                     <div className="quality-section">
                         <div className="quality-label">Разрешение</div>
                         <div className="quality-options">
-                            {['480', '720', '1080', '1440', '2160'].map(res => (
+                            {['480', '720', '1080', '1440', '2160', 'source'].map(res => (
                                 <button
                                     key={res}
                                     className={`quality-option ${resolution === res ? 'active' : ''}`}
                                     onClick={() => setResolution(res)}
                                 >
-                                    {res === '2160' ? '4K' : res === '1440' ? '2K' : res + 'p'}
+                                    {res === 'source' ? 'Источник' : res === '2160' ? '4K' : res === '1440' ? '2K' : res + 'p'}
                                 </button>
                             ))}
                         </div>
