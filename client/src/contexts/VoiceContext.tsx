@@ -889,11 +889,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // 2. Connect to LiveKit
             const room = new Room({
-                adaptiveStream: false,
-                dynacast: false,
+                adaptiveStream: true,
+                dynacast: true,
                 publishDefaults: {
                     dtx: true,
-                    simulcast: false,
+                    simulcast: true,
                     red: true,
                 }
             });
@@ -950,59 +950,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         handleLocalMicPublication(publication);
                     } else if (publication.source === Track.Source.ScreenShare) {
                         setIsScreenSharing(true);
-                        
-                        // Force high quality for screen sharing
-                        setTimeout(async () => {
-                            try {
-                                const pc = (room as any).engine?.pc;
-                                if (pc) {
-                                    const sender = pc.getSenders().find((s: any) => s.track?.id === track.mediaStreamTrack?.id);
-                                    if (sender) {
-                                        const params = sender.getParameters();
-                                        params.encodings = [{
-                                            maxBitrate: 20000000,
-                                            minBitrate: 10000000,
-                                            maxFramerate: 60,
-                                            scaleResolutionDownBy: 1
-                                        }];
-                                        params.degradationPreference = "maintain-resolution";
-                                        await sender.setParameters(params);
-                                        console.log("[Voice] Forced 20Mbps for screen share");
-                                    }
-                                }
-                            } catch (e) {
-                                console.warn("[Voice] Failed to force screen share params:", e);
-                            }
-                        }, 500);
-
                     } else if (publication.source === Track.Source.Camera) {
                         setIsVideoOn(true);
                         setLocalCameraStream(new MediaStream([track.mediaStreamTrack!]));
                         cameraStreamRef.current = new MediaStream([track.mediaStreamTrack!]);
-
-                        // Force high quality for camera
-                        setTimeout(async () => {
-                            try {
-                                const pc = (room as any).engine?.pc;
-                                if (pc) {
-                                    const sender = pc.getSenders().find((s: any) => s.track?.id === track.mediaStreamTrack?.id);
-                                    if (sender) {
-                                        const params = sender.getParameters();
-                                        params.encodings = [{
-                                            maxBitrate: 20000000,
-                                            minBitrate: 10000000,
-                                            maxFramerate: 60,
-                                            scaleResolutionDownBy: 1
-                                        }];
-                                        params.degradationPreference = "maintain-resolution";
-                                        await sender.setParameters(params);
-                                        console.log("[Voice] Forced 20Mbps for camera");
-                                    }
-                                }
-                            } catch (e) {
-                                console.warn("[Voice] Failed to force camera params:", e);
-                            }
-                        }, 500);
                     }
                 })
                 .on(RoomEvent.LocalTrackUnpublished, (publication) => {
