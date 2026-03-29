@@ -20,7 +20,8 @@ import {
   RemoteTrackPublication,
   RemoteParticipant,
   Track,
-  VideoPresets
+  VideoPresets,
+  VideoQuality
 } from 'livekit-client';
 import './VoiceCall.css';
 
@@ -213,9 +214,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
       const { token, serverUrl } = data;
       const room = new Room({
-        adaptiveStream: true,
+        adaptiveStream: { pixelDensity: 'screen' },
         dynacast: true,
-        publishDefaults: { dtx: true, simulcast: true, red: true }
+        publishDefaults: {
+          dtx: true, simulcast: true, red: true,
+          screenShareEncoding: { maxBitrate: 10_000_000, maxFramerate: 30 },
+          screenShareSimulcastLayers: [],
+        }
       });
 
       roomRef.current = room;
@@ -235,6 +240,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         })
         .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           if (publication.source === Track.Source.ScreenShare) {
+            // Force highest quality for screen share
+            if (track.kind === Track.Kind.Video) {
+              try {
+                publication.setVideoQuality(VideoQuality.HIGH);
+                publication.setVideoDimensions({ width: 3840, height: 2160 });
+              } catch (e) { console.warn('[DM Call] Failed to set screen quality:', e); }
+            }
             soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
             setRemoteScreenStreams(prev => {
               const next = new Map(prev);
@@ -324,7 +336,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const toggleMute = () => { setIsMuted(!isMuted); roomRef.current?.localParticipant.setMicrophoneEnabled(isMuted); };
   const toggleVideo = async () => { setIsVideoEnabled(!isVideoEnabled); await roomRef.current?.localParticipant.setCameraEnabled(!isVideoEnabled); };
 
-  const toggleScreenShare = async (sourceId?: string, options?: { resolution: string, frameRate: string }) => {
+  const toggleScreenShare = async (sourceId?: string, options?: { resolution: string, frameRate: string, videoCodec: 'av1' | 'vp9' | 'h264' }) => {
     if (isScreenSharing) {
       setIsScreenSharing(false);
       soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
@@ -339,7 +351,34 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (roomRef.current) {
           const videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack) await roomRef.current.localParticipant.publishTrack(videoTrack, { source: Track.Source.ScreenShare });
+          if (videoTrack) {
+            await roomRef.current.localParticipant.publishTrack(videoTrack, { 
+              source: Track.Source.ScreenShare,
+              videoCodec: options?.videoCodec || 'av1',
+              simulcast: false,
+              degradationPreference: 'maintain-resolution'
+            });
+            // Force RTP sender params
+            setTimeout(async () => {
+              try {
+                const pub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+                const sender = (pub?.track as any)?.sender as RTCRtpSender | undefined;
+                if (sender) {
+                  const params = sender.getParameters();
+                  if (params.encodings?.length) {
+                    params.encodings.forEach((enc: any) => {
+                      enc.maxBitrate = 10_000_000;
+                      enc.scaleResolutionDownBy = 1.0;
+                      enc.networkPriority = 'high';
+                      enc.priority = 'high';
+                    });
+                    (params as any).degradationPreference = 'maintain-resolution';
+                    await sender.setParameters(params);
+                  }
+                }
+              } catch (e) { console.warn('[DM Call] RTP param override failed:', e); }
+            }, 1000);
+          }
         }
         setScreenStream(stream);
         setIsScreenSharing(true);

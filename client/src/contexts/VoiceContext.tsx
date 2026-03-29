@@ -21,6 +21,7 @@ import {
     Participant,
     ConnectionState,
     VideoPresets,
+    VideoQuality,
     createAudioAnalyser,
     TrackPublication,
     ConnectionQuality
@@ -175,7 +176,7 @@ interface VoiceContextType {
     refreshDevices: () => Promise<void>;
     isScreenSharing: boolean;
     screenStream: MediaStream | null;
-    startScreenShare: (sourceId: string, options?: { resolution?: string, frameRate?: string }) => Promise<void>;
+    startScreenShare: (sourceId: string, options?: { resolution?: string, frameRate?: string, videoCodec?: 'h264' | 'vp8' | 'vp9' | 'av1' }) => Promise<void>;
     stopScreenShare: () => void;
     remoteScreenStreams: Map<string, MediaStream>;
 
@@ -510,6 +511,19 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.log(`[Voice] Track subscribed: ${track.kind} from ${userId} (Source: ${publication.source})`);
 
             if (isScreen) {
+                // CRITICAL: Force highest quality for screen share tracks
+                // Without this, adaptiveStream downgrades to thumbnail quality
+                if (track.kind === Track.Kind.Video) {
+                    try {
+                        publication.setVideoQuality(VideoQuality.HIGH);
+                        // Also set explicit dimensions to override adaptive stream sizing
+                        publication.setVideoDimensions({ width: 3840, height: 2160 });
+                        console.log(`[Voice] Forced HIGH quality for screen share from ${userId}`);
+                    } catch (e) {
+                        console.warn('[Voice] Failed to set screen share quality:', e);
+                    }
+                }
+
                 setRemoteScreenStreams(prev => {
                     const existing = prev.get(userId);
                     const tracks = existing ? [...existing.getTracks().filter(t => t.kind !== track.kind), track.mediaStreamTrack!] : [track.mediaStreamTrack!];
@@ -688,7 +702,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, activeChannelId]);
 
-    const startScreenShare = useCallback(async (sourceId: string, options?: { resolution?: string, frameRate?: string }) => {
+    const startScreenShare = useCallback(async (sourceId: string, options?: { resolution?: string, frameRate?: string, videoCodec?: 'h264' | 'vp8' | 'vp9' | 'av1' }) => {
         try {
             const hasElectron = !!(window as any).electron;
             let stream: MediaStream;
@@ -764,12 +778,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 });
             }
 
-            // Optimize for smoothness vs sharpness
+            // Optimize for smoothness vs sharpness + set degradation preference
             stream.getVideoTracks().forEach(t => {
-                if (t.contentHint) {
-                    // For 60/120fps, 'motion' is critical for smoothness
-                    (t as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
-                }
+                // For 60/120fps, 'motion' is critical for smoothness
+                (t as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
             });
 
             // Publish to LiveKit
@@ -778,21 +790,52 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const audioTrack = stream.getAudioTracks()[0];
 
                 if (videoTrack) {
-                    await roomRef.current.localParticipant.publishTrack(videoTrack, {
+                    const publication = await roomRef.current.localParticipant.publishTrack(videoTrack, {
                         name: 'screen_video',
                         source: Track.Source.ScreenShare,
                         videoEncoding: {
                             maxBitrate: bitrate,
                             maxFramerate: frameRate,
                         },
-                        videoCodec: 'h264',
-                        simulcast: false // Disable simulcast to use ALL bandwidth for the primary stream
+                        videoCodec: options?.videoCodec || 'av1',
+                        simulcast: false,
+                        degradationPreference: 'maintain-resolution' // Keep resolution, drop FPS if needed
                     });
+
+                    // CRITICAL: Force RTP sender parameters to prevent WebRTC BWE from throttling
+                    // Without this, the browser's bandwidth estimator often limits to ~500kbps
+                    setTimeout(async () => {
+                        try {
+                            const pub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+                            const sender = (pub?.track as any)?.sender as RTCRtpSender | undefined;
+                            if (sender) {
+                                const params = sender.getParameters();
+                                if (params.encodings && params.encodings.length > 0) {
+                                    params.encodings.forEach((enc: any) => {
+                                        enc.maxBitrate = bitrate;
+                                        enc.maxFramerate = frameRate;
+                                        // Set minimum bitrate to 70% to prevent extreme throttling
+                                        enc.minBitrate = Math.floor(bitrate * 0.7);
+                                        // Prevent resolution downscaling
+                                        enc.scaleResolutionDownBy = 1.0;
+                                        enc.networkPriority = 'high';
+                                        enc.priority = 'high';
+                                    });
+                                    // degradationPreference at the params level
+                                    (params as any).degradationPreference = 'maintain-resolution';
+                                    await sender.setParameters(params);
+                                    console.log(`[Voice] RTP sender params forced: ${bitrate}bps, no downscaling`);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('[Voice] Failed to override RTP sender params:', e);
+                        }
+                    }, 1000); // Delay to ensure track is fully established
                 }
                 if (audioTrack) {
                     await roomRef.current.localParticipant.publishTrack(audioTrack, { name: 'screen_audio', source: Track.Source.ScreenShareAudio });
                 }
-                console.log(`[Voice] Screen share published: ${resolution}p @ ${frameRate}fps (${bitrate}bps)`);
+                console.log(`[Voice] Screen share published: ${resolution}p @ ${frameRate}fps (${bitrate}bps, codec: ${options?.videoCodec || 'av1'})`);
             }
 
             screenStreamRef.current = stream;
@@ -889,12 +932,21 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // 2. Connect to LiveKit
             const room = new Room({
-                adaptiveStream: true,
+                adaptiveStream: {
+                    // Only use adaptive stream for camera/mic, not for screen shares
+                    // pixelDensity controls how aggressively quality is downgraded
+                    pixelDensity: 'screen',
+                },
                 dynacast: true,
                 publishDefaults: {
                     dtx: true,
                     simulcast: true,
                     red: true,
+                    screenShareEncoding: {
+                        maxBitrate: 10_000_000, // 10 Mbps default for screen share
+                        maxFramerate: 30,
+                    },
+                    screenShareSimulcastLayers: [], // No simulcast for screen share
                 }
             });
 

@@ -47,7 +47,7 @@ const VoiceControlPanel: React.FC = () => {
         }
     };
 
-    const handleSourceSelect = (sourceId: string, options?: { resolution?: string, frameRate?: string }) => {
+    const handleSourceSelect = (sourceId: string, options: { resolution: string, frameRate: string, videoCodec: 'av1' | 'vp9' | 'h264' }) => {
         startScreenShare(sourceId, options);
         setShowSourceSelector(false);
     };

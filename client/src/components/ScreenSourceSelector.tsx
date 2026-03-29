@@ -10,7 +10,7 @@ interface DesktopSource {
 }
 
 interface ScreenSourceSelectorProps {
-    onSelect: (sourceId: string, options: { withAudio: boolean, resolution: string, frameRate: string }) => void;
+    onSelect: (sourceId: string, options: { withAudio: boolean, resolution: string, frameRate: string, videoCodec: 'av1' | 'vp9' | 'h264' }) => void;
     onClose: () => void;
 }
 
@@ -21,6 +21,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
     const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
     const [resolution, setResolution] = useState('720');
     const [frameRate, setFrameRate] = useState('30');
+    const [videoCodec, setVideoCodec] = useState<'av1' | 'vp9' | 'h264'>('av1');
 
     useEffect(() => {
         const fetchSources = async () => {
@@ -56,7 +57,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
             // Entire screen usually carries system audio.
             // Individual windows usually don't carry audio unless it's a browser tab (not common for Electron yet).
             // However, we will pass true for withAudio and handle it in the provider.
-            onSelect(selectedSourceId, { withAudio: true, resolution, frameRate });
+            onSelect(selectedSourceId, { withAudio: true, resolution, frameRate, videoCodec });
         }
     };
 
@@ -112,6 +113,20 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                             ))}
                         </div>
                     </div>
+                    <div className="quality-section">
+                        <div className="quality-label">Кодек</div>
+                        <div className="quality-options">
+                            {['av1', 'vp9', 'h264'].map(codec => (
+                                <button
+                                    key={codec}
+                                    className={`quality-option ${videoCodec === codec ? 'active' : ''}`}
+                                    onClick={() => setVideoCodec(codec as any)}
+                                >
+                                    {codec.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="screen-source-selector-content">
@@ -133,7 +148,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                                     onClick={() => setSelectedSourceId(source.id)}
                                     onDoubleClick={() => {
                                         setSelectedSourceId(source.id);
-                                        onSelect(source.id, { withAudio: true, resolution, frameRate });
+                                        onSelect(source.id, { withAudio: true, resolution, frameRate, videoCodec });
                                     }}
                                 >
                                     <div className="source-thumbnail-container">

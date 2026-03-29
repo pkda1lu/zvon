@@ -598,7 +598,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         <ScreenSourceSelector
           onClose={() => setShowScreenSelector(false)}
           onSelect={(id, opts) => {
-            startScreenShare(id, { resolution: opts.resolution, frameRate: opts.frameRate });
+            startScreenShare(id, { resolution: opts.resolution, frameRate: opts.frameRate, videoCodec: opts.videoCodec });
             setShowScreenSelector(false);
           }}
         />
