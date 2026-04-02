@@ -296,19 +296,41 @@ socket.on("new-message", async (msg) => {
                                         timeout: 8000
                                     });
                                     const html = hRes.data;
+                                    const finalUrl = hRes.request?.res?.responseUrl || cleanUrl;
+                                    console.log(`[Yandex] Scraper final URL: ${finalUrl}`);
                                     
-                                    // Try to find owner and kind in the JS state
-                                    const ownerMatch = html.match(/"owner":\s*\{\s*"login":\s*"(.*?)"/);
-                                    const kindMatch = html.match(/"kind":\s*(\d+)/) || html.match(/"playlistUuid":\s*"(.*?)"/);
-                                    
-                                    if (ownerMatch && kindMatch) {
-                                        const foundOwner = ownerMatch[1];
-                                        const foundKind = kindMatch[1];
-                                        console.log(`[Yandex] Scraper found owner: ${foundOwner}, kind: ${foundKind}`);
-                                        const apiRes = await yandexClient.playlists.getPlaylistById(foundOwner, foundKind);
-                                        if (apiRes?.result?.tracks?.length) {
-                                            return { res: apiRes, html };
+                                    // Try to extract canonical info from meta tags or final URL
+                                    let foundOwner = null;
+                                    let foundKind = null;
+
+                                    if (finalUrl.includes("/users/") && finalUrl.includes("/playlists/")) {
+                                        const parts = finalUrl.split("/");
+                                        foundOwner = parts[parts.indexOf("users") + 1];
+                                        foundKind = parts[parts.indexOf("playlists") + 1];
+                                    }
+
+                                    if (!foundOwner || !foundKind) {
+                                        const ogUrlMatch = html.match(/<meta property="og:url" content="(.*?)"/);
+                                        if (ogUrlMatch && ogUrlMatch[1].includes("/users/")) {
+                                            const parts = ogUrlMatch[1].split("/");
+                                            foundOwner = parts[parts.indexOf("users") + 1];
+                                            foundKind = parts[parts.indexOf("playlists") + 1];
                                         }
+                                    }
+
+                                    if (!foundOwner || !foundKind) {
+                                        const ownerMatch = html.match(/"owner":\s*\{\s*"login":\s*"(.*?)"/) || html.match(/"ownerLogin":\s*"(.*?)"/);
+                                        const kindMatch = html.match(/"kind":\s*(\d+)/) || html.match(/"playlistUuid":\s*"(.*?)"/);
+                                        if (ownerMatch) foundOwner = ownerMatch[1];
+                                        if (kindMatch) foundKind = kindMatch[1];
+                                    }
+                                    
+                                    if (foundOwner && foundKind) {
+                                        console.log(`[Yandex] Scraper resolved owner: ${foundOwner}, kind: ${foundKind}`);
+                                        try {
+                                            const apiRes = await yandexClient.playlists.getPlaylistById(foundOwner, foundKind);
+                                            if (apiRes?.result?.tracks?.length) return { res: apiRes, html };
+                                        } catch (apiErr) { console.warn(`[Yandex] Scraper API fallback failed: ${apiErr.message}`); }
                                     }
 
                                     // Fallback to track ID extraction if API fails again
@@ -320,12 +342,23 @@ socket.on("new-message", async (msg) => {
                                         tIds.push(...matches);
                                     });
                                     
+                                    if (tIds.length < 5) {
+                                        const dataJsonMatch = html.match(/<script id="[^"]*" type="application\/json">(.*?)<\/script>/g);
+                                        if (dataJsonMatch) {
+                                            dataJsonMatch.forEach(script => {
+                                                const matches = [...script.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
+                                                tIds.push(...matches);
+                                            });
+                                        }
+                                    }
+                                    
                                     if (tIds.length === 0) {
                                         tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
                                         tIds.push(...[...html.matchAll(/"id":"(\d+)"/g)].map(m => m[1]));
                                     }
                                     
                                     const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
+                                    console.log(`[Yandex] Scraper found ${uniqueIds.length} track IDs manually.`);
                                     return { ids: uniqueIds, html };
                                 } catch (e) {
                                     console.error("[Yandex] Scrape attempt error:", e.message);
