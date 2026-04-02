@@ -37,7 +37,14 @@ let currentFFmpeg = null;
 let playlistQueue = [];
 let currentIndex = -1;
 let isPlaying = false;
+let isPaused = false;
+let currentVolume = 1.0;
 let lastUsedChannelId = null;
+let currentMessageId = null;
+let playbackStartTime = null;
+let pauseStartTime = null;
+let currentTrackDuration = 0;
+let isLooping = false;
 
 const yandexClient = new YandexMusicClient({
     // We don't use the TOKEN field because the library adds a "Bearer " prefix.
@@ -157,7 +164,12 @@ async function startPlayback(channelId) {
 
     try {
         const link = await getTrackUrlCustom(track.id);
-        socket.emit("send-message", {
+        const now = Date.now();
+        playbackStartTime = now;
+        currentTrackDuration = track.durationMs;
+        isPaused = false;
+
+        const res = await axios.post(`${SERVER_URL}/api/messages`, {
             channelId: lastUsedChannelId,
             embeds: [{
                 title: track.title,
@@ -167,30 +179,20 @@ async function startPlayback(channelId) {
                 thumbnail: { url: track.coverUri ? `https://${track.coverUri.replace('%%', '200x200')}` : undefined },
                 color: "#00e5ff",
                 footer: { 
-                    text: `Яндекс Музыка • Треков в очереди: ${playlistQueue.length} • Добавил: @${socket.userId.substring(0, 8)} - 00:00 - ${Math.floor(track.durationMs / 60000)}:${String(Math.floor((track.durationMs % 60000) / 1000)).padStart(2, '0')}`,
+                    text: `Яндекс Музыка • Треков в очереди: ${playlistQueue.length} • Добавил: @${socket.userId.substring(0, 8)}`,
                     icon_url: "https://music.yandex.ru/favicon.ico"
                 }
             }],
-            buttons: [
-                { label: "🔀", actionId: "shuffle_queue", style: "secondary", row: 1 },
-                { label: "🔉", actionId: "vol_down", style: "secondary", row: 1 },
-                { label: "100%", actionId: "vol_reset", style: "secondary", row: 1 },
-                { label: "🔊", actionId: "vol_up", style: "secondary", row: 1 },
-                { label: "🔁", actionId: "loop_mode", style: "secondary", row: 1 },
-                
-                { label: "⏪", actionId: "rewind", style: "secondary", row: 2 },
-                { label: "⏮️", actionId: "prev_track", style: "secondary", row: 2 },
-                { label: "⏸️", actionId: "stop_track", style: "secondary", row: 2 },
-                { label: "⏭️", actionId: "skip_track", style: "secondary", row: 2 },
-                { label: "⏩", actionId: "fast_forward", style: "secondary", row: 2 },
-
-                { label: "➕", actionId: "add_fav", style: "success", row: 3 },
-                { label: "📜", actionId: "queue_view", style: "secondary", row: 3 },
-                { label: "AΞ", actionId: "lyrics", style: "secondary", row: 3 },
-                { label: "⏹️", actionId: "stop_music", style: "secondary", row: 3 },
-                { label: "🚪", actionId: "leave_voice", style: "danger", row: 3 }
-            ]
-        });
+            playback: {
+                startTime: new Date(now).toISOString(),
+                durationMs: track.durationMs,
+                isPaused: false
+            },
+            buttons: getPlayerButtons()
+        }, { headers: { Authorization: `Bearer ${TOKEN}` } });
+        
+        currentMessageId = res.data._id;
+        await playTrackStream(link, channelId);
         await playTrackStream(link, channelId);
     } catch (err) {
         console.error("Playback Error:", err.message);
@@ -220,6 +222,45 @@ function prevTrack(channelId) {
         if (currentFFmpeg) currentFFmpeg.kill();
         else startPlayback(channelId);
     }
+}
+
+function getPlayerButtons() {
+    return [
+        { label: isLooping ? "🔁 ON" : "🔁 OFF", actionId: "loop_mode", style: isLooping ? "success" : "secondary", row: 1 },
+        { label: "🔉", actionId: "vol_down", style: "secondary", row: 1 },
+        { label: `${Math.round(currentVolume * 100)}%`, actionId: "vol_reset", style: "secondary", row: 1 },
+        { label: "🔊", actionId: "vol_up", style: "secondary", row: 1 },
+        { label: "🔀", actionId: "shuffle_queue", style: "secondary", row: 1 },
+        
+        { label: "⏪", actionId: "rewind", style: "secondary", row: 2 },
+        { label: "⏮️", actionId: "prev_track", style: "secondary", row: 2 },
+        { label: isPaused ? "▶️" : "⏸️", actionId: "pause_resume", style: isPaused ? "success" : "secondary", row: 2 },
+        { label: "⏭️", actionId: "skip_track", style: "secondary", row: 2 },
+        { label: "⏩", actionId: "fast_forward", style: "secondary", row: 2 },
+
+        { label: "➕", actionId: "add_fav", style: "success", row: 3 },
+        { label: "📜", actionId: "queue_view", style: "secondary", row: 3 },
+        { label: "AΞ", actionId: "lyrics", style: "secondary", row: 3 },
+        { label: "⏹️", actionId: "stop_music", style: "secondary", row: 3 },
+        { label: "🚪", actionId: "leave_voice", style: "danger", row: 3 }
+    ];
+}
+
+async function updatePlayerCard() {
+    if (!currentMessageId) return;
+    try {
+        const playback = {
+            startTime: new Date(playbackStartTime).toISOString(),
+            durationMs: currentTrackDuration,
+            isPaused: isPaused
+        };
+        if (isPaused) playback.pausedAt = new Date(pauseStartTime).toISOString();
+
+        await axios.put(`${SERVER_URL}/api/messages/${currentMessageId}`, {
+            playback,
+            buttons: getPlayerButtons()
+        }, { headers: { Authorization: `Bearer ${TOKEN}` } });
+    } catch (e) { console.error("Update card error:", e.message); }
 }
 
 function shuffleQueue() {
@@ -433,32 +474,80 @@ socket.on("new-message", async (msg) => {
     }
 });
 
-socket.on("interactive-button-click", (data) => {
+socket.on("interactive-button-click", async (data) => {
     if (!socket.voiceChannelId) return;
 
     const channelId = socket.voiceChannelId;
     const { actionId, user } = data;
 
     if (actionId === "skip_track") {
-        socket.emit("send-message", { content: `⏭️ **${user.username}** пропустил трек.`, channelId: lastUsedChannelId });
         skipTrack(channelId);
     } else if (actionId === "prev_track") {
-        socket.emit("send-message", { content: `⏮️ **${user.username}** включил предыдущий трек.`, channelId: lastUsedChannelId });
         prevTrack(channelId);
-    } else if (actionId === "stop_track") {
-        socket.emit("send-message", { content: `⏹️ **${user.username}** остановил музыку.`, channelId: lastUsedChannelId });
+    } else if (actionId === "pause_resume") {
+        isPaused = !isPaused;
+        if (isPaused) {
+            pauseStartTime = Date.now();
+        } else {
+            // Adjust startTime to account for the pause interval
+            const pauseDuration = Date.now() - pauseStartTime;
+            playbackStartTime += pauseDuration;
+        }
+        await updatePlayerCard();
+    } else if (actionId === "stop_music") {
         stopMusic();
+    } else if (actionId === "vol_up") {
+        currentVolume = Math.min(2.0, currentVolume + 0.1);
+        await updatePlayerCard();
+    } else if (actionId === "vol_down") {
+        currentVolume = Math.max(0.0, currentVolume - 0.1);
+        await updatePlayerCard();
+    } else if (actionId === "vol_reset") {
+        currentVolume = 1.0;
+        await updatePlayerCard();
+    } else if (actionId === "loop_mode") {
+        isLooping = !isLooping;
+        await updatePlayerCard();
     } else if (actionId === "shuffle_queue") {
         shuffleQueue();
-        socket.emit("send-message", { content: `🔀 **${user.username}** перемешал очередь.`, channelId: lastUsedChannelId });
+        await updatePlayerCard();
+    } else if (actionId === "leave_voice") {
+        stopMusic();
+    } else if (actionId === "rewind") {
+        const elapsed = (isPaused ? pauseStartTime : Date.now()) - playbackStartTime;
+        const newStart = Math.max(0, elapsed - 10000);
+        await seekTo(newStart, channelId);
+    } else if (actionId === "fast_forward") {
+        const elapsed = (isPaused ? pauseStartTime : Date.now()) - playbackStartTime;
+        const newStart = Math.min(currentTrackDuration - 1000, elapsed + 10000);
+        await seekTo(newStart, channelId);
     }
 });
 
+async function seekTo(ms, channelId) {
+    const track = playlistQueue[currentIndex];
+    if (!track) return;
+    
+    if (currentFFmpeg) {
+        currentFFmpeg.kill();
+        currentFFmpeg = null;
+    }
+
+    const link = await getTrackUrlCustom(track.id);
+    const ss = Math.floor(ms / 1000);
+    playbackStartTime = Date.now() - ms;
+    if (isPaused) pauseStartTime = Date.now();
+    
+    await updatePlayerCard();
+    await playTrackStream(link, channelId, ss);
+}
+
 // --- CORE STREAMING LOGIC ---
 
-async function playTrackStream(url, channelId) {
+async function playTrackStream(url, channelId, ss = 0) {
     try {
         if (!livekitRoom) {
+            // ... (keep room connection logic)
             const tokenRes = await axios.get(`${SERVER_URL}/api/livekit/token`, {
                 params: { roomName: `channel-${channelId}`, identity: socket.userId },
                 headers: { Authorization: `Bearer ${TOKEN}` }
@@ -469,7 +558,7 @@ async function playTrackStream(url, channelId) {
             let retry = 0;
             while (!livekitRoom.localParticipant && retry < 10) {
                 await new Promise(r => setTimeout(r, 500));
-                if (!livekitRoom) return; // Disconnected while waiting
+                if (!livekitRoom) return;
                 retry++;
             }
 
@@ -480,17 +569,25 @@ async function playTrackStream(url, channelId) {
             await livekitRoom.localParticipant.publishTrack(audioTrack, { source: TrackSource.SOURCE_MICROPHONE, stream: 'music', dtx: true });
         }
 
-        const ffmpeg = spawn("ffmpeg", [
+        const ffmpegArgs = [
             "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5",
             "-analyzeduration", "1000000", "-probesize", "1000000",
-            "-user_agent", "YandexMusic/2024.03.1 (ru.yandex.music; build:14562; Android 13; Pixel 6)", "-re", "-i", url, "-f", "s16le", "-ar", "48000", "-ac", "1", "pipe:1"
-        ]);
+            "-user_agent", "YandexMusic/2024.03.1 (ru.yandex.music; build:14562; Android 13; Pixel 6)"
+        ];
+
+        if (ss > 0) ffmpegArgs.push("-ss", ss.toString());
+
+        ffmpegArgs.push("-re", "-i", url, "-f", "s16le", "-ar", "48000", "-ac", "1", "pipe:1");
+
+        const ffmpeg = spawn("ffmpeg", ffmpegArgs);
         currentFFmpeg = ffmpeg;
 
         let audioBuffer = Buffer.alloc(0);
         const FRAME_SIZE = 960 * 2;
 
         ffmpeg.stdout.on("data", async (chunk) => {
+            if (isPaused) return; // Drop data when paused? Better to stop reading, but this is simpler for POC
+
             audioBuffer = Buffer.concat([audioBuffer, chunk]);
             while (audioBuffer.length >= FRAME_SIZE) {
                 const frameData = audioBuffer.slice(0, FRAME_SIZE);
@@ -498,6 +595,14 @@ async function playTrackStream(url, channelId) {
                 const freshBuffer = Buffer.alloc(FRAME_SIZE);
                 frameData.copy(freshBuffer);
                 const int16Array = new Int16Array(freshBuffer.buffer, 0, freshBuffer.length / 2);
+                
+                // --- VOLUME ADJUSTMENT ---
+                if (currentVolume !== 1.0) {
+                    for (let i = 0; i < int16Array.length; i++) {
+                        int16Array[i] = Math.max(-32768, Math.min(32767, Math.round(int16Array[i] * currentVolume)));
+                    }
+                }
+
                 const frame = new AudioFrame(int16Array, 48000, 1, int16Array.length);
                 try { await audioSource.captureFrame(frame); } catch (e) { }
             }
@@ -505,10 +610,13 @@ async function playTrackStream(url, channelId) {
 
         ffmpeg.on("close", (code) => {
             currentFFmpeg = null;
-            // If we didn't stop manually, play next
-            if (isPlaying) {
-                currentIndex++;
-                startPlayback(channelId);
+            if (isPlaying && !isPaused) {
+                if (isLooping) {
+                   startPlayback(channelId); // Re-run current
+                } else {
+                   currentIndex++;
+                   startPlayback(channelId);
+                }
             }
         });
 

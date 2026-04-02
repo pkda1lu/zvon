@@ -71,6 +71,51 @@ const MessageItem = React.memo<{
   onReact, onReply, scrollToMessage, onInteractiveButtonClick
 }) => {
 
+  const PlaybackProgress = ({ startTime, durationMs, isPaused, pausedAt }: any) => {
+    const [currentTime, setCurrentTime] = useState(0);
+
+    useEffect(() => {
+      if (!startTime || isPaused) {
+        if (isPaused && pausedAt) {
+           setCurrentTime(Math.min((new Date(pausedAt).getTime() - new Date(startTime).getTime()) / 1000, durationMs / 1000));
+        }
+        return;
+      }
+
+      const update = () => {
+        const start = new Date(startTime).getTime();
+        const now = Date.now();
+        const diff = (now - start) / 1000;
+        setCurrentTime(Math.min(diff, durationMs / 1000));
+        if (diff < durationMs / 1000) {
+          requestAnimationFrame(update);
+        }
+      };
+
+      update();
+    }, [startTime, durationMs, isPaused, pausedAt]);
+
+    const formatTime = (seconds: number) => {
+      const min = Math.floor(seconds / 60);
+      const sec = Math.floor(seconds % 60);
+      return `${min}:${sec.toString().padStart(2, '0')}`;
+    };
+
+    const percent = (currentTime * 1000 / durationMs) * 100;
+
+    return (
+      <div className="embed-progress-bar">
+        <div className="progress-track-wrap">
+          <span>{formatTime(currentTime)}</span>
+          <div className="progress-track">
+             <div className="progress-fill" style={{ width: `${percent}%` }} />
+          </div>
+          <span>{formatTime(durationMs / 1000)}</span>
+        </div>
+      </div>
+    );
+  };
+
   const renderEmbed = (embed: any, key: number) => {
     return (
       <div key={key} className="message-embed" style={{ borderLeftColor: embed.color || 'var(--primary-neon)' }}>
@@ -108,16 +153,13 @@ const MessageItem = React.memo<{
           )}
 
           {/* Progress bar special for music bot */}
-          {embed.footer?.text?.includes('00:00') && (
-             <div className="embed-progress-bar">
-                <div className="progress-track-wrap">
-                   <span>00:00</span>
-                   <div className="progress-track">
-                      <div className="progress-fill" style={{ width: '0%' }} />
-                   </div>
-                   <span>{embed.footer.text.split(' - ').pop()}</span>
-                </div>
-             </div>
+          {msg.playback && (
+             <PlaybackProgress 
+                startTime={msg.playback.startTime} 
+                durationMs={msg.playback.durationMs} 
+                isPaused={msg.playback.isPaused}
+                pausedAt={msg.playback.pausedAt}
+             />
           )}
 
           {embed.image && embed.image.url && (

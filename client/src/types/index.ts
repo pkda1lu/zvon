@@ -128,6 +128,13 @@ export interface Embed {
   }>;
 }
 
+export interface PlaybackState {
+  startTime?: string | Date;
+  durationMs: number;
+  isPaused: boolean;
+  pausedAt?: string | Date;
+}
+
 export interface Message {
   _id: string;
   content: string;
@@ -148,6 +155,7 @@ export interface Message {
     style?: 'primary' | 'secondary' | 'danger' | 'success';
     row?: number;
   }>;
+  playback?: PlaybackState;
   edited: boolean;
   editedAt?: string;
   reactions?: Array<{
