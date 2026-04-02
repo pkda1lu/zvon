@@ -135,7 +135,7 @@ async function getTrackUrlCustom(trackId, attempt = 0) {
         } catch (axiosErr) {
             if (attempt < 2) {
                 console.log(`[Yandex] Mirror failed for track ${id}, retry ${attempt + 1}...`);
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 1000 + (attempt * 2000)));
                 return await getTrackUrlCustom(trackId, attempt + 1);
             }
             throw axiosErr;
@@ -177,9 +177,14 @@ async function startPlayback(channelId) {
 
 function skipTrack(channelId) {
     if (currentIndex < playlistQueue.length - 1) {
-        currentIndex++;
-        if (currentFFmpeg) currentFFmpeg.kill();
-        else startPlayback(channelId);
+        if (currentFFmpeg) {
+            // Killing will trigger the 'close' event in playTrackStream, 
+            // which already handles currentIndex++ and startPlayback.
+            currentFFmpeg.kill();
+        } else {
+            currentIndex++;
+            startPlayback(channelId);
+        }
     } else {
         stopMusic();
     }
@@ -257,40 +262,80 @@ socket.on("new-message", async (msg) => {
                             console.log(`[Yandex] API failed, trying Scraper for: ${cleanUrl}`);
                             let scrapedHtml = null;
                             const tryScrape = async (userAgent) => {
-                                const hRes = await axios.get(cleanUrl, {
-                                    headers: { 'User-Agent': userAgent, 'Referer': 'https://music.yandex.ru/' }
-                                });
-                                const html = hRes.data;
-                                const nextData = html.match(/self\.__next_f\.push\(\[1,"(.*?)",/);
-                                let tIds = [];
-                                if (nextData) {
-                                    const decoded = nextData[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                                    tIds = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
+                                try {
+                                    const hRes = await axios.get(cleanUrl, {
+                                        headers: { 
+                                            'User-Agent': userAgent, 
+                                            'Referer': 'https://music.yandex.ru/',
+                                            'Cookie': 'yandexuid=1;' // Some basic cookie might help
+                                        },
+                                        timeout: 8000
+                                    });
+                                    const html = hRes.data;
+                                    
+                                    // Try to find owner and kind in the JS state
+                                    const ownerMatch = html.match(/"owner":\s*\{\s*"login":\s*"(.*?)"/);
+                                    const kindMatch = html.match(/"kind":\s*(\d+)/) || html.match(/"playlistUuid":\s*"(.*?)"/);
+                                    
+                                    if (ownerMatch && kindMatch) {
+                                        const foundOwner = ownerMatch[1];
+                                        const foundKind = kindMatch[1];
+                                        console.log(`[Yandex] Scraper found owner: ${foundOwner}, kind: ${foundKind}`);
+                                        const apiRes = await yandexClient.playlists.getPlaylistById(foundOwner, foundKind);
+                                        if (apiRes?.result?.tracks?.length) {
+                                            return { res: apiRes, html };
+                                        }
+                                    }
+
+                                    // Fallback to track ID extraction if API fails again
+                                    const nextDataChunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"(.*?)"\]\)/g)];
+                                    let tIds = [];
+                                    nextDataChunks.forEach(chunk => {
+                                        const decoded = chunk[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                                        const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
+                                        tIds.push(...matches);
+                                    });
+                                    
+                                    if (tIds.length === 0) {
+                                        tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
+                                        tIds.push(...[...html.matchAll(/"id":"(\d+)"/g)].map(m => m[1]));
+                                    }
+                                    
+                                    const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
+                                    return { ids: uniqueIds, html };
+                                } catch (e) {
+                                    console.error("[Yandex] Scrape attempt error:", e.message);
+                                    return { ids: [], html: "" };
                                 }
-                                if (tIds.length < 5) {
-                                    tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
-                                }
-                                return { ids: [...new Set(tIds)].filter(id => id.length >= 7), html };
                             };
 
-                            let sResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-                            uniqueIds = sResult.ids;
-                            scrapedHtml = sResult.html;
-
-                            if (uniqueIds.length === 0) {
-                                sResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15');
-                                uniqueIds = sResult.ids;
+                            let sResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+                            
+                            if (sResult.res) {
+                                res = sResult.res;
                                 scrapedHtml = sResult.html;
-                            }
-
-                            if (uniqueIds.length > 0) {
-                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': uniqueIds.slice(0, 100) });
+                            } else if (sResult.ids?.length > 0) {
+                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
                                 res = {
                                     result: {
                                         tracks: trks.result.map(t => ({ track: t })),
-                                        title: scrapedHtml.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+                                        title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
                                     }
                                 };
+                            } else {
+                                // Try one more time with mobile user agent
+                                sResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1');
+                                if (sResult.res) {
+                                    res = sResult.res;
+                                } else if (sResult.ids?.length > 0) {
+                                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
+                                    res = {
+                                        result: {
+                                            tracks: trks.result.map(t => ({ track: t })),
+                                            title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+                                        }
+                                    };
+                                }
                             }
                         }
                     }
