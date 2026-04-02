@@ -41,6 +41,11 @@ let lastUsedChannelId = null;
 
 const userAgent = 'YandexMusic/2024.03.1 (ru.yandex.music; build:14562; Android 13; Pixel 6)';
 
+// --- PROXY CONFIGURATION ---
+// Set your proxy here (e.g. 'http://user:pass@host:port') or leave null.
+const SCRAPER_PROXY = process.env.SCRAPER_PROXY || null; 
+// ----------------------------
+
 const yandexClient = new YandexMusicClient({
     HEADERS: {
         'Authorization': `OAuth ${YANDEX_TOKEN}`,
@@ -194,14 +199,13 @@ async function resolvePlaylistInfo(urlOrUUID) {
     }
 
     const cleanUrl = urlOrUUID.includes('http') ? urlOrUUID.split('?')[0].split('#')[0] : null;
+    
+    // Normalize kind from URL or UUID
     if (cleanUrl?.includes('/users/') && cleanUrl?.includes('/playlists/')) {
         const parts = cleanUrl.split('/');
         owner = parts[parts.indexOf('users') + 1];
         kind = parts[parts.indexOf('playlists') + 1];
-        return { owner, kind };
-    }
-
-    if (cleanUrl?.includes('/playlists/')) {
+    } else if (cleanUrl?.includes('/playlists/')) {
         kind = cleanUrl.split('/playlists/')[1];
     } else if (!urlOrUUID.includes('/') && urlOrUUID.length > 20) {
         kind = urlOrUUID;
@@ -209,13 +213,46 @@ async function resolvePlaylistInfo(urlOrUUID) {
 
     if (kind) {
         console.log(`[Yandex] Resolving kind/uuid: ${kind}...`);
-        
+
+        // Helper to perform HTTP request with optional proxy
+        const performRequest = async (url, customHeaders = {}) => {
+            const config = {
+                headers: { 
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Referer': 'https://music.yandex.ru/',
+                    ...customHeaders
+                },
+                timeout: 10000
+            };
+            
+            // Apply Manual Proxy if defined
+            if (SCRAPER_PROXY) {
+                const proxyUrl = new URL(SCRAPER_PROXY);
+                config.proxy = {
+                    protocol: proxyUrl.protocol.replace(':', ''),
+                    host: proxyUrl.hostname,
+                    port: parseInt(proxyUrl.port),
+                };
+                if (proxyUrl.username) {
+                    config.proxy.auth = { username: proxyUrl.username, password: proxyUrl.password };
+                }
+            }
+            
+            try { return await axios.get(url, config); }
+            catch (e) {
+                // TRY FALLBACK via public CORS proxy (useful for bypassing simple IP blocks)
+                if (!SCRAPER_PROXY && url.includes("music.yandex.ru")) {
+                    console.log(`[Yandex] Resolution failed, trying public CORS proxy gateway...`);
+                    const corsUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                    try { return await axios.get(corsUrl, { timeout: 10000 }); } catch (corsErr) { throw e; }
+                }
+                throw e;
+            }
+        };
+
         // 1. Try internal Web Handler (good for shared playlists lk.*)
         try {
-            const hdlRes = await axios.get(`https://music.yandex.ru/api/v2.1/handlers/playlist/${kind}`, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
-                timeout: 5000
-            });
+            const hdlRes = await performRequest(`https://music.yandex.ru/api/v2.1/handlers/playlist/${kind}`);
             if (hdlRes.data?.playlist?.tracks?.length) {
                 const p = hdlRes.data.playlist;
                 console.log(`[Yandex] Resolved via Web Handler: ${p.owner.login}:${p.kind}`);
@@ -225,7 +262,7 @@ async function resolvePlaylistInfo(urlOrUUID) {
             console.warn(`[Yandex] Web Handler resolution failed: ${e.message}`);
         }
 
-        // 2. Try official API with alternative parameter names
+        // 2. Try official API directly (usually doesn't need proxy if token is valid)
         for (const pName of ['playlistIds', 'playlist-ids']) {
             try {
                 const apiRes = await axios.post('https://api.music.yandex.net/playlists/list', 
@@ -240,31 +277,23 @@ async function resolvePlaylistInfo(urlOrUUID) {
                         timeout: 5000
                     }
                 );
-                
                 if (apiRes.data?.result?.[0] && apiRes.data.result[0].tracks?.length) {
                     const p = apiRes.data.result[0];
                     console.log(`[Yandex] Resolved via Direct API (${pName}): ${p.owner.login}:${p.kind}`);
                     return { owner: p.owner.login, kind: p.kind.toString(), res: p };
                 }
-            } catch (e) {
-                console.warn(`[Yandex] Direct API resolution (${pName}) failed: ${e.message}`);
-            }
+            } catch (e) { console.warn(`[Yandex] Direct API resolution failed: ${e.message}`); }
         }
 
-        // 2. Try Scraping for canonical URL (fallback)
+        // 3. Try Scraping (last resort)
         try {
-            const scraperRes = await axios.get(cleanUrl || `https://music.yandex.ru/playlists/${kind}`, {
-                headers: { 
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
-                    'Referer': 'https://music.yandex.ru/',
-                    'Cookie': `yandexuid=${Math.random().toString().substring(2)};`
-                },
-                timeout: 5000
+            const scraperRes = await performRequest(cleanUrl || `https://music.yandex.ru/playlists/${kind}`, {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+                'Cookie': `yandexuid=${Math.random().toString().substring(2)};`
             });
             html = scraperRes.data;
-            if (html.includes("captcha") || html.includes("g-recaptcha")) {
-                console.error("[Yandex] CAPTCHA detected!");
-            }
+            if (html.includes("captcha") || html.includes("g-recaptcha")) console.error("[Yandex] CAPTCHA detected!");
+            
             const finalUrl = scraperRes.request?.res?.responseUrl || cleanUrl;
             if (finalUrl?.includes('/users/')) {
                 const parts = finalUrl.split('/');
@@ -278,7 +307,7 @@ async function resolvePlaylistInfo(urlOrUUID) {
                     kind = parts[parts.indexOf("playlists") + 1];
                 }
             }
-        } catch (e) { console.error("[Yandex] Resolver error:", e.message); }
+        } catch (e) { console.error("[Yandex] Resolver scraper error:", e.message); }
     }
     return { owner, kind, html };
 }
