@@ -6,6 +6,7 @@ const Server = require('../models/Server');
 const Channel = require('../models/Channel');
 const { computePermissions, hasPermission } = require('../utils/permissionCalculator');
 const { Permissions } = require('../utils/permissions');
+const { logAction } = require('../utils/auditLogger');
 
 router.get('/channel/:channelId', auth, async (req, res) => {
   try {
@@ -47,8 +48,48 @@ router.delete('/:id', auth, async (req, res) => {
   try {
     const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ message: 'Message not found' });
-    if (message.author.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Access denied' });
+    
+    let isModeratorDelete = false;
+    if (message.author.toString() !== req.user._id.toString()) {
+      // Check if moderator
+      if (message.channel) {
+        const channel = await Channel.findById(message.channel);
+        const server = await Server.findById(channel?.server);
+        if (server) {
+          const perms = computePermissions(req.user._id, server, channel);
+          if (hasPermission(perms, Permissions.MANAGE_MESSAGES)) {
+            isModeratorDelete = true;
+          } else {
+            return res.status(403).json({ message: 'Access denied' });
+          }
+        } else {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      } else {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    }
+
+    const channelId = message.channel;
+    const authorId = message.author;
+    const contentPreview = message.content?.substring(0, 50);
+
     await Message.findByIdAndDelete(req.params.id);
+
+    if (isModeratorDelete && channelId) {
+      const channel = await Channel.findById(channelId);
+      if (channel) {
+        await logAction({
+          serverId: channel.server,
+          executorId: req.user._id,
+          targetId: authorId,
+          targetModel: 'User',
+          action: 'MESSAGE_DELETE',
+          reason: `Deleted message: "${contentPreview}..." in #${channel.name}`
+        });
+      }
+    }
+
     res.json({ message: 'Message deleted' });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -87,6 +128,21 @@ router.patch('/:id/pin', auth, async (req, res) => {
     }
 
     await message.save();
+
+    if (message.channel) {
+      const channel = await Channel.findById(message.channel);
+      if (channel) {
+        await logAction({
+          serverId: channel.server,
+          executorId: req.user._id,
+          targetId: message.author,
+          targetModel: 'User',
+          action: message.pinned ? 'MESSAGE_PIN' : 'MESSAGE_UNPIN',
+          reason: `In #${channel.name}: "${message.content?.substring(0, 50)}..."`
+        });
+      }
+    }
+
     await message.populate('author', 'username avatar');
 
     const io = req.app.get('io');

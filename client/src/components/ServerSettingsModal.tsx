@@ -18,7 +18,7 @@ interface ServerSettingsModalProps {
     onServerDelete: (serverId: string) => void;
 }
 
-type SettingsTab = 'overview' | 'roles' | 'emojis' | 'members';
+type SettingsTab = 'overview' | 'roles' | 'emojis' | 'members' | 'audit_log';
 
 const PermissionMetadata: Record<string, { label: string; description: string; category: string }> = {
     ADMINISTRATOR: { category: 'ОСНОВНЫЕ ПРАВА', label: 'Администратор', description: 'Предоставляет все права доступа, а также позволяет обходить ограничения в каналах. Это опасное право.' },
@@ -78,6 +78,11 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
     const isOwner = (server.owner && (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner)) === currentUser?._id;
     const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES) || isOwner;
+    const canViewAuditLog = hasPermission(userPerms, Permissions.VIEW_AUDIT_LOG) || isOwner;
+
+    const [auditLogs, setAuditLogs] = useState<any[]>([]);
+    const [isAuditLoading, setIsAuditLoading] = useState(false);
+    const [hasMoreAudit, setHasMoreAudit] = useState(true);
 
     const [cropModal, setCropModal] = useState<{
         isOpen: boolean;
@@ -109,12 +114,33 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     }, [server.roles]);
 
     useEffect(() => {
-        setServerName(server.name);
-        setServerDescription(server.description || '');
-        setServerIcon(server.icon);
-        setServerBanner(server.banner);
         setBannerColor(server.bannerColor || '#5865f2');
-    }, [server]);
+        if (activeTab === 'audit_log') fetchAuditLogs(true);
+    }, [server, activeTab]);
+
+    const fetchAuditLogs = async (refresh = false) => {
+        if (!canViewAuditLog) return;
+        setIsAuditLoading(true);
+        try {
+            const lastLog = !refresh && auditLogs.length > 0 ? auditLogs[auditLogs.length - 1] : null;
+            const res = await axios.get(`/api/servers/${server._id}/audit-logs`, {
+                params: {
+                    limit: 30,
+                    before: lastLog ? lastLog.createdAt : undefined
+                }
+            });
+            if (refresh) {
+                setAuditLogs(res.data);
+            } else {
+                setAuditLogs(prev => [...prev, ...res.data]);
+            }
+            setHasMoreAudit(res.data.length === 30);
+        } catch (err) {
+            console.error('Failed to fetch audit logs:', err);
+        } finally {
+            setIsAuditLoading(false);
+        }
+    };
 
     // Sync editingRole if it was a placeholder or if it's not found by ID but found by name (@everyone)
     useEffect(() => {
@@ -365,6 +391,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                     <div className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => { setActiveTab('overview'); setEditingRole(null); }}>Обзор</div>
                     <div className={`sidebar-item ${activeTab === 'roles' ? 'active' : ''}`} onClick={() => { setActiveTab('roles'); setEditingRole(null); }}>Роли</div>
                     <div className={`sidebar-item ${activeTab === 'emojis' ? 'active' : ''}`} onClick={() => { setActiveTab('emojis'); setEditingRole(null); }}>Эмодзи</div>
+                    {canViewAuditLog && <div className={`sidebar-item ${activeTab === 'audit_log' ? 'active' : ''}`} onClick={() => { setActiveTab('audit_log'); setEditingRole(null); }}>Журнал аудита</div>}
                     <div className="sidebar-header">Управление</div>
                     <div className={`sidebar-item ${activeTab === 'members' ? 'active' : ''}`} onClick={() => { setActiveTab('members'); setEditingRole(null); }}>Участники</div>
                     <div style={{ flex: 1 }} />
@@ -667,6 +694,54 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                             </div>
                         )}
 
+                        {activeTab === 'audit_log' && (
+                            <div className="settings-section audit-tab">
+                                <h2>Журнал аудита</h2>
+                                <p style={{ opacity: 0.6, fontSize: '14px', marginBottom: '32px' }}>
+                                    Здесь отображаются все административные действия, совершенные на этом сервере.
+                                </p>
+                                <div className="audit-logs-list">
+                                    {auditLogs.map(log => (
+                                        <div key={log._id} className="audit-log-item">
+                                            <div className="audit-log-header">
+                                                <div className="audit-log-avatar">
+                                                    {getAvatarUrl(log.executor?.avatar) ? <img src={getAvatarUrl(log.executor?.avatar)!} alt="" /> : <span>{log.executor?.username?.charAt(0).toUpperCase()}</span>}
+                                                </div>
+                                                <div className="audit-log-text">
+                                                    <div className="audit-log-main">
+                                                        <strong>{log.executor?.username}</strong> 
+                                                        <span className="audit-action-text"> {formatAuditAction(log.action)} </span>
+                                                        {log.target && <span className="audit-target">{(log.target as any).username || (log.target as any).name || (log.target as any).content}</span>}
+                                                    </div>
+                                                    <div className="audit-log-date">{new Date(log.createdAt).toLocaleString('ru-RU')}</div>
+                                                </div>
+                                            </div>
+                                            {log.changes && log.changes.length > 0 && (
+                                                <div className="audit-log-changes">
+                                                    {log.changes.map((c: any, i: number) => (
+                                                        <div key={i} className="audit-change-entry">
+                                                            <span className="change-key">{translateKey(c.key)}:</span>
+                                                            {c.oldValue !== undefined && <span className="change-old">{String(c.oldValue)}</span>}
+                                                            <span className="change-arrow">→</span>
+                                                            <span className="change-new">{String(c.newValue)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {log.reason && <div className="audit-log-reason">Причина: {log.reason}</div>}
+                                        </div>
+                                    ))}
+                                    {auditLogs.length === 0 && !isAuditLoading && (
+                                        <div style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>Журнал пуст.</div>
+                                    )}
+                                    {hasMoreAudit && (
+                                        <button className="load-more-btn-simple" onClick={() => fetchAuditLogs()} disabled={isAuditLoading}>
+                                            {isAuditLoading ? 'Загрузка...' : 'Загрузить еще'}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         {activeTab === 'members' && (
                             <div className="settings-section">
                                 <h2>Участники ({members.length})</h2>
@@ -752,6 +827,46 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
 
     return createPortal(modalContent, document.body);
+};
+
+const formatAuditAction = (action: string) => {
+    const actions: Record<string, string> = {
+        'SERVER_UPDATE': 'обновил настройки сервера',
+        'CHANNEL_CREATE': 'создал канал',
+        'CHANNEL_UPDATE': 'изменил канал',
+        'CHANNEL_DELETE': 'удалил канал',
+        'MEMBER_KICK': 'выгнал пользователя',
+        'MEMBER_BAN': 'забанил пользователя',
+        'MEMBER_UNBAN': 'разбанил пользователя',
+        'MEMBER_UPDATE': 'обновил профиль участника',
+        'ROLE_CREATE': 'создал роль',
+        'ROLE_UPDATE': 'изменил роль',
+        'ROLE_DELETE': 'удалил роль',
+        'INVITE_CREATE': 'создал приглашение',
+        'INVITE_DELETE': 'удалил приглашение',
+        'MESSAGE_DELETE': 'удалил сообщение',
+        'MESSAGE_PIN': 'закрепил сообщение',
+        'MESSAGE_UNPIN': 'открепил сообщение',
+        'EMOJI_CREATE': 'добавил эмодзи',
+        'EMOJI_DELETE': 'удалил эмодзи'
+    };
+    return actions[action] || action;
+};
+
+const translateKey = (key: string) => {
+    const keys: Record<string, string> = {
+        'name': 'Название',
+        'description': 'Описание',
+        'icon': 'Иконка',
+        'banner': 'Баннер',
+        'permissions': 'Права',
+        'color': 'Цвет',
+        'hoist': 'Отображение',
+        'topic': 'Тема',
+        'roles': 'Роли',
+        'nickname': 'Никнейм'
+    };
+    return keys[key] || key;
 };
 
 export default ServerSettingsModal;

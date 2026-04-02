@@ -70,12 +70,13 @@ app.commandLine.appendSwitch('enable-zero-copy'); // Reduces memory copy for vid
 app.commandLine.appendSwitch('ignore-gpu-blocklist'); // Ensure GPU is used even on older drivers
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096 --stack-size=2048');
 
 // Enable hardware-accelerated VP9/AV1 encoding and high-bitrate WebRTC
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoEncoder,WebRtcAllowInputVolumeAdjustment,PlatformEncryptedDolbyVision,WebRtcHideLocalSdps,WebRtcUseEchoCanceller3');
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoEncoder,WebRtcAllowInputVolumeAdjustment,PlatformEncryptedDolbyVision,WebRtcHideLocalSdps,WebRtcUseEchoCanceller3,D3D11VideoDecoder,D3D11VideoEncoder');
 // Force WebRTC to use higher bitrate and disable internal bandwidth limits
-app.commandLine.appendSwitch('force-fieldtrials', 'WebRTC-Video-MinimumSendBitrate/Enabled-100000/');
+app.commandLine.appendSwitch('force-fieldtrials', 'WebRTC-Video-MinimumSendBitrate/Enabled-300000/');
 
 if (!isDev) {
     app.commandLine.appendSwitch('force-device-scale-factor', '1'); // Consistent sizing
@@ -768,9 +769,10 @@ ipcMain.handle('get-desktop-sources', async (event, options) => {
     return sources.map(source => ({
         id: source.id,
         name: source.name,
-        thumbnail: source.thumbnail.toDataURL(),
+        // Use JPEG with 40% quality to avoid main process blocking (much faster than PNG)
+        thumbnail: source.thumbnail.toDataURL({ type: 'image/jpeg', quality: 40 }),
         display_id: source.display_id,
-        appIcon: source.appIcon ? source.appIcon.toDataURL() : null
+        appIcon: source.appIcon ? source.appIcon.toDataURL({ type: 'image/jpeg', quality: 40 }) : null
     }));
 });
 

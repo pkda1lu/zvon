@@ -1,5 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
+import ReactDOM from 'react-dom';
 import './ScreenSourceSelector.css';
+
+const SourceItem = memo(({ source, isSelected, onSelect, onDoubleClick, resolution, frameRate, videoCodec }: any) => {
+    return (
+        <div
+            className={`source-item ${isSelected ? 'selected' : ''}`}
+            onClick={() => onSelect(source.id)}
+            onDoubleClick={() => onDoubleClick(source.id, { withAudio: true, resolution, frameRate, videoCodec })}
+        >
+            <div className="source-thumbnail-container">
+                <img src={source.thumbnail} alt={source.name} className="source-thumbnail" loading="lazy" />
+                <div className="source-thumbnail-overlay"></div>
+            </div>
+            <div className="source-info">
+                {source.appIcon ? (
+                    <div className="source-app-icon">
+                        <img src={source.appIcon} alt="" />
+                    </div>
+                ) : (
+                    <div className="source-app-icon placeholder"></div>
+                )}
+                <span className="source-name">{source.name}</span>
+            </div>
+        </div>
+    );
+});
 
 interface DesktopSource {
     id: string;
@@ -21,34 +47,39 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
     const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
     const [resolution, setResolution] = useState('720');
     const [frameRate, setFrameRate] = useState('30');
-    const [videoCodec, setVideoCodec] = useState<'av1' | 'vp9' | 'h264'>('av1');
+    const [videoCodec, setVideoCodec] = useState<'av1' | 'vp9' | 'h264'>('vp9');
 
     useEffect(() => {
+        let isMounted = true;
+        let timeoutId: any;
+
         const fetchSources = async () => {
             const electron = (window as any).electron;
-            if (!electron || !electron.getDesktopSources) {
-                console.warn('Electron desktopCapturer is not available yet.');
-                return;
-            }
+            if (!electron || !electron.getDesktopSources) return;
 
-            setLoading(true);
             try {
                 const types = selectedTab === 'screen' ? ['screen'] : ['window'];
                 const results = await electron.getDesktopSources({
                     types,
-                    thumbnailSize: { width: 300, height: 170 }
+                    thumbnailSize: { width: 150, height: 85 }
                 });
-                setSources(results);
+                if (isMounted) {
+                    setSources(results);
+                    setLoading(false);
+                }
             } catch (err) {
                 console.error('Failed to get sources:', err);
-            } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
+            
+            if (isMounted) timeoutId = setTimeout(fetchSources, 8000);
         };
 
         fetchSources();
-        const interval = setInterval(fetchSources, 3000);
-        return () => clearInterval(interval);
+        return () => {
+            isMounted = false;
+            clearTimeout(timeoutId);
+        };
     }, [selectedTab]);
 
     const handleSelect = () => {
@@ -61,7 +92,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
         }
     };
 
-    return (
+    return ReactDOM.createPortal(
         <div className="screen-source-selector-overlay" onClick={onClose}>
             <div className="screen-source-selector-modal" onClick={e => e.stopPropagation()}>
                 <div className="screen-source-selector-header">
@@ -142,30 +173,16 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                     ) : (
                         <div className="sources-grid">
                             {sources.map(source => (
-                                <div
+                                <SourceItem
                                     key={source.id}
-                                    className={`source-item ${selectedSourceId === source.id ? 'selected' : ''}`}
-                                    onClick={() => setSelectedSourceId(source.id)}
-                                    onDoubleClick={() => {
-                                        setSelectedSourceId(source.id);
-                                        onSelect(source.id, { withAudio: true, resolution, frameRate, videoCodec });
-                                    }}
-                                >
-                                    <div className="source-thumbnail-container">
-                                        <img src={source.thumbnail} alt={source.name} className="source-thumbnail" />
-                                        <div className="source-thumbnail-overlay"></div>
-                                    </div>
-                                    <div className="source-info">
-                                        {source.appIcon ? (
-                                            <div className="source-app-icon">
-                                                <img src={source.appIcon} alt="" />
-                                            </div>
-                                        ) : (
-                                            <div className="source-app-icon placeholder"></div>
-                                        )}
-                                        <span className="source-name">{source.name}</span>
-                                    </div>
-                                </div>
+                                    source={source}
+                                    isSelected={selectedSourceId === source.id}
+                                    onSelect={setSelectedSourceId}
+                                    onDoubleClick={onSelect}
+                                    resolution={resolution}
+                                    frameRate={frameRate}
+                                    videoCodec={videoCodec}
+                                />
                             ))}
                         </div>
                     )}
@@ -182,7 +199,8 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

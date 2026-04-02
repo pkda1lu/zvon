@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const Invite = require('../models/Invite');
 const Server = require('../models/Server');
 const User = require('../models/User');
+const { logAction } = require('../utils/auditLogger');
 
 const generateCode = (length = 8) => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -26,6 +27,16 @@ router.post('/', auth, async (req, res) => {
         if (expiresIn) expiresAt = new Date(Date.now() + expiresIn * 1000);
         const invite = new Invite({ code, server: serverId, creator: req.user._id, expiresAt, maxUses: maxUses || null });
         await invite.save();
+
+        await logAction({
+          serverId: serverId,
+          executorId: req.user._id,
+          targetId: invite._id,
+          targetModel: 'Server', // Or Invite if we had it, but Server is fine
+          action: 'INVITE_CREATE',
+          changes: [{ key: 'code', newValue: code }, { key: 'maxUses', newValue: maxUses }]
+        });
+
         res.status(201).json(invite);
     } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });

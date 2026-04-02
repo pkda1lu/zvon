@@ -1,4 +1,5 @@
 /* --- SERVER SETTINGS MODAL: LIQUID GLASS 2026 REDESIGN --- */
+@import "./AuditLog.css";
 
 .server-settings-modal-overlay {
     position: fixed;

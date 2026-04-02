@@ -55,6 +55,10 @@ const RemoteAudioPlayer: React.FC<{
         audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => { });
+      }
+
       const source = ctx.createMediaStreamSource(stream);
       const gain = ctx.createGain();
       const dest = ctx.createMediaStreamDestination();
@@ -64,7 +68,15 @@ const RemoteAudioPlayer: React.FC<{
       gainNodeRef.current = gain;
 
       audio.srcObject = dest.stream;
-      audio.play().catch(() => { });
+      audio.muted = false; // Ensure not muted
+      audio.play().catch((e) => {
+        // Fallback directly to stream if play fails
+        if (e.name === 'NotAllowedError') {
+          console.warn('[RemoteAudio] Autoplay blocked, trying again');
+          audio.srcObject = stream;
+          audio.play().catch(() => { });
+        }
+      });
     } catch (e) {
       audio.srcObject = stream;
       audio.play().catch(() => { });
@@ -95,7 +107,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 }) => {
   const { user } = useAuth();
   const { alert } = useDialog();
-  const { isNoiseSuppressionEnabled, userVolumes, isDeafened: isGlobalDeafened } = useVoice();
+  const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, isDeafened: isGlobalDeafened } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -123,6 +135,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const wasCallEstablishedRef = useRef(false);
   const notificationSentRef = useRef(false);
   const mountedAtRef = useRef<number>(Date.now());
+  const hasJoinedRoomRef = useRef(false);
 
   const fetchMetadata = useCallback(async (userId: string) => {
     if (participantsMetadata.has(userId)) return;
@@ -135,6 +148,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   useEffect(() => {
     if (!socket || !dmId) return;
     if (!initialIncomingCall) {
+      hasJoinedRoomRef.current = true;
       socket.emit('join-dm-call', { dmId });
       // If it's a group, we don't need targetUserId
       socket.emit('call-offer', {
@@ -176,7 +190,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           return next;
         });
       } else if (String(data.userId) === String(otherUser._id)) {
-        endCall();
+        // Only end if call is already established or we are the caller and they joined then left
+        if (isCallActive || !isIncomingCall) {
+           // Small delay to avoid race conditions with re-renders
+           setTimeout(() => {
+             if (roomRef.current || isCallActive) endCall();
+           }, 1000);
+        }
       }
     };
 
@@ -194,7 +214,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         notificationSentRef.current = true;
         axios.post(`/api/direct-messages/${dmId}/messages`, { content: 'Пропущенный звонок', type: 'missed-call' }).catch(() => { });
       }
-      if (dmId) socket.emit('leave-dm-call', { dmId });
+      if (dmId && hasJoinedRoomRef.current) socket.emit('leave-dm-call', { dmId });
       socket.off('call-offer'); socket.off('call-end'); socket.off('dm-call-user-joined'); socket.off('dm-call-existing-users');
       socket.off('dm-call-user-left');
       if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
@@ -310,7 +330,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     setIsIncomingCall(false);
     setIsRinging(false);
     if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
-    if (socket) socket.emit('join-dm-call', { dmId });
+    if (socket) {
+      hasJoinedRoomRef.current = true;
+      socket.emit('join-dm-call', { dmId });
+    }
     await joinLiveKitRoom();
   };
 
@@ -344,6 +367,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     } else if (sourceId && roomRef.current) {
       try {
         const frameRate = parseInt(options?.frameRate || '30', 10);
+        const resolution = options?.resolution || '1080';
+        
+        let bitrate = 10_000_000;
+        if (resolution === '2160') bitrate = frameRate >= 60 ? 60_000_000 : 40_000_000;
+        else if (resolution === '1440') bitrate = frameRate >= 60 ? 25_000_000 : 18_000_000;
+        else if (resolution === '1080') bitrate = frameRate >= 60 ? 15_000_000 : 10_000_000;
+        else if (resolution === '720') bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
+
         const constraints = {
           audio: false,
           video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
@@ -352,13 +383,20 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         if (roomRef.current) {
           const videoTrack = stream.getVideoTracks()[0];
           if (videoTrack) {
+            // Optimization for smoothness or sharpness
+            (videoTrack as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
+            
             await roomRef.current.localParticipant.publishTrack(videoTrack, { 
               source: Track.Source.ScreenShare,
-              videoCodec: options?.videoCodec || 'av1',
+              videoCodec: options?.videoCodec || 'vp9',
               simulcast: false,
-              degradationPreference: 'maintain-resolution'
+              degradationPreference: 'maintain-resolution',
+              videoEncoding: {
+                maxBitrate: bitrate,
+                maxFramerate: frameRate
+              }
             });
-            // Force RTP sender params
+            // Force RTP sender params for maximum stability
             setTimeout(async () => {
               try {
                 const pub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
@@ -367,7 +405,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                   const params = sender.getParameters();
                   if (params.encodings?.length) {
                     params.encodings.forEach((enc: any) => {
-                      enc.maxBitrate = 10_000_000;
+                      enc.maxBitrate = bitrate;
                       enc.scaleResolutionDownBy = 1.0;
                       enc.networkPriority = 'high';
                       enc.priority = 'high';
@@ -419,6 +457,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     );
   }
 
+  const anyRemoteScreenSharing = remoteScreenStreams.size > 0 || isScreenSharing;
+
   return (
     <div className={`voice-call-full-view ${isGroup ? 'group-mode' : ''}`}>
       <header className="call-topbar">
@@ -435,7 +475,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       </header>
 
       <main className="call-main">
-        <div className={`video-grid count-${allParticipants.length}`}>
+        <div className={`video-grid count-${allParticipants.length} ${anyRemoteScreenSharing ? 'has-screenshare' : ''}`}>
           {allParticipants.map((p) => {
             const stream = p.isLocal ? (isVideoEnabled ? localStream : null) : remoteStreams.get(p.identity);
             const userMeta = p.isMe ? user : (isGroup ? participantsMetadata.get(p.identity) : otherUser);
@@ -443,7 +483,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             const screenShare = p.isLocal ? (isScreenSharing ? screenStream : null) : remoteScreenStreams.get(p.identity);
 
             return (
-              <div key={p.identity} className={`participant-slot ${isSpeaking ? 'speaking' : ''}`}>
+              <div key={p.identity} className={`participant-slot ${isSpeaking ? 'speaking' : ''} ${screenShare ? 'sharing-screen' : ''}`}>
                 {stream && stream.getVideoTracks().length > 0 ? (
                   <video
                     autoPlay playsInline muted={p.isMe}

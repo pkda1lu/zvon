@@ -98,7 +98,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user, refreshUser, logout, toggle2FA, requestEmailChange, verifyEmailChange } = useAuth();
   const { confirm, prompt, alert } = useDialog();
   const {
-    isNoiseSuppressionEnabled, toggleNoiseSuppression,
+    noiseSuppressionMode, setNoiseSuppressionMode,
     inputDevices, outputDevices, videoDevices,
     selectedInputDeviceId, setSelectedInputDeviceId,
     selectedOutputDeviceId, setSelectedOutputDeviceId,
@@ -953,19 +953,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       <div className="settings-section-block">
         <h3>Расширенные настройки</h3>
 
-        <div className="settings-form-group-checkbox">
-          <div className="checkbox-label">
-            <span className="checkbox-title">Шумоподавление (RNNoise)</span>
-            <span className="checkbox-description">Убирает фоновый шум из вашего микрофона с помощью нейросети.</span>
+        <div className="settings-form-group">
+          <label>Шумоподавление</label>
+          <div className="checkbox-description" style={{ marginBottom: '10px' }}>
+            Выберите технологию фильтрации фонового шума.
           </div>
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={isNoiseSuppressionEnabled}
-              onChange={toggleNoiseSuppression}
-            />
-            <span className="slider round"></span>
-          </label>
+          <select 
+            className="settings-select"
+            value={noiseSuppressionMode}
+            onChange={(e) => setNoiseSuppressionMode(e.target.value as any)}
+          >
+            <option value="none">Отключено (Чистый звук)</option>
+            <option value="standard">Стандартное (Браузер)</option>
+            <option value="rnnoise">RNNoise (Werman / Нейросеть)</option>
+          </select>
         </div>
 
         <div className="settings-form-group-checkbox disabled">

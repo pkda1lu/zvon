@@ -2,31 +2,22 @@
 .screen-source-selector-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10000;
-    animation: modalIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: modalIn 0.3s ease-out;
 }
 
 @keyframes modalIn {
-    from {
-        opacity: 0;
-        backdrop-filter: blur(0px);
-    }
-
-    to {
-        opacity: 1;
-        backdrop-filter: blur(10px);
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .screen-source-selector-modal {
-    background: rgba(13, 13, 17, 0.75);
-    backdrop-filter: blur(40px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #0d0d11; /* Removed transparency and heavy blur for stability */
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 32px;
     width: 90%;
     max-width: 900px;

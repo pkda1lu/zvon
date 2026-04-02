@@ -157,8 +157,8 @@ interface VoiceContextType {
     userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isVideoOn?: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
-    isNoiseSuppressionEnabled: boolean;
-    toggleNoiseSuppression: () => void;
+    noiseSuppressionMode: 'none' | 'standard' | 'rnnoise';
+    setNoiseSuppressionMode: (mode: 'none' | 'standard' | 'rnnoise') => void;
     audioContext: AudioContext | null;
     inputDevices: MediaDeviceInfo[];
     outputDevices: MediaDeviceInfo[];
@@ -239,10 +239,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isDeafened, setIsDeafened] = useState(false);
     const [isServerMuted, setIsServerMuted] = useState(false); // New state
     const [isServerDeafened, setIsServerDeafened] = useState(false); // New state
+    const [noiseSuppressionMode, setNoiseSuppressionModeState] = useState<'none' | 'standard' | 'rnnoise'>(
+        (localStorage.getItem('noiseSuppressionMode') as any) || 'rnnoise'
+    );
 
-    const [isNoiseSuppressionEnabled, setIsNoiseSuppressionEnabled] = useState(() => {
-        return localStorage.getItem('noiseSuppression') === 'true';
-    });
 
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
@@ -396,17 +396,29 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const refreshDevices = useCallback(async () => {
         try {
-            await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => { });
+            // Request permissions briefly to get device names
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => null);
+            
+            // Immediately stop tracks to turn off the camera/mic light
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+
             const devices = await navigator.mediaDevices.enumerateDevices();
             setInputDevices(devices.filter(d => d.kind === 'audioinput'));
             setOutputDevices(devices.filter(d => d.kind === 'audiooutput'));
             setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
-        } catch (err) { }
+        } catch (err) {
+            console.error('[Voice] Error refreshing devices:', err);
+        }
     }, []);
 
     useEffect(() => {
         refreshDevices();
-        navigator.mediaDevices.ondevicechange = refreshDevices;
+        navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
+        return () => {
+            navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
+        };
     }, [refreshDevices]);
 
     const getAudioContext = useCallback(() => {
@@ -428,7 +440,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.log(`[Voice] Local microphone handling for: ${track.sid || 'initial'}`);
 
         // Re-apply noise suppression if needed
-        if (isNoiseSuppressionEnabled && track.kind === Track.Kind.Audio) {
+        if (noiseSuppressionMode === 'rnnoise' && track.kind === Track.Kind.Audio) {
             const rawTrack = track.mediaStreamTrack!;
             // Only apply if it's not already a suppressed track (we check custom property)
             if (!(track.mediaStreamTrack as any).__isSuppressed) {
@@ -495,7 +507,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         vadStreamRef.current = new MediaStream([vadClone]);
 
         console.log(`[Voice] Local stream synced. Enabled: ${finalTrack.enabled}`);
-    }, [isNoiseSuppressionEnabled, isMuted, isServerMuted, isDeafened, isServerDeafened, getAudioContext]);
+    }, [noiseSuppressionMode, isMuted, isServerMuted, isDeafened, isServerDeafened, getAudioContext]);
 
     const handleTrackSubscribed = (
         track: RemoteTrack,
@@ -1107,7 +1119,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 try {
                     await roomRef.current.localParticipant.setMicrophoneEnabled(true, {
                         echoCancellation: true,
-                        noiseSuppression: true,
+                        noiseSuppression: noiseSuppressionMode === 'standard' || noiseSuppressionMode === 'rnnoise',
                         autoGainControl: true,
                         deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
                     });
@@ -1124,7 +1136,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         handleDeviceChange();
-    }, [selectedInputDeviceId, isConnected, isNoiseSuppressionEnabled, isMuted, isDeafened, isServerMuted, isServerDeafened, getAudioContext]);
+    }, [selectedInputDeviceId, isConnected, noiseSuppressionMode, isMuted, isDeafened, isServerMuted, isDeafened, isServerDeafened, getAudioContext]);
 
     const joinChannelRef = useRef(joinChannel);
     useEffect(() => {
@@ -1337,36 +1349,26 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [isMuted, isDeafened, isConnected]);
 
 
-    const toggleNoiseSuppression = useCallback(async () => {
-        const newState = !isNoiseSuppressionEnabled;
-        setIsNoiseSuppressionEnabled(newState);
-        localStorage.setItem('noiseSuppression', String(newState));
-        if (isConnectedRef.current && rawMicStreamRef.current) {
-            let newStream: MediaStream;
-            if (newState) {
-                try {
-                    newStream = await setupNoiseSuppression(getAudioContext(), rawMicStreamRef.current);
-                } catch (e) {
-                    newStream = rawMicStreamRef.current.clone();
-                }
-            } else {
-                newStream = rawMicStreamRef.current.clone();
-            }
-            setLocalStream(newStream);
-            localStreamRef.current = newStream;
-            const effectiveMuted = isMuted || isServerMuted;
-            const effectiveDeafened = isDeafened || isServerDeafened;
-            newStream.getAudioTracks().forEach(t => t.enabled = !effectiveMuted && !effectiveDeafened);
-            const audioTrack = newStream.getAudioTracks()[0];
-            if (audioTrack && roomRef.current) {
-                // LiveKit track replacement
-                const trackPub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Microphone);
-                if (trackPub?.track) {
-                    (trackPub.track as any).replaceTrack(audioTrack);
-                }
+    const setNoiseSuppressionMode = useCallback(async (mode: 'none' | 'standard' | 'rnnoise') => {
+        setNoiseSuppressionModeState(mode);
+        localStorage.setItem('noiseSuppressionMode', mode);
+        
+        if (isConnectedRef.current && rawMicStreamRef.current && roomRef.current) {
+            // Update the source track constraints first
+            const localParticipant = roomRef.current.localParticipant;
+            await localParticipant.setMicrophoneEnabled(true, {
+                noiseSuppression: mode === 'standard' || mode === 'rnnoise',
+                echoCancellation: true,
+                autoGainControl: true,
+                deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
+            });
+
+            const pub = localParticipant.getTrackPublication(Track.Source.Microphone);
+            if (pub) {
+                await handleLocalMicPublication(pub);
             }
         }
-    }, [isNoiseSuppressionEnabled, isMuted, isDeafened, getAudioContext]);
+    }, [selectedInputDeviceId, handleLocalMicPublication]);
 
 
     // Unified VAD and Local Indicator Loop (Optimized for remote users only)
@@ -1741,7 +1743,7 @@ registerProcessor('vad-processor', VADProcessor);
             isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened,
             isServerMuted, isServerDeafened, toggleMute, toggleDeafen,
             connectedUsers, localStream, remoteStreams, userVolumes, setUserVolume, userStates, localMutes,
-            toggleLocalMute, isNoiseSuppressionEnabled, toggleNoiseSuppression, audioContext,
+            toggleLocalMute, noiseSuppressionMode, setNoiseSuppressionMode, audioContext,
             inputDevices, outputDevices, videoDevices, selectedInputDeviceId, setSelectedInputDeviceId,
             selectedOutputDeviceId, setSelectedOutputDeviceId, selectedVideoDeviceId, setSelectedVideoDeviceId,
             inputVolume, setInputVolume, outputVolume, setOutputVolume, refreshDevices,

@@ -4,11 +4,13 @@ const auth = require('../middleware/auth');
 const Server = require('../models/Server');
 const Channel = require('../models/Channel');
 const User = require('../models/User');
+const AuditLog = require('../models/AuditLog');
 const upload = require('../middleware/upload');
 
 const checkPermission = require('../middleware/checkPermission');
 const { Permissions, DEFAULT_PERMISSIONS } = require('../utils/permissions');
 const { computePermissions, getHighestRolePosition } = require('../utils/permissionCalculator');
+const { logAction } = require('../utils/auditLogger');
 
 
 router.post('/', auth, async (req, res) => {
@@ -117,6 +119,21 @@ router.put('/:id', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, 
     if (banner !== undefined) server.banner = banner;
     if (bannerColor !== undefined) server.bannerColor = bannerColor;
     await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: server._id,
+      targetModel: 'Server',
+      action: 'SERVER_UPDATE',
+      changes: [
+        { key: 'name', newValue: name },
+        { key: 'description', newValue: description },
+        { key: 'icon', newValue: icon },
+        { key: 'banner', newValue: banner }
+      ].filter(c => c.newValue !== undefined)
+    });
+
     const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', populatedServer);
@@ -288,6 +305,16 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
 
     server.roles.push(newRole);
     await server.save();
+    const createdRole = server.roles[server.roles.length - 1];
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: createdRole._id,
+      targetModel: 'Server', // Roles are subdocs, ref server
+      action: 'ROLE_CREATE',
+      changes: [{ key: 'name', newValue: createdRole.name }]
+    });
 
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
@@ -353,6 +380,15 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     });
 
     await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: role._id,
+      targetModel: 'Server',
+      action: 'ROLE_UPDATE',
+      changes: Object.keys(req.body).map(k => ({ key: k, newValue: req.body[k] }))
+    });
 
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
@@ -430,6 +466,15 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
     server.roles.pull(req.params.roleId);
     await server.save();
 
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: server._id,
+      targetModel: 'Server',
+      action: 'ROLE_DELETE',
+      reason: `Deleted role ${role.name}`
+    });
+
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status'));
 
@@ -451,6 +496,15 @@ router.patch('/:id/update-member-roles', auth, checkPermission(Permissions.MANAG
 
     member.roles = roles;
     await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: userId,
+      targetModel: 'User',
+      action: 'MEMBER_UPDATE',
+      changes: [{ key: 'roles', newValue: roles }]
+    });
 
     const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
     const updatedMember = populatedServer.members.find(m => m.user._id.toString() === userId);
@@ -529,6 +583,16 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     if (banner !== undefined) server.members[memberIndex].banner = banner;
 
     await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: req.params.userId,
+      targetModel: 'User',
+      action: 'MEMBER_UPDATE',
+      changes: Object.keys(req.body).map(k => ({ key: k, newValue: req.body[k] }))
+    });
+
     const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: updatedServer.members[memberIndex] });
@@ -551,6 +615,15 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
       }
     }
     await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: req.params.userId,
+      targetModel: 'User',
+      action: 'MEMBER_KICK'
+    });
+
     const user = await User.findById(req.params.userId);
     if (user) { user.servers = user.servers.filter(s => s.toString() !== server._id.toString()); await user.save(); }
     const io = req.app.get('io');
@@ -624,6 +697,15 @@ router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (
     server.members = server.members.filter(m => String(m.user) !== String(userId));
     await server.save();
 
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: userId,
+      targetModel: 'User',
+      action: 'MEMBER_BAN',
+      reason
+    });
+
     const user = await User.findById(userId);
     if (user) {
       user.servers = user.servers.filter(s => String(s) !== String(server._id));
@@ -685,6 +767,31 @@ router.delete('/:id/emojis/:emojiId', auth, checkPermission(Permissions.MANAGE_G
 
     res.json({ message: 'Emoji deleted' });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), async (req, res) => {
+  try {
+    const { limit = 50, before } = req.query;
+    const query = { server: req.params.id };
+    
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const logs = await AuditLog.find(query)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .populate('executor', 'username avatar')
+      .populate({
+        path: 'target',
+        select: 'username name content' // Select relevant fields for different target types
+      });
+
+    res.json(logs);
+  } catch (error) {
+    console.error('Audit log fetch error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 module.exports = router;
