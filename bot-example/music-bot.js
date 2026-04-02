@@ -210,28 +210,45 @@ async function resolvePlaylistInfo(urlOrUUID) {
     if (kind) {
         console.log(`[Yandex] Resolving kind/uuid: ${kind}...`);
         
-        // 1. Try official API directly via axios for reliability
+        // 1. Try internal Web Handler (good for shared playlists lk.*)
         try {
-            const apiRes = await axios.post('https://api.music.yandex.net/playlists/list', 
-                `playlistIds=${kind}`,
-                {
-                    headers: {
-                        'Authorization': `OAuth ${YANDEX_TOKEN}`,
-                        'X-Yandex-Music-Client': 'Android/14562',
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'User-Agent': userAgent
-                    },
-                    timeout: 5000
-                }
-            );
-            
-            if (apiRes.data?.result?.[0] && apiRes.data.result[0].tracks?.length) {
-                const p = apiRes.data.result[0];
-                console.log(`[Yandex] Resolved via Direct API: ${p.owner.login}:${p.kind}`);
-                return { owner: p.owner.login, kind: p.kind, res: p };
+            const hdlRes = await axios.get(`https://music.yandex.ru/api/v2.1/handlers/playlist/${kind}`, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
+                timeout: 5000
+            });
+            if (hdlRes.data?.playlist?.tracks?.length) {
+                const p = hdlRes.data.playlist;
+                console.log(`[Yandex] Resolved via Web Handler: ${p.owner.login}:${p.kind}`);
+                return { owner: p.owner.login, kind: p.kind.toString(), res: p };
             }
         } catch (e) {
-            console.warn(`[Yandex] Direct API resolution failed: ${e.message}`);
+            console.warn(`[Yandex] Web Handler resolution failed: ${e.message}`);
+        }
+
+        // 2. Try official API with alternative parameter names
+        for (const pName of ['playlistIds', 'playlist-ids']) {
+            try {
+                const apiRes = await axios.post('https://api.music.yandex.net/playlists/list', 
+                    `${pName}=${kind}`,
+                    {
+                        headers: {
+                            'Authorization': `OAuth ${YANDEX_TOKEN}`,
+                            'X-Yandex-Music-Client': 'Android/14562',
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'User-Agent': userAgent
+                        },
+                        timeout: 5000
+                    }
+                );
+                
+                if (apiRes.data?.result?.[0] && apiRes.data.result[0].tracks?.length) {
+                    const p = apiRes.data.result[0];
+                    console.log(`[Yandex] Resolved via Direct API (${pName}): ${p.owner.login}:${p.kind}`);
+                    return { owner: p.owner.login, kind: p.kind.toString(), res: p };
+                }
+            } catch (e) {
+                console.warn(`[Yandex] Direct API resolution (${pName}) failed: ${e.message}`);
+            }
         }
 
         // 2. Try Scraping for canonical URL (fallback)
