@@ -44,7 +44,8 @@ const yandexClient = new YandexMusicClient({
     // Yandex expects "OAuth " for tokens starting with y0__.
     HEADERS: {
         'Authorization': `OAuth ${YANDEX_TOKEN}`,
-        'X-Yandex-Music-Client': 'Android/20.01.2'
+        'X-Yandex-Music-Client': 'Android/14562',
+        'User-Agent': 'YandexMusic/2024.03.1 (ru.yandex.music; build:14562; Android 13; Pixel 6)'
     },
     BASE: "https://api.music.yandex.net"
 });
@@ -105,8 +106,8 @@ async function getTrackUrlCustom(trackId, attempt = 0) {
 
         const headers = {
             'Authorization': `OAuth ${YANDEX_TOKEN}`,
-            'User-Agent': 'Yandex-Music-API',
-            'X-Yandex-Music-Client': 'Android/20.01.2'
+            'User-Agent': 'YandexMusic/2024.03.1 (ru.yandex.music; build:14562; Android 13; Pixel 6)',
+            'X-Yandex-Music-Client': 'Android/14562'
         };
 
         try {
@@ -400,7 +401,7 @@ async function playTrackStream(url, channelId) {
         const ffmpeg = spawn("ffmpeg", [
             "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5",
             "-analyzeduration", "1000000", "-probesize", "1000000",
-            "-user_agent", "Mozilla/5.0", "-re", "-i", url, "-f", "s16le", "-ar", "48000", "-ac", "1", "pipe:1"
+            "-user_agent", "YandexMusic/2024.03.1 (ru.yandex.music; build:14562; Android 13; Pixel 6)", "-re", "-i", url, "-f", "s16le", "-ar", "48000", "-ac", "1", "pipe:1"
         ]);
         currentFFmpeg = ffmpeg;
 
