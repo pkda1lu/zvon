@@ -29,11 +29,39 @@ const messageSchema = new mongoose.Schema({
     default: null
   },
   attachments: [attachmentSchema],
+  embeds: [{
+    title: String,
+    description: String,
+    url: String,
+    color: String,
+    timestamp: Date,
+    footer: {
+      text: String,
+      icon_url: String
+    },
+    image: {
+      url: String
+    },
+    thumbnail: {
+      url: String
+    },
+    author: {
+      name: String,
+      url: String,
+      icon_url: String
+    },
+    fields: [{
+      name: String,
+      value: String,
+      inline: Boolean
+    }]
+  }],
   buttons: [{
     label: String,
     url: String,
     actionId: String,
-    style: { type: String, enum: ['primary', 'secondary', 'danger', 'success'], default: 'primary' }
+    style: { type: String, enum: ['primary', 'secondary', 'danger', 'success'], default: 'primary' },
+    row: { type: Number, default: 0 }
   }],
   edited: {
     type: Boolean,
@@ -77,8 +105,8 @@ const messageSchema = new mongoose.Schema({
 });
 
 messageSchema.pre('save', function (next) {
-  if (this.type === 'default' && !this.content && (!this.attachments || this.attachments.length === 0)) {
-    return next(new Error('Сообщение не может быть пустым (нужен текст или вложение)'));
+  if (this.type === 'default' && !this.content && (!this.attachments || this.attachments.length === 0) && (!this.embeds || this.embeds.length === 0)) {
+    return next(new Error('Сообщение не может быть пустым (нужен текст, вложение или эмбед)'));
   }
   next();
 });

@@ -100,6 +100,34 @@ export interface Channel {
   createdAt: string;
 }
 
+export interface Embed {
+  title?: string;
+  description?: string;
+  url?: string;
+  color?: string;
+  timestamp?: string;
+  footer?: {
+    text: string;
+    icon_url?: string;
+  };
+  image?: {
+    url: string;
+  };
+  thumbnail?: {
+    url: string;
+  };
+  author?: {
+    name: string;
+    url?: string;
+    icon_url?: string;
+  };
+  fields?: Array<{
+    name: string;
+    value: string;
+    inline?: boolean;
+  }>;
+}
+
 export interface Message {
   _id: string;
   content: string;
@@ -112,11 +140,13 @@ export interface Message {
     size: number;
     type: string;
   }>;
+  embeds?: Embed[];
   buttons?: Array<{
     label: string;
     url?: string;
     actionId?: string;
     style?: 'primary' | 'secondary' | 'danger' | 'success';
+    row?: number;
   }>;
   edited: boolean;
   editedAt?: string;

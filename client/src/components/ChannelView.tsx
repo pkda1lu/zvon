@@ -70,6 +70,115 @@ const MessageItem = React.memo<{
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
   onReact, onReply, scrollToMessage, onInteractiveButtonClick
 }) => {
+
+  const renderEmbed = (embed: any, key: number) => {
+    return (
+      <div key={key} className="message-embed" style={{ borderLeftColor: embed.color || 'var(--primary-neon)' }}>
+        <div className="embed-content-wrap">
+          {embed.author && (
+            <div className="embed-author">
+              {embed.author.icon_url && <img src={embed.author.icon_url} className="embed-author-icon" alt="" />}
+              {embed.author.url ? (
+                <a href={embed.author.url} className="embed-author-name" target="_blank" rel="noreferrer">{embed.author.name}</a>
+              ) : (
+                <span className="embed-author-name">{embed.author.name}</span>
+              )}
+            </div>
+          )}
+
+          {embed.title && (
+            embed.url ? (
+              <a href={embed.url} className="embed-title" target="_blank" rel="noreferrer">{embed.title}</a>
+            ) : (
+              <div className="embed-title">{embed.title}</div>
+            )
+          )}
+
+          {embed.description && <div className="embed-description">{embed.description}</div>}
+
+          {embed.fields && embed.fields.length > 0 && (
+            <div className="embed-fields">
+              {embed.fields.map((f: any, i: number) => (
+                <div key={i} className="embed-field" style={{ gridColumn: f.inline ? 'auto' : '1 / -1' }}>
+                  <div className="embed-field-name">{f.name}</div>
+                  <div className="embed-field-value">{f.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Progress bar special for music bot */}
+          {embed.footer?.text?.includes('00:00') && (
+             <div className="embed-progress-bar">
+                <div className="progress-track-wrap">
+                   <span>00:00</span>
+                   <div className="progress-track">
+                      <div className="progress-fill" style={{ width: '0%' }} />
+                   </div>
+                   <span>{embed.footer.text.split(' - ').pop()}</span>
+                </div>
+             </div>
+          )}
+
+          {embed.image && embed.image.url && (
+            <img src={embed.image.url} className="embed-image" alt="" onClick={() => {
+              setLightboxMedia([{ url: embed.image.url, type: 'image/png' }]);
+              setLightboxIndex(0);
+              setLightboxOpen(true);
+            }} />
+          )}
+
+          {embed.footer && (
+            <div className="embed-footer">
+              {embed.footer.icon_url && <img src={embed.footer.icon_url} className="embed-footer-icon" alt="" />}
+              <span className="embed-footer-text">{embed.footer.text}</span>
+            </div>
+          )}
+        </div>
+        {embed.thumbnail && embed.thumbnail.url && (
+          <img src={embed.thumbnail.url} className="embed-thumbnail" alt="" />
+        )}
+      </div>
+    );
+  };
+
+  const renderButtons = () => {
+    if (!msg.buttons || msg.buttons.length === 0) return null;
+
+    // Group buttons by row
+    const rows: { [key: number]: any[] } = {};
+    msg.buttons.forEach(btn => {
+      const r = btn.row || 0;
+      if (!rows[r]) rows[r] = [];
+      rows[r].push(btn);
+    });
+
+    const rowKeys = Object.keys(rows).map(Number).sort((a, b) => a - b);
+
+    return (
+      <div className="message-interactive-buttons">
+        {rowKeys.map(rk => (
+          <div key={rk} className="button-row">
+            {rows[rk].map((btn, i) => (
+              btn.actionId ? (
+                <button
+                  key={i}
+                  onClick={() => onInteractiveButtonClick(msg._id, btn.actionId!)}
+                  className={`msg-button ${btn.style || 'primary'}`}
+                >
+                  {btn.label}
+                </button>
+              ) : (
+                <a key={i} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
+                  {btn.label}
+                </a>
+              )
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number } | null>(null);
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
     if (!previous) return true;
@@ -239,25 +348,13 @@ const MessageItem = React.memo<{
             </div>
           )}
 
-          {msg.buttons && msg.buttons.length > 0 && (
-            <div className="message-interactive-buttons">
-              {msg.buttons.map((btn, i) => (
-                btn.actionId ? (
-                  <button
-                    key={i}
-                    onClick={() => onInteractiveButtonClick(msg._id, btn.actionId!)}
-                    className={`msg-button ${btn.style || 'primary'}`}
-                  >
-                    {btn.label}
-                  </button>
-                ) : (
-                  <a key={i} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
-                    {btn.label}
-                  </a>
-                )
-              ))}
+          {displayEmbeds && msg.embeds && msg.embeds.length > 0 && (
+            <div className="message-embeds">
+              {msg.embeds.map((emb, i) => renderEmbed(emb, i))}
             </div>
           )}
+
+          {renderButtons()}
 
           {msg.edited && <span className="message-edited">(изменено)</span>}
 

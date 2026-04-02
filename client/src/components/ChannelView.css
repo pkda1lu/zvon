@@ -1066,7 +1066,222 @@
 
 .msg-button.danger:hover {
   background: #ed4245;
-  color: #fff;
+}
+
+/* --- EMBEDS --- */
+.message-embeds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: 520px;
+}
+
+.message-embed {
+  background: var(--bg-tertiary);
+  border-left: 4px solid var(--primary-neon);
+  border-radius: 4px 8px 8px 4px;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: embedSlideIn 0.3s ease-out;
+}
+
+@keyframes embedSlideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.embed-content-wrap {
+  flex: 1;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.embed-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.embed-author-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.embed-author-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  text-decoration: none;
+}
+
+.embed-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary-neon);
+  text-decoration: none;
+  margin: 4px 0;
+}
+
+.embed-title:hover {
+  text-decoration: underline;
+}
+
+.embed-description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.embed-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.embed-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.embed-field-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: white;
+  text-transform: uppercase;
+}
+
+.embed-field-value {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.embed-image {
+  margin-top: 12px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+}
+
+.embed-thumbnail {
+  margin: 12px;
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+}
+
+.embed-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  opacity: 0.6;
+}
+
+.embed-footer-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.embed-footer-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* --- INTERACTIVE BUTTONS GRID --- */
+.message-interactive-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  max-width: 520px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.msg-button {
+  background: var(--bg-modifier-accent);
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+}
+
+.msg-button:hover {
+  background: var(--bg-modifier-selected);
+  filter: brightness(1.2);
+}
+
+/* Override existing button styles for embed consistency */
+.msg-button.primary { background: #5865f2; color: white !important; border: none !important; }
+.msg-button.secondary { background: #4f545c; color: white !important; border: none !important; }
+.msg-button.success { background: #3ba55d; color: white !important; border: none !important; }
+.msg-button.danger { background: #ed4245; color: white !important; border: none !important; }
+
+.msg-button.icon-only {
+  padding: 8px;
+}
+
+/* Player Embed Special Styles */
+.embed-progress-bar {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-track-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.progress-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  position: relative;
+}
+
+.progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--primary-neon);
+  border-radius: 2px;
+  box-shadow: 0 0 10px var(--primary-neon);
 }
 
 .msg-button.success {

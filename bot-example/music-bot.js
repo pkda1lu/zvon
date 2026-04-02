@@ -158,13 +158,37 @@ async function startPlayback(channelId) {
     try {
         const link = await getTrackUrlCustom(track.id);
         socket.emit("send-message", {
-            content: `🎶 Играет (**${currentIndex + 1}/${playlistQueue.length}**): **${track.artists?.[0]?.name || '?'} - ${track.title}**`,
             channelId: lastUsedChannelId,
+            embeds: [{
+                title: track.title,
+                url: `https://music.yandex.ru/album/${track.albums?.[0]?.id}/track/${track.id}`,
+                author: { name: "Сейчас играет" },
+                description: `**${track.artists?.[0]?.name || 'Unknown Artist'}**`,
+                thumbnail: { url: track.coverUri ? `https://${track.coverUri.replace('%%', '200x200')}` : undefined },
+                color: "#00e5ff",
+                footer: { 
+                    text: `Яндекс Музыка • Треков в очереди: ${playlistQueue.length} • Добавил: @${socket.userId.substring(0, 8)} - 00:00 - ${Math.floor(track.durationMs / 60000)}:${String(Math.floor((track.durationMs % 60000) / 1000)).padStart(2, '0')}`,
+                    icon_url: "https://music.yandex.ru/favicon.ico"
+                }
+            }],
             buttons: [
-                { label: "⏮️ Prev", actionId: "prev_track", style: "secondary" },
-                { label: "⏹️ Stop", actionId: "stop_track", style: "danger" },
-                { label: "⏭️ Skip", actionId: "skip_track", style: "primary" },
-                { label: "🔀 Shuffle", actionId: "shuffle_queue", style: "secondary" }
+                { label: "🔀", actionId: "shuffle_queue", style: "secondary", row: 1 },
+                { label: "🔉", actionId: "vol_down", style: "secondary", row: 1 },
+                { label: "100%", actionId: "vol_reset", style: "secondary", row: 1 },
+                { label: "🔊", actionId: "vol_up", style: "secondary", row: 1 },
+                { label: "🔁", actionId: "loop_mode", style: "secondary", row: 1 },
+                
+                { label: "⏪", actionId: "rewind", style: "secondary", row: 2 },
+                { label: "⏮️", actionId: "prev_track", style: "secondary", row: 2 },
+                { label: "⏸️", actionId: "stop_track", style: "secondary", row: 2 },
+                { label: "⏭️", actionId: "skip_track", style: "secondary", row: 2 },
+                { label: "⏩", actionId: "fast_forward", style: "secondary", row: 2 },
+
+                { label: "➕", actionId: "add_fav", style: "success", row: 3 },
+                { label: "📜", actionId: "queue_view", style: "secondary", row: 3 },
+                { label: "AΞ", actionId: "lyrics", style: "secondary", row: 3 },
+                { label: "⏹️", actionId: "stop_music", style: "secondary", row: 3 },
+                { label: "🚪", actionId: "leave_voice", style: "danger", row: 3 }
             ]
         });
         await playTrackStream(link, channelId);
@@ -346,7 +370,20 @@ socket.on("new-message", async (msg) => {
                         const trk = t.track || t;
                         return { ...trk, id: trk.id.toString().split(':')[0] };
                     });
-                    socket.emit("send-message", { content: `📂 Загружено **${added.length}** треков: **${res.result.title || 'Плейлист'}**`, channelId: msg.channel });
+                    socket.emit("send-message", { 
+                        channelId: msg.channel,
+                        embeds: [{
+                            title: "Добавлены треки из плейлиста",
+                            description: `**${res.result.title || 'Плейлист'}**`,
+                            color: "#ffca28",
+                            thumbnail: { url: res.result.coverUri ? `https://${res.result.coverUri.replace('%%', '200x200')}` : undefined },
+                            fields: [
+                                { name: "Добавлено треков", value: added.length.toString(), inline: true },
+                                { name: "Всего треков", value: playlistQueue.length.toString(), inline: true }
+                            ],
+                            footer: { text: "Чтобы добавить больше треков, введите количество треков в аргумент \"количество\"." }
+                        }]
+                    });
                 } catch (e) {
                     console.error("[Yandex] Load error:", e.message);
                     throw new Error(`Ошибка загрузки: ${e.message}`);
