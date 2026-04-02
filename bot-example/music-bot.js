@@ -283,8 +283,12 @@ socket.on("new-message", async (msg) => {
         const query = content.replace("!play ", "").trim();
         try {
             if (!voiceChannel) throw new Error("Голосовой канал не найден.");
-            socket.emit("join-voice-channel", { channelId: voiceChannel._id });
-            socket.voiceChannelId = voiceChannel._id;
+            if (socket.voiceChannelId !== voiceChannel._id) {
+                socket.emit("join-voice-channel", { channelId: voiceChannel._id });
+                socket.voiceChannelId = voiceChannel._id;
+                // Wait a bit for the join to finalize
+                await new Promise(r => setTimeout(r, 1000));
+            }
 
             let added = [];
             if (query.includes("playlists/") || query.includes("album/")) {
@@ -303,103 +307,40 @@ socket.on("new-message", async (msg) => {
                                 title: albumRes.result.title
                             }
                         };
-                    }
-                    // 2. PLAYLIST HANDLING
-                    else if (query.includes("playlists/")) {
+                    } else if (query.includes("playlists/")) {
                         const parts = cleanUrl.split("/");
                         const kind = parts[parts.indexOf("playlists") + 1];
-                        let owner = null;
-                        if (query.includes("/users/")) owner = parts[parts.indexOf("users") + 1];
+                        console.log(`[Yandex] Loading playlist kind: ${kind}`);
 
-                        // Attempt API
-                        if (owner && kind) {
-                            try { res = await yandexClient.playlists.getPlaylistById(owner, kind); } catch (e) { }
+                        // Try scraper first to find owner or tracks
+                        const hRes = await axios.get(cleanUrl, {
+                            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' },
+                            timeout: 10000
+                        });
+                        const html = hRes.data;
+                        
+                        // Extract owner from HTML if possible
+                        const ownerMatch = html.match(/"owner":\s*\{\s*"login":\s*"(.*?)"/) || html.match(/"uid":\s*(\d+)/);
+                        const owner = ownerMatch ? ownerMatch[1] : null;
+                        
+                        if (owner) {
+                            try {
+                                res = await yandexClient.playlists.getPlaylistById(owner, kind);
+                            } catch (e) { console.error("[Yandex] API failed with found owner:", e.message); }
                         }
+
                         if (!res?.result?.tracks?.length) {
-                            const sRes = await yandexClient.search.search(kind, 0, 'playlist');
-                            const disc = sRes.result.playlists?.results?.find(p => p.playlistUuid === kind || p.kind.toString() === kind);
-                            if (disc) res = await yandexClient.playlists.getPlaylistById(disc.owner.uid || disc.owner.login, disc.kind);
-                        }
-
-                        // 3. SCRAPER FALLBACK (only for playlists)
-                        if (!res?.result?.tracks?.length) {
-                            console.log(`[Yandex] API failed, trying Scraper for: ${cleanUrl}`);
-                            let scrapedHtml = null;
-                            const tryScrape = async (userAgent) => {
-                                try {
-                                    const hRes = await axios.get(cleanUrl, {
-                                        headers: { 
-                                            'User-Agent': userAgent, 
-                                            'Referer': 'https://music.yandex.ru/',
-                                            'Cookie': 'yandexuid=1;' // Some basic cookie might help
-                                        },
-                                        timeout: 8000
-                                    });
-                                    const html = hRes.data;
-                                    
-                                    // Try to find owner and kind in the JS state
-                                    const ownerMatch = html.match(/"owner":\s*\{\s*"login":\s*"(.*?)"/);
-                                    const kindMatch = html.match(/"kind":\s*(\d+)/) || html.match(/"playlistUuid":\s*"(.*?)"/);
-                                    
-                                    if (ownerMatch && kindMatch) {
-                                        const foundOwner = ownerMatch[1];
-                                        const foundKind = kindMatch[1];
-                                        console.log(`[Yandex] Scraper found owner: ${foundOwner}, kind: ${foundKind}`);
-                                        const apiRes = await yandexClient.playlists.getPlaylistById(foundOwner, foundKind);
-                                        if (apiRes?.result?.tracks?.length) {
-                                            return { res: apiRes, html };
-                                        }
-                                    }
-
-                                    // Fallback to track ID extraction if API fails again
-                                    const nextDataChunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"(.*?)"\]\)/g)];
-                                    let tIds = [];
-                                    nextDataChunks.forEach(chunk => {
-                                        const decoded = chunk[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                                        const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
-                                        tIds.push(...matches);
-                                    });
-                                    
-                                    if (tIds.length === 0) {
-                                        tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
-                                        tIds.push(...[...html.matchAll(/"id":"(\d+)"/g)].map(m => m[1]));
-                                    }
-                                    
-                                    const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
-                                    return { ids: uniqueIds, html };
-                                } catch (e) {
-                                    console.error("[Yandex] Scrape attempt error:", e.message);
-                                    return { ids: [], html: "" };
-                                }
-                            };
-
-                            let sResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-                            
-                            if (sResult.res) {
-                                res = sResult.res;
-                                scrapedHtml = sResult.html;
-                            } else if (sResult.ids?.length > 0) {
-                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
+                            // Deep scraper for track IDs
+                            const tIds = [...html.matchAll(/"trackId":\s*"?(\d+)"?/g)].map(m => m[1]);
+                            const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
+                            if (uniqueIds.length > 0) {
+                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': uniqueIds.slice(0, 300) });
                                 res = {
                                     result: {
                                         tracks: trks.result.map(t => ({ track: t })),
-                                        title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+                                        title: html.match(/"title":\s*"(.*?)"/)?.[1] || "Плейлист"
                                     }
                                 };
-                            } else {
-                                // Try one more time with mobile user agent
-                                sResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1');
-                                if (sResult.res) {
-                                    res = sResult.res;
-                                } else if (sResult.ids?.length > 0) {
-                                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
-                                    res = {
-                                        result: {
-                                            tracks: trks.result.map(t => ({ track: t })),
-                                            title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
-                                        }
-                                    };
-                                }
                             }
                         }
                     }
