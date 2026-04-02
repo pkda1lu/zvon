@@ -848,7 +848,11 @@ const formatAuditAction = (action: string) => {
         'MESSAGE_PIN': 'закрепил сообщение',
         'MESSAGE_UNPIN': 'открепил сообщение',
         'EMOJI_CREATE': 'добавил эмодзи',
-        'EMOJI_DELETE': 'удалил эмодзи'
+        'EMOJI_DELETE': 'удалил эмодзи',
+        'MEMBER_VOICE_KICK': 'выгнал из голосового канала',
+        'MEMBER_VOICE_SELF_STATE': 'изменил состояние микрофона/звука',
+        'MEMBER_VOICE_SERVER_MUTE': 'отключил микрофон участнику (сервер)',
+        'MEMBER_VOICE_SERVER_DEAFEN': 'отключил звук участнику (сервер)'
     };
     return actions[action] || action;
 };
@@ -864,7 +868,11 @@ const translateKey = (key: string) => {
         'hoist': 'Отображение',
         'topic': 'Тема',
         'roles': 'Роли',
-        'nickname': 'Никнейм'
+        'nickname': 'Никнейм',
+        'isMuted': 'Микрофон',
+        'isDeafened': 'Звук',
+        'isServerMuted': 'Микрофон (сервер)',
+        'isServerDeafened': 'Звук (сервер)'
     };
     return keys[key] || key;
 };

@@ -12,6 +12,7 @@ const Message = require('./models/Message');
 const User = require('./models/User');
 const { computePermissions, hasPermission } = require('./utils/permissionCalculator');
 const { Permissions } = require('./utils/permissions');
+const { logAction } = require('./utils/auditLogger');
 
 const compression = require('compression');
 
@@ -544,6 +545,15 @@ io.on('connection', (socket) => {
             s.voiceChannelId = null;
             io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId });
             await notifyVoiceChannelUpdate(channelId);
+            
+            await logAction({
+              serverId: ch.server,
+              executorId: socket.userId,
+              targetId: userId,
+              targetModel: 'User',
+              action: 'MEMBER_VOICE_KICK',
+              reason: `Kicked from voice channel #${ch.name}`
+            });
           }
         }
       }
@@ -552,6 +562,27 @@ io.on('connection', (socket) => {
 
   socket.on('voice-state-update', async (data) => {
     if (!socket.voiceChannelId || socket.voiceChannelId !== data.channelId) return;
+
+    // Audit self mute/deaf if changed
+    if (socket.isMuted !== data.isMuted || socket.isDeafened !== data.isDeafened) {
+      try {
+        const channel = await Channel.findById(data.channelId);
+        if (channel) {
+          await logAction({
+            serverId: channel.server,
+            executorId: socket.userId,
+            targetId: socket.userId,
+            targetModel: 'User',
+            action: 'MEMBER_VOICE_SELF_STATE',
+            changes: [
+              { key: 'isMuted', oldValue: socket.isMuted, newValue: data.isMuted },
+              { key: 'isDeafened', oldValue: socket.isDeafened, newValue: data.isDeafened }
+            ].filter(c => c.oldValue !== c.newValue)
+          });
+        }
+      } catch (err) { }
+    }
+
     socket.isMuted = data.isMuted; socket.isDeafened = data.isDeafened;
     socket.isScreenSharing = data.isScreenSharing || false;
     socket.to(`voice-channel-${data.channelId}`).emit('voice-user-state-update', {
@@ -616,6 +647,15 @@ io.on('connection', (socket) => {
             s.emit('voice-server-state-update', { isServerMuted: muted, isServerDeafened: s.isServerDeafened });
           }
         }
+        
+        await logAction({
+          serverId: serverId,
+          executorId: socket.userId,
+          targetId: userId,
+          targetModel: 'User',
+          action: 'MEMBER_VOICE_SERVER_MUTE',
+          changes: [{ key: 'isServerMuted', newValue: muted }]
+        });
       }
     } catch (e) { console.error('admin-voice-mute error:', e); }
   });
@@ -648,6 +688,15 @@ io.on('connection', (socket) => {
             s.emit('voice-server-state-update', { isServerMuted: s.isServerMuted, isServerDeafened: deafened });
           }
         }
+        
+        await logAction({
+          serverId: serverId,
+          executorId: socket.userId,
+          targetId: userId,
+          targetModel: 'User',
+          action: 'MEMBER_VOICE_SERVER_DEAFEN',
+          changes: [{ key: 'isServerDeafened', newValue: deafened }]
+        });
       }
     } catch (e) { console.error('admin-voice-deafen error:', e); }
   });
