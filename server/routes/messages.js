@@ -20,49 +20,28 @@ router.get('/channel/:channelId', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { content, channelId, replyTo, attachments, embeds, buttons, playback } = req.body;
-    const message = new Message({
-      content,
-      author: req.user._id,
-      channel: channelId,
-      replyTo,
-      attachments: attachments || [],
-      embeds: embeds || [],
-      buttons: buttons || [],
-      playback: playback || null
-    });
+    const { content, channelId, replyTo, attachments } = req.body;
+    const message = new Message({ content, author: req.user._id, channel: channelId, replyTo, attachments: attachments || [] });
     await message.save();
     await message.populate('author', 'username avatar');
     if (replyTo) await message.populate('replyTo');
     res.status(201).json(message);
-  } catch (error) { 
-    console.error('Create message error:', error);
-    res.status(500).json({ message: 'Server error' }); 
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { content, embeds, buttons, playback } = req.body;
+    const { content } = req.body;
     const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ message: 'Message not found' });
     if (message.author.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'You can only edit your own messages' });
-    
-    if (content !== undefined) message.content = content;
-    if (embeds !== undefined) message.embeds = embeds;
-    if (buttons !== undefined) message.buttons = buttons;
-    if (playback !== undefined) message.playback = playback;
-    
+    message.content = content;
     message.edited = true;
     message.editedAt = new Date();
     await message.save();
     await message.populate('author', 'username avatar');
-    if (message.replyTo) await message.populate('replyTo');
     res.json(message);
-  } catch (error) { 
-    console.error('Update message error:', error);
-    res.status(500).json({ message: 'Server error' }); 
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.delete('/:id', auth, async (req, res) => {

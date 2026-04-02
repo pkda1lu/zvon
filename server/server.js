@@ -198,8 +198,7 @@ io.on('connection', (socket) => {
           style: b.style || 'primary',
           row: b.row || 0
         })) : [],
-        replyTo: data.replyToId || null,
-        playback: data.playback || null
+        replyTo: data.replyToId || null
       };
 
       if (data.attachments) {

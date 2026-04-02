@@ -63,12 +63,6 @@ const messageSchema = new mongoose.Schema({
     style: { type: String, enum: ['primary', 'secondary', 'danger', 'success'], default: 'primary' },
     row: { type: Number, default: 0 }
   }],
-  playback: {
-    startTime: Date,
-    durationMs: Number,
-    isPaused: { type: Boolean, default: false },
-    pausedAt: Date
-  },
   edited: {
     type: Boolean,
     default: false
