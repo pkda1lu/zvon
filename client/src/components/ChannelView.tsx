@@ -108,14 +108,19 @@ const MessageItem = React.memo<{
           )}
 
           {/* Progress bar special for music bot */}
-          {embed.footer?.text?.includes('00:00') && (
+          {(embed.footer?.text?.includes(' - ') || embed.footer?.text?.includes('00:00')) && (
              <div className="embed-progress-bar">
                 <div className="progress-track-wrap">
-                   <span>00:00</span>
                    <div className="progress-track">
-                      <div className="progress-fill" style={{ width: '0%' }} />
+                      <div className="progress-fill" style={{ width: (() => {
+                         const match = (embed.footer?.text || '').match(/(\d+):(\d+)\s-\s(\d+):(\d+)/);
+                         if (!match) return '0%';
+                         const cur = parseInt(match[1]) * 60 + parseInt(match[2]);
+                         const total = parseInt(match[3]) * 60 + parseInt(match[4]);
+                         return total > 0 ? `${Math.min(100, (cur / total) * 100)}%` : '0%';
+                      })() }} />
                    </div>
-                   <span>{embed.footer.text.split(' - ').pop()}</span>
+                   <span>{embed.footer?.text?.split(' - ').shift()}</span>
                 </div>
              </div>
           )}
