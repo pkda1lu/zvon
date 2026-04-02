@@ -208,12 +208,29 @@ async function resolvePlaylistInfo(urlOrUUID) {
     }
 
     if (kind) {
+        console.log(`[Yandex] Resolving kind/uuid: ${kind}...`);
+        
+        // 1. Try official getPlaylistsByIds API first (avoids CAPTCHA)
+        try {
+            const pIdsRes = await yandexClient.playlists.getPlaylistsByIds({ playlistIds: [kind] });
+            if (pIdsRes.result?.[0] && pIdsRes.result[0].tracks?.length) {
+                const p = pIdsRes.result[0];
+                console.log(`[Yandex] Resolved via getPlaylistsByIds: ${p.owner.login}:${p.kind}`);
+                return { owner: p.owner.login, kind: p.kind, res: p };
+            }
+        } catch (e) {
+            console.warn(`[Yandex] getPlaylistsByIds failed: ${e.message}`);
+        }
+
         try {
             const scraperRes = await axios.get(cleanUrl || `https://music.yandex.ru/playlists/${kind}`, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
                 timeout: 8000
             });
             html = scraperRes.data;
+            if (html.includes("captcha") || html.includes("g-recaptcha")) {
+                console.error("[Yandex] CAPTCHA detected!");
+            }
             const finalUrl = scraperRes.request?.res?.responseUrl || cleanUrl;
             if (finalUrl?.includes('/users/')) {
                 const parts = finalUrl.split('/');
@@ -252,7 +269,9 @@ socket.on("new-message", async (msg) => {
                 let res = null;
                 const info = await resolvePlaylistInfo(query);
 
-                if (info.owner && info.kind) {
+                if (info.res) {
+                    res = { result: info.res };
+                } else if (info.owner && info.kind) {
                     res = await yandexClient.playlists.getPlaylistById(info.owner, info.kind);
                 } else if (info.kind) {
                     const sRes = await yandexClient.search.search(info.kind, 0, 'playlist');
