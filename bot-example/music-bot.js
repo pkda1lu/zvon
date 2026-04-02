@@ -210,22 +210,39 @@ async function resolvePlaylistInfo(urlOrUUID) {
     if (kind) {
         console.log(`[Yandex] Resolving kind/uuid: ${kind}...`);
         
-        // 1. Try official getPlaylistsByIds API first (avoids CAPTCHA)
+        // 1. Try official API directly via axios for reliability
         try {
-            const pIdsRes = await yandexClient.playlists.getPlaylistsByIds({ playlistIds: [kind] });
-            if (pIdsRes.result?.[0] && pIdsRes.result[0].tracks?.length) {
-                const p = pIdsRes.result[0];
-                console.log(`[Yandex] Resolved via getPlaylistsByIds: ${p.owner.login}:${p.kind}`);
+            const apiRes = await axios.post('https://api.music.yandex.net/playlists/list', 
+                `playlistIds=${kind}`,
+                {
+                    headers: {
+                        'Authorization': `OAuth ${YANDEX_TOKEN}`,
+                        'X-Yandex-Music-Client': 'Android/14562',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': userAgent
+                    },
+                    timeout: 5000
+                }
+            );
+            
+            if (apiRes.data?.result?.[0] && apiRes.data.result[0].tracks?.length) {
+                const p = apiRes.data.result[0];
+                console.log(`[Yandex] Resolved via Direct API: ${p.owner.login}:${p.kind}`);
                 return { owner: p.owner.login, kind: p.kind, res: p };
             }
         } catch (e) {
-            console.warn(`[Yandex] getPlaylistsByIds failed: ${e.message}`);
+            console.warn(`[Yandex] Direct API resolution failed: ${e.message}`);
         }
 
+        // 2. Try Scraping for canonical URL (fallback)
         try {
             const scraperRes = await axios.get(cleanUrl || `https://music.yandex.ru/playlists/${kind}`, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
-                timeout: 8000
+                headers: { 
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+                    'Referer': 'https://music.yandex.ru/',
+                    'Cookie': `yandexuid=${Math.random().toString().substring(2)};`
+                },
+                timeout: 5000
             });
             html = scraperRes.data;
             if (html.includes("captcha") || html.includes("g-recaptcha")) {
