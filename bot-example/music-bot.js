@@ -193,7 +193,6 @@ async function startPlayback(channelId) {
         
         currentMessageId = res.data._id;
         await playTrackStream(link, channelId);
-        await playTrackStream(link, channelId);
     } catch (err) {
         console.error("Playback Error:", err.message);
         socket.emit("send-message", { content: `❌ Ошибка: ${err.message}`, channelId: lastUsedChannelId });

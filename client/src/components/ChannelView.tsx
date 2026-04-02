@@ -75,9 +75,13 @@ const MessageItem = React.memo<{
     const [currentTime, setCurrentTime] = useState(0);
 
     useEffect(() => {
-      if (!startTime || isPaused) {
-        if (isPaused && pausedAt) {
-           setCurrentTime(Math.min((new Date(pausedAt).getTime() - new Date(startTime).getTime()) / 1000, durationMs / 1000));
+      if (!startTime || durationMs <= 0) return;
+
+      if (isPaused) {
+        if (pausedAt) {
+          const start = new Date(startTime).getTime();
+          const pAt = new Date(pausedAt).getTime();
+          setCurrentTime(Math.min((pAt - start) / 1000, durationMs / 1000));
         }
         return;
       }
@@ -87,7 +91,7 @@ const MessageItem = React.memo<{
         const now = Date.now();
         const diff = (now - start) / 1000;
         setCurrentTime(Math.min(diff, durationMs / 1000));
-        if (diff < durationMs / 1000) {
+        if (diff < durationMs / 1000 && !isPaused) {
           requestAnimationFrame(update);
         }
       };
@@ -153,7 +157,7 @@ const MessageItem = React.memo<{
           )}
 
           {/* Progress bar special for music bot */}
-          {msg.playback && (
+          {msg.playback && msg.playback.durationMs > 0 && (
              <PlaybackProgress 
                 startTime={msg.playback.startTime} 
                 durationMs={msg.playback.durationMs} 

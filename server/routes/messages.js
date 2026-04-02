@@ -20,13 +20,25 @@ router.get('/channel/:channelId', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { content, channelId, replyTo, attachments } = req.body;
-    const message = new Message({ content, author: req.user._id, channel: channelId, replyTo, attachments: attachments || [] });
+    const { content, channelId, replyTo, attachments, embeds, buttons, playback } = req.body;
+    const message = new Message({
+      content,
+      author: req.user._id,
+      channel: channelId,
+      replyTo,
+      attachments: attachments || [],
+      embeds: embeds || [],
+      buttons: buttons || [],
+      playback: playback || null
+    });
     await message.save();
     await message.populate('author', 'username avatar');
     if (replyTo) await message.populate('replyTo');
     res.status(201).json(message);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) { 
+    console.error('Create message error:', error);
+    res.status(500).json({ message: 'Server error' }); 
+  }
 });
 
 router.put('/:id', auth, async (req, res) => {
