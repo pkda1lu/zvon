@@ -341,7 +341,9 @@ io.on('connection', (socket) => {
         return socket.emit('error', { message: 'You can only edit your own messages' });
       }
 
-      message.content = content;
+      message.content = content !== undefined ? content : message.content;
+      if (data.embeds) message.embeds = data.embeds;
+      if (data.buttons) message.buttons = data.buttons;
       message.edited = true;
       message.editedAt = new Date();
       await message.save();
