@@ -162,6 +162,14 @@ async function getTrackUrlCustom(trackId, attempt = 0) {
 }
 
 async function startPlayback(channelId, offset = 0) {
+    // 1. Force kill existing process to prevent overlap
+    if (currentFFmpeg) {
+        console.log("[Playback] Killing old FFmpeg before starting new track...");
+        currentFFmpeg.removeAllListeners('close'); // Important: don't let old close trigger next track
+        currentFFmpeg.kill();
+        currentFFmpeg = null;
+    }
+
     if (currentIndex < 0 || currentIndex >= playlistQueue.length) {
         isPlaying = false;
         isProcessing = false;
@@ -174,27 +182,31 @@ async function startPlayback(channelId, offset = 0) {
     currentTrackOffset = offset;
     currentTrackStartTs = Date.now();
 
-    // Clear old interval
     if (playerUpdateInterval) clearInterval(playerUpdateInterval);
 
     try {
         const link = await getTrackUrlCustom(track.id);
 
-        // Delete old message if exists
-        if (currentPlayerMessageId) {
-            socket.emit("delete-message", { messageId: currentPlayerMessageId });
-            currentPlayerMessageId = null;
+        const embedData = getPlayerEmbed();
+        if (offset === 0) {
+            if (currentPlayerMessageId) {
+                // UPDATE existing message instead of deleting
+                socket.emit("edit-message", {
+                    messageId: currentPlayerMessageId,
+                    channelId: lastUsedChannelId,
+                    ...embedData
+                });
+            } else {
+                // Send new one if not exists
+                socket.emit("send-message", {
+                    channelId: lastUsedChannelId,
+                    ...embedData
+                }, (res) => {
+                    if (res?.messageId) currentPlayerMessageId = res.messageId;
+                });
+            }
         }
 
-        const embedData = getPlayerEmbed();
-        socket.emit("send-message", {
-            channelId: lastUsedChannelId,
-            ...embedData
-        }, (res) => {
-            if (res?.messageId) currentPlayerMessageId = res.messageId;
-        });
-
-        // Start update interval
         playerUpdateInterval = setInterval(() => {
             refreshPlayerMessage();
         }, 10000);
@@ -513,7 +525,6 @@ socket.on("new-message", async (msg) => {
                 currentIndex = playlistQueue.length - added.length; 
                 startPlayback(voiceChannel._id); 
             }
-            else if (added.length === 1) socket.emit("send-message", { content: `➕ В очереди: **${added[0].title}**`, channelId: msg.channel });
         } catch (err) { 
             isProcessing = false;
             socket.emit("send-message", { content: `❌ ${err.message}`, channelId: msg.channel }); 
@@ -668,11 +679,13 @@ async function playTrackStream(url, channelId, offset = 0) {
         });
 
         ffmpeg.on("close", (code) => {
-            currentFFmpeg = null;
-            // If we didn't stop manually, play next
-            if (isPlaying) {
-                currentIndex++;
-                startPlayback(channelId);
+            // Only trigger next track if THIS ffmpeg is still the current one
+            if (currentFFmpeg === ffmpeg) {
+                currentFFmpeg = null;
+                if (isPlaying) {
+                    currentIndex++;
+                    startPlayback(channelId);
+                }
             }
         });
 

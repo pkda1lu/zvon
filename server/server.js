@@ -170,7 +170,7 @@ io.on('connection', (socket) => {
   socket.on('join-channel', (channelId) => socket.join(`channel-${channelId}`));
   socket.on('leave-channel', (channelId) => socket.leave(`channel-${channelId}`));
 
-  socket.on('send-message', async (data) => {
+  socket.on('send-message', async (data, callback) => {
     try {
       const user = await User.findById(socket.userId);
       if (user && user.isBanned) {
@@ -310,7 +310,8 @@ io.on('connection', (socket) => {
         const dm = await DirectMessage.findById(data.dmId).populate('participants');
         if (dm) dm.participants.forEach(p => io.to(`user-${p._id}`).emit('new-message', message));
       }
-    } catch (error) { socket.emit('error', { message: 'Failed to send message' }); }
+        if (typeof callback === 'function') callback({ messageId: message._id });
+      } catch (error) { socket.emit('error', { message: 'Failed to send message' }); }
   });
 
   socket.on('interactive-button-click', async (data) => {
