@@ -993,7 +993,34 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               />
             </React.Fragment>
           ))}
-          {typingUsers.size > 0 && <div className="typing-indicator">{typingUsers.size} пользователь(ей) печатает...</div>}
+          {(() => {
+            const typingNames = Array.from(typingUsers)
+              .map(id => server.members.find(m => String((m.user as any)._id || m.user) === id))
+              .filter(Boolean)
+              .map(m => m?.nickname || (m?.user as any)?.username)
+              .filter(Boolean);
+
+            if (typingNames.length === 0) return null;
+
+            return (
+              <div className="typing-indicator-new">
+                <div className="typing-dots">
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                </div>
+                <span className="typing-text">
+                  {typingNames.length === 1 ? (
+                    <><strong>{typingNames[0]}</strong> печатает...</>
+                  ) : typingNames.length === 2 ? (
+                    <><strong>{typingNames[0]}</strong> и <strong>{typingNames[1]}</strong> печатают...</>
+                  ) : (
+                    <><strong>Несколько человек</strong> печатают...</>
+                  )}
+                </span>
+              </div>
+            );
+          })()}
           <div ref={messagesEndRef} />
         </div>
       </div>

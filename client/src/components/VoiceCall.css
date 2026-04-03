@@ -384,17 +384,93 @@
   display: block;
 }
 
-.screen-share-overlay {
+/* --- SCREENSHARE WATCH OVERLAY --- */
+.screenshare-watch-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(15px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: inherit;
+}
+
+.watch-overlay-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: var(--primary-neon);
+  gap: 20px;
+  color: white;
+  text-align: center;
+}
+
+.watch-overlay-text {
+  font-size: 16px;
   font-weight: 700;
+  color: var(--text-dim);
+  max-width: 200px;
+}
+
+.watch-confirm-btn {
+  background: var(--primary-neon);
+  color: black;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+}
+
+.watch-confirm-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.6);
+}
+
+.stop-watching-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.2s ease;
+}
+
+.stop-watching-btn:hover {
+  background: #ff3b30;
+  border-color: #ff3b30;
+  transform: scale(1.1);
+}
+
+.participant-screenshare {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  border-radius: inherit;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.participant-screenshare video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* --- CONTROL BAR --- */

@@ -121,6 +121,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
   const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [watchingParticipants, setWatchingParticipants] = useState<Set<string>>(new Set());
   const [participantsMetadata, setParticipantsMetadata] = useState<Map<string, User>>(new Map());
 
   const [localSpeaking, setLocalSpeaking] = useState(false);
@@ -257,6 +258,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             next.delete(participant.identity);
             return next;
           });
+        })
+        .on(RoomEvent.TrackPublished, (publication, participant) => {
+          if (publication.source === Track.Source.ScreenShare) {
+            publication.setSubscribed(false);
+          }
         })
         .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           if (publication.source === Track.Source.ScreenShare) {
@@ -501,7 +507,48 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                 )}
                 {screenShare && (
                   <div className="participant-screenshare">
-                    <video autoPlay playsInline muted={p.isMe} ref={el => { if (el && el.srcObject !== screenShare) el.srcObject = screenShare; }} />
+                    {!p.isMe && !watchingParticipants.has(p.identity) ? (
+                      <div className="screenshare-watch-overlay">
+                        <div className="watch-overlay-content">
+                          <MonitorIcon size={48} />
+                          <div className="watch-overlay-text">Демонстрация экрана доступна</div>
+                          <button 
+                            className="watch-confirm-btn" 
+                            onClick={() => {
+                              const pub = p.participant?.getTrackPublication(Track.Source.ScreenShare);
+                              if (pub && 'setSubscribed' in pub) (pub as any).setSubscribed(true);
+                              setWatchingParticipants(prev => new Set(prev).add(p.identity));
+                            }}
+                          >
+                            Смотреть трансляцию
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <video 
+                          autoPlay playsInline muted={p.isMe} 
+                          ref={el => { if (el && el.srcObject !== screenShare) el.srcObject = screenShare; }} 
+                        />
+                        {!p.isMe && (
+                          <button 
+                            className="stop-watching-btn"
+                            onClick={() => {
+                                const pub = p.participant?.getTrackPublication(Track.Source.ScreenShare);
+                                if (pub && 'setSubscribed' in pub) (pub as any).setSubscribed(false);
+                                setWatchingParticipants(prev => {
+                                    const next = new Set(prev);
+                                    next.delete(p.identity);
+                                    return next;
+                                });
+                            }}
+                            title="Прекратить просмотр"
+                          >
+                            <CloseIcon size={20} />
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
                 <div className="participant-label">
