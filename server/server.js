@@ -501,7 +501,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      if (socket.voiceChannelId && socket.voiceChannelId !== channelId) {
+      if (!socket.isBot && socket.voiceChannelId && socket.voiceChannelId !== channelId) {
         socket.leave(`voice-channel-${socket.voiceChannelId}`);
         io.to(`voice-channel-${socket.voiceChannelId}`).emit('voice-user-left', { userId: socket.userId });
         await notifyVoiceChannelUpdate(socket.voiceChannelId);

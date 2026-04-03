@@ -572,6 +572,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     socket.on('user-typing', handleTyping);
     socket.on('user-stopped-typing', handleStoppedTyping);
 
+    const handleMessageUpdated = (updatedMsg: Message) => {
+      if (setMessages) {
+        setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
+      }
+    };
+    socket.on('message-updated', handleMessageUpdated);
+
     const handleReactionsUpdate = (data: { messageId: string, reactions: any[] }) => {
       if (setMessages) {
         setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
@@ -582,6 +589,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     return () => {
       socket.off('user-typing', handleTyping);
       socket.off('user-stopped-typing', handleStoppedTyping);
+      socket.off('message-updated', handleMessageUpdated);
       socket.off('message-reactions-update', handleReactionsUpdate);
     };
   }, [socket, channel._id, user?._id, setMessages]);
