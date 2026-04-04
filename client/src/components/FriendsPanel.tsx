@@ -14,11 +14,13 @@ interface FriendsPanelProps {
   onStartDM: (userId: string) => void;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   unreadCounts: Record<string, number>;
+  onBack?: () => void;
+  isMobile?: boolean;
 }
 
 interface DMDict { [userId: string]: string; }
 
-const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unreadCounts }) => {
+const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unreadCounts, onBack, isMobile }) => {
   const { socket } = useSocket();
   const { user: currentUser } = useAuth();
   const { confirm } = useDialog();
@@ -98,6 +100,17 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ onStartDM, onUserClick, unr
 
   return (
     <div className="friends-panel">
+      {isMobile && (
+        <div className="friends-mobile-header">
+          <button className="back-button" onClick={onBack} title="Назад в меню">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <h3>Друзья</h3>
+        </div>
+      )}
       <div className="friends-tabs">
         <button className={activeTab === 'friends' ? 'active' : ''} onClick={() => setActiveTab('friends')}>Друзья</button>
         <button className={activeTab === 'pending' ? 'active' : ''} onClick={() => setActiveTab('pending')}>Запросы</button>

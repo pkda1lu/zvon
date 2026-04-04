@@ -36,11 +36,14 @@ interface DMViewProps {
   onLoadMore?: () => Promise<void>;
   pinnedMessages?: Message[];
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
+  onBack?: () => void;
+  isMobile?: boolean;
 }
 
 const DMView: React.FC<DMViewProps> = ({
   dm, messages, socket, onClose, onStartCall, onStartGroupCall, onUserClick, initialUnreadCount = 0,
-  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages
+  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages,
+  onBack, isMobile
 }) => {
   const { user } = useAuth();
   const { alert } = useDialog();
@@ -486,7 +489,7 @@ const DMView: React.FC<DMViewProps> = ({
       )}
       <div className="dm-container">
         <div className="dm-header">
-          <button className="back-button" onClick={onClose} title="Назад">
+          <button className="back-button" onClick={onBack || onClose} title="Назад">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>

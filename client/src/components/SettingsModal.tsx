@@ -146,6 +146,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   } = useWindowSettings();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
+  const [mobileViewState, setMobileViewState] = useState<'tabs' | 'content'>('tabs');
+  const isMobile = window.innerWidth <= 768; // Simple check or pass from props
   const [reports, setReports] = useState<any[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
 
@@ -1273,154 +1275,152 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
 
   return (
-    <div className="settings-modal-overlay" onClick={onClose}>
-      <div className="settings-modal-container" onClick={e => e.stopPropagation()}>
-
-        {/* Sidebar */}
-        <div className="settings-sidebar">
-          <div className="settings-sidebar-content">
-
+    <div className={`settings-modal-overlay ${isMobile ? 'is-mobile' : ''}`} onClick={onClose}>
+      <div className={`settings-modal-container ${isMobile ? mobileViewState : ''}`} onClick={e => e.stopPropagation()}>
+        {(!isMobile || mobileViewState === 'tabs') && (
+          <div className="settings-sidebar">
             <div className="sidebar-header">Настройки пользователя</div>
-            <div
-              className={`sidebar-item ${activeTab === 'account' ? 'active' : ''}`}
-              onClick={() => setActiveTab('account')}
-            >
-              <UsersIcon size={18} /> Моя учётная запись
+            <div className={`sidebar-item ${activeTab === 'account' ? 'active' : ''}`} onClick={() => { setActiveTab('account'); if (isMobile) setMobileViewState('content'); }}>
+              <UsersIcon size={20} />
+              <span>Моя учётная запись</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'privacy' ? 'active' : ''}`}
-              onClick={() => setActiveTab('privacy')}
-            >
-              <ShieldIcon size={18} /> Данные и конфиденциальность
+            <div className={`sidebar-item ${activeTab === 'privacy' ? 'active' : ''}`} onClick={() => { setActiveTab('privacy'); if (isMobile) setMobileViewState('content'); }}>
+              <ShieldIcon size={20} />
+              <span>Конфиденциальность</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'devices' ? 'active' : ''}`}
-              onClick={() => setActiveTab('devices')}
-            >
-              <SmartphoneIcon size={18} /> Устройства
+            <div className={`sidebar-item ${activeTab === 'devices' ? 'active' : ''}`} onClick={() => { setActiveTab('devices'); if (isMobile) setMobileViewState('content'); }}>
+              <SmartphoneIcon size={20} />
+              <span>Устройства</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'bots' ? 'active' : ''}`}
-              onClick={() => setActiveTab('bots')}
-            >
-              <BotIcon size={18} /> Мои боты
+            <div className={`sidebar-item ${activeTab === 'bots' ? 'active' : ''}`} onClick={() => { setActiveTab('bots'); if (isMobile) setMobileViewState('content'); }}>
+              <BotIcon size={20} />
+              <span>Мои боты</span>
             </div>
 
             {(user?.role === 'moderator' || user?.role === 'admin') && (
               <div
                 className={`sidebar-item ${activeTab === 'moderation' ? 'active' : ''}`}
-                onClick={() => setActiveTab('moderation')}
+                onClick={() => { setActiveTab('moderation'); if (isMobile) setMobileViewState('content'); }}
               >
-                <ShieldIcon size={18} /> Модерация
+                <ShieldIcon size={20} /> <span>Модерация</span>
               </div>
             )}
 
             <div className="sidebar-separator" />
 
             <div className="sidebar-header">Настройки приложения</div>
-            <div
-              className={`sidebar-item ${activeTab === 'appearance' ? 'active' : ''}`}
-              onClick={() => setActiveTab('appearance')}
-            >
-              <PaletteIcon size={18} /> Внешний вид
+            <div className={`sidebar-item ${activeTab === 'appearance' ? 'active' : ''}`} onClick={() => { setActiveTab('appearance'); if (isMobile) setMobileViewState('content'); }}>
+              <PaletteIcon size={20} />
+              <span>Внешний вид</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'voice' ? 'active' : ''}`}
-              onClick={() => setActiveTab('voice')}
-            >
-              <SpeakerIcon size={18} /> Голос и видео
+            <div className={`sidebar-item ${activeTab === 'voice' ? 'active' : ''}`} onClick={() => { setActiveTab('voice'); if (isMobile) setMobileViewState('content'); }}>
+              <SpeakerIcon size={20} />
+              <span>Голос и видео</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'chat' ? 'active' : ''}`}
-              onClick={() => setActiveTab('chat')}
-            >
-              <ChatIcon size={18} /> Чат
+            <div className={`sidebar-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => { setActiveTab('chat'); if (isMobile) setMobileViewState('content'); }}>
+              <ChatIcon size={20} />
+              <span>Чат</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'keybinds' ? 'active' : ''}`}
-              onClick={() => setActiveTab('keybinds')}
-            >
-              <KeyboardIcon size={18} /> Горячие клавиши
+            <div className={`sidebar-item ${activeTab === 'keybinds' ? 'active' : ''}`} onClick={() => { setActiveTab('keybinds'); if (isMobile) setMobileViewState('content'); }}>
+              <KeyboardIcon size={20} />
+              <span>Горячие клавиши</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'windows' ? 'active' : ''}`}
-              onClick={() => setActiveTab('windows')}
-            >
-              <MonitorIcon size={18} /> Настройки Windows
+            <div className={`sidebar-item ${activeTab === 'windows' ? 'active' : ''}`} onClick={() => { setActiveTab('windows'); if (isMobile) setMobileViewState('content'); }}>
+              <MonitorIcon size={20} />
+              <span>Настройки Windows</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'streamer' ? 'active' : ''}`}
-              onClick={() => setActiveTab('streamer')}
-            >
-              <CameraIcon size={18} /> Режим стримера
+            <div className={`sidebar-item ${activeTab === 'streamer' ? 'active' : ''}`} onClick={() => { setActiveTab('streamer'); if (isMobile) setMobileViewState('content'); }}>
+              <CameraIcon size={20} />
+              <span>Режим стримера</span>
             </div>
-            <div
-              className={`sidebar-item ${activeTab === 'advanced' ? 'active' : ''}`}
-              onClick={() => setActiveTab('advanced')}
-            >
-              <EllipsisIcon size={18} /> Расширенные
+            <div className={`sidebar-item ${activeTab === 'advanced' ? 'active' : ''}`} onClick={() => { setActiveTab('advanced'); if (isMobile) setMobileViewState('content'); }}>
+              <EllipsisIcon size={20} />
+              <span>Расширенные</span>
             </div>
 
             <div className="sidebar-separator" />
 
             <div className="sidebar-header">Настройки активности</div>
-            <div
-              className={`sidebar-item ${activeTab === 'activity' ? 'active' : ''}`}
-              onClick={() => setActiveTab('activity')}
-            >
-              <ShieldIcon size={18} /> Конфиденциальность активности
+            <div className={`sidebar-item ${activeTab === 'activity' ? 'active' : ''}`} onClick={() => { setActiveTab('activity'); if (isMobile) setMobileViewState('content'); }}>
+              <ShieldIcon size={20} /> <span>Активность</span>
             </div>
-
-
-            <div className="sidebar-separator" style={{ marginTop: 'auto' }} />
 
             <div className="sidebar-item logout" onClick={() => { logout(); onClose(); navigate('/login'); }}>
-              <LogOutIcon size={18} /> Выйти из аккаунта
+              <LogOutIcon size={18} />
+              <span>Выйти из аккаунта</span>
             </div>
 
-            <div className="settings-sidebar-footer" style={{ marginTop: '20px', textAlign: 'center', fontSize: '11px', color: 'var(--text-dim)' }}>
-              <a
-                href="https://t.me/vless_outline_channel"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}
-                onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary-neon)'}
-                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+            {isMobile && (
+              <button 
+                className="sidebar-item" 
+                onClick={onClose} 
+                style={{ marginTop: 'auto', background: 'rgba(255,255,255,0.05)', color: 'white' }}
               >
-                prod by Vlyne {"<3"}
-              </a>
+                Закрыть настройки
+              </button>
+            )}
+          </div>
+        )}
+
+        {(!isMobile || mobileViewState === 'content') && (
+          <main className="settings-main">
+            {isMobile && (
+               <div className="mobile-settings-header" style={{ 
+                 height: '56px', 
+                 display: 'flex', 
+                 alignItems: 'center', 
+                 padding: 'max(env(safe-area-inset-top), 40px) 16px 8px', 
+                 borderBottom: '1px solid rgba(255,255,255,0.1)',
+                 boxSizing: 'content-box',
+                 background: 'rgba(0,0,0,0.2)',
+                 backdropFilter: 'blur(10px)'
+               }}>
+                  <button className="back-button" onClick={() => setMobileViewState('tabs')} style={{ marginRight: '16px' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                  </button>
+                  <span style={{ fontWeight: 800, fontSize: '16px' }}>
+                    {activeTab === 'account' && 'Профиль'}
+                    {activeTab === 'privacy' && 'Конфиденциальность'}
+                    {activeTab === 'appearance' && 'Внешний вид'}
+                    {activeTab === 'voice' && 'Голос и видео'}
+                    {activeTab === 'chat' && 'Чат'}
+                    {activeTab === 'advanced' && 'Расширенные'}
+                    {activeTab === 'moderation' && 'Модерация'}
+                    {activeTab === 'devices' && 'Устройства'}
+                    {activeTab === 'bots' && 'Мои боты'}
+                    {activeTab === 'keybinds' && 'Горячие клавиши'}
+                    {activeTab === 'windows' && 'Настройки Windows'}
+                    {activeTab === 'streamer' && 'Режим стримера'}
+                    {activeTab === 'activity' && 'Активность'}
+                  </span>
+               </div>
+            )}
+            {!isMobile && (
+              <div className="close-settings-button" onClick={onClose}>
+                <div className="close-circle"><CloseIcon size={20} /></div>
+                <span className="close-text">ESC</span>
+              </div>
+            )}
+
+            <div className="settings-content-wrapper">
+              <div className="settings-content-inner">
+                {activeTab === 'account' && renderAccountSettings()}
+                {activeTab === 'privacy' && renderPrivacySettings()}
+                {activeTab === 'appearance' && renderAppearanceSettings()}
+                {activeTab === 'voice' && renderVoiceSettings()}
+                {activeTab === 'chat' && renderChatSettings()}
+                {activeTab === 'advanced' && renderPlaceholder('Расширенные', <EllipsisIcon size={80} />)}
+                {activeTab === 'moderation' && <ModerationSettings />}
+                {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
+                {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
+                {activeTab === 'windows' && renderWindowsSettings()}
+                {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
+                {activeTab === 'activity' && renderPlaceholder('Активность', <ShieldIcon size={80} />)}
+                {activeTab === 'bots' && <BotsSettings />}
+              </div>
             </div>
-
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="settings-main">
-          <div className="settings-content-wrapper">
-            <div className="settings-content-inner">
-              {activeTab === 'account' && renderAccountSettings()}
-              {activeTab === 'privacy' && renderPrivacySettings()}
-              {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
-              {activeTab === 'appearance' && renderAppearanceSettings()}
-              {activeTab === 'voice' && renderVoiceSettings()}
-              {activeTab === 'chat' && renderChatSettings()}
-              {activeTab === 'bots' && <BotsSettings />}
-              {activeTab === 'moderation' && <ModerationSettings />}
-
-              {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
-              {activeTab === 'windows' && renderWindowsSettings()}
-              {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
-              {activeTab === 'advanced' && renderPlaceholder('Расширенные', <EllipsisIcon size={80} />)}
-              {activeTab === 'activity' && renderPlaceholder('Конфиденциальность активности', <ShieldIcon size={80} />)}
-            </div>
-          </div>
-
-          <div className="close-settings-button" onClick={onClose}>
-            <div className="close-circle"><CloseIcon size={20} /></div>
-            <div className="close-text">Esc</div>
-          </div>
-        </div>
-
+          </main>
+        )}
       </div>
     </div>
   );

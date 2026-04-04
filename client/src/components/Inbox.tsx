@@ -12,6 +12,13 @@ interface InboxProps {
 
 const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
     const { items, markAsRead, markAllAsRead, removeItem, clearInbox } = useInbox();
+    const [activeTab, setActiveTab] = React.useState<'all' | 'mentions'>('all');
+    const isMobile = window.innerWidth <= 768;
+
+    const filteredItems = items.filter(item => {
+        if (activeTab === 'mentions') return item.type === 'mention';
+        return true;
+    });
 
     const formatDate = (date: Date) => {
         const now = new Date();
@@ -23,22 +30,33 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
     };
 
     return (
-        <div className="inbox-overlay">
+        <div className={`inbox-overlay ${isMobile ? 'is-mobile' : ''}`}>
             <div className="inbox-header">
+                {isMobile && (
+                    <button className="back-button" onClick={onClose} style={{ marginRight: '12px' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                )}
                 <h3>Входящие</h3>
                 <div className="inbox-actions">
                     <button className="inbox-action-btn" onClick={markAllAsRead}>Прочитать все</button>
-                    <button className="inbox-action-btn" onClick={clearInbox}>Очистить</button>
+                    {!isMobile && <button className="inbox-action-btn" onClick={clearInbox}>Очистить</button>}
                 </div>
             </div>
+
+            <div className="inbox-tabs">
+                <div className={`inbox-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>Все</div>
+                <div className={`inbox-tab ${activeTab === 'mentions' ? 'active' : ''}`} onClick={() => setActiveTab('mentions')}>Упоминания</div>
+            </div>
+
             <div className="inbox-list">
-                {items.length === 0 ? (
+                {filteredItems.length === 0 ? (
                     <div className="inbox-empty">
                         <div className="inbox-empty-icon">📫</div>
-                        <p>У вас нет новых уведомлений</p>
+                        <p>{activeTab === 'mentions' ? 'У вас нет новых упоминаний' : 'У вас нет новых уведомлений'}</p>
                     </div>
                 ) : (
-                    items.map(item => (
+                    filteredItems.map(item => (
                         <div
                             key={item.id}
                             className={`inbox-item ${item.type} ${!item.read ? 'unread' : ''}`}

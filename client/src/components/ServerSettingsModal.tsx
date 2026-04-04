@@ -61,6 +61,8 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const { user: currentUser } = useAuth();
     const { confirm, alert } = useDialog();
     const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
+    const isMobile = window.innerWidth <= 768;
+    const [mobileViewState, setMobileViewState] = useState<'tabs' | 'content'>('tabs');
     const [serverName, setServerName] = useState(server.name);
     const [serverDescription, setServerDescription] = useState(server.description || '');
     const [serverIcon, setServerIcon] = useState(server.icon);
@@ -386,23 +388,51 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const modalContent = (
         <div className="server-settings-modal-overlay">
             <div className="server-settings-modal">
-                <div className="server-settings-sidebar">
-                    <div className="sidebar-header">{server.name}</div>
-                    <div className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => { setActiveTab('overview'); setEditingRole(null); }}>Обзор</div>
-                    <div className={`sidebar-item ${activeTab === 'roles' ? 'active' : ''}`} onClick={() => { setActiveTab('roles'); setEditingRole(null); }}>Роли</div>
-                    <div className={`sidebar-item ${activeTab === 'emojis' ? 'active' : ''}`} onClick={() => { setActiveTab('emojis'); setEditingRole(null); }}>Эмодзи</div>
-                    {canViewAuditLog && <div className={`sidebar-item ${activeTab === 'audit_log' ? 'active' : ''}`} onClick={() => { setActiveTab('audit_log'); setEditingRole(null); }}>Журнал аудита</div>}
-                    <div className="sidebar-header">Управление</div>
-                    <div className={`sidebar-item ${activeTab === 'members' ? 'active' : ''}`} onClick={() => { setActiveTab('members'); setEditingRole(null); }}>Участники</div>
-                    <div style={{ flex: 1 }} />
-                    {isOwner && <div className="sidebar-item danger" onClick={handleDeleteServer}>Удалить сервер</div>}
-                </div>
-
-                <div className="server-settings-content">
-                    <div className="close-settings-button" onClick={onClose}>
-                        <div className="close-icon-wrapper"><CloseIcon size={20} /></div>
-                        <span className="close-text">ESC</span>
+                {(!isMobile || mobileViewState === 'tabs') && (
+                    <div className="server-settings-sidebar">
+                        <div className="sidebar-header">{server.name}</div>
+                        <div className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => { setActiveTab('overview'); setEditingRole(null); if (isMobile) setMobileViewState('content'); }}>Обзор</div>
+                        <div className={`sidebar-item ${activeTab === 'roles' ? 'active' : ''}`} onClick={() => { setActiveTab('roles'); setEditingRole(null); if (isMobile) setMobileViewState('content'); }}>Роли</div>
+                        <div className={`sidebar-item ${activeTab === 'emojis' ? 'active' : ''}`} onClick={() => { setActiveTab('emojis'); setEditingRole(null); if (isMobile) setMobileViewState('content'); }}>Эмодзи</div>
+                        {canViewAuditLog && <div className={`sidebar-item ${activeTab === 'audit_log' ? 'active' : ''}`} onClick={() => { setActiveTab('audit_log'); setEditingRole(null); if (isMobile) setMobileViewState('content'); }}>Журнал аудита</div>}
+                        <div className="sidebar-header">Управление</div>
+                        <div className={`sidebar-item ${activeTab === 'members' ? 'active' : ''}`} onClick={() => { setActiveTab('members'); setEditingRole(null); if (isMobile) setMobileViewState('content'); }}>Участники</div>
+                        <div style={{ flex: 1 }} />
+                        {isOwner && <div className="sidebar-item danger" onClick={handleDeleteServer}>Удалить сервер</div>}
+                        {isMobile && <div className="sidebar-item" onClick={onClose} style={{ marginTop: 'auto', background: 'rgba(255,255,254,0.05)' }}>Закрыть</div>}
                     </div>
+                )}
+
+                {(!isMobile || mobileViewState === 'content') && (
+                    <div className="server-settings-content">
+                        {isMobile ? (
+                            <div className="mobile-settings-header" style={{ 
+                                height: '56px', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                padding: 'max(env(safe-area-inset-top), 40px) 16px 8px', 
+                                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                boxSizing: 'content-box',
+                                background: 'rgba(0,0,0,0.2)',
+                                backdropFilter: 'blur(10px)'
+                            }}>
+                                <button className="back-button" onClick={() => setMobileViewState('tabs')} style={{ marginRight: '16px' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                                </button>
+                                <span style={{ fontWeight: 800, fontSize: '18px' }}>
+                                    {activeTab === 'overview' && 'Обзор'}
+                                    {activeTab === 'roles' && 'Роли'}
+                                    {activeTab === 'emojis' && 'Эмодзи'}
+                                    {activeTab === 'audit_log' && 'Аудит'}
+                                    {activeTab === 'members' && 'Участники'}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="close-settings-button" onClick={onClose}>
+                                <div className="close-icon-wrapper"><CloseIcon size={20} /></div>
+                                <span className="close-text">ESC</span>
+                            </div>
+                        )}
 
                     <div className="content-scroll-area">
                         {activeTab === 'overview' && (
@@ -820,7 +850,8 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
+                    </div>
+                )}
             </div>
             {cropModal.isOpen && <ImageCropper image={cropModal.image} onCropComplete={handleCropComplete} onCancel={() => setCropModal(prev => ({ ...prev, isOpen: false }))} aspect={cropModal.type === 'icon' ? 1 : 16 / 9} />}
         </div>

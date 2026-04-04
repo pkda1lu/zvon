@@ -9,9 +9,11 @@ import './ServerMembers.css';
 interface ServerMembersProps {
     server: Server;
     onUserClick: (userId: string, event?: React.MouseEvent) => void;
+    onBack?: () => void;
+    isMobile?: boolean;
 }
 
-const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) => {
+const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBack, isMobile }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
 
     const handleContextMenu = (e: React.MouseEvent, user: User) => {
@@ -21,6 +23,14 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick }) =>
 
     return (
         <div className="server-members">
+            {isMobile && onBack && (
+                <div className="members-mobile-header">
+                    <button className="mobile-close-btn" onClick={onBack}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <span>Участники</span>
+                </div>
+            )}
             <div className="members-list">
                 {(() => {
                     // Get all server roles sorted by position

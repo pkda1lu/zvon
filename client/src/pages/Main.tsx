@@ -78,6 +78,18 @@ const Main: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [mobileView, setMobileView] = useState<'sidebar' | 'content' | 'members'>('sidebar');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) setMobileView('content'); // Default to content on desktop, though CSS will handle it
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (selectedServer) {
@@ -106,6 +118,7 @@ const Main: React.FC = () => {
       setSelectedChannel(null);
       setSelectedServer(null);
       setShowFriends(false);
+      setMobileView('content');
     };
     const handleStartCallEvent = (e: any) => { handleStartDirectCall(e.detail.user, e.detail.dmId); };
     const handleOpenServerProfileSettings = (e: any) => {
@@ -119,6 +132,7 @@ const Main: React.FC = () => {
         setSelectedChannel(null);
         setSelectedServer(null);
         setShowFriends(false);
+        setMobileView('content');
       } catch (err) { }
     };
     window.addEventListener('mousemove', handleMouseMove);
@@ -174,7 +188,7 @@ const Main: React.FC = () => {
 
   useEffect(() => {
     if (selectedChannel) {
-      setUnreadCounts(prev => {
+      setUnreadCounts((prev: Record<string, number>) => {
         if (!prev[selectedChannel._id]) return prev;
         const next = { ...prev };
         delete next[selectedChannel._id];
@@ -185,7 +199,7 @@ const Main: React.FC = () => {
 
   useEffect(() => {
     if (selectedDM) {
-      setUnreadCounts(prev => {
+      setUnreadCounts((prev: Record<string, number>) => {
         if (!prev[selectedDM._id]) return prev;
         const next = { ...prev };
         delete next[selectedDM._id];
@@ -259,7 +273,7 @@ const Main: React.FC = () => {
         params: { before: lastMessage.createdAt }
       });
       if (response.data.length > 0) {
-        setMessages(prev => [...response.data, ...prev]);
+        setMessages((prev: Message[]) => [...response.data, ...prev]);
         setHasMore(response.data.length === 50);
       } else {
         setHasMore(false);
@@ -287,7 +301,7 @@ const Main: React.FC = () => {
         params: { before: lastMessage.createdAt }
       });
       if (response.data.length > 0) {
-        setDmMessages(prev => [...response.data, ...prev]);
+        setDmMessages((prev: Message[]) => [...response.data, ...prev]);
         setHasMore(response.data.length === 50);
       } else {
         setHasMore(false);
@@ -303,13 +317,13 @@ const Main: React.FC = () => {
 
   useEffect(() => {
     if (socket && servers.length > 0) {
-      servers.forEach(server => socket.emit('join-server', server._id));
+      servers.forEach((server: Server) => socket.emit('join-server', server._id));
     }
   }, [socket, servers.length]);
 
   const handleServerUpdate = useCallback((updatedServer: Server) => {
-    setServers(prev => prev.map(s => s._id === updatedServer._id ? updatedServer : s));
-    setSelectedServer(prev => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
+    setServers((prev: Server[]) => prev.map((s: Server) => s._id === updatedServer._id ? updatedServer : s));
+    setSelectedServer((prev: Server | null) => (prev && prev._id === updatedServer._id) ? updatedServer : prev);
   }, []);
 
   useEffect(() => {
@@ -351,47 +365,47 @@ const Main: React.FC = () => {
     };
     const handleServerMemberUpdate = (data: { serverId: string; member: any }) => {
       const targetUserId = String(data.member.user?._id || data.member.user);
-      setServers(prev => prev.map(s => s._id === data.serverId ? { ...s, members: s.members.map(m => String(m.user?._id || m.user) === targetUserId ? data.member : m) } : s));
-      setSelectedServer(prev => (prev && prev._id === data.serverId) ? { ...prev, members: prev.members.map(m => String(m.user?._id || m.user) === targetUserId ? data.member : m) } : prev);
+      setServers((prev: Server[]) => prev.map((s: Server) => s._id === data.serverId ? { ...s, members: s.members.map((m: any) => String(m.user?._id || m.user) === targetUserId ? data.member : m) } : s));
+      setSelectedServer((prev: Server | null) => (prev && prev._id === data.serverId) ? { ...prev, members: prev.members.map((m: any) => String(m.user?._id || m.user) === targetUserId ? data.member : m) } : prev);
     };
     const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
       const targetUserId = String(updatedUser._id);
-      setServers(prev => prev.map(server => ({
+      setServers((prev: Server[]) => prev.map((server: Server) => ({
         ...server,
-        members: server.members.map(member => String(member.user?._id || member.user) === targetUserId ? { ...member, user: { ...member.user, ...updatedUser } } : member)
+        members: server.members.map((member: any) => String(member.user?._id || member.user) === targetUserId ? { ...member, user: { ...member.user, ...updatedUser } } : member)
       })));
-      setSelectedServer(prev => prev ? {
+      setSelectedServer((prev: Server | null) => prev ? {
         ...prev,
-        members: prev.members.map(member => String(member.user?._id || member.user) === targetUserId ? { ...member, user: { ...member.user, ...updatedUser } } : member)
+        members: prev.members.map((member: any) => String(member.user?._id || member.user) === targetUserId ? { ...member, user: { ...member.user, ...updatedUser } } : member)
       } : prev);
-      setSelectedDM(prev => prev ? {
+      setSelectedDM((prev: DirectMessage | null) => prev ? {
         ...prev,
-        participants: prev.participants.map(p => p._id === updatedUser._id ? { ...p, ...updatedUser } : p)
+        participants: prev.participants.map((p: User) => p._id === updatedUser._id ? { ...p, ...updatedUser } : p)
       } : prev);
       if (updatedUser._id === user?._id) updateUser(updatedUser);
     };
     const handleServerMemberJoined = (data: { serverId: string; member: any; server?: Server }) => {
       if (data.server) { handleServerUpdate(data.server); return; }
       const newUserId = String(data.member.user?._id || data.member.user);
-      setServers(prev => prev.map(s => (s._id === data.serverId && !s.members.some(m => String(m.user?._id || m.user) === newUserId)) ? { ...s, members: [...s.members, data.member] } : s));
-      setSelectedServer(prev => (prev && prev._id === data.serverId && !prev.members.some(m => String(m.user?._id || m.user) === newUserId)) ? { ...prev, members: [...prev.members, data.member] } : prev);
+      setServers((prev: Server[]) => prev.map((s: Server) => (s._id === data.serverId && !s.members.some((m: any) => String(m.user?._id || m.user) === newUserId)) ? { ...s, members: [...s.members, data.member] } : s));
+      setSelectedServer((prev: Server | null) => (prev && prev._id === data.serverId && !prev.members.some((m: any) => String(m.user?._id || m.user) === newUserId)) ? { ...prev, members: [...prev.members, data.member] } : prev);
     };
     const handleServerMemberLeft = (data: { serverId: string; userId: string }) => {
       const targetUserId = String(data.userId);
-      setServers(prev => prev.map(s => s._id === data.serverId ? { ...s, members: s.members.filter(m => String(m.user?._id || m.user) !== targetUserId) } : s));
-      setSelectedServer(prev => (prev && prev._id === data.serverId) ? { ...prev, members: prev.members.filter(m => String(m.user?._id || m.user) !== targetUserId) } : prev);
+      setServers((prev: Server[]) => prev.map((s: Server) => s._id === data.serverId ? { ...s, members: s.members.filter((m: any) => String(m.user?._id || m.user) !== targetUserId) } : s));
+      setSelectedServer((prev: Server | null) => (prev && prev._id === data.serverId) ? { ...prev, members: prev.members.filter((m: any) => String(m.user?._id || m.user) !== targetUserId) } : prev);
       if (userRef.current?._id && targetUserId === String(userRef.current._id)) {
         leaveChannel();
-        setServers(prev => prev.filter(s => s._id !== data.serverId));
-        setSelectedServer(prev => prev && prev._id === data.serverId ? null : prev);
-        setSelectedChannel(prev => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);
+        setServers((prev: Server[]) => prev.filter((s: Server) => s._id !== data.serverId));
+        setSelectedServer((prev: Server | null) => prev && prev._id === data.serverId ? null : prev);
+        setSelectedChannel((prev: Channel | null) => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);
       }
     };
     const handleServerKicked = (data: { serverId: string }) => {
       leaveChannel();
-      setServers(prev => prev.filter(s => s._id !== data.serverId));
-      setSelectedServer(prev => prev && prev._id === data.serverId ? null : prev);
-      setSelectedChannel(prev => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);
+      setServers((prev: Server[]) => prev.filter((s: Server) => s._id !== data.serverId));
+      setSelectedServer((prev: Server | null) => prev && prev._id === data.serverId ? null : prev);
+      setSelectedChannel((prev: Channel | null) => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);
     };
     const handleServerDeletedSocket = (data: { serverId: string }) => { handleServerDelete(data.serverId); };
 
@@ -424,7 +438,7 @@ const Main: React.FC = () => {
 
         if (!isSelected) {
           const id = message.directMessage || message.channel;
-          if (id) setUnreadCounts(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+          if (id) setUnreadCounts((prev: Record<string, number>) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
 
           // Only show old toast for channel messages WITHOUT mentions of current user. 
           // DMs and Mentions are now handled by InboxContext (persistent + new toast).
@@ -451,16 +465,16 @@ const Main: React.FC = () => {
     s.on('new-message', handleGlobalMessage);
 
     const handleMessagePinnedUpdate = (message: Message) => {
-      setMessages(prev => prev.map(m => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
-      setDmMessages(prev => prev.map(m => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
+      setMessages((prev: Message[]) => prev.map((m: Message) => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
+      setDmMessages((prev: Message[]) => prev.map((m: Message) => m._id === message._id ? { ...m, pinned: message.pinned, pinnedAt: message.pinnedAt } : m));
 
       if (message.pinned) {
-        setPinnedMessages(prev => {
-          if (prev.some(p => p._id === message._id)) return prev;
+        setPinnedMessages((prev: Message[]) => {
+          if (prev.some((p: Message) => p._id === message._id)) return prev;
           return [message, ...prev].sort((a, b) => new Date(b.pinnedAt!).getTime() - new Date(a.pinnedAt!).getTime());
         });
       } else {
-        setPinnedMessages(prev => prev.filter(p => p._id !== message._id));
+        setPinnedMessages((prev: Message[]) => prev.filter((p: Message) => p._id !== message._id));
       }
     };
 
@@ -479,8 +493,8 @@ const Main: React.FC = () => {
       setMessages([]); setSelectedDM(null);
       s.emit('join-channel', selectedChannel._id);
       fetchMessages(selectedChannel._id);
-      const handleNewMessage = (message: Message) => { if (message.channel === selectedChannel._id) setMessages((prev) => [...prev, message]); };
-      const handleMessageDeleted = (messageId: string) => setMessages((prev) => prev.filter(m => m._id !== messageId));
+      const handleNewMessage = (message: Message) => { if (message.channel === selectedChannel._id) setMessages((prev: Message[]) => [...prev, message]); };
+      const handleMessageDeleted = (messageId: string) => setMessages((prev: Message[]) => prev.filter((m: Message) => m._id !== messageId));
       s.on('new-message', handleNewMessage);
       s.on('message-deleted', handleMessageDeleted);
       return () => {
@@ -496,8 +510,8 @@ const Main: React.FC = () => {
     const s = socket;
     setDmMessages([]); setSelectedChannel(null);
     fetchDMMessages(selectedDM._id);
-    const handleNewMessage = (message: Message) => { if (message.directMessage === selectedDM._id) setDmMessages((prev) => [...prev, message]); };
-    const handleMessageDeleted = (messageId: string) => setDmMessages((prev) => prev.filter(m => m._id !== messageId));
+    const handleNewMessage = (message: Message) => { if (message.directMessage === selectedDM._id) setDmMessages((prev: Message[]) => [...prev, message]); };
+    const handleMessageDeleted = (messageId: string) => setDmMessages((prev: Message[]) => prev.filter((m: Message) => m._id !== messageId));
     s.on('new-message', handleNewMessage);
     s.on('message-deleted', handleMessageDeleted);
     return () => { s.off('new-message', handleNewMessage); s.off('message-deleted', handleMessageDeleted); };
@@ -506,7 +520,7 @@ const Main: React.FC = () => {
   const handleCreateServer = async (name: string) => {
     try {
       const response = await axios.post('/api/servers', { name });
-      setServers((prev) => [...prev, response.data]);
+      setServers((prev: Server[]) => [...prev, response.data]);
       setSelectedServer(response.data);
       if (socket) socket.emit('join-server', response.data._id);
       if (response.data.channels.length > 0) setSelectedChannel(response.data.channels[0]);
@@ -519,6 +533,7 @@ const Main: React.FC = () => {
     setSelectedChannel(channel);
     setSelectedDM(null);
     setShowFriends(false);
+    setMobileView('content');
     if (channel.type === 'voice') setMessages([]);
   };
   const handleStartDM = async (userId: string) => {
@@ -530,6 +545,7 @@ const Main: React.FC = () => {
       setSelectedChannel(null);
       setSelectedServer(null);
       setShowFriends(false);
+      setMobileView('content');
     } catch (error) { }
   };
   const handleStartDirectCall = (user: User, dmId: string) => { setActiveCall({ user, isIncoming: false, dmId, isGroup: false }); };
@@ -578,132 +594,169 @@ const Main: React.FC = () => {
   if (loading) return <div className="loading">Загрузка...</div>;
 
   return (
-    <div className="main-container">
-      <Sidebar
-        user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
-        onServerSelect={(server) => {
-          setSelectedServer(server); setShowFriends(false); setSelectedDM(null);
-          const firstTextChannel = server.channels.find(c => c.type === 'text');
-          if (firstTextChannel) {
-            setMessages([]);
-            setSelectedChannel(firstTextChannel);
-            fetchMessages(firstTextChannel._id);
-          }
-          else if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
-        }}
-        onCreateServer={handleCreateServer}
-        onServerJoined={(server) => { setServers((prev) => [...prev, server]); setSelectedServer(server); if (socket) socket.emit('join-server', server._id); if (server.channels.length > 0) setSelectedChannel(server.channels[0]); }}
-        onLogout={logout} onShowFriends={() => { setShowFriends(true); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); }}
-        onServerLeave={handleServerLeave}
-        onOpenJoinModal={() => setShowJoinModal(true)}
-        onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenProfile={handleUserClick}
-        onToggleInbox={() => setShowInbox(!showInbox)}
-        inboxUnreadCount={inboxUnreadCount}
-      />
+    <div className={`main-container ${isMobile ? 'is-mobile' : ''} view-${mobileView}`}>
+      {( (!isMobile || mobileView === 'sidebar') ) && (
+        <Sidebar
+          user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
+          onServerSelect={(server) => {
+            setSelectedServer(server); setShowFriends(false); setSelectedDM(null);
+            const firstTextChannel = server.channels.find(c => c.type === 'text');
+            if (firstTextChannel) {
+              setMessages([]);
+              setSelectedChannel(firstTextChannel);
+              fetchMessages(firstTextChannel._id);
+            }
+            else if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
+            // On mobile, selecting a server stays in sidebar mode to show channel list
+          }}
+          onCreateServer={handleCreateServer}
+          onServerJoined={(server) => { setServers((prev) => [...prev, server]); setSelectedServer(server); if (socket) socket.emit('join-server', server._id); if (server.channels.length > 0) setSelectedChannel(server.channels[0]); }}
+          onLogout={logout} onShowFriends={() => { setShowFriends(true); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); setMobileView(isMobile ? 'content' : 'sidebar'); }}
+          onServerLeave={handleServerLeave}
+          onOpenJoinModal={() => setShowJoinModal(true)}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenProfile={handleUserClick}
+          onToggleInbox={() => setShowInbox(!showInbox)}
+          inboxUnreadCount={inboxUnreadCount}
+        />
+      )}
 
       {/* --- SECOND SIDEBAR AREA --- */}
       {selectedServer && !showFriends ? (
-        <div className="secondary-sidebar-container" style={{ width: sidebarWidth + 1 }}>
-          <ServerSidebar
-            server={selectedServer}
-            selectedChannel={selectedChannel}
-            unreadCounts={unreadCounts}
-            onChannelSelect={handleChannelSelect}
-            onChannelCreated={fetchServers}
-            onUserClick={handleUserClick}
-            onOpenSettings={() => setShowServerSettings(true)}
-            onServerClick={handleServerProfileClick}
-            style={{ width: sidebarWidth }}
-          />
-          <div className="sidebar-resizer" onMouseDown={startResizing} />
-        </div>
+        ((!isMobile || mobileView === 'sidebar')) && (
+          <div className="secondary-sidebar-container" style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}>
+            <ServerSidebar
+              server={selectedServer}
+              selectedChannel={selectedChannel}
+              unreadCounts={unreadCounts}
+              onChannelSelect={handleChannelSelect}
+              onChannelCreated={fetchServers}
+              onUserClick={handleUserClick}
+              onOpenSettings={() => setShowServerSettings(true)}
+              onServerClick={handleServerProfileClick}
+              style={{ width: isMobile ? '100%' : sidebarWidth }}
+            />
+            {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
+          </div>
+        )
       ) : !selectedServer ? (
-        <div className="secondary-sidebar-container" style={{ width: sidebarWidth + 1 }}>
-          <DMSidebar
-            dms={dms}
-            selectedDM={selectedDM}
-            onDMSelect={(dm) => {
-              setSelectedDM(dm);
-              setShowFriends(false);
-              setSelectedServer(null);
-            }}
-            onShowFriends={() => {
-              setShowFriends(true);
-              setSelectedDM(null);
-            }}
-            onAddDM={() => setShowCreateGroupModal(true)}
-            showFriends={showFriends}
-            currentUser={user!}
-            unreadCounts={unreadCounts}
-            style={{ width: sidebarWidth }}
-          />
-          <div className="sidebar-resizer" onMouseDown={startResizing} />
-        </div>
+        ((!isMobile || mobileView === 'sidebar')) && (
+          <div className="secondary-sidebar-container" style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}>
+            <DMSidebar
+              dms={dms}
+              selectedDM={selectedDM}
+              onDMSelect={(dm) => {
+                setSelectedDM(dm);
+                setShowFriends(false);
+                setSelectedServer(null);
+                setMobileView('content');
+              }}
+              onShowFriends={() => {
+                setShowFriends(true);
+                setSelectedDM(null);
+                setMobileView(isMobile ? 'content' : 'sidebar');
+              }}
+              onAddDM={() => setShowCreateGroupModal(true)}
+              showFriends={showFriends}
+              currentUser={user!}
+              unreadCounts={unreadCounts}
+              style={{ width: isMobile ? '100%' : sidebarWidth }}
+            />
+            {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
+          </div>
+        )
       ) : null}
 
       {/* --- CONTENT AREA --- */}
-      <div className="main-content-area">
-        {showFriends && <FriendsPanel onStartDM={handleStartDM} onUserClick={handleUserClick} unreadCounts={unreadCounts} />}
-
-        {selectedChannel && !showFriends && (
-          selectedChannel.type === 'text' ? (
-            <ChannelView
-              key={selectedChannel._id}
-              channel={selectedChannel}
-              server={selectedServer!}
-              messages={messages}
-              socket={socket}
+      {((!isMobile || mobileView === 'content')) && (
+        <div className="main-content-area">
+          {showFriends && (
+            <FriendsPanel
+              onStartDM={handleStartDM}
               onUserClick={handleUserClick}
-              initialUnreadCount={unreadCounts[selectedChannel._id]}
+              unreadCounts={unreadCounts}
+              onBack={() => setMobileView('sidebar')}
+              isMobile={isMobile}
+            />
+          )}
+
+          {selectedChannel && !showFriends && (!isMobile || mobileView === 'content') && (
+            selectedChannel.type === 'text' ? (
+              <ChannelView
+                key={selectedChannel._id}
+                channel={selectedChannel}
+                server={selectedServer!}
+                messages={messages}
+                socket={socket}
+                onUserClick={handleUserClick}
+                initialUnreadCount={unreadCounts[selectedChannel._id]}
+                hasMore={hasMore}
+                isLoadingMore={isLoadingMore}
+                onLoadMore={loadMoreMessages}
+                pinnedMessages={pinnedMessages}
+                setMessages={setMessages}
+                onBack={() => setMobileView('sidebar')}
+                onToggleMembers={() => setMobileView((prev: string) => prev === 'members' ? 'content' : 'members')}
+                isMobile={isMobile}
+              />
+            ) : (
+              <VoiceChannelView
+                channel={selectedChannel}
+                server={selectedServer!}
+                onUserClick={handleUserClick}
+                onMessageClick={handleStartDM}
+                onCallClick={async (userId) => {
+                  try {
+                    const response = await axios.get(`/api/direct-messages/user/${userId}`);
+                    const other = response.data.participants.find((p: User) => p._id !== user?._id);
+                    if (other) handleStartDirectCall(other, response.data._id);
+                  } catch (e) { }
+                }}
+                onBack={() => setMobileView('sidebar')}
+                isMobile={isMobile}
+              />
+            )
+          )}
+
+          {(!isMobile || mobileView === 'content') && selectedDM && !showFriends && (
+            <DMView
+              key={selectedDM._id}
+              dm={selectedDM}
+              messages={dmMessages}
+              socket={socket}
+              onClose={() => { setSelectedDM(null); setShowFriends(true); setMobileView('sidebar'); }}
+              onStartCall={handleStartDirectCall}
+              onStartGroupCall={handleStartGroupCall}
+              onUserClick={handleUserClick}
+              initialUnreadCount={unreadCounts[selectedDM._id]}
               hasMore={hasMore}
               isLoadingMore={isLoadingMore}
-              onLoadMore={loadMoreMessages}
-              pinnedMessages={pinnedMessages}
-              setMessages={setMessages}
+              onLoadMore={loadMoreDMMessages}
+              pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
+              setMessages={setDmMessages}
+              onBack={() => setMobileView('sidebar')}
             />
-          ) : (
-            <VoiceChannelView
-              channel={selectedChannel} server={selectedServer!} onUserClick={handleUserClick} onMessageClick={handleStartDM}
-              onCallClick={async (userId) => {
-                try {
-                  const response = await axios.get(`/api/direct-messages/user/${userId}`);
-                  const other = response.data.participants.find((p: User) => p._id !== user?._id);
-                  if (other) handleStartDirectCall(other, response.data._id);
-                } catch (e) { }
-              }}
-            />
-          )
-        )}
+          )}
 
-        {selectedDM && !showFriends && (
-          <DMView
-            key={selectedDM._id}
-            dm={selectedDM}
-            messages={dmMessages}
-            socket={socket}
-            onClose={() => { setSelectedDM(null); setShowFriends(true); }}
-            onStartCall={handleStartDirectCall}
-            onStartGroupCall={handleStartGroupCall}
-            onUserClick={handleUserClick}
-            initialUnreadCount={unreadCounts[selectedDM._id]}
-            hasMore={hasMore}
-            isLoadingMore={isLoadingMore}
-            onLoadMore={loadMoreDMMessages}
-            pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
-            setMessages={setDmMessages}
-          />
-        )}
+          {selectedServer && !showFriends && ((!isMobile || mobileView === 'members')) && (
+            <div className={`members-sidebar-wrapper ${isMobile ? 'is-mobile' : ''}`}>
+              <ServerMembers
+                server={selectedServer}
+                onUserClick={handleUserClick}
+                onBack={() => setMobileView('content')}
+                isMobile={isMobile}
+              />
+            </div>
+          )}
 
-        {selectedServer && !showFriends && <ServerMembers server={selectedServer} onUserClick={handleUserClick} />}
-
-        {!selectedChannel && !selectedDM && !showFriends && !selectedServer && (
-          <div className="empty-view">
-            <h2>Добро пожаловать в Zvon!</h2>
-            <p>Выберите друга или сервер, чтобы начать общение</p>
-          </div>
-        )}
-      </div>
+          {!selectedChannel && !selectedDM && !showFriends && !selectedServer && (
+            <div className="empty-view">
+              <h2>Добро пожаловать в Zvon!</h2>
+              <p>Выберите друга или сервер, чтобы начать общение</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {activeCall && (
         <VoiceCall
@@ -747,7 +800,7 @@ const Main: React.FC = () => {
           isOpen={showJoinModal}
           onClose={() => setShowJoinModal(false)}
           onJoin={(server) => {
-            setServers((prev) => [...prev, server]);
+            setServers((prev: Server[]) => [...prev, server]);
             setSelectedServer(server);
             if (socket) socket.emit('join-server', server._id);
             if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
@@ -771,7 +824,7 @@ const Main: React.FC = () => {
           onCreated={async (dmId) => {
             try {
               const res = await axios.get(`/api/direct-messages/${dmId}`);
-              setDms(prev => [res.data, ...prev.filter(d => d._id !== dmId)]);
+              setDms((prev: DirectMessage[]) => [res.data, ...prev.filter((d: DirectMessage) => d._id !== dmId)]);
               setSelectedDM(res.data);
               setShowFriends(false);
             } catch (e) { }

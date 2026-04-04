@@ -37,6 +37,9 @@ interface ChannelViewProps {
   onLoadMore?: () => Promise<void>;
   pinnedMessages?: Message[];
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
+  onBack?: () => void;
+  onToggleMembers?: () => void;
+  isMobile?: boolean;
 }
 
 const MessageItem = React.memo<{
@@ -402,7 +405,8 @@ const MessageItem = React.memo<{
 
 const ChannelView: React.FC<ChannelViewProps> = ({
   channel, server, messages, socket, onUserClick, initialUnreadCount = 0,
-  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages
+  hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages,
+  onBack, onToggleMembers, isMobile
 }) => {
   const { user } = useAuth();
   const { confirm, alert } = useDialog();
@@ -904,12 +908,22 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         </div>
       )}
       <div className="channel-header">
+        {isMobile && onBack && (
+          <button className="mobile-close-btn" onClick={onBack}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          </button>
+        )}
         <div className="channel-header-info">
           <span className="channel-icon"><HashtagIcon size={24} color="#8e9297" /></span>
           <h3>{channel.name}</h3>
         </div>
-        {channel.topic && <div className="channel-topic">{channel.topic}</div>}
+        {channel.topic && !isMobile && <div className="channel-topic">{channel.topic}</div>}
         <div style={{ flex: 1 }} />
+        {isMobile && onToggleMembers && (
+          <button className="header-action-btn" onClick={onToggleMembers} title="Участники">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          </button>
+        )}
         <button
           className="header-action-btn"
           onClick={() => setShowPins(!showPins)}

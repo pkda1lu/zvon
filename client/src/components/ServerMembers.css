@@ -140,3 +140,49 @@
 .activity-text strong {
     font-weight: 600;
 }
+
+/* Mobile Server Members */
+@media screen and (max-width: 768px) {
+    .members-sidebar-wrapper.is-mobile {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        z-index: 1100;
+        background: var(--bg-main);
+        animation: slide-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .server-members {
+        width: 100% !important;
+        border: none !important;
+        border-radius: 0 !important;
+        height: 100% !important;
+    }
+
+    .members-mobile-header {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        gap: 16px;
+        background: var(--bg-main);
+        flex-shrink: 0;
+    }
+
+    .members-mobile-header span {
+        font-weight: 800;
+        font-size: 16px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+}
+
+@keyframes slide-left {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}

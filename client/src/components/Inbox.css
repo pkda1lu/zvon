@@ -212,6 +212,65 @@
     position: fixed;
     inset: 0;
     z-index: 999;
-    background: rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(4px);
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(8px);
+}
+
+.inbox-tabs {
+    display: flex;
+    padding: 8px 16px;
+    gap: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.inbox-tab {
+    padding: 8px 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-dim);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.inbox-tab:hover {
+    color: var(--text-main);
+}
+
+.inbox-tab.active {
+    color: var(--primary-neon);
+}
+
+.inbox-tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary-neon);
+    box-shadow: 0 0 10px var(--primary-neon);
+    border-radius: 2px;
+}
+
+/* Mobile Settings */
+@media screen and (max-width: 768px) {
+    .inbox-overlay.is-mobile {
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        animation: inbox-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+}
+
+@keyframes inbox-slide-up {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
 }

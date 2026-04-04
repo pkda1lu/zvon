@@ -29,6 +29,8 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 }) => {
     const { confirm } = useDialog();
     const [activeTab, setActiveTab] = useState<Tab>('overview');
+    const isMobile = window.innerWidth <= 768;
+    const [mobileViewState, setMobileViewState] = useState<'tabs' | 'content'>('tabs');
     const [name, setName] = useState(channel.name);
     const [topic, setTopic] = useState(channel.topic || '');
     const [overwrites, setOverwrites] = useState<PermissionOverwrite[]>(channel.permissionOverwrites || []);
@@ -110,26 +112,52 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     return createPortal(
         <div className="channel-settings-modal-overlay">
             <div className="channel-settings-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="channel-settings-sidebar">
-                    <div className="sidebar-header">{channel.type === 'voice' ? '🔊' : '# '} {channel.name}</div>
+                {(!isMobile || mobileViewState === 'tabs') && (
+                    <div className="channel-settings-sidebar">
+                        <div className="sidebar-header">{channel.type === 'voice' ? '🔊' : '# '} {channel.name}</div>
 
-                    <div className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
-                        Обзор
-                    </div>
-                    <div className={`sidebar-item ${activeTab === 'permissions' ? 'active' : ''}`} onClick={() => setActiveTab('permissions')}>
-                        Права доступа
-                    </div>
+                        <div className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => { setActiveTab('overview'); if (isMobile) setMobileViewState('content'); }}>
+                            Обзор
+                        </div>
+                        <div className={`sidebar-item ${activeTab === 'permissions' ? 'active' : ''}`} onClick={() => { setActiveTab('permissions'); if (isMobile) setMobileViewState('content'); }}>
+                            Права доступа
+                        </div>
 
-                    <div className="sidebar-item danger" onClick={handleDelete}>
-                        Удалить канал
+                        <div style={{ flex: 1 }} />
+                        <div className="sidebar-item danger" onClick={handleDelete}>
+                            Удалить канал
+                        </div>
+                        {isMobile && <div className="sidebar-item" onClick={onClose} style={{ marginTop: 'auto', background: 'rgba(255,255,254,0.05)' }}>Закрыть</div>}
                     </div>
-                </div>
+                )}
 
-                <div className="channel-settings-content">
-                    <div className="close-settings-button" onClick={onClose}>
-                        <div className="close-icon-wrapper"><CloseIcon size={20} /></div>
-                        <span className="close-text">ESC</span>
-                    </div>
+                {(!isMobile || mobileViewState === 'content') && (
+                    <div className="channel-settings-content">
+                        {isMobile ? (
+                            <div className="mobile-settings-header" style={{ 
+                                height: '56px', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                padding: 'max(env(safe-area-inset-top), 40px) 16px 8px', 
+                                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                boxSizing: 'content-box',
+                                background: 'rgba(0,0,0,0.2)',
+                                backdropFilter: 'blur(10px)'
+                            }}>
+                                <button className="back-button" onClick={() => setMobileViewState('tabs')} style={{ marginRight: '16px' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                                </button>
+                                <span style={{ fontWeight: 800, fontSize: '16px' }}>
+                                    {activeTab === 'overview' && 'Обзор'}
+                                    {activeTab === 'permissions' && 'Права'}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="close-settings-button" onClick={onClose}>
+                                <div className="close-icon-wrapper"><CloseIcon size={20} /></div>
+                                <span className="close-text">ESC</span>
+                            </div>
+                        )}
 
                     <div className="content-scroll-area">
                         {activeTab === 'overview' && (
@@ -401,7 +429,8 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
+                        </div>
+                )}
             </div>
         </div>,
         document.body

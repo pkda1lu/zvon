@@ -19,6 +19,8 @@ interface VoiceChannelViewProps {
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   onMessageClick: (userId: string) => void;
   onCallClick: (userId: string) => void;
+  onBack?: () => void;
+  isMobile?: boolean;
 }
 
 const VoiceParticipantCard = React.memo<{
@@ -257,7 +259,7 @@ const VoiceStreamCard: React.FC<{
     return cardContent;
   };
 
-const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, onUserClick, onMessageClick, onCallClick }) => {
+const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, onUserClick, onMessageClick, onCallClick, onBack, isMobile }) => {
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
   const {
@@ -494,6 +496,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     <div className="voice-channel-view">
       <header className="voice-hdr">
         <div className="hdr-left">
+          {isMobile && (
+            <button className="back-button" onClick={onBack} title="Назад в меню" style={{ marginRight: '12px' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+            </button>
+          )}
           <h1>
             <div className="voice-status-indicator inline">
               <div className="pulse-ring"></div>
