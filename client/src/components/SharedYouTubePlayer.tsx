@@ -65,11 +65,12 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({
           modestbranding: 1,
           rel: 0,
           showinfo: 0,
-          origin: window.location.origin
+          origin: 'https://www.youtube.com'
         },
         events: {
           onReady: onPlayerReady,
-          onStateChange: onPlayerStateChange
+          onStateChange: onPlayerStateChange,
+          onError: (e: any) => console.error('YouTube Player Error:', e.data)
         }
       });
     };
@@ -124,7 +125,8 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({
       
       const qualities = event.target.getAvailableQualityLevels();
       setAvailableQualities(qualities);
-      setCurrentQuality(event.target.getPlaybackQuality());
+      const q = event.target.getPlaybackQuality();
+      setCurrentQuality(q && q !== 'unknown' ? q : 'auto');
     } catch (e) {}
 
     // Handle initial sync
