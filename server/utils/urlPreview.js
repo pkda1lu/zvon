@@ -19,18 +19,23 @@ async function getUrlPreview(url) {
             description: `YouTube Video • ${ytResponse.data.author_name}`,
             url: url,
             image: { url: ytResponse.data.thumbnail_url },
-            author: { name: 'YouTube', icon_url: 'https://www.youtube.com/s/desktop/28e53bc3/img/favicon_144x144.png' },
+            author: { 
+                name: 'YouTube', 
+                icon_url: 'https://www.google.com/s2/favicons?domain=youtube.com&sz=128' 
+            },
             color: '#FF0000'
           };
         }
       } catch (e) {
-        // Fallback to manual constructing if oEmbed fails
         const videoId = ytMatch[1];
         return {
           title: 'YouTube Video',
           url: url,
           image: { url: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` },
-          author: { name: 'YouTube' },
+          author: { 
+            name: 'YouTube',
+            icon_url: 'https://www.google.com/s2/favicons?domain=youtube.com&sz=128'
+          },
           color: '#FF0000'
         };
       }
@@ -38,22 +43,29 @@ async function getUrlPreview(url) {
 
     const response = await axios.get(url, {
       timeout: 5000,
+      responseType: 'arraybuffer', // Use arraybuffer to handle various encodings
       headers: {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
       },
-      maxContentLength: 5 * 1024 * 1024 // 5MB limit
+      maxContentLength: 5 * 1024 * 1024
     });
     
-    if (typeof response.data !== 'string') return null;
-    
-    const html = response.data;
+    // Process encoding
+    const contentType = response.headers['content-type'] || '';
+    let html;
+    if (contentType.includes('windows-1251')) {
+        // Simple manual conversion logic if iconv-lite isn't here
+        // (Just a rough fallback for Russian sites)
+        html = response.data.toString('latin1'); 
+    } else {
+        html = response.data.toString('utf8');
+    }
     
     const getMeta = (name) => {
-      // Improved regex to handle various meta tag formats
       const regexStrings = [
         `<meta[^>]*?(?:name|property)=["']${name}["'][^>]*?content=["']([^"']*)["']`,
         `<meta[^>]*?content=["']([^"']*)["'][^>]*?(?:name|property)=["']${name}["']`
@@ -82,6 +94,16 @@ async function getUrlPreview(url) {
     const description = getMeta('og:description') || getMeta('twitter:description') || getMeta('description');
     let image = getMeta('og:image') || getMeta('twitter:image');
     const siteName = getMeta('og:site_name') || getMeta('twitter:site');
+    
+    // Improved icon extraction
+    let icon = getMeta('og:image:user_profile') || getMeta('twitter:image:src');
+    if (!icon) {
+        // Fallback to Google's favicon service for stability
+        try {
+            const baseUrl = new URL(url);
+            icon = `https://www.google.com/s2/favicons?domain=${baseUrl.hostname}&sz=128`;
+        } catch (e) {}
+    }
 
     if (!title && !description && !image) return null;
 
@@ -98,7 +120,10 @@ async function getUrlPreview(url) {
       description: description ? description.trim() : null,
       url: url,
       image: image ? { url: image } : null,
-      author: siteName ? { name: siteName.trim() } : null,
+      author: { 
+        name: siteName ? siteName.trim() : (new URL(url).hostname),
+        icon_url: icon
+      },
       color: '#var(--primary-neon)'
     };
   } catch (error) {

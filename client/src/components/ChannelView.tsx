@@ -81,7 +81,14 @@ const MessageItem = React.memo<{
         <div className="embed-content-wrap">
           {embed.author && (
             <div className="embed-author">
-              {embed.author.icon_url && <img src={embed.author.icon_url} className="embed-author-icon" alt="" />}
+              {embed.author.icon_url && (
+                <img 
+                  src={embed.author.icon_url} 
+                  className="embed-author-icon" 
+                  alt="" 
+                  onError={(e) => (e.target as any).style.display = 'none'} 
+                />
+              )}
               {embed.author.url ? (
                 <a
                   href={embed.author.url}
@@ -160,11 +167,17 @@ const MessageItem = React.memo<{
           )}
 
           {embed.image && embed.image.url && (
-            <img src={embed.image.url} className="embed-image" alt="" onClick={() => {
-              setLightboxMedia([{ url: embed.image.url, type: 'image/png' }]);
-              setLightboxIndex(0);
-              setLightboxOpen(true);
-            }} />
+            <img 
+              src={embed.image.url} 
+              className="embed-image" 
+              alt="" 
+              onError={(e) => (e.target as any).style.display = 'none'}
+              onClick={() => {
+                setLightboxMedia([{ url: embed.image.url, type: 'image/png' }]);
+                setLightboxIndex(0);
+                setLightboxOpen(true);
+              }} 
+            />
           )}
 
           {embed.footer && (
