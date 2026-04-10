@@ -36,7 +36,7 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({
   const [volume, setVolume] = useState(50);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [videoTitle, setVideoTitle] = useState('Загрузка видео...');
+  const [videoTitle, setVideoTitle] = useState('Синхронизация с YouTube...');
   const [availableQualities, setAvailableQualities] = useState<string[]>([]);
   const [currentQuality, setCurrentQuality] = useState<string>('auto');
   const [showQualityMenu, setShowQualityMenu] = useState(false);
@@ -54,19 +54,9 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({
     }
 
     const initPlayer = () => {
+      if (playerRef.current) return; // Already initialized
+
       playerRef.current = new window.YT.Player(`yt-player-${channelId}`, {
-        videoId: youtubeId,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          iv_load_policy: 3,
-          modestbranding: 1,
-          rel: 0,
-          showinfo: 0,
-          origin: 'https://www.youtube.com'
-        },
         events: {
           onReady: onPlayerReady,
           onStateChange: onPlayerStateChange,
@@ -263,7 +253,13 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({
       onMouseLeave={() => isPlaying && setShowControls(false)}
       style={portalStyles}
     >
-      <div id={`yt-player-${channelId}`} className="yt-player-iframe" />
+      <iframe 
+        id={`yt-player-${channelId}`}
+        className="yt-player-iframe"
+        src={`https://www.youtube-nocookie.com/embed/${youtubeId}?enablejsapi=1&autoplay=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&modestbranding=1&rel=0&showinfo=0&playsinline=1&origin=*&widget_referrer=https://www.youtube-nocookie.com`}
+        frameBorder="0"
+        allow="autoplay; encrypted-media; gyroscope; accelerometer; picture-in-picture; clipboard-write; display-capture"
+      />
       
       <div className="yt-controls-overlay">
         <div className="yt-top-bar" onClick={e => e.stopPropagation()}>

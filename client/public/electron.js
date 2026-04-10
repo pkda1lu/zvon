@@ -85,6 +85,7 @@ if (!isDev) {
 // Disable the yellow/green border on Windows 10/11 when capturing windows
 // Also disable Vulkan which can cause green screen/flickering on some GPUs
 app.commandLine.appendSwitch('disable-features', 'WinrtCaptureBorders,Vulkan');
+app.commandLine.appendSwitch('disable-site-isolation-trials');
 
 const stateFilePath = path.join(app.getPath('userData'), 'window-state.json');
 
@@ -267,7 +268,8 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             enableRemoteModule: false,
-            webSecurity: true,
+            webSecurity: false, 
+            allowRunningInsecureContent: true, // Allow mixed content
             backgroundThrottling: false,
             spellcheck: false, // Performance: Disable spellcheck
             v8CacheOptions: 'bypass-heat-check-and-allow-code-cache', // Faster JIT
@@ -285,6 +287,10 @@ function createWindow() {
         }
         scanActivities();
     });
+
+    // Mask as a standard Chrome browser to avoid YouTube 152-4 errors
+    mainWindow.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+
 
     // Handle Permissions (Essential for packaged apps)
     mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
@@ -337,6 +343,60 @@ function createWindow() {
         const allowed = ['media', 'microphone', 'camera'];
         return allowed.includes(permission);
     });
+
+    // YouTube Fix: Intercept and modify headers for YouTube embeds to bypass Error 153/152 in production
+    mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+        { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*', '*://*.ytimg.com/*'] },
+        (details, callback) => {
+            const ytId = details.url.match(/embed\/([^?&]+)/)?.[1] || '';
+            const referer = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}` : 'https://www.youtube-nocookie.com/';
+            details.requestHeaders['Referer'] = referer;
+            details.requestHeaders['Origin'] = 'https://www.youtube-nocookie.com';
+            details.requestHeaders['User-Agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+            details.requestHeaders['Sec-Fetch-Dest'] = 'iframe';
+            details.requestHeaders['Sec-Fetch-Site'] = 'cross-site';
+            callback({ requestHeaders: details.requestHeaders });
+        }
+    );
+
+    // Final Strike: Robustly strip and replace protection headers
+    mainWindow.webContents.session.webRequest.onHeadersReceived(
+        { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'] },
+        (details, callback) => {
+            const responseHeaders = {};
+            
+            // Filter out existing security and CORS headers to prevent duplicates
+            Object.keys(details.responseHeaders).forEach(key => {
+                const lowerKey = key.toLowerCase();
+                if (![
+                    'x-frame-options', 
+                    'content-security-policy', 
+                    'frame-options', 
+                    'access-control-allow-origin',
+                    'access-control-allow-headers',
+                    'access-control-allow-methods',
+                    'access-control-allow-credentials'
+                ].includes(lowerKey)) {
+                    responseHeaders[key] = details.responseHeaders[key];
+                }
+            });
+            
+            // Dynamic mirroring for CORS with Credentials support
+            let requestOrigin = details.requestHeaders?.['Origin'] || details.requestHeaders?.['origin'];
+            
+            // Fallback for Electron file protocol (null origin)
+            if (!requestOrigin || requestOrigin === 'null' || requestOrigin === 'file://') {
+                requestOrigin = 'https://www.youtube-nocookie.com';
+            }
+            
+            responseHeaders['Access-Control-Allow-Origin'] = [requestOrigin];
+            responseHeaders['Access-Control-Allow-Headers'] = ['*'];
+            responseHeaders['Access-Control-Allow-Methods'] = ['*'];
+            responseHeaders['Access-Control-Allow-Credentials'] = ['true'];
+            
+            callback({ responseHeaders });
+        }
+    );
 
     mainWindow.webContents.on('context-menu', (event, params) => {
         const template = [];
