@@ -865,3 +865,17 @@
     background: transparent;
   }
 }
+
+.message-link {
+  color: var(--primary-neon);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.message-link:hover {
+  text-decoration: underline;
+  opacity: 0.8;
+}

@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon } from './Icons';
 import './ChannelView.css';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
@@ -73,6 +73,7 @@ const MessageItem = React.memo<{
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
   onReact, onReply, scrollToMessage, onInteractiveButtonClick
 }) => {
+  const { confirm: customConfirm } = useDialog();
 
   const renderEmbed = (embed: any, key: number) => {
     return (
@@ -82,7 +83,22 @@ const MessageItem = React.memo<{
             <div className="embed-author">
               {embed.author.icon_url && <img src={embed.author.icon_url} className="embed-author-icon" alt="" />}
               {embed.author.url ? (
-                <a href={embed.author.url} className="embed-author-name" target="_blank" rel="noreferrer">{embed.author.name}</a>
+                <a
+                  href={embed.author.url}
+                  className="embed-author-name"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    customConfirm(
+                      `Вы собираетесь перейти на внешний ресурс: ${embed.author.url}. Продолжить?`,
+                      'Внешняя ссылка',
+                      'Перейти',
+                      'Отмена'
+                    ).then((ok: boolean) => {
+                      if (ok) window.open(embed.author.url, '_blank', 'noopener,noreferrer');
+                    });
+                  }}
+                >{embed.author.name}</a>
               ) : (
                 <span className="embed-author-name">{embed.author.name}</span>
               )}
@@ -91,7 +107,22 @@ const MessageItem = React.memo<{
 
           {embed.title && (
             embed.url ? (
-              <a href={embed.url} className="embed-title" target="_blank" rel="noreferrer">{embed.title}</a>
+              <a
+                href={embed.url}
+                className="embed-title"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  customConfirm(
+                    `Вы собираетесь перейти на внешний ресурс: ${embed.url}. Продолжить?`,
+                    'Внешняя ссылка',
+                    'Перейти',
+                    'Отмена'
+                  ).then((ok: boolean) => {
+                    if (ok) window.open(embed.url, '_blank', 'noopener,noreferrer');
+                  });
+                }}
+              >{embed.title}</a>
             ) : (
               <div className="embed-title">{embed.title}</div>
             )
@@ -291,6 +322,15 @@ const MessageItem = React.memo<{
                 >
                   <ReplyIcon size={grouped ? 14 : 16} />
                 </button>
+                <button
+                  className={`msg-action-btn ${grouped ? 'mini' : ''}`}
+                  onClick={() => {
+                    navigator.clipboard.writeText(msg.content);
+                  }}
+                  title="Копировать текст"
+                >
+                  <CopyIcon size={grouped ? 14 : 16} />
+                </button>
                 {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
                   <button className={`msg-action-btn danger ${grouped ? 'mini' : ''}`} onClick={() => onDelete(msg._id)}>
                     <TrashIcon size={grouped ? 14 : 16} />
@@ -409,7 +449,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   onBack, onToggleMembers, isMobile
 }) => {
   const { user } = useAuth();
-  const { confirm, alert } = useDialog();
+  const { confirm: customConfirm, alert } = useDialog();
   const {
     displayEmbeds,
     showHoverActions,
@@ -783,7 +823,36 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             }
           }
 
-          return <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>;
+          return (
+            <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>
+              {part.split(/(https?:\/\/[^\s]+)/g).map((subPart, si) => {
+                if (subPart.match(/^https?:\/\//)) {
+                  return (
+                    <a
+                      key={`link-${si}`}
+                      href={subPart}
+                      className="message-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        customConfirm(
+                          `Вы собираетесь перейти на внешний ресурс: ${subPart}. Это может быть небезопасно. Продолжить?`,
+                          'Внешняя ссылка',
+                          'Перейти',
+                          'Отмена'
+                        ).then((ok: boolean) => {
+                          if (ok) window.open(subPart, '_blank', 'noopener,noreferrer');
+                        });
+                      }}
+                    >
+                      {subPart}
+                    </a>
+                  );
+                }
+                return subPart;
+              })}
+            </span>
+          );
         })}
       </>
     );
@@ -861,7 +930,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const handleDeleteMessage = async (messageId: string) => {
-    if (await confirm('Удалить это сообщение?')) {
+    if (await customConfirm('Удалить это сообщение?')) {
       socket?.emit('delete-message', { messageId, channelId: channel._id });
     }
   };

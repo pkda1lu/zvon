@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon } from './Icons';
+import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon } from './Icons';
 import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -46,7 +46,7 @@ const DMView: React.FC<DMViewProps> = ({
   onBack, isMobile
 }) => {
   const { user } = useAuth();
-  const { alert } = useDialog();
+  const { confirm: customConfirm, alert } = useDialog();
   const {
     displayEmbeds,
     showHoverActions,
@@ -375,9 +375,115 @@ const DMView: React.FC<DMViewProps> = ({
               );
             }
           }
-          return <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>;
+          return (
+            <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>
+              {part.split(/(https?:\/\/[^\s]+)/g).map((subPart, si) => {
+                if (subPart.match(/^https?:\/\//)) {
+                  return (
+                    <a
+                      key={`link-${si}`}
+                      href={subPart}
+                      className="message-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        customConfirm(
+                          `Вы собираетесь перейти на внешний ресурс: ${subPart}. Это может быть небезопасно. Продолжить?`,
+                          'Внешняя ссылка',
+                          'Перейти',
+                          'Отмена'
+                        ).then((ok: boolean) => {
+                          if (ok) window.open(subPart, '_blank', 'noopener,noreferrer');
+                        });
+                      }}
+                    >
+                      {subPart}
+                    </a>
+                  );
+                }
+                return subPart;
+              })}
+            </span>
+          );
         })}
       </>
+    );
+  };
+
+  const renderEmbed = (embed: any, key: number) => {
+    return (
+      <div key={key} className="message-embed" style={{ borderLeftColor: embed.color || 'var(--primary-neon)' }}>
+        <div className="embed-content-wrap">
+          {embed.author && (
+            <div className="embed-author">
+              {embed.author.icon_url && <img src={embed.author.icon_url} className="embed-author-icon" alt="" />}
+              {embed.author.url ? (
+                <a
+                    href={embed.author.url}
+                    className="embed-author-name"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      customConfirm(
+                        `Вы собираетесь перейти на внешний ресурс: ${embed.author.url}. Продолжить?`,
+                        'Внешняя ссылка',
+                        'Перейти',
+                        'Отмена'
+                      ).then((ok: boolean) => {
+                        if (ok) window.open(embed.author.url, '_blank', 'noopener,noreferrer');
+                      });
+                    }}
+                >{embed.author.name}</a>
+              ) : (
+                <span className="embed-author-name">{embed.author.name}</span>
+              )}
+            </div>
+          )}
+
+          {embed.title && (
+            embed.url ? (
+                <a
+                    href={embed.url}
+                    className="embed-title"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      customConfirm(
+                        `Вы собираетесь перейти на внешний ресурс: ${embed.url}. Продолжить?`,
+                        'Внешняя ссылка',
+                        'Перейти',
+                        'Отмена'
+                      ).then((ok: boolean) => {
+                        if (ok) window.open(embed.url, '_blank', 'noopener,noreferrer');
+                      });
+                    }}
+                >{embed.title}</a>
+            ) : (
+              <div className="embed-title">{embed.title}</div>
+            )
+          )}
+
+          {embed.description && <div className="embed-description">{embed.description}</div>}
+
+          {embed.image && embed.image.url && (
+            <img src={embed.image.url} className="embed-image" alt="" onClick={() => {
+              setLightboxMedia([{ url: embed.image.url, type: 'image/png' }]);
+              setLightboxIndex(0);
+              setLightboxOpen(true);
+            }} />
+          )}
+
+          {embed.footer && (
+            <div className="embed-footer">
+              {embed.footer.icon_url && <img src={embed.footer.icon_url} className="embed-footer-icon" alt="" />}
+              <span className="embed-footer-text">{embed.footer.text}</span>
+            </div>
+          )}
+        </div>
+        {embed.thumbnail && embed.thumbnail.url && (
+          <img src={embed.thumbnail.url} className="embed-thumbnail" alt="" />
+        )}
+      </div>
     );
   };
 
@@ -662,6 +768,26 @@ const DMView: React.FC<DMViewProps> = ({
                                 >
                                   <SmileIcon size={16} />
                                 </button>
+                                <button
+                                  className="msg-action-btn"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(msg.content);
+                                  }}
+                                  title="Копировать текст"
+                                >
+                                  <CopyIcon size={16} />
+                                </button>
+                                {msg.author._id === user?._id && (
+                                  <button
+                                    className="msg-action-btn danger"
+                                    onClick={() => {
+                                      if (socket) socket.emit('delete-message', { messageId: msg._id, dmId: dm._id });
+                                    }}
+                                    title="Удалить"
+                                  >
+                                    <TrashIcon size={16} />
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -690,6 +816,26 @@ const DMView: React.FC<DMViewProps> = ({
                             >
                               <SmileIcon size={14} />
                             </button>
+                            <button
+                                className="msg-action-btn mini"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(msg.content);
+                                }}
+                                title="Копировать текст"
+                              >
+                                <CopyIcon size={14} />
+                              </button>
+                              {msg.author._id === user?._id && (
+                                <button
+                                  className="msg-action-btn mini danger"
+                                  onClick={() => {
+                                    if (socket) socket.emit('delete-message', { messageId: msg._id, dmId: dm._id });
+                                  }}
+                                  title="Удалить"
+                                >
+                                  <TrashIcon size={14} />
+                                </button>
+                              )}
                           </div>
                         )}
                         {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
@@ -767,6 +913,12 @@ const DMView: React.FC<DMViewProps> = ({
                                 )}
                               </div>
                             ))}
+                          </div>
+                        )}
+
+                        {displayEmbeds && msg.embeds && msg.embeds.length > 0 && (
+                          <div className="message-embeds">
+                            {msg.embeds.map((emb, i) => renderEmbed(emb, i))}
                           </div>
                         )}
                       </div>

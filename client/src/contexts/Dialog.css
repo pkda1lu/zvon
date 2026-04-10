@@ -1,42 +1,52 @@
 .custom-dialog-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(12px) saturate(180%);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999;
-    animation: dialogOverlayIn 0.2s ease-out;
+    z-index: 10000;
+    animation: dialogOverlayIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes dialogOverlayIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; backdrop-filter: blur(0); }
+    to { opacity: 1; backdrop-filter: blur(12px) saturate(180%); }
 }
 
 .custom-dialog-container {
-    background: #1e1f22;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    background: var(--glass-bg, rgba(20, 20, 25, 0.9));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    border-radius: 24px;
     width: 90%;
-    max-width: 400px;
-    padding: 24px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    animation: dialogPopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-width: 420px;
+    padding: 32px;
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 0 20px rgba(255, 255, 255, 0.02);
+    animation: dialogPopIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.custom-dialog-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--primary-neon, #00e5ff);
+    box-shadow: 0 0 20px var(--primary-neon, #00e5ff);
 }
 
 @keyframes dialogPopIn {
     from {
         opacity: 0;
-        transform: scale(0.95) translateY(10px);
+        transform: scale(0.9) translateY(20px);
     }
-
     to {
         opacity: 1;
         transform: scale(1) translateY(0);
@@ -45,34 +55,40 @@
 
 .custom-dialog-title {
     color: white;
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 22px;
+    font-weight: 800;
     margin-top: 0;
     margin-bottom: 12px;
+    letter-spacing: -0.5px;
+    text-transform: uppercase;
 }
 
 .custom-dialog-message {
-    color: #b9bbbe;
-    font-size: 14px;
-    line-height: 1.5;
-    margin-bottom: 24px;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 32px;
+    word-break: break-all;
 }
 
 .custom-dialog-input {
     width: 100%;
-    padding: 10px;
+    padding: 14px 18px;
     margin-bottom: 24px;
-    background: #202225;
-    border: 1px solid #1a1a24;
-    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    border-radius: 14px;
     color: white;
-    font-size: 14px;
+    font-size: 15px;
     box-sizing: border-box;
+    outline: none;
+    transition: all 0.2s;
 }
 
 .custom-dialog-input:focus {
-    outline: none;
     border-color: var(--primary-neon, #00e5ff);
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 .custom-dialog-actions {
@@ -82,40 +98,51 @@
 }
 
 .custom-dialog-button {
-    padding: 8px 16px;
-    border-radius: 4px;
+    padding: 12px 24px;
+    border-radius: 12px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 800;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     border: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
 .custom-dialog-button.cancel {
-    background: transparent;
-    color: #b9bbbe;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim, rgba(255, 255, 255, 0.5));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
 }
 
 .custom-dialog-button.cancel:hover {
-    text-decoration: underline;
+    background: rgba(255, 255, 255, 0.1);
     color: white;
+    transform: translateY(-2px);
 }
 
 .custom-dialog-button.confirm {
-    background: #ed4245;
-    /* Red for destructive actions usually, but we can make it primary color too */
-    color: white;
+    background: var(--primary-neon, #00e5ff);
+    color: black;
+    box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3);
 }
 
 .custom-dialog-button.confirm:hover {
-    background: #c9383b;
+    transform: translateY(-2px) scale(1.02);
+    filter: brightness(1.1);
+    box-shadow: 0 8px 25px rgba(0, 229, 255, 0.4);
 }
 
-.custom-dialog-button.confirm.alert-only {
-    background: var(--primary-neon, #00e5ff);
-    color: #000;
+.custom-dialog-button.confirm:active {
+    transform: translateY(0) scale(0.98);
 }
 
-.custom-dialog-button.confirm.alert-only:hover {
-    background: var(--secondary-neon, #a155ff);
+/* Red style for critical alerts/confirms if needed */
+.custom-dialog-button.confirm.danger {
+    background: #ff3b30;
+    box-shadow: 0 4px 15px rgba(255, 59, 48, 0.3);
+}
+
+.custom-dialog-button.confirm.danger:hover {
+    box-shadow: 0 8px 25px rgba(255, 59, 48, 0.4);
 }

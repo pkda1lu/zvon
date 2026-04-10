@@ -281,6 +281,24 @@ io.on('connection', (socket) => {
         }
       }
 
+      // Extract URL Previews
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const urls = message.content ? message.content.match(urlRegex) : null;
+      if (urls && urls.length > 0) {
+        try {
+          const { getUrlPreview } = require('./utils/urlPreview');
+          const uniqueUrls = [...new Set(urls)];
+          const previewPromises = uniqueUrls.slice(0, 3).map(getUrlPreview);
+          const previews = await Promise.all(previewPromises);
+          const validPreviews = previews.filter(p => p !== null);
+          if (validPreviews.length > 0) {
+            message.embeds = [...(message.embeds || []), ...validPreviews];
+          }
+        } catch (err) {
+          console.error('URL Preview error:', err);
+        }
+      }
+
       await message.save();
       await message.populate('author', 'username avatar');
       if (message.replyTo) {
@@ -345,6 +363,25 @@ io.on('connection', (socket) => {
 
       message.content = content !== undefined ? content : message.content;
       if (data.embeds) message.embeds = data.embeds;
+      
+      // Re-extract URL Previews on edit if content changed
+      if (content !== undefined) {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const urls = message.content ? message.content.match(urlRegex) : null;
+        if (urls && urls.length > 0) {
+          try {
+            const { getUrlPreview } = require('./utils/urlPreview');
+            const uniqueUrls = [...new Set(urls)];
+            const previewPromises = uniqueUrls.slice(0, 3).map(getUrlPreview);
+            const previews = await Promise.all(previewPromises);
+            const validPreviews = previews.filter(p => p !== null);
+            if (validPreviews.length > 0) {
+              message.embeds = [...(message.embeds || []), ...validPreviews];
+            }
+          } catch (err) { }
+        }
+      }
+
       if (data.buttons) message.buttons = data.buttons;
       message.edited = true;
       message.editedAt = new Date();
