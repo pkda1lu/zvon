@@ -15,6 +15,9 @@ const electronAPI = {
     clipboard: {
         writeText: (text) => ipcRenderer.send('clipboard-write', text)
     },
+    util: {
+        openExternal: (url) => ipcRenderer.send('open-external-url', url)
+    },
     getCurrentActivity: () => ipcRenderer.invoke('get-current-activity'),
     onActivityChanged: (callback) => {
         const subscription = (event, activity) => callback(activity);

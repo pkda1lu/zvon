@@ -75,6 +75,14 @@ const MessageItem = React.memo<{
 }) => {
   const { confirm: customConfirm } = useDialog();
 
+  const openLink = (url: string) => {
+    if ((window as any).electron?.util?.openExternal) {
+      (window as any).electron.util.openExternal(url);
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const renderEmbed = (embed: any, key: number) => {
     return (
       <div key={key} className="message-embed" style={{ borderLeftColor: embed.color || 'var(--primary-neon)' }}>
@@ -102,7 +110,7 @@ const MessageItem = React.memo<{
                       'Перейти',
                       'Отмена'
                     ).then((ok: boolean) => {
-                      if (ok) window.open(embed.author.url, '_blank', 'noopener,noreferrer');
+                      if (ok) openLink(embed.author.url);
                     });
                   }}
                 >{embed.author.name}</a>
@@ -126,7 +134,7 @@ const MessageItem = React.memo<{
                     'Перейти',
                     'Отмена'
                   ).then((ok: boolean) => {
-                    if (ok) window.open(embed.url, '_blank', 'noopener,noreferrer');
+                    if (ok) openLink(embed.url);
                   });
                 }}
               >{embed.title}</a>
@@ -470,6 +478,14 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 }) => {
   const { user } = useAuth();
   const { confirm: customConfirm, alert } = useDialog();
+
+  const openLink = (url: string) => {
+    if ((window as any).electron?.util?.openExternal) {
+      (window as any).electron.util.openExternal(url);
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
   const {
     displayEmbeds,
     showHoverActions,
@@ -861,7 +877,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                           'Перейти',
                           'Отмена'
                         ).then((ok: boolean) => {
-                          if (ok) window.open(subPart, '_blank', 'noopener,noreferrer');
+                          if (ok) openLink(subPart);
                         });
                       }}
                     >

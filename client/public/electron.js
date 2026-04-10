@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer, globalShortcut, Notification, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
@@ -462,6 +462,14 @@ ipcMain.on('show-native-notification', (event, { title, body, silent }) => {
 
 ipcMain.on('clipboard-write', (event, text) => {
     try { clipboard.writeText(text); } catch (error) { }
+});
+
+ipcMain.on('open-external-url', (event, url) => {
+    try {
+        shell.openExternal(url);
+    } catch (e) {
+        log.error("Failed to open external URL:", e);
+    }
 });
 
 const { exec } = require('child_process');
