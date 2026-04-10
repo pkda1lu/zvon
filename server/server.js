@@ -111,6 +111,8 @@ app.get('/api/channels/:id/voice-participants', async (req, res) => {
   catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+const voiceChannelYouTubeStates = new Map();
+
 app.set('io', io);
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
@@ -531,7 +533,42 @@ io.on('connection', (socket) => {
       await notifyVoiceChannelUpdate(channelId);
       const ch = await Channel.findById(channelId);
       if (ch && ch.server) io.to(`server-${ch.server}`).emit('voice-channel-users-update', { channelId, users: await getVoiceChannelUsers(channelId) });
+
+      // Sync YouTube state if active
+      if (voiceChannelYouTubeStates.has(channelId)) {
+        socket.emit('yt-watch-state', voiceChannelYouTubeStates.get(channelId));
+      }
     } catch (e) { console.error('Join voice error', e); }
+  });
+
+  socket.on('yt-watch-start', (data) => {
+    const { channelId, youtubeId } = data;
+    if (!channelId || !youtubeId) return;
+    const state = { youtubeId, currentTime: 0, playing: true, lastUpdated: Date.now(), hostId: socket.userId };
+    voiceChannelYouTubeStates.set(channelId, state);
+    io.to(`voice-channel-${channelId}`).emit('yt-watch-state', state);
+  });
+
+  socket.on('yt-watch-sync', (data) => {
+    const { channelId, state } = data;
+    if (!channelId || !state) return;
+    const currentState = voiceChannelYouTubeStates.get(channelId);
+    if (!currentState) return;
+    
+    // Update state
+    currentState.currentTime = state.currentTime;
+    currentState.playing = state.playing;
+    currentState.lastUpdated = Date.now();
+    
+    // Broadcast to others
+    socket.to(`voice-channel-${channelId}`).emit('yt-watch-state', currentState);
+  });
+
+  socket.on('yt-watch-stop', (data) => {
+    const { channelId } = data;
+    if (!channelId) return;
+    voiceChannelYouTubeStates.delete(channelId);
+    io.to(`voice-channel-${channelId}`).emit('yt-watch-state', null);
   });
 
   socket.on('admin-voice-kick', async (data) => {
@@ -606,7 +643,19 @@ io.on('connection', (socket) => {
     await notifyVoiceChannelUpdate(data.channelId);
   });
 
-  socket.on('leave-voice-channel', async (data) => { socket.leave(`voice-channel-${data.channelId}`); socket.voiceChannelId = null; io.to(`voice-channel-${data.channelId}`).emit('voice-user-left', { userId: socket.userId }); await notifyVoiceChannelUpdate(data.channelId); });
+  socket.on('leave-voice-channel', async (data) => {
+    const channelId = data.channelId;
+    socket.leave(`voice-channel-${channelId}`);
+    socket.voiceChannelId = null;
+    io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
+    await notifyVoiceChannelUpdate(channelId);
+    
+    // If room is empty, clear YT state
+    const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
+    if (!room || room.size === 0) {
+      voiceChannelYouTubeStates.delete(channelId);
+    }
+  });
 
   socket.on('admin-voice-move', async (data) => {
     try {
@@ -712,7 +761,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', async () => {
-    if (socket.voiceChannelId) { io.to(`voice-channel-${socket.voiceChannelId}`).emit('voice-user-left', { userId: socket.userId }); await notifyVoiceChannelUpdate(socket.voiceChannelId); }
+    if (socket.voiceChannelId) {
+      const channelId = socket.voiceChannelId;
+      io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
+      await notifyVoiceChannelUpdate(channelId);
+      
+      const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
+      if (!room || room.size === 0) {
+        voiceChannelYouTubeStates.delete(channelId);
+      }
+    }
     const connections = io.sockets.adapter.rooms.get(`user-${String(socket.userId)}`);
     if (!connections || connections.size === 0) {
       try {

@@ -1,0 +1,150 @@
+.yt-shared-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.yt-player-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  pointer-events: none; /* Disable interaction with iframe to use our controls */
+}
+
+.yt-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 1;
+  transition: opacity 0.3s;
+  z-index: 10;
+}
+
+.hide-controls .yt-controls {
+  opacity: 0;
+}
+
+.yt-progress-bar {
+  width: 100%;
+}
+
+.yt-progress-bar input {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.yt-progress-bar input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--voice-accent-solid, #006aff);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(0, 106, 255, 0.5);
+}
+
+.yt-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yt-buttons-left, .yt-buttons-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.yt-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.yt-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.yt-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pause-icon {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.yt-time {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ccc;
+  min-width: 90px;
+}
+
+.yt-volume-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.yt-volume-wrap input {
+  width: 60px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+}
+
+.yt-volume-wrap input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.stop-btn {
+  color: #ff3b30;
+  font-size: 24px;
+}
+
+.yt-host-badge {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #aaa;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
