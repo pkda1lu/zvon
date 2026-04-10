@@ -206,6 +206,14 @@
   z-index: 10;
 }
 
+.p-card.is-focused {
+  grid-column: span 2;
+  grid-row: span 2;
+  aspect-ratio: auto;
+  z-index: 100 !important;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 106, 255, 0.2);
+}
+
 .p-card.is-speaking {
   border-color: var(--voice-accent-solid);
   /* Use a more blue/purple glow to avoid green tint on some displays */

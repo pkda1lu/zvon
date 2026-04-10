@@ -298,6 +298,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const [focusedStreamId, setFocusedStreamId] = useState<string | null>(null);
   const [ytSession, setYtSession] = useState<any>(null);
   const [ytInputOpen, setYtInputOpen] = useState(false);
+  const [ytPlaceholderRect, setYtPlaceholderRect] = useState<DOMRect | null>(null);
+  const ytPlaceholderRef = useRef<HTMLDivElement>(null);
   const [ytUrl, setYtUrl] = useState('');
 
   const getYouTubeId = (url: string) => {
@@ -319,6 +321,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
 
   const handleStopYouTube = () => {
     socket?.emit('yt-watch-stop', { channelId: channel._id });
+    setYtSession(null);
+    if (focusedStreamId === 'youtube-watch') setFocusedStreamId(null);
+    if (expandedStreamId === 'youtube-watch') setExpandedStreamId(null);
   };
 
   const handleCloseContextMenu = () => setContextMenu(null);
@@ -350,21 +355,48 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         }
       };
 
-      socket.on('voice-channel-users-update', handleUpdate);
-      socket.on('yt-watch-state', (state: any) => {
+      const handleYtWatchState = (state: any) => {
         setYtSession(state);
         if (state && !focusedStreamId) {
           setFocusedStreamId('youtube-watch');
-        } else if (!state && focusedStreamId === 'youtube-watch') {
-          setFocusedStreamId(null);
+        } else if (!state) {
+          if (focusedStreamId === 'youtube-watch') setFocusedStreamId(null);
+          if (expandedStreamId === 'youtube-watch') setExpandedStreamId(null);
         }
-      });
+      };
+
+      socket.on('voice-channel-users-update', handleUpdate);
+      socket.on('yt-watch-state', handleYtWatchState);
+      
       return () => {
         socket.off('voice-channel-users-update', handleUpdate);
-        socket.off('yt-watch-state');
+        socket.off('yt-watch-state', handleYtWatchState);
       };
     }
   }, [channel._id, socket]);
+
+  // Sync YouTube placeholder position
+  useEffect(() => {
+    if (!ytSession || !ytPlaceholderRef.current) return;
+
+    const updateRect = () => {
+      if (ytPlaceholderRef.current) {
+        setYtPlaceholderRect(ytPlaceholderRef.current.getBoundingClientRect());
+      }
+    };
+
+    updateRect();
+    const observer = new ResizeObserver(updateRect);
+    observer.observe(ytPlaceholderRef.current);
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [ytSession, expandedStreamId, focusedStreamId]);
 
   const displayParticipants = useMemo(() => {
     let items: any[] = [];
@@ -511,16 +543,19 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     }
 
     if (item.type === 'youtube') {
+      const isExpanded = expandedStreamId === 'youtube-watch';
       return (
-        <div key="youtube-watch" className={`p-card ${focusedStreamId === 'youtube-watch' ? 'is-focused' : ''}`} onClick={() => setFocusedStreamId(focusedStreamId === 'youtube-watch' ? null : 'youtube-watch')}>
-          <SharedYouTubePlayer
-            channelId={channel._id}
-            youtubeId={item.youtubeId}
-            isHost={String(item.hostId) === String(currentUser?._id)}
-            onStop={handleStopYouTube}
-            initialTime={item.currentTime}
-            initialPlaying={item.playing}
-          />
+        <div 
+          key="youtube-watch" 
+          ref={ytPlaceholderRef}
+          className={`p-card youtube-placeholder ${focusedStreamId === 'youtube-watch' ? 'is-focused' : ''} ${isExpanded ? 'is-expanded' : ''}`} 
+          onClick={() => setFocusedStreamId(focusedStreamId === 'youtube-watch' ? null : 'youtube-watch')}
+          style={{ background: '#000' }}
+        >
+          {/* Real player is in Portal to avoid restart */}
+          <div className="stream-overlay">
+            <YouTubeIcon size={48} color="rgba(255,255,255,0.1)" />
+          </div>
         </div>
       );
     }
@@ -694,6 +729,21 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
             </div>
           </div>
         </div>,
+        document.body
+      )}
+      {ytSession && createPortal(
+        <SharedYouTubePlayer
+          channelId={channel._id}
+          youtubeId={ytSession.youtubeId}
+          isHost={String(ytSession.hostId) === String(currentUser?._id)}
+          onStop={handleStopYouTube}
+          initialTime={ytSession.currentTime}
+          initialPlaying={ytSession.playing}
+          isFocused={focusedStreamId === 'youtube-watch'}
+          onToggleExpand={() => setExpandedStreamId(expandedStreamId === 'youtube-watch' ? null : 'youtube-watch')}
+          isExpanded={expandedStreamId === 'youtube-watch'}
+          placeholderRect={ytPlaceholderRect}
+        />,
         document.body
       )}
     </div>

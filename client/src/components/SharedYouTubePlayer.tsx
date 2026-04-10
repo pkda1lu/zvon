@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSocket } from '../contexts/SocketContext';
-import { MaximizeIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon, FullscreenIcon, PlayIcon } from './Icons';
+import { VolumeHighIcon, VolumeLowIcon, FullscreenIcon, PlayIcon, PauseIcon, MinimizeIcon } from './Icons';
 import './SharedYouTubePlayer.css';
 
 interface SharedYouTubePlayerProps {
@@ -10,6 +10,10 @@ interface SharedYouTubePlayerProps {
   onStop: () => void;
   initialTime?: number;
   initialPlaying?: boolean;
+  isFocused?: boolean;
+  onToggleExpand?: () => void;
+  isExpanded?: boolean;
+  placeholderRect?: DOMRect | null;
 }
 
 declare global {
@@ -19,7 +23,10 @@ declare global {
   }
 }
 
-const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, youtubeId, isHost, onStop, initialTime, initialPlaying }) => {
+const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ 
+  channelId, youtubeId, isHost, onStop, initialTime, initialPlaying, 
+  isFocused, onToggleExpand, isExpanded, placeholderRect 
+}) => {
   const { socket } = useSocket();
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -29,8 +36,13 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
   const [volume, setVolume] = useState(50);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [videoTitle, setVideoTitle] = useState('Загрузка видео...');
+  const [availableQualities, setAvailableQualities] = useState<string[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<string>('auto');
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
   const syncInterval = useRef<any>(null);
   const isInternalChange = useRef(false);
+  const controlsTimeout = useRef<any>(null);
 
   useEffect(() => {
     // Load YouTube API
@@ -52,7 +64,8 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
           iv_load_policy: 3,
           modestbranding: 1,
           rel: 0,
-          showinfo: 0
+          showinfo: 0,
+          origin: window.location.origin
         },
         events: {
           onReady: onPlayerReady,
@@ -67,33 +80,37 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
       window.onYouTubeIframeAPIReady = initPlayer;
     }
 
+    const handleStateSync = (state: any) => {
+      if (!state) return;
+      if (!isHost && playerRef.current && playerRef.current.seekTo) {
+        const localTime = playerRef.current.getCurrentTime();
+        const remoteTime = state.currentTime;
+        
+        if (Math.abs(localTime - remoteTime) > 2) {
+          isInternalChange.current = true;
+          playerRef.current.seekTo(remoteTime, true);
+        }
+
+        if (state.playing) {
+          playerRef.current.playVideo();
+        } else {
+          playerRef.current.pauseVideo();
+        }
+      }
+    };
+
     // Socket listeners for sync
     if (socket) {
-      socket.on('yt-watch-state', (state: any) => {
-        if (!state) return;
-        if (!isHost && playerRef.current && playerRef.current.seekTo) {
-          const localTime = playerRef.current.getCurrentTime();
-          const remoteTime = state.currentTime;
-          
-          // Only seek if difference is more than 2 seconds
-          if (Math.abs(localTime - remoteTime) > 2) {
-            isInternalChange.current = true;
-            playerRef.current.seekTo(remoteTime, true);
-          }
-
-          if (state.playing) {
-            playerRef.current.playVideo();
-          } else {
-            playerRef.current.pauseVideo();
-          }
-        }
-      });
+      socket.on('yt-watch-state', handleStateSync);
     }
 
     return () => {
       if (syncInterval.current) clearInterval(syncInterval.current);
-      if (playerRef.current) playerRef.current.destroy();
-      if (socket) socket.off('yt-watch-state');
+      if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+        try { playerRef.current.destroy(); } catch (e) {}
+      }
+      if (socket) socket.off('yt-watch-state', handleStateSync);
+      if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     };
   }, [youtubeId, channelId, isHost, socket]);
 
@@ -101,6 +118,15 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
     setDuration(event.target.getDuration());
     event.target.setVolume(volume);
     
+    try {
+      const data = event.target.getVideoData();
+      if (data && data.title) setVideoTitle(data.title);
+      
+      const qualities = event.target.getAvailableQualityLevels();
+      setAvailableQualities(qualities);
+      setCurrentQuality(event.target.getPlaybackQuality());
+    } catch (e) {}
+
     // Handle initial sync
     if (!isHost) {
       if (initialTime !== undefined) {
@@ -117,13 +143,14 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
       syncInterval.current = setInterval(() => {
         if (playerRef.current && playerRef.current.getCurrentTime) {
           const time = playerRef.current.getCurrentTime();
-          const playing = playerRef.current.getPlayerState() === 1; // 1 is playing
+          const pState = playerRef.current.getPlayerState();
+          const playing = pState === 1 || pState === 3; // 1: playing, 3: buffering
           setCurrentTime(time);
-          setIsPlaying(playing);
+          setIsPlaying(pState === 1);
           
           socket?.emit('yt-watch-sync', {
             channelId,
-            state: { currentTime: time, playing }
+            state: { currentTime: time, playing: pState === 1 }
           });
         }
       }, 2000);
@@ -133,6 +160,15 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
   const onPlayerStateChange = (event: any) => {
     const state = event.data;
     setIsPlaying(state === 1);
+    
+    // Refresh available qualities as they might populate after buffering starts
+    if (state === 1 || state === 3) {
+      try {
+        const qualities = playerRef.current.getAvailableQualityLevels();
+        if (qualities.length > 0) setAvailableQualities(qualities);
+        setCurrentQuality(playerRef.current.getPlaybackQuality());
+      } catch (e) {}
+    }
     
     if (isHost && !isInternalChange.current) {
       socket?.emit('yt-watch-sync', {
@@ -147,7 +183,7 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
   };
 
   const togglePlay = () => {
-    if (!isHost) return;
+    if (!isHost || !playerRef.current || !playerRef.current.pauseVideo) return;
     if (isPlaying) {
       playerRef.current.pauseVideo();
     } else {
@@ -156,7 +192,7 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isHost) return;
+    if (!isHost || !playerRef.current || !playerRef.current.seekTo) return;
     const time = parseFloat(e.target.value);
     playerRef.current.seekTo(time, true);
     setCurrentTime(time);
@@ -165,17 +201,31 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
   const handleVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value);
     setVolume(val);
-    playerRef.current.setVolume(val);
+    if (playerRef.current && playerRef.current.setVolume) {
+      playerRef.current.setVolume(val);
+    }
     if (val > 0) setIsMuted(false);
   };
 
   const toggleMute = () => {
+    if (!playerRef.current || !playerRef.current.mute) return;
     if (isMuted) {
       playerRef.current.unMute();
       setIsMuted(false);
     } else {
       playerRef.current.mute();
       setIsMuted(true);
+    }
+  };
+
+  const handleQualityChange = (q: string) => {
+    if (playerRef.current && playerRef.current.setPlaybackQuality) {
+      playerRef.current.setPlaybackQuality(q);
+      // Small trick: seek to current time can force re-buffer with new quality
+      const currentTime = playerRef.current.getCurrentTime();
+      playerRef.current.seekTo(currentTime, true);
+      setCurrentQuality(q);
+      setShowQualityMenu(false);
     }
   };
 
@@ -186,68 +236,118 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({ channelId, yo
     return [h, m, s].map(v => v.toString().padStart(2, '0')).filter((v, i) => v !== '00' || i > 0).join(':');
   };
 
+  const handleMouseMove = () => {
+    setShowControls(true);
+    if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
+    controlsTimeout.current = setTimeout(() => {
+      if (isPlaying) setShowControls(false);
+    }, 3000);
+  };
+
+  const portalStyles: React.CSSProperties = isExpanded ? {} : {
+    top: placeholderRect?.top ?? 0,
+    left: placeholderRect?.left ?? 0,
+    width: placeholderRect?.width ?? 400,
+    height: placeholderRect?.height ?? 225,
+    opacity: (placeholderRect || isExpanded) ? 1 : 0,
+    pointerEvents: (placeholderRect || isExpanded) ? 'auto' : 'none',
+  };
+
   return (
     <div 
-      className={`yt-shared-container ${!showControls ? 'hide-controls' : ''}`}
+      className={`yt-shared-container ${!showControls ? 'hide-controls' : ''} ${isFocused ? 'is-focused' : ''} ${isExpanded ? 'is-expanded' : ''}`}
       ref={containerRef}
-      onMouseMove={() => {
-        setShowControls(true);
-        const timer = setTimeout(() => setShowControls(false), 3000);
-        return () => clearTimeout(timer);
-      }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => isPlaying && setShowControls(false)}
+      style={portalStyles}
     >
       <div id={`yt-player-${channelId}`} className="yt-player-iframe" />
       
-      <div className="yt-controls">
-        <div className="yt-progress-bar">
-          <input 
-            type="range" 
-            min="0" 
-            max={duration || 100} 
-            value={currentTime} 
-            onChange={handleSeek}
-            disabled={!isHost}
-          />
+      <div className="yt-controls-overlay">
+        <div className="yt-top-bar" onClick={e => e.stopPropagation()}>
+          <div className="yt-video-title">{videoTitle}</div>
+          <div className="yt-status-tag">{isHost ? 'Вы управляете' : 'Синхронизация'}</div>
         </div>
-        
-        <div className="yt-buttons">
-          <div className="yt-buttons-left">
-            <button className="yt-btn" onClick={togglePlay} disabled={!isHost}>
-              {isPlaying ? <span className="pause-icon">II</span> : <PlayIcon size={20} />}
-            </button>
-            <div className="yt-time">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </div>
-            <div className="yt-volume-wrap">
-              <button className="yt-btn" onClick={toggleMute}>
-                {isMuted || volume === 0 ? <VolumeLowIcon size={20} /> : <VolumeHighIcon size={20} />}
-              </button>
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                value={isMuted ? 0 : volume} 
-                onChange={handleVolume}
-              />
-            </div>
+
+        <div className="yt-bottom-bar" onClick={e => e.stopPropagation()}>
+          <div className="yt-progress-container">
+            <input 
+              type="range" 
+              className="yt-progress-bar"
+              min="0" 
+              max={duration || 100} 
+              value={currentTime} 
+              onChange={handleSeek}
+              disabled={!isHost}
+            />
           </div>
           
-          <div className="yt-buttons-right">
-            {isHost && (
-              <button className="yt-btn stop-btn" onClick={onStop} title="Stop sharing">
-                &times;
+          <div className="yt-controls-row">
+            <div className="yt-controls-left">
+              <button className="yt-btn" onClick={togglePlay} disabled={!isHost}>
+                {isPlaying ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
               </button>
-            )}
-            <button className="yt-btn" onClick={() => containerRef.current?.requestFullscreen()} title="Fullscreen">
-              <FullscreenIcon size={20} />
-            </button>
+              <div className="yt-time">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </div>
+              <div className="yt-volume-control">
+                <button className="yt-btn" onClick={toggleMute} style={{ width: 24, height: 24, background: 'none', border: 'none' }}>
+                  {isMuted || volume === 0 ? <VolumeLowIcon size={18} /> : <VolumeHighIcon size={18} />}
+                </button>
+                <input 
+                  type="range" 
+                  className="yt-volume-slider"
+                  min="0" 
+                  max="100" 
+                  value={isMuted ? 0 : volume} 
+                  onChange={handleVolume}
+                />
+              </div>
+            </div>
+            
+            <div className="yt-controls-right">
+              <div className="yt-quality-wrap">
+                <button className="yt-btn" onClick={() => {
+                  if (playerRef.current && playerRef.current.getAvailableQualityLevels) {
+                    const qualities = playerRef.current.getAvailableQualityLevels();
+                    if (qualities.length > 0) setAvailableQualities(qualities);
+                  }
+                  setShowQualityMenu(!showQualityMenu);
+                }} title="Качество">
+                  <span style={{ fontSize: '10px', fontWeight: 800 }}>{currentQuality.toUpperCase()}</span>
+                </button>
+                {showQualityMenu && (
+                  <div className="yt-quality-menu" onMouseLeave={() => setShowQualityMenu(false)}>
+                    {availableQualities.map(q => (
+                      <div 
+                        key={q} 
+                        className={`yt-quality-item ${currentQuality === q ? 'active' : ''}`}
+                        onClick={() => handleQualityChange(q)}
+                      >
+                        {q.toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {isHost && (
+                <button className="yt-btn stop-btn" onClick={onStop} title="Остановить просмотр">
+                  &times;
+                </button>
+              )}
+              <button className="yt-btn" onClick={onToggleExpand} title={isExpanded ? "Свернуть" : "Полный экран"}>
+                {isExpanded ? <MinimizeIcon size={20} /> : <FullscreenIcon size={20} />}
+              </button>
+            </div>
           </div>
         </div>
       </div>
       
-      {!isHost && (
-        <div className="yt-host-badge">
-          Host is controlling playback
+      {!isHost && !showControls && isPlaying && (
+        <div className="yt-host-info" style={{ opacity: 0.5 }}>
+          <h4>{videoTitle}</h4>
+          <p>Хост управляет просмотром</p>
         </div>
       )}
     </div>
