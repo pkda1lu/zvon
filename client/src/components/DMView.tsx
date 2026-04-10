@@ -784,7 +784,14 @@ const DMView: React.FC<DMViewProps> = ({
                                 <button
                                   className="msg-action-btn"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(msg.content);
+                                    const text = msg.content;
+                                    if ((window as any).electron?.clipboard) {
+                                      (window as any).electron.clipboard.writeText(text);
+                                    } else {
+                                      navigator.clipboard.writeText(text).catch(err => {
+                                        console.error('Failed to copy: ', err);
+                                      });
+                                    }
                                   }}
                                   title="Копировать текст"
                                 >
@@ -832,7 +839,14 @@ const DMView: React.FC<DMViewProps> = ({
                             <button
                                 className="msg-action-btn mini"
                                 onClick={() => {
-                                  navigator.clipboard.writeText(msg.content);
+                                  const text = msg.content;
+                                  if ((window as any).electron?.clipboard) {
+                                    (window as any).electron.clipboard.writeText(text);
+                                  } else {
+                                    navigator.clipboard.writeText(text).catch(err => {
+                                      console.error('Failed to copy: ', err);
+                                    });
+                                  }
                                 }}
                                 title="Копировать текст"
                               >

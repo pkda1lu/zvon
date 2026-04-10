@@ -338,7 +338,14 @@ const MessageItem = React.memo<{
                 <button
                   className={`msg-action-btn ${grouped ? 'mini' : ''}`}
                   onClick={() => {
-                    navigator.clipboard.writeText(msg.content);
+                    const text = msg.content;
+                    if ((window as any).electron?.clipboard) {
+                      (window as any).electron.clipboard.writeText(text);
+                    } else {
+                      navigator.clipboard.writeText(text).catch(err => {
+                        console.error('Failed to copy: ', err);
+                      });
+                    }
                   }}
                   title="Копировать текст"
                 >
