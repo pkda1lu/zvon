@@ -191,7 +191,7 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
                 </div>
               ) : filteredAttachments.length === 0 ? (
                 <div className="empty-state">
-                   <DocumentIcon size={48} opacity={0.2} />
+                   <DocumentIcon size={48} color="rgba(255, 255, 255, 0.2)" />
                    <h3>Здесь ничего нет</h3>
                    <p>В этом чате пока не делились такими вложениями</p>
                 </div>
