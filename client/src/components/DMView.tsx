@@ -402,7 +402,7 @@ const DMView: React.FC<DMViewProps> = ({
                           'Внешняя ссылка',
                           'Перейти',
                           'Отмена'
-                        ).then((ok: boolean) => {
+                        ).then((ok: boolean = false) => {
                           if (ok) openLink(subPart);
                         });
                       }}
@@ -446,7 +446,7 @@ const DMView: React.FC<DMViewProps> = ({
                         'Внешняя ссылка',
                         'Перейти',
                         'Отмена'
-                      ).then((ok: boolean) => {
+                      ).then((ok: boolean = false) => {
                         if (ok) openLink(embed.author.url);
                       });
                     }}
@@ -470,7 +470,7 @@ const DMView: React.FC<DMViewProps> = ({
                         'Внешняя ссылка',
                         'Перейти',
                         'Отмена'
-                      ).then((ok: boolean) => {
+                      ).then((ok: boolean = false) => {
                         if (ok) openLink(embed.url);
                       });
                     }}
@@ -1052,29 +1052,20 @@ const DMView: React.FC<DMViewProps> = ({
               zIndex: 10000
             }}
             onClick={e => e.stopPropagation()}
-                  <GifPicker
-              onSelect={handleGifSelect}
-              onClose={() => setShowGifPicker(null)}
+          >
+            <EmojiPicker
+              onSelect={(emoji) => {
+                handleReact(showEmojiPicker.msgId, emoji);
+                setShowEmojiPicker(null);
+              }}
             />
           </div>
         </div>,
         document.body
       )}
-      {createPortal(
-        <AttachmentsModal 
-          isOpen={showAttachments} 
-          onClose={() => setShowAttachments(false)} 
-          dmId={dm._id} 
-          title={displayName || ''} 
-        />,
-        document.body
-      )}
-    </div >
-  );
-};
-
-export default DMView;
-xed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+      {showGifPicker && createPortal(
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
           onClick={() => setShowGifPicker(null)}
         >
           <div

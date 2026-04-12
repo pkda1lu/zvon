@@ -481,6 +481,7 @@
 .message-header {
   display: flex;
   align-items: baseline;
+  justify-content: flex-start;
   gap: 10px;
   margin-bottom: 4px;
 }

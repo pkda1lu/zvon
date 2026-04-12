@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Message, User } from '../types';
-import { getAvatarUrl } from '../utils/avatar';
+import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { 
   DownloadIcon, 
   DocumentIcon, 
@@ -41,6 +41,16 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
       fetchAttachments();
     }
   }, [isOpen, channelId, dmId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const fetchAttachments = async () => {
     setIsLoading(true);
@@ -158,11 +168,7 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
             <span>Документы</span>
           </div>
 
-          <div className="sidebar-footer">
-            <button className="sidebar-close-btn" onClick={onClose}>
-               Закрыть (Esc)
-            </button>
-          </div>
+
         </div>
 
         <div className="attachments-main-content">
@@ -171,7 +177,10 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
                  <h2>{activeTab === 'all' ? 'Все вложения' : activeTab === 'images' ? 'Фотографии' : activeTab === 'videos' ? 'Видеофайлы' : activeTab === 'audio' ? 'Аудиозаписи' : 'Документы'}</h2>
                  <p>{filteredAttachments.length} объектов найдено</p>
               </div>
-              <button className="close-x-btn" onClick={onClose}><CloseIcon size={24} /></button>
+              <div className="close-x-btn" onClick={onClose}>
+                <div className="close-circle"><CloseIcon size={20} /></div>
+                <span className="close-text">ESC</span>
+              </div>
            </div>
 
            <div className="attachments-scroll-area">
@@ -197,16 +206,16 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
                             <div key={`${att.messageId}-${idx}`} className="attachment-card">
                               <div className="card-preview">
                                 {type === 'images' ? (
-                                  <img src={att.url} alt={att.filename} loading="lazy" />
+                                  <img src={getFullUrl(att.url) || ''} alt={att.filename} loading="lazy" />
                                 ) : type === 'videos' ? (
-                                  <video src={att.url} />
+                                  <video src={getFullUrl(att.url) || ''} />
                                 ) : type === 'audio' ? (
                                   <div className="audio-icon"><SpeakerIcon size={40} /></div>
                                 ) : (
                                   <div className="file-icon"><DocumentIcon size={40} /></div>
                                 )}
                                 <div className="card-overlay">
-                                  <button className="download-btn" onClick={() => handleDownload(att.url, att.filename)} title="Скачать">
+                                  <button className="download-btn" onClick={() => handleDownload(getFullUrl(att.url) || '', att.filename)} title="Скачать">
                                     <DownloadIcon size={22} />
                                   </button>
                                 </div>
