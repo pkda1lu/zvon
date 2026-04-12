@@ -213,4 +213,28 @@ router.post('/:id/reactions', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.get('/channel/:channelId/attachments', auth, async (req, res) => {
+  try {
+    const messages = await Message.find({ 
+      channel: req.params.channelId, 
+      attachments: { $exists: true, $not: { $size: 0 } } 
+    })
+    .populate('author', 'username avatar badges')
+    .sort({ createdAt: -1 });
+    res.json(messages);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.get('/dm/:dmId/attachments', auth, async (req, res) => {
+  try {
+    const messages = await Message.find({ 
+      directMessage: req.params.dmId, 
+      attachments: { $exists: true, $not: { $size: 0 } } 
+    })
+    .populate('author', 'username avatar badges')
+    .sort({ createdAt: -1 });
+    res.json(messages);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 module.exports = router;

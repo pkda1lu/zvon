@@ -23,6 +23,7 @@ import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
 import StickyPins from './StickyPins';
 import UserBadges from './UserBadges';
+import AttachmentsModal from './AttachmentsModal';
 import { SmileIcon } from './Icons';
 
 interface ChannelViewProps {
@@ -239,7 +240,11 @@ const MessageItem = React.memo<{
       </div>
     );
   };
-  const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number } | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
+
+  useEffect(() => {
+  }, []);
+
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
     if (!previous) return true;
     return new Date(current.createdAt).getDate() !== new Date(previous.createdAt).getDate();
@@ -330,7 +335,7 @@ const MessageItem = React.memo<{
                 {canReact && (
                   <button
                     className={`msg-action-btn ${grouped ? 'mini' : ''}`}
-                    onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY })}
+                    onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
                     title="Добавить реакцию"
                   >
                     <SmileIcon size={grouped ? 14 : 16} />
@@ -495,6 +500,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   } = useChatSettings();
   const [message, setMessage] = useState('');
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const [showAttachments, setShowAttachments] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
 
   const userPermissions = useMemo(() => {
@@ -1018,7 +1024,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
           </button>
         )}
-        <div className="channel-header-info">
+        <div className="channel-header-info" onClick={() => setShowAttachments(true)} style={{ cursor: 'pointer' }}>
           <span className="channel-icon"><HashtagIcon size={24} color="#8e9297" /></span>
           <h3>{channel.name}</h3>
         </div>
@@ -1240,6 +1246,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         document.body
       )}
       <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />
+      {createPortal(
+        <AttachmentsModal 
+          isOpen={showAttachments} 
+          onClose={() => setShowAttachments(false)} 
+          channelId={channel._id} 
+          title={`#${channel.name}`} 
+        />,
+        document.body
+      )}
     </div>
   );
 };

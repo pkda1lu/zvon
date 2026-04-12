@@ -19,6 +19,7 @@ import GifPicker from './GifPicker';
 import Reactions from './Reactions';
 import StickyPins from './StickyPins';
 import UserBadges from './UserBadges';
+import AttachmentsModal from './AttachmentsModal';
 import './DMView.css';
 import './Attachments.css';
 
@@ -84,6 +85,7 @@ const DMView: React.FC<DMViewProps> = ({
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const [showAttachments, setShowAttachments] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
 
   useEffect(() => {
@@ -636,7 +638,7 @@ const DMView: React.FC<DMViewProps> = ({
             />
             <div className="dm-header-text-info">
               <div className="dm-display-name-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 className="dm-display-name" style={{ margin: 0 }}>{displayName}</h3>
+                <h3 className="dm-display-name" style={{ margin: 0, cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setShowAttachments(true); }}>{displayName}</h3>
                 {!isGroup && otherUser && <UserBadges badges={otherUser.badges} size={16} />}
               </div>
               {!isGroup && (
@@ -1050,20 +1052,29 @@ const DMView: React.FC<DMViewProps> = ({
               zIndex: 10000
             }}
             onClick={e => e.stopPropagation()}
-          >
-            <EmojiPicker
-              onSelect={(emoji) => {
-                handleReact(showEmojiPicker.msgId, emoji);
-                setShowEmojiPicker(null);
-              }}
+                  <GifPicker
+              onSelect={handleGifSelect}
+              onClose={() => setShowGifPicker(null)}
             />
           </div>
         </div>,
         document.body
       )}
-      {showGifPicker && createPortal(
-        <div
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+      {createPortal(
+        <AttachmentsModal 
+          isOpen={showAttachments} 
+          onClose={() => setShowAttachments(false)} 
+          dmId={dm._id} 
+          title={displayName || ''} 
+        />,
+        document.body
+      )}
+    </div >
+  );
+};
+
+export default DMView;
+xed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
           onClick={() => setShowGifPicker(null)}
         >
           <div
@@ -1081,6 +1092,15 @@ const DMView: React.FC<DMViewProps> = ({
             />
           </div>
         </div>,
+        document.body
+      )}
+      {createPortal(
+        <AttachmentsModal 
+          isOpen={showAttachments} 
+          onClose={() => setShowAttachments(false)} 
+          dmId={dm._id} 
+          title={displayName || ''} 
+        />,
         document.body
       )}
     </div >
