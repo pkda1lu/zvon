@@ -87,6 +87,14 @@
     background: #f04747;
 }
 
+.member-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    max-width: 100%;
+}
+
 .member-name {
     font-size: 15px;
     color: var(--text-secondary);
@@ -94,14 +102,12 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
-.member-name-row {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    overflow: hidden;
-    max-width: 100%;
+.member-name-row .user-badges-container {
+    flex-shrink: 0;
 }
 
 .member-item:hover .member-name {

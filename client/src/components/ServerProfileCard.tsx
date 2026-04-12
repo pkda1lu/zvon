@@ -4,7 +4,9 @@ import { Server } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useDialog } from '../contexts/DialogContext';
 import { CloseIcon } from './Icons';
+import UserBadges from './UserBadges';
 import './ServerProfileCard.css';
+
 
 interface ServerProfileCardProps {
     server: Server;
@@ -127,9 +129,13 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                                         alt=""
                                         className="owner-avatar"
                                     />
-                                    <span style={{ fontSize: '14px', color: '#fff' }}>
-                                        {(server.owner as any).username}
-                                    </span>
+                                    <div className="owner-name-row" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span style={{ fontSize: '14px', color: '#fff', fontWeight: 600 }}>
+                                            {(server.owner as any).username}
+                                        </span>
+                                        <UserBadges badges={(server.owner as any).badges} size={14} />
+                                    </div>
+
                                 </>
                             )}
                         </div>

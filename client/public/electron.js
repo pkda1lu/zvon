@@ -57,6 +57,21 @@ ipcMain.on('restart-app', () => {
     app.relaunch();
     app.exit();
 });
+
+ipcMain.on('update-keybinds', (event, keybinds) => {
+    unregisterGlobalShortcuts();
+    keybinds.forEach(kb => {
+        try {
+            globalShortcut.register(kb.accelerator, () => {
+                if (mainWindow) {
+                    mainWindow.webContents.send(`${kb.action}-shortcut`);
+                }
+            });
+        } catch (e) {
+            console.error(`Failed to register shortcut ${kb.accelerator}:`, e);
+        }
+    });
+});
 // -------------------------------------------------------------
 
 // Performance Tuning
@@ -202,12 +217,11 @@ function updateTrayStatus(state) {
 }
 
 function registerGlobalShortcuts() {
-    // Toggle Mute: Ctrl+Shift+M
+    // Default shortcuts until dynamic ones are loaded from frontend
     globalShortcut.register('CommandOrControl+Shift+M', () => {
         if (mainWindow) mainWindow.webContents.send('toggle-mute-shortcut');
     });
 
-    // Toggle Deafen: Ctrl+Shift+D
     globalShortcut.register('CommandOrControl+Shift+D', () => {
         if (mainWindow) mainWindow.webContents.send('toggle-deafen-shortcut');
     });

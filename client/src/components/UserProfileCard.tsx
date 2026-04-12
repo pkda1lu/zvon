@@ -245,11 +245,21 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 <div className="profile-body">
                     <div className="profile-names">
                         <div className="profile-names-top">
-                            {memberData?.nickname && <span className="profile-nickname">{memberData.nickname}</span>}
-                            <UserBadges badges={user.badges} size={18} className="profile-badges" />
+                            {memberData?.nickname ? (
+                                <>
+                                    <span className="profile-nickname">{memberData.nickname}</span>
+                                    <UserBadges badges={user.badges} size={18} className="profile-badges" />
+                                </>
+                            ) : (
+                                <>
+                                    <span className="profile-username">{user.username}</span>
+                                    <UserBadges badges={user.badges} size={18} className="profile-badges" />
+                                </>
+                            )}
                         </div>
-                        <span className={memberData?.nickname ? "profile-username sub" : "profile-username"}>{user.username}</span>
+                        {memberData?.nickname && <span className="profile-username sub">{user.username}</span>}
                     </div>
+
 
                     {user.activity && (
                         <div className="profile-activity-section">

@@ -438,16 +438,34 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.message-author-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
 .message-author {
   color: var(--text-primary);
   font-weight: 600;
   font-size: 1.05rem;
+  flex-shrink: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-author-info .user-badges-container {
+  flex-shrink: 0;
 }
 
 .message-time {
   color: var(--text-muted);
   font-size: 0.75rem;
+  flex-shrink: 0;
 }
+
 
 .bot-badge {
   background: var(--primary-neon);

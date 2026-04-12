@@ -635,8 +635,8 @@ const DMView: React.FC<DMViewProps> = ({
               }}
             />
             <div className="dm-header-text-info">
-              <div className="dm-display-name-row">
-                <h3 className="dm-display-name">{displayName}</h3>
+              <div className="dm-display-name-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 className="dm-display-name" style={{ margin: 0 }}>{displayName}</h3>
                 {!isGroup && otherUser && <UserBadges badges={otherUser.badges} size={16} />}
               </div>
               {!isGroup && (
@@ -677,11 +677,11 @@ const DMView: React.FC<DMViewProps> = ({
                 ) : (
                   pinnedMessages.map(msg => (
                     <div key={msg._id} className="pin-item">
-                      <div className="pin-author">
+                      <div className="pin-author" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <UserAvatar user={msg.author} size={24} className="pin-avatar-comp" />
-                        <span className="pin-name">{msg.author.username}</span>
+                        <span className="pin-name" style={{ fontWeight: 600 }}>{msg.author.username}</span>
                         <UserBadges badges={msg.author.badges} size={12} />
-                        <span className="pin-date">{formatDate(msg.createdAt)}</span>
+                        <span className="pin-date" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatDate(msg.createdAt)}</span>
                       </div>
                       <div className="pin-content">{msg.content}</div>
                       <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
@@ -725,7 +725,7 @@ const DMView: React.FC<DMViewProps> = ({
                         <PhoneIcon color="#ff4d4d" />
                       </div>
                       <div className="system-message-content" style={{ marginLeft: '15px' }}>
-                        <div className="system-message-header">
+                        <div className="system-message-header message-author-info">
                           <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
                           <UserBadges badges={msg.author.badges} size={14} />
                           <span className="message-time">{formatDate(msg.createdAt)}</span>
@@ -736,13 +736,13 @@ const DMView: React.FC<DMViewProps> = ({
                   ) : (
                     <div id={`msg-${msg._id}`} className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}>
                       {msg.replyTo && (
-                        <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
+                        <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <div className="reply-line" />
                           <ReplyIcon size={12} className="reply-icon-mini" />
                           <UserAvatar user={msg.replyTo.author} size={16} className="reply-avatar" />
-                           <span className="reply-author">{msg.replyTo.author.username}</span>
+                           <span className="reply-author" style={{ fontWeight: 600 }}>{msg.replyTo.author.username}</span>
                            <UserBadges badges={msg.replyTo.author.badges} size={10} />
-                          <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
+                          <span className="reply-content" style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
                         </div>
                       )}
                       {!grouped && (
@@ -758,7 +758,7 @@ const DMView: React.FC<DMViewProps> = ({
                       {grouped && <div className="message-time-mini">{new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
                       <div className="message-content">
                         {!grouped && (
-                          <div className="message-header">
+                          <div className="message-header message-author-info">
                             <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
                             <UserBadges badges={msg.author.badges} size={14} />
                             {msg.author.isBot && <span className="bot-badge">БOТ</span>}

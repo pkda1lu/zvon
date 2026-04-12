@@ -7,14 +7,14 @@ const Message = require('../models/Message');
 
 router.get('/', auth, async (req, res) => {
   try {
-    const dms = await DirectMessage.find({ participants: req.user._id }).populate('participants', 'username avatar status').sort({ updatedAt: -1 });
+    const dms = await DirectMessage.find({ participants: req.user._id }).populate('participants', 'username avatar status badges').sort({ updatedAt: -1 });
     res.json(dms);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const dm = await DirectMessage.findById(req.params.id).populate('participants', 'username avatar status');
+    const dm = await DirectMessage.findById(req.params.id).populate('participants', 'username avatar status badges');
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p._id.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
     res.json(dm);
@@ -26,11 +26,11 @@ router.get('/user/:userId', auth, async (req, res) => {
     const { userId } = req.params;
     if (!mongoose.isValidObjectId(userId)) return res.status(400).json({ message: 'Invalid user ID' });
     if (userId === req.user._id.toString()) return res.status(400).json({ message: 'Cannot create DM with yourself' });
-    let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: [req.user._id, userId] } }).populate('participants', 'username avatar status');
+    let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: [req.user._id, userId] } }).populate('participants', 'username avatar status badges');
     if (!dm) {
       dm = new DirectMessage({ participants: [req.user._id, userId] });
       await dm.save();
-      await dm.populate('participants', 'username avatar status');
+      await dm.populate('participants', 'username avatar status badges');
     }
     res.json(dm);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -48,7 +48,7 @@ router.post('/group', auth, async (req, res) => {
 
     // If it's just 2 people total, check if a DM already exists
     if (participants.length === 2) {
-      let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate('participants', 'username avatar status');
+      let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate('participants', 'username avatar status badges');
       if (dm) return res.json(dm);
     }
 
@@ -74,8 +74,8 @@ router.get('/:id/messages', auth, async (req, res) => {
     if (before) query.createdAt = { $lt: new Date(before) };
 
     const messages = await Message.find(query)
-      .populate('author', 'username avatar')
-      .populate('mentions', 'username avatar')
+      .populate('author', 'username avatar badges')
+      .populate('mentions', 'username avatar badges')
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .exec();
@@ -91,7 +91,7 @@ router.post('/:id/messages', auth, async (req, res) => {
     if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
     const message = new Message({ content, author: req.user._id, channel: null, directMessage: dm._id, attachments: attachments || [], type: type || 'default' });
     await message.save();
-    await message.populate('author', 'username avatar');
+    await message.populate('author', 'username avatar badges');
     dm.updatedAt = new Date();
     await dm.save();
     const io = req.app.get('io');
@@ -104,8 +104,8 @@ router.get('/:id/pins', auth, async (req, res) => {
   try {
     const dmId = req.params.id;
     const pins = await Message.find({ directMessage: dmId, pinned: true })
-      .populate('author', 'username avatar')
-      .populate('mentions', 'username avatar')
+      .populate('author', 'username avatar badges')
+      .populate('mentions', 'username avatar badges')
       .sort({ pinnedAt: -1 });
     res.json(pins);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }

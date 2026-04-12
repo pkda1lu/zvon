@@ -13,7 +13,7 @@ router.get('/channel/:channelId', auth, async (req, res) => {
     const { limit = 50, before } = req.query;
     let query = { channel: req.params.channelId };
     if (before) query.createdAt = { $lt: new Date(before) };
-    const messages = await Message.find(query).populate('author', 'username avatar').populate('replyTo').populate('mentions', 'username avatar').sort({ createdAt: -1 }).limit(parseInt(limit)).exec();
+    const messages = await Message.find(query).populate('author', 'username avatar badges').populate({ path: 'replyTo', populate: { path: 'author', select: 'username avatar badges' } }).populate('mentions', 'username avatar badges').sort({ createdAt: -1 }).limit(parseInt(limit)).exec();
     res.json(messages.reverse());
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -23,7 +23,7 @@ router.post('/', auth, async (req, res) => {
     const { content, channelId, replyTo, attachments } = req.body;
     const message = new Message({ content, author: req.user._id, channel: channelId, replyTo, attachments: attachments || [] });
     await message.save();
-    await message.populate('author', 'username avatar');
+    await message.populate('author', 'username avatar badges');
     if (replyTo) await message.populate('replyTo');
     res.status(201).json(message);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -39,7 +39,7 @@ router.put('/:id', auth, async (req, res) => {
     message.edited = true;
     message.editedAt = new Date();
     await message.save();
-    await message.populate('author', 'username avatar');
+    await message.populate('author', 'username avatar badges');
     res.json(message);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -97,8 +97,8 @@ router.delete('/:id', auth, async (req, res) => {
 router.get('/channel/:channelId/pins', auth, async (req, res) => {
   try {
     const pins = await Message.find({ channel: req.params.channelId, pinned: true })
-      .populate('author', 'username avatar')
-      .populate('mentions', 'username avatar')
+      .populate('author', 'username avatar badges')
+      .populate('mentions', 'username avatar badges')
       .sort({ pinnedAt: -1 });
     res.json(pins);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -143,7 +143,7 @@ router.patch('/:id/pin', auth, async (req, res) => {
       }
     }
 
-    await message.populate('author', 'username avatar');
+    await message.populate('author', 'username avatar badges');
 
     const io = req.app.get('io');
     if (io) {

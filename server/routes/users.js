@@ -26,7 +26,7 @@ router.get('/profile/:id', auth, async (req, res) => {
     const targetUserFriendships = await Friendship.find({ $or: [{ requester: targetUserId }, { recipient: targetUserId }], status: 'accepted' });
     const targetUserFriendIds = targetUserFriendships.map(f => f.requester.toString() === targetUserId.toString() ? f.recipient : f.requester);
     const mutualFriendIds = currentUserFriendIds.filter(id => targetUserFriendIds.some(tid => tid.toString() === id.toString()));
-    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status');
+    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges');
     res.json({ user, mutualServers, mutualFriends });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });

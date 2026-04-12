@@ -8,6 +8,7 @@ import { useAppearance, ThemeType } from '../contexts/AppearanceContext';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { useDialog } from '../contexts/DialogContext';
+import { useKeybinds, Keybind } from '../contexts/KeybindsContext';
 import {
   CloseIcon,
   UsersIcon,
@@ -26,7 +27,9 @@ import {
   BotIcon
 } from './Icons';
 import ImageCropper from './ImageCropper';
+import UserBadges from './UserBadges';
 import './SettingsModal.css';
+
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -144,6 +147,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     hardwareAcceleration, setHardwareAcceleration,
     appVersion
   } = useWindowSettings();
+
+  const { keybinds, updateKeybind, removeKeybind, addKeybind } = useKeybinds();
+  const [recordingId, setRecordingId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const [mobileViewState, setMobileViewState] = useState<'tabs' | 'content'>('tabs');
@@ -362,7 +368,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         <div className="account-info-banner">
           <div className="account-details">
-            <h3>{user?.username}</h3>
+            <div className="name-badges-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3>{user?.username}</h3>
+              <UserBadges badges={selectedBadges} size={20} />
+            </div>
             <div className="account-status-wrapper">
               <div className={`status-dot ${status}`} />
               <p>
@@ -374,18 +383,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
           <button className="edit-profile-button" onClick={() => fileInputRef.current?.click()}>
-            Изменить профиль
+            Изменить аватар
           </button>
         </div>
+
       </div>
 
-      <div className="settings-form-group">
-        <label>Имя пользователя</label>
-        <input
-          type="text"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
-        />
+      <div className="voice-settings-grid">
+        <div className="settings-form-group">
+          <label>Имя пользователя</label>
+          <input
+            type="text"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+          />
+        </div>
+
+        <div className="settings-form-group">
+          <label>Статус</label>
+          <div className="status-selector-grid">
+            {[
+              { id: 'online', label: 'В сети', color: 'online' },
+              { id: 'away', label: 'Отошёл', color: 'away' },
+              { id: 'busy', label: 'Занят', color: 'busy' },
+              { id: 'offline', label: 'Невидимый', color: 'offline' }
+            ].map(opt => (
+              <div
+                key={opt.id}
+                className={`status-option ${status === opt.id ? 'active' : ''}`}
+                onClick={() => setStatus(opt.id as any)}
+              >
+                <div className={`status-dot ${opt.color}`} />
+                <span className="status-text">{opt.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="settings-form-group">
@@ -399,51 +432,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       </div>
 
       <div className="settings-form-group">
-        <label>Статус</label>
-        <div className="status-selector-grid">
-          {[
-            { id: 'online', label: 'В сети', color: 'online' },
-            { id: 'away', label: 'Отошёл', color: 'away' },
-            { id: 'busy', label: 'Занят', color: 'busy' },
-            { id: 'offline', label: 'Невидимый', color: 'offline' }
-          ].map(opt => (
-            <div
-              key={opt.id}
-              className={`status-option ${status === opt.id ? 'active' : ''}`}
-              onClick={() => setStatus(opt.id as any)}
-            >
-              <div className={`status-dot ${opt.color}`} />
-              <span className="status-text">{opt.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="settings-form-group">
         <label>Электронная почта</label>
         {!emailChangeState.isChanging ? (
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div className="email-wizard-input-group">
             <input type="text" value={user?.email || ''} readOnly disabled style={{ opacity: 0.7 }} />
-            <button 
-              className="msg-action-btn" 
+            <button
+              className="settings-tab-action-btn"
               onClick={() => setEmailChangeState({ ...emailChangeState, isChanging: true, step: 1, error: '' })}
             >Изменить</button>
           </div>
         ) : (
-          <div className="email-change-wizard" style={{ padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div className="email-change-wizard">
             {emailChangeState.step === 1 ? (
               <>
-                <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px' }}>Введите новый адрес почты. Мы отправим на него код подтверждения.</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input 
-                    type="email" 
+                <p className="email-wizard-help">Введите новый адрес почты. Мы отправим на него код подтверждения.</p>
+                <div className="email-wizard-input-group">
+                  <input
+                    type="email"
                     placeholder="new@email.com"
                     value={emailChangeState.newEmail}
                     onChange={e => setEmailChangeState({ ...emailChangeState, newEmail: e.target.value })}
                   />
-                  <button 
-                    className="save-button" 
-                    style={{ padding: '8px 16px', fontSize: '12px' }}
+                  <button
+                    className="save-button"
+                    style={{ marginTop: 0, minWidth: '120px' }}
                     disabled={emailChangeState.loading}
                     onClick={async () => {
                       setEmailChangeState(s => ({ ...s, loading: true, error: '' }));
@@ -455,27 +467,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                       }
                     }}
                   >{emailChangeState.loading ? '...' : 'Далее'}</button>
-                  <button 
-                    className="msg-action-btn"
+                  <button
+                    className="settings-tab-action-btn"
                     onClick={() => setEmailChangeState({ ...emailChangeState, isChanging: false })}
                   >Отмена</button>
                 </div>
               </>
             ) : (
               <>
-                <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px' }}>Код отправлен на <strong>{emailChangeState.newEmail}</strong>. Введите его ниже:</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input 
-                    type="text" 
+                <p className="email-wizard-help">Код отправлен на <strong>{emailChangeState.newEmail}</strong>. Введите его ниже:</p>
+                <div className="email-wizard-input-group">
+                  <input
+                    type="text"
                     placeholder="123456"
                     maxLength={6}
                     value={emailChangeState.code}
                     onChange={e => setEmailChangeState({ ...emailChangeState, code: e.target.value })}
                     style={{ textAlign: 'center', letterSpacing: '4px' }}
                   />
-                  <button 
-                    className="save-button" 
-                    style={{ padding: '8px 16px', fontSize: '12px' }}
+                  <button
+                    className="save-button"
+                    style={{ marginTop: 0, minWidth: '120px' }}
                     disabled={emailChangeState.loading}
                     onClick={async () => {
                       setEmailChangeState(s => ({ ...s, loading: true, error: '' }));
@@ -488,15 +500,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                       }
                     }}
                   >{emailChangeState.loading ? '...' : 'Подтвердить'}</button>
-                  <button 
-                    className="msg-action-btn"
+                  <button
+                    className="settings-tab-action-btn"
                     onClick={() => setEmailChangeState({ ...emailChangeState, step: 1 })}
                   >Назад</button>
                 </div>
               </>
             )}
             {emailChangeState.error && (
-              <p style={{ color: '#ff3b30', fontSize: '11px', marginTop: '10px' }}>{emailChangeState.error}</p>
+              <p className="email-error">{emailChangeState.error}</p>
             )}
           </div>
         )}
@@ -510,9 +522,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               key={badge.id}
               className={`badge-option ${selectedBadges.includes(badge.id) ? 'active' : ''}`}
               onClick={() => {
-                setSelectedBadges(prev => 
-                  prev.includes(badge.id) 
-                    ? [] 
+                setSelectedBadges(prev =>
+                  prev.includes(badge.id)
+                    ? []
                     : [badge.id]
                 );
               }}
@@ -568,8 +580,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               checked={user?.is2FAEnabled || false}
               onChange={async () => {
                 const confirmed = await confirm(
-                  user?.is2FAEnabled 
-                    ? 'Вы уверены, что хотите ОТКЛЮЧИТЬ двухфакторную аутентификацию?' 
+                  user?.is2FAEnabled
+                    ? 'Вы уверены, что хотите ОТКЛЮЧИТЬ двухфакторную аутентификацию?'
                     : 'Вы уверены, что хотите ВКЛЮЧИТЬ двухфакторную аутентификацию?'
                 );
                 if (confirmed) {
@@ -604,177 +616,225 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   );
 
 
-  const renderAppearanceSettings = () => (
-    <div className="settings-section-content">
-      <h2 className="settings-section-title">Внешний вид</h2>
+  const renderAppearanceSettings = () => {
+    return (
+      <div className="settings-section-content">
+        <h2 className="settings-section-title">Внешний вид</h2>
 
-      <div className="settings-section-block">
-        <h3>Тема</h3>
-        <div className="theme-selection-grid">
-          <div
-            className={`theme-card dark ${theme === 'dark' ? 'active' : ''}`}
-            onClick={() => setTheme('dark')}
-          >
-            <div className="theme-preview">
-              <div className="preview-sidebar" />
-              <div className="preview-content">
-                <div className="preview-bubble" />
-                <div className="preview-bubble short" />
+        <div className="appearance-layout">
+          <div className="appearance-preview-top">
+            <div className="live-preview-box">
+              <div className="preview-header">
+                <div className="preview-dot red"></div>
+                <div className="preview-dot yellow"></div>
+                <div className="preview-dot green"></div>
+                <span>Предпросмотр интерфейса</span>
+              </div>
+              
+              <div className="preview-content-scrollable">
+                <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
+                  <div className="preview-avatar" style={{ 
+                    width: density === 'compact' ? '32px' : '42px', 
+                    height: density === 'compact' ? '32px' : '42px',
+                    borderRadius: density === 'compact' ? '10px' : '14px' 
+                  }}>
+                    <span>A</span>
+                  </div>
+                  <div className="preview-msg-body">
+                    <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>Аркадий</span>
+                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Сегодня в 12:45</span>
+                    </div>
+                    <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
+                      Привет! 👋 Как тебе новый улучшенный дизайн Zvon? Мы добавили много крутых штук!
+                    </div>
+                  </div>
+                </div>
+
+                <div className="preview-message grouped" style={{ marginTop: `${messageSpacing}px`, paddingLeft: density === 'compact' ? '44px' : '54px' }}>
+                  <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
+                    И теперь всё можно настроить под себя в реальном времени.
+                  </div>
+                </div>
+
+                <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
+                  <div className="preview-avatar bot" style={{ 
+                    width: density === 'compact' ? '32px' : '42px', 
+                    height: density === 'compact' ? '32px' : '42px',
+                    borderRadius: density === 'compact' ? '10px' : '14px',
+                    background: 'var(--primary-neon)'
+                  }}>
+                    <BotIcon size={18} color="black" />
+                  </div>
+                  <div className="preview-msg-body">
+                    <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--primary-neon)' }}>Zvon AI</span>
+                      <span className="bot-badge">BOT</span>
+                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Сегодня в 12:46</span>
+                    </div>
+                    <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
+                      Настройки успешно применены! Выглядит отлично! ✨
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="preview-footer-input">
+                <div className="preview-input-mock">Написать сообщение...</div>
               </div>
             </div>
-            <span>Тёмная</span>
+
+            <div className="preview-tip" style={{ marginTop: '15px', marginBottom: '30px' }}>
+              <strong>Совет:</strong> Используйте «Компактный» режим, если хотите видеть больше сообщений на экране.
+            </div>
           </div>
-          <div
-            className={`theme-card amoled ${theme === 'amoled' ? 'active' : ''}`}
-            onClick={() => setTheme('amoled')}
-          >
-            <div className="theme-preview">
-              <div className="preview-sidebar" />
-              <div className="preview-content">
-                <div className="preview-bubble" />
-                <div className="preview-bubble short" />
+
+          <div className="appearance-controls">
+            <div className="settings-section-block">
+              <h3>Тема оформления</h3>
+              <div className="theme-selection-grid">
+                {[
+                  { id: 'dark', label: 'Тёмная', style: 'dark' },
+                  { id: 'amoled', label: 'AMOLED', style: 'amoled' },
+                  { id: 'light', label: 'Светлая', style: 'light' }
+                ].map(t => (
+                  <div
+                    key={t.id}
+                    className={`theme-card ${t.style} ${theme === t.id ? 'active' : ''}`}
+                    onClick={() => setTheme(t.id as any)}
+                  >
+                    <div className="theme-preview">
+                      <div className="preview-sidebar" />
+                      <div className="preview-content">
+                        <div className="preview-bubble" />
+                        <div className="preview-bubble short" />
+                      </div>
+                    </div>
+                    <span>{t.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <span>AMOLED</span>
-          </div>
-          <div
-            className={`theme-card light ${theme === 'light' ? 'active' : ''}`}
-            onClick={() => setTheme('light')}
-          >
-            <div className="theme-preview">
-              <div className="preview-sidebar" />
-              <div className="preview-content">
-                <div className="preview-bubble" />
-                <div className="preview-bubble short" />
+
+            <div className="settings-section-block">
+              <h3>Масштабирование и Размеры</h3>
+
+              <div className="settings-form-group">
+                <div className="slider-header-row">
+                  <label>Размер шрифта</label>
+                  <span className="slider-value">{Math.round(fontScale * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="1.5"
+                  step="0.05"
+                  value={fontScale}
+                  onChange={(e) => setFontScale(parseFloat(e.target.value))}
+                  className="settings-slider"
+                />
+              </div>
+
+              <div className="voice-settings-grid">
+                <div className="settings-form-group">
+                  <div className="slider-header-row">
+                    <label>Межстрочный интервал</label>
+                    <span className="slider-value">{messageSpacing}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="24"
+                    step="1"
+                    value={messageSpacing}
+                    onChange={(e) => setMessageSpacing(parseInt(e.target.value))}
+                    className="settings-slider"
+                  />
+                </div>
+
+                <div className="settings-form-group">
+                  <div className="slider-header-row">
+                    <label>Отступ групп</label>
+                    <span className="slider-value">{groupSpacing}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="8"
+                    max="48"
+                    step="2"
+                    value={groupSpacing}
+                    onChange={(e) => setGroupSpacing(parseInt(e.target.value))}
+                    className="settings-slider"
+                  />
+                </div>
               </div>
             </div>
-            <span>Светлая</span>
+
+            <div className="settings-section-block">
+              <h3>Отображение чата</h3>
+              <div className="density-selection-pills">
+                <button
+                  className={`pill-btn ${density === 'cozy' ? 'active' : ''}`}
+                  onClick={() => setDensity('cozy')}
+                >
+                  <UsersIcon size={16} />
+                  Уютный (Cozy)
+                </button>
+                <button
+                  className={`pill-btn ${density === 'compact' ? 'active' : ''}`}
+                  onClick={() => setDensity('compact')}
+                >
+                  <MonitorIcon size={16} />
+                  Компактный
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-section-block">
+              <h3>Иконка приложения</h3>
+              <div className="app-icon-grid">
+                {[
+                  { id: 'default', label: 'Стандарт', img: 'icon.png' },
+                  { id: 'icon1', label: 'Неон', img: 'icon1.PNG' },
+                  { id: 'icon2', label: 'Лазурь', img: 'icon2.png' },
+                  { id: 'icon3', label: 'Аметист', img: 'icon3.png' },
+                  { id: 'icon4', label: 'Космос', img: 'icon4.png' }
+                ].map(icon => (
+                  <div
+                    key={icon.id}
+                    className={`app-icon-option ${appIcon === icon.id ? 'active' : ''}`}
+                    onClick={() => setAppIcon(icon.id as any)}
+                  >
+                    <img src={`/${icon.img}`} alt={icon.label} />
+                    <span>{icon.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="settings-section-block">
+              <h3>Производительность</h3>
+              <div className="settings-form-group-checkbox">
+                <div className="checkbox-label">
+                  <span className="checkbox-title">Режим экономии ресурсов</span>
+                  <span className="checkbox-description">Отключает размытие (Blur) и сложные градиенты. Позволяет значительно снизить нагрузку на GPU.</span>
+                </div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={performanceMode}
+                    onChange={(e) => setPerformanceMode(e.target.checked)}
+                  />
+                  <span className="slider round"></span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="settings-section-block">
-        <h3>Плотность интерфейса</h3>
-        <div className="density-selection">
-          <button
-            className={`density-btn ${density === 'cozy' ? 'active' : ''}`}
-            onClick={() => setDensity('cozy')}
-          >
-            Уютная
-          </button>
-          <button
-            className={`density-btn ${density === 'compact' ? 'active' : ''}`}
-            onClick={() => setDensity('compact')}
-          >
-            Компактная
-          </button>
-        </div>
       </div>
-
-      <div className="settings-section-block">
-        <h3>Размер шрифта ({Math.round(fontScale * 100)}%)</h3>
-        <input
-          type="range"
-          min="0.8"
-          max="1.5"
-          step="0.05"
-          value={fontScale}
-          onChange={(e) => setFontScale(parseFloat(e.target.value))}
-          className="settings-slider"
-        />
-        <div className="slider-labels">
-          <span>80%</span>
-          <span>100%</span>
-          <span>150%</span>
-        </div>
-      </div>
-
-      <div className="settings-section-block">
-        <h3>Расстояние между сообщениями ({messageSpacing}px)</h3>
-        <input
-          type="range"
-          min="0"
-          max="24"
-          step="1"
-          value={messageSpacing}
-          onChange={(e) => setMessageSpacing(parseInt(e.target.value))}
-          className="settings-slider"
-        />
-      </div>
-
-      <div className="settings-section-block">
-        <h3>Расстояние между группами ({groupSpacing}px)</h3>
-        <input
-          type="range"
-          min="0"
-          max="48"
-          step="2"
-          value={groupSpacing}
-          onChange={(e) => setGroupSpacing(parseInt(e.target.value))}
-          className="settings-slider"
-        />
-      </div>
-
-      <div className="settings-section-block">
-        <h3>Иконка приложения</h3>
-        <div className="app-icon-grid">
-          <div
-            className={`app-icon-option ${appIcon === 'default' ? 'active' : ''}`}
-            onClick={() => setAppIcon('default')}
-          >
-            <img src="icon.png" alt="По умолчанию" />
-            <span>Стандартная</span>
-          </div>
-          <div
-            className={`app-icon-option ${appIcon === 'icon1' ? 'active' : ''}`}
-            onClick={() => setAppIcon('icon1')}
-          >
-            <img src="icon1.PNG" alt="Вариант 1" />
-            <span>Неон</span>
-          </div>
-          <div
-            className={`app-icon-option ${appIcon === 'icon2' ? 'active' : ''}`}
-            onClick={() => setAppIcon('icon2')}
-          >
-            <img src="icon2.png" alt="Вариант 2" />
-            <span>Лазурь</span>
-          </div>
-          <div
-            className={`app-icon-option ${appIcon === 'icon3' ? 'active' : ''}`}
-            onClick={() => setAppIcon('icon3')}
-          >
-            <img src="icon3.png" alt="Вариант 3" />
-            <span>Аметист</span>
-          </div>
-          <div
-            className={`app-icon-option ${appIcon === 'icon4' ? 'active' : ''}`}
-            onClick={() => setAppIcon('icon4')}
-          >
-            <img src="icon4.png" alt="Космос" />
-            <span>Космос</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="settings-section-block">
-        <h3>Производительность</h3>
-        <div className="settings-form-group-checkbox">
-          <div className="checkbox-label">
-            <span className="checkbox-title">Режим производительности</span>
-            <span className="checkbox-description">Отключает размытие (blur) и упрощает анимации для экономии ресурсов GPU.</span>
-          </div>
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={performanceMode}
-              onChange={(e) => setPerformanceMode(e.target.checked)}
-            />
-            <span className="slider round"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   useEffect(() => {
     if (activeTab === 'voice') {
@@ -960,7 +1020,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           <div className="checkbox-description" style={{ marginBottom: '10px' }}>
             Выберите технологию фильтрации фонового шума.
           </div>
-          <select 
+          <select
             className="settings-select"
             value={noiseSuppressionMode}
             onChange={(e) => setNoiseSuppressionMode(e.target.value as any)}
@@ -1008,7 +1068,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           <div className="checkbox-label">
             <span className="checkbox-title">Включить внутриигровой оверлей</span>
             <span className="checkbox-description">
-              Отображает список говорящих участников поверх игры. 
+              Отображает список говорящих участников поверх игры.
               Работает в большинстве игр в оконном режиме или полноэкранном режиме без полей.
             </span>
           </div>
@@ -1026,8 +1086,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           <div className="voice-volume-controls" style={{ marginTop: '20px' }}>
             <div className="settings-form-group">
               <label>Позиция оверлея</label>
-              <select 
-                value={overlayPosition} 
+              <select
+                value={overlayPosition}
                 onChange={(e) => setOverlayPosition(e.target.value)}
                 className="settings-select"
               >
@@ -1273,6 +1333,139 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     </div>
   );
 
+  const formatAccelerator = (acc: string) => {
+    return acc
+      .replace('CommandOrControl', 'Ctrl')
+      .replace('Plus', '+')
+      .split('+')
+      .join(' + ');
+  };
+
+  const renderKeybindsSettings = () => (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Горячие клавиши</h2>
+      <p style={{ color: 'var(--text-dim)', marginBottom: '30px' }}>
+        Настройте глобальные клавиши для управления приложением, даже если оно находится в фоне.
+      </p>
+
+      <div className="settings-section-block">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3>Ваши комбинации</h3>
+        </div>
+
+        <div className="keybinds-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {keybinds.map(kb => (
+            <div key={kb.id} className="keybind-item" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '16px'
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '15px', color: 'white' }}>
+                  {kb.action === 'toggle-mute' && 'Включить/выключить микрофон'}
+                  {kb.action === 'toggle-deafen' && 'Включить/выключить звук'}
+                  {kb.action === 'toggle-overlay' && 'Показать/скрыть оверлей'}
+                  {kb.action === 'push-to-talk' && 'Режим рации (PTT)'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                  Глобальная клавиша
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <div
+                  className={`keybind-recorder-trigger ${recordingId === kb.id ? 'recording' : ''}`}
+                  onClick={() => setRecordingId(kb.id)}
+                  style={{
+                    background: recordingId === kb.id ? 'rgba(0, 229, 255, 0.1)' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${recordingId === kb.id ? 'var(--primary-neon)' : 'rgba(255,255,255,0.1)'}`,
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    minWidth: '120px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: recordingId === kb.id ? 'var(--primary-neon)' : 'white',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  {recordingId === kb.id ? 'Нажмите клавиши...' : formatAccelerator(kb.accelerator)}
+                </div>
+
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={kb.isEnabled}
+                    onChange={(e) => updateKeybind(kb.id, { isEnabled: e.target.checked })}
+                  />
+                  <span className="slider round"></span>
+                </label>
+
+                <button
+                  className="settings-tab-action-btn danger"
+                  style={{ padding: '8px', borderRadius: '8px' }}
+                  onClick={() => removeKeybind(kb.id)}
+                >
+                  <CloseIcon size={16} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          className="save-button"
+          style={{ marginTop: '25px', width: '100%', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}
+          onClick={async () => {
+            const action = await prompt('Какое действие добавить? (toggle-mute, toggle-deafen, toggle-overlay)', 'toggle-mute');
+            if (action) addKeybind(action, 'Ctrl+Shift+K');
+          }}
+        >
+          Добавить горячую клавишу
+        </button>
+      </div>
+    </div>
+  );
+
+  useEffect(() => {
+    if (!recordingId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setRecordingId(null);
+        return;
+      }
+      e.preventDefault();
+
+      const modifiers = [];
+      if (e.ctrlKey || e.metaKey) modifiers.push('CommandOrControl');
+      if (e.shiftKey) modifiers.push('Shift');
+      if (e.altKey) modifiers.push('Alt');
+
+      const isModifier = ['Control', 'Shift', 'Alt', 'Meta'].includes(e.key);
+      if (!isModifier) {
+        let key = e.key.toUpperCase();
+        if (key === ' ') key = 'Space';
+        if (key === 'ARROWUP') key = 'Up';
+        if (key === 'ARROWDOWN') key = 'Down';
+        if (key === 'ARROWLEFT') key = 'Left';
+        if (key === 'ARROWRIGHT') key = 'Right';
+        
+        const accelerator = [...modifiers, key].join('+');
+        updateKeybind(recordingId, { accelerator });
+        setRecordingId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [recordingId, updateKeybind]);
+
 
   return (
     <div className={`settings-modal-overlay ${isMobile ? 'is-mobile' : ''}`} onClick={onClose}>
@@ -1351,9 +1544,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </div>
 
             {isMobile && (
-              <button 
-                className="sidebar-item" 
-                onClick={onClose} 
+              <button
+                className="sidebar-item"
+                onClick={onClose}
                 style={{ marginTop: 'auto', background: 'rgba(255,255,255,0.05)', color: 'white' }}
               >
                 Закрыть настройки
@@ -1365,35 +1558,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         {(!isMobile || mobileViewState === 'content') && (
           <main className="settings-main">
             {isMobile && (
-               <div className="mobile-settings-header" style={{ 
-                 height: '56px', 
-                 display: 'flex', 
-                 alignItems: 'center', 
-                 padding: 'max(env(safe-area-inset-top), 40px) 16px 8px', 
-                 borderBottom: '1px solid rgba(255,255,255,0.1)',
-                 boxSizing: 'content-box',
-                 background: 'rgba(0,0,0,0.2)',
-                 backdropFilter: 'blur(10px)'
-               }}>
-                  <button className="back-button" onClick={() => setMobileViewState('tabs')} style={{ marginRight: '16px' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                  </button>
-                  <span style={{ fontWeight: 800, fontSize: '16px' }}>
-                    {activeTab === 'account' && 'Профиль'}
-                    {activeTab === 'privacy' && 'Конфиденциальность'}
-                    {activeTab === 'appearance' && 'Внешний вид'}
-                    {activeTab === 'voice' && 'Голос и видео'}
-                    {activeTab === 'chat' && 'Чат'}
-                    {activeTab === 'advanced' && 'Расширенные'}
-                    {activeTab === 'moderation' && 'Модерация'}
-                    {activeTab === 'devices' && 'Устройства'}
-                    {activeTab === 'bots' && 'Мои боты'}
-                    {activeTab === 'keybinds' && 'Горячие клавиши'}
-                    {activeTab === 'windows' && 'Настройки Windows'}
-                    {activeTab === 'streamer' && 'Режим стримера'}
-                    {activeTab === 'activity' && 'Активность'}
-                  </span>
-               </div>
+              <div className="mobile-settings-header" style={{
+                height: '56px',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 'max(env(safe-area-inset-top), 40px) 16px 8px',
+                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                boxSizing: 'content-box',
+                background: 'rgba(0,0,0,0.2)',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <button className="back-button" onClick={() => setMobileViewState('tabs')} style={{ marginRight: '16px' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                </button>
+                <span style={{ fontWeight: 800, fontSize: '16px' }}>
+                  {activeTab === 'account' && 'Профиль'}
+                  {activeTab === 'privacy' && 'Конфиденциальность'}
+                  {activeTab === 'appearance' && 'Внешний вид'}
+                  {activeTab === 'voice' && 'Голос и видео'}
+                  {activeTab === 'chat' && 'Чат'}
+                  {activeTab === 'advanced' && 'Расширенные'}
+                  {activeTab === 'moderation' && 'Модерация'}
+                  {activeTab === 'devices' && 'Устройства'}
+                  {activeTab === 'bots' && 'Мои боты'}
+                  {activeTab === 'keybinds' && 'Горячие клавиши'}
+                  {activeTab === 'windows' && 'Настройки Windows'}
+                  {activeTab === 'streamer' && 'Режим стримера'}
+                  {activeTab === 'activity' && 'Активность'}
+                </span>
+              </div>
             )}
             {!isMobile && (
               <div className="close-settings-button" onClick={onClose}>
@@ -1412,7 +1605,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 {activeTab === 'advanced' && renderPlaceholder('Расширенные', <EllipsisIcon size={80} />)}
                 {activeTab === 'moderation' && <ModerationSettings />}
                 {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
-                {activeTab === 'keybinds' && renderPlaceholder('Горячие клавиши', <KeyboardIcon size={80} />)}
+                {activeTab === 'keybinds' && renderKeybindsSettings()}
                 {activeTab === 'windows' && renderWindowsSettings()}
                 {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
                 {activeTab === 'activity' && renderPlaceholder('Активность', <ShieldIcon size={80} />)}
@@ -1607,7 +1800,7 @@ function BotsSettings() {
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
-                  className="msg-action-btn"
+                  className="settings-tab-action-btn"
                   onClick={() => startEdit(bot)}
                 >
                   Настроить
@@ -1659,21 +1852,21 @@ function BotsSettings() {
               </code>
               <div style={{ display: 'flex', gap: '5px' }}>
                 <button
-                  className="msg-action-btn"
+                  className="settings-tab-action-btn"
                   style={{ padding: '4px 8px', fontSize: '11px' }}
                   onClick={() => setRevealedTokenId(revealedTokenId === bot._id ? null : bot._id)}
                 >
                   {revealedTokenId === bot._id ? 'Скрыть' : 'Показать'}
                 </button>
                 <button
-                  className="msg-action-btn"
+                  className="settings-tab-action-btn"
                   style={{ padding: '4px 8px', fontSize: '11px', background: copiedToken === bot.botToken ? 'var(--success-color)' : '' }}
                   onClick={() => copyToken(bot.botToken)}
                 >
                   {copiedToken === bot.botToken ? 'Готово!' : 'Копировать'}
                 </button>
                 <button
-                  className="msg-action-btn"
+                  className="settings-tab-action-btn"
                   style={{ padding: '4px 8px', fontSize: '11px' }}
                   onClick={() => regenerateToken(bot._id)}
                 >
@@ -1729,7 +1922,7 @@ function BotsSettings() {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginTop: '30px' }}>
-                  <button className="msg-action-btn" onClick={() => setEditingBot(null)} style={{ padding: '10px 20px', borderRadius: '12px' }}>Отмена</button>
+                  <button className="settings-tab-action-btn" onClick={() => setEditingBot(null)} style={{ padding: '10px 20px', borderRadius: '12px' }}>Отмена</button>
                   <button className="save-button" onClick={saveEdit} disabled={loading} style={{ margin: 0 }}>
                     {loading ? 'Сохранение...' : 'Сохранить изменения'}
                   </button>
@@ -1766,7 +1959,7 @@ function ModerationSettings() {
   return (
     <div className="settings-section-content">
       <h2 className="settings-section-title">Система модерации</h2>
-      
+
       <div className="moderation-header" style={{ marginBottom: '20px', display: 'flex', gap: '15px' }}>
         <div className={`filter-tab ${filter === 'pending' ? 'active' : ''}`} onClick={() => setFilter('pending')} style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'pending' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'pending' ? 'black' : 'white', borderRadius: '8px', fontWeight: 600 }}>
           Ожидают ({filter === 'pending' ? reports.length : '...'})
@@ -1804,9 +1997,9 @@ function ModerationSettings() {
               <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
                 <div style={{ fontWeight: 600, color: 'var(--primary-neon)', marginBottom: '5px' }}>
                   {report.reason === 'harassment' ? 'Домогательства' :
-                   report.reason === 'spam' ? 'Спам' :
-                   report.reason === 'inappropriate_content' ? 'Контент' :
-                   report.reason === 'scam' ? 'Мошенничество' : 'Другое'}
+                    report.reason === 'spam' ? 'Спам' :
+                      report.reason === 'inappropriate_content' ? 'Контент' :
+                        report.reason === 'scam' ? 'Мошенничество' : 'Другое'}
                 </div>
                 {report.description && <div style={{ fontSize: '13px' }}>{report.description}</div>}
               </div>
@@ -1816,7 +2009,7 @@ function ModerationSettings() {
                   <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
                     <strong>Решение модератора ({report.resolvedBy?.username}):</strong> {report.resolutionNote || 'Без комментария'}
                   </div>
-                  <button className="msg-action-btn" style={{ fontSize: '11px', padding: '5px 10px' }} onClick={async () => {
+                  <button className="settings-tab-action-btn" style={{ fontSize: '11px', padding: '5px 10px' }} onClick={async () => {
                     if (await confirm('Вы уверены, что хотите отменить вердикт и вернуть жалобу в список ожидания?')) {
                       try {
                         await axios.post(`/api/moderation/reports/${report._id}/unresolve`);
@@ -1833,13 +2026,13 @@ function ModerationSettings() {
 
               {report.status === 'pending' && (
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                  <button className="msg-action-btn" onClick={async () => {
+                  <button className="settings-tab-action-btn" onClick={async () => {
                     try {
                       await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'dismissed', note: 'Отклонено модератором' });
                       fetchReports(filter);
-                    } catch (e) {}
+                    } catch (e) { }
                   }}>Отклонить</button>
-                  <button className="msg-action-btn" style={{ background: 'rgba(255,165,0,0.2)', color: 'orange' }} onClick={async () => {
+                  <button className="settings-tab-action-btn" style={{ background: 'rgba(255,165,0,0.2)', color: 'orange' }} onClick={async () => {
                     const reason = await prompt('Укажите причину временного бана:', 'Нарушение правил сообщества');
                     if (reason) {
                       try {
@@ -1847,7 +2040,7 @@ function ModerationSettings() {
                         await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Временный бан на 24ч' });
                         fetchReports(filter);
                         await alert('Пользователь забанен на 24 часа');
-                      } catch (e) {}
+                      } catch (e) { }
                     }
                   }}>Бан 24ч</button>
                   <button className="msg-action-btn danger" onClick={async () => {
@@ -1859,7 +2052,7 @@ function ModerationSettings() {
                           await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'resolved', note: 'Перманентный бан' });
                           fetchReports(filter);
                           await alert('Пользователь забанен навсегда');
-                        } catch (e) {}
+                        } catch (e) { }
                       }
                     }
                   }}>Пермабан</button>
