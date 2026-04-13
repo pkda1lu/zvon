@@ -447,20 +447,28 @@ socket.on("new-message", async (msg) => {
                                     const hRes = await axios.get(cleanUrl, {
                                         headers: {
                                             'User-Agent': userAgent,
+                                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                                            'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
                                             'Referer': 'https://music.yandex.ru/',
-                                            'Cookie': 'yandexuid=1;' // Some basic cookie might help
+                                            'Cookie': 'yandexuid=1;' 
                                         },
                                         timeout: 8000
                                     });
+                                    console.log(`[Yandex] Scraper received status: ${hRes.status}`);
                                     const html = hRes.data;
 
+                                    if (html.includes('id="captcha-container"') || html.includes('checkbox-captcha')) {
+                                        console.error("[Yandex] BOT DETECTED! Yandex is showing CAPTCHA to this server IP.");
+                                        throw new Error("Бот обнаружен Яндексом (нужна капча). Попробуйте позже или используйте прямую ссылку /users/...");
+                                    }
+
                                     // Try to find owner and kind in the JS state
-                                    const ownerMatch = html.match(/"owner":\s*\{\s*"login":\s*"(.*?)"/);
-                                    const kindMatch = html.match(/"kind":\s*(\d+)/) || html.match(/"playlistUuid":\s*"(.*?)"/);
+                                    const ownerMatch = html.match(/"owner"\s*:\s*{\s*"login"\s*:\s*"(.*?)"/) || html.match(/data-owner="(.*?)"/);
+                                    const kindMatch = html.match(/"kind"\s*:\s*(\d+)/) || html.match(/"playlistUuid"\s*:\s*"(.*?)"/) || html.match(/data-kind="(\d+)"/);
 
                                     if (ownerMatch && kindMatch) {
-                                        const foundOwner = ownerMatch[1];
-                                        const foundKind = kindMatch[1];
+                                        const foundOwner = ownerMatch[1] || ownerMatch[2];
+                                        const foundKind = kindMatch[1] || kindMatch[2];
                                         console.log(`[Yandex] Scraper found owner: ${foundOwner}, kind: ${foundKind}`);
                                         const apiRes = await yandexClient.playlists.getPlaylistById(foundOwner, foundKind);
                                         if (apiRes?.result?.tracks?.length) {
