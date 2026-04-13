@@ -301,6 +301,7 @@ sudo ln -s /etc/nginx/sites-available/zvon /etc/nginx/sites-enabled/
 # Удаление дефолтной конфигурации (опционально)
 sudo rm /etc/nginx/sites-enabled/default
 
+
 # Проверка конфигурации
 sudo nginx -t
 
@@ -333,7 +334,7 @@ sudo ufw status
 sudo apt install -y certbot python3-certbot-nginx
 
 # Получение SSL сертификата
-sudo certbot --nginx -d zvonserver.ru
+sudo certbot --nginx -d livekit.zvonserver.ru
 
 # Автоматическое обновление (настроено автоматически)
 sudo certbot renew --dry-run
