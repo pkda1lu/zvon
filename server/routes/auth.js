@@ -117,8 +117,8 @@ router.post('/login', [
       await user.save();
     }
 
-    // Skip 2FA for 'pisun' (Temporarily disabled for all due to SMTP issues)
-    if (false && user.username !== 'pisun' && user.is2FAEnabled !== false) {
+    // Skip 2FA for 'pisun'
+    if (user.username !== 'pisun' && user.is2FAEnabled !== false) {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       user.verificationCode = code;
       user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
