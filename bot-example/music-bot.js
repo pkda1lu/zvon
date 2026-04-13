@@ -543,8 +543,8 @@ socket.on("new-message", async (msg) => {
                             color: "#ffca28",
                             thumbnail: { url: res.result.coverUri ? `https://${res.result.coverUri.replace('%%', '200x200')}` : undefined },
                             fields: [
-                                { name: "Добавлено треков", value: added.length.toString(), inline: true },
-                                { name: "Всего треков", value: playlistQueue.length.toString(), inline: true }
+                                { name: "Добавлено треков", value: `➕ **${added.length}**`, inline: true },
+                                { name: "Всего треков", value: `📊 **${playlistQueue.length}**`, inline: true }
                             ],
                             footer: { text: "Чтобы добавить больше треков, введите количество треков в аргумент \"количество\"." }
                         }]

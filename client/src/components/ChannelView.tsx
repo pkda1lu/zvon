@@ -26,6 +26,59 @@ import UserBadges from './UserBadges';
 import AttachmentsModal from './AttachmentsModal';
 import { SmileIcon } from './Icons';
 
+// Helper for inline markdown shared across components
+const renderInlineMarkdown = (
+  text: string, 
+  customConfirm: (msg: string, title?: string, confirmText?: string, cancelText?: string) => Promise<boolean>,
+  openLink: (url: string) => void
+) => {
+  if (!text) return null;
+  
+  // Split by markdown patterns: **bold**, *italic*, __underline__, `code`
+  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|__.*?__|`.*?`|https?:\/\/[^\s]+)/g);
+  
+  return parts.map((part, i) => {
+    if (!part) return null;
+    
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith('__') && part.endsWith('__')) {
+      return <u key={i}>{part.slice(2, -2)}</u>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={i} className="inline-code">{part.slice(1, -1)}</code>;
+    }
+    if (part.match(/^https?:\/\//)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          className="message-link"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            customConfirm(
+              `Вы собираетесь перейти на внешний ресурс: ${part}. Продолжить?`,
+              'Внешняя ссылка',
+              'Перейти',
+              'Отмена'
+            ).then((ok: boolean) => {
+              if (ok) openLink(part);
+            });
+          }}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 interface ChannelViewProps {
   channel: Channel;
   server: Server;
@@ -114,9 +167,9 @@ const MessageItem = React.memo<{
                       if (ok) openLink(embed.author.url);
                     });
                   }}
-                >{embed.author.name}</a>
+                >{renderInlineMarkdown(embed.author.name, customConfirm, openLink)}</a>
               ) : (
-                <span className="embed-author-name">{embed.author.name}</span>
+                <span className="embed-author-name">{renderInlineMarkdown(embed.author.name, customConfirm, openLink)}</span>
               )}
             </div>
           )}
@@ -138,29 +191,37 @@ const MessageItem = React.memo<{
                     if (ok) openLink(embed.url);
                   });
                 }}
-              >{embed.title}</a>
+              >{renderInlineMarkdown(embed.title, customConfirm, openLink)}</a>
             ) : (
-              <div className="embed-title">{embed.title}</div>
+              <div className="embed-title">{renderInlineMarkdown(embed.title, customConfirm, openLink)}</div>
             )
           )}
 
-          {embed.description && <div className="embed-description">{embed.description}</div>}
+          {embed.description && <div className="embed-description">{renderInlineMarkdown(embed.description, customConfirm, openLink)}</div>}
 
           {embed.fields && embed.fields.length > 0 && (
             <div className="embed-fields">
               {embed.fields.map((f: any, i: number) => (
                 <div key={i} className="embed-field" style={{ gridColumn: f.inline ? 'auto' : '1 / -1' }}>
                   <div className="embed-field-name">{f.name}</div>
-                  <div className="embed-field-value">{f.value}</div>
+                  <div className="embed-field-value">{renderInlineMarkdown(f.value, customConfirm, openLink)}</div>
                 </div>
               ))}
             </div>
           )}
 
           {/* Progress bar special for music bot */}
-          {(embed.footer?.text?.includes(' - ') || embed.footer?.text?.includes('00:00')) && (
+          {(embed.footer?.text?.includes(' - ') || embed.footer?.text?.includes('00:00') || embed.footer?.text?.includes(' • ')) && (
              <div className="embed-progress-bar">
                 <div className="progress-track-wrap">
+                   <span>{(() => {
+                      const parts = embed.footer?.text?.split(' • ');
+                      if (parts.length > 1) {
+                         const timeMatch = parts[1].match(/(\d+):(\d+)\s-\s(\d+):(\d+)/);
+                         return timeMatch ? timeMatch[1] + ':' + timeMatch[2] : '0:00';
+                      }
+                      return '0:00';
+                   })()}</span>
                    <div className="progress-track">
                       <div className="progress-fill" style={{ width: (() => {
                          const match = (embed.footer?.text || '').match(/(\d+):(\d+)\s-\s(\d+):(\d+)/);
@@ -170,7 +231,10 @@ const MessageItem = React.memo<{
                          return total > 0 ? `${Math.min(100, (cur / total) * 100)}%` : '0%';
                       })() }} />
                    </div>
-                   <span>{embed.footer?.text?.split(' - ').shift()}</span>
+                   <span>{(() => {
+                      const match = (embed.footer?.text || '').match(/(\d+):(\d+)\s-\s(\d+):(\d+)/);
+                      return match ? match[3] + ':' + match[4] : '';
+                   })()}</span>
                 </div>
              </div>
           )}
@@ -202,6 +266,7 @@ const MessageItem = React.memo<{
       </div>
     );
   };
+
 
   const renderButtons = () => {
     if (!msg.buttons || msg.buttons.length === 0) return null;
@@ -867,38 +932,14 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
           return (
             <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>
-              {part.split(/(https?:\/\/[^\s]+)/g).map((subPart, si) => {
-                if (subPart.match(/^https?:\/\//)) {
-                  return (
-                    <a
-                      key={`link-${si}`}
-                      href={subPart}
-                      className="message-link"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        customConfirm(
-                          `Вы собираетесь перейти на внешний ресурс: ${subPart}. Это может быть небезопасно. Продолжить?`,
-                          'Внешняя ссылка',
-                          'Перейти',
-                          'Отмена'
-                        ).then((ok: boolean) => {
-                          if (ok) openLink(subPart);
-                        });
-                      }}
-                    >
-                      {subPart}
-                    </a>
-                  );
-                }
-                return subPart;
-              })}
+              {renderInlineMarkdown(part, customConfirm, openLink)}
             </span>
           );
         })}
       </>
     );
   };
+
 
   const removeAttachment = (index: number) => setAttachments(prev => prev.filter((_, i) => i !== index));
 
