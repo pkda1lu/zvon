@@ -1,6 +1,6 @@
 .yt-shared-container {
   position: fixed; /* Always fixed when in portal to prevent restart */
-  z-index: 10000;
+  z-index: 999; /* Below voice-ctrls-anchor (z-index: 1000) to avoid covering controls */
   background: #000;
   border-radius: 20px;
   overflow: hidden;
@@ -80,10 +80,6 @@
   padding: 0 20px 20px 20px;
   pointer-events: auto;
   transition: padding-bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.yt-shared-container.is-focused:not(.is-expanded) .yt-bottom-bar {
-  padding-bottom: 90px; /* Move controls up to avoid overlapping with voice controls bar ONLY in grid stage */
 }
 
 .yt-shared-container.is-expanded {
@@ -243,33 +239,7 @@
   letter-spacing: 1px;
 }
 
-.yt-host-info {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(20px);
-  padding: 20px 40px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  text-align: center;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
-  pointer-events: none;
-  opacity: 0.9;
-}
 
-.yt-host-info h4 {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  color: #fff;
-}
-
-.yt-host-info p {
-  margin: 0;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
-}
 
 /* Quality Menu */
 .yt-quality-wrap {
