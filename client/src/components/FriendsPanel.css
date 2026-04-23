@@ -1,21 +1,19 @@
 .friends-panel {
   flex: 1;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--corner-radius);
   display: flex;
   height: 100%;
   min-height: 0;
   overflow: hidden;
   position: relative;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  /* Removed main background and border to let internal panels shine */
 }
 
 .friends-main-container {
   display: flex;
   width: 100%;
   height: 100%;
+  gap: 12px; /* Added gap between panels */
+  padding: 0; /* Removing padding to allow internal elements to have spacing if needed */
 }
 
 .friends-left-section {
@@ -23,7 +21,12 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--corner-radius);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .friends-tabs {
