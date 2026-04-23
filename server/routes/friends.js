@@ -6,7 +6,7 @@ const User = require('../models/User');
 
 router.get('/', auth, async (req, res) => {
   try {
-    const friendships = await Friendship.find({ $or: [{ requester: req.user._id, status: 'accepted' }, { recipient: req.user._id, status: 'accepted' }] }).populate('requester', 'username avatar status badges').populate('recipient', 'username avatar status badges');
+    const friendships = await Friendship.find({ $or: [{ requester: req.user._id, status: 'accepted' }, { recipient: req.user._id, status: 'accepted' }] }).populate('requester', 'username avatar status badges activity').populate('recipient', 'username avatar status badges activity');
     const friends = friendships.map(f => {
       const friend = f.requester._id.toString() === req.user._id.toString() ? f.recipient : f.requester;
       return { ...friend.toObject(), friendshipId: f._id };
@@ -17,7 +17,7 @@ router.get('/', auth, async (req, res) => {
 
 router.get('/pending', auth, async (req, res) => {
   try {
-    const requests = await Friendship.find({ recipient: req.user._id, status: 'pending' }).populate('requester', 'username avatar status badges');
+    const requests = await Friendship.find({ recipient: req.user._id, status: 'pending' }).populate('requester', 'username avatar status badges activity');
     res.json(requests);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -40,8 +40,8 @@ router.post('/request', auth, async (req, res) => {
     }
     const friendship = new Friendship({ requester: req.user._id, recipient: userId, status: 'pending' });
     await friendship.save();
-    await friendship.populate('requester', 'username avatar status badges');
-    await friendship.populate('recipient', 'username avatar status badges');
+    await friendship.populate('requester', 'username avatar status badges activity');
+    await friendship.populate('recipient', 'username avatar status badges activity');
 
     // Notify recipient
     const io = req.app.get('io');
@@ -61,8 +61,8 @@ router.post('/accept/:id', auth, async (req, res) => {
     if (friendship.status !== 'pending') return res.status(400).json({ message: 'Request already processed' });
     friendship.status = 'accepted';
     await friendship.save();
-    await friendship.populate('requester', 'username avatar status badges');
-    await friendship.populate('recipient', 'username avatar status badges');
+    await friendship.populate('requester', 'username avatar status badges activity');
+    await friendship.populate('recipient', 'username avatar status badges activity');
 
     // Notify requester
     const io = req.app.get('io');
@@ -90,7 +90,7 @@ router.get('/search', auth, async (req, res) => {
   try {
     const { query } = req.query;
     if (!query || query.length < 2) return res.json([]);
-    const users = await User.find({ $or: [{ username: { $regex: query, $options: 'i' } }, { email: { $regex: query, $options: 'i' } }], _id: { $ne: req.user._id } }).select('username avatar status email badges').limit(20);
+    const users = await User.find({ $or: [{ username: { $regex: query, $options: 'i' } }, { email: { $regex: query, $options: 'i' } }], _id: { $ne: req.user._id } }).select('username avatar status email badges activity').limit(20);
     res.json(users);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });

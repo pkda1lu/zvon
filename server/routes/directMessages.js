@@ -7,14 +7,14 @@ const Message = require('../models/Message');
 
 router.get('/', auth, async (req, res) => {
   try {
-    const dms = await DirectMessage.find({ participants: req.user._id }).populate('participants', 'username avatar status badges').sort({ updatedAt: -1 });
+    const dms = await DirectMessage.find({ participants: req.user._id }).populate('participants', 'username avatar status badges activity').sort({ updatedAt: -1 });
     res.json(dms);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const dm = await DirectMessage.findById(req.params.id).populate('participants', 'username avatar status badges');
+    const dm = await DirectMessage.findById(req.params.id).populate('participants', 'username avatar status badges activity');
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p._id.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
     res.json(dm);
@@ -26,11 +26,11 @@ router.get('/user/:userId', auth, async (req, res) => {
     const { userId } = req.params;
     if (!mongoose.isValidObjectId(userId)) return res.status(400).json({ message: 'Invalid user ID' });
     if (userId === req.user._id.toString()) return res.status(400).json({ message: 'Cannot create DM with yourself' });
-    let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: [req.user._id, userId] } }).populate('participants', 'username avatar status badges');
+    let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: [req.user._id, userId] } }).populate('participants', 'username avatar status badges activity');
     if (!dm) {
       dm = new DirectMessage({ participants: [req.user._id, userId] });
       await dm.save();
-      await dm.populate('participants', 'username avatar status badges');
+      await dm.populate('participants', 'username avatar status badges activity');
     }
     res.json(dm);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }

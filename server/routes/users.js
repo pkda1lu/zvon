@@ -8,7 +8,7 @@ const upload = require('../middleware/upload');
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id).select('username email avatar status banner badges customStatus theme activity');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -26,7 +26,7 @@ router.get('/profile/:id', auth, async (req, res) => {
     const targetUserFriendships = await Friendship.find({ $or: [{ requester: targetUserId }, { recipient: targetUserId }], status: 'accepted' });
     const targetUserFriendIds = targetUserFriendships.map(f => f.requester.toString() === targetUserId.toString() ? f.recipient : f.requester);
     const mutualFriendIds = currentUserFriendIds.filter(id => targetUserFriendIds.some(tid => tid.toString() === id.toString()));
-    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges');
+    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity');
     res.json({ user, mutualServers, mutualFriends });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
