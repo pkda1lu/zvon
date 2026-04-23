@@ -370,6 +370,7 @@ const Main: React.FC = () => {
     };
     const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
       const targetUserId = String(updatedUser._id);
+      setFriends((prev: User[]) => prev.map((f: User) => f._id === targetUserId ? { ...f, ...updatedUser } : f));
       setServers((prev: Server[]) => prev.map((server: Server) => ({
         ...server,
         members: server.members.map((member: any) => String(member.user?._id || member.user) === targetUserId ? { ...member, user: { ...member.user, ...updatedUser } } : member)
@@ -672,6 +673,8 @@ const Main: React.FC = () => {
         <div className="main-content-area">
           {showFriends && (
             <FriendsPanel
+              friends={friends}
+              setFriends={setFriends}
               onStartDM={handleStartDM}
               onUserClick={handleUserClick}
               unreadCounts={unreadCounts}

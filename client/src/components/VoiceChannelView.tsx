@@ -5,7 +5,7 @@ import { Channel, User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, MaximizeIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon, FullscreenIcon, YouTubeIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon, PlayIcon, MaximizeIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon, FullscreenIcon, YouTubeIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
@@ -675,7 +675,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               onClick={() => isScreenSharing ? stopScreenShare() : setShowScreenSelector(true)}
               title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}
             >
-              <MonitorIcon size={20} />
+              {isScreenSharing ? <StopScreenShareIcon size={20} /> : <ScreenShareIcon size={20} />}
             </button>
             <button
               className={`ctrl-btn ${ytSession ? 'streaming' : ''}`}

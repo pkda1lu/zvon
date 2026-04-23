@@ -1,0 +1,168 @@
+.active-contacts-sidebar {
+    width: 320px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 20px;
+    background: rgba(255, 255, 255, 0.01);
+    border-left: 1px solid var(--glass-border);
+    flex-shrink: 0;
+}
+
+.active-contacts-sidebar.empty {
+    opacity: 0.7;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 24px;
+    letter-spacing: -0.5px;
+}
+
+.active-contacts-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.active-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.active-card:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.active-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.active-user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.active-avatar {
+    border-radius: 10px !important;
+}
+
+.active-user-details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.active-username {
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.active-activity-name {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.active-game-mini-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.active-game-mini-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.active-game-info {
+    display: flex;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.active-game-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.active-game-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.active-game-details {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+}
+
+.active-game-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.active-game-subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.empty-active-state {
+    padding: 40px 20px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 16px;
+    border: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.empty-active-state p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+    .active-contacts-sidebar {
+        display: none;
+    }
+}

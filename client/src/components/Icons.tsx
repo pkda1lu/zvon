@@ -142,21 +142,21 @@ export const TrashIcon: React.FC<{ size?: number; color?: string; className?: st
 
 export const ScreenShareIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3" />
-        <path d="M8 21h8" />
+        <path d="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" />
         <path d="M12 17v4" />
-        <path d="m17 8 5-5" />
-        <path d="M17 3h5v5" />
+        <path d="M8 21h8" />
+        <path d="m14 10 5 5-5 5" />
+        <path d="M19 15H9" />
     </svg>
 );
 
 export const StopScreenShareIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3" />
-        <path d="M8 21h8" />
+        <path d="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" />
         <path d="M12 17v4" />
-        <line x1="22" y1="3" x2="17" y2="8" />
-        <line x1="17" y1="3" x2="22" y2="8" />
+        <path d="M8 21h8" />
+        <path d="m14 8 4 4-4 4" />
+        <path d="m18 8-4 4 4 4" />
     </svg>
 );
 
@@ -175,8 +175,8 @@ export const MinimizeIcon: React.FC<{ size?: number; color?: string; className?:
 export const MonitorIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-        <line x1="8" y1="21" x2="16" y2="21" />
-        <line x1="12" y1="17" x2="12" y2="21" />
+        <path d="M8 21h8" />
+        <path d="M12 17v4" />
     </svg>
 );
 

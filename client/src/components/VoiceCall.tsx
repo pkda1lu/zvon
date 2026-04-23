@@ -8,7 +8,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useDialog } from '../contexts/DialogContext';
-import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, MonitorIcon } from './Icons';
+import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
@@ -569,7 +569,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           <CameraIcon />
         </button>
         <button className={`control-circle ${isScreenSharing ? 'active' : ''}`} onClick={() => isScreenSharing ? toggleScreenShare() : setShowScreenSelector(true)} title="Экран">
-          <MonitorIcon size={24} />
+          {isScreenSharing ? <StopScreenShareIcon size={24} /> : <ScreenShareIcon size={24} />}
         </button>
         <button className="control-circle end-call-circle" onClick={endCall} title="Завершить">
           <span style={{ display: 'flex', transform: 'rotate(135deg)' }}><PhoneIcon size={28} /></span>
