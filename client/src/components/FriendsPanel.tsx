@@ -64,10 +64,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
   }, [socket, activeTab]);
 
   const showMessage = (text: string, type: 'success' | 'error') => { setPanelMessage({ text, type }); setTimeout(() => setPanelMessage(null), 3000); };
-  const fetchFriends = async () => { 
-    if (friends.length > 0) return; 
-    try { setFriends((await axios.get('/api/friends')).data); } catch (e) { } 
-  };
+  const fetchFriends = async () => { try { setFriends((await axios.get('/api/friends')).data); } catch (e) { } };
   const fetchPendingRequests = async () => { try { setPendingRequests((await axios.get('/api/friends/pending')).data); } catch (e) { } };
 
   const handleSearch = async (query: string) => {

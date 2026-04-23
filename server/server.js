@@ -437,8 +437,10 @@ io.on('connection', (socket) => {
 
   socket.on('activity-update', async (activity) => {
     try {
-      await User.findByIdAndUpdate(socket.userId, { $set: { activity } });
-      io.emit('user-updated', { _id: socket.userId, activity });
+      const user = await User.findById(socket.userId);
+      if (!user) return;
+      await User.findByIdAndUpdate(user._id, { activity });
+      io.emit('user-updated', { _id: user._id, activity });
     } catch (err) { }
   });
 
