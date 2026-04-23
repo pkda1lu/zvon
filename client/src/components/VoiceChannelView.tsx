@@ -301,6 +301,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const [ytPlaceholderRect, setYtPlaceholderRect] = useState<DOMRect | null>(null);
   const ytPlaceholderRef = useRef<HTMLDivElement>(null);
   const [ytUrl, setYtUrl] = useState('');
+  const viewRef = useRef<HTMLDivElement>(null);
+  const [ctrlsRect, setCtrlsRect] = useState<{bottom: number, left: number, width: number} | null>(null);
 
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -397,6 +399,25 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       window.removeEventListener('resize', updateRect);
     };
   }, [ytSession, expandedStreamId, focusedStreamId]);
+
+  // Track voice-channel-view bounds for portaled controls positioning
+  useEffect(() => {
+    if (!viewRef.current) return;
+    const update = () => {
+      if (viewRef.current) {
+        const r = viewRef.current.getBoundingClientRect();
+        setCtrlsRect({ bottom: r.bottom, left: r.left, width: r.width });
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(viewRef.current);
+    window.addEventListener('resize', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   const displayParticipants = useMemo(() => {
     let items: any[] = [];
@@ -582,7 +603,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const focusedItem = focusedStreamId ? displayParticipants.find(p => p._id === focusedStreamId) : null;
 
   return (
-    <div className="voice-channel-view">
+    <div className="voice-channel-view" ref={viewRef}>
       <header className="voice-hdr">
         <div className="hdr-left">
           {isMobile && (
@@ -646,59 +667,68 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         )}
       </main>
 
-      <div className="voice-ctrls-anchor">
-        {isConnectedToThisChannel ? (
-          <div className="voice-ctrls">
-            <button
-              className={`ctrl-btn ${isMuted ? 'active' : ''}`}
-              onClick={toggleMute}
-              title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
-            >
-              {isMuted ? <MicMutedIcon size={20} /> : <MicIcon size={20} />}
+      {createPortal(
+        <div className="voice-ctrls-anchor" style={ctrlsRect ? {
+          position: 'fixed',
+          bottom: window.innerHeight - ctrlsRect.bottom,
+          left: ctrlsRect.left,
+          width: ctrlsRect.width,
+          right: 'auto',
+        } : undefined}>
+          {isConnectedToThisChannel ? (
+            <div className="voice-ctrls">
+              <button
+                className={`ctrl-btn ${isMuted ? 'active' : ''}`}
+                onClick={toggleMute}
+                title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
+              >
+                {isMuted ? <MicMutedIcon size={20} /> : <MicIcon size={20} />}
+              </button>
+              <button
+                className={`ctrl-btn ${isDeafened ? 'active' : ''}`}
+                onClick={toggleDeafen}
+                title={isDeafened ? 'Включить звук' : 'Выключить звук'}
+              >
+                {isDeafened ? <DeafenedIcon size={20} /> : <SpeakerIcon size={20} />}
+              </button>
+              <button
+                className={`ctrl-btn ${isVideoOn ? 'streaming' : ''}`}
+                onClick={toggleVideo}
+                title={isVideoOn ? 'Выключить камеру' : 'Включить камеру'}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+              </button>
+              <button
+                className={`ctrl-btn ${isScreenSharing ? 'streaming' : ''}`}
+                onClick={() => isScreenSharing ? stopScreenShare() : setShowScreenSelector(true)}
+                title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}
+              >
+                <MonitorIcon size={20} />
+              </button>
+              <button
+                className={`ctrl-btn ${ytSession ? 'streaming' : ''}`}
+                onClick={() => ytSession ? (focusedStreamId === 'youtube-watch' ? setFocusedStreamId(null) : setFocusedStreamId('youtube-watch')) : setYtInputOpen(true)}
+                title={ytSession ? 'Просмотр YouTube' : 'Запустить совместный просмотр YouTube'}
+              >
+                <YouTubeIcon size={20} />
+              </button>
+              <div className="ctrl-sep"></div>
+              <button
+                className="ctrl-btn hangup"
+                onClick={handleDisconnect}
+                title="Отключиться"
+              >
+                <PhoneIcon size={20} />
+              </button>
+            </div>
+          ) : (
+            <button className="btn-join" onClick={handleConnect}>
+              Подключиться
             </button>
-            <button
-              className={`ctrl-btn ${isDeafened ? 'active' : ''}`}
-              onClick={toggleDeafen}
-              title={isDeafened ? 'Включить звук' : 'Выключить звук'}
-            >
-              {isDeafened ? <DeafenedIcon size={20} /> : <SpeakerIcon size={20} />}
-            </button>
-            <button
-              className={`ctrl-btn ${isVideoOn ? 'streaming' : ''}`}
-              onClick={toggleVideo}
-              title={isVideoOn ? 'Выключить камеру' : 'Включить камеру'}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
-            </button>
-            <button
-              className={`ctrl-btn ${isScreenSharing ? 'streaming' : ''}`}
-              onClick={() => isScreenSharing ? stopScreenShare() : setShowScreenSelector(true)}
-              title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}
-            >
-              {isScreenSharing ? <StopScreenShareIcon size={20} /> : <ScreenShareIcon size={20} />}
-            </button>
-            <button
-              className={`ctrl-btn ${ytSession ? 'streaming' : ''}`}
-              onClick={() => ytSession ? (focusedStreamId === 'youtube-watch' ? setFocusedStreamId(null) : setFocusedStreamId('youtube-watch')) : setYtInputOpen(true)}
-              title={ytSession ? 'Просмотр YouTube' : 'Запустить совместный просмотр YouTube'}
-            >
-              <YouTubeIcon size={20} />
-            </button>
-            <div className="ctrl-sep"></div>
-            <button
-              className="ctrl-btn hangup"
-              onClick={handleDisconnect}
-              title="Отключиться"
-            >
-              <PhoneIcon size={20} />
-            </button>
-          </div>
-        ) : (
-          <button className="btn-join" onClick={handleConnect}>
-            Подключиться
-          </button>
-        )}
-      </div>
+          )}
+        </div>,
+        document.body
+      )}
 
       {showScreenSelector && (
         <ScreenSourceSelector
