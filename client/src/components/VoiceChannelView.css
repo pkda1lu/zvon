@@ -627,9 +627,9 @@
   border-radius: 10px;
 }
 
-/* --- CONTROLS BAR (FLOATING) --- */
+/* --- CONTROLS BAR (PORTALED TO BODY) --- */
 .voice-ctrls-anchor {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
@@ -639,7 +639,7 @@
   justify-content: center;
   background: transparent;
   pointer-events: none;
-  z-index: 1000;
+  z-index: 10000;
 }
 
 .voice-ctrls {

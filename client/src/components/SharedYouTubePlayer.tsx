@@ -236,11 +236,12 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({
     }, 3000);
   };
 
+  const VOICE_CONTROLS_HEIGHT = 80; // voice-ctrls-anchor height (70px) + gap
   const portalStyles: React.CSSProperties = isExpanded ? {} : {
     top: placeholderRect?.top ?? 0,
     left: placeholderRect?.left ?? 0,
     width: placeholderRect?.width ?? 400,
-    height: placeholderRect?.height ?? 225,
+    height: Math.max(120, (placeholderRect?.height ?? 225) - VOICE_CONTROLS_HEIGHT),
     opacity: (placeholderRect || isExpanded) ? 1 : 0,
     pointerEvents: (placeholderRect || isExpanded) ? 'auto' : 'none',
   };
@@ -342,12 +343,6 @@ const SharedYouTubePlayer: React.FC<SharedYouTubePlayerProps> = ({
         </div>
       </div>
       
-      {!isHost && !showControls && isPlaying && (
-        <div className="yt-host-info" style={{ opacity: 0.5 }}>
-          <h4>{videoTitle}</h4>
-          <p>Хост управляет просмотром</p>
-        </div>
-      )}
     </div>
   );
 };
