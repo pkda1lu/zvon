@@ -10,7 +10,7 @@ interface ActiveContactsProps {
 
 const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick }) => {
     // Filter friends who have an active activity
-    const activeFriends = friends.filter(f => f.activity && f.status !== 'offline');
+    const activeFriends = friends.filter(f => f.activity && (f.activity.name || f.activity.details));
 
     if (activeFriends.length === 0) {
         return (
