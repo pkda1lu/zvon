@@ -17,7 +17,15 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
             <div className="active-contacts-sidebar empty">
                 <h3 className="section-title">Активные контакты</h3>
                 <div className="empty-active-state">
-                    <p>Пока никто не играет. Когда ваши друзья начнут во что-то играть или участвовать в активностях, это появится здесь!</p>
+                    <div className="empty-active-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 12h.01M9 12h.01M15 12h.01M18 12h.01" />
+                            <rect x="2" y="6" width="20" height="12" rx="2" />
+                            <path d="M12 12h.01" />
+                        </svg>
+                    </div>
+                    <h4>Тишина...</h4>
+                    <p>Пока никто не играет. Когда ваши друзья начнут во что-то играть, это появится здесь!</p>
                 </div>
             </div>
         );
@@ -39,11 +47,18 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
             <h3 className="section-title">Активные контакты</h3>
             <div className="active-contacts-list custom-scrollbar">
                 {activeFriends.map(friend => (
-                    <div 
-                        key={friend._id} 
+                    <div
+                        key={friend._id}
                         className="active-card glass-panel-base"
+                        data-type={friend.activity?.type || 'playing'}
                         onClick={(e) => onUserClick(friend._id, e)}
                     >
+                        {friend.activity?.assets?.largeImage && (
+                            <div 
+                                className="active-card-glow" 
+                                style={{ backgroundImage: `url(${friend.activity.assets.largeImage})` }}
+                            />
+                        )}
                         <div className="active-card-header">
                             <div className="active-user-info">
                                 <UserAvatar user={friend} size={32} className="active-avatar" />
@@ -60,7 +75,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
                                 </div>
                             )}
                         </div>
-                        
+
                         <div className="active-card-content">
                             <div className="active-game-info">
                                 {friend.activity?.assets?.largeImage && (
@@ -70,11 +85,10 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
                                 )}
                                 <div className="active-game-details">
                                     <div className="active-game-title">
-                                        {friend.activity?.type === 'playing' ? 'Играет в ' : ''}
                                         {friend.activity?.name}
                                     </div>
                                     <div className="active-game-subtitle">
-                                        {friend.activity?.state || 'В процессе'}
+                                        {friend.activity?.state || (friend.activity?.type === 'playing' ? 'Играет' : 'В эфире')}
                                     </div>
                                 </div>
                             </div>
