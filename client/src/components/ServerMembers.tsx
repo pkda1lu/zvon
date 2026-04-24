@@ -102,8 +102,11 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                         </div>
                                                         {member.user.activity && (
                                                             <div className="member-activity">
+                                                                {member.user.activity.assets?.largeImage && (
+                                                                    <img src={member.user.activity.assets.largeImage} alt="" className="member-activity-icon" />
+                                                                )}
                                                                 <span className="activity-text">
-                                                                    Играет в <strong>{member.user.activity.name}</strong>
+                                                                    {member.user.activity.name}
                                                                 </span>
                                                             </div>
                                                         )}
@@ -147,8 +150,11 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                     </div>
                                                     {member.user.activity && (
                                                         <div className="member-activity">
+                                                            {member.user.activity.assets?.largeImage && (
+                                                                <img src={member.user.activity.assets.largeImage} alt="" className="member-activity-icon" />
+                                                            )}
                                                             <span className="activity-text">
-                                                                Играет в <strong>{member.user.activity.name}</strong>
+                                                                {member.user.activity.name}
                                                             </span>
                                                         </div>
                                                     )}

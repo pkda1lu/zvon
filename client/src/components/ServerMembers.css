@@ -137,14 +137,23 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 1px;
+}
+
+.member-activity-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    object-fit: cover;
 }
 
 .activity-text {
     opacity: 0.8;
-}
-
-.activity-text strong {
-    font-weight: 600;
+    font-weight: 500;
 }
 
 /* Mobile Server Members */
