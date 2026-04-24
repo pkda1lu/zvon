@@ -81,7 +81,7 @@ const getVoiceChannelUsers = async (channelId) => {
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.userId) {
-      const user = await User.findById(socket.userId).select('username avatar status banner badges');
+      const user = await User.findById(socket.userId).select('username avatar status banner badges activity');
       if (user) {
         const userData = user.toObject();
         userData.isMuted = socket.isMuted || false;
@@ -300,21 +300,21 @@ io.on('connection', (socket) => {
       }
 
       await message.save();
-      await message.populate('author', 'username avatar');
+      await message.populate('author', 'username avatar activity');
       if (message.replyTo) {
         await message.populate({
           path: 'replyTo',
-          populate: { path: 'author', select: 'username avatar' }
+          populate: { path: 'author', select: 'username avatar activity' }
         });
       }
 
       if (data.channelId) {
         const fullMessage = await Message.findById(message._id)
-          .populate('author', 'username avatar')
+          .populate('author', 'username avatar activity')
           .populate('mentions', 'username')
           .populate({
             path: 'replyTo',
-            populate: { path: 'author', select: 'username avatar' }
+            populate: { path: 'author', select: 'username avatar activity' }
           });
         io.to(`channel-${data.channelId}`).emit('new-message', fullMessage);
 
@@ -386,7 +386,7 @@ io.on('connection', (socket) => {
       message.edited = true;
       message.editedAt = new Date();
       await message.save();
-      await message.populate('author', 'username avatar');
+      await message.populate('author', 'username avatar activity');
       await message.populate('mentions', 'username');
 
       if (message.channel) {
