@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Server, User } from '../types';
-import { getAvatarUrl } from '../utils/avatar';
+import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
@@ -103,7 +103,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                         {member.user.activity && (
                                                             <div className="member-activity">
                                                                 {member.user.activity.assets?.largeImage && (
-                                                                    <img src={member.user.activity.assets.largeImage} alt="" className="member-activity-icon" />
+                                                                    <img src={getFullUrl(member.user.activity.assets.largeImage)!} alt="" className="member-activity-icon" />
                                                                 )}
                                                                 <span className="activity-text">
                                                                     {member.user.activity.name}
@@ -151,7 +151,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                     {member.user.activity && (
                                                         <div className="member-activity">
                                                             {member.user.activity.assets?.largeImage && (
-                                                                <img src={member.user.activity.assets.largeImage} alt="" className="member-activity-icon" />
+                                                                <img src={getFullUrl(member.user.activity.assets.largeImage)!} alt="" className="member-activity-icon" />
                                                             )}
                                                             <span className="activity-text">
                                                                 {member.user.activity.name}

@@ -267,7 +267,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                             <div className="activity-content">
                                 {user.activity.assets?.largeImage && (
                                     <div className="activity-image-wrapper">
-                                        <img src={user.activity.assets.largeImage} alt="" className="activity-large-image" />
+                                        <img src={getFullUrl(user.activity.assets.largeImage)!} alt="" className="activity-large-image" />
                                     </div>
                                 )}
                                 <div className="activity-details">
