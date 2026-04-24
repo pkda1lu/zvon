@@ -440,8 +440,8 @@ io.on('connection', (socket) => {
       const user = await User.findById(socket.userId);
       if (!user) return;
 
-      // Enrich with SteamGridDB icons if it's a game and icons are missing
-      if (activity && activity.name && (!activity.assets || !activity.assets.largeImage)) {
+      // Enrich with SteamGridDB icons if it's a game and icons are missing OR remote
+      if (activity && activity.name && (!activity.assets || !activity.assets.largeImage || activity.assets.largeImage.startsWith('http'))) {
         try {
           const { getGameIcon } = require('./utils/steamGridDB');
           const iconUrl = await getGameIcon(activity.name);

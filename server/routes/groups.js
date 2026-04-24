@@ -13,21 +13,21 @@ router.post('/', auth, async (req, res) => {
     await generalChannel.save();
     group.channels.push(generalChannel._id);
     await group.save();
-    const populatedGroup = await Group.findById(group._id).populate('owner', 'username avatar').populate('members.user', 'username avatar status').populate('channels');
+    const populatedGroup = await Group.findById(group._id).populate('owner', 'username avatar').populate('members.user', 'username avatar status activity').populate('channels');
     res.status(201).json(populatedGroup);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/me', auth, async (req, res) => {
   try {
-    const groups = await Group.find({ 'members.user': req.user._id }).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+    const groups = await Group.find({ 'members.user': req.user._id }).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status activity');
     res.json(groups);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const group = await Group.findById(req.params.id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+    const group = await Group.findById(req.params.id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status activity');
     if (!group) return res.status(404).json({ message: 'Group not found' });
     const isMember = group.members.some(m => m.user._id.toString() === req.user._id.toString());
     if (!isMember) return res.status(403).json({ message: 'Access denied' });
@@ -44,7 +44,7 @@ router.post('/:id/members', auth, async (req, res) => {
     if (group.members.some(m => m.user.toString() === userId)) return res.status(400).json({ message: 'User is already a member' });
     group.members.push({ user: userId });
     await group.save();
-    const populatedGroup = await Group.findById(group._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+    const populatedGroup = await Group.findById(group._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status activity');
     res.json(populatedGroup);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -70,7 +70,7 @@ router.put('/:id', auth, async (req, res) => {
     if (description !== undefined) group.description = description;
     if (icon !== undefined) group.icon = icon;
     await group.save();
-    const populatedGroup = await Group.findById(group._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status');
+    const populatedGroup = await Group.findById(group._id).populate('owner', 'username avatar').populate('channels').populate('members.user', 'username avatar status activity');
     res.json(populatedGroup);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
