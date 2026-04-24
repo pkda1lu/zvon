@@ -1,6 +1,7 @@
 import React from 'react';
 import { User } from '../types';
 import UserAvatar from './UserAvatar';
+import { getFullUrl } from '../utils/avatar';
 import './ActiveContacts.css';
 
 interface ActiveContactsProps {
@@ -56,7 +57,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
                         {friend.activity?.assets?.largeImage && (
                             <div 
                                 className="active-card-glow" 
-                                style={{ backgroundImage: `url(${friend.activity.assets.largeImage})` }}
+                                style={{ backgroundImage: `url(${getFullUrl(friend.activity.assets.largeImage)})` }}
                             />
                         )}
                         <div className="active-card-header">
@@ -71,7 +72,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
                             </div>
                             {friend.activity?.assets?.largeImage && (
                                 <div className="active-game-mini-icon">
-                                    <img src={friend.activity.assets.largeImage} alt="" />
+                                    <img src={getFullUrl(friend.activity.assets.largeImage)!} alt="" />
                                 </div>
                             )}
                         </div>
@@ -80,7 +81,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
                             <div className="active-game-info">
                                 {friend.activity?.assets?.largeImage && (
                                     <div className="active-game-icon">
-                                        <img src={friend.activity.assets.largeImage} alt="" />
+                                        <img src={getFullUrl(friend.activity.assets.largeImage)!} alt="" />
                                     </div>
                                 )}
                                 <div className="active-game-details">
