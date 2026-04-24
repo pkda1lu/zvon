@@ -48,7 +48,7 @@ router.post('/group', auth, async (req, res) => {
 
     // If it's just 2 people total, check if a DM already exists
     if (participants.length === 2) {
-      let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate('participants', 'username avatar status badges');
+      let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate('participants', 'username avatar status badges activity');
       if (dm) return res.json(dm);
     }
 
@@ -58,7 +58,7 @@ router.post('/group', auth, async (req, res) => {
     });
 
     await dm.save();
-    await dm.populate('participants', 'username avatar status');
+    await dm.populate('participants', 'username avatar status activity');
     res.status(201).json(dm);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -74,8 +74,8 @@ router.get('/:id/messages', auth, async (req, res) => {
     if (before) query.createdAt = { $lt: new Date(before) };
 
     const messages = await Message.find(query)
-      .populate('author', 'username avatar badges')
-      .populate('mentions', 'username avatar badges')
+      .populate('author', 'username avatar badges activity')
+      .populate('mentions', 'username avatar badges activity')
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .exec();
@@ -91,7 +91,7 @@ router.post('/:id/messages', auth, async (req, res) => {
     if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
     const message = new Message({ content, author: req.user._id, channel: null, directMessage: dm._id, attachments: attachments || [], type: type || 'default' });
     await message.save();
-    await message.populate('author', 'username avatar badges');
+    await message.populate('author', 'username avatar badges activity');
     dm.updatedAt = new Date();
     await dm.save();
     const io = req.app.get('io');
@@ -104,8 +104,8 @@ router.get('/:id/pins', auth, async (req, res) => {
   try {
     const dmId = req.params.id;
     const pins = await Message.find({ directMessage: dmId, pinned: true })
-      .populate('author', 'username avatar badges')
-      .populate('mentions', 'username avatar badges')
+      .populate('author', 'username avatar badges activity')
+      .populate('mentions', 'username avatar badges activity')
       .sort({ pinnedAt: -1 });
     res.json(pins);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
