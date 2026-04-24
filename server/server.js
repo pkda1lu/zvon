@@ -439,6 +439,21 @@ io.on('connection', (socket) => {
     try {
       const user = await User.findById(socket.userId);
       if (!user) return;
+
+      // Enrich with SteamGridDB icons if it's a game and icons are missing
+      if (activity && activity.name && (!activity.assets || !activity.assets.largeImage)) {
+        try {
+          const { getGameIcon } = require('./utils/steamGridDB');
+          const iconUrl = await getGameIcon(activity.name);
+          if (iconUrl) {
+            if (!activity.assets) activity.assets = {};
+            activity.assets.largeImage = iconUrl;
+          }
+        } catch (enrichErr) {
+          console.error('Activity enrichment error:', enrichErr);
+        }
+      }
+
       await User.findByIdAndUpdate(user._id, { activity });
       io.emit('user-updated', { _id: user._id, activity });
     } catch (err) { }
