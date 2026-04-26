@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { User } from '../types';
 
@@ -10,22 +10,24 @@ interface AuthContextType {
   verifyLogin: (email: string, code: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
-  updateUser: (user: Partial<User>) => void;
+  updateUser: (updatedUser: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   forgotPassword: (email: string) => Promise<any>;
   resetPassword: (email: string, code: string, password: string) => Promise<any>;
-  toggle2FA: () => Promise<boolean>;
+  toggle2FA: (enabled: boolean) => Promise<void>;
   resendVerification: (email: string) => Promise<any>;
   verifyRegistration: (email: string, code: string) => Promise<any>;
-  requestEmailChange: (newEmail: string) => Promise<any>;
-  verifyEmailChange: (code: string) => Promise<any>;
+  requestEmailChange: (newEmail: string) => Promise<void>;
+  verifyEmailChange: (code: string) => Promise<void>;
+  globalUsers: Record<string, Partial<User>>;
+  updateGlobalUser: (userId: string, data: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
 
@@ -36,61 +38,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [globalUsers, setGlobalUsers] = useState<Record<string, Partial<User>>>({});
+
+  const updateGlobalUser = useCallback((userId: string, data: Partial<User>) => {
+    if (!userId) return;
+    setGlobalUsers(prev => ({
+      ...prev,
+      [userId]: { ...prev[userId], ...data, _id: userId }
+    }));
+  }, []);
+
+  const fetchUser = async () => {
+    try {
+      const response = await axios.get('/api/auth/me');
+      const userData = response.data;
+      setUser(userData);
+      if (userData?._id) updateGlobalUser(userData._id, userData);
+    } catch (error: any) {
+      if (!error.response) {
+        console.warn('Network error during fetchUser, keeping session');
+        return;
+      }
+      if (error.response.status === 401 || error.response.status === 403) {
+        localStorage.removeItem('token');
+        setToken(null);
+        delete axios.defaults.headers.common['Authorization'];
+      }
+    } finally { setLoading(false); }
+  };
 
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       fetchUser();
-    } else setLoading(false);
+    } else {
+      setLoading(false);
+    }
   }, [token]);
 
-  const fetchUser = async () => {
-    try {
-      const response = await axios.get('/api/auth/me');
-      setUser(response.data);
-    } catch (error) {
-      localStorage.removeItem('token');
-      setToken(null);
-      delete axios.defaults.headers.common['Authorization'];
-    } finally { setLoading(false); }
-  };
-
-  const updateUser = (updatedUser: Partial<User>) => setUser(prev => prev ? { ...prev, ...updatedUser } : (updatedUser as User));
   const login = async (email: string, password: string) => {
-    const response = await axios.post('/api/auth/login', { email, password }, { headers: { 'Content-Type': 'application/json' } });
-    if (response.data.token) {
-      const { token: newToken, user: newUser } = response.data;
-      setToken(newToken);
-      setUser(newUser);
-      localStorage.setItem('token', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-    }
+    const response = await axios.post('/api/auth/login', { email, password });
+    const { token: newToken, user: userData } = response.data;
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
+    setUser(userData);
+    if (userData?._id) updateGlobalUser(userData._id, userData);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
     return response.data;
   };
 
   const register = async (username: string, email: string, password: string) => {
     const response = await axios.post('/api/auth/register', { username, email, password });
-    if (response.data.token) {
-      const { token: newToken, user: newUser } = response.data;
-      setToken(newToken);
-      setUser(newUser);
-      localStorage.setItem('token', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-    }
     return response.data;
   };
 
   const verifyLogin = async (email: string, code: string) => {
     const response = await axios.post('/api/auth/verify-login', { email, code });
-    const { token: newToken, user: newUser } = response.data;
-    setToken(newToken);
-    setUser(newUser);
+    const { token: newToken, user: userData } = response.data;
     localStorage.setItem('token', newToken);
+    setToken(newToken);
+    setUser(userData);
+    if (userData?._id) updateGlobalUser(userData._id, userData);
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
   };
 
-  const logout = () => { setToken(null); setUser(null); localStorage.removeItem('token'); delete axios.defaults.headers.common['Authorization']; };
-  const refreshUser = async () => { await fetchUser(); };
+  const logout = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    delete axios.defaults.headers.common['Authorization'];
+  };
+
+  const updateUser = (updatedUser: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...updatedUser } : null);
+    const userId = updatedUser._id || user?._id;
+    if (userId) updateGlobalUser(userId, updatedUser);
+  };
+
+  const refreshUser = async () => {
+    const response = await axios.get('/api/auth/me');
+    const userData = response.data;
+    setUser(userData);
+    if (userData?._id) updateGlobalUser(userData._id, userData);
+  };
 
   const forgotPassword = async (email: string) => {
     const response = await axios.post('/api/auth/forgot-password', { email });
@@ -102,12 +132,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return response.data;
   };
 
-  const toggle2FA = async () => {
-    const response = await axios.post('/api/auth/toggle-2fa');
-    if (user) {
-      setUser({ ...user, is2FAEnabled: response.data.is2FAEnabled });
-    }
-    return response.data.is2FAEnabled;
+  const toggle2FA = async (enabled: boolean) => {
+    await axios.post('/api/auth/2fa/toggle', { enabled });
+    await refreshUser();
   };
 
   const resendVerification = async (email: string) => {
@@ -117,28 +144,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyRegistration = async (email: string, code: string) => {
     const response = await axios.post('/api/auth/verify-registration', { email, code });
-    if (response.data.token) {
-      const { token: newToken, user: newUser } = response.data;
-      setToken(newToken);
-      setUser(newUser);
-      localStorage.setItem('token', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-    }
     return response.data;
   };
 
   const requestEmailChange = async (newEmail: string) => {
-    const response = await axios.post('/api/auth/request-email-change', { newEmail });
-    return response.data;
+    await axios.post('/api/auth/email-change/request', { newEmail });
   };
 
   const verifyEmailChange = async (code: string) => {
-    const response = await axios.post('/api/auth/verify-email-change', { code });
-    if (response.data.email && user) {
-      setUser({ ...user, email: response.data.email });
-    }
-    return response.data;
+    await axios.post('/api/auth/email-change/verify', { code });
+    await refreshUser();
   };
 
-  return <AuthContext.Provider value={{ user, token, login, register, verifyLogin, logout, loading, updateUser, refreshUser, forgotPassword, resetPassword, toggle2FA, resendVerification, verifyRegistration, requestEmailChange, verifyEmailChange }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ 
+      user, token, login, register, verifyLogin, logout, loading, 
+      updateUser, refreshUser, forgotPassword, resetPassword, toggle2FA, 
+      resendVerification, verifyRegistration, requestEmailChange, 
+      verifyEmailChange, globalUsers, updateGlobalUser 
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };

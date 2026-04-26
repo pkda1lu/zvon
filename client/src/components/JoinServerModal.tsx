@@ -81,7 +81,17 @@ const JoinServerModal: React.FC<JoinServerModalProps> = ({ isOpen, onClose, onJo
                             <button
                                 className="test-action-btn"
                                 onClick={() => setView('join')}
-                                style={{ padding: '18px', width: '100%', height: 'auto', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)' }}
+                                style={{ 
+                                    padding: '18px', 
+                                    width: '100%', 
+                                    height: 'auto', 
+                                    border: '1px solid var(--primary-neon)', 
+                                    background: 'rgba(255,255,255,0.03)',
+                                    color: 'var(--primary-neon)',
+                                    fontWeight: 700,
+                                    borderRadius: '16px',
+                                    transition: 'all 0.2s ease'
+                                }}
                             >
                                 У меня есть приглашение
                             </button>

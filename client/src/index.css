@@ -73,7 +73,8 @@ video {
   letter-spacing: 1px;
   cursor: pointer;
   transition: var(--fast-transition);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 20px var(--primary-neon);
+  opacity: 0.9;
   font-family: inherit;
   will-change: transform, box-shadow;
   display: flex;
@@ -81,6 +82,12 @@ video {
   justify-content: center;
   text-decoration: none;
   font-size: 14px;
+}
+
+.neon-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px var(--primary-neon);
+  opacity: 1;
 }
 
 .auth-input-glass {

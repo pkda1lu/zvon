@@ -4,6 +4,7 @@ import axios from 'axios';
 import { CloseIcon, SearchIcon } from './Icons';
 import { User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
+import UserAvatar from './UserAvatar';
 import './InviteModal.css';
 
 interface InviteModalProps { isOpen: boolean; onClose: () => void; serverId: string; serverName?: string; }
@@ -63,7 +64,10 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
                     <div className="search-container"><input type="text" placeholder="Поиск друзей" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /><SearchIcon size={18} /></div>
                     <div className="friends-invite-list">{filteredFriends.length === 0 ? <div className="no-friends">Друзья не найдены</div> : filteredFriends.map(f => (
                         <div key={f._id} className="invite-friend-item">
-                            <div className="friend-info"><div className="friend-avatar">{getAvatarUrl(f.avatar) ? <img src={getAvatarUrl(f.avatar)!} alt="" /> : <div className="avatar-placeholder">{f.username[0]}</div>}</div><span className="friend-name">{f.username}</span></div>
+                            <div className="friend-info">
+                                <UserAvatar user={f} size={36} className="friend-avatar-comp" />
+                                <span className="friend-name">{f.username}</span>
+                            </div>
                             <button className={`invite-btn ${invitedFriends.has(f._id) ? 'sent' : ''}`} onClick={() => handleInviteFriend(f._id)} disabled={invitedFriends.has(f._id) || !inviteLink}>{invitedFriends.has(f._id) ? 'Отправлено' : 'Пригласить'}</button>
                         </div>
                     ))}</div>

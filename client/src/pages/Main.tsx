@@ -28,7 +28,7 @@ import CreateGroupDMModal from '../components/CreateGroupDMModal';
 import './Main.css';
 
 const Main: React.FC = () => {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout, updateUser, updateGlobalUser } = useAuth();
   const { socket } = useSocket();
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
@@ -365,11 +365,16 @@ const Main: React.FC = () => {
     };
     const handleServerMemberUpdate = (data: { serverId: string; member: any }) => {
       const targetUserId = String(data.member.user?._id || data.member.user);
+      if (data.member.user && typeof data.member.user !== 'string') {
+        updateGlobalUser(targetUserId, data.member.user);
+      }
       setServers((prev: Server[]) => prev.map((s: Server) => s._id === data.serverId ? { ...s, members: s.members.map((m: any) => String(m.user?._id || m.user) === targetUserId ? data.member : m) } : s));
       setSelectedServer((prev: Server | null) => (prev && prev._id === data.serverId) ? { ...prev, members: prev.members.map((m: any) => String(m.user?._id || m.user) === targetUserId ? data.member : m) } : prev);
     };
+
     const handleUserUpdate = (updatedUser: Partial<User> & { _id: string }) => {
       const targetUserId = String(updatedUser._id);
+      updateGlobalUser(targetUserId, updatedUser);
       setFriends((prev: User[]) => prev.map((f: User) => f._id === targetUserId ? { ...f, ...updatedUser } : f));
       setServers((prev: Server[]) => prev.map((server: Server) => ({
         ...server,
@@ -385,9 +390,13 @@ const Main: React.FC = () => {
       } : prev);
       if (updatedUser._id === user?._id) updateUser(updatedUser);
     };
+
     const handleServerMemberJoined = (data: { serverId: string; member: any; server?: Server }) => {
       if (data.server) { handleServerUpdate(data.server); return; }
       const newUserId = String(data.member.user?._id || data.member.user);
+      if (data.member.user && typeof data.member.user !== 'string') {
+        updateGlobalUser(newUserId, data.member.user);
+      }
       setServers((prev: Server[]) => prev.map((s: Server) => (s._id === data.serverId && !s.members.some((m: any) => String(m.user?._id || m.user) === newUserId)) ? { ...s, members: [...s.members, data.member] } : s));
       setSelectedServer((prev: Server | null) => (prev && prev._id === data.serverId && !prev.members.some((m: any) => String(m.user?._id || m.user) === newUserId)) ? { ...prev, members: [...prev.members, data.member] } : prev);
     };
@@ -865,6 +874,7 @@ const Main: React.FC = () => {
           />
         </>
       )}
+      <div id="voice-controls-portal" />
     </div>
   );
 };
