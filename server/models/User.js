@@ -122,6 +122,21 @@ const userSchema = new mongoose.Schema({
   },
   banExpires: Date,
   banReason: String,
+  settings: {
+    showActivityStatus: {
+      type: Boolean,
+      default: true
+    },
+    activityVisibility: {
+      type: String,
+      enum: ['everyone', 'friends', 'none'],
+      default: 'everyone'
+    },
+    hiddenActivities: {
+      type: [String],
+      default: []
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now

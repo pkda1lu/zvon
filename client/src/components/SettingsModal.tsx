@@ -125,7 +125,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     groupSpacing, setGroupSpacing,
     fontScale, setFontScale,
     appIcon, setAppIcon,
-    performanceMode, setPerformanceMode
+    performanceMode, setPerformanceMode,
+    customColors, setCustomColors,
+    customBackground, setCustomBackground,
+    backgroundDim, setBackgroundDim,
+    backgroundBlur, setBackgroundBlur,
+    resetCustomTheme
   } = useAppearance();
 
   const {
@@ -223,6 +228,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -346,6 +352,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       setLoading(false);
     }
   };
+
+  const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCustomBackground(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
 
   if (!isOpen) return null;
 
@@ -623,64 +641,96 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         <div className="appearance-layout">
           <div className="appearance-preview-top">
-            <div className="live-preview-box">
-              <div className="preview-header">
-                <div className="preview-dot red"></div>
-                <div className="preview-dot yellow"></div>
-                <div className="preview-dot green"></div>
-                <span>Предпросмотр интерфейса</span>
-              </div>
+            <div className="live-preview-box" style={{ 
+              backgroundImage: customBackground ? `url(${customBackground})` : 'none',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Preview Blur Layer */}
+              {customBackground && (
+                <div style={{ 
+                  position: 'absolute', 
+                  inset: 0, 
+                  backgroundImage: `url(${customBackground})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  filter: `blur(${backgroundBlur}px)`,
+                  transform: 'scale(1.1)',
+                  zIndex: 0 
+                }} />
+              )}
+              {/* Preview Dim Layer */}
+              {customBackground && (
+                <div style={{ 
+                  position: 'absolute', 
+                  inset: 0, 
+                  background: `rgba(0,0,0,${backgroundDim / 100})`, 
+                  zIndex: 1 
+                }} />
+              )}
+              {!customBackground && theme === 'dark' && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 0 }} />}
               
-              <div className="preview-content-scrollable">
-                <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
-                  <div className="preview-avatar" style={{ 
-                    width: density === 'compact' ? '32px' : '42px', 
-                    height: density === 'compact' ? '32px' : '42px',
-                    borderRadius: density === 'compact' ? '10px' : '14px' 
-                  }}>
-                    <span>A</span>
-                  </div>
-                  <div className="preview-msg-body">
-                    <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                      <span style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>Аркадий</span>
-                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Сегодня в 12:45</span>
+              <div style={{ position: 'relative', zIndex: 2 }}>
+                <div className="preview-header">
+                  <div className="preview-dot red"></div>
+                  <div className="preview-dot yellow"></div>
+                  <div className="preview-dot green"></div>
+                  <span>Предпросмотр интерфейса</span>
+                </div>
+                
+                <div className="preview-content-scrollable">
+                  <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
+                    <div className="preview-avatar" style={{ 
+                      width: density === 'compact' ? '32px' : '42px', 
+                      height: density === 'compact' ? '32px' : '42px',
+                      borderRadius: density === 'compact' ? '10px' : '14px' 
+                    }}>
+                      <span>A</span>
                     </div>
+                    <div className="preview-msg-body">
+                      <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>Аркадий</span>
+                        <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Сегодня в 12:45</span>
+                      </div>
+                      <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
+                        Привет! 👋 Как тебе новый улучшенный дизайн Zvon? Мы добавили много крутых штук!
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="preview-message grouped" style={{ marginTop: `${messageSpacing}px`, paddingLeft: density === 'compact' ? '44px' : '54px' }}>
                     <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
-                      Привет! 👋 Как тебе новый улучшенный дизайн Zvon? Мы добавили много крутых штук!
+                      И теперь всё можно настроить под себя в реальном времени.
+                    </div>
+                  </div>
+
+                  <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
+                    <div className="preview-avatar bot" style={{ 
+                      width: density === 'compact' ? '32px' : '42px', 
+                      height: density === 'compact' ? '32px' : '42px',
+                      borderRadius: density === 'compact' ? '10px' : '14px',
+                      background: 'var(--primary-neon)'
+                    }}>
+                      <BotIcon size={18} color="black" />
+                    </div>
+                    <div className="preview-msg-body">
+                      <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--primary-neon)' }}>Zvon AI</span>
+                        <span className="bot-badge">BOT</span>
+                        <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Сегодня в 12:46</span>
+                      </div>
+                      <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
+                        Настройки успешно применены! Выглядит отлично! ✨
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="preview-message grouped" style={{ marginTop: `${messageSpacing}px`, paddingLeft: density === 'compact' ? '44px' : '54px' }}>
-                  <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
-                    И теперь всё можно настроить под себя в реальном времени.
-                  </div>
+                <div className="preview-footer-input">
+                  <div className="preview-input-mock">Написать сообщение...</div>
                 </div>
-
-                <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
-                  <div className="preview-avatar bot" style={{ 
-                    width: density === 'compact' ? '32px' : '42px', 
-                    height: density === 'compact' ? '32px' : '42px',
-                    borderRadius: density === 'compact' ? '10px' : '14px',
-                    background: 'var(--primary-neon)'
-                  }}>
-                    <BotIcon size={18} color="black" />
-                  </div>
-                  <div className="preview-msg-body">
-                    <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                      <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--primary-neon)' }}>Zvon AI</span>
-                      <span className="bot-badge">BOT</span>
-                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Сегодня в 12:46</span>
-                    </div>
-                    <div className="preview-msg-text" style={{ fontSize: `${16 * fontScale}px`, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>
-                      Настройки успешно применены! Выглядит отлично! ✨
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="preview-footer-input">
-                <div className="preview-input-mock">Написать сообщение...</div>
               </div>
             </div>
 
@@ -810,6 +860,160 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="settings-section-block">
+              <h3>Кастомный стиль (Бета)</h3>
+              <p style={{ color: 'var(--text-dim)', fontSize: '13px', marginBottom: '20px' }}>
+                Настройте основные цвета и фон приложения. Эти настройки сохраняются только для вас.
+              </p>
+              
+              <div className="voice-settings-grid">
+                <div className="settings-form-group">
+                  <label>Первичный неон</label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={customColors.primary}
+                      onChange={(e) => setCustomColors({ primary: e.target.value })}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        padding: '0',
+                        border: 'none',
+                        borderRadius: '8px',
+                        background: 'transparent',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <input 
+                      type="text" 
+                      value={customColors.primary} 
+                      onChange={(e) => setCustomColors({ primary: e.target.value })}
+                      className="settings-input" 
+                      style={{ fontSize: '12px', padding: '8px', height: '40px' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="settings-form-group">
+                  <label>Вторичный неон</label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={customColors.secondary}
+                      onChange={(e) => setCustomColors({ secondary: e.target.value })}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        padding: '0',
+                        border: 'none',
+                        borderRadius: '8px',
+                        background: 'transparent',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <input 
+                      type="text" 
+                      value={customColors.secondary} 
+                      onChange={(e) => setCustomColors({ secondary: e.target.value })}
+                      className="settings-input" 
+                      style={{ fontSize: '12px', padding: '8px', height: '40px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-form-group" style={{ marginTop: '15px' }}>
+                <label>Цвет акцента</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    value={customColors.accent}
+                    onChange={(e) => setCustomColors({ accent: e.target.value })}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      padding: '0',
+                      border: 'none',
+                      borderRadius: '8px',
+                      background: 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <input 
+                    type="text" 
+                    value={customColors.accent} 
+                    onChange={(e) => setCustomColors({ accent: e.target.value })}
+                    className="settings-input" 
+                    style={{ fontSize: '12px', padding: '8px', height: '40px' }}
+                  />
+                </div>
+              </div>
+
+              <div className="settings-form-group" style={{ marginTop: '20px' }}>
+                <label>Фоновое изображение</label>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="URL изображения..."
+                    value={customBackground.startsWith('data:') ? 'Локальный файл загружен' : customBackground}
+                    onChange={(e) => setCustomBackground(e.target.value)}
+                    className="settings-input"
+                    style={{ flex: 1 }}
+                  />
+                  <button 
+                    className="save-button" 
+                    style={{ margin: 0, padding: '0 15px', height: '40px', fontSize: '12px' }}
+                    onClick={() => backgroundInputRef.current?.click()}
+                  >
+                    Загрузить
+                  </button>
+                </div>
+                <input 
+                  type="file" 
+                  ref={backgroundInputRef} 
+                  hidden 
+                  accept="image/*" 
+                  onChange={handleBackgroundUpload} 
+                />
+                
+                <div className="slider-header-row" style={{ marginTop: '15px' }}>
+                  <label>Затемнение фона</label>
+                  <span className="slider-value">{backgroundDim}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={backgroundDim}
+                  onChange={(e) => setBackgroundDim(parseInt(e.target.value))}
+                  className="settings-slider"
+                />
+
+                <div className="slider-header-row" style={{ marginTop: '15px' }}>
+                  <label>Размытие фона</label>
+                  <span className="slider-value">{backgroundBlur}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="20"
+                  step="1"
+                  value={backgroundBlur}
+                  onChange={(e) => setBackgroundBlur(parseInt(e.target.value))}
+                  className="settings-slider"
+                />
+              </div>
+
+              <button 
+                className="settings-tab-action-btn" 
+                onClick={resetCustomTheme}
+                style={{ marginTop: '15px', width: '100%', borderRadius: '12px' }}
+              >
+                Сбросить к стандартным цветам
+              </button>
             </div>
 
             <div className="settings-section-block">
@@ -1608,7 +1812,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 {activeTab === 'keybinds' && renderKeybindsSettings()}
                 {activeTab === 'windows' && renderWindowsSettings()}
                 {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
-                {activeTab === 'activity' && renderPlaceholder('Активность', <ShieldIcon size={80} />)}
+                {activeTab === 'activity' && <ActivitySettings />}
                 {activeTab === 'bots' && <BotsSettings />}
               </div>
             </div>
@@ -1618,6 +1822,201 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     </div>
   );
 };
+
+function ActivitySettings() {
+  const { user, refreshUser } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [showStatus, setShowStatus] = useState(user?.settings?.showActivityStatus ?? true);
+  const [visibility, setVisibility] = useState(user?.settings?.activityVisibility ?? 'everyone');
+  const [hiddenActivities, setHiddenActivities] = useState<string[]>(user?.settings?.hiddenActivities ?? []);
+  const [newHiddenActivity, setNewHiddenActivity] = useState('');
+
+  const saveSettings = async (newSettings: any) => {
+    setLoading(true);
+    try {
+      await axios.put('/api/users/settings', { settings: newSettings });
+      await refreshUser();
+    } catch (e) {
+      console.error('Failed to save activity settings', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = (val: boolean) => {
+    setShowStatus(val);
+    saveSettings({ showActivityStatus: val });
+  };
+
+  const handleVisibilityChange = (val: string) => {
+    setVisibility(val as any);
+    saveSettings({ activityVisibility: val });
+  };
+
+  const addHiddenActivity = () => {
+    if (!newHiddenActivity.trim()) return;
+    const updated = [...hiddenActivities, newHiddenActivity.trim()];
+    setHiddenActivities(updated);
+    saveSettings({ hiddenActivities: updated });
+    setNewHiddenActivity('');
+  };
+
+  const removeHiddenActivity = (name: string) => {
+    const updated = hiddenActivities.filter(a => a !== name);
+    setHiddenActivities(updated);
+    saveSettings({ hiddenActivities: updated });
+  };
+
+  return (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Настройки активности</h2>
+      
+      <div className="settings-section-block">
+        <h3>Системные настройки</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Отображать текущую активность как статус</span>
+            <span className="checkbox-description">Когда эта настройка включена, ваше текущее занятие (игры, музыка) будет отображаться в вашем профиле и списке друзей.</span>
+          </div>
+          <label className="switch">
+            <input 
+              type="checkbox" 
+              checked={showStatus} 
+              onChange={(e) => handleToggleStatus(e.target.checked)} 
+              disabled={loading}
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Конфиденциальность активности</h3>
+        <div className="settings-form-group">
+          <label>Кто может видеть вашу активность?</label>
+          <div className="status-selector-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+            {[
+              { id: 'everyone', label: 'Все', desc: 'Участники серверов и друзья' },
+              { id: 'friends', label: 'Друзья', desc: 'Только ваши друзья' },
+              { id: 'none', label: 'Никто', desc: 'Активность скрыта для всех' }
+            ].map(opt => (
+              <div
+                key={opt.id}
+                className={`status-option ${visibility === opt.id ? 'active' : ''}`}
+                onClick={() => handleVisibilityChange(opt.id)}
+                style={{ height: 'auto', padding: '15px' }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontWeight: 700 }}>{opt.label}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.2 }}>{opt.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Исключения (Скрытые игры)</h3>
+        <p style={{ color: 'var(--text-dim)', fontSize: '13px', marginBottom: '15px' }}>
+          Добавьте названия приложений или игр, которые вы не хотите отображать в статусе, даже если общая настройка включена.
+        </p>
+        
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <input 
+            type="text" 
+            placeholder="Название игры (например: Solitaire)" 
+            value={newHiddenActivity}
+            onChange={(e) => setNewHiddenActivity(e.target.value)}
+            className="settings-input"
+            style={{ flex: 1 }}
+          />
+          <button 
+            className="save-button" 
+            style={{ margin: 0, padding: '0 20px' }}
+            onClick={addHiddenActivity}
+            disabled={loading}
+          >
+            Добавить
+          </button>
+        </div>
+
+        <div className="hidden-activities-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {hiddenActivities.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', border: '1px dashed var(--glass-border)', borderRadius: '12px' }}>
+              Список исключений пуст
+            </div>
+          )}
+          {hiddenActivities.map(activity => (
+            <div key={activity} style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '12px 16px', 
+              background: 'rgba(255,255,255,0.03)', 
+              borderRadius: '10px',
+              border: '1px solid var(--glass-border)'
+            }}>
+              <span style={{ fontWeight: 600 }}>{activity}</span>
+              <button 
+                className="msg-action-btn danger" 
+                onClick={() => removeHiddenActivity(activity)}
+                style={{ padding: '6px 12px' }}
+              >
+                Удалить
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Текущая активность</h3>
+        <div style={{ padding: '20px', background: 'rgba(0, 229, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 229, 255, 0.1)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div style={{ 
+            width: '64px', 
+            height: '64px', 
+            background: user?.activity?.assets?.largeImage ? 'transparent' : 'var(--primary-neon)', 
+            borderRadius: '12px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            overflow: 'hidden',
+            flexShrink: 0
+          }}>
+            {user?.activity?.assets?.largeImage ? (
+              <img 
+                src={getFullUrl(user.activity.assets.largeImage)!} 
+                alt="" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+            ) : user?.activity?.assets?.smallImage ? (
+              <img 
+                src={getFullUrl(user.activity.assets.smallImage)!} 
+                alt="" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+            ) : (
+              <MonitorIcon size={32} color="black" />
+            )}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, color: 'white', fontSize: '16px' }}>{user?.activity?.name || 'Ничего не запущено'}</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '2px' }}>
+              {user?.activity ? (
+                <>
+                  {user.activity.details && <div>{user.activity.details}</div>}
+                  {user.activity.state && <div>{user.activity.state}</div>}
+                  <div style={{ color: 'var(--primary-neon)', marginTop: '4px', fontWeight: 600 }}>В процессе</div>
+                </>
+              ) : 'Запустите игру, чтобы увидеть её здесь'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BotsSettings() {
   const [bots, setBots] = useState<any[]>([]);

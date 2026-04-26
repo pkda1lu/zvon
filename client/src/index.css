@@ -209,6 +209,17 @@ textarea,
   will-change: transform, background-position;
 }
 
+:root.has-custom-bg .liquid-bg-container {
+  background: var(--custom-bg-image);
+  background-size: cover;
+  background-position: center;
+  animation: none;
+}
+
+:root.has-custom-bg .liquid-bg-container::after {
+  background: rgba(0, 0, 0, 0.4); /* Darken custom background for better readability */
+}
+
 :root.performance-mode .liquid-bg-container {
   animation: none;
   background: var(--bg-dark);
