@@ -54,18 +54,11 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const parsed = JSON.parse(saved);
             // Ensure performanceMode and custom settings exist for backward compatibility
             return {
-                theme: 'dark',
-                density: 'cozy',
-                messageSpacing: 2,
-                groupSpacing: 16,
-                fontScale: 1.0,
-                appIcon: 'default',
-                performanceMode: false,
-                customColors: { ...DEFAULT_CUSTOM_COLORS },
-                customBackground: '',
-                backgroundDim: 40,
-                backgroundBlur: 0,
-                ...parsed,
+                theme: parsed.theme || 'dark',
+                density: parsed.density || 'cozy',
+                messageSpacing: parsed.messageSpacing ?? 2,
+                groupSpacing: parsed.groupSpacing ?? 16,
+                fontScale: parsed.fontScale ?? 1.0,
                 appIcon: parsed.appIcon || 'default',
                 performanceMode: parsed.performanceMode ?? false,
                 customColors: parsed.customColors || { ...DEFAULT_CUSTOM_COLORS },
