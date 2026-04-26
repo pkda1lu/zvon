@@ -1104,7 +1104,37 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                       <UserBadges badges={msg.author.badges} size={12} />
                       <span className="pin-date">{formatDate(msg.createdAt)}</span>
                     </div>
-                    <div className="pin-content">{msg.content}</div>
+                    <div className="pin-content">
+                      {msg.content}
+                      {msg.attachments?.some(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')) && (
+                        <div className="pin-media-preview" style={{ marginTop: '8px', display: 'flex', gap: '5px', overflowX: 'auto' }}>
+                          {msg.attachments.filter(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')).map((a, i) => (
+                            <div key={i} className="pin-media-item" style={{ width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--glass-border)' }}>
+                              {a.type?.startsWith('image/') ? (
+                                <img 
+                                  src={getFullUrl(a.url)!} 
+                                  alt="" 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                                  onClick={() => {
+                                    setLightboxMedia(msg.attachments!.filter(att => att.type?.startsWith('image/') || att.type?.startsWith('video/')).map(att => ({ 
+                                      url: getFullUrl(att.url)!, 
+                                      type: att.type?.startsWith('video/') ? 'video' : 'image', 
+                                      filename: att.filename 
+                                    })));
+                                    setLightboxIndex(i);
+                                    setLightboxOpen(true);
+                                  }}
+                                />
+                              ) : (
+                                <div className="pin-video-placeholder" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                                  <CameraIcon size={20} color="var(--primary-neon)" />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
                   </div>
                 ))

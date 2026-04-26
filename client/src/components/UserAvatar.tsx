@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getAvatarUrl } from '../utils/avatar';
+import { useAuth } from '../contexts/AuthContext';
 import './UserAvatar.css';
 
 interface UserAvatarProps {
@@ -24,12 +25,17 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
     onClick,
     onContextMenu
 }) => {
+    const { globalUsers } = useAuth();
     const [isHovered, setIsHovered] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const imgRef = useRef<HTMLImageElement>(null);
-    const avatarUrl = getAvatarUrl(user?.avatar);
-    const username = user?.username || '?';
+
+    // Get the most up-to-date user data from global cache if available
+    const activeUser = (user?._id && globalUsers[user._id]) ? { ...user, ...globalUsers[user._id] } : user;
+    
+    const avatarUrl = getAvatarUrl(activeUser?.avatar);
+    const username = activeUser?.username || '?';
     const firstLetter = username.charAt(0).toUpperCase();
 
     // Check if it's a GIF synchronously to ensure canvas is rendered

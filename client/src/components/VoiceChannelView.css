@@ -1,7 +1,7 @@
 /* --- LIQUID GLASS 2026: VOICE EDITION --- */
 :root {
-  --voice-accent: rgba(0, 110, 255, 0.6);
-  --voice-accent-solid: #006aff;
+  --voice-accent: var(--primary-neon);
+  --voice-accent-solid: var(--primary-neon);
   --voice-danger: #ff3b30;
   --voice-glass-bg: #000000;
   --voice-glass-border: rgba(255, 255, 255, 0.1);
@@ -639,7 +639,7 @@
   justify-content: center;
   background: transparent;
   pointer-events: none;
-  z-index: 10000;
+  z-index: 100;
 }
 
 .voice-ctrls {
@@ -758,22 +758,29 @@
 }
 
 .btn-join {
-  background: linear-gradient(135deg, var(--voice-accent-solid), #00d2ff);
-  color: #000;
+  background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
+  color: #fff;
   border: none;
-  padding: 18px 48px;
-  border-radius: 24px;
-  font-size: 18px;
-  font-weight: 800;
+  padding: 12px 32px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   pointer-events: auto;
-  transition: all 0.4s;
-  box-shadow: 0 20px 40px rgba(0, 242, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px var(--primary-neon);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
 }
 
 .btn-join:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 30px 60px rgba(0, 242, 255, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.4), 0 0 25px var(--primary-neon);
+  filter: brightness(1.1);
+}
+
+.btn-join:active {
+  transform: translateY(-1px);
 }
 
 /* --- CAMERA VIDEO --- */

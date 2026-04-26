@@ -262,7 +262,7 @@ const VoiceStreamCard: React.FC<{
 
 const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, onUserClick, onMessageClick, onCallClick, onBack, isMobile }) => {
   const { user: currentUser } = useAuth();
-  const { socket } = useSocket();
+  const { socket, connected } = useSocket();
   const {
     isConnected,
     activeChannelId,
@@ -721,13 +721,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
                 <PhoneIcon size={20} />
               </button>
             </div>
-          ) : (
+          ) : connected ? (
             <button className="btn-join" onClick={handleConnect}>
               Подключиться
             </button>
-          )}
+          ) : null}
         </div>,
-        document.body
+        document.getElementById('voice-controls-portal') || document.body
       )}
 
       {showScreenSelector && (
