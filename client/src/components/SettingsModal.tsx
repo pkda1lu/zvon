@@ -604,8 +604,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 );
                 if (confirmed) {
                   try {
-                    const newState = await toggle2FA();
-                    await alert(newState ? '2FA успешно включена!' : '2FA отключена');
+                    const enable = !user?.is2FAEnabled;
+                    await toggle2FA(enable);
+                    await alert(enable ? '2FA успешно включена!' : '2FA отключена');
                   } catch (err) {
                     await alert('Ошибка при изменении настроек 2FA');
                   }
