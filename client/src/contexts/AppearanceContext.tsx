@@ -4,6 +4,12 @@ export type ThemeType = 'dark' | 'light' | 'amoled';
 export type DensityType = 'cozy' | 'compact';
 export type AppIconType = 'default' | 'icon1' | 'icon2' | 'icon3' | 'icon4';
 
+interface CustomColors {
+    primary: string;
+    secondary: string;
+    accent: string;
+}
+
 interface AppearanceSettings {
     theme: ThemeType;
     density: DensityType;
@@ -12,6 +18,10 @@ interface AppearanceSettings {
     fontScale: number; // 0.8 to 1.5
     appIcon: AppIconType;
     performanceMode: boolean;
+    customColors: CustomColors;
+    customBackground: string;
+    backgroundDim: number; // 0 to 100
+    backgroundBlur: number; // 0 to 20
 }
 
 interface AppearanceContextType extends AppearanceSettings {
@@ -22,7 +32,18 @@ interface AppearanceContextType extends AppearanceSettings {
     setFontScale: (scale: number) => void;
     setAppIcon: (icon: AppIconType) => void;
     setPerformanceMode: (enabled: boolean) => void;
+    setCustomColors: (colors: Partial<CustomColors>) => void;
+    setCustomBackground: (url: string) => void;
+    setBackgroundDim: (value: number) => void;
+    setBackgroundBlur: (value: number) => void;
+    resetCustomTheme: () => void;
 }
+
+const DEFAULT_CUSTOM_COLORS: CustomColors = {
+    primary: '#006aff',
+    secondary: '#7000ff',
+    accent: '#ff00c8'
+};
 
 const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
 
@@ -31,11 +52,26 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const saved = localStorage.getItem('appearance-settings');
         if (saved) {
             const parsed = JSON.parse(saved);
-            // Ensure performanceMode exists for backward compatibility
+            // Ensure performanceMode and custom settings exist for backward compatibility
             return {
+                theme: 'dark',
+                density: 'cozy',
+                messageSpacing: 2,
+                groupSpacing: 16,
+                fontScale: 1.0,
+                appIcon: 'default',
+                performanceMode: false,
+                customColors: { ...DEFAULT_CUSTOM_COLORS },
+                customBackground: '',
+                backgroundDim: 40,
+                backgroundBlur: 0,
                 ...parsed,
                 appIcon: parsed.appIcon || 'default',
-                performanceMode: parsed.performanceMode ?? false
+                performanceMode: parsed.performanceMode ?? false,
+                customColors: parsed.customColors || { ...DEFAULT_CUSTOM_COLORS },
+                customBackground: parsed.customBackground || '',
+                backgroundDim: parsed.backgroundDim ?? 40,
+                backgroundBlur: parsed.backgroundBlur ?? 0
             };
         }
         return {
@@ -46,6 +82,10 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             fontScale: 1.0,
             appIcon: 'default',
             performanceMode: false,
+            customColors: { ...DEFAULT_CUSTOM_COLORS },
+            customBackground: '',
+            backgroundDim: 40,
+            backgroundBlur: 0,
         };
     });
 
@@ -105,6 +145,24 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             root.style.setProperty('--glass-blur-value', s.performanceMode ? '0px' : '50px');
         }
 
+        // Apply Custom Colors
+        root.style.setProperty('--primary-neon', s.customColors.primary);
+        root.style.setProperty('--secondary-neon', s.customColors.secondary);
+        root.style.setProperty('--accent-pink', s.customColors.accent);
+
+        // Apply Custom Background
+        if (s.customBackground && !s.performanceMode) {
+            root.style.setProperty('--custom-bg-image', `url(${s.customBackground})`);
+            root.style.setProperty('--custom-bg-dim', (s.backgroundDim / 100).toString());
+            root.style.setProperty('--custom-bg-blur', `${s.backgroundBlur}px`);
+            root.classList.add('has-custom-bg');
+        } else {
+            root.style.removeProperty('--custom-bg-image');
+            root.style.removeProperty('--custom-bg-dim');
+            root.style.removeProperty('--custom-bg-blur');
+            root.classList.remove('has-custom-bg');
+        }
+
         // Spacing
         root.style.setProperty('--message-spacing', `${s.messageSpacing}px`);
         root.style.setProperty('--group-spacing', `${s.groupSpacing}px`);
@@ -142,6 +200,23 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const setFontScale = (fontScale: number) => setSettings(prev => ({ ...prev, fontScale }));
     const setAppIcon = (appIcon: AppIconType) => setSettings(prev => ({ ...prev, appIcon }));
     const setPerformanceMode = (performanceMode: boolean) => setSettings(prev => ({ ...prev, performanceMode }));
+    
+    const setCustomColors = (colors: Partial<CustomColors>) => setSettings(prev => ({
+        ...prev,
+        customColors: { ...prev.customColors, ...colors }
+    }));
+
+    const setCustomBackground = (customBackground: string) => setSettings(prev => ({ ...prev, customBackground }));
+    const setBackgroundDim = (backgroundDim: number) => setSettings(prev => ({ ...prev, backgroundDim }));
+    const setBackgroundBlur = (backgroundBlur: number) => setSettings(prev => ({ ...prev, backgroundBlur }));
+
+    const resetCustomTheme = () => setSettings(prev => ({
+        ...prev,
+        customColors: { ...DEFAULT_CUSTOM_COLORS },
+        customBackground: '',
+        backgroundDim: 40,
+        backgroundBlur: 0
+    }));
 
     return (
         <AppearanceContext.Provider value={{
@@ -152,7 +227,12 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setGroupSpacing,
             setFontScale,
             setAppIcon,
-            setPerformanceMode
+            setPerformanceMode,
+            setCustomColors,
+            setCustomBackground,
+            setBackgroundDim,
+            setBackgroundBlur,
+            resetCustomTheme
         }}>
             {children}
         </AppearanceContext.Provider>

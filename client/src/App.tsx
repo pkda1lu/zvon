@@ -42,7 +42,13 @@ import { useAppearance } from './contexts/AppearanceContext';
 
 const AppBackground: React.FC = () => {
   const location = useLocation();
-  const { theme, performanceMode } = useAppearance();
+  const { 
+    theme, 
+    performanceMode, 
+    customBackground, 
+    backgroundDim, 
+    backgroundBlur 
+  } = useAppearance();
   const currentPath = (location.pathname + (location.hash || '')).toLowerCase();
 
   // Checking for login, register, and invite. 
@@ -99,6 +105,32 @@ const AppBackground: React.FC = () => {
         transition: 'opacity 0.5s ease'
       }} />
 
+      {/* Custom User Background Layer */}
+      {customBackground && !performanceMode && (
+        <div style={{
+          position: 'absolute',
+          inset: '10%', // Offset the -10% of parent to fill viewport exactly
+          backgroundImage: `url(${customBackground})`,
+          backgroundPosition: 'center center',
+          backgroundSize: 'cover',
+          filter: `blur(${backgroundBlur}px)`,
+          transform: 'scale(1.1)', // Prevents white edges when blurred
+          zIndex: 1,
+          transition: 'all 0.5s ease'
+        }} />
+      )}
+
+      {/* Custom User Background Dim Layer */}
+      {customBackground && !performanceMode && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: `rgba(0, 0, 0, ${backgroundDim / 100})`,
+          zIndex: 2,
+          transition: 'background-color 0.3s ease'
+        }} />
+      )}
+
       {/* Auth Background Image Layer */}
       <div style={{
         position: 'absolute',
@@ -108,12 +140,13 @@ const AppBackground: React.FC = () => {
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat',
         opacity: isAuthPage ? 1 : 0,
+        zIndex: 3,
         transition: 'opacity 0.6s ease',
         transform: isAuthPage ? 'scale(1.05)' : 'scale(1)', // Subtle scale shift
       }} />
 
       {/* Decorative spheres - Always present and moving */}
-      {!performanceMode && theme !== 'light' && (
+      {!performanceMode && theme !== 'light' && !customBackground && (
         <>
           <div style={{
             position: 'absolute',

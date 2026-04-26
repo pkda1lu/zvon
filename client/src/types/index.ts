@@ -34,6 +34,11 @@ export interface User {
   isBanned?: boolean;
   banExpires?: string;
   banReason?: string;
+  settings?: {
+    showActivityStatus: boolean;
+    activityVisibility: 'everyone' | 'friends' | 'none';
+    hiddenActivities: string[];
+  };
   createdAt: string;
 }
 

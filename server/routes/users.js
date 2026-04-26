@@ -134,4 +134,19 @@ router.post('/note', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.put('/settings', auth, async (req, res) => {
+  try {
+    const { settings } = req.body;
+    if (!settings) return res.status(400).json({ message: 'Settings required' });
+    
+    req.user.settings = {
+      ...req.user.settings,
+      ...settings
+    };
+    
+    await req.user.save();
+    res.json({ settings: req.user.settings });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 module.exports = router;
