@@ -24,7 +24,7 @@ const Landing: React.FC = () => {
 
             <nav className="landing-nav">
                 <div className="nav-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                    <img src="/icon.png" alt="Zvon" />
+                    <img src={`${import.meta.env.BASE_URL}icon.png`} alt="Zvon" />
                     <span>Zvon</span>
                 </div>
                 <div className="nav-links">
@@ -50,7 +50,7 @@ const Landing: React.FC = () => {
                 {/* Hero Image - Premium 3D Abstract */}
                 <div className="hero-image-container">
                     <img
-                        src="/landing_hero_premium.png" // We expect this to be available
+                        src={`${import.meta.env.BASE_URL}landing_hero_premium.png`} // We expect this to be available
                         className="hero-main-img"
                         alt="Zvon Premium UI"
                         onError={(e) => {
@@ -113,7 +113,7 @@ const Landing: React.FC = () => {
                         <button className="btn-secondary" onClick={() => navigate('/register')}>Присоединиться сейчас</button>
                     </div>
                     <div className="showcase-image">
-                        <img src="/landing_hero.png" alt="Zvon Interface" onError={(e) => {
+                        <img src={`${import.meta.env.BASE_URL}landing_hero.png`} alt="Zvon Interface" onError={(e) => {
                             e.currentTarget.src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200';
                         }} />
                     </div>

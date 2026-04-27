@@ -85,7 +85,8 @@ router.post('/:id/add-to-server', auth, async (req, res) => {
         const { serverId } = req.body;
         const botId = req.params.id;
 
-        const bot = await User.findOne({ _id: botId, owner: req.user._id, isBot: true });
+        // Find the bot by ID
+        const bot = await User.findOne({ _id: botId, isBot: true });
         if (!bot) return res.status(404).json({ message: 'Bot not found' });
 
         const Server = require('../models/Server');
