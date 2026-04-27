@@ -10,7 +10,7 @@ const Docs: React.FC = () => {
         <div className="docs-container">
             <nav className="docs-nav">
                 <div className="nav-logo" onClick={() => navigate('/')}>
-                    <img src="/icon.png" alt="Zvon" />
+                    <img src={`${import.meta.env.BASE_URL}icon.png`} alt="Zvon" />
                     <span>Zvon Docs</span>
                 </div>
                 <button className="btn-back" onClick={() => navigate('/')}>На главную</button>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { CloseIcon, PlusIcon } from './Icons';
+import { CloseIcon, PlusIcon, CheckIcon, TrashIcon, BotIcon } from './Icons';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
@@ -39,12 +39,13 @@ const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
 
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId, position, onUserClick }) => {
     const { socket } = useSocket();
-    const { user: currentUser } = useAuth();
-    const { alert } = useDialog();
+    const { user: currentUser, refreshUser } = useAuth();
+    const { alert, confirm } = useDialog();
     const [profileData, setProfileData] = useState<{
         user: User;
         mutualServers: Array<{ _id: string; name: string; icon: string }>;
         mutualFriends: User[];
+        friendship?: { _id: string, status: string, requester: string, recipient: string } | null;
     } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -52,6 +53,8 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [memberData, setMemberData] = useState<any>(null);
     const [server, setServer] = useState<any>(null);
     const [showRoleSelector, setShowRoleSelector] = useState(false);
+    const [userServers, setUserServers] = useState<any[]>([]);
+    const [showBotServerSelect, setShowBotServerSelect] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
     const [adjustedPos, setAdjustedPos] = useState({ top: position?.y || 0, left: (position?.x || 0) + 20 });
     const [isVisible, setIsVisible] = useState(false);
@@ -123,35 +126,84 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         }
     }, [socket, userId]);
 
-    useEffect(() => {
-        const fetchProfile = async () => {
-            if (!userId) return;
-            setLoading(true);
-            setError('');
-            try {
-                const response = await axios.get(`/api/users/profile/${userId}`);
-                setProfileData(response.data);
-                if (serverId) {
-                    try {
-                        const [memberRes, serverRes] = await Promise.all([
-                            axios.get(`/api/servers/${serverId}/members/${userId}`),
-                            axios.get(`/api/servers/${serverId}`)
-                        ]);
-                        setMemberData(memberRes.data);
-                        setServer(serverRes.data);
-                    } catch (memberErr) {
-                        setMemberData(null);
-                        setServer(null);
-                    }
+    const fetchProfile = async () => {
+        if (!userId) return;
+        setLoading(true);
+        setError('');
+        try {
+            const response = await axios.get(`/api/users/profile/${userId}`);
+            setProfileData(response.data);
+            if (serverId) {
+                try {
+                    const [memberRes, serverRes] = await Promise.all([
+                        axios.get(`/api/servers/${serverId}/members/${userId}`),
+                        axios.get(`/api/servers/${serverId}`)
+                    ]);
+                    setMemberData(memberRes.data);
+                    setServer(serverRes.data);
+                } catch (memberErr) {
+                    setMemberData(null);
+                    setServer(null);
                 }
-            } catch (err) {
-                setError('Не удалось загрузить профиль');
-            } finally {
-                setLoading(false);
             }
-        };
+
+            if (response.data.user.isBot) {
+                const serversRes = await axios.get('/api/servers/me');
+                setUserServers(serversRes.data);
+            }
+        } catch (err) {
+            setError('Не удалось загрузить профиль');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchProfile();
     }, [userId, serverId]);
+
+    const handleAddFriend = async () => {
+        try {
+            await axios.post('/api/friends/request', { userId });
+            await alert('Запрос в друзья отправлен');
+            fetchProfile();
+        } catch (err: any) {
+            await alert(err.response?.data?.message || 'Ошибка отправки запроса');
+        }
+    };
+
+    const handleAcceptFriend = async (friendshipId: string) => {
+        try {
+            await axios.post(`/api/friends/accept/${friendshipId}`);
+            await alert('Запрос принят');
+            fetchProfile();
+        } catch (err: any) {
+            await alert('Ошибка при принятии запроса');
+        }
+    };
+
+    const handleRemoveFriend = async (friendshipId: string) => {
+        const confirmed = await confirm('Вы уверены, что хотите удалить этого пользователя из друзей?');
+        if (!confirmed) return;
+        try {
+            await axios.delete(`/api/friends/${friendshipId}`);
+            await alert('Пользователь удален из друзей');
+            fetchProfile();
+        } catch (err: any) {
+            await alert('Ошибка при удалении из друзей');
+        }
+    };
+
+    const handleAddBotToServer = async (targetServerId: string) => {
+        try {
+            await axios.post(`/api/bots/${userId}/add-to-server`, { serverId: targetServerId });
+            await alert('Бот добавлен на сервер!');
+            setShowBotServerSelect(false);
+            fetchProfile();
+        } catch (err: any) {
+            await alert(err.response?.data?.message || 'Ошибка добавления бота');
+        }
+    };
 
     if (error) return (
         <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
@@ -210,7 +262,8 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         }
     };
 
-    const { user, mutualServers, mutualFriends } = profileData;
+    const { user, mutualServers, mutualFriends, friendship } = profileData;
+    const isMe = currentUser?._id === userId;
 
     return (
         <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
@@ -240,6 +293,55 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                         />
                         <div className={`profile-status-indicator ${user.status}`}></div>
                     </div>
+
+                    {!isMe && (
+                        <div className="profile-actions-header">
+                            {user.isBot ? (
+                                <div className="bot-action-wrapper">
+                                    <button className="profile-action-btn primary" onClick={() => setShowBotServerSelect(!showBotServerSelect)}>
+                                        <PlusIcon size={16} />
+                                        <span>Добавить на сервер</span>
+                                    </button>
+                                    {showBotServerSelect && (
+                                        <div className="bot-server-selector">
+                                            {userServers.map(s => (
+                                                <div key={s._id} className="bot-server-item" onClick={() => handleAddBotToServer(s._id)}>
+                                                    {s.name}
+                                                </div>
+                                            ))}
+                                            {userServers.length === 0 && <div className="no-servers">Нет серверов для приглашения</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    {!friendship && (
+                                        <button className="profile-action-btn primary" onClick={handleAddFriend}>
+                                            <PlusIcon size={16} />
+                                            <span>Добавить в друзья</span>
+                                        </button>
+                                    )}
+                                    {friendship?.status === 'pending' && friendship.recipient === currentUser?._id && (
+                                        <button className="profile-action-btn success" onClick={() => handleAcceptFriend(friendship._id)}>
+                                            <CheckIcon size={16} />
+                                            <span>Принять запрос</span>
+                                        </button>
+                                    )}
+                                    {friendship?.status === 'pending' && friendship.requester === currentUser?._id && (
+                                        <button className="profile-action-btn secondary disabled">
+                                            <span>Ожидание ответа</span>
+                                        </button>
+                                    )}
+                                    {friendship?.status === 'accepted' && (
+                                        <button className="profile-action-btn friends-status" onClick={() => handleRemoveFriend(friendship._id)}>
+                                            <CheckIcon size={16} />
+                                            <span className="btn-text-content">Друзья</span>
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="profile-body">
@@ -248,11 +350,13 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                             {memberData?.nickname ? (
                                 <>
                                     <span className="profile-nickname">{memberData.nickname}</span>
+                                    {user.isBot && <span className="bot-badge-mini">BOT</span>}
                                     <UserBadges badges={user.badges} size={18} className="profile-badges" />
                                 </>
                             ) : (
                                 <>
                                     <span className="profile-username">{user.username}</span>
+                                    {user.isBot && <span className="bot-badge-mini">BOT</span>}
                                     <UserBadges badges={user.badges} size={18} className="profile-badges" />
                                 </>
                             )}

@@ -856,7 +856,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                     className={`app-icon-option ${appIcon === icon.id ? 'active' : ''}`}
                     onClick={() => setAppIcon(icon.id as any)}
                   >
-                    <img src={`/${icon.img}`} alt={icon.label} />
+                    <img src={(window as any).electron ? icon.img : '/' + icon.img} alt={icon.label} />
                     <span>{icon.label}</span>
                   </div>
                 ))}
@@ -873,26 +873,37 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 <div className="settings-form-group">
                   <label>Первичный неон</label>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input
-                      type="color"
-                      value={customColors.primary}
-                      onChange={(e) => setCustomColors({ primary: e.target.value })}
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        padding: '0',
-                        border: 'none',
-                        borderRadius: '8px',
-                        background: 'transparent',
-                        cursor: 'pointer'
-                      }}
-                    />
+                    <div className="color-picker-wrapper" style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      backgroundColor: customColors.primary,
+                      border: '2px solid rgba(255,255,255,0.1)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      boxShadow: `0 0 15px ${customColors.primary}44`
+                    }}>
+                      <input
+                        type="color"
+                        value={customColors.primary}
+                        onChange={(e) => setCustomColors({ primary: e.target.value })}
+                        style={{
+                          position: 'absolute',
+                          top: '-5px',
+                          left: '-5px',
+                          width: '50px',
+                          height: '50px',
+                          cursor: 'pointer',
+                          opacity: 0
+                        }}
+                      />
+                    </div>
                     <input 
                       type="text" 
                       value={customColors.primary} 
                       onChange={(e) => setCustomColors({ primary: e.target.value })}
                       className="settings-input" 
-                      style={{ fontSize: '12px', padding: '8px', height: '40px' }}
+                      style={{ fontSize: '12px', padding: '8px', height: '40px', flex: 1 }}
                     />
                   </div>
                 </div>
@@ -900,26 +911,37 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 <div className="settings-form-group">
                   <label>Вторичный неон</label>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input
-                      type="color"
-                      value={customColors.secondary}
-                      onChange={(e) => setCustomColors({ secondary: e.target.value })}
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        padding: '0',
-                        border: 'none',
-                        borderRadius: '8px',
-                        background: 'transparent',
-                        cursor: 'pointer'
-                      }}
-                    />
+                    <div className="color-picker-wrapper" style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      backgroundColor: customColors.secondary,
+                      border: '2px solid rgba(255,255,255,0.1)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      boxShadow: `0 0 15px ${customColors.secondary}44`
+                    }}>
+                      <input
+                        type="color"
+                        value={customColors.secondary}
+                        onChange={(e) => setCustomColors({ secondary: e.target.value })}
+                        style={{
+                          position: 'absolute',
+                          top: '-5px',
+                          left: '-5px',
+                          width: '50px',
+                          height: '50px',
+                          cursor: 'pointer',
+                          opacity: 0
+                        }}
+                      />
+                    </div>
                     <input 
                       type="text" 
                       value={customColors.secondary} 
                       onChange={(e) => setCustomColors({ secondary: e.target.value })}
                       className="settings-input" 
-                      style={{ fontSize: '12px', padding: '8px', height: '40px' }}
+                      style={{ fontSize: '12px', padding: '8px', height: '40px', flex: 1 }}
                     />
                   </div>
                 </div>
@@ -928,26 +950,37 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <div className="settings-form-group" style={{ marginTop: '15px' }}>
                 <label>Цвет акцента</label>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <input
-                    type="color"
-                    value={customColors.accent}
-                    onChange={(e) => setCustomColors({ accent: e.target.value })}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      padding: '0',
-                      border: 'none',
-                      borderRadius: '8px',
-                      background: 'transparent',
-                      cursor: 'pointer'
-                    }}
-                  />
+                  <div className="color-picker-wrapper" style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    backgroundColor: customColors.accent,
+                    border: '2px solid rgba(255,255,255,0.1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: `0 0 15px ${customColors.accent}44`
+                  }}>
+                    <input
+                      type="color"
+                      value={customColors.accent}
+                      onChange={(e) => setCustomColors({ accent: e.target.value })}
+                      style={{
+                        position: 'absolute',
+                        top: '-5px',
+                        left: '-5px',
+                        width: '50px',
+                        height: '50px',
+                        cursor: 'pointer',
+                        opacity: 0
+                      }}
+                    />
+                  </div>
                   <input 
                     type="text" 
                     value={customColors.accent} 
                     onChange={(e) => setCustomColors({ accent: e.target.value })}
                     className="settings-input" 
-                    style={{ fontSize: '12px', padding: '8px', height: '40px' }}
+                    style={{ fontSize: '12px', padding: '8px', height: '40px', flex: 1 }}
                   />
                 </div>
               </div>

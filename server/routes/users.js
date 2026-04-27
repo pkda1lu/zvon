@@ -20,6 +20,7 @@ router.get('/profile/:id', auth, async (req, res) => {
     const currentUserId = req.user._id;
     const user = await User.findById(targetUserId).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
+    
     const mutualServers = await Server.find({ 'members.user': { $all: [currentUserId, targetUserId] } }).select('name icon');
     const currentUserFriendships = await Friendship.find({ $or: [{ requester: currentUserId }, { recipient: currentUserId }], status: 'accepted' });
     const currentUserFriendIds = currentUserFriendships.map(f => f.requester.toString() === currentUserId.toString() ? f.recipient : f.requester);
@@ -27,7 +28,26 @@ router.get('/profile/:id', auth, async (req, res) => {
     const targetUserFriendIds = targetUserFriendships.map(f => f.requester.toString() === targetUserId.toString() ? f.recipient : f.requester);
     const mutualFriendIds = currentUserFriendIds.filter(id => targetUserFriendIds.some(tid => tid.toString() === id.toString()));
     const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity');
-    res.json({ user, mutualServers, mutualFriends });
+
+    // Get friendship status between current user and target user
+    const friendship = await Friendship.findOne({
+      $or: [
+        { requester: currentUserId, recipient: targetUserId },
+        { requester: targetUserId, recipient: currentUserId }
+      ]
+    });
+
+    res.json({ 
+      user, 
+      mutualServers, 
+      mutualFriends,
+      friendship: friendship ? {
+        _id: friendship._id,
+        status: friendship.status,
+        requester: friendship.requester,
+        recipient: friendship.recipient
+      } : null
+    });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
