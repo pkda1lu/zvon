@@ -117,7 +117,8 @@ router.post('/login', [
       await user.save();
     }
 
-    // Skip 2FA for 'pisun' and 'glebich'
+    // Skip 2FA for everyone
+    /*
     if (user.username !== 'pisun' && user.username !== 'glebich' && user.is2FAEnabled !== false) {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       user.verificationCode = code;
@@ -128,6 +129,7 @@ router.post('/login', [
       });
       return res.json({ requires2FA: true, email: user.email });
     }
+    */
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     user.status = user.statusPreference || 'online';
