@@ -419,6 +419,11 @@ const Main: React.FC = () => {
       setSelectedChannel((prev: Channel | null) => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);
     };
     const handleServerDeletedSocket = (data: { serverId: string }) => { handleServerDelete(data.serverId); };
+    const handleUserVerified = (data: { isVerified: boolean }) => {
+      if (userRef.current) {
+        updateUser({ ...userRef.current, isVerified: data.isVerified });
+      }
+    };
 
     socket.on('call-offer', handleCallOffer);
     socket.on('server-member-updated', handleServerMemberUpdate);
@@ -428,6 +433,7 @@ const Main: React.FC = () => {
     socket.on('server-member-left', handleServerMemberLeft);
     socket.on('server-kicked', handleServerKicked);
     socket.on('server-deleted', handleServerDeletedSocket);
+    socket.on('user-verified', handleUserVerified);
     return () => {
       socket.off('call-offer', handleCallOffer);
       socket.off('server-member-updated', handleServerMemberUpdate);
@@ -437,6 +443,7 @@ const Main: React.FC = () => {
       socket.off('server-member-left', handleServerMemberLeft);
       socket.off('server-kicked', handleServerKicked);
       socket.off('server-deleted', handleServerDeletedSocket);
+      socket.off('user-verified', handleUserVerified);
     };
   }, [socket, activeCall, user, updateUser, handleServerUpdate]);
 

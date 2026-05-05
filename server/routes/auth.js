@@ -382,7 +382,14 @@ router.post('/verify-registration', [
     user.isVerified = true;
     user.verificationCode = undefined;
     user.verificationCodeExpires = undefined;
+    user.twoFactorCode = undefined;
+    user.twoFactorCodeExpires = undefined;
     await user.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${user._id}`).emit('user-verified', { isVerified: true });
+    }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
     res.json({
