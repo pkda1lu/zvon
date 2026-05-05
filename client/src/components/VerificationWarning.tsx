@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import SuccessModal from './SuccessModal';
 import './VerificationWarning.css';
 
 interface VerificationWarningProps {
@@ -7,21 +8,25 @@ interface VerificationWarningProps {
 }
 
 const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSettings }) => {
-  const { user, resendVerification } = useAuth();
+  const { user, resendVerification, verifyRegistration } = useAuth();
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  useEffect(() => {
-    // Check if user is not verified and we haven't shown the modal in this session
-    if (user && !user.isVerified && !sessionStorage.getItem('verification_modal_shown')) {
-      setIsOpen(true);
-      sessionStorage.setItem('verification_modal_shown', 'true');
-    }
-  }, [user]);
-
-  if (!user || user.isVerified || !isOpen) return null;
+  // Always show if user is logged in but not verified
+  if (!user || user.isVerified) {
+    return (
+      <SuccessModal 
+        isOpen={showSuccess} 
+        onClose={() => setShowSuccess(false)} 
+        title="Почта подтверждена!" 
+        message="Ваш аккаунт успешно защищен. Теперь вам доступны все функции Zvon." 
+      />
+    );
+  }
 
   const handleResend = async () => {
     setLoading(true);
@@ -37,106 +42,151 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
     }
   };
 
-  const handleClose = () => {
-    setIsOpen(false);
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.length !== 6) {
+      setError('Введите 6-значный код');
+      return;
+    }
+    setVerifying(true);
+    setError(null);
+    try {
+      await verifyRegistration(user.email, code);
+      setShowSuccess(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Неверный или просроченный код');
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleChangeEmail = () => {
-    handleClose();
     if (onOpenSettings) {
       onOpenSettings();
     }
   };
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 4000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)' }} onClick={handleClose}>
-      <div className="glass-panel-base verification-modal" onClick={e => e.stopPropagation()} style={{
-        width: '100%',
-        maxWidth: '440px',
-        padding: '40px',
-        textAlign: 'center',
-        position: 'relative'
+    <>
+      <div className="modal-overlay" style={{ 
+        zIndex: 2500, 
+        background: 'rgba(0,0,0,0.92)', 
+        backdropFilter: 'blur(15px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
       }}>
-        <div className="modal-close-icon" onClick={handleClose} style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
-          cursor: 'pointer',
-          color: 'var(--text-dim)',
-          fontSize: '20px'
-        }}>✕</div>
-
-        <div className="verification-icon-wrapper" style={{
-          width: '70px', height: '70px', background: 'rgba(255, 166, 0, 0.15)',
-          borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 25px', border: '1px solid rgba(255, 166, 0, 0.3)'
+        <div className="glass-panel-base verification-modal" style={{
+          width: '100%',
+          maxWidth: '440px',
+          padding: '40px',
+          textAlign: 'center',
+          position: 'relative',
+          border: '1px solid var(--primary-neon)'
         }}>
-          <span style={{ fontSize: '35px' }}>📧</span>
-        </div>
-
-        <h2 style={{ color: 'white', fontSize: '24px', fontWeight: 800, marginBottom: '15px' }}>Подтвердите почту</h2>
-        
-        <p style={{ color: 'var(--text-dim)', marginBottom: '30px', fontSize: '15px', lineHeight: '1.6' }}>
-          Ваша почта <strong>{user.email}</strong> ещё не подтверждена. Подтвердите её, чтобы защитить свой аккаунт и получить доступ ко всем функциям.
-        </p>
-
-        {error && (
-          <div style={{ 
-            background: 'rgba(255, 59, 48, 0.1)', 
-            color: '#ff3b30', 
-            padding: '10px', 
-            borderRadius: '8px', 
-            fontSize: '13px', 
-            marginBottom: '20px',
-            border: '1px solid rgba(255, 59, 48, 0.2)'
+          <div className="verification-icon-wrapper" style={{
+            width: '70px', height: '70px', background: 'rgba(255, 166, 0, 0.15)',
+            borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 25px', border: '1px solid rgba(255, 166, 0, 0.3)'
           }}>
-            {error}
+            <span style={{ fontSize: '35px' }}>📧</span>
           </div>
-        )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button 
-            className={`neon-btn ${sent ? 'success' : ''}`} 
-            onClick={handleResend}
-            disabled={loading || sent}
-            style={{ padding: '15px', width: '100%', background: sent ? '#23a559' : '' }}
-          >
-            {loading ? 'Отправка...' : sent ? 'Код отправлен!' : 'Отправить код еще раз'}
-          </button>
+          <h2 style={{ color: 'white', fontSize: '24px', fontWeight: 800, marginBottom: '15px' }}>Подтверждение почты</h2>
           
-          <button 
-            className="test-action-btn"
-            onClick={handleChangeEmail}
-            style={{ 
-              padding: '15px', 
-              width: '100%', 
-              height: 'auto', 
-              border: '1px solid rgba(255,255,255,0.1)', 
-              background: 'rgba(255,255,255,0.05)',
-              color: 'white',
-              fontWeight: 600,
-              borderRadius: '12px'
-            }}
-          >
-            Изменить почту
-          </button>
-          
-          <button 
-            onClick={handleClose}
-            style={{ 
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-dim)',
-              fontSize: '13px',
-              marginTop: '10px',
-              cursor: 'pointer'
-            }}
-          >
-            Напомнить позже
-          </button>
+          <p style={{ color: 'var(--text-dim)', marginBottom: '30px', fontSize: '15px', lineHeight: '1.6' }}>
+            Доступ к функциям ограничен. Введите код из письма, отправленного на <strong>{user.email}</strong>.
+          </p>
+
+          <form onSubmit={handleVerify} style={{ marginBottom: '25px' }}>
+            <input 
+              type="text" 
+              className="auth-input-glass" 
+              placeholder="123456"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              style={{ 
+                textAlign: 'center', 
+                fontSize: '24px', 
+                letterSpacing: '8px', 
+                marginBottom: '15px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'white',
+                padding: '12px',
+                borderRadius: '12px',
+                width: '100%'
+              }}
+            />
+            
+            {error && (
+              <div style={{ 
+                background: 'rgba(255, 59, 48, 0.1)', 
+                color: '#ff3b30', 
+                padding: '10px', 
+                borderRadius: '8px', 
+                fontSize: '13px', 
+                marginBottom: '15px',
+                border: '1px solid rgba(255, 59, 48, 0.2)'
+              }}>
+                {error}
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              className="neon-btn" 
+              disabled={verifying || code.length !== 6}
+              style={{ width: '100%', padding: '15px' }}
+            >
+              {verifying ? 'Проверка...' : 'Подтвердить'}
+            </button>
+          </form>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button 
+              className="resend-link-btn" 
+              onClick={handleResend}
+              disabled={loading || sent}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                color: sent ? '#23a559' : 'var(--primary-neon)', 
+                fontSize: '14px', 
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              {loading ? 'Отправка...' : sent ? 'Код отправлен!' : 'Отправить код еще раз'}
+            </button>
+            
+            <button 
+              className="test-action-btn"
+              onClick={handleChangeEmail}
+              style={{ 
+                padding: '12px', 
+                width: '100%', 
+                height: 'auto', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                background: 'rgba(255,255,255,0.05)',
+                color: 'white',
+                borderRadius: '12px',
+                marginTop: '10px'
+              }}
+            >
+              Изменить почту
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+      
+      <SuccessModal 
+        isOpen={showSuccess} 
+        onClose={() => setShowSuccess(false)} 
+        title="Почта подтверждена!" 
+        message="Ваш аккаунт успешно защищен. Теперь вам доступны все функции Zvon." 
+      />
+    </>
   );
 };
 
