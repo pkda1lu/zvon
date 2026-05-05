@@ -138,9 +138,7 @@ const Login: React.FC = () => {
         navigate(returnTo || '/');
       }
     } catch (err: any) {
-      if (err.response?.data?.requiresVerification) {
-        setError('Почта не подтверждена. Пожалуйста, подтвердите её.');
-      } else if (err.response?.data?.errors) {
+      if (err.response?.data?.errors) {
         const validationErrors = err.response.data.errors.map((e: any) => e.msg).join(', ');
         setError(validationErrors);
       } else {

@@ -97,15 +97,6 @@ router.post('/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Check if user is verified
-    if (!user.isVerified) {
-      return res.status(403).json({
-        message: 'Пожалуйста, подтвердите вашу почту перед входом.',
-        requiresVerification: true,
-        email: user.email
-      });
-    }
-
     // Auto-promote da1lu to admin for initial setup
     if (user.username === 'da1lu' && user.role !== 'admin') {
       user.role = 'admin';
