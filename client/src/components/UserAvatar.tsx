@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getAvatarUrl } from '../utils/avatar';
 import { useAuth } from '../contexts/AuthContext';
+import { BotIcon } from './Icons';
 import './UserAvatar.css';
 
 interface UserAvatarProps {
@@ -12,6 +13,7 @@ interface UserAvatarProps {
     } | null | undefined;
     size?: number;
     animate?: boolean; // Force animation (e.g., in voice chat)
+    isBot?: boolean;
     className?: string;
     style?: React.CSSProperties;
     onClick?: (e: React.MouseEvent) => void;
@@ -22,6 +24,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
     user,
     size = 40,
     animate = false,
+    isBot = false,
     className = '',
     style,
     onClick,
