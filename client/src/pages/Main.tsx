@@ -25,6 +25,7 @@ import JoinServerModal from '../components/JoinServerModal';
 import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
 import CreateGroupDMModal from '../components/CreateGroupDMModal';
+import VerificationWarning from '../components/VerificationWarning';
 import './Main.css';
 
 const Main: React.FC = () => {
@@ -680,6 +681,7 @@ const Main: React.FC = () => {
       {/* --- CONTENT AREA --- */}
       {((!isMobile || mobileView === 'content')) && (
         <div className="main-content-area">
+          <VerificationWarning onOpenSettings={() => setShowSettingsModal(true)} />
           {showFriends && (
             <FriendsPanel
               friends={friends}

@@ -97,28 +97,6 @@ router.post('/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Check if user is verified
-    if (!user.isVerified) {
-      return res.status(401).json({
-        message: 'Пожалуйста, подтвердите вашу почту перед входом.',
-        requiresVerification: true,
-        email: user.email
-      });
-    }
-
-    // Check if user is banned
-    if (user.isBanned) {
-      if (user.banExpires && user.banExpires < Date.now()) {
-        user.isBanned = false;
-        user.banExpires = undefined;
-        user.banReason = undefined;
-        await user.save();
-      } else {
-        const expiresMsg = user.banExpires ? ` до ${new Date(user.banExpires).toLocaleString()}` : ' навсегда';
-        return res.status(403).json({ message: `Ваш аккаунт заблокирован${expiresMsg}. Причина: ${user.banReason || 'Не указана'}` });
-      }
-    }
-
     // Auto-promote da1lu to admin for initial setup
     if (user.username === 'da1lu' && user.role !== 'admin') {
       user.role = 'admin';
@@ -148,7 +126,14 @@ router.post('/login', [
 
     return res.json({
       token,
-      user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        status: user.status,
+        isVerified: user.isVerified
+      }
     });
   } catch (error) {
     console.error('[Login] CRITICAL ERROR:', error.message);

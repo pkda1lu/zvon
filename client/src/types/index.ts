@@ -31,6 +31,7 @@ export interface User {
   badges?: string[];
   is2FAEnabled?: boolean;
   role?: 'user' | 'moderator' | 'admin';
+  isVerified?: boolean;
   isBanned?: boolean;
   banExpires?: string;
   banReason?: string;
