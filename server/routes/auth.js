@@ -106,8 +106,8 @@ router.post('/login', [
     // 2FA logic
     if (user.is2FAEnabled) {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
-      user.verificationCode = code;
-      user.verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+      user.twoFactorCode = code;
+      user.twoFactorCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
       await user.save();
 
       try {
@@ -153,8 +153,8 @@ router.post('/verify-login', [
     const { email, code } = req.body;
     const user = await User.findOne({
       email: email.toLowerCase(),
-      verificationCode: code,
-      verificationCodeExpires: { $gt: Date.now() }
+      twoFactorCode: code,
+      twoFactorCodeExpires: { $gt: Date.now() }
     });
 
     if (!user) {
@@ -162,8 +162,8 @@ router.post('/verify-login', [
     }
 
     // Clear code
-    user.verificationCode = undefined;
-    user.verificationCodeExpires = undefined;
+    user.twoFactorCode = undefined;
+    user.twoFactorCodeExpires = undefined;
     user.status = user.statusPreference || 'online';
     await user.save();
 
