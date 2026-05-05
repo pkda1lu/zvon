@@ -10,7 +10,7 @@ const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCod
 
 router.post('/register', [
   body('username').trim().isLength({ min: 3, max: 20 }).withMessage('Username must be 3-20 characters'),
-  body('email').isEmail().withMessage('Please provide a valid email'),
+  body('email').trim().isEmail().withMessage('Please provide a valid email'),
   body('password')
     .isLength({ min: 8 })
     .withMessage('Пароль должен содержать минимум 8 символов')
@@ -47,20 +47,19 @@ router.post('/register', [
       await sendRegistrationCode(user.email, verificationCode);
     } catch (mailError) {
       console.error('Failed to send registration code:', mailError);
+      // We still created the user, but we should inform them email might have failed
+      return res.status(201).json({
+        message: 'Аккаунт создан, но возникла ошибка при отправке кода на почту. Попробуйте запросить код повторно или обратитесь в поддержку.',
+        requiresVerification: true,
+        email: user.email,
+        mailError: true
+      });
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Код подтверждения отправлен на вашу почту.',
       requiresVerification: true,
       email: user.email
-    });
-
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
-
-    res.status(201).json({
-      message: 'Регистрация успешна.',
-      token,
-      user: { id: user._id, username: user.username, email: user.email, status: user.status }
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -69,7 +68,7 @@ router.post('/register', [
 });
 
 router.post('/login', [
-  body('email').exists().withMessage('Email or Username is required'),
+  body('email').exists().withMessage('Email or Username is required').trim(),
   body('password').exists().withMessage('Password is required')
 ], async (req, res) => {
   try {
@@ -98,6 +97,15 @@ router.post('/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Check if user is verified
+    if (!user.isVerified) {
+      return res.status(401).json({
+        message: 'Пожалуйста, подтвердите вашу почту перед входом.',
+        requiresVerification: true,
+        email: user.email
+      });
+    }
+
     // Check if user is banned
     if (user.isBanned) {
       if (user.banExpires && user.banExpires < Date.now()) {
@@ -117,19 +125,22 @@ router.post('/login', [
       await user.save();
     }
 
-    // Skip 2FA for everyone
-    /*
-    if (user.username !== 'pisun' && user.username !== 'glebich' && user.is2FAEnabled !== false) {
+    // 2FA logic
+    if (user.is2FAEnabled) {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       user.verificationCode = code;
-      user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
+      user.verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
       await user.save();
-      await sendLoginCode(user.email, code).catch(err => {
-        console.error('Failed to send login code:', err);
-      });
+
+      try {
+        await sendLoginCode(user.email, code);
+      } catch (mailError) {
+        console.error('Failed to send login code:', mailError);
+        return res.status(500).json({ message: 'Ошибка при отправке кода 2FA. Пожалуйста, убедитесь, что настройки почты на сервере верны.' });
+      }
+
       return res.json({ requires2FA: true, email: user.email });
     }
-    */
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     user.status = user.statusPreference || 'online';

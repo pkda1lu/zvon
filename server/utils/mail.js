@@ -10,7 +10,14 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const checkConfig = () => {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    throw new Error('SMTP credentials not configured. Please set SMTP_USER and SMTP_PASS in .env');
+  }
+};
+
 const sendVerificationEmail = async (email, token) => {
+  checkConfig();
   const url = `${process.env.API_URL || 'http://localhost:5000'}/api/auth/verify-email?token=${token}`;
 
   await transporter.sendMail({
@@ -34,11 +41,7 @@ const sendVerificationEmail = async (email, token) => {
 };
 
 const sendLoginCode = async (email, code) => {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn('SMTP not configured, login code:', code);
-    return; // Proceed without sending email in dev if not configured
-  }
-
+  checkConfig();
   try {
     await transporter.sendMail({
       from: `"Zvon" <${process.env.SMTP_USER}>`,
@@ -59,11 +62,12 @@ const sendLoginCode = async (email, code) => {
     });
   } catch (error) {
     console.error('Error sending login code email:', error);
-    throw error; // Re-throw to be caught by the route handler
+    throw error;
   }
 };
 
 const sendResetCode = async (email, code) => {
+  checkConfig();
   await transporter.sendMail({
     from: `"Zvon" <${process.env.SMTP_USER}>`,
     to: email,
@@ -84,6 +88,7 @@ const sendResetCode = async (email, code) => {
 };
 
 const sendRegistrationCode = async (email, code) => {
+  checkConfig();
   await transporter.sendMail({
     from: `"Zvon" <${process.env.SMTP_USER}>`,
     to: email,
@@ -103,6 +108,7 @@ const sendRegistrationCode = async (email, code) => {
 };
 
 const sendEmailChangeCode = async (email, code) => {
+  checkConfig();
   await transporter.sendMail({
     from: `"Zvon" <${process.env.SMTP_USER}>`,
     to: email,
