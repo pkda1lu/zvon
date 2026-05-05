@@ -206,14 +206,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
 
   const AVAILABLE_BADGES = [
-    { id: 'dev', label: 'Разработчик', icon: '🛠️' },
-    { id: 'premium', label: 'Премиум', icon: '💎' },
-    { id: 'moderator', label: 'Модератор', icon: '🛡️' },
-    { id: 'artist', label: 'Художник', icon: '🎨' },
-    { id: 'gamer', label: 'Геймер', icon: '🎮' },
-    { id: 'meow', label: 'Котик', icon: '🐈' },
-    { id: 'staff', label: 'Персонал', icon: '👔' },
-    { id: 'bug_hunter', label: 'Охотник за багами', icon: '🐛' }
+    { id: 'dev', label: 'Разработчик', icon: './badges/developer.png' },
+    { id: 'premium', label: 'Премиум', icon: './badges/premium.png' },
+    { id: 'moderator', label: 'Модератор', icon: './badges/moderate.png' },
+    { id: 'artist', label: 'Художник', icon: './badges/painter.png' },
+    { id: 'gamer', label: 'Геймер', icon: './badges/gamer.png' },
+    { id: 'meow', label: 'Котик', icon: './badges/cat.png' },
+    { id: 'staff', label: 'Персонал', icon: './badges/personal%20stuff.png' },
+    { id: 'bug_hunter', label: 'Охотник за багами', icon: './badges/Bug.png' }
   ];
 
   // Cropper State
@@ -554,7 +554,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               }}
               title={badge.label}
             >
-              <span className="badge-icon">{badge.icon}</span>
+              <img src={badge.icon} alt={badge.label} className="badge-icon" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
               <span className="badge-label">{badge.label}</span>
             </div>
           ))}
