@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import UserAvatar from './UserAvatar';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useAppearance, ThemeType } from '../contexts/AppearanceContext';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
@@ -380,7 +381,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             Изменить баннер
           </button>
           <div className="account-avatar-wrapper" onClick={() => fileInputRef.current?.click()}>
-            <img src={avatarPreview || ''} alt="" />
+            <UserAvatar 
+              user={{ ...user, avatar: avatarPreview }} 
+              size={120} 
+              className="account-preview-avatar"
+              style={{ borderRadius: '40px' }}
+            />
           </div>
         </div>
 
@@ -683,13 +689,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 
                 <div className="preview-content-scrollable">
                   <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
-                    <div className="preview-avatar" style={{ 
-                      width: density === 'compact' ? '32px' : '42px', 
-                      height: density === 'compact' ? '32px' : '42px',
-                      borderRadius: density === 'compact' ? '10px' : '14px' 
-                    }}>
-                      <span>A</span>
-                    </div>
+                    <UserAvatar 
+                      user={{ username: 'Аркадий', avatar: null }} 
+                      size={density === 'compact' ? 32 : 42} 
+                    />
                     <div className="preview-msg-body">
                       <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                         <span style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>Аркадий</span>
@@ -708,14 +711,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                   </div>
 
                   <div className="preview-message with-author" style={{ gap: '12px', marginTop: `${groupSpacing}px` }}>
-                    <div className="preview-avatar bot" style={{ 
-                      width: density === 'compact' ? '32px' : '42px', 
-                      height: density === 'compact' ? '32px' : '42px',
-                      borderRadius: density === 'compact' ? '10px' : '14px',
-                      background: 'var(--primary-neon)'
-                    }}>
-                      <BotIcon size={18} color="black" />
-                    </div>
+                    <UserAvatar 
+                      user={{ username: 'Zvon AI', avatar: null }} 
+                      size={density === 'compact' ? 32 : 42} 
+                      isBot={true}
+                    />
                     <div className="preview-msg-body">
                       <div className="preview-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                         <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--primary-neon)' }}>Zvon AI</span>
