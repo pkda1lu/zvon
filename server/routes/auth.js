@@ -204,13 +204,17 @@ router.post('/resend-verification', async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.isVerified) return res.status(400).json({ message: 'User already verified' });
 
-    const token = crypto.randomBytes(32).toString('hex');
-    user.verificationToken = token;
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCodeExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
+
+    user.verificationCode = verificationCode;
+    user.verificationCodeExpires = verificationCodeExpires;
     await user.save();
 
-    await sendVerificationEmail(user.email, token);
-    res.json({ message: 'Verification email resent' });
+    await sendRegistrationCode(user.email, verificationCode);
+    res.json({ message: 'Код подтверждения отправлен повторно' });
   } catch (error) {
+    console.error('Resend verification error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
