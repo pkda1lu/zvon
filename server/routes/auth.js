@@ -319,7 +319,7 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
-router.post('/request-email-change', auth, [
+router.post('/email-change/request', auth, [
   body('newEmail').isEmail().withMessage('Please provide a valid email')
 ], async (req, res) => {
   try {
@@ -343,7 +343,7 @@ router.post('/request-email-change', auth, [
   }
 });
 
-router.post('/verify-email-change', auth, [
+router.post('/email-change/verify', auth, [
   body('code').isLength({ min: 6, max: 6 })
 ], async (req, res) => {
   try {
