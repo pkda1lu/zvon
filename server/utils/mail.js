@@ -18,7 +18,8 @@ const checkConfig = () => {
 
 const sendVerificationEmail = async (email, token) => {
   checkConfig();
-  const url = `${process.env.API_URL || 'http://localhost:5000'}/api/auth/verify-email?token=${token}`;
+  const baseUrl = process.env.API_URL || process.env.CLIENT_URL || 'http://localhost:5000';
+  const url = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
   await transporter.sendMail({
     from: `"Zvon" <${process.env.SMTP_USER}>`,
