@@ -185,10 +185,11 @@
   color: #fff;
 }
 
-.user-avatar {
+.user-avatar,
+.user-avatar.user-avatar-container {
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: 14px !important;
   /* Squircle */
   background: var(--bg-accent);
   display: flex;
@@ -205,7 +206,8 @@
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
-.user-avatar:hover {
+.user-avatar:hover,
+.user-avatar.user-avatar-container:hover {
   transform: scale(1.1) rotate(5deg);
   border-color: var(--primary-neon);
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
