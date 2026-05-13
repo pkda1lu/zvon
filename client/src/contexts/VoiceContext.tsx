@@ -294,6 +294,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
     const [screenVolumes, setScreenVolumes] = useState<Map<string, number>>(new Map());
     const [watchedScreenIds, setWatchedScreenIds] = useState<Set<string>>(new Set());
+    const watchedScreenIdsRef = useRef<Set<string>>(new Set());
 
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
@@ -1005,6 +1006,43 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 })
                 .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
                 .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
+                .on(RoomEvent.TrackPublished, (publication, participant) => {
+                    // Defer screen-share subscription until viewer explicitly opts in.
+                    // Audio/camera tracks continue to auto-subscribe.
+                    const isScreen = publication.source === Track.Source.ScreenShare ||
+                        publication.source === Track.Source.ScreenShareAudio;
+                    if (isScreen) {
+                        const userId = participant.identity;
+                        // Mark the user as sharing so the "В эфире" badge can render
+                        // even though we are not yet downloading the stream.
+                        setUserStates(prev => {
+                            const state = prev.get(userId);
+                            const next = new Map(prev);
+                            if (state) {
+                                if (!state.isScreenSharing) next.set(userId, { ...state, isScreenSharing: true });
+                            } else {
+                                next.set(userId, { isMuted: false, isDeafened: false, isScreenSharing: true });
+                            }
+                            return next;
+                        });
+                        // Opt out of subscription unless this viewer is already watching.
+                        if (!watchedScreenIdsRef.current.has(userId)) {
+                            try { publication.setSubscribed(false); } catch (e) { console.warn('[Voice] setSubscribed(false) failed', e); }
+                        }
+                    }
+                })
+                .on(RoomEvent.TrackUnpublished, (publication, participant) => {
+                    const isScreen = publication.source === Track.Source.ScreenShare ||
+                        publication.source === Track.Source.ScreenShareAudio;
+                    if (isScreen) {
+                        const userId = participant.identity;
+                        setUserStates(prev => {
+                            const state = prev.get(userId);
+                            if (!state) return prev;
+                            return new Map(prev).set(userId, { ...state, isScreenSharing: false });
+                        });
+                    }
+                })
                 .on(RoomEvent.LocalTrackPublished, (publication) => {
                     const track = publication.track;
                     if (!track) return;
@@ -1680,7 +1718,25 @@ registerProcessor('vad-processor', VADProcessor);
             const next = new Set(prev);
             if (isWatching) next.add(userId);
             else next.delete(userId);
+            watchedScreenIdsRef.current = next;
             return next;
+        });
+
+        // Toggle the actual LiveKit subscription so we don't waste bandwidth
+        // when the viewer is not watching.
+        const room = roomRef.current;
+        if (!room) return;
+        const participant = room.remoteParticipants.get(userId);
+        if (!participant) return;
+        participant.trackPublications.forEach(pub => {
+            const isScreen = pub.source === Track.Source.ScreenShare ||
+                pub.source === Track.Source.ScreenShareAudio;
+            if (!isScreen) return;
+            try {
+                (pub as RemoteTrackPublication).setSubscribed(isWatching);
+            } catch (e) {
+                console.warn('[Voice] Failed to toggle screen share subscription', e);
+            }
         });
     }, []);
 

@@ -73,7 +73,15 @@ const Main: React.FC = () => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('sidebarWidth');
+    const parsed = saved ? parseInt(saved, 10) : NaN;
+    return Number.isFinite(parsed) && parsed >= 200 && parsed <= 500 ? parsed : 240;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebarWidth', String(sidebarWidth));
+  }, [sidebarWidth]);
   const isResizingRef = useRef(false);
   const hasViewInitializedRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
@@ -81,6 +89,37 @@ const Main: React.FC = () => {
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [mobileView, setMobileView] = useState<'sidebar' | 'content' | 'members'>('sidebar');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isMobile || !touchStartRef.current) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    const end = e.changedTouches[0];
+    const dx = end.clientX - start.x;
+    const dy = end.clientY - start.y;
+    const dt = Date.now() - start.t;
+    if (dt > 500) return; // too slow
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return; // not horizontal enough
+    // Edge-only swipe to avoid hijacking interactive content
+    const edgeThreshold = 40;
+    const fromLeftEdge = start.x < edgeThreshold;
+    const fromRightEdge = start.x > window.innerWidth - edgeThreshold;
+    const order: Array<'sidebar' | 'content' | 'members'> = ['sidebar', 'content', 'members'];
+    const idx = order.indexOf(mobileView);
+    if (dx > 0 && (fromLeftEdge || mobileView !== 'content') && idx > 0) {
+      setMobileView(order[idx - 1]);
+    } else if (dx < 0 && (fromRightEdge || mobileView !== 'content') && idx < order.length - 1) {
+      // Only allow swipe to members if a server is selected
+      if (order[idx + 1] === 'members' && !selectedServer) return;
+      setMobileView(order[idx + 1]);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -612,7 +651,11 @@ const Main: React.FC = () => {
   if (loading) return <div className="loading">Загрузка...</div>;
 
   return (
-    <div className={`main-container ${isMobile ? 'is-mobile' : ''} view-${mobileView}`}>
+    <div
+      className={`main-container ${isMobile ? 'is-mobile' : ''} view-${mobileView}`}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       {( (!isMobile || mobileView === 'sidebar') ) && (
         <Sidebar
           user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}

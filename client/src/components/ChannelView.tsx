@@ -13,6 +13,7 @@ import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
+import { SkeletonList } from './Skeleton';
 import { Role } from '../types';
 import { computePermissions, hasPermission, Permissions } from '../utils/permissions';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
@@ -1147,7 +1148,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       <StickyPins pinnedMessages={pinnedMessages} onOpenPins={() => setShowPins(true)} />
 
       <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
-        {isLoadingMore && <div className="loading-more">Загрузка...</div>}
+        {isLoadingMore && (
+          <div className="loading-more">
+            <SkeletonList rows={3} avatarSize={36} lines={2} />
+          </div>
+        )}
         <div className="messages-list">
           {messages.map((msg, index) => (
             <React.Fragment key={msg._id}>
