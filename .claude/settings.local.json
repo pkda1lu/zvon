@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git -C D:/work_study/zvon merge --ff-only claude/gifted-galileo-4579b6)"
+      "Bash(git -C D:/work_study/zvon merge --ff-only claude/gifted-galileo-4579b6)",
+      "Bash(node --check bot-example/music-bot.js)"
     ]
   }
 }
