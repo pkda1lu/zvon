@@ -772,6 +772,14 @@
   color: var(--text-dim);
 }
 
+.participant-placeholder .user-avatar-container {
+  border-radius: 20px !important;
+}
+
+.notification-avatar .user-avatar-container {
+  border-radius: 12px !important;
+}
+
 .participant-label {
   position: absolute;
   bottom: 15px;

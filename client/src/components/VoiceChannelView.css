@@ -290,7 +290,7 @@
 .p-avatar {
   width: 64px;
   height: 64px;
-  border-radius: 20px;
+  border-radius: 20px !important;
   background: #111;
   border: 3px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
