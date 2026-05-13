@@ -119,15 +119,10 @@ socket.on("voice-channel-users-update", (data) => {
 async function getTrackUrlCustom(trackId, attempt = 0) {
     const id = trackId.toString().split(':')[0];
     const deviceId = crypto.randomBytes(16).toString('hex');
-    
+
     try {
         // Try getting download info with Device ID
-        let infoRes;
-        try {
-            infoRes = await yandexClient.tracks.getDownloadInfo(id);
-        } catch (e) {
-            infoRes = await yandexClient.tracksGetDownloadInfo({ trackId: id });
-        }
+        const infoRes = await yandexClient.tracks.getDownloadInfo(id);
 
         if (!infoRes.result || infoRes.result.length === 0) throw new Error("No download info");
 
@@ -167,7 +162,7 @@ async function getTrackUrlCustom(trackId, attempt = 0) {
             try {
                 const libUrl = await getTrackUrl(yandexClient, id);
                 if (libUrl) return libUrl;
-            } catch (le) {}
+            } catch (le) { }
             throw e;
         }
     } catch (err) {
@@ -269,7 +264,7 @@ function getPlayerEmbed() {
             { label: `${Math.round(volume * 100)}%`, actionId: "vol_reset", style: "secondary", row: 1 },
             { label: "🔊", actionId: "vol_up", style: "secondary", row: 1 },
             { label: loopMode ? "🔂" : "🔁", actionId: "loop_mode", style: loopMode ? "success" : "secondary", row: 1 },
-            
+
             { label: "⏪", actionId: "rewind", style: "secondary", row: 2 },
             { label: "⏮️", actionId: "prev_track", style: "secondary", row: 2 },
             { label: "⏸️", actionId: "stop_track", style: "secondary", row: 2 },
@@ -372,7 +367,7 @@ socket.on("new-message", async (msg) => {
         try {
             const voiceChannel = targetServer?.channels.find(c => c._id === userVoiceChannelId);
             if (!voiceChannel) throw new Error("Голосовой канал не найден.");
-            
+
             socket.emit("join-voice-channel", { channelId: userVoiceChannelId });
             socket.voiceChannelId = userVoiceChannelId;
 
@@ -474,157 +469,157 @@ socket.on("new-message", async (msg) => {
                                             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                                             'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
                                             'Referer': 'https://music.yandex.ru/',
-                                            'Cookie': 'yashr=4360194071768248179; receive-cookie-deprecation=1; gdpr=0; _ym_uid=1768248256600899781; yandexuid=2528055061759777518; yuidss=2528055061759777518; ymex=2083696063.yrts.1768336063; bltsr=1; amcuid=4977225741771019850; yashr=816391101771323378; i=XO0pf1sQQzxSOKJu3sGC3SWAZde/p0lzb/6NNTFlnV4uHpKl5z/I2Kjkf90P8/VegZEm00yyjkcZDun07T2tloClkh4=; instruction=1; L=RjcIW3kDQER4eF1eR11eWAJTW2RmUgUADhtgKFoe.1775491737.1815311.363558.eaa9711377ff3e558794a34451af526b; yandex_login=tr0ano; _ym_d=1775648429; pi=+r0v6ukY0xldn+kPxR4WmYe4e+0eZInsuNHW4iAU1B+xgGmh+AZU0OMKs81dD7Xk4rlCFLvJ8SlUC301pwzdZb3kPjA=; is_gdpr=0; is_gdpr_b=CK7bRRDm/gIoAg==; Session_id=3:1776071448.5.0.1771323373213:G5Ft1Q:9e76.1.2:1|1513722206.-1.2.3:1771323373|1423835099.2527388.2.2:2527388.3:1773850761|3:11837330.877731.1g8YdedTOJ5uFycuNifNUlWRUJY; sessar=1.1719225.CiD97sFbGeucSm6PelubrLBmr0ghFu0HwA3iyY5eqdLFZw.Pnvpnx2xwd9yP5kuOd82G5eMV-i5OnhG9UUmRUjYdwM; sessionid2=3:1776071448.5.0.1771323373213:G5Ft1Q:9e76.1.2:1|1513722206.-1.2.3:1771323373|1423835099.2527388.2.2:2527388.3:1773850761|3:11837330.877731.fakesign0000000000000000000; _ym_isad=2; ys=udn.cDp0cjBhbm8%3D#wprid.1776077936308311-8138366153560160456-balancer-l7leveler-kubr-yp-vla-170-BAL#c_chck.1548610345; yp=1807384245.dafs.39-1-1773953009_42-4-1775848245#2090851737.udn.cDp0cjBhbm8%3D#1778142677.hdrc.0#1776596633.szm.1%3A1920x1080%3A1895x947%3A15#1802885454.swntab.1605925912#2091437937.pcs.1#1777637770.gph.225_102#1781261936.atds.1#2084261650.multib.1#1776191878.dlp.3#1800437719.dc_neuro.10; theme={%22value%22:%22system%22}; ymPlayerVolume={%22value%22:1}; ymPlayerRepeatMode={%22value%22:%22none%22}; ymPlayerShuffle={%22value%22:false}; ymPlayerQuality={%22value%22:%22balanced%22}; crossFadeMode={%22value%22:true}; _ym_visorc=b; _yasc=EuZxM64RWVVZv4v+4XEX/aoYCPpT8qNd8iscW5POgM8gXiVuoeDuv6/MMlgNKrgEDqwPZas1V0EKK4vLV2Q42cB+CEYYhgANpioiMsuueaO259sinHpdTOLeyQVl8qaah39q4jKPTgqT7ZiuaVZTpU0kxEL7; bh=EkEiTm90OkEtQnJhbmQiO3Y9Ijk5IiwgIkdvb2dsZSBDaHJvbWUiO3Y9IjE0NSIsICJDaHJvbWl1bSI7dj0iMTQ1IhoDeDg2Ig4xNDUuMC43NjMyLjExNyoCPzAyAiIiOgkiV2luZG93cyJCBjE5LjAuMEoCNjRSWyJOb3Q6QS1CcmFuZCI7dj0iOTkuMC4wLjAiLCJHb29nbGUgQ2hyb21lIjt2PSIxNDUuMC43NjMyLjExNyIsIkNocm9taXVtIjt2PSIxNDUuMC43NjMyLjExNyJaAj8wYMua884Gah7cyuH/CJLYobEDn8/h6gP7+vDnDev//fYPnafMhwg=' 
-                                        },
-                                        timeout: 8000
-                                    });
-                                    console.log(`[Yandex] Scraper received status: ${hRes.status}`);
-                                    const html = hRes.data;
+                                            'Cookie': 'yashr=4360194071768248179; receive-cookie-deprecation=1; gdpr=0; _ym_uid=1768248256600899781; yandexuid=2528055061759777518; yuidss=2528055061759777518; ymex=2083696063.yrts.1768336063; bltsr=1; amcuid=4977225741771019850; yashr=816391101771323378; _ym_d=1775648429; theme={%22value%22:%22system%22}; ymPlayerVolume={%22value%22:1}; ymPlayerRepeatMode={%22value%22:%22none%22}; ymPlayerShuffle={%22value%22:false}; ymPlayerQuality={%22value%22:%22balanced%22}; crossFadeMode={%22value%22:true}; skid=189671621777313566; maps_session_id=1777402528570501-2692411720708833265-balancer-l7leveler-kubr-yp-klg-238-BAL; yandex_expboxes=1499636%2C0%2C24%3B1550374%2C0%2C36%3B1539512%2C0%2C38%3B45974%2C0%2C91%3B1543799%2C0%2C8%3B1550660%2C0%2C31%3B1545092%2C0%2C43%3B1533436%2C0%2C69%3B1493354%2C0%2C80%3B1540260%2C0%2C51%3B663874%2C0%2C49%3B1533750%2C0%2C95%3B1547060%2C0%2C67%3B1541088%2C0%2C20%3B1540020%2C0%2C12%3B1541606%2C0%2C98; i=a58hVAnRqfjs89HmRWieyyZpITdZsVKM6JsSgo688YC49mlsTnJy1LOrVrIrcZu4WXEl58bEG08wh7OjIoseuugCyXw=; instruction=1; pi=uWtdfczfIlFMHx6F9hvDZw5LuTNkjKScrI1B1XL02njOgagTWV7yQKmO/MPGrA0RMwBOPFsCEX67CAtaW22hGUqppsw=; _ym_isad=2; is_gdpr=1; is_gdpr_b=CNr0bBDOhAMYASgC; _yasc=KgpK8z1Bn/a5bUaHXmCgIyyED5v/xdK74Cpa8xsLPkg9CcVt7z25bW/YKrVkB0ieH2haWvuQ/QiywOdRE5jvTaukrqd7tBkej3/DWyx4t1h2PlkI5bpLWDQ/uK7jiOD4YixUdlibmHjRPFRyxdVsUpPDS6c59gkvp3+UJoc=.MTc3ODY4MDQzNTIyMg==; _ym_visorc=b; Session_id=3:1778680442.5.0.1771323373213:G5Ft1Q:9e76.1.2:1|1513722206.-1.20002.3:1771323373|1423835099.2527388.20002.2:2527388.3:1773850761|3:11901407.754201.gx-dl11ZMhVt7e7THoS6C5y9JcY; sessar=1.1781281.CiAMhW6JhIjTuYRfEqjQ2M5ki6tFAuWDl-lIZvSMtQ5sXQ.ye2lWJs6a1GzcRusHp5DI8xCbnrmmEPRDu_jmWB6WP4; sessionid2=3:1778680442.5.0.1771323373213:G5Ft1Q:9e76.1.2:1|1513722206.-1.20002.3:1771323373|1423835099.2527388.20002.2:2527388.3:1773850761|3:11901407.754201.fakesign0000000000000000000; yp=1809356144.dafs.39-2-1777820143_42-4-1775848245#2094040442.udn.cDp0cjBhbm8%3D#1780251817.hdrc.0#1778787154.szm.1:1920x1080:1895x947:15#1802885454.swntab.1605925912#2094040432.pcs.1#1783864431.atds.1#1780495142.gph.225_102#2084261650.multib.1#1779046354.dlp.3#1800437719.dc_neuro.10; L=Azh2fAV4cFZbBV5XQVIHdkYGBkBVVHp7NUJzLB4h.1778680442.1893573.365398.1ab7a469cfc8211e27cd80fd2937b62f; yandex_login=tr0ano; ys=udn.cDp0cjBhbm8%3D#c_chck.2437588083; bh=EkAiR29vZ2xlIENocm9tZSI7dj0iMTQ3IiwgIk5vdC5BL0JyYW5kIjt2PSI4IiwgIkNocm9taXVtIjt2PSIxNDciGgUieDg2IiIPIjE0Ny4wLjc3MjcuNTYiKgI/MDICIiI6CSJXaW5kb3dzIkIIIjE5LjAuMCJKBCI2NCJSWiJHb29nbGUgQ2hyb21lIjt2PSIxNDcuMC43NzI3LjU2IiwgIk5vdC5BL0JyYW5kIjt2PSI4LjAuMC4wIiwgIkNocm9taXVtIjt2PSIxNDcuMC43NzI3LjU2IloCPzBgh4WS0AZqHtzK4f8IktihsQOfz+HqA/v68OcN6//99g+bh8+HCA=='
+        },
+        timeout: 8000
+    });
+console.log(`[Yandex] Scraper received status: ${hRes.status}`);
+const html = hRes.data;
 
-                                    if (html.includes('id="captcha-container"') || html.includes('checkbox-captcha')) {
-                                        console.error("[Yandex] BOT DETECTED! Yandex is showing CAPTCHA to this server IP.");
-                                        throw new Error("Бот обнаружен Яндексом (нужна капча). Попробуйте позже или используйте прямую ссылку /users/...");
-                                    }
+if (html.includes('id="captcha-container"') || html.includes('checkbox-captcha')) {
+    console.error("[Yandex] BOT DETECTED! Yandex is showing CAPTCHA to this server IP.");
+    throw new Error("Бот обнаружен Яндексом (нужна капча). Попробуйте позже или используйте прямую ссылку /users/...");
+}
 
-                                    // Try to find owner and kind in the JS state
-                                    const ownerMatch = html.match(/"owner"\s*:\s*{\s*"login"\s*:\s*"(.*?)"/) || html.match(/data-owner="(.*?)"/);
-                                    const kindMatch = html.match(/"kind"\s*:\s*(\d+)/) || html.match(/"playlistUuid"\s*:\s*"(.*?)"/) || html.match(/data-kind="(\d+)"/);
+// Try to find owner and kind in the JS state
+const ownerMatch = html.match(/"owner"\s*:\s*{\s*"login"\s*:\s*"(.*?)"/) || html.match(/data-owner="(.*?)"/);
+const kindMatch = html.match(/"kind"\s*:\s*(\d+)/) || html.match(/"playlistUuid"\s*:\s*"(.*?)"/) || html.match(/data-kind="(\d+)"/);
 
-                                    if (ownerMatch && kindMatch) {
-                                        const foundOwner = ownerMatch[1] || ownerMatch[2];
-                                        const foundKind = kindMatch[1] || kindMatch[2];
-                                        console.log(`[Yandex] Scraper found owner: ${foundOwner}, kind: ${foundKind}`);
-                                        const apiRes = await yandexClient.playlists.getPlaylistById(foundOwner, foundKind);
-                                        if (apiRes?.result?.tracks?.length) {
-                                            return { res: apiRes, html };
-                                        }
-                                    }
+if (ownerMatch && kindMatch) {
+    const foundOwner = ownerMatch[1] || ownerMatch[2];
+    const foundKind = kindMatch[1] || kindMatch[2];
+    console.log(`[Yandex] Scraper found owner: ${foundOwner}, kind: ${foundKind}`);
+    const apiRes = await yandexClient.playlists.getPlaylistById(foundOwner, foundKind);
+    if (apiRes?.result?.tracks?.length) {
+        return { res: apiRes, html };
+    }
+}
 
-                                    // Fallback to track ID extraction if API fails again
-                                    const nextDataChunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"(.*?)"\]\)/g)];
-                                    let tIds = [];
-                                    nextDataChunks.forEach(chunk => {
-                                        const decoded = chunk[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                                        const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
-                                        tIds.push(...matches);
-                                    });
+// Fallback to track ID extraction if API fails again
+const nextDataChunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"(.*?)"\]\)/g)];
+let tIds = [];
+nextDataChunks.forEach(chunk => {
+    const decoded = chunk[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
+    tIds.push(...matches);
+});
 
-                                    if (tIds.length === 0) {
-                                        tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
-                                        tIds.push(...[...html.matchAll(/"id":"(\d+)"/g)].map(m => m[1]));
-                                    }
+if (tIds.length === 0) {
+    tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
+    tIds.push(...[...html.matchAll(/"id":"(\d+)"/g)].map(m => m[1]));
+}
 
-                                    const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
-                                    return { ids: uniqueIds, html };
+const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
+return { ids: uniqueIds, html };
                                 } catch (e) {
-                                    console.error("[Yandex] Scrape attempt error:", e.message);
-                                    return { ids: [], html: "" };
-                                }
+    console.error("[Yandex] Scrape attempt error:", e.message);
+    return { ids: [], html: "" };
+}
                             };
 
-                            let sResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+let sResult = await tryScrape('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
 
-                            if (sResult.res) {
-                                res = sResult.res;
-                                scrapedHtml = sResult.html;
-                            } else if (sResult.ids?.length > 0) {
-                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
-                                res = {
-                                    result: {
-                                        tracks: trks.result.map(t => ({ track: t })),
-                                        title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
-                                    }
-                                };
-                            } else {
-                                // Try one more time with mobile user agent
-                                sResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1');
-                                if (sResult.res) {
-                                    res = sResult.res;
-                                } else if (sResult.ids?.length > 0) {
-                                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
-                                    res = {
-                                        result: {
-                                            tracks: trks.result.map(t => ({ track: t })),
-                                            title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
-                                        }
-                                    };
-                                }
-                            }
+if (sResult.res) {
+    res = sResult.res;
+    scrapedHtml = sResult.html;
+} else if (sResult.ids?.length > 0) {
+    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
+    res = {
+        result: {
+            tracks: trks.result.map(t => ({ track: t })),
+            title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+        }
+    };
+} else {
+    // Try one more time with mobile user agent
+    sResult = await tryScrape('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1');
+    if (sResult.res) {
+        res = sResult.res;
+    } else if (sResult.ids?.length > 0) {
+        const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
+        res = {
+            result: {
+                tracks: trks.result.map(t => ({ track: t })),
+                title: sResult.html.match(/<title>(.*?)<\/title>/)?.[1]?.split(/[—-]/)[0]?.trim() || "Плейлист"
+            }
+        };
+    }
+}
                         }
                     }
 
-                    if (!res?.result?.tracks?.length) throw new Error("Плейлист пуст или недоступен.");
+if (!res?.result?.tracks?.length) throw new Error("Плейлист пуст или недоступен.");
 
-                    added = res.result.tracks.map(t => {
-                        const trk = t.track || t;
-                        return { ...trk, id: trk.id.toString().split(':')[0] };
-                    });
-                    socket.emit("send-message", {
-                        channelId: msg.channel,
-                        embeds: [{
-                            title: "Добавлены треки из плейлиста",
-                            description: `**${res.result.title || 'Плейлист'}**`,
-                            color: "#ffca28",
-                            thumbnail: { url: res.result.coverUri ? `https://${res.result.coverUri.replace('%%', '200x200')}` : undefined },
-                            fields: [
-                                { name: "Добавлено треков", value: `➕ **${added.length}**`, inline: true },
-                                { name: "Всего в очереди", value: `📊 **${playlistQueue.length + added.length}**`, inline: true }
-                            ]
-                        }]
-                    });
+added = res.result.tracks.map(t => {
+    const trk = t.track || t;
+    return { ...trk, id: trk.id.toString().split(':')[0] };
+});
+socket.emit("send-message", {
+    channelId: msg.channel,
+    embeds: [{
+        title: "Добавлены треки из плейлиста",
+        description: `**${res.result.title || 'Плейлист'}**`,
+        color: "#ffca28",
+        thumbnail: { url: res.result.coverUri ? `https://${res.result.coverUri.replace('%%', '200x200')}` : undefined },
+        fields: [
+            { name: "Добавлено треков", value: `➕ **${added.length}**`, inline: true },
+            { name: "Всего в очереди", value: `📊 **${playlistQueue.length + added.length}**`, inline: true }
+        ]
+    }]
+});
                 } catch (e) {
-                    console.error("[Yandex] Load error:", e.message);
-                    throw new Error(`Ошибка загрузки: ${e.message}`);
-                }
+    console.error("[Yandex] Load error:", e.message);
+    throw new Error(`Ошибка загрузки: ${e.message}`);
+}
             } else {
-                const sRes = await yandexClient.search.search(query, 0, 'all');
-                const t = sRes.result.tracks?.results?.find(trk => trk.durationMs > 40000) || sRes.result.tracks?.results?.[0];
-                if (!t) throw new Error("Не найдено.");
-                added = [{ ...t, id: t.id.toString().split(':')[0] }];
+    const sRes = await yandexClient.search.search(query, 0, 'all');
+    const t = sRes.result.tracks?.results?.find(trk => trk.durationMs > 40000) || sRes.result.tracks?.results?.[0];
+    if (!t) throw new Error("Не найдено.");
+    added = [{ ...t, id: t.id.toString().split(':')[0] }];
+}
+
+playlistQueue.push(...added);
+if (!isPlaying && !isProcessing) {
+    isProcessing = true;
+    currentIndex = playlistQueue.length - added.length;
+    startPlayback(voiceChannel._id);
+}
+        } catch (err) {
+    isProcessing = false;
+    socket.emit("send-message", { content: `❌ ${err.message}`, channelId: msg.channel });
+}
+    }
+
+if (content === "!skip") skipTrack(voiceChannel?._id);
+if (content === "!prev") prevTrack(voiceChannel?._id);
+if (content === "!shuffle") {
+    shuffleQueue();
+    socket.emit("send-message", { content: "🔀 Очередь перемешана.", channelId: msg.channel });
+}
+if (content === "!queue") {
+    const qText = playlistQueue.slice(currentIndex, currentIndex + 10).map((t, i) => `${i + currentIndex + 1}. ${t.title}`).join("\n");
+    socket.emit("send-message", { content: `📋 **Очередь:**\n${qText}${playlistQueue.length > 10 ? "\n..." : ""}`, channelId: msg.channel });
+}
+if (content === "!stop") {
+    stopMusic();
+    socket.emit("send-message", { content: "⏹️ Остановлено.", channelId: msg.channel });
+}
+
+if (content === "!help") {
+    axios.post(`${SERVER_URL}/api/webhooks/${TOKEN}/${msg.channel}`, {
+        content: "👋 Привет! Я **Zvon Music Bot**!\n\nТеперь у меня есть **Интерактивные Кнопки**! Они появляются под каждым играющим треком.\n\n**Команды:**\n- `!play <Поиск или ссылка>`: Включить трек или плейлист (Yandex Music)\n- `!skip`: Следующий трек\n- `!prev`: Предыдущий трек\n- `!stop`: Остановить и выйти\n- `!queue`: Показать очередь\n- `!shuffle`: Перемешать",
+        buttons: [
+            { label: "⏮️ Prev", actionId: "prev_track", style: "secondary" },
+            { label: "⏹️ Stop", actionId: "stop_track", style: "danger" },
+            { label: "⏭️ Skip", actionId: "skip_track", style: "primary" },
+            {
+                label: "Наш GitHub",
+                url: "https://github.com/vlyne/zvon",
+                style: "secondary"
             }
-
-            playlistQueue.push(...added);
-            if (!isPlaying && !isProcessing) { 
-                isProcessing = true;
-                currentIndex = playlistQueue.length - added.length; 
-                startPlayback(voiceChannel._id); 
-            }
-        } catch (err) { 
-            isProcessing = false;
-            socket.emit("send-message", { content: `❌ ${err.message}`, channelId: msg.channel }); 
-        }
-    }
-
-    if (content === "!skip") skipTrack(voiceChannel?._id);
-    if (content === "!prev") prevTrack(voiceChannel?._id);
-    if (content === "!shuffle") {
-        shuffleQueue();
-        socket.emit("send-message", { content: "🔀 Очередь перемешана.", channelId: msg.channel });
-    }
-    if (content === "!queue") {
-        const qText = playlistQueue.slice(currentIndex, currentIndex + 10).map((t, i) => `${i + currentIndex + 1}. ${t.title}`).join("\n");
-        socket.emit("send-message", { content: `📋 **Очередь:**\n${qText}${playlistQueue.length > 10 ? "\n..." : ""}`, channelId: msg.channel });
-    }
-    if (content === "!stop") {
-        stopMusic();
-        socket.emit("send-message", { content: "⏹️ Остановлено.", channelId: msg.channel });
-    }
-
-    if (content === "!help") {
-        axios.post(`${SERVER_URL}/api/webhooks/${TOKEN}/${msg.channel}`, {
-            content: "👋 Привет! Я **Zvon Music Bot**!\n\nТеперь у меня есть **Интерактивные Кнопки**! Они появляются под каждым играющим треком.\n\n**Команды:**\n- `!play <Поиск или ссылка>`: Включить трек или плейлист (Yandex Music)\n- `!skip`: Следующий трек\n- `!prev`: Предыдущий трек\n- `!stop`: Остановить и выйти\n- `!queue`: Показать очередь\n- `!shuffle`: Перемешать",
-            buttons: [
-                { label: "⏮️ Prev", actionId: "prev_track", style: "secondary" },
-                { label: "⏹️ Stop", actionId: "stop_track", style: "danger" },
-                { label: "⏭️ Skip", actionId: "skip_track", style: "primary" },
-                {
-                    label: "Наш GitHub",
-                    url: "https://github.com/vlyne/zvon",
-                    style: "secondary"
-                }
-            ]
-        }).catch(err => console.error("Webhook help error:", err.message));
-    }
+        ]
+    }).catch(err => console.error("Webhook help error:", err.message));
+}
 });
 
 socket.on("interactive-button-click", async (data) => {
@@ -667,7 +662,7 @@ socket.on("interactive-button-click", async (data) => {
         if (currentIndex >= 0) startPlayback(channelId, newOffset);
     } else if (actionId === "queue_view") {
         const qText = playlistQueue.slice(currentIndex + 1, currentIndex + 11).map((t, i) => `${i + 1}. **${t.title}**`).join("\n") || "Очередь пуста.";
-        socket.emit("send-message", { 
+        socket.emit("send-message", {
             channelId: lastUsedChannelId,
             embeds: [{ title: "📋 Очередь", description: qText, color: "#99AAB5" }]
         });
@@ -730,7 +725,7 @@ async function playTrackStream(url, channelId, offset = 0) {
             for (let i = 0; i < int16Array.length; i++) {
                 int16Array[i] = Math.max(-32768, Math.min(32767, int16Array[i] * volume));
             }
-            
+
             audioBuffer = Buffer.concat([audioBuffer, chunk]);
             while (audioBuffer.length >= FRAME_SIZE) {
                 const frameData = audioBuffer.slice(0, FRAME_SIZE);
