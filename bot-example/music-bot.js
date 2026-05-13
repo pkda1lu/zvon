@@ -295,25 +295,31 @@ function refreshPlayerMessage() {
     });
 }
 
-function skipTrack(channelId) {
-    if (loopMode === 'track') {
-        // Just restart same track
-        if (currentFFmpeg) currentFFmpeg.kill();
-        else startPlayback(channelId);
+// Manually navigate to a given index. Used by skip/prev/loop transitions.
+// Strips the ffmpeg close listener so the auto-advance logic does not race us.
+function jumpToIndex(channelId, index) {
+    if (index < 0 || index >= playlistQueue.length) {
+        stopMusic();
         return;
     }
+    currentIndex = index;
+    if (currentFFmpeg) {
+        currentFFmpeg.removeAllListeners('close');
+        currentFFmpeg.kill();
+        currentFFmpeg = null;
+    }
+    startPlayback(channelId);
+}
 
+function skipTrack(channelId) {
+    if (loopMode === 'track') {
+        jumpToIndex(channelId, currentIndex);
+        return;
+    }
     if (currentIndex < playlistQueue.length - 1) {
-        if (currentFFmpeg) {
-            currentFFmpeg.kill();
-        } else {
-            currentIndex++;
-            startPlayback(channelId);
-        }
+        jumpToIndex(channelId, currentIndex + 1);
     } else if (loopMode === 'queue') {
-        currentIndex = 0;
-        if (currentFFmpeg) currentFFmpeg.kill();
-        else startPlayback(channelId);
+        jumpToIndex(channelId, 0);
     } else {
         stopMusic();
     }
@@ -321,9 +327,10 @@ function skipTrack(channelId) {
 
 function prevTrack(channelId) {
     if (currentIndex > 0) {
-        currentIndex--;
-        if (currentFFmpeg) currentFFmpeg.kill();
-        else startPlayback(channelId);
+        jumpToIndex(channelId, currentIndex - 1);
+    } else {
+        // Already at first — restart it from the beginning.
+        jumpToIndex(channelId, 0);
     }
 }
 
@@ -493,21 +500,32 @@ socket.on("new-message", async (msg) => {
                                         }
                                     }
 
-                                    // Fallback to track ID extraction if API fails again
+                                    // Fallback: extract track IDs ONLY from JSON fragments that
+                                    // look like a playlist tracklist. The previous broad regexes
+                                    // (/\/track\/(\d+)/ and /"id":"(\d+)"/) also matched
+                                    // "recommended" and "related" sections on the page, so the
+                                    // queue ended up with random extra tracks after the real
+                                    // playlist finished.
                                     const nextDataChunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"(.*?)"\]\)/g)];
                                     let tIds = [];
                                     nextDataChunks.forEach(chunk => {
                                         const decoded = chunk[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                                        // Only scan chunks that contain a "tracks" array — that's
+                                        // where the actual playlist tracklist lives. Skip everything
+                                        // else (recommendations, similar artists, etc).
+                                        if (!/"tracks"\s*:\s*\[/.test(decoded)) return;
                                         const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
                                         tIds.push(...matches);
                                     });
 
-                                    if (tIds.length === 0) {
-                                        tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
-                                        tIds.push(...[...html.matchAll(/"id":"(\d+)"/g)].map(m => m[1]));
+                                    // Preserve order, dedupe, drop anything with a suspicious length.
+                                    const seen = new Set();
+                                    const uniqueIds = [];
+                                    for (const id of tIds) {
+                                        if (id.length < 5 || seen.has(id)) continue;
+                                        seen.add(id);
+                                        uniqueIds.push(id);
                                     }
-
-                                    const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
                                     return { ids: uniqueIds, html };
                                 } catch (e) {
                                     console.error("[Yandex] Scrape attempt error:", e.message);
@@ -521,7 +539,7 @@ socket.on("new-message", async (msg) => {
                                 res = sResult.res;
                                 scrapedHtml = sResult.html;
                             } else if (sResult.ids?.length > 0) {
-                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
+                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 500) });
                                 res = {
                                     result: {
                                         tracks: trks.result.map(t => ({ track: t })),
@@ -534,7 +552,7 @@ socket.on("new-message", async (msg) => {
                                 if (sResult.res) {
                                     res = sResult.res;
                                 } else if (sResult.ids?.length > 0) {
-                                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
+                                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 500) });
                                     res = {
                                         result: {
                                             tracks: trks.result.map(t => ({ track: t })),
