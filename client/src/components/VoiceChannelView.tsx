@@ -442,7 +442,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         }
 
         const state = userStates.get(u._id);
-        if (state?.isScreenSharing && remoteScreenStreams.has(u._id)) {
+        if (state?.isScreenSharing) {
           items.push({ _id: `stream-${u._id}`, userId: u._id, type: 'stream', isMe: false });
         }
       });
@@ -484,7 +484,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           }
           seenIds.add(userId);
 
-          if (state.isScreenSharing && remoteScreenStreams.has(userId)) {
+          if (state.isScreenSharing) {
             items.push({ _id: `stream-${userId}`, userId: userId, type: 'stream', isMe: false });
           }
         }
@@ -503,7 +503,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           cameraStream: null, // Don't preview video if not connected
           type: 'user'
         });
-        if (state.isScreenSharing && remoteScreenStreams.has(u._id)) {
+        if (state.isScreenSharing) {
           items.push({ _id: `stream-${u._id}`, userId: u._id, type: 'stream', isMe: false });
         }
       });

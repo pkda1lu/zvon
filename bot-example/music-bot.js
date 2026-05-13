@@ -255,7 +255,7 @@ function getPlayerEmbed() {
             color: "#00e5ff",
             fields: [
                 { name: "Громкость", value: `🔊 **${Math.round(volume * 100)}%**`, inline: true },
-                { name: "Очередь", value: `📜 **${playlistQueue.length} треков**`, inline: true },
+                { name: "Осталось", value: `📜 **${Math.max(0, playlistQueue.length - currentIndex - 1)} треков**`, inline: true },
                 { name: "Режим", value: loopMode ? "🔂 **Закольцовано**" : "🔁 **Плейлист**", inline: true }
             ],
             footer: {
@@ -370,56 +370,73 @@ socket.on("new-message", async (msg) => {
             socket.voiceChannelId = userVoiceChannelId;
 
             let added = [];
-            if (query.includes("playlists/") || query.includes("album/")) {
+            const standaloneTrackMatch = query.match(/music\.yandex\.[a-z]+\/track\/(\d+)/i);
+            if (standaloneTrackMatch && !query.includes("album/") && !query.includes("playlists/")) {
+                // Direct track link without album context
+                const trackId = standaloneTrackMatch[1];
+                try {
+                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': [trackId] });
+                    const t = trks.result?.[0];
+                    if (!t) throw new Error("Трек не найден");
+                    added = [{ ...t, id: t.id.toString().split(':')[0] }];
+                } catch (e) {
+                    isProcessing = false;
+                    return socket.emit("send-message", { content: `❌ Не удалось загрузить трек: ${e.message}`, channelId: msg.channel });
+                }
+            } else if (query.includes("playlists/") || query.includes("album/")) {
                 const cleanUrl = query.split('?')[0].split('#')[0];
                 let res = null;
                 let uniqueIds = [];
 
                 try {
-                    // 1. ALBUM HANDLING
+                    // 1. ALBUM HANDLING (and album/track combo URL)
                     if (query.includes("album/")) {
                         const albumId = cleanUrl.split("album/")[1].split("/")[0];
                         const trackMatch = cleanUrl.match(/\/track\/(\d+)/);
                         const trackIdInUrl = trackMatch ? trackMatch[1] : null;
 
-                        let albumRes;
-                        try {
-                            // Try multiple variations of generated API
-                            if (yandexClient.albums?.getAlbumDirect) albumRes = await yandexClient.albums.getAlbumDirect(albumId);
-                            else if (yandexClient.albumsGetAlbumWithTracks) albumRes = await yandexClient.albumsGetAlbumWithTracks({ albumId });
-                            else if (yandexClient.getAlbumWithTracks) albumRes = await yandexClient.getAlbumWithTracks({ albumId });
-                            else {
-                                // Search fallback
+                        // If URL points to a specific track inside an album, fetch just that track.
+                        if (trackIdInUrl) {
+                            const trks = await yandexClient.tracks.getTracks({ 'track-ids': [trackIdInUrl] });
+                            const t = trks.result?.[0];
+                            if (!t) throw new Error("Трек не найден");
+                            res = {
+                                result: {
+                                    tracks: [{ track: t }],
+                                    title: t.title,
+                                    coverUri: t.coverUri || t.albums?.[0]?.coverUri
+                                }
+                            };
+                        } else {
+                            let albumRes;
+                            try {
+                                albumRes = await yandexClient.albums.getAlbumsWithTracks(Number(albumId));
+                            } catch (e) {
+                                console.log(`[Yandex] getAlbumsWithTracks failed for ${albumId}, falling back to search:`, e.message);
                                 const sRes = await yandexClient.search.search(albumId, 0, 'album');
-                                const album = sRes.result.albums?.results?.[0];
+                                const album = sRes.result.albums?.results?.find(a => a.id.toString() === albumId)
+                                    || sRes.result.albums?.results?.[0];
                                 if (!album) throw new Error("Альбом не найден");
-                                try { albumRes = await yandexClient.albums.getAlbumDirect(album.id.toString()); } catch(e) {
+                                try {
+                                    albumRes = await yandexClient.albums.getAlbumsWithTracks(Number(album.id));
+                                } catch (e2) {
                                     albumRes = { result: album };
                                 }
                             }
-                        } catch (e) {
-                            console.log(`[Yandex] Album fetch failed, trying generic search fallback for ID: ${albumId}`);
-                            const sRes = await yandexClient.search.search(albumId, 0, 'album');
-                            const album = sRes.result.albums?.results?.find(a => a.id.toString() === albumId) || sRes.result.albums?.results?.[0];
-                            if (!album) throw new Error("Альбом не найден через поиск");
-                            albumRes = { result: album };
-                        }
-                        
-                        const allTracks = (albumRes.result.volumes?.[0] || []);
-                        let tracks = allTracks;
-                        
-                        if (trackIdInUrl) {
-                            const specific = allTracks.find(t => t.id.toString() === trackIdInUrl);
-                            if (specific) tracks = [specific];
-                        }
 
-                        res = {
-                            result: {
-                                tracks: tracks.map(t => ({ track: t })),
-                                title: albumRes.result.title,
-                                coverUri: albumRes.result.coverUri
-                            }
-                        };
+                            const allTracks = albumRes.result.volumes
+                                ? albumRes.result.volumes.flat()
+                                : [];
+                            if (!allTracks.length) throw new Error("В альбоме нет треков");
+
+                            res = {
+                                result: {
+                                    tracks: allTracks.map(t => ({ track: t })),
+                                    title: albumRes.result.title,
+                                    coverUri: albumRes.result.coverUri
+                                }
+                            };
+                        }
                     }
                     // 2. PLAYLIST HANDLING
                     else if (query.includes("playlists/")) {
@@ -544,9 +561,8 @@ socket.on("new-message", async (msg) => {
                             thumbnail: { url: res.result.coverUri ? `https://${res.result.coverUri.replace('%%', '200x200')}` : undefined },
                             fields: [
                                 { name: "Добавлено треков", value: `➕ **${added.length}**`, inline: true },
-                                { name: "Всего треков", value: `📊 **${playlistQueue.length}**`, inline: true }
-                            ],
-                            footer: { text: "Чтобы добавить больше треков, введите количество треков в аргумент \"количество\"." }
+                                { name: "Всего в очереди", value: `📊 **${playlistQueue.length + added.length}**`, inline: true }
+                            ]
                         }]
                     });
                 } catch (e) {
@@ -739,6 +755,11 @@ async function playTrackStream(url, channelId, offset = 0) {
 
 function stopMusic() {
     isPlaying = false;
+    isProcessing = false;
+    playlistQueue = [];
+    currentIndex = -1;
+    currentTrackOffset = 0;
+    currentTrackStartTs = 0;
     if (playerUpdateInterval) {
         clearInterval(playerUpdateInterval);
         playerUpdateInterval = null;
@@ -748,6 +769,7 @@ function stopMusic() {
         currentPlayerMessageId = null;
     }
     if (currentFFmpeg) {
+        currentFFmpeg.removeAllListeners('close');
         currentFFmpeg.kill();
         currentFFmpeg = null;
     }

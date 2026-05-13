@@ -4,7 +4,12 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
+import { useVoice } from '../contexts/VoiceContext';
 import './ServerMembers.css';
+
+const LiveBadge: React.FC = () => (
+    <span className="live-badge nano" style={{ marginLeft: 6 }}>ЭФИР</span>
+);
 
 interface ServerMembersProps {
     server: Server;
@@ -15,6 +20,8 @@ interface ServerMembersProps {
 
 const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBack, isMobile }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
+    const { userStates } = useVoice();
+    const isLive = (userId: string) => !!userStates.get(userId)?.isScreenSharing;
 
     const handleContextMenu = (e: React.MouseEvent, user: User) => {
         e.preventDefault();
@@ -99,6 +106,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                                 {member.nickname || member.user.username}
                                                             </span>
                                                             <UserBadges badges={member.user.badges} size={14} />
+                                                            {isLive(member.user._id) && <LiveBadge />}
                                                         </div>
                                                         {member.user.activity && (
                                                             <div className="member-activity">
@@ -147,6 +155,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                     <div className="member-name-row">
                                                         <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.username}</span>
                                                         <UserBadges badges={member.user.badges} size={14} />
+                                                        {isLive(member.user._id) && <LiveBadge />}
                                                     </div>
                                                     {member.user.activity && (
                                                         <div className="member-activity">
@@ -195,6 +204,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                         {member.nickname || member.user.username}
                                                     </span>
                                                     <UserBadges badges={member.user.badges} size={14} />
+                                                    {isLive(member.user._id) && <LiveBadge />}
                                                 </div>
                                             </div>
                                         );
