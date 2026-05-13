@@ -1232,6 +1232,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         socket.emit('join-voice-channel', { channelId: activeChannelId });
 
+        // After a socket reconnect we get a brand-new socket on the server with no
+        // voiceChannelId. Re-announce membership so the server puts us back in the
+        // voice-channel room and other clients see us as still present.
+        const handleReconnect = () => {
+            if (activeChannelId) {
+                socket.emit('join-voice-channel', { channelId: activeChannelId });
+            }
+        };
+        socket.on('connect', handleReconnect);
+
         return () => {
             socket.off('voice-existing-users');
             socket.off('voice-user-joined');
@@ -1240,6 +1250,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('force-join-voice');
             socket.off('voice-server-state-update');
             socket.off('force-disconnect-voice');
+            socket.off('connect', handleReconnect);
         };
     }, [socket, isConnected, activeChannelId, localStream, user?._id, leaveChannel]);
 
