@@ -466,7 +466,6 @@ socket.on("new-message", async (msg) => {
                         if (!res?.result?.tracks?.length) {
                             console.log(`[Yandex] API failed, trying Scraper for: ${cleanUrl}`);
                             let scrapedHtml = null;
-                            const playlistKey = kind; // UUID or numeric kind, used to filter the right chunks
                             const tryScrape = async (userAgent) => {
                                 try {
                                     const hRes = await axios.get(cleanUrl, {
@@ -501,47 +500,21 @@ socket.on("new-message", async (msg) => {
                                         }
                                     }
 
-                                    // Extract track IDs from __next_f chunks that belong to
-                                    // THIS playlist. We identify them by:
-                                    //   1) The chunk mentions the playlist key (UUID/kind) from URL.
-                                    //   2) If no chunk matches, take the FIRST chunk that has any
-                                    //      trackIds (Next.js renders playlist data before related
-                                    //      widgets, so that one is the safest bet).
-                                    // The previous broad regexes ( /\/track\/(\d+)/ and /"id":"(\d+)"/ )
-                                    // matched recommendation sections too, polluting the queue.
+                                    // Fallback to track ID extraction if API fails again
                                     const nextDataChunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"(.*?)"\]\)/g)];
-                                    const decodedChunks = nextDataChunks.map(c => {
-                                        // Decode once and twice — Yandex's nesting depth varies.
-                                        let s = c[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                                        return s;
+                                    let tIds = [];
+                                    nextDataChunks.forEach(chunk => {
+                                        const decoded = chunk[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                                        const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
+                                        tIds.push(...matches);
                                     });
 
-                                    const collectFrom = (text) =>
-                                        [...text.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
-
-                                    let tIds = [];
-                                    if (playlistKey) {
-                                        // Prefer chunks that reference this exact playlist.
-                                        decodedChunks.forEach(d => {
-                                            if (d.includes(playlistKey)) tIds.push(...collectFrom(d));
-                                        });
-                                    }
                                     if (tIds.length === 0) {
-                                        // Fallback: first chunk with any trackIds wins.
-                                        for (const d of decodedChunks) {
-                                            const ids = collectFrom(d);
-                                            if (ids.length > 0) { tIds = ids; break; }
-                                        }
+                                        tIds = [...html.matchAll(/\/track\/(\d+)/g)].map(m => m[1]);
+                                        tIds.push(...[...html.matchAll(/"id":"(\d+)"/g)].map(m => m[1]));
                                     }
 
-                                    // Preserve order, dedupe.
-                                    const seen = new Set();
-                                    const uniqueIds = [];
-                                    for (const id of tIds) {
-                                        if (id.length < 5 || seen.has(id)) continue;
-                                        seen.add(id);
-                                        uniqueIds.push(id);
-                                    }
+                                    const uniqueIds = [...new Set(tIds)].filter(id => id.length >= 5);
                                     return { ids: uniqueIds, html };
                                 } catch (e) {
                                     console.error("[Yandex] Scrape attempt error:", e.message);
@@ -555,7 +528,7 @@ socket.on("new-message", async (msg) => {
                                 res = sResult.res;
                                 scrapedHtml = sResult.html;
                             } else if (sResult.ids?.length > 0) {
-                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 500) });
+                                const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
                                 res = {
                                     result: {
                                         tracks: trks.result.map(t => ({ track: t })),
@@ -568,7 +541,7 @@ socket.on("new-message", async (msg) => {
                                 if (sResult.res) {
                                     res = sResult.res;
                                 } else if (sResult.ids?.length > 0) {
-                                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 500) });
+                                    const trks = await yandexClient.tracks.getTracks({ 'track-ids': sResult.ids.slice(0, 300) });
                                     res = {
                                         result: {
                                             tracks: trks.result.map(t => ({ track: t })),
