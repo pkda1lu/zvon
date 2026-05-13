@@ -466,6 +466,7 @@ socket.on("new-message", async (msg) => {
                         if (!res?.result?.tracks?.length) {
                             console.log(`[Yandex] API failed, trying Scraper for: ${cleanUrl}`);
                             let scrapedHtml = null;
+                            const playlistKey = kind; // UUID or numeric kind, used to filter the right chunks
                             const tryScrape = async (userAgent) => {
                                 try {
                                     const hRes = await axios.get(cleanUrl, {
@@ -500,25 +501,40 @@ socket.on("new-message", async (msg) => {
                                         }
                                     }
 
-                                    // Fallback: extract track IDs ONLY from JSON fragments that
-                                    // look like a playlist tracklist. The previous broad regexes
-                                    // (/\/track\/(\d+)/ and /"id":"(\d+)"/) also matched
-                                    // "recommended" and "related" sections on the page, so the
-                                    // queue ended up with random extra tracks after the real
-                                    // playlist finished.
+                                    // Extract track IDs from __next_f chunks that belong to
+                                    // THIS playlist. We identify them by:
+                                    //   1) The chunk mentions the playlist key (UUID/kind) from URL.
+                                    //   2) If no chunk matches, take the FIRST chunk that has any
+                                    //      trackIds (Next.js renders playlist data before related
+                                    //      widgets, so that one is the safest bet).
+                                    // The previous broad regexes ( /\/track\/(\d+)/ and /"id":"(\d+)"/ )
+                                    // matched recommendation sections too, polluting the queue.
                                     const nextDataChunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"(.*?)"\]\)/g)];
-                                    let tIds = [];
-                                    nextDataChunks.forEach(chunk => {
-                                        const decoded = chunk[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                                        // Only scan chunks that contain a "tracks" array — that's
-                                        // where the actual playlist tracklist lives. Skip everything
-                                        // else (recommendations, similar artists, etc).
-                                        if (!/"tracks"\s*:\s*\[/.test(decoded)) return;
-                                        const matches = [...decoded.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
-                                        tIds.push(...matches);
+                                    const decodedChunks = nextDataChunks.map(c => {
+                                        // Decode once and twice — Yandex's nesting depth varies.
+                                        let s = c[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                                        return s;
                                     });
 
-                                    // Preserve order, dedupe, drop anything with a suspicious length.
+                                    const collectFrom = (text) =>
+                                        [...text.matchAll(/"trackId":(\d+)/g)].map(m => m[1]);
+
+                                    let tIds = [];
+                                    if (playlistKey) {
+                                        // Prefer chunks that reference this exact playlist.
+                                        decodedChunks.forEach(d => {
+                                            if (d.includes(playlistKey)) tIds.push(...collectFrom(d));
+                                        });
+                                    }
+                                    if (tIds.length === 0) {
+                                        // Fallback: first chunk with any trackIds wins.
+                                        for (const d of decodedChunks) {
+                                            const ids = collectFrom(d);
+                                            if (ids.length > 0) { tIds = ids; break; }
+                                        }
+                                    }
+
+                                    // Preserve order, dedupe.
                                     const seen = new Set();
                                     const uniqueIds = [];
                                     for (const id of tIds) {
