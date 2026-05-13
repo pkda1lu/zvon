@@ -21,7 +21,11 @@ const server = http.createServer(app);
 
 app.use(compression());
 
-const io = socketIo(server, { cors: { origin: [process.env.CLIENT_URL || "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000"], methods: ["GET", "POST"] } });
+const io = socketIo(server, {
+  cors: { origin: [process.env.CLIENT_URL || "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000"], methods: ["GET", "POST"] },
+  pingInterval: 10000,
+  pingTimeout: 5000,
+});
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -114,6 +118,41 @@ app.get('/api/channels/:id/voice-participants', async (req, res) => {
 const voiceChannelYouTubeStates = new Map();
 
 app.set('io', io);
+app.set('voiceManager', { getVoiceChannelUsers, notifyVoiceChannelUpdate });
+
+// Periodic sweep: kick zombie sockets (disconnected but still listed in voice rooms)
+// out of voice-channel rooms and notify everyone. This is a safety net for cases
+// where the normal disconnect event never fires (proxy keepalives, transport upgrades,
+// abrupt power loss without TCP RST, etc.).
+setInterval(async () => {
+  try {
+    const affectedChannels = new Set();
+    for (const [roomName, sockets] of io.sockets.adapter.rooms.entries()) {
+      if (!roomName.startsWith('voice-channel-')) continue;
+      const channelId = roomName.replace('voice-channel-', '');
+      for (const sid of sockets) {
+        const s = io.sockets.sockets.get(sid);
+        if (!s || !s.connected) {
+          if (s) {
+            s.leave(roomName);
+            s.voiceChannelId = null;
+          } else {
+            sockets.delete(sid);
+          }
+          if (s && s.userId) {
+            io.to(roomName).emit('voice-user-left', { userId: s.userId });
+          }
+          affectedChannels.add(channelId);
+        }
+      }
+    }
+    for (const channelId of affectedChannels) {
+      await notifyVoiceChannelUpdate(channelId);
+    }
+  } catch (err) {
+    console.error('Voice sweep error:', err);
+  }
+}, 10000);
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (token) {
