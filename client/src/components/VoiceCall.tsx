@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import axios from 'axios';
 import { User } from '../types';
@@ -442,7 +443,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
   if (isIncomingCall) {
     return (
-      <div className="voice-call-notification">
+      <motion.div
+        className="voice-call-notification"
+        initial={{ opacity: 0, y: -32, scale: 0.92 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -16, scale: 0.96 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.9 }}
+      >
         <div className="notification-content">
           <div className="notification-avatar">
             <UserAvatar user={isGroup ? null : otherUser} size={48} />
@@ -455,18 +462,24 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <div className="notification-status">Входящий звонок...</div>
           </div>
           <div className="notification-actions">
-            <button className="accept-btn" onClick={acceptCall}><CheckIcon color="black" /></button>
-            <button className="reject-btn" onClick={endCall}><CloseIcon color="white" size={20} /></button>
+            <motion.button className="accept-btn" onClick={acceptCall} whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}><CheckIcon color="black" /></motion.button>
+            <motion.button className="reject-btn" onClick={endCall} whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}><CloseIcon color="white" size={20} /></motion.button>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   const anyRemoteScreenSharing = remoteScreenStreams.size > 0 || isScreenSharing;
 
   return (
-    <div className={`voice-call-full-view ${isGroup ? 'group-mode' : ''}`}>
+    <motion.div
+      className={`voice-call-full-view ${isGroup ? 'group-mode' : ''}`}
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+    >
       <header className="call-topbar">
         <div className="call-topbar-left">
           <button className="back-to-app-btn" onClick={onEndCall} title="Свернуть">
@@ -482,6 +495,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
       <main className="call-main">
         <div className={`video-grid count-${allParticipants.length} ${anyRemoteScreenSharing ? 'has-screenshare' : ''}`}>
+          <AnimatePresence initial={false}>
           {allParticipants.map((p) => {
             const stream = p.isLocal ? (isVideoEnabled ? localStream : null) : remoteStreams.get(p.identity);
             const userMeta = p.isMe ? user : (isGroup ? participantsMetadata.get(p.identity) : otherUser);
@@ -489,7 +503,15 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             const screenShare = p.isLocal ? (isScreenSharing ? screenStream : null) : remoteScreenStreams.get(p.identity);
 
             return (
-              <div key={p.identity} className={`participant-slot ${isSpeaking ? 'speaking' : ''} ${screenShare ? 'sharing-screen' : ''}`}>
+              <motion.div
+                key={p.identity}
+                layout
+                className={`participant-slot ${isSpeaking ? 'speaking' : ''} ${screenShare ? 'sharing-screen' : ''}`}
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.8 }}
+              >
                 {stream && stream.getVideoTracks().length > 0 ? (
                   <video
                     autoPlay playsInline muted={p.isMe}
@@ -555,25 +577,26 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                   {userMeta?.username || p.identity} {p.isMe && '(Вы)'}
                   {userMeta && <UserBadges badges={userMeta.badges} size={12} />}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
+          </AnimatePresence>
         </div>
       </main>
 
       <div className="call-controls-bar">
-        <button className={`control-circle ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title="Микрофон">
+        <motion.button className={`control-circle ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title="Микрофон" whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>
           {isMuted ? <MicMutedIcon /> : <MicIcon />}
-        </button>
-        <button className={`control-circle ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo} title="Камера">
+        </motion.button>
+        <motion.button className={`control-circle ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo} title="Камера" whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>
           <CameraIcon />
-        </button>
-        <button className={`control-circle ${isScreenSharing ? 'active' : ''}`} onClick={() => isScreenSharing ? toggleScreenShare() : setShowScreenSelector(true)} title="Экран">
+        </motion.button>
+        <motion.button className={`control-circle ${isScreenSharing ? 'active' : ''}`} onClick={() => isScreenSharing ? toggleScreenShare() : setShowScreenSelector(true)} title="Экран" whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>
           {isScreenSharing ? <StopScreenShareIcon size={24} /> : <ScreenShareIcon size={24} />}
-        </button>
-        <button className="control-circle end-call-circle" onClick={endCall} title="Завершить">
+        </motion.button>
+        <motion.button className="control-circle end-call-circle" onClick={endCall} title="Завершить" whileTap={{ scale: 0.88, rotate: -8 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>
           <span style={{ display: 'flex', transform: 'rotate(135deg)' }}><PhoneIcon size={28} /></span>
-        </button>
+        </motion.button>
       </div>
 
       {Array.from(remoteStreams.entries()).map(([uid, stream]) => (
@@ -590,7 +613,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           onSelect={(id, opts) => { toggleScreenShare(id, opts); setShowScreenSelector(false); }}
         />
       )}
-    </div>
+    </motion.div>
   );
 };
 

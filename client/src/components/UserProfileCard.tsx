@@ -9,6 +9,13 @@ import { useDialog } from '../contexts/DialogContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
+import { motion } from 'framer-motion';
+import {
+  popoverVariants,
+  popoverTransition,
+  modalPopVariants,
+  modalPopTransition,
+} from '../animations/transitions';
 import './UserProfileCard.css';
 
 interface UserProfileCardProps {
@@ -267,7 +274,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
     return (
         <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
-            <div
+            <motion.div
                 className={`user-profile-card ${position ? 'popout' : ''}`}
                 onClick={e => e.stopPropagation()}
                 style={position ? {
@@ -275,9 +282,13 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     top: adjustedPos.top,
                     left: adjustedPos.left,
                     visibility: isVisible ? 'visible' : 'hidden',
-                    opacity: isVisible ? 1 : 0
+                    transformOrigin: `${Math.max(0, position.x - adjustedPos.left)}px ${Math.max(0, position.y - adjustedPos.top)}px`,
                 } : undefined}
                 ref={cardRef}
+                variants={position ? popoverVariants : modalPopVariants}
+                initial="initial"
+                animate={position ? (isVisible ? 'animate' : 'initial') : 'animate'}
+                transition={position ? popoverTransition : modalPopTransition}
             >
                 <div className="profile-banner" style={{ backgroundColor: '#5865f2', backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none', backgroundSize: 'cover' }}>
                     <button className="profile-close-button" onClick={onClose}><CloseIcon /></button>
@@ -468,7 +479,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                         )}
                     </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 };

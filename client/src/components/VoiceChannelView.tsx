@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useIsPresent } from 'framer-motion';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { Channel, User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -261,6 +262,11 @@ const VoiceStreamCard: React.FC<{
   };
 
 const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, onUserClick, onMessageClick, onCallClick, onBack, isMobile }) => {
+  // The portaled control bar (#voice-controls-portal) needs to disappear the
+  // instant the user switches to another channel, even though framer-motion
+  // keeps this component mounted during its section exit animation. `useIsPresent`
+  // flips to false as soon as the component enters its exit phase.
+  const isPresent = useIsPresent();
   const { user: currentUser } = useAuth();
   const { socket, connected } = useSocket();
   const {
@@ -667,7 +673,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         )}
       </main>
 
-      {createPortal(
+      {isPresent && createPortal(
         <div className="voice-ctrls-anchor" style={ctrlsRect ? {
           position: 'fixed',
           bottom: window.innerHeight - ctrlsRect.bottom,

@@ -105,6 +105,26 @@
   gap: 15px;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+}
+
+/* iOS-style content swap layers managed by AnimatePresence in Main.tsx.
+   Each layer fills the parent so the cross-fade/scale doesn't reflow siblings. */
+.content-swap-layer {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  position: relative;
+  will-change: transform, opacity;
+}
+
+.content-inner-layer {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  will-change: transform, opacity;
 }
 
 .is-mobile .main-content-area {

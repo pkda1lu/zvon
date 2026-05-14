@@ -23,3 +23,12 @@
   position: relative;
   z-index: 1;
 }
+
+/* While any modal is open, freeze the global animated liquid background and its
+   inner gradient/sphere layers. Without this, the constantly-moving gradient
+   shimmers through the modal's backdrop-filter every frame. Refcounted via
+   useFreezeAppBackground so nested modals work. */
+body[data-modal-open] #global-liquid-bg,
+body[data-modal-open] #global-liquid-bg * {
+  animation-play-state: paused !important;
+}

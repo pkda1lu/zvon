@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import axios from 'axios';
+import AnimatedOverlay from '../animations/AnimatedOverlay';
 import { Server, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { CloseIcon, TrashIcon, PlusIcon, ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon } from './Icons';
@@ -383,11 +383,15 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         }
     };
 
-    if (!isOpen) return null;
-
-    const modalContent = (
-        <div className="server-settings-modal-overlay">
-            <div className="server-settings-modal">
+    return (
+        <AnimatedOverlay
+            isOpen={isOpen}
+            onClose={onClose}
+            overlayClassName="server-settings-modal-overlay"
+            contentClassName="server-settings-modal"
+            variant={isMobile ? 'sheet' : 'fade'}
+        >
+            <div style={{ display: 'contents' }}>
                 {(!isMobile || mobileViewState === 'tabs') && (
                     <div className="server-settings-sidebar">
                         <div className="sidebar-header">{server.name}</div>
@@ -854,10 +858,8 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 )}
             </div>
             {cropModal.isOpen && <ImageCropper image={cropModal.image} onCropComplete={handleCropComplete} onCancel={() => setCropModal(prev => ({ ...prev, isOpen: false }))} aspect={cropModal.type === 'icon' ? 1 : 16 / 9} />}
-        </div>
+        </AnimatedOverlay>
     );
-
-    return createPortal(modalContent, document.body);
 };
 
 const formatAuditAction = (action: string) => {

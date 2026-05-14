@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { CloseIcon, SearchIcon } from './Icons';
 import { User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
+import AnimatedOverlay from '../animations/AnimatedOverlay';
 import './InviteModal.css';
 
 interface InviteModalProps { isOpen: boolean; onClose: () => void; serverId: string; serverName?: string; }
@@ -53,12 +53,11 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
     };
 
     useEffect(() => { if (copied) { const t = setTimeout(() => setCopied(false), 2000); return () => clearTimeout(t); } }, [copied]);
-    if (!isOpen) return null;
     const filteredFriends = friends.filter(f => f.username.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    return createPortal(
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="invite-modal-v2" onClick={e => e.stopPropagation()}>
+    return (
+        <AnimatedOverlay isOpen={isOpen} onClose={onClose} contentClassName="invite-modal-v2">
+            <>
                 <div className="invite-header"><div className="header-title"><h3>Пригласить друзей в {serverName || 'на сервер'}</h3></div><button className="close-btn" onClick={onClose}><CloseIcon /></button></div>
                 <div className="invite-body">
                     <div className="search-container"><input type="text" placeholder="Поиск друзей" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /><SearchIcon size={18} /></div>
@@ -78,9 +77,8 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
                     <p className="link-expiry">Срок действия вашей ссылки-приглашения истечет через 7 дней.</p>
                     {error && <div className="invite-error">{error}</div>}
                 </div>
-            </div>
-        </div>,
-        document.body
+            </>
+        </AnimatedOverlay>
     );
 };
 

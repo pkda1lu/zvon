@@ -58,6 +58,7 @@ const CreateGroupDMModal: React.FC<CreateGroupDMModalProps> = ({ isOpen, onClose
             title="Создать группу"
             subtitle={`${selectedUsers.length}/10 участников`}
             size="md"
+            className="create-group-modal"
             footer={
                 <>
                     <button className="zv-btn zv-btn--ghost" onClick={onClose}>Отмена</button>

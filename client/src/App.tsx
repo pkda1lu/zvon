@@ -175,6 +175,47 @@ const AppBackground: React.FC = () => {
 import { ChatSettingsProvider } from './contexts/ChatSettingsContext';
 import { WindowSettingsProvider } from './contexts/WindowSettingsContext';
 import { DialogProvider } from './contexts/DialogContext';
+import { AnimatePresence, motion } from 'framer-motion';
+import { pagePushVariants, iosSpring } from './animations/transitions';
+
+const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <motion.div
+    variants={pagePushVariants}
+    initial="initial"
+    animate="animate"
+    exit="exit"
+    transition={iosSpring}
+    style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
+  >
+    {children}
+  </motion.div>
+);
+
+const AnimatedRoutes: React.FC = () => {
+  const location = useLocation();
+  // Group all "/" and "/*" hits under a single Home key so internal navigation
+  // inside Main doesn't trigger a full page exit/enter.
+  const isHome =
+    !['/login', '/register', '/docs', '/policy'].some(p => location.pathname.startsWith(p))
+    && !location.pathname.startsWith('/invite');
+  const routeKey = isHome ? '__home__' : location.pathname;
+
+  return (
+    <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
+      <AnimatePresence mode="wait" initial={false}>
+        <Routes location={location} key={routeKey}>
+          <Route path="/login"   element={<PageShell><Login /></PageShell>} />
+          <Route path="/register" element={<PageShell><Register /></PageShell>} />
+          <Route path="/invite/:code" element={<PageShell><InvitePage /></PageShell>} />
+          <Route path="/docs"    element={<PageShell><Docs /></PageShell>} />
+          <Route path="/policy"  element={<PageShell><Policy /></PageShell>} />
+          <Route path="/"        element={<PageShell><Home /></PageShell>} />
+          <Route path="/*"       element={<PageShell><Home /></PageShell>} />
+        </Routes>
+      </AnimatePresence>
+    </div>
+  );
+};
 
 function App() {
   const isElectron = !!(window as any).electron;
@@ -196,15 +237,7 @@ function App() {
                         <TitleBar />
                         <ElectronHandler />
                         <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
-                          <Routes>
-                            <Route path="/login" element={<Login />} />
-                            <Route path="/register" element={<Register />} />
-                            <Route path="/invite/:code" element={<InvitePage />} />
-                            <Route path="/docs" element={<Docs />} />
-                            <Route path="/policy" element={<Policy />} />
-                            <Route path="/" element={<Home />} />
-                            <Route path="/*" element={<Home />} />
-                          </Routes>
+                          <AnimatedRoutes />
                         </div>
                       </div>
                     </NotificationProvider>

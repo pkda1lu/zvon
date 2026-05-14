@@ -10,7 +10,6 @@
   align-items: center;
   justify-content: center;
   z-index: 5000;
-  animation: zvModalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   padding: var(--space-4);
 }
 
@@ -28,7 +27,6 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: zvModalScaleIn 0.3s cubic-bezier(0.17, 0.89, 0.32, 1.28);
 }
 
 .zv-modal--sm { max-width: 380px; }
@@ -71,14 +69,20 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: var(--fast-transition);
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease;
   font-size: 18px;
   line-height: 1;
 }
 
 .zv-modal__close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-main);
+  background: rgba(255, 59, 48, 0.18);
+  color: #ff3b30;
+  border-color: rgba(255, 59, 48, 0.3);
+  transform: rotate(90deg);
+}
+
+.zv-modal__close:active {
+  transform: rotate(90deg) scale(0.92);
 }
 
 .zv-modal__body {
