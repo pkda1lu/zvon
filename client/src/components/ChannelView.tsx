@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import { Channel, Message, Server, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -122,11 +123,12 @@ const MessageItem = React.memo<{
   onReply: (msg: Message) => void;
   scrollToMessage: (msgId: string) => void;
   onInteractiveButtonClick: (messageId: string, actionId: string) => void;
+  isFresh?: boolean;
 }>(({
   msg, prev, user, server, displayEmbeds, showHoverActions, mentionHighlight, canPin, canReact,
   onUserClick, onContextMenu, onTogglePin, onDelete, formatDate, renderMessageContent,
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
-  onReact, onReply, scrollToMessage, onInteractiveButtonClick
+  onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh
 }) => {
   const { confirm: customConfirm } = useDialog();
 
@@ -332,10 +334,23 @@ const MessageItem = React.memo<{
     [server.members, msg.author._id]
   );
 
+  // Only animate genuinely new (incoming) messages; historical batches and
+  // pagination loads render with no entrance animation to keep the chat snappy.
+  const messageProps = isFresh ? {
+    initial: { opacity: 0, y: 6 },
+    animate: { opacity: 1, y: 0 },
+    transition: { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.75 },
+  } : {};
+  const MessageBox: any = isFresh ? motion.div : 'div';
+
   return (
     <>
       {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
-      <div id={`msg-${msg._id}`} className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}>
+      <MessageBox
+        id={`msg-${msg._id}`}
+        className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
+        {...messageProps}
+      >
         {msg.replyTo && (
           <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
             <div className="reply-line" />
@@ -511,7 +526,7 @@ const MessageItem = React.memo<{
             onReact={(emoji) => onReact(msg._id, emoji)}
           />
         </div>
-      </div>
+      </MessageBox>
 
       {showEmojiPicker && createPortal(
         <div
@@ -568,6 +583,20 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
+
+  // Track which message id was last in the list at the previous render. Anything
+  // appearing AFTER that index this render counts as a fresh incoming message and
+  // gets the spring entrance animation. Pagination/history loads (prepended) and
+  // the initial mount don't trigger the animation.
+  const lastSeenIdRef = useRef<string | null>(null);
+  const prevLastSeenId = lastSeenIdRef.current;
+  const lastSeenIdx = prevLastSeenId
+    ? messages.findIndex(m => m._id === prevLastSeenId)
+    : -1;
+  const hasBaseline = prevLastSeenId !== null && lastSeenIdx !== -1;
+  useEffect(() => {
+    if (messages.length > 0) lastSeenIdRef.current = messages[messages.length - 1]._id;
+  }, [messages]);
 
   const userPermissions = useMemo(() => {
     if (!user) return 0n;
@@ -1166,6 +1195,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               <MessageItem
                 msg={msg}
                 prev={messages[index - 1]}
+                isFresh={hasBaseline && index > lastSeenIdx}
                 user={user}
                 server={server}
                 displayEmbeds={displayEmbeds}

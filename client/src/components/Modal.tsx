@@ -1,4 +1,12 @@
 import React, { useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  overlayVariants,
+  overlayTransition,
+  modalPopVariants,
+  modalPopTransition,
+} from '../animations/transitions';
+import { useFreezeAppBackground } from '../animations/useFreezeAppBackground';
 import './Modal.css';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -43,6 +51,8 @@ const Modal: React.FC<ModalProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, closeOnEsc, onClose]);
 
+  useFreezeAppBackground(open);
+
   useEffect(() => {
     if (open && contentRef.current) {
       const focusable = contentRef.current.querySelector<HTMLElement>(
@@ -51,8 +61,6 @@ const Modal: React.FC<ModalProps> = ({
       focusable?.focus();
     }
   }, [open]);
-
-  if (!open) return null;
 
   const onBackdropClick = (e: React.MouseEvent) => {
     if (closeOnBackdrop && e.target === e.currentTarget) onClose();
@@ -66,34 +74,53 @@ const Modal: React.FC<ModalProps> = ({
       : 'zv-modal__footer';
 
   return (
-    <div className="zv-modal-overlay" onMouseDown={onBackdropClick} role="dialog" aria-modal="true">
-      <div
-        ref={contentRef}
-        className={`zv-modal zv-modal--${size} ${className}`}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {(title || showCloseButton) && (
-          <header className="zv-modal__header">
-            <div>
-              {title && <h2 className="zv-modal__title">{title}</h2>}
-              {subtitle && <div className="zv-modal__subtitle">{subtitle}</div>}
-            </div>
-            {showCloseButton && (
-              <button
-                type="button"
-                className="zv-modal__close"
-                onClick={onClose}
-                aria-label="Закрыть"
-              >
-                ×
-              </button>
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="zv-modal-overlay"
+          onMouseDown={onBackdropClick}
+          role="dialog"
+          aria-modal="true"
+          variants={overlayVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={overlayTransition}
+        >
+          <motion.div
+            ref={contentRef}
+            className={`zv-modal zv-modal--${size} ${className}`}
+            onMouseDown={(e) => e.stopPropagation()}
+            variants={modalPopVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={modalPopTransition}
+          >
+            {(title || showCloseButton) && (
+              <header className="zv-modal__header">
+                <div>
+                  {title && <h2 className="zv-modal__title">{title}</h2>}
+                  {subtitle && <div className="zv-modal__subtitle">{subtitle}</div>}
+                </div>
+                {showCloseButton && (
+                  <button
+                    type="button"
+                    className="zv-modal__close"
+                    onClick={onClose}
+                    aria-label="Закрыть"
+                  >
+                    ×
+                  </button>
+                )}
+              </header>
             )}
-          </header>
-        )}
-        <div className="zv-modal__body">{children}</div>
-        {footer && <footer className={footerClass}>{footer}</footer>}
-      </div>
-    </div>
+            <div className="zv-modal__body">{children}</div>
+            {footer && <footer className={footerClass}>{footer}</footer>}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { User, Server } from '../types';
 import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
@@ -6,7 +7,15 @@ import { getAvatarUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
 import { UsersIcon, PlusIcon, SettingsIcon, BellIcon } from './Icons';
 import ServerContextMenu from './ServerContextMenu';
+import { iosSpringSnappy } from '../animations/transitions';
 import './Sidebar.css';
+
+// iOS-style press feedback shared across every clickable server-icon button.
+const pressFeedback = {
+  whileTap: { scale: 0.88 },
+  whileHover: { scale: 1.06 },
+  transition: iosSpringSnappy,
+};
 
 interface SidebarProps {
   user: User;
@@ -53,27 +62,43 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar">
       <div className="sidebar-servers">
-        <div className={`server-icon home-icon ${!selectedServer ? 'active' : ''}`} onClick={onShowFriends} title="Друзья">
+        <motion.div
+          className={`server-icon home-icon ${!selectedServer ? 'active' : ''}`}
+          onClick={onShowFriends}
+          title="Друзья"
+          {...pressFeedback}
+        >
           <UsersIcon size={28} />
           {Object.entries(unreadCounts).some(([id, count]) => count > 0 && !servers.some(s => s.channels.some(c => c._id === id))) && (
             <div className="unread-badge"></div>
           )}
-        </div>
-        <div className="server-icon home-icon" onClick={onOpenJoinModal} title="Добавить сервер">
+        </motion.div>
+        <motion.div
+          className="server-icon home-icon"
+          onClick={onOpenJoinModal}
+          title="Добавить сервер"
+          {...pressFeedback}
+        >
           <PlusIcon size={28} color="var(--primary-neon)" />
-        </div>
-        <div className="server-icon inbox-sidebar-icon" onClick={onToggleInbox} title="Уведомления">
+        </motion.div>
+        <motion.div
+          className="server-icon inbox-sidebar-icon"
+          onClick={onToggleInbox}
+          title="Уведомления"
+          {...pressFeedback}
+        >
           <BellIcon size={28} color="var(--secondary-neon)" />
           {inboxUnreadCount > 0 && <div className="unread-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
-        </div>
+        </motion.div>
         <div className="sidebar-divider" />
         {servers.map((server) => (
-          <div
+          <motion.div
             key={server._id}
             className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''}`}
             onClick={() => onServerSelect(server)}
             onContextMenu={(e) => handleContextMenu(e, server)}
             title={server.name}
+            {...pressFeedback}
           >
             <UserAvatar
               user={{ username: server.name, avatar: server.icon }}
@@ -83,16 +108,17 @@ const Sidebar: React.FC<SidebarProps> = ({
             {server.channels.some(c => unreadCounts[c._id] > 0) && (
               <div className="unread-badge"></div>
             )}
-          </div>
+          </motion.div>
         ))}
       </div>
 
       <div className="sidebar-user">
-        <div
+        <motion.div
           className="user-avatar-wrapper"
           title={`${user.username} (${user.status})`}
           onClick={(e) => onOpenProfile(user._id, e)}
           style={{ position: 'relative' }}
+          {...pressFeedback}
         >
           <UserAvatar
             user={user}
@@ -100,10 +126,17 @@ const Sidebar: React.FC<SidebarProps> = ({
             className="user-avatar"
           />
           <div className={`status-indicator ${user.status}`}></div>
-        </div>
-        <button className="logout-button" onClick={onOpenSettings} title="Настройки">
+        </motion.div>
+        <motion.button
+          className="logout-button"
+          onClick={onOpenSettings}
+          title="Настройки"
+          whileTap={{ scale: 0.88, rotate: 30 }}
+          whileHover={{ scale: 1.08, rotate: -8 }}
+          transition={iosSpringSnappy}
+        >
           <SettingsIcon size={20} />
-        </button>
+        </motion.button>
       </div>
 
 

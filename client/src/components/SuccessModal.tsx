@@ -1,4 +1,5 @@
 import React from 'react';
+import AnimatedOverlay from '../animations/AnimatedOverlay';
 import './SuccessModal.css';
 
 interface SuccessModalProps {
@@ -9,30 +10,32 @@ interface SuccessModalProps {
 }
 
 const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, message }) => {
-  if (!isOpen) return null;
-
   return (
-    <div className="modal-overlay success-overlay" style={{ zIndex: 6000 }}>
-      <div className="glass-panel-base success-modal-content" onClick={e => e.stopPropagation()}>
-        <div className="success-checkmark-wrapper">
-          <div className="success-checkmark">
-            <div className="check-icon">
-              <span className="icon-line line-tip"></span>
-              <span className="icon-line line-long"></span>
-              <div className="icon-circle"></div>
-              <div className="icon-fix"></div>
-            </div>
+    <AnimatedOverlay
+      isOpen={isOpen}
+      onClose={onClose}
+      overlayClassName="modal-overlay success-overlay"
+      contentClassName="glass-panel-base success-modal-content"
+      contentStyle={{ zIndex: 6000 }}
+    >
+      <div className="success-checkmark-wrapper">
+        <div className="success-checkmark">
+          <div className="check-icon">
+            <span className="icon-line line-tip"></span>
+            <span className="icon-line line-long"></span>
+            <div className="icon-circle"></div>
+            <div className="icon-fix"></div>
           </div>
         </div>
-        
-        <h2 className="success-title">{title}</h2>
-        <p className="success-message">{message}</p>
-        
-        <button className="neon-btn success-btn" onClick={onClose}>
-          Продолжить
-        </button>
       </div>
-    </div>
+
+      <h2 className="success-title">{title}</h2>
+      <p className="success-message">{message}</p>
+
+      <button className="neon-btn success-btn" onClick={onClose}>
+        Продолжить
+      </button>
+    </AnimatedOverlay>
   );
 };
 

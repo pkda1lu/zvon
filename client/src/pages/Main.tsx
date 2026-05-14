@@ -26,6 +26,14 @@ import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
 import CreateGroupDMModal from '../components/CreateGroupDMModal';
 import VerificationWarning from '../components/VerificationWarning';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  sidebarSwapVariants,
+  contentSwapVariants,
+  innerKeyVariants,
+  iosSpring,
+  iosFade,
+} from '../animations/transitions';
 import './Main.css';
 
 const Main: React.FC = () => {
@@ -683,124 +691,223 @@ const Main: React.FC = () => {
       )}
 
       {/* --- SECOND SIDEBAR AREA --- */}
-      {selectedServer && !showFriends ? (
-        ((!isMobile || mobileView === 'sidebar')) && (
-          <div className="secondary-sidebar-container" style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}>
-            <ServerSidebar
-              server={selectedServer}
-              selectedChannel={selectedChannel}
-              unreadCounts={unreadCounts}
-              onChannelSelect={handleChannelSelect}
-              onChannelCreated={fetchServers}
-              onUserClick={handleUserClick}
-              onOpenSettings={() => setShowServerSettings(true)}
-              onServerClick={handleServerProfileClick}
-              style={{ width: isMobile ? '100%' : sidebarWidth }}
-            />
-            {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
-          </div>
-        )
-      ) : !selectedServer ? (
-        ((!isMobile || mobileView === 'sidebar')) && (
-          <div className="secondary-sidebar-container" style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}>
-            <DMSidebar
-              dms={dms}
-              selectedDM={selectedDM}
-              onDMSelect={(dm) => {
-                setSelectedDM(dm);
-                setShowFriends(false);
-                setSelectedServer(null);
-                setMobileView('content');
-              }}
-              onShowFriends={() => {
-                setShowFriends(true);
-                setSelectedDM(null);
-                setMobileView(isMobile ? 'content' : 'sidebar');
-              }}
-              onAddDM={() => setShowCreateGroupModal(true)}
-              showFriends={showFriends}
-              currentUser={user!}
-              unreadCounts={unreadCounts}
-              style={{ width: isMobile ? '100%' : sidebarWidth }}
-            />
-            {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
-          </div>
-        )
-      ) : null}
+      {(() => {
+        // Derive which secondary sidebar (if any) to render. Server sidebar wins when
+        // a server is selected and we're not on the friends panel; otherwise DMSidebar.
+        const sidebarKind: 'server' | 'dm' | null =
+          selectedServer && !showFriends ? 'server'
+          : !selectedServer ? 'dm'
+          : null;
+        if (!(!isMobile || mobileView === 'sidebar')) return null;
+        // Direction: server sidebar slides in from the right, DM sidebar from the left.
+        const dir = sidebarKind === 'server' ? 1 : -1;
+        return (
+          <AnimatePresence mode="wait" initial={false} custom={dir}>
+            {sidebarKind === 'server' && (
+              <motion.div
+                key="server-sidebar"
+                className="secondary-sidebar-container"
+                style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}
+                custom={dir}
+                variants={sidebarSwapVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={iosSpring}
+              >
+                <ServerSidebar
+                  server={selectedServer!}
+                  selectedChannel={selectedChannel}
+                  unreadCounts={unreadCounts}
+                  onChannelSelect={handleChannelSelect}
+                  onChannelCreated={fetchServers}
+                  onUserClick={handleUserClick}
+                  onOpenSettings={() => setShowServerSettings(true)}
+                  onServerClick={handleServerProfileClick}
+                  style={{ width: isMobile ? '100%' : sidebarWidth }}
+                />
+                {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
+              </motion.div>
+            )}
+            {sidebarKind === 'dm' && (
+              <motion.div
+                key="dm-sidebar"
+                className="secondary-sidebar-container"
+                style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}
+                custom={dir}
+                variants={sidebarSwapVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={iosSpring}
+              >
+                <DMSidebar
+                  dms={dms}
+                  selectedDM={selectedDM}
+                  onDMSelect={(dm) => {
+                    setSelectedDM(dm);
+                    setShowFriends(false);
+                    setSelectedServer(null);
+                    setMobileView('content');
+                  }}
+                  onShowFriends={() => {
+                    setShowFriends(true);
+                    setSelectedDM(null);
+                    setMobileView(isMobile ? 'content' : 'sidebar');
+                  }}
+                  onAddDM={() => setShowCreateGroupModal(true)}
+                  showFriends={showFriends}
+                  currentUser={user!}
+                  unreadCounts={unreadCounts}
+                  style={{ width: isMobile ? '100%' : sidebarWidth }}
+                />
+                {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        );
+      })()}
 
       {/* --- CONTENT AREA --- */}
       {((!isMobile || mobileView === 'content')) && (
         <div className="main-content-area">
           <VerificationWarning onOpenSettings={() => setShowSettingsModal(true)} />
-          {showFriends && (
-            <FriendsPanel
-              friends={friends}
-              setFriends={setFriends}
-              onStartDM={handleStartDM}
-              onUserClick={handleUserClick}
-              unreadCounts={unreadCounts}
-              onBack={() => setMobileView('sidebar')}
-              isMobile={isMobile}
-            />
-          )}
+          {(() => {
+            // Mutually-exclusive content swap. Outer key drives section change;
+            // inner AnimatePresence inside Channel/DM blocks animates id swap separately.
+            const contentKey: string | null = showFriends ? 'friends'
+              : selectedChannel ? `channel-${selectedChannel.type}`
+              : selectedDM ? 'dm'
+              : !selectedServer ? 'empty-welcome'
+              : null;
 
-          {selectedChannel && !showFriends && (!isMobile || mobileView === 'content') && (
-            selectedChannel.type === 'text' ? (
-              <ChannelView
-                key={selectedChannel._id}
-                channel={selectedChannel}
-                server={selectedServer!}
-                messages={messages}
-                socket={socket}
-                onUserClick={handleUserClick}
-                initialUnreadCount={unreadCounts[selectedChannel._id]}
-                hasMore={hasMore}
-                isLoadingMore={isLoadingMore}
-                onLoadMore={loadMoreMessages}
-                pinnedMessages={pinnedMessages}
-                setMessages={setMessages}
-                onBack={() => setMobileView('sidebar')}
-                onToggleMembers={() => setMobileView((prev: string) => prev === 'members' ? 'content' : 'members')}
-                isMobile={isMobile}
-              />
-            ) : (
-              <VoiceChannelView
-                channel={selectedChannel}
-                server={selectedServer!}
-                onUserClick={handleUserClick}
-                onMessageClick={handleStartDM}
-                onCallClick={async (userId) => {
-                  try {
-                    const response = await axios.get(`/api/direct-messages/user/${userId}`);
-                    const other = response.data.participants.find((p: User) => p._id !== user?._id);
-                    if (other) handleStartDirectCall(other, response.data._id);
-                  } catch (e) { }
-                }}
-                onBack={() => setMobileView('sidebar')}
-                isMobile={isMobile}
-              />
-            )
-          )}
+            return (
+              <AnimatePresence mode="wait" initial={false}>
+                {contentKey === 'friends' && (
+                  <motion.div
+                    key="friends"
+                    className="content-swap-layer"
+                    variants={contentSwapVariants}
+                    initial="initial" animate="animate" exit="exit"
+                    transition={iosSpring}
+                  >
+                    <FriendsPanel
+                      friends={friends}
+                      setFriends={setFriends}
+                      onStartDM={handleStartDM}
+                      onUserClick={handleUserClick}
+                      unreadCounts={unreadCounts}
+                      onBack={() => setMobileView('sidebar')}
+                      isMobile={isMobile}
+                    />
+                  </motion.div>
+                )}
 
-          {(!isMobile || mobileView === 'content') && selectedDM && !showFriends && (
-            <DMView
-              key={selectedDM._id}
-              dm={selectedDM}
-              messages={dmMessages}
-              socket={socket}
-              onClose={() => { setSelectedDM(null); setShowFriends(true); setMobileView('sidebar'); }}
-              onStartCall={handleStartDirectCall}
-              onStartGroupCall={handleStartGroupCall}
-              onUserClick={handleUserClick}
-              initialUnreadCount={unreadCounts[selectedDM._id]}
-              hasMore={hasMore}
-              isLoadingMore={isLoadingMore}
-              onLoadMore={loadMoreDMMessages}
-              pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
-              setMessages={setDmMessages}
-              onBack={() => setMobileView('sidebar')}
-            />
-          )}
+                {contentKey === 'channel-text' && selectedChannel && (
+                  <motion.div
+                    key="channel-text"
+                    className="content-swap-layer"
+                    variants={contentSwapVariants}
+                    initial="initial" animate="animate" exit="exit"
+                    transition={iosSpring}
+                  >
+                    {/* Plain remount on channel-id change — no inner exit animation.
+                        VoiceChannelView portals its controls to #voice-controls-portal,
+                        and a delayed unmount made those buttons linger across channel
+                        switches. */}
+                    <div key={selectedChannel._id} className="content-inner-layer">
+                      <ChannelView
+                        channel={selectedChannel}
+                        server={selectedServer!}
+                        messages={messages}
+                        socket={socket}
+                        onUserClick={handleUserClick}
+                        initialUnreadCount={unreadCounts[selectedChannel._id]}
+                        hasMore={hasMore}
+                        isLoadingMore={isLoadingMore}
+                        onLoadMore={loadMoreMessages}
+                        pinnedMessages={pinnedMessages}
+                        setMessages={setMessages}
+                        onBack={() => setMobileView('sidebar')}
+                        onToggleMembers={() => setMobileView((prev: string) => prev === 'members' ? 'content' : 'members')}
+                        isMobile={isMobile}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+                {contentKey === 'channel-voice' && selectedChannel && (
+                  <motion.div
+                    key="channel-voice"
+                    className="content-swap-layer"
+                    variants={contentSwapVariants}
+                    initial="initial" animate="animate" exit="exit"
+                    transition={iosSpring}
+                  >
+                    <div key={selectedChannel._id} className="content-inner-layer">
+                      <VoiceChannelView
+                        channel={selectedChannel}
+                        server={selectedServer!}
+                        onUserClick={handleUserClick}
+                        onMessageClick={handleStartDM}
+                        onCallClick={async (userId) => {
+                          try {
+                            const response = await axios.get(`/api/direct-messages/user/${userId}`);
+                            const other = response.data.participants.find((p: User) => p._id !== user?._id);
+                            if (other) handleStartDirectCall(other, response.data._id);
+                          } catch (e) { }
+                        }}
+                        onBack={() => setMobileView('sidebar')}
+                        isMobile={isMobile}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+                {contentKey === 'dm' && selectedDM && (
+                  <motion.div
+                    key="dm"
+                    className="content-swap-layer"
+                    variants={contentSwapVariants}
+                    initial="initial" animate="animate" exit="exit"
+                    transition={iosSpring}
+                  >
+                    <div key={selectedDM._id} className="content-inner-layer">
+                      <DMView
+                        dm={selectedDM}
+                        messages={dmMessages}
+                        socket={socket}
+                        onClose={() => { setSelectedDM(null); setShowFriends(true); setMobileView('sidebar'); }}
+                        onStartCall={handleStartDirectCall}
+                        onStartGroupCall={handleStartGroupCall}
+                        onUserClick={handleUserClick}
+                        initialUnreadCount={unreadCounts[selectedDM._id]}
+                        hasMore={hasMore}
+                        isLoadingMore={isLoadingMore}
+                        onLoadMore={loadMoreDMMessages}
+                        pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
+                        setMessages={setDmMessages}
+                        onBack={() => setMobileView('sidebar')}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+                {contentKey === 'empty-welcome' && (
+                  <motion.div
+                    key="empty-welcome"
+                    className="content-swap-layer empty-view"
+                    variants={contentSwapVariants}
+                    initial="initial" animate="animate" exit="exit"
+                    transition={iosSpring}
+                  >
+                    <h2>Добро пожаловать в Zvon!</h2>
+                    <p>Выберите друга или сервер, чтобы начать общение</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            );
+          })()}
 
           {selectedServer && !showFriends && ((!isMobile || mobileView === 'members')) && (
             <div className={`members-sidebar-wrapper ${isMobile ? 'is-mobile' : ''}`}>
@@ -812,28 +919,24 @@ const Main: React.FC = () => {
               />
             </div>
           )}
-
-          {!selectedChannel && !selectedDM && !showFriends && !selectedServer && (
-            <div className="empty-view">
-              <h2>Добро пожаловать в Zvon!</h2>
-              <p>Выберите друга или сервер, чтобы начать общение</p>
-            </div>
-          )}
         </div>
       )}
 
-      {activeCall && (
-        <VoiceCall
-          socket={socket}
-          otherUser={activeCall.user}
-          dmId={activeCall.dmId}
-          isGroup={activeCall.isGroup}
-          dmName={activeCall.dmName}
-          initialIncomingCall={activeCall.isIncoming}
-          initialOffer={activeCall.offer}
-          onEndCall={() => setActiveCall(null)}
-        />
-      )}
+      <AnimatePresence>
+        {activeCall && (
+          <VoiceCall
+            key="voice-call"
+            socket={socket}
+            otherUser={activeCall.user}
+            dmId={activeCall.dmId}
+            isGroup={activeCall.isGroup}
+            dmName={activeCall.dmName}
+            initialIncomingCall={activeCall.isIncoming}
+            initialOffer={activeCall.offer}
+            onEndCall={() => setActiveCall(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {showProfileUserId && (
         <UserProfileCard
@@ -896,36 +999,47 @@ const Main: React.FC = () => {
         />
       )}
 
-      {showInbox && (
-        <>
-          <div className="inbox-backdrop" onClick={() => setShowInbox(false)} />
-          <Inbox
-            onClose={() => setShowInbox(false)}
-            onItemClick={(item) => {
-              if (item.type === 'mention' || item.type === 'dm') {
-                if (item.link?.dmId) {
-                  window.dispatchEvent(new CustomEvent('start-dm-by-id', { detail: { dmId: item.link.dmId } }));
-                } else if (item.link?.channelId) {
-                  const server = servers.find(s => s.channels.some(c => c._id === item.link?.channelId));
-                  if (server) {
-                    setSelectedServer(server);
-                    const channel = server.channels.find(c => c._id === item.link?.channelId);
-                    if (channel) setSelectedChannel(channel);
-                    setShowFriends(false);
-                    setSelectedDM(null);
+      <AnimatePresence>
+        {showInbox && (
+          <React.Fragment key="inbox-stack">
+            <motion.div
+              key="inbox-backdrop"
+              className="inbox-backdrop"
+              onClick={() => setShowInbox(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            />
+            <Inbox
+              key="inbox"
+              onClose={() => setShowInbox(false)}
+              onItemClick={(item) => {
+                if (item.type === 'mention' || item.type === 'dm') {
+                  if (item.link?.dmId) {
+                    window.dispatchEvent(new CustomEvent('start-dm-by-id', { detail: { dmId: item.link.dmId } }));
+                  } else if (item.link?.channelId) {
+                    const server = servers.find(s => s.channels.some(c => c._id === item.link?.channelId));
+                    if (server) {
+                      setSelectedServer(server);
+                      const channel = server.channels.find(c => c._id === item.link?.channelId);
+                      if (channel) setSelectedChannel(channel);
+                      setShowFriends(false);
+                      setSelectedDM(null);
+                    }
                   }
+                } else if (item.type === 'friend_request') {
+                  setShowFriends(true);
+                  setSelectedServer(null);
+                  setSelectedChannel(null);
+                  setSelectedDM(null);
                 }
-              } else if (item.type === 'friend_request') {
-                setShowFriends(true);
-                setSelectedServer(null);
-                setSelectedChannel(null);
-                setSelectedDM(null);
-              }
-              setShowInbox(false);
-            }}
-          />
-        </>
-      )}
+                setShowInbox(false);
+              }}
+            />
+          </React.Fragment>
+        )}
+      </AnimatePresence>
       <div id="voice-controls-portal" />
     </div>
   );

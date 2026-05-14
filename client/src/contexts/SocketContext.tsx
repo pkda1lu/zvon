@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
@@ -99,7 +100,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <SocketContext.Provider value={{ socket, connected }}>
-      {showOverlay && <ReconnectingOverlay />}
+      <AnimatePresence>
+        {showOverlay && <ReconnectingOverlay key="reconnecting" />}
+      </AnimatePresence>
       {children}
     </SocketContext.Provider>
   );

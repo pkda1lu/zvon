@@ -29,6 +29,7 @@ import {
 } from './Icons';
 import ImageCropper from './ImageCropper';
 import UserBadges from './UserBadges';
+import AnimatedOverlay from '../animations/AnimatedOverlay';
 import './SettingsModal.css';
 
 
@@ -365,8 +366,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     reader.readAsDataURL(file);
   };
 
-
-  if (!isOpen) return null;
 
   const renderAccountSettings = () => (
     <div className="settings-section-content">
@@ -1706,8 +1705,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
 
   return (
-    <div className={`settings-modal-overlay ${isMobile ? 'is-mobile' : ''}`} onClick={onClose}>
-      <div className={`settings-modal-container ${isMobile ? mobileViewState : ''}`} onClick={e => e.stopPropagation()}>
+    <AnimatedOverlay
+      isOpen={isOpen}
+      onClose={onClose}
+      overlayClassName={`settings-modal-overlay ${isMobile ? 'is-mobile' : ''}`}
+      contentClassName={`settings-modal-container ${isMobile ? mobileViewState : ''}`}
+      variant={isMobile ? 'sheet' : 'fade'}
+    >
+      <div style={{ display: 'contents' }}>
         {(!isMobile || mobileViewState === 'tabs') && (
           <div className="settings-sidebar">
             <div className="sidebar-header">Настройки пользователя</div>
@@ -1853,7 +1858,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </main>
         )}
       </div>
-    </div>
+    </AnimatedOverlay>
   );
 };
 

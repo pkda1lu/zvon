@@ -4,7 +4,16 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git -C D:/work_study/zvon merge --ff-only claude/gifted-galileo-4579b6)",
-      "Bash(node --check bot-example/music-bot.js)"
+      "Bash(node --check bot-example/music-bot.js)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(grep -n \"^    </div>$\\\\|^  </div>$\\\\|^\\);\" \"D:/work_study/zvon/client/src/components/AttachmentsModal.tsx\")",
+      "Bash(xargs grep -l \"x:.*number\\\\|x:.*y\")",
+      "Bash(grep -n \"^            </div>\\\\|^        </div>$\\\\|^    \\);\" \"D:/work_study/zvon/client/src/components/UserProfileCard.tsx\")",
+      "Bash(grep -n \"^    \\);\\\\|^        </div>$\" \"D:/work_study/zvon/client/src/components/ServerProfileCard.tsx\")",
+      "Bash(grep -n \"^        </div>$\\\\|^    \\);\" \"D:/work_study/zvon/client/src/components/EmojiPicker.tsx\")",
+      "Bash(grep -n \"^                    </div>$\\\\|^                  \\)}$\" \"D:/work_study/zvon/client/src/components/DMView.tsx\")",
+      "Bash(grep -n \"^    </div>$\\\\|^\\);\\\\|^  \\);$\" \"D:/work_study/zvon/client/src/components/VoiceCall.tsx\")"
     ]
   }
 }

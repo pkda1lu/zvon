@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import SuccessModal from './SuccessModal';
+import {
+  overlayVariants,
+  overlayTransition,
+  modalPopVariants,
+  modalPopTransition,
+} from '../animations/transitions';
+import { useFreezeAppBackground } from '../animations/useFreezeAppBackground';
 import './VerificationWarning.css';
 
 interface VerificationWarningProps {
@@ -15,6 +23,10 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Freeze the global animated bg whenever the warning modal is actually visible
+  // (kept unconditional w.r.t. render path so the hook order stays stable).
+  useFreezeAppBackground(!!user && !user.isVerified);
 
   // Always show if user is logged in but not verified
   if (!user || user.isVerified) {
@@ -68,22 +80,34 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
 
   return (
     <>
-      <div className="modal-overlay" style={{ 
-        zIndex: 2500, 
-        background: 'rgba(0,0,0,0.92)', 
-        backdropFilter: 'blur(15px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div className="glass-panel-base verification-modal" style={{
-          width: '100%',
-          maxWidth: '440px',
-          padding: '40px',
-          textAlign: 'center',
-          position: 'relative',
-          border: '1px solid var(--primary-neon)'
-        }}>
+      <motion.div
+        className="modal-overlay"
+        style={{
+          zIndex: 2500,
+          background: 'rgba(0,0,0,0.92)',
+          backdropFilter: 'blur(15px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+        variants={overlayVariants}
+        initial="initial" animate="animate"
+        transition={overlayTransition}
+      >
+        <motion.div
+          className="glass-panel-base verification-modal"
+          style={{
+            width: '100%',
+            maxWidth: '440px',
+            padding: '40px',
+            textAlign: 'center',
+            position: 'relative',
+            border: '1px solid var(--primary-neon)'
+          }}
+          variants={modalPopVariants}
+          initial="initial" animate="animate"
+          transition={modalPopTransition}
+        >
           <div className="verification-icon-wrapper" style={{
             width: '70px', height: '70px', background: 'rgba(255, 166, 0, 0.15)',
             borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -177,10 +201,10 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
               Изменить почту
             </button>
           </div>
-        </div>
-      </div>
-      
-      <SuccessModal 
+        </motion.div>
+      </motion.div>
+
+      <SuccessModal
         isOpen={showSuccess} 
         onClose={() => setShowSuccess(false)} 
         title="Почта подтверждена!" 

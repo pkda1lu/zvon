@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import { DirectMessage, Message, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -87,6 +88,17 @@ const DMView: React.FC<DMViewProps> = ({
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
+
+  // Same baseline trick as ChannelView: only animate truly new (incoming) messages.
+  const lastSeenIdRef = useRef<string | null>(null);
+  const prevLastSeenId = lastSeenIdRef.current;
+  const lastSeenIdx = prevLastSeenId
+    ? messages.findIndex(m => m._id === prevLastSeenId)
+    : -1;
+  const hasBaseline = prevLastSeenId !== null && lastSeenIdx !== -1;
+  useEffect(() => {
+    if (messages.length > 0) lastSeenIdRef.current = messages[messages.length - 1]._id;
+  }, [messages]);
 
   useEffect(() => {
     if (!socket) return;
@@ -734,6 +746,13 @@ const DMView: React.FC<DMViewProps> = ({
               const prev = messages[idx - 1];
               const showDate = shouldShowDate(msg, prev);
               const grouped = isGrouped(msg, prev);
+              const isFresh = hasBaseline && idx > lastSeenIdx;
+              const messageMotionProps: any = isFresh ? {
+                initial: { opacity: 0, y: 6 },
+                animate: { opacity: 1, y: 0 },
+                transition: { type: 'spring', stiffness: 420, damping: 34, mass: 0.75 },
+              } : {};
+              const MessageBox: any = isFresh ? motion.div : 'div';
 
               return (
                 <React.Fragment key={msg._id}>
@@ -766,7 +785,11 @@ const DMView: React.FC<DMViewProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <div id={`msg-${msg._id}`} className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}>
+                    <MessageBox
+                      id={`msg-${msg._id}`}
+                      className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
+                      {...messageMotionProps}
+                    >
                       {msg.replyTo && (
                         <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <div className="reply-line" />
@@ -989,7 +1012,7 @@ const DMView: React.FC<DMViewProps> = ({
                           </div>
                         )}
                       </div>
-                    </div>
+                    </MessageBox>
                   )}
                 </React.Fragment>
               );
