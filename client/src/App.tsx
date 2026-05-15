@@ -177,6 +177,7 @@ import { WindowSettingsProvider } from './contexts/WindowSettingsContext';
 import { DialogProvider } from './contexts/DialogContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { pagePushVariants, iosSpring } from './animations/transitions';
+import MotionPreferences from './animations/MotionPreferences';
 
 const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <motion.div
@@ -229,20 +230,22 @@ function App() {
           <DialogProvider>
             <AuthProvider>
               <AppearanceProvider>
-                <ChatSettingsProvider>
-                  <WindowSettingsProvider>
-                    <NotificationProvider>
-                      <div className="App" style={{ position: 'relative' }}>
-                        <AppBackground />
-                        <TitleBar />
-                        <ElectronHandler />
-                        <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
-                          <AnimatedRoutes />
+                <MotionPreferences>
+                  <ChatSettingsProvider>
+                    <WindowSettingsProvider>
+                      <NotificationProvider>
+                        <div className="App" style={{ position: 'relative' }}>
+                          <AppBackground />
+                          <TitleBar />
+                          <ElectronHandler />
+                          <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
+                            <AnimatedRoutes />
+                          </div>
                         </div>
-                      </div>
-                    </NotificationProvider>
-                  </WindowSettingsProvider>
-                </ChatSettingsProvider>
+                      </NotificationProvider>
+                    </WindowSettingsProvider>
+                  </ChatSettingsProvider>
+                </MotionPreferences>
               </AppearanceProvider>
             </AuthProvider>
           </DialogProvider>
