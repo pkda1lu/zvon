@@ -32,3 +32,32 @@ body[data-modal-open] #global-liquid-bg,
 body[data-modal-open] #global-liquid-bg * {
   animation-play-state: paused !important;
 }
+
+/* When the user enables performance mode (AppearanceContext) or has
+   `prefers-reduced-motion` set in their OS, strip out global keyframe loops
+   and reduce CSS transitions to instant. Framer-motion is independently
+   short-circuited via MotionConfig in MotionPreferences. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  #global-liquid-bg,
+  #global-liquid-bg * {
+    animation: none !important;
+  }
+}
+
+body[data-reduce-motion="force"] *,
+body[data-reduce-motion="force"] *::before,
+body[data-reduce-motion="force"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+body[data-reduce-motion="force"] #global-liquid-bg,
+body[data-reduce-motion="force"] #global-liquid-bg * {
+  animation: none !important;
+}
