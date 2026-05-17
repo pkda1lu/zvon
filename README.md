@@ -2,7 +2,7 @@
 
 **Zvon** — это современная и высокопроизводительная коммуникационная платформа реального времени, вдохновленная Discord, но с упором на премиальный дизайн и расширенные возможности аудио-захвата.
 
-[![Version](https://img.shields.io/badge/version-1.6.79-blue.svg)](https://github.com/pkda1lu/zvon/release)
+[![Version](https://img.shields.io/badge/version-1.6.79-blue.svg)](https://github.com/pkda1lu/zvon/releases)
 [![Electron](https://img.shields.io/badge/platform-Electron-brightgreen.svg)](https://www.electronjs.org/)
 [![Technologies](https://img.shields.io/badge/stack-MERN%20+%20Socket.io-orange.svg)](https://socket.io/)
 
