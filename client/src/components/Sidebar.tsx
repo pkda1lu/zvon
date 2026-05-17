@@ -8,6 +8,7 @@ import UserAvatar from './UserAvatar';
 import { UsersIcon, PlusIcon, SettingsIcon, BellIcon } from './Icons';
 import ServerContextMenu from './ServerContextMenu';
 import { iosSpringSnappy } from '../animations/transitions';
+import './panel-hero.css';
 import './Sidebar.css';
 
 // iOS-style press feedback shared across every clickable server-icon button.
@@ -60,7 +61,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className="sidebar">
+    <div className="sidebar panel-hero">
+      <div className="panel-hero-bg" aria-hidden="true">
+        <div className="blob cyan" />
+        <div className="blob purple" />
+        <div className="blob pink" />
+      </div>
       <div className="sidebar-servers">
         <motion.div
           className={`server-icon home-icon ${!selectedServer ? 'active' : ''}`}

@@ -7,6 +7,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon } from './Icons';
+import './panel-hero.css';
 import './ChannelView.css';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
@@ -1075,12 +1076,17 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
   return (
     <div
-      className={`channel-view ${isDragging ? 'dragging' : ''}`}
+      className={`channel-view panel-hero ${isDragging ? 'dragging' : ''}`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      <div className="panel-hero-bg" aria-hidden="true">
+        <div className="blob cyan" />
+        <div className="blob purple" />
+        <div className="blob pink" />
+      </div>
       {isDragging && (
         <div className="drag-drop-overlay">
           <div className="drag-drop-content">

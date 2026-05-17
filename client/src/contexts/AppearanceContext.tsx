@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type ThemeType = 'dark' | 'light' | 'amoled';
+export type ThemeType = 'dark' | 'amoled';
 export type DensityType = 'cozy' | 'compact';
 export type AppIconType = 'default' | 'icon1' | 'icon2' | 'icon3' | 'icon4';
 
@@ -53,8 +53,10 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (saved) {
             const parsed = JSON.parse(saved);
             // Ensure performanceMode and custom settings exist for backward compatibility
+            // Migration: light theme has been removed — fall back to dark.
+            const safeTheme: ThemeType = parsed.theme === 'amoled' ? 'amoled' : 'dark';
             return {
-                theme: parsed.theme || 'dark',
+                theme: safeTheme,
                 density: parsed.density || 'cozy',
                 messageSpacing: parsed.messageSpacing ?? 2,
                 groupSpacing: parsed.groupSpacing ?? 16,
@@ -96,6 +98,10 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const applySettings = (s: AppearanceSettings) => {
         const root = document.documentElement;
 
+        // Expose theme to CSS via data attribute so theme-specific overrides
+        // (e.g. panel-hero on light theme) can target it without re-reading vars.
+        root.dataset.theme = s.theme;
+
         // Theme Colors & Design Tokens
         if (s.theme === 'dark') {
             root.style.setProperty('--bg-primary', '#36393f');
@@ -122,19 +128,6 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             root.style.setProperty('--text-dim', 'rgba(255, 255, 255, 0.5)');
             root.style.setProperty('--header-primary', '#ffffff');
             root.style.setProperty('--border-divider', 'rgba(255, 255, 255, 0.1)');
-            root.style.setProperty('--glass-blur-value', s.performanceMode ? '0px' : '50px');
-        } else if (s.theme === 'light') {
-            root.style.setProperty('--bg-primary', '#ffffff');
-            root.style.setProperty('--bg-dark', '#ffffff');
-            root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.04)');
-            root.style.setProperty('--glass-bg-subtle', 'rgba(0, 0, 0, 0.015)');
-            root.style.setProperty('--glass-bg-active', 'rgba(0, 0, 0, 0.05)');
-            root.style.setProperty('--glass-bg-accent', 'rgba(0, 0, 0, 0.03)');
-            root.style.setProperty('--glass-border', 'rgba(0, 0, 0, 0.06)');
-            root.style.setProperty('--text-main', '#060607');
-            root.style.setProperty('--text-dim', 'rgba(0, 0, 0, 0.5)');
-            root.style.setProperty('--header-primary', '#060607');
-            root.style.setProperty('--border-divider', 'rgba(0, 0, 0, 0.1)');
             root.style.setProperty('--glass-blur-value', s.performanceMode ? '0px' : '50px');
         }
 

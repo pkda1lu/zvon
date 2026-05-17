@@ -21,6 +21,7 @@ import Reactions from './Reactions';
 import StickyPins from './StickyPins';
 import UserBadges from './UserBadges';
 import AttachmentsModal from './AttachmentsModal';
+import './panel-hero.css';
 import './DMView.css';
 import './Attachments.css';
 
@@ -614,12 +615,17 @@ const DMView: React.FC<DMViewProps> = ({
 
   return (
     <div
-      className={`dm-view ${isDragging ? 'dragging' : ''}`}
+      className={`dm-view panel-hero ${isDragging ? 'dragging' : ''}`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      <div className="panel-hero-bg" aria-hidden="true">
+        <div className="blob cyan" />
+        <div className="blob purple" />
+        <div className="blob pink" />
+      </div>
       {isDragging && (
         <div className="drag-drop-overlay">
           <div className="drag-drop-content">

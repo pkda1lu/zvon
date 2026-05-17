@@ -745,8 +745,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <div className="theme-selection-grid">
                 {[
                   { id: 'dark', label: 'Тёмная', style: 'dark' },
-                  { id: 'amoled', label: 'AMOLED', style: 'amoled' },
-                  { id: 'light', label: 'Светлая', style: 'light' }
+                  { id: 'amoled', label: 'AMOLED', style: 'amoled' }
                 ].map(t => (
                   <div
                     key={t.id}
