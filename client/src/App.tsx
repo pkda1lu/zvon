@@ -59,15 +59,10 @@ const AppBackground: React.FC = () => {
 
   const getBaseBgColor = () => {
     if (theme === 'amoled') return '#000000';
-    if (theme === 'light') return '#ffffff';
     return '#020205';
   };
 
   const getGradient = () => {
-    if (theme === 'light') {
-      // Soft Pearl Liquid
-      return 'linear-gradient(-45deg, #ffffff, #f0f4ff, #fff0f5, #f5f0ff, #ffffff)';
-    }
     if (theme === 'amoled') {
       // Deep Void Liquid (Subtle oil slick)
       return 'linear-gradient(-45deg, #000000, #050010, #000810, #080005, #000000)';
@@ -146,7 +141,7 @@ const AppBackground: React.FC = () => {
       }} />
 
       {/* Decorative spheres - Always present and moving */}
-      {!performanceMode && theme !== 'light' && !customBackground && (
+      {!performanceMode && !customBackground && (
         <>
           <div style={{
             position: 'absolute',

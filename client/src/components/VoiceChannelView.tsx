@@ -13,6 +13,7 @@ import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import SharedYouTubePlayer from './SharedYouTubePlayer';
+import './panel-hero.css';
 import './VoiceChannelView.css';
 
 interface VoiceChannelViewProps {
@@ -609,7 +610,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const focusedItem = focusedStreamId ? displayParticipants.find(p => p._id === focusedStreamId) : null;
 
   return (
-    <div className="voice-channel-view" ref={viewRef}>
+    <div className="voice-channel-view panel-hero" ref={viewRef}>
+      <div className="panel-hero-bg" aria-hidden="true">
+        <div className="blob cyan" />
+        <div className="blob purple" />
+        <div className="blob pink" />
+      </div>
       <header className="voice-hdr">
         <div className="hdr-left">
           {isMobile && (

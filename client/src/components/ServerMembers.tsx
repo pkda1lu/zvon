@@ -5,6 +5,7 @@ import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import { useVoice } from '../contexts/VoiceContext';
+import './panel-hero.css';
 import './ServerMembers.css';
 
 const LiveBadge: React.FC = () => (
@@ -29,7 +30,12 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
     };
 
     return (
-        <div className="server-members">
+        <div className="server-members panel-hero">
+            <div className="panel-hero-bg" aria-hidden="true">
+                <div className="blob cyan" />
+                <div className="blob purple" />
+                <div className="blob pink" />
+            </div>
             {isMobile && onBack && (
                 <div className="members-mobile-header">
                     <button className="mobile-close-btn" onClick={onBack}>

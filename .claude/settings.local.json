@@ -18,7 +18,8 @@
       "Bash(python -c \"from PIL import Image; img = Image.open\\('D:/work_study/zvon/client/public/zvonlogonew.png'\\); print\\(img.size, img.mode\\)\")",
       "Bash(git checkout *)",
       "Bash(python \"D:/work_study/zvon/client/public/_make_icons.py\")",
-      "Bash(python \"D:/work_study/zvon/client/public/_inline_icon.py\")"
+      "Bash(python \"D:/work_study/zvon/client/public/_inline_icon.py\")",
+      "Bash(grep -n \"^    </div>$\\\\|^  \\);$\\\\|^    {/\\\\* IPC\" \"D:/work_study/zvon/client/src/pages/Main.tsx\")"
     ]
   }
 }
