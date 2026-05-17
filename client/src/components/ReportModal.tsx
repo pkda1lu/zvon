@@ -84,38 +84,44 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, onSubmit, us
         </>
       }
     >
-      <div className="form-group">
-        <label>Укажите причину</label>
-        <div className="reason-grid">
-          {REASONS.map((opt) => (
-            <div
-              key={opt.id}
-              className={`reason-option ${reason === opt.id ? 'selected' : ''}`}
-              onClick={() => setReason(opt.id)}
-            >
-              <div className="reason-icon">{opt.icon}</div>
-              <div className="reason-text">
-                <span className="reason-title">{opt.title}</span>
-                <span className="reason-desc">{opt.desc}</span>
+      {/* Wrap in .report-modal-body so the existing ReportModal.css selectors
+          (.report-modal-body .form-group, .report-modal-body textarea, …) apply.
+          When this modal was refactored onto the shared <Modal>, the wrapper div
+          was lost and the textarea/labels rendered unstyled. */}
+      <div className="report-modal-body">
+        <div className="form-group">
+          <label>Укажите причину</label>
+          <div className="reason-grid">
+            {REASONS.map((opt) => (
+              <div
+                key={opt.id}
+                className={`reason-option ${reason === opt.id ? 'selected' : ''}`}
+                onClick={() => setReason(opt.id)}
+              >
+                <div className="reason-icon">{opt.icon}</div>
+                <div className="reason-text">
+                  <span className="reason-title">{opt.title}</span>
+                  <span className="reason-desc">{opt.desc}</span>
+                </div>
+                {reason === opt.id && (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary-neon)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                )}
               </div>
-              {reason === opt.id && (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary-neon)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="form-group">
-        <label>Дополнительное описание</label>
-        <textarea
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="Если есть важные детали, укажите их здесь..."
-          maxLength={1000}
-        />
+        <div className="form-group">
+          <label>Дополнительное описание</label>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Если есть важные детали, укажите их здесь..."
+            maxLength={1000}
+          />
+        </div>
       </div>
     </Modal>
   );

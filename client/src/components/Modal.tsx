@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   overlayVariants,
@@ -73,7 +74,11 @@ const Modal: React.FC<ModalProps> = ({
       ? 'zv-modal__footer zv-modal__footer--between'
       : 'zv-modal__footer';
 
-  return (
+  // Portal to <body> so the fixed-positioned overlay isn't trapped inside an
+  // ancestor that has a transform/filter (which would create a containing block
+  // and confine `position: fixed`). framer-motion keeps inline `transform` on
+  // every motion.div in the tree, so this matters.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -120,7 +125,8 @@ const Modal: React.FC<ModalProps> = ({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

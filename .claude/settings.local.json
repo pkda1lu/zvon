@@ -13,7 +13,12 @@
       "Bash(grep -n \"^    \\);\\\\|^        </div>$\" \"D:/work_study/zvon/client/src/components/ServerProfileCard.tsx\")",
       "Bash(grep -n \"^        </div>$\\\\|^    \\);\" \"D:/work_study/zvon/client/src/components/EmojiPicker.tsx\")",
       "Bash(grep -n \"^                    </div>$\\\\|^                  \\)}$\" \"D:/work_study/zvon/client/src/components/DMView.tsx\")",
-      "Bash(grep -n \"^    </div>$\\\\|^\\);\\\\|^  \\);$\" \"D:/work_study/zvon/client/src/components/VoiceCall.tsx\")"
+      "Bash(grep -n \"^    </div>$\\\\|^\\);\\\\|^  \\);$\" \"D:/work_study/zvon/client/src/components/VoiceCall.tsx\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"from PIL import Image; img = Image.open\\('D:/work_study/zvon/client/public/zvonlogonew.png'\\); print\\(img.size, img.mode\\)\")",
+      "Bash(git checkout *)",
+      "Bash(python \"D:/work_study/zvon/client/public/_make_icons.py\")",
+      "Bash(python \"D:/work_study/zvon/client/public/_inline_icon.py\")"
     ]
   }
 }
