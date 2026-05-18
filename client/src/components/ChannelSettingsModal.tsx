@@ -175,7 +175,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                             className="settings-input"
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
-                                            maxLength={100}
+                                            maxLength={32}
                                             placeholder="Напишите название..."
                                         />
                                         <span className="input-emoji-icon">✨</span>

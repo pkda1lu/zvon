@@ -13,6 +13,7 @@ import './App.css';
 import { useEffect } from 'react';
 import TitleBar from './components/TitleBar';
 import Overlay from './pages/Overlay';
+import UpdateNotifier from './components/UpdateNotifier';
 
 const ElectronHandler: React.FC = () => {
   const navigate = useNavigate();
@@ -233,6 +234,7 @@ function App() {
                           <AppBackground />
                           <TitleBar />
                           <ElectronHandler />
+                          <UpdateNotifier />
                           <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
                             <AnimatedRoutes />
                           </div>

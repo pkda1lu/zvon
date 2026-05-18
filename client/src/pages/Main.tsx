@@ -81,16 +81,7 @@ const Main: React.FC = () => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem('sidebarWidth');
-    const parsed = saved ? parseInt(saved, 10) : NaN;
-    return Number.isFinite(parsed) && parsed >= 200 && parsed <= 500 ? parsed : 240;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('sidebarWidth', String(sidebarWidth));
-  }, [sidebarWidth]);
-  const isResizingRef = useRef(false);
+  const SIDEBAR_WIDTH = 280;
   const hasViewInitializedRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -152,15 +143,6 @@ const Main: React.FC = () => {
   }, [selectedChannel]);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizingRef.current) return;
-      const newWidth = e.clientX - 72;
-      if (newWidth > 200 && newWidth < 500) setSidebarWidth(newWidth);
-    };
-    const handleMouseUp = () => {
-      isResizingRef.current = false;
-      document.body.style.cursor = 'default';
-    };
     const handleStartDMEvent = (e: any) => {
       setSelectedDM(e.detail.dm);
       setSelectedChannel(null);
@@ -183,15 +165,11 @@ const Main: React.FC = () => {
         setMobileView('content');
       } catch (err) { }
     };
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
     window.addEventListener('start-dm-by-id', handleStartDMById);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('start-dm', handleStartDMEvent);
       window.removeEventListener('start-call', handleStartCallEvent);
       window.removeEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
@@ -228,11 +206,6 @@ const Main: React.FC = () => {
       return () => { if (removeActivityListener) removeActivityListener(); };
     }
   }, [socket, user?._id]);
-
-  const startResizing = () => {
-    isResizingRef.current = true;
-    document.body.style.cursor = 'col-resize';
-  };
 
   useEffect(() => {
     if (selectedChannel) {
@@ -707,7 +680,7 @@ const Main: React.FC = () => {
               <motion.div
                 key="server-sidebar"
                 className="secondary-sidebar-container"
-                style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}
+                style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
                 custom={dir}
                 variants={sidebarSwapVariants}
                 initial="initial"
@@ -724,16 +697,15 @@ const Main: React.FC = () => {
                   onUserClick={handleUserClick}
                   onOpenSettings={() => setShowServerSettings(true)}
                   onServerClick={handleServerProfileClick}
-                  style={{ width: isMobile ? '100%' : sidebarWidth }}
+                  style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
                 />
-                {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
               </motion.div>
             )}
             {sidebarKind === 'dm' && (
               <motion.div
                 key="dm-sidebar"
                 className="secondary-sidebar-container"
-                style={{ width: isMobile ? '100%' : sidebarWidth + 1 }}
+                style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
                 custom={dir}
                 variants={sidebarSwapVariants}
                 initial="initial"
@@ -759,9 +731,8 @@ const Main: React.FC = () => {
                   showFriends={showFriends}
                   currentUser={user!}
                   unreadCounts={unreadCounts}
-                  style={{ width: isMobile ? '100%' : sidebarWidth }}
+                  style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
                 />
-                {!isMobile && <div className="sidebar-resizer" onMouseDown={startResizing} />}
               </motion.div>
             )}
           </AnimatePresence>

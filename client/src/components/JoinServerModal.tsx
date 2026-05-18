@@ -124,6 +124,7 @@ const JoinServerModal: React.FC<JoinServerModalProps> = ({ isOpen, onClose, onJo
                             value={serverName}
                             onChange={(e) => setServerName(e.target.value)}
                             placeholder="Например: Cyber Bunker"
+                            maxLength={32}
                             autoFocus
                             required
                         />

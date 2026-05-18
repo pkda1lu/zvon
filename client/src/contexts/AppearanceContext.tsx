@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type ThemeType = 'dark' | 'amoled';
 export type DensityType = 'cozy' | 'compact';
-export type AppIconType = 'default' | 'icon1' | 'icon2' | 'icon3' | 'icon4';
+export type AppIconType = 'default' | 'icon1' | 'icon2' | 'icon3' | 'icon4' | 'legacy';
 
 interface CustomColors {
     primary: string;
