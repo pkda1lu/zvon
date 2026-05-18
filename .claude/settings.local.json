@@ -19,7 +19,10 @@
       "Bash(git checkout *)",
       "Bash(python \"D:/work_study/zvon/client/public/_make_icons.py\")",
       "Bash(python \"D:/work_study/zvon/client/public/_inline_icon.py\")",
-      "Bash(grep -n \"^    </div>$\\\\|^  \\);$\\\\|^    {/\\\\* IPC\" \"D:/work_study/zvon/client/src/pages/Main.tsx\")"
+      "Bash(grep -n \"^    </div>$\\\\|^  \\);$\\\\|^    {/\\\\* IPC\" \"D:/work_study/zvon/client/src/pages/Main.tsx\")",
+      "Bash(identify client/build/zvon_legacy.png)",
+      "Bash(Get-ChildItem -Path \"D:\\\\work_study\\\\zvon\\\\client\\\\src\\\\components\" -Recurse -Filter \"*.jsx\")",
+      "Bash(Select-Object -First 30)"
     ]
   }
 }

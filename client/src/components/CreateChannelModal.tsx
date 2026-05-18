@@ -110,7 +110,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               value={channelName}
               onChange={(e) => setChannelName(e.target.value)}
               placeholder={channelType === 'text' ? 'например: общий' : 'например: общий голосовой'}
-              maxLength={100}
+              maxLength={32}
               required
               autoFocus
             />

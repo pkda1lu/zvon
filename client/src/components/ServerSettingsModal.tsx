@@ -203,22 +203,6 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (file.type === 'image/gif') {
-            const formData = new FormData();
-            formData.append('icon', file);
-            try {
-                setLoading(true);
-                const res = await axios.post(`/api/servers/${server._id}/icon`, formData);
-                setServerIcon(res.data.icon);
-                onServerUpdate({ ...server, icon: res.data.icon });
-            } catch (err) {
-                await alert('Ошибка при загрузке иконки');
-            } finally {
-                setLoading(false);
-            }
-            return;
-        }
-
         const reader = new FileReader();
         reader.onload = () => setCropModal({ isOpen: true, image: reader.result as string, type: 'icon' });
         reader.readAsDataURL(file);
@@ -229,22 +213,6 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (file.type === 'image/gif') {
-            const formData = new FormData();
-            formData.append('banner', file);
-            try {
-                setLoading(true);
-                const res = await axios.post(`/api/servers/${server._id}/banner`, formData);
-                setServerBanner(res.data.banner);
-                onServerUpdate({ ...server, banner: res.data.banner });
-            } catch (err) {
-                await alert('Ошибка при загрузке баннера');
-            } finally {
-                setLoading(false);
-            }
-            return;
-        }
-
         const reader = new FileReader();
         reader.onload = () => setCropModal({ isOpen: true, image: reader.result as string, type: 'banner' });
         reader.readAsDataURL(file);
@@ -254,8 +222,9 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     const handleCropComplete = async (croppedBlob: Blob) => {
         const type = cropModal.type;
         setCropModal(prev => ({ ...prev, isOpen: false }));
+        const ext = croppedBlob.type === 'image/gif' ? 'gif' : 'jpg';
         const formData = new FormData();
-        formData.append(type === 'icon' ? 'icon' : 'banner', croppedBlob, `${type}.jpg`);
+        formData.append(type === 'icon' ? 'icon' : 'banner', croppedBlob, `${type}.${ext}`);
 
         try {
             setLoading(true);
@@ -453,7 +422,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                                     <div className="input-section">
                                         <div className="settings-input-group">
                                             <label>Название сервера</label>
-                                            <input className="settings-input" value={serverName} onChange={(e) => setServerName(e.target.value)} />
+                                            <input className="settings-input" value={serverName} onChange={(e) => setServerName(e.target.value)} maxLength={32} />
                                         </div>
                                     </div>
                                 </div>

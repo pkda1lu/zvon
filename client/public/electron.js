@@ -811,6 +811,7 @@ ipcMain.on('change-icon', (event, iconName) => {
         case 'icon2': iconFile = 'icon2.png'; break;
         case 'icon3': iconFile = 'icon3.png'; break;
         case 'icon4': iconFile = 'icon4.png'; break;
+        case 'legacy': iconFile = 'zvon_legacy.png'; break;
         default: iconFile = 'app_icon.ico'; break;
     }
     const iconPath = path.join(__dirname, iconFile);

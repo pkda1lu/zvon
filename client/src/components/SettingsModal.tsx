@@ -257,22 +257,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type === 'image/gif') {
-      const formData = new FormData();
-      formData.append('avatar', file);
-      try {
-        setLoading(true);
-        const response = await axios.post('/api/users/avatar', formData);
-        await refreshUser();
-        setAvatarPreview(getAvatarUrl(response.data.avatar));
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Ошибка загрузки аватара');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
     const reader = new FileReader();
     reader.onload = () => {
       setCropModal({
@@ -288,22 +272,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.type === 'image/gif') {
-      const formData = new FormData();
-      formData.append('banner', file);
-      try {
-        setLoading(true);
-        const response = await axios.post('/api/users/banner', formData);
-        await refreshUser();
-        setBannerPreview(getFullUrl(response.data.banner));
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Ошибка загрузки баннера');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -321,8 +289,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const type = cropModal.type;
     setCropModal(prev => ({ ...prev, isOpen: false }));
 
+    const ext = croppedBlob.type === 'image/gif' ? 'gif' : 'jpg';
     const formData = new FormData();
-    formData.append(type, croppedBlob, `${type}.jpg`);
+    formData.append(type, croppedBlob, `${type}.${ext}`);
 
     try {
       setLoading(true);
@@ -847,7 +816,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                   { id: 'icon1', label: 'Неон', img: 'icon1.PNG' },
                   { id: 'icon2', label: 'Лазурь', img: 'icon2.png' },
                   { id: 'icon3', label: 'Аметист', img: 'icon3.png' },
-                  { id: 'icon4', label: 'Космос', img: 'icon4.png' }
+                  { id: 'icon4', label: 'Космос', img: 'icon4.png' },
+                  { id: 'legacy', label: 'Легаси', img: 'zvon_legacy.png' }
                 ].map(icon => (
                   <div
                     key={icon.id}
