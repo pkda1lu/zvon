@@ -10,11 +10,15 @@ const { logAction } = require('../utils/auditLogger');
 
 router.get('/channel/:channelId', auth, async (req, res) => {
   try {
-    const { limit = 50, before } = req.query;
+    const { limit = 50, before, after } = req.query;
     let query = { channel: req.params.channelId };
     if (before) query.createdAt = { $lt: new Date(before) };
-    const messages = await Message.find(query).populate('author', 'username avatar badges').populate({ path: 'replyTo', populate: { path: 'author', select: 'username avatar badges' } }).populate('mentions', 'username avatar badges').sort({ createdAt: -1 }).limit(parseInt(limit)).exec();
-    res.json(messages.reverse());
+    else if (after) query.createdAt = { $gt: new Date(after) };
+    // When fetching `after`, take the OLDEST matches above the cursor (sort ascending).
+    // Otherwise default to newest-first paging.
+    const sort = after ? { createdAt: 1 } : { createdAt: -1 };
+    const messages = await Message.find(query).populate('author', 'username avatar badges').populate({ path: 'replyTo', populate: { path: 'author', select: 'username avatar badges' } }).populate('mentions', 'username avatar badges').sort(sort).limit(parseInt(limit)).exec();
+    res.json(after ? messages : messages.reverse());
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

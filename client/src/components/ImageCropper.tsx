@@ -54,10 +54,25 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ image, cropShape = 'round',
         return new Promise((res) => canvas.toBlob((blob) => { if (blob) res(blob); }, 'image/jpeg', 0.95) as any);
     };
 
+    const dataUrlToArrayBuffer = (dataUrl: string): ArrayBuffer => {
+        const comma = dataUrl.indexOf(',');
+        const base64 = dataUrl.slice(comma + 1);
+        const bin = atob(base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes.buffer;
+    };
+
     const getCroppedGif = async (imageSrc: string, pixelCrop: any): Promise<Blob> => {
-        // Fetch the GIF binary
-        const resp = await fetch(imageSrc);
-        const buffer = await resp.arrayBuffer();
+        // Fetching a `data:` URL trips the document's connect-src CSP, so decode it
+        // ourselves. Non-data sources still go through fetch.
+        let buffer: ArrayBuffer;
+        if (imageSrc.startsWith('data:')) {
+            buffer = dataUrlToArrayBuffer(imageSrc);
+        } else {
+            const resp = await fetch(imageSrc);
+            buffer = await resp.arrayBuffer();
+        }
 
         const gif = parseGIF(buffer);
         const frames = decompressFrames(gif, true);
