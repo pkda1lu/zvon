@@ -83,6 +83,37 @@ router.get('/:id/messages', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+router.get('/:id/messages/search', auth, async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString().trim();
+    if (q.length < 2) return res.json({ results: [], hasMore: false });
+    const limit = Math.min(parseInt(req.query.limit) || 30, 50);
+    const before = req.query.before;
+
+    const dm = await DirectMessage.findById(req.params.id).select('participants');
+    if (!dm) return res.status(404).json({ message: 'DM not found' });
+    if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
+
+    const query = {
+      channel: null,
+      directMessage: dm._id,
+      content: { $regex: escapeRegex(q), $options: 'i' },
+    };
+    if (before) query.createdAt = { $lt: new Date(before) };
+
+    const results = await Message.find(query)
+      .populate('author', 'username avatar badges')
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = results.length > limit;
+    res.json({ results: hasMore ? results.slice(0, limit) : results, hasMore });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.post('/:id/messages', auth, async (req, res) => {
   try {
     const { content, attachments, type } = req.body;

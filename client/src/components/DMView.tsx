@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import { DirectMessage, Message, User } from '../types';
@@ -6,7 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon } from './Icons';
+import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon } from './Icons';
+import MessageSearchPanel from './MessageSearchPanel';
 import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -84,7 +86,37 @@ const DMView: React.FC<DMViewProps> = ({
   const [friends, setFriends] = useState<User[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const [showPins, setShowPins] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [flashMessageId, setFlashMessageId] = useState<string | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const FIRST_ITEM_INDEX_START = 1_000_000;
+  const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_INDEX_START);
+  const prevFirstMsgIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setFirstItemIndex(FIRST_ITEM_INDEX_START);
+    prevFirstMsgIdRef.current = null;
+  }, [dm._id]);
+
+  useEffect(() => {
+    const newFirstId = messages[0]?._id ?? null;
+    const oldFirstId = prevFirstMsgIdRef.current;
+    if (oldFirstId && newFirstId && oldFirstId !== newFirstId) {
+      const idxInNew = messages.findIndex(m => m._id === oldFirstId);
+      if (idxInNew > 0) setFirstItemIndex(fi => fi - idxInNew);
+    }
+    prevFirstMsgIdRef.current = newFirstId;
+  }, [messages]);
+
+  const handleStartReached = useCallback(() => {
+    if (hasMore && !isLoadingMore && onLoadMore) onLoadMore();
+  }, [hasMore, isLoadingMore, onLoadMore]);
+
+  const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+    setShowScrollBottom(!atBottom);
+  }, []);
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
@@ -113,6 +145,43 @@ const DMView: React.FC<DMViewProps> = ({
       socket.off('message-reactions-update', handleReactionsUpdate);
     };
   }, [socket, setMessages]);
+
+  const jumpToMessage = async (messageId: string, createdAt: string) => {
+    setShowSearch(false);
+    const alreadyLoaded = messages.some(m => m._id === messageId);
+    if (!alreadyLoaded && setMessages) {
+      try {
+        const cursor = new Date(new Date(createdAt).getTime() + 1).toISOString();
+        const res = await axios.get(`/api/direct-messages/${dm._id}/messages`, { params: { before: cursor } });
+        setMessages(res.data);
+      } catch (e) { return; }
+    }
+    setFlashMessageId(messageId);
+  };
+
+  useEffect(() => {
+    if (!flashMessageId) return;
+    const idx = messages.findIndex(m => m._id === flashMessageId);
+    if (idx >= 0 && virtuosoRef.current) {
+      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
+    }
+    let cancelled = false;
+    const attempt = (tries: number) => {
+      if (cancelled) return;
+      const el = document.getElementById(`msg-${flashMessageId}`);
+      if (el) {
+        el.classList.add('msg-search-message-flash');
+        window.setTimeout(() => el.classList.remove('msg-search-message-flash'), 1700);
+        setFlashMessageId(null);
+      } else if (tries > 0) {
+        window.setTimeout(() => attempt(tries - 1), 100);
+      } else {
+        setFlashMessageId(null);
+      }
+    };
+    attempt(15);
+    return () => { cancelled = true; };
+  }, [flashMessageId, messages]);
 
   const handleReact = (messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });
@@ -524,49 +593,13 @@ const DMView: React.FC<DMViewProps> = ({
   };
 
   useEffect(() => {
-    // Initial jump to bottom or unread
     if (messages.length > 0 && !hasScrolledToNew) {
-      const scrollContainer = scrollContainerRef.current;
-      if (!scrollContainer) return;
-
-      const performScroll = () => {
-        if (initialUnreadCount > 0 && unreadRef.current) {
-          scrollContainer.scrollTop = unreadRef.current.offsetTop - 100;
-        } else {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight;
-        }
-      };
-
-      // Execute immediately and then after a short delay for late-rendering elements
-      performScroll();
-      const t1 = setTimeout(performScroll, 50);
-      const t2 = setTimeout(performScroll, 200);
-      const t3 = setTimeout(performScroll, 500);
-
-      setHasScrolledToNew(true);
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-      };
+      const t = window.setTimeout(() => setHasScrolledToNew(true), 400);
+      return () => window.clearTimeout(t);
     } else if (messages.length === 0 && hasScrolledToNew) {
       setHasScrolledToNew(false);
     }
-  }, [messages.length, initialUnreadCount, hasScrolledToNew, dm._id]);
-
-  useEffect(() => {
-    if (hasScrolledToNew) {
-      const container = scrollContainerRef.current;
-      if (container) {
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300;
-        if (isNearBottom) {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } else {
-          setShowScrollBottom(true);
-        }
-      }
-    }
-  }, [messages, hasScrolledToNew]);
+  }, [messages.length, hasScrolledToNew, dm._id]);
 
   // TTS Effect
   useEffect(() => {
@@ -596,7 +629,7 @@ const DMView: React.FC<DMViewProps> = ({
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth', align: 'end' });
     setShowScrollBottom(false);
   };
 
@@ -605,12 +638,20 @@ const DMView: React.FC<DMViewProps> = ({
   };
 
   const scrollToMessage = (msgId: string) => {
-    const el = document.getElementById(`msg-${msgId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('highlight-flash');
-      setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+    const idx = messages.findIndex(m => m._id === msgId);
+    if (idx >= 0 && virtuosoRef.current) {
+      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
     }
+    const tryFlash = (tries: number) => {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) {
+        el.classList.add('highlight-flash');
+        window.setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+      } else if (tries > 0) {
+        window.setTimeout(() => tryFlash(tries - 1), 80);
+      }
+    };
+    tryFlash(15);
   };
 
   return (
@@ -679,6 +720,9 @@ const DMView: React.FC<DMViewProps> = ({
           >
             <PhoneIcon />
           </button>
+          <button className="voice-call-button" onClick={() => setShowSearch(s => !s)} title="Поиск по сообщениям">
+            <SearchIcon size={20} color={showSearch ? "var(--primary-neon)" : "var(--text-dim)"} />
+          </button>
           <button className="voice-call-button" onClick={() => setShowPins(!showPins)} title="Закрепленные сообщения">
             <PinIcon size={20} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
           </button>
@@ -745,11 +789,27 @@ const DMView: React.FC<DMViewProps> = ({
 
         <StickyPins pinnedMessages={pinnedMessages} onOpenPins={() => setShowPins(true)} />
 
-        <div className="messages-container" ref={scrollContainerRef} onScroll={handleScroll}>
-          {isLoadingMore && <div className="loading-more">Загрузка...</div>}
-          <div className="messages-list">
-            {messages.map((msg, idx) => {
-              const prev = messages[idx - 1];
+        <div className="messages-container">
+          <Virtuoso
+            ref={virtuosoRef}
+            className="messages-list"
+            style={{ height: '100%', width: '100%' }}
+            data={messages}
+            firstItemIndex={firstItemIndex}
+            initialTopMostItemIndex={Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
+            startReached={handleStartReached}
+            followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+            atBottomThreshold={120}
+            atBottomStateChange={handleAtBottomStateChange}
+            increaseViewportBy={{ top: 600, bottom: 300 }}
+            components={{
+              Header: () => (isLoadingMore ? <div className="loading-more">Загрузка...</div> : null),
+              Footer: () => <div style={{ height: 8 }} />,
+            }}
+            computeItemKey={(_i, item) => item._id}
+            itemContent={(absoluteIndex, msg) => {
+              const idx = absoluteIndex - firstItemIndex;
+              const prev = idx > 0 ? messages[idx - 1] : undefined;
               const showDate = shouldShowDate(msg, prev);
               const grouped = isGrouped(msg, prev);
               const isFresh = hasBaseline && idx > lastSeenIdx;
@@ -1022,9 +1082,8 @@ const DMView: React.FC<DMViewProps> = ({
                   )}
                 </React.Fragment>
               );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
+            }}
+          />
         </div>
 
         <div className="message-input-container">
@@ -1145,14 +1204,20 @@ const DMView: React.FC<DMViewProps> = ({
         document.body
       )}
       {createPortal(
-        <AttachmentsModal 
-          isOpen={showAttachments} 
-          onClose={() => setShowAttachments(false)} 
-          dmId={dm._id} 
-          title={displayName || ''} 
+        <AttachmentsModal
+          isOpen={showAttachments}
+          onClose={() => setShowAttachments(false)}
+          dmId={dm._id}
+          title={displayName || ''}
         />,
         document.body
       )}
+      <MessageSearchPanel
+        open={showSearch}
+        onClose={() => setShowSearch(false)}
+        endpoint={`/api/direct-messages/${dm._id}/messages/search`}
+        onJump={jumpToMessage}
+      />
     </div >
   );
 };

@@ -18,6 +18,35 @@ router.get('/channel/:channelId', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+router.get('/channel/:channelId/search', auth, async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString().trim();
+    if (q.length < 2) return res.json({ results: [], hasMore: false });
+    const limit = Math.min(parseInt(req.query.limit) || 30, 50);
+    const before = req.query.before;
+
+    const channel = await Channel.findById(req.params.channelId).select('server type').lean();
+    if (!channel) return res.status(404).json({ message: 'Channel not found' });
+
+    const query = {
+      channel: req.params.channelId,
+      content: { $regex: escapeRegex(q), $options: 'i' },
+    };
+    if (before) query.createdAt = { $lt: new Date(before) };
+
+    const results = await Message.find(query)
+      .populate('author', 'username avatar badges')
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = results.length > limit;
+    res.json({ results: hasMore ? results.slice(0, limit) : results, hasMore });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.post('/', auth, async (req, res) => {
   try {
     const { content, channelId, replyTo, attachments } = req.body;
