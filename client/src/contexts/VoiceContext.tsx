@@ -23,6 +23,7 @@ import {
     VideoPresets,
     VideoQuality,
     createAudioAnalyser,
+    createLocalAudioTrack,
     TrackPublication,
     ConnectionQuality
 } from 'livekit-client';
@@ -337,7 +338,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const lastSpeakingTimeRef = useRef<number>(0);
     const lastVadMessageTimeRef = useRef<number>(0);
     const vadInitTimeRef = useRef<number>(0); // when VAD was last initialized
-    const registeredWorkletsRef = useRef<Set<string>>(new Set());
+    const registeredWorkletsRef = useRef<WeakSet<AudioContext>>(new WeakSet());
 
     // Sync refs for the interval to avoid re-creation
     const inputSensitivityRef = useRef(inputSensitivity);
@@ -927,14 +928,26 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         isJoiningRef.current = true;
         try {
-            // 1. Get token from server
-            const { data } = await axios.get('/api/livekit/token', {
+            // 1. Fire off everything in parallel — token fetch and mic acquisition both have
+            // latency the server doesn't, and there's no reason to serialize them.
+            const tokenPromise = axios.get('/api/livekit/token', {
                 params: {
                     roomName: `channel-${channelId}`,
                     identity: user?._id?.toString()
                 }
             });
 
+            const audioTrackPromise = createLocalAudioTrack({
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined,
+            }).catch((e) => {
+                console.warn('[Voice] Pre-acquire of mic failed, will fall back to setMicrophoneEnabled', e);
+                return null;
+            });
+
+            const { data } = await tokenPromise;
             const { token, serverUrl } = data;
             console.log('[LiveKit] Received token from server. Type:', typeof token, 'Length:', token?.length);
 
@@ -1075,18 +1088,25 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (roomRef.current !== room) {
                 console.warn('[LiveKit] Join cancelled during connection');
                 await room.disconnect();
+                audioTrackPromise.then(t => { try { t?.stop(); } catch { } });
                 return;
             }
 
             console.log('[LiveKit] Connected to room');
 
-            // 4. Publish Audio
-            await room.localParticipant.setMicrophoneEnabled(true, {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
-            });
+            // 4. Publish Audio — use the pre-acquired track if available, otherwise fall back
+            // to the standard helper (which will perform getUserMedia synchronously here).
+            const preAcquiredTrack = await audioTrackPromise;
+            if (preAcquiredTrack) {
+                await room.localParticipant.publishTrack(preAcquiredTrack, { source: Track.Source.Microphone });
+            } else {
+                await room.localParticipant.setMicrophoneEnabled(true, {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
+                });
+            }
 
             if (roomRef.current !== room) {
                 console.warn('[LiveKit] Join cancelled after mic enabled');
@@ -1094,8 +1114,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 return;
             }
 
-            // Track details will be handled by the LocalTrackPublished event listener
-            // but we can also trigger a manual sync if it's already published
+            // LocalTrackPublished will fire and route through handleLocalMicPublication,
+            // but trigger a sync in case it already fired (e.g. with pre-acquired track).
             const localAudioTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
             if (localAudioTrack) {
                 handleLocalMicPublication(localAudioTrack);
@@ -1615,11 +1635,20 @@ registerProcessor('vad-processor', VADProcessor);
                 const blob = new Blob([vadWorkletCode], { type: 'application/javascript' });
                 const url = URL.createObjectURL(blob);
 
-                // Only register if not already registered for this context
-                if (!registeredWorkletsRef.current.has('vad-processor')) {
+                // Only register once per AudioContext. The guard is keyed by the context
+                // itself, so a freshly-created context still gets the worklet, and a reused
+                // one skips it. The try/catch covers the race where two joins call addModule
+                // before either updates the WeakSet — addModule throws "already registered"
+                // in that case, which is harmless.
+                if (!registeredWorkletsRef.current.has(audioCtx)) {
                     console.log("[Voice] Adding VAD Worklet module...");
-                    await audioCtx.audioWorklet.addModule(url);
-                    registeredWorkletsRef.current.add('vad-processor');
+                    try {
+                        await audioCtx.audioWorklet.addModule(url);
+                    } catch (e) {
+                        if (!/already registered/i.test(String((e as Error)?.message ?? e))) throw e;
+                        console.log("[Voice] VAD Worklet already registered on this context");
+                    }
+                    registeredWorkletsRef.current.add(audioCtx);
                     console.log("[Voice] VAD Worklet module added");
                 } else {
                     console.log("[Voice] VAD Worklet already registered, skipping addModule");

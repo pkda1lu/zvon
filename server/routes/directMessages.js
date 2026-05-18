@@ -65,21 +65,23 @@ router.post('/group', auth, async (req, res) => {
 
 router.get('/:id/messages', auth, async (req, res) => {
   try {
-    const { limit = 50, before } = req.query;
+    const { limit = 50, before, after } = req.query;
     const dm = await DirectMessage.findById(req.params.id);
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
 
     let query = { channel: null, directMessage: dm._id };
     if (before) query.createdAt = { $lt: new Date(before) };
+    else if (after) query.createdAt = { $gt: new Date(after) };
+    const sort = after ? { createdAt: 1 } : { createdAt: -1 };
 
     const messages = await Message.find(query)
       .populate('author', 'username avatar badges activity')
       .populate('mentions', 'username avatar badges activity')
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .limit(parseInt(limit))
       .exec();
-    res.json(messages.reverse());
+    res.json(after ? messages : messages.reverse());
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

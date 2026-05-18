@@ -151,9 +151,17 @@ const DMView: React.FC<DMViewProps> = ({
     const alreadyLoaded = messages.some(m => m._id === messageId);
     if (!alreadyLoaded && setMessages) {
       try {
-        const cursor = new Date(new Date(createdAt).getTime() + 1).toISOString();
-        const res = await axios.get(`/api/direct-messages/${dm._id}/messages`, { params: { before: cursor } });
-        setMessages(res.data);
+        const beforeCursor = new Date(new Date(createdAt).getTime() + 1).toISOString();
+        const afterCursor = new Date(createdAt).toISOString();
+        const [olderRes, newerRes] = await Promise.all([
+          axios.get(`/api/direct-messages/${dm._id}/messages`, { params: { before: beforeCursor, limit: 30 } }),
+          axios.get(`/api/direct-messages/${dm._id}/messages`, { params: { after: afterCursor, limit: 30 } }),
+        ]);
+        const merged = [...olderRes.data, ...newerRes.data];
+        const seen = new Set<string>();
+        const dedup = merged.filter((m: Message) => seen.has(m._id) ? false : (seen.add(m._id), true));
+        dedup.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        setMessages(dedup);
       } catch (e) { return; }
     }
     setFlashMessageId(messageId);
@@ -790,7 +798,9 @@ const DMView: React.FC<DMViewProps> = ({
         <StickyPins pinnedMessages={pinnedMessages} onOpenPins={() => setShowPins(true)} />
 
         <div className="messages-container">
+          {messages.length > 0 && (
           <Virtuoso
+            key={dm._id}
             ref={virtuosoRef}
             className="messages-list"
             style={{ height: '100%', width: '100%' }}
@@ -798,7 +808,7 @@ const DMView: React.FC<DMViewProps> = ({
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
             startReached={handleStartReached}
-            followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+            followOutput={(isAtBottom) => (isAtBottom ? 'auto' : false)}
             atBottomThreshold={120}
             atBottomStateChange={handleAtBottomStateChange}
             increaseViewportBy={{ top: 600, bottom: 300 }}
@@ -1084,6 +1094,7 @@ const DMView: React.FC<DMViewProps> = ({
               );
             }}
           />
+          )}
         </div>
 
         <div className="message-input-container">
