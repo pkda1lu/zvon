@@ -4,7 +4,7 @@ import './Docs.css';
 
 const Docs: React.FC = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'general' | 'bot-api'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'bot-api' | 'miniapps'>('general');
 
     return (
         <div className="docs-container">
@@ -30,10 +30,16 @@ const Docs: React.FC = () => {
                     >
                         API для Ботов
                     </div>
+                    <div
+                        className={`sidebar-item ${activeTab === 'miniapps' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('miniapps')}
+                    >
+                        Мини-приложения
+                    </div>
                 </aside>
 
                 <main className="docs-main">
-                    {activeTab === 'general' ? (
+                    {activeTab === 'general' && (
                         <div className="docs-content">
                             <h1>Документация Zvon</h1>
                             <p className="lead">Zvon — это современная платформа для общения, стриминга и совместного проведения времени.</p>
@@ -78,7 +84,9 @@ const Docs: React.FC = () => {
                                 </ul>
                             </section>
                         </div>
-                    ) : (
+                    )}
+
+                    {activeTab === 'bot-api' && (
                         <div className="docs-content">
                             <h1>API для ботов (Webhooks & Sockets)</h1>
                             <p className="lead">Вы можете создавать своих ботов для Zvon, используя наш простой SDK на основе Socket.io и Webhooks.</p>
@@ -143,6 +151,44 @@ ffmpeg.stdout.on("data", (chunk) => {
   // Нарезка на кадры (FRAME_SIZE = 960 * 2) и захват через audioSource.captureFrame
 });`}</pre>
                                 </div>
+                            </section>
+                        </div>
+                    )}
+
+                    {activeTab === 'miniapps' && (
+                        <div className="docs-content">
+                            <h1>Мини-приложения (Embedded Web Apps)</h1>
+                            <p className="lead">Интегрируйте свои веб-сервисы, игры или инструменты прямо в интерфейс Zvon.</p>
+
+                            <section className="disclaimer-section" style={{ background: 'rgba(255, 107, 0, 0.1)', borderLeft: '4px solid #ff6b00', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
+                                <h3 style={{ color: '#ff6b00', marginTop: 0 }}>⚠️ Критическое требование</h3>
+                                <p>Сайт, на котором размещено ваше мини-приложение, <strong>НЕ ДОЛЖЕН блокировать</strong> возможность открытия в <code>iframe</code> (плавающем окне Zvon).</p>
+                                <p>Убедитесь, что заголовки на вашем сервере настроены следующим образом:</p>
+                                <ul>
+                                    <li><code>X-Frame-Options</code>: не должен иметь значение <code>DENY</code> или <code>SAMEORIGIN</code>.</li>
+                                    <li><code>Content-Security-Policy</code>: директива <code>frame-ancestors</code> должна разрешать домены Zvon или быть установлена в <code>*</code>.</li>
+                                </ul>
+                                <p style={{ marginBottom: 0 }}>Если эти заголовки настроены неверно, приложение отобразится в виде пустого окна (отказ в соединении).</p>
+                            </section>
+
+                            <section>
+                                <h2>🚀 Как это работает</h2>
+                                <p>Мини-приложения открываются внутри Zvon как изолированные плавающие окна. Это позволяет пользователям взаимодействовать с вашим контентом, не покидая чат или голосовой канал.</p>
+                                <ul>
+                                    <li><strong>Изоляция:</strong> Каждое приложение работает в своем контексте.</li>
+                                    <li><strong>Адаптивность:</strong> Окна могут изменять размер, поэтому ваше приложение должно быть полностью адаптивным.</li>
+                                    <li><strong>HTTPS:</strong> Поддерживаются только защищенные соединения.</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h2>🎨 Оформление и Витрина</h2>
+                                <p>Вы можете опубликовать своё приложение на «Витрине», чтобы другие пользователи могли его запускать.</p>
+                                <ul>
+                                    <li><strong>Баннеры и Аватары:</strong> Настройте привлекательный внешний вид в панели разработчика.</li>
+                                    <li><strong>Описание:</strong> Расскажите пользователям о возможностях вашего приложения.</li>
+                                    <li><strong>Запуск из профиля:</strong> Если вы открыли приложение, другие пользователи увидят кнопку «Запустить» в вашем профиле и смогут присоединиться к вам.</li>
+                                </ul>
                             </section>
                         </div>
                     )}
