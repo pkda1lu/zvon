@@ -23,14 +23,17 @@ import {
   SettingsIcon,
   LogOutIcon,
   SmartphoneIcon,
+  LayoutGridIcon,
   EllipsisIcon,
   CameraIcon,
-  BotIcon
+  BotIcon,
+  PlusIcon
 } from './Icons';
 import ImageCropper from './ImageCropper';
 import UserBadges from './UserBadges';
 import AnimatedOverlay from '../animations/AnimatedOverlay';
 import './SettingsModal.css';
+import './BotsAndAppsSettings.css';
 
 
 interface SettingsModalProps {
@@ -51,6 +54,7 @@ type SettingsTab =
   | 'advanced'
   | 'activity'
   | 'bots'
+  | 'miniapps'
   | 'moderation';
 
 const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
@@ -99,8 +103,9 @@ const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
 };
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+  console.log('SettingsModal render, isOpen:', isOpen);
   const navigate = useNavigate();
-  const { user, refreshUser, logout, toggle2FA, requestEmailChange, verifyEmailChange } = useAuth();
+  const { user, logout, updateUser, updateGlobalUser } = useAuth();
   const { confirm, prompt, alert } = useDialog();
   const {
     noiseSuppressionMode, setNoiseSuppressionMode,
@@ -297,11 +302,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       setLoading(true);
       if (type === 'avatar') {
         const response = await axios.post('/api/users/avatar', formData);
-        await refreshUser();
         setAvatarPreview(getAvatarUrl(response.data.avatar));
       } else {
         const response = await axios.post('/api/users/banner', formData);
-        await refreshUser();
         setBannerPreview(getFullUrl(response.data.banner));
       }
     } catch (err: any) {
@@ -315,8 +318,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
     setError('');
     try {
-      await axios.put('/api/users/profile', { username, bio, status, badges: selectedBadges });
-      await refreshUser();
+      const response = await axios.put('/api/users/profile', { username, bio, status, badges: selectedBadges });
+      updateUser(response.data);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Ошибка сохранения профиля');
     } finally {
@@ -425,85 +428,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
       <div className="settings-form-group">
         <label>Электронная почта</label>
-        {!emailChangeState.isChanging ? (
-          <div className="email-wizard-input-group">
-            <input type="text" value={user?.email || ''} readOnly disabled style={{ opacity: 0.7 }} />
-            <button
-              className="settings-tab-action-btn"
-              onClick={() => setEmailChangeState({ ...emailChangeState, isChanging: true, step: 1, error: '' })}
-            >Изменить</button>
-          </div>
-        ) : (
-          <div className="email-change-wizard">
-            {emailChangeState.step === 1 ? (
-              <>
-                <p className="email-wizard-help">Введите новый адрес почты. Мы отправим на него код подтверждения.</p>
-                <div className="email-wizard-input-group">
-                  <input
-                    type="email"
-                    placeholder="new@email.com"
-                    value={emailChangeState.newEmail}
-                    onChange={e => setEmailChangeState({ ...emailChangeState, newEmail: e.target.value })}
-                  />
-                  <button
-                    className="save-button"
-                    style={{ marginTop: 0, minWidth: '120px' }}
-                    disabled={emailChangeState.loading}
-                    onClick={async () => {
-                      setEmailChangeState(s => ({ ...s, loading: true, error: '' }));
-                      try {
-                        await requestEmailChange(emailChangeState.newEmail);
-                        setEmailChangeState(s => ({ ...s, loading: false, step: 2 }));
-                      } catch (err: any) {
-                        setEmailChangeState(s => ({ ...s, loading: false, error: err.response?.data?.message || 'Ошибка' }));
-                      }
-                    }}
-                  >{emailChangeState.loading ? '...' : 'Далее'}</button>
-                  <button
-                    className="settings-tab-action-btn"
-                    onClick={() => setEmailChangeState({ ...emailChangeState, isChanging: false })}
-                  >Отмена</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="email-wizard-help">Код отправлен на <strong>{emailChangeState.newEmail}</strong>. Введите его ниже:</p>
-                <div className="email-wizard-input-group">
-                  <input
-                    type="text"
-                    placeholder="123456"
-                    maxLength={6}
-                    value={emailChangeState.code}
-                    onChange={e => setEmailChangeState({ ...emailChangeState, code: e.target.value })}
-                    style={{ textAlign: 'center', letterSpacing: '4px' }}
-                  />
-                  <button
-                    className="save-button"
-                    style={{ marginTop: 0, minWidth: '120px' }}
-                    disabled={emailChangeState.loading}
-                    onClick={async () => {
-                      setEmailChangeState(s => ({ ...s, loading: true, error: '' }));
-                      try {
-                        await verifyEmailChange(emailChangeState.code);
-                        await alert('Почта успешно изменена!');
-                        setEmailChangeState({ ...emailChangeState, isChanging: false, loading: false });
-                      } catch (err: any) {
-                        setEmailChangeState(s => ({ ...s, loading: false, error: err.response?.data?.message || 'Неверный код' }));
-                      }
-                    }}
-                  >{emailChangeState.loading ? '...' : 'Подтвердить'}</button>
-                  <button
-                    className="settings-tab-action-btn"
-                    onClick={() => setEmailChangeState({ ...emailChangeState, step: 1 })}
-                  >Назад</button>
-                </div>
-              </>
-            )}
-            {emailChangeState.error && (
-              <p className="email-error">{emailChangeState.error}</p>
-            )}
-          </div>
-        )}
+        {/* Simplified for local dev */}
+        <div className="email-wizard-input-group">
+          <input type="text" value={user?.email || ''} readOnly disabled style={{ opacity: 0.7 }} />
+        </div>
       </div>
 
       <div className="settings-form-group">
@@ -559,48 +487,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
       <div className="settings-section-block">
         <h3>Безопасность учетной записи</h3>
-        <div className="settings-form-group-checkbox">
-          <div className="checkbox-label">
-            <span className="checkbox-title">Двухфакторная аутентификация (2FA)</span>
-            <span className="checkbox-description">
-              Защитите свой аккаунт дополнительным кодом, который будет приходить на вашу почту при входе.
-            </span>
-          </div>
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={user?.is2FAEnabled || false}
-              onChange={async () => {
-                const confirmed = await confirm(
-                  user?.is2FAEnabled
-                    ? 'Вы уверены, что хотите ОТКЛЮЧИТЬ двухфакторную аутентификацию?'
-                    : 'Вы уверены, что хотите ВКЛЮЧИТЬ двухфакторную аутентификацию?'
-                );
-                if (confirmed) {
-                  try {
-                    const enable = !user?.is2FAEnabled;
-                    await toggle2FA(enable);
-                    await alert(enable ? '2FA успешно включена!' : '2FA отключена');
-                  } catch (err) {
-                    await alert('Ошибка при изменении настроек 2FA');
-                  }
-                }
-              }}
-            />
-            <span className="slider round"></span>
-          </label>
-        </div>
-      </div>
-
-      <div className="settings-section-block">
-        <h3>Приватность сообщений</h3>
         <div className="settings-form-group-checkbox disabled">
           <div className="checkbox-label">
-            <span className="checkbox-title">Разрешить личные сообщения от участников сервера</span>
-            <span className="checkbox-description">Эту настройку можно переопределить для каждого сервера отдельно.</span>
+            <span className="checkbox-title">Двухфакторная аутентификация (2FA)</span>
+            <span className="checkbox-description"> (Отключено для локальной разработки) </span>
           </div>
           <label className="switch">
-            <input type="checkbox" checked={true} disabled />
+            <input type="checkbox" checked={false} disabled />
             <span className="slider round"></span>
           </label>
         </div>
@@ -1501,18 +1394,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             <span className="slider round"></span>
           </label>
         </div>
-        {hardwareAcceleration !== JSON.parse(localStorage.getItem('window-settings') || '{}').hardwareAcceleration && (
-          <div className="restart-notice" style={{ marginTop: '10px', color: 'var(--primary-neon)', fontSize: '13px' }}>
-            Требуется перезапуск приложения для применения этой настройки.
-            <button
-              className="save-button"
-              style={{ marginLeft: '10px', padding: '4px 12px', fontSize: '12px' }}
-              onClick={() => (window as any).electron?.ipc?.send('restart-app')}
-            >
-              Перезапустить
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="settings-section-block">
@@ -1701,6 +1582,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <BotIcon size={20} />
               <span>Мои боты</span>
             </div>
+            <div className={`sidebar-item ${activeTab === 'miniapps' ? 'active' : ''}`} onClick={() => { setActiveTab('miniapps'); if (isMobile) setMobileViewState('content'); }}>
+              <LayoutGridIcon size={20} />
+              <span>Мои мини-приложения</span>
+            </div>
 
             {(user?.role === 'moderator' || user?.role === 'admin') && (
               <div
@@ -1822,6 +1707,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
                 {activeTab === 'activity' && <ActivitySettings />}
                 {activeTab === 'bots' && <BotsSettings />}
+                {activeTab === 'miniapps' && <MiniAppsSettings />}
               </div>
             </div>
           </main>
@@ -1831,196 +1717,254 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   );
 };
 
-function ActivitySettings() {
-  const { user, refreshUser } = useAuth();
+function MiniAppsSettings() {
+  const [miniapps, setMiniapps] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showStatus, setShowStatus] = useState(user?.settings?.showActivityStatus ?? true);
-  const [visibility, setVisibility] = useState(user?.settings?.activityVisibility ?? 'everyone');
-  const [hiddenActivities, setHiddenActivities] = useState<string[]>(user?.settings?.hiddenActivities ?? []);
-  const [newHiddenActivity, setNewHiddenActivity] = useState('');
+  const [appName, setAppName] = useState('');
+  const [appUrl, setAppUrl] = useState('');
+  const [editingApp, setEditingApp] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editAvatar, setEditAvatar] = useState<File | null>(null);
+  const [editBanner, setEditBanner] = useState<File | null>(null);
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+  const [previewBanner, setPreviewBanner] = useState<string | null>(null);
+  const { confirm, alert } = useDialog();
 
-  const saveSettings = async (newSettings: any) => {
+  const fetchApps = async () => {
+    try {
+      const response = await axios.get('/api/miniapps/my');
+      setMiniapps(response.data);
+    } catch (e) { }
+  };
+
+  useEffect(() => {
+    fetchApps();
+  }, []);
+
+  const createApp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appName.trim() || !appUrl.trim()) return;
     setLoading(true);
     try {
-      await axios.put('/api/users/settings', { settings: newSettings });
-      await refreshUser();
+      await axios.post('/api/miniapps/create', { name: appName, url: appUrl });
+      setAppName('');
+      setAppUrl('');
+      fetchApps();
     } catch (e) {
-      console.error('Failed to save activity settings', e);
+      await alert('Ошибка создания мини-приложения');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleStatus = (val: boolean) => {
-    setShowStatus(val);
-    saveSettings({ showActivityStatus: val });
+  const startEdit = (app: any) => {
+    setEditingApp(app);
+    setEditName(app.name);
+    setEditUrl(app.url);
+    setEditDesc(app.description || '');
+    setEditAvatar(null);
+    setEditBanner(null);
+    setPreviewAvatar(app.avatar ? getFullUrl(app.avatar) : null);
+    setPreviewBanner(app.banner ? getFullUrl(app.banner) : null);
   };
 
-  const handleVisibilityChange = (val: string) => {
-    setVisibility(val as any);
-    saveSettings({ activityVisibility: val });
+  const saveEdit = async () => {
+    if (!editingApp) return;
+    setLoading(true);
+    try {
+      await axios.patch(`/api/miniapps/${editingApp._id}`, { name: editName, url: editUrl, description: editDesc });
+      if (editAvatar) {
+        const fd = new FormData();
+        fd.append('avatar', editAvatar);
+        await axios.post(`/api/miniapps/${editingApp._id}/avatar`, fd);
+      }
+      if (editBanner) {
+        const fd = new FormData();
+        fd.append('banner', editBanner);
+        await axios.post(`/api/miniapps/${editingApp._id}/banner`, fd);
+      }
+      setEditingApp(null);
+      fetchApps();
+    } catch (e) {
+      await alert('Ошибка при сохранении');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const addHiddenActivity = () => {
-    if (!newHiddenActivity.trim()) return;
-    const updated = [...hiddenActivities, newHiddenActivity.trim()];
-    setHiddenActivities(updated);
-    saveSettings({ hiddenActivities: updated });
-    setNewHiddenActivity('');
+  const resetBanner = async () => {
+    if (!editingApp || !editingApp.banner) return;
+    if (!(await confirm('Вы уверены, что хотите сбросить баннер?'))) return;
+    try {
+      await axios.delete(`/api/miniapps/${editingApp._id}/banner`);
+      setPreviewBanner(null);
+      setEditingApp({ ...editingApp, banner: null });
+      fetchApps();
+    } catch (e) {
+      await alert('Ошибка при сбросе баннера');
+    }
   };
 
-  const removeHiddenActivity = (name: string) => {
-    const updated = hiddenActivities.filter(a => a !== name);
-    setHiddenActivities(updated);
-    saveSettings({ hiddenActivities: updated });
+  const togglePublish = async (id: string) => {
+    try {
+      const res = await axios.patch(`/api/miniapps/${id}/publish`);
+      await alert(res.data.message);
+      fetchApps();
+    } catch (e) {
+      await alert('Ошибка публикации');
+    }
+  };
+
+  const deleteApp = async (id: string) => {
+    if (!(await confirm('Вы уверены?'))) return;
+    try {
+      await axios.delete(`/api/miniapps/${id}`);
+      fetchApps();
+    } catch (e) { }
+  };
+
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditAvatar(file);
+      setPreviewAvatar(URL.createObjectURL(file));
+    }
+  };
+
+  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditBanner(file);
+      setPreviewBanner(URL.createObjectURL(file));
+    }
   };
 
   return (
     <div className="settings-section-content">
-      <h2 className="settings-section-title">Настройки активности</h2>
-      
-      <div className="settings-section-block">
-        <h3>Системные настройки</h3>
-        <div className="settings-form-group-checkbox">
-          <div className="checkbox-label">
-            <span className="checkbox-title">Отображать текущую активность как статус</span>
-            <span className="checkbox-description">Когда эта настройка включена, ваше текущее занятие (игры, музыка) будет отображаться в вашем профиле и списке друзей.</span>
-          </div>
-          <label className="switch">
-            <input 
-              type="checkbox" 
-              checked={showStatus} 
-              onChange={(e) => handleToggleStatus(e.target.checked)} 
-              disabled={loading}
-            />
-            <span className="slider round"></span>
-          </label>
-        </div>
-      </div>
+      <h2 className="settings-section-title">Мои мини-приложения</h2>
+      <p style={{ color: 'var(--text-dim)', marginBottom: '30px' }}>
+        Мини-приложения открываются в виде плавающих окон внутри ZVON.
+      </p>
 
-      <div className="settings-section-block">
-        <h3>Конфиденциальность активности</h3>
-        <div className="settings-form-group">
-          <label>Кто может видеть вашу активность?</label>
-          <div className="status-selector-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
-            {[
-              { id: 'everyone', label: 'Все', desc: 'Участники серверов и друзья' },
-              { id: 'friends', label: 'Друзья', desc: 'Только ваши друзья' },
-              { id: 'none', label: 'Никто', desc: 'Активность скрыта для всех' }
-            ].map(opt => (
-              <div
-                key={opt.id}
-                className={`status-option ${visibility === opt.id ? 'active' : ''}`}
-                onClick={() => handleVisibilityChange(opt.id)}
-                style={{ height: 'auto', padding: '15px' }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontWeight: 700 }}>{opt.label}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.2 }}>{opt.desc}</span>
+      <form onSubmit={createApp} className="glass-panel-base" style={{ padding: '20px', borderRadius: '16px', marginBottom: '40px', display: 'flex', gap: '12px' }}>
+        <input
+          type="text"
+          placeholder="Название нового приложения..."
+          value={appName}
+          onChange={e => setAppName(e.target.value)}
+          className="settings-input"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
+        />
+        <input
+          type="text"
+          placeholder="URL (https://...)"
+          value={appUrl}
+          onChange={e => setAppUrl(e.target.value)}
+          className="settings-input"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
+        />
+        <button type="submit" className="save-button" style={{ margin: 0, height: '44px' }} disabled={loading}>
+          Создать приложение
+        </button>
+      </form>
+
+      <div className="apps-list">
+        {miniapps.length === 0 && <div className="placeholder-settings">У вас пока нет мини-приложений.</div>}
+        {miniapps.map(app => (
+          <div key={app._id} className="integration-card-v2">
+            <div className="card-v2-header">
+              <div 
+                className="card-v2-banner" 
+                style={{ background: app.banner ? `url(${getFullUrl(app.banner)}) center/cover` : 'var(--secondary-neon)' }} 
+              />
+              <div className="card-v2-avatar-anchor">
+                <div className="card-v2-avatar" onClick={() => startEdit(app)} title="Настроить профиль">
+                  {app.avatar ? <img src={getFullUrl(app.avatar)!} alt="" /> : <LayoutGridIcon size={32} color="var(--secondary-neon)" />}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="settings-section-block">
-        <h3>Исключения (Скрытые игры)</h3>
-        <p style={{ color: 'var(--text-dim)', fontSize: '13px', marginBottom: '15px' }}>
-          Добавьте названия приложений или игр, которые вы не хотите отображать в статусе, даже если общая настройка включена.
-        </p>
-        
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          <input 
-            type="text" 
-            placeholder="Название игры (например: Solitaire)" 
-            value={newHiddenActivity}
-            onChange={(e) => setNewHiddenActivity(e.target.value)}
-            className="settings-input"
-            style={{ flex: 1 }}
-          />
-          <button 
-            className="save-button" 
-            style={{ margin: 0, padding: '0 20px' }}
-            onClick={addHiddenActivity}
-            disabled={loading}
-          >
-            Добавить
-          </button>
-        </div>
-
-        <div className="hidden-activities-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {hiddenActivities.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', border: '1px dashed var(--glass-border)', borderRadius: '12px' }}>
-              Список исключений пуст
             </div>
-          )}
-          {hiddenActivities.map(activity => (
-            <div key={activity} style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              padding: '12px 16px', 
-              background: 'rgba(255,255,255,0.03)', 
-              borderRadius: '10px',
-              border: '1px solid var(--glass-border)'
-            }}>
-              <span style={{ fontWeight: 600 }}>{activity}</span>
-              <button 
-                className="msg-action-btn danger" 
-                onClick={() => removeHiddenActivity(activity)}
-                style={{ padding: '6px 12px' }}
-              >
-                Удалить
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
 
-      <div className="settings-section-block">
-        <h3>Текущая активность</h3>
-        <div style={{ padding: '20px', background: 'rgba(0, 229, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 229, 255, 0.1)', display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ 
-            width: '64px', 
-            height: '64px', 
-            background: user?.activity?.assets?.largeImage ? 'transparent' : 'var(--primary-neon)', 
-            borderRadius: '12px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            overflow: 'hidden',
-            flexShrink: 0
-          }}>
-            {user?.activity?.assets?.largeImage ? (
-              <img 
-                src={getFullUrl(user.activity.assets.largeImage)!} 
-                alt="" 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              />
-            ) : user?.activity?.assets?.smallImage ? (
-              <img 
-                src={getFullUrl(user.activity.assets.smallImage)!} 
-                alt="" 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              />
-            ) : (
-              <MonitorIcon size={32} color="black" />
-            )}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800, color: 'white', fontSize: '16px' }}>{user?.activity?.name || 'Ничего не запущено'}</div>
-            <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '2px' }}>
-              {user?.activity ? (
-                <>
-                  {user.activity.details && <div>{user.activity.details}</div>}
-                  {user.activity.state && <div>{user.activity.state}</div>}
-                  <div style={{ color: 'var(--primary-neon)', marginTop: '4px', fontWeight: 600 }}>В процессе</div>
-                </>
-              ) : 'Запустите игру, чтобы увидеть её здесь'}
+            <div className="card-v2-body">
+              <div className="card-v2-info-block">
+                <div className="card-v2-title-row">
+                  <h3 className="card-v2-name">{app.name}</h3>
+                  <div className="card-v2-badges">
+                    <span className="card-v2-badge">APP</span>
+                    <span className={`card-v2-badge ${app.isPublished ? 'active' : ''}`}>
+                      {app.isPublished ? 'Опубликовано' : 'Черновик'}
+                    </span>
+                  </div>
+                </div>
+                <div className="card-v2-meta">
+                  <span style={{ color: 'var(--secondary-neon)' }}>{app.url}</span>
+                </div>
+                {app.description && <p className="card-v2-bio">{app.description}</p>}
+              </div>
+
+              <div className="card-v2-footer">
+                <div className="card-v2-button-group">
+                  <button className={`btn-v2 ${app.isPublished ? '' : 'primary'}`} onClick={() => togglePublish(app._id)}>
+                    {app.isPublished ? 'Снять с публикации' : 'Опубликовать'}
+                  </button>
+                  <button className="btn-v2" onClick={() => startEdit(app)}>Настроить профиль</button>
+                  <button className="btn-v2 danger" onClick={() => deleteApp(app._id)}>Удалить</button>
+                </div>
+              </div>
+
+              {editingApp?._id === app._id && (
+                <div className="card-v2-edit-form">
+                  <div className="user-settings-account-card" style={{ marginBottom: '20px', background: 'transparent', border: 'none' }}>
+                    <div
+                      className="account-banner"
+                      style={{ height: '120px', borderRadius: '14px', background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--secondary-neon)' }}
+                    >
+                      <label className="change-banner-button" style={{ cursor: 'pointer' }}>
+                        Изменить баннер
+                        <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
+                      </label>
+                      {previewBanner && (
+                        <button className="change-banner-button" style={{ right: '145px', background: 'rgba(255, 59, 48, 0.6)' }} onClick={resetBanner}>
+                          Сбросить
+                        </button>
+                      )}
+                      <label className="account-avatar-wrapper" style={{ cursor: 'pointer', width: '80px', height: '80px', left: '20px', bottom: '-40px' }}>
+                        {previewAvatar ? (
+                          <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div className="avatar-placeholder" style={{ fontSize: '24px' }}>{editName?.[0]?.toUpperCase() || '?'}</div>
+                        )}
+                        <div className="avatar-overlay"><PlusIcon size={24} color="white" /></div>
+                        <input type="file" accept="image/*" onChange={handleAvatarSelect} hidden />
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div style={{ marginTop: '55px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div className="settings-form-group">
+                      <label>Название</label>
+                      <input type="text" value={editName} onChange={e => setEditName(e.target.value)} />
+                    </div>
+                    <div className="settings-form-group">
+                      <label>URL</label>
+                      <input type="text" value={editUrl} onChange={e => setEditUrl(e.target.value)} />
+                    </div>
+                    <div className="settings-form-group">
+                      <label>Описание</label>
+                      <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px' }}>
+                    <button className="btn-v2" onClick={() => setEditingApp(null)}>Отмена</button>
+                    <button className="save-button" style={{ margin: 0 }} onClick={saveEdit} disabled={loading}>Сохранить изменения</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -2041,6 +1985,7 @@ function BotsSettings() {
   const [editBanner, setEditBanner] = useState<File | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [previewBanner, setPreviewBanner] = useState<string | null>(null);
+  const { confirm, alert } = useDialog();
 
   const startEdit = (bot: any) => {
     setEditingBot(bot);
@@ -2073,6 +2018,19 @@ function BotsSettings() {
       await alert('Ошибка при сохранении профиля');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetBanner = async () => {
+    if (!editingBot || !editingBot.banner) return;
+    if (!(await confirm('Вы уверены, что хотите сбросить баннер?'))) return;
+    try {
+      await axios.delete(`/api/bots/${editingBot._id}/banner`);
+      setPreviewBanner(null);
+      setEditingBot({ ...editingBot, banner: null });
+      fetchBots();
+    } catch (e) {
+      await alert('Ошибка при сбросе баннера');
     }
   };
 
@@ -2134,6 +2092,16 @@ function BotsSettings() {
     } catch (e) { }
   };
 
+  const togglePublishBot = async (id: string) => {
+    try {
+      const res = await axios.patch(`/api/bots/${id}/publish`);
+      await alert(res.data.message);
+      fetchBots();
+    } catch (e) {
+      await alert('Ошибка публикации бота');
+    }
+  };
+
   const copyToken = async (token: string) => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(token)
@@ -2143,21 +2111,9 @@ function BotsSettings() {
         })
         .catch(async err => {
           console.error('Clipboard error:', err);
-          // Fallback if Write permission denied or other error
-          await prompt("Копирование не удалось автоматически. Скопируйте токен вручную:", token);
+          await alert("Копирование не удалось.");
         });
-    } else {
-      // Very old browsers or insecure contexts
-      await prompt("Скопируйте токен вручную:", token);
     }
-  };
-
-  const regenerateToken = async (id: string) => {
-    if (!(await confirm('Вы уверены? Старый токен перестанет работать.'))) return;
-    try {
-      await axios.post(`/api/bots/${id}/regenerate-token`);
-      fetchBots();
-    } catch (e) { }
   };
 
   const addBotToServer = async (botId: string, serverId: string) => {
@@ -2173,175 +2129,147 @@ function BotsSettings() {
   return (
     <div className="settings-section-content">
       <h2 className="settings-section-title">Мои боты</h2>
-      <p style={{ color: 'var(--text-dim)', marginBottom: '20px' }}>
-        Создавайте ботов для автоматизации или интеграций. Боты работают через WebSocket.
+      <p style={{ color: 'var(--text-dim)', marginBottom: '30px' }}>
+        Создавайте ботов для автоматизации или интеграций. Боты работают через WebSocket API.
       </p>
 
-      <form onSubmit={createBot} className="bot-create-form" style={{ marginBottom: '30px', display: 'flex', gap: '10px' }}>
+      <form onSubmit={createBot} className="glass-panel-base" style={{ padding: '20px', borderRadius: '16px', marginBottom: '40px', display: 'flex', gap: '12px' }}>
         <input
           type="text"
-          placeholder="Имя бота"
+          placeholder="Имя нового бота..."
           value={botName}
           onChange={e => setBotName(e.target.value)}
           className="settings-input"
-          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '10px', color: 'white' }}
+          style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
         />
-        <button type="submit" className="save-button" style={{ margin: 0, padding: '10px 20px' }} disabled={loading}>
-          Создать
+        <button type="submit" className="save-button" style={{ margin: 0, height: '44px' }} disabled={loading}>
+          Создать бота
         </button>
       </form>
 
-      <div className="bots-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        {bots.length === 0 && <div className="placeholder-settings" style={{ padding: '40px' }}>У вас пока нет ботов.</div>}
+      <div className="bots-list">
+        {bots.length === 0 && <div className="placeholder-settings">У вас пока нет созданных ботов.</div>}
         {bots.map(bot => (
-          <div key={bot._id} className="bot-item glass-panel-base" style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', background: 'var(--primary-neon)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 800, overflow: 'hidden' }}>
-                  {bot.avatar ? <img src={getFullUrl(bot.avatar) || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <BotIcon size={24} color="black" />}
+          <div key={bot._id} className="integration-card-v2">
+            <div className="card-v2-header">
+              <div 
+                className="card-v2-banner" 
+                style={{ background: bot.banner ? `url(${getFullUrl(bot.banner)}) center/cover` : 'var(--primary-neon)' }} 
+              />
+              <div className="card-v2-avatar-anchor">
+                <div className="card-v2-avatar" onClick={() => startEdit(bot)} title="Настроить профиль">
+                  {bot.avatar ? <img src={getFullUrl(bot.avatar)!} alt="" /> : <BotIcon size={32} color="black" />}
                 </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '16px' }}>{bot.username}</h3>
-                  <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>ID: {bot._id}</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  className="settings-tab-action-btn"
-                  onClick={() => startEdit(bot)}
-                >
-                  Настроить
-                </button>
-                <button
-                  className="save-button"
-                  style={{ margin: 0, padding: '5px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
-                  onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}
-                >
-                  Добавить на сервер
-                </button>
-                <button className="msg-action-btn danger" onClick={() => deleteBot(bot._id)}>Удалить</button>
               </div>
             </div>
 
-            {showServerSelect === bot._id && (
-              <div className="server-selector" style={{ marginBottom: '15px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--primary-neon)' }}>
-                <p style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 600 }}>Выберите сервер:</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {userServers.map(server => (
-                    <div
-                      key={server._id}
-                      onClick={() => addBotToServer(bot._id, server._id)}
-                      style={{
-                        padding: '8px 12px',
-                        background: 'rgba(255,255,255,0.05)',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        transition: 'background 0.2s'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                      onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                    >
-                      <span>{server.name}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Нажмите, чтобы добавить</span>
-                    </div>
-                  ))}
-                  {userServers.length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>У вас нет доступных серверов.</p>}
-                </div>
-              </div>
-            )}
-
-            <div className="bot-token-area" style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <code style={{ flex: 1, fontSize: '13px', color: 'var(--primary-neon)', overflow: 'hidden', textOverflow: 'ellipsis', userSelect: revealedTokenId === bot._id ? 'all' : 'none' }}>
-                {revealedTokenId === bot._id ? bot.botToken : '••••••••••••••••••••••••••••••••'}
-              </code>
-              <div style={{ display: 'flex', gap: '5px' }}>
-                <button
-                  className="settings-tab-action-btn"
-                  style={{ padding: '4px 8px', fontSize: '11px' }}
-                  onClick={() => setRevealedTokenId(revealedTokenId === bot._id ? null : bot._id)}
-                >
-                  {revealedTokenId === bot._id ? 'Скрыть' : 'Показать'}
-                </button>
-                <button
-                  className="settings-tab-action-btn"
-                  style={{ padding: '4px 8px', fontSize: '11px', background: copiedToken === bot.botToken ? 'var(--success-color)' : '' }}
-                  onClick={() => copyToken(bot.botToken)}
-                >
-                  {copiedToken === bot.botToken ? 'Готово!' : 'Копировать'}
-                </button>
-                <button
-                  className="settings-tab-action-btn"
-                  style={{ padding: '4px 8px', fontSize: '11px' }}
-                  onClick={() => regenerateToken(bot._id)}
-                >
-                  Обновить
-                </button>
-              </div>
-            </div>
-
-            {editingBot?._id === bot._id && (
-              <div className="bot-edit-area" style={{ marginTop: '25px', padding: '25px', background: 'rgba(0,0,0,0.15)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', color: 'white' }}>Редактирование бота</h3>
-
-                <div className="user-settings-account-card" style={{ marginBottom: '25px' }}>
-                  <div
-                    className="account-banner"
-                    style={{ background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--primary-neon)' }}
-                  >
-                    <label className="change-banner-button" style={{ cursor: 'pointer', display: 'inline-block' }}>
-                      Изменить баннер
-                      <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
-                    </label>
-                    <label className="account-avatar-wrapper" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {previewAvatar ? <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <BotIcon size={60} color="black" />}
-                      <input type="file" accept="image/*" onChange={handleAvatarSelect} hidden />
-                    </label>
-                  </div>
-
-                  <div className="account-info-banner" style={{ padding: '60px 40px 30px' }}>
-                    <div className="account-details">
-                      <h3 style={{ color: 'white' }}>{editName || 'Имя бота'}</h3>
-                    </div>
+            <div className="card-v2-body">
+              <div className="card-v2-info-block">
+                <div className="card-v2-title-row">
+                  <h3 className="card-v2-name">{bot.username}</h3>
+                  <div className="card-v2-badges">
+                    <span className="card-v2-badge">BOT</span>
+                    <span className={`card-v2-badge ${bot.isPublished ? 'active' : ''}`}>
+                      {bot.isPublished ? 'Опубликован' : 'Черновик'}
+                    </span>
                   </div>
                 </div>
-
-                <div className="settings-form-group">
-                  <label>Имя бота</label>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Название бота"
-                  />
+                <div className="card-v2-meta">
+                  <span>ID: {bot._id}</span>
                 </div>
+                {bot.bio && <p className="card-v2-bio">{bot.bio}</p>}
+              </div>
 
-                <div className="settings-form-group" style={{ marginTop: '15px' }}>
-                  <label>О боте</label>
-                  <textarea
-                    value={editBio}
-                    onChange={(e) => setEditBio(e.target.value)}
-                    placeholder="Описание возможностей и предназначения бота..."
-                    rows={3}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginTop: '30px' }}>
-                  <button className="settings-tab-action-btn" onClick={() => setEditingBot(null)} style={{ padding: '10px 20px', borderRadius: '12px' }}>Отмена</button>
-                  <button className="save-button" onClick={saveEdit} disabled={loading} style={{ margin: 0 }}>
-                    {loading ? 'Сохранение...' : 'Сохранить изменения'}
+              <div className="card-v2-footer">
+                <div className="card-v2-button-group">
+                  <button className={`btn-v2 ${bot.isPublished ? '' : 'primary'}`} onClick={() => togglePublishBot(bot._id)}>
+                    {bot.isPublished ? 'Снять с публикации' : 'Опубликовать'}
                   </button>
+                  <button className="btn-v2" onClick={() => startEdit(bot)}>Настроить профиль</button>
+                  <button className="btn-v2" onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}>
+                    Добавить на сервер
+                  </button>
+                  <button className="btn-v2 danger" onClick={() => deleteBot(bot._id)}>Удалить</button>
+                </div>
+
+                {showServerSelect === bot._id && (
+                  <div className="card-v2-server-list">
+                    <div style={{ padding: '4px 8px', fontSize: '12px', fontWeight: 800, color: 'var(--text-dim)' }}>ВЫБЕРИТЕ СЕРВЕР</div>
+                    {userServers.map(server => (
+                      <div key={server._id} className="card-v2-server-item" onClick={() => addBotToServer(bot._id, server._id)}>
+                        <span>{server.name}</span>
+                        <PlusIcon size={14} />
+                      </div>
+                    ))}
+                    {userServers.length === 0 && <div style={{ padding: '10px', fontSize: '12px', textAlign: 'center' }}>Нет доступных серверов</div>}
+                  </div>
+                )}
+
+                <div className="card-v2-token-box">
+                  <code>{revealedTokenId === bot._id ? bot.botToken : '••••••••••••••••••••••••••••••••'}</code>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button className="btn-v2" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={() => setRevealedTokenId(revealedTokenId === bot._id ? null : bot._id)}>
+                      {revealedTokenId === bot._id ? 'Скрыть' : 'Токен'}
+                    </button>
+                    <button className="btn-v2" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={() => copyToken(bot.botToken)}>
+                      {copiedToken === bot.botToken ? 'Скопировано' : 'Копировать'}
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
+
+              {editingBot?._id === bot._id && (
+                <div className="card-v2-edit-form">
+                  <div className="user-settings-account-card" style={{ marginBottom: '20px', background: 'transparent', border: 'none' }}>
+                    <div
+                      className="account-banner"
+                      style={{ height: '120px', borderRadius: '14px', background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--primary-neon)' }}
+                    >
+                      <label className="change-banner-button" style={{ cursor: 'pointer' }}>
+                        Изменить баннер
+                        <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
+                      </label>
+                      {previewBanner && (
+                        <button className="change-banner-button" style={{ right: '145px', background: 'rgba(255, 59, 48, 0.6)' }} onClick={resetBanner}>
+                          Сбросить
+                        </button>
+                      )}
+                      <label className="account-avatar-wrapper" style={{ cursor: 'pointer', width: '80px', height: '80px', left: '20px', bottom: '-40px' }}>
+                        {previewAvatar ? (
+                          <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div className="avatar-placeholder" style={{ fontSize: '24px' }}>{editName?.[0]?.toUpperCase() || '?'}</div>
+                        )}
+                        <div className="avatar-overlay"><PlusIcon size={24} color="white" /></div>
+                        <input type="file" accept="image/*" onChange={handleAvatarSelect} hidden />
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div style={{ marginTop: '55px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div className="settings-form-group">
+                      <label>Имя бота</label>
+                      <input type="text" value={editName} onChange={e => setEditName(e.target.value)} />
+                    </div>
+                    <div className="settings-form-group">
+                      <label>Описание</label>
+                      <textarea value={editBio} onChange={e => setEditBio(e.target.value)} rows={3} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px' }}>
+                    <button className="btn-v2" onClick={() => setEditingBot(null)}>Отмена</button>
+                    <button className="save-button" style={{ margin: 0 }} onClick={saveEdit} disabled={loading}>Сохранить изменения</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
     </div>
   );
-};
+}
 
 function ModerationSettings() {
   const { user } = useAuth();
@@ -2416,7 +2344,7 @@ function ModerationSettings() {
                   <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
                     <strong>Решение модератора ({report.resolvedBy?.username}):</strong> {report.resolutionNote || 'Без комментария'}
                   </div>
-                  <button className="settings-tab-action-btn" style={{ fontSize: '11px', padding: '5px 10px' }} onClick={async () => {
+                  <button className="btn-v2" style={{ fontSize: '11px', padding: '5px 10px' }} onClick={async () => {
                     if (await confirm('Вы уверены, что хотите отменить вердикт и вернуть жалобу в список ожидания?')) {
                       try {
                         await axios.post(`/api/moderation/reports/${report._id}/unresolve`);
@@ -2433,13 +2361,13 @@ function ModerationSettings() {
 
               {report.status === 'pending' && (
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                  <button className="settings-tab-action-btn" onClick={async () => {
+                  <button className="btn-v2" onClick={async () => {
                     try {
                       await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'dismissed', note: 'Отклонено модератором' });
                       fetchReports(filter);
                     } catch (e) { }
                   }}>Отклонить</button>
-                  <button className="settings-tab-action-btn" style={{ background: 'rgba(255,165,0,0.2)', color: 'orange' }} onClick={async () => {
+                  <button className="btn-v2" style={{ background: 'rgba(255,165,0,0.2)', color: 'orange' }} onClick={async () => {
                     const reason = await prompt('Укажите причину временного бана:', 'Нарушение правил сообщества');
                     if (reason) {
                       try {
@@ -2474,4 +2402,3 @@ function ModerationSettings() {
 };
 
 export default SettingsModal;
-

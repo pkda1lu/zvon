@@ -89,9 +89,14 @@ const userSchema = new mongoose.Schema({
       largeText: String,
       smallImage: String,
       smallText: String
-    }
+    },
+    miniAppData: { type: mongoose.Schema.Types.Mixed, default: null }
   },
   isBot: {
+    type: Boolean,
+    default: false
+  },
+  isPublished: {
     type: Boolean,
     default: false
   },

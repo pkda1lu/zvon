@@ -5,7 +5,7 @@ import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
 import { getAvatarUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
-import { UsersIcon, PlusIcon, SettingsIcon, BellIcon } from './Icons';
+import { UsersIcon, PlusIcon, SettingsIcon, BellIcon, LayoutGridIcon } from './Icons';
 import ServerContextMenu from './ServerContextMenu';
 import { iosSpringSnappy } from '../animations/transitions';
 import './panel-hero.css';
@@ -28,6 +28,9 @@ interface SidebarProps {
   onServerJoined: (server: Server) => void;
   onLogout: () => void;
   onShowFriends: () => void;
+  showFriends?: boolean;
+  onShowShowcase: () => void;
+  showShowcase?: boolean;
   onServerLeave: (serverId: string) => void;
   onOpenJoinModal: () => void;
   onOpenSettings: () => void;
@@ -46,6 +49,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onServerJoined,
   onLogout,
   onShowFriends,
+  showFriends,
+  onShowShowcase,
+  showShowcase,
   onServerLeave,
   onOpenJoinModal,
   onOpenSettings,
@@ -68,53 +74,80 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="blob pink" />
       </div>
       <div className="sidebar-servers">
-        <motion.div
-          className={`server-icon home-icon ${!selectedServer ? 'active' : ''}`}
-          onClick={onShowFriends}
-          title="Друзья"
-          {...pressFeedback}
-        >
-          <UsersIcon size={28} />
-          {Object.entries(unreadCounts).some(([id, count]) => count > 0 && !servers.some(s => s.channels.some(c => c._id === id))) && (
-            <div className="unread-badge"></div>
-          )}
-        </motion.div>
-        <motion.div
-          className="server-icon home-icon"
-          onClick={onOpenJoinModal}
-          title="Добавить сервер"
-          {...pressFeedback}
-        >
-          <PlusIcon size={28} color="var(--primary-neon)" />
-        </motion.div>
-        <motion.div
-          className="server-icon inbox-sidebar-icon"
-          onClick={onToggleInbox}
-          title="Уведомления"
-          {...pressFeedback}
-        >
-          <BellIcon size={28} color="var(--secondary-neon)" />
-          {inboxUnreadCount > 0 && <div className="unread-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
-        </motion.div>
-        <div className="sidebar-divider" />
-        {servers.map((server) => (
+        <div className="server-item">
+          <div className="pill"><span /></div>
           <motion.div
-            key={server._id}
-            className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''}`}
-            onClick={() => onServerSelect(server)}
-            onContextMenu={(e) => handleContextMenu(e, server)}
-            title={server.name}
+            className="server-icon inbox-sidebar-icon"
+            onClick={onToggleInbox}
+            title="Уведомления"
             {...pressFeedback}
           >
-            <UserAvatar
-              user={{ username: server.name, avatar: server.icon }}
-              size={48}
-              className="server-icon-avatar"
-            />
-            {server.channels.some(c => unreadCounts[c._id] > 0) && (
+            <BellIcon size={28} color="var(--secondary-neon)" />
+            {inboxUnreadCount > 0 && <div className="unread-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
+          </motion.div>
+        </div>
+
+        <div className={`server-item ${showFriends ? 'active' : ''}`}>
+          <div className="pill"><span /></div>
+          <motion.div
+            className={`server-icon home-icon ${showFriends ? 'active' : ''}`}
+            onClick={onShowFriends}
+            title="Друзья"
+            {...pressFeedback}
+          >
+            <UsersIcon size={28} />
+            {Object.entries(unreadCounts).some(([id, count]) => count > 0 && !servers.some(s => s.channels.some(c => c._id === id))) && (
               <div className="unread-badge"></div>
             )}
           </motion.div>
+        </div>
+
+        <div className={`server-item ${showShowcase ? 'active' : ''}`}>
+          <div className="pill"><span /></div>
+          <motion.div
+            className={`server-icon home-icon ${showShowcase ? 'active' : ''}`}
+            onClick={onShowShowcase}
+            title="Витрина ботов и мини-приложений"
+            {...pressFeedback}
+          >
+            <LayoutGridIcon size={28} />
+          </motion.div>
+        </div>
+
+        <div className="server-item">
+          <div className="pill"><span /></div>
+          <motion.div
+            className="server-icon home-icon"
+            onClick={onOpenJoinModal}
+            title="Добавить сервер"
+            {...pressFeedback}
+          >
+            <PlusIcon size={28} color="var(--primary-neon)" />
+          </motion.div>
+        </div>
+
+        <div className="sidebar-divider" />
+        
+        {servers.map((server) => (
+          <div key={server._id} className={`server-item ${selectedServer?._id === server._id ? 'active' : ''}`}>
+            <div className="pill"><span /></div>
+            <motion.div
+              className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''}`}
+              onClick={() => onServerSelect(server)}
+              onContextMenu={(e) => handleContextMenu(e, server)}
+              title={server.name}
+              {...pressFeedback}
+            >
+              <UserAvatar
+                user={{ username: server.name, avatar: server.icon }}
+                size={48}
+                className="server-icon-avatar"
+              />
+              {server.channels.some(c => unreadCounts[c._id] > 0) && (
+                <div className="unread-badge"></div>
+              )}
+            </motion.div>
+          </div>
         ))}
       </div>
 
