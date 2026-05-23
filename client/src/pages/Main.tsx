@@ -3,13 +3,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
 import axios from 'axios';
-import { Server, Channel, Message, DirectMessage, User } from '../types';
+import { Server, Channel, Message, DirectMessage, User, MiniApp } from '../types';
 import Sidebar from '../components/Sidebar';
 import ServerSidebar from '../components/ServerSidebar';
 import ChannelView from '../components/ChannelView';
 import VoiceChannelView from '../components/VoiceChannelView';
 import ActiveVoiceOverlay from '../components/ActiveVoiceOverlay';
 import FriendsPanel from '../components/FriendsPanel';
+import ShowcaseView from '../components/ShowcaseView';
+import MiniAppContainer from '../components/MiniAppContainer';
 import DMView from '../components/DMView';
 import DMSidebar from '../components/DMSidebar';
 import VoiceCall from '../components/VoiceCall';
@@ -57,6 +59,8 @@ const Main: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showInbox, setShowInbox] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showShowcase, setShowShowcase] = useState(false);
+  const [openMiniApps, setOpenMiniApps] = useState<MiniApp[]>([]);
 
   const userRef = useRef(user);
   const selectedServerRef = useRef(selectedServer);
@@ -165,15 +169,20 @@ const Main: React.FC = () => {
         setMobileView('content');
       } catch (err) { }
     };
+    const handleOpenMiniAppEvent = (e: any) => {
+      handleOpenMiniApp(e.detail.app);
+    };
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
     window.addEventListener('start-dm-by-id', handleStartDMById);
+    window.addEventListener('open-mini-app', handleOpenMiniAppEvent);
     return () => {
       window.removeEventListener('start-dm', handleStartDMEvent);
       window.removeEventListener('start-call', handleStartCallEvent);
       window.removeEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
       window.removeEventListener('start-dm-by-id', handleStartDMById);
+      window.removeEventListener('open-mini-app', handleOpenMiniAppEvent);
     };
   }, []);
 
@@ -607,7 +616,29 @@ const Main: React.FC = () => {
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
   };
 
-  const handleUserClick = (userId: string, event?: React.MouseEvent | CustomEvent) => {
+    const handleShowShowcase = () => {
+        setShowShowcase(true);
+        setShowFriends(false);
+        setSelectedServer(null);
+        setSelectedChannel(null);
+        setSelectedDM(null);
+        setMobileView('content');
+    };
+
+    const handleOpenMiniApp = (app: MiniApp) => {
+        if (!openMiniApps.find(a => a._id === app._id)) {
+            setOpenMiniApps([...openMiniApps, app]);
+        }
+    };
+
+    const handleCloseMiniApp = (appId: string) => {
+        setOpenMiniApps(openMiniApps.filter(a => a._id !== appId));
+        if (socket) {
+            socket.emit('activity-update', null);
+        }
+    };
+
+    const handleUserClick = (userId: string, event?: React.MouseEvent | CustomEvent) => {
     setShowProfileUserId(userId);
     if (event) {
       if ('clientX' in event) {
@@ -641,7 +672,7 @@ const Main: React.FC = () => {
         <Sidebar
           user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
           onServerSelect={(server) => {
-            setSelectedServer(server); setShowFriends(false); setSelectedDM(null);
+              setSelectedServer(server); setShowFriends(false); setShowShowcase(false); setSelectedDM(null);
             const firstTextChannel = server.channels.find(c => c.type === 'text');
             if (firstTextChannel) {
               setMessages([]);
@@ -653,7 +684,10 @@ const Main: React.FC = () => {
           }}
           onCreateServer={handleCreateServer}
           onServerJoined={(server) => { setServers((prev) => [...prev, server]); setSelectedServer(server); if (socket) socket.emit('join-server', server._id); if (server.channels.length > 0) setSelectedChannel(server.channels[0]); }}
-          onLogout={logout} onShowFriends={() => { setShowFriends(true); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); setMobileView(isMobile ? 'content' : 'sidebar'); }}
+          onLogout={logout} onShowFriends={() => { setShowFriends(true); setShowShowcase(false); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); setMobileView(isMobile ? 'content' : 'sidebar'); }}
+          showFriends={showFriends}
+          onShowShowcase={handleShowShowcase}
+          showShowcase={showShowcase}
           onServerLeave={handleServerLeave}
           onOpenJoinModal={() => setShowJoinModal(true)}
           onOpenSettings={() => setShowSettingsModal(true)}
@@ -669,7 +703,7 @@ const Main: React.FC = () => {
         // a server is selected and we're not on the friends panel; otherwise DMSidebar.
         const sidebarKind: 'server' | 'dm' | null =
           selectedServer && !showFriends ? 'server'
-          : !selectedServer ? 'dm'
+          : (!selectedServer && !showShowcase) ? 'dm'
           : null;
         if (!(!isMobile || mobileView === 'sidebar')) return null;
         // Direction: server sidebar slides in from the right, DM sidebar from the left.
@@ -719,12 +753,14 @@ const Main: React.FC = () => {
                   onDMSelect={(dm) => {
                     setSelectedDM(dm);
                     setShowFriends(false);
-                    setSelectedServer(null);
+                      setShowShowcase(false);
+                      setSelectedServer(null);
                     setMobileView('content');
                   }}
                   onShowFriends={() => {
                     setShowFriends(true);
-                    setSelectedDM(null);
+                      setShowShowcase(false);
+                      setSelectedDM(null);
                     setMobileView(isMobile ? 'content' : 'sidebar');
                   }}
                   onAddDM={() => setShowCreateGroupModal(true)}
@@ -746,7 +782,8 @@ const Main: React.FC = () => {
           {(() => {
             // Mutually-exclusive content swap. Outer key drives section change;
             // inner AnimatePresence inside Channel/DM blocks animates id swap separately.
-            const contentKey: string | null = showFriends ? 'friends'
+            const contentKey: string | null = showShowcase ? 'showcase'
+              : showFriends ? 'friends'
               : selectedChannel ? `channel-${selectedChannel.type}`
               : selectedDM ? 'dm'
               : !selectedServer ? 'empty-welcome'
@@ -754,6 +791,24 @@ const Main: React.FC = () => {
 
             return (
               <AnimatePresence mode="wait" initial={false}>
+                {contentKey === 'showcase' && (
+                  <motion.div
+                    key="showcase"
+                    className="content-swap-layer"
+                    variants={contentSwapVariants}
+                    initial="initial" animate="animate" exit="exit"
+                    transition={iosSpring}
+                  >
+                    <ShowcaseView
+                      onOpenMiniApp={handleOpenMiniApp}
+                      onBack={() => setMobileView('sidebar')}
+                      isMobile={isMobile}
+                      friends={friends}
+                      onUserClick={handleUserClick}
+                    />
+                  </motion.div>
+                )}
+
                 {contentKey === 'friends' && (
                   <motion.div
                     key="friends"
@@ -947,12 +1002,10 @@ const Main: React.FC = () => {
         />
       )}
 
-      {showSettingsModal && (
-        <SettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-        />
-      )}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
 
       {showCreateGroupModal && (
         <CreateGroupDMModal
@@ -1012,6 +1065,11 @@ const Main: React.FC = () => {
         )}
       </AnimatePresence>
       <div id="voice-controls-portal" />
+
+        <MiniAppContainer
+            openApps={openMiniApps}
+            onClose={handleCloseMiniApp}
+        />
     </div>
   );
 };

@@ -13,6 +13,7 @@ export interface UserActivity {
     smallImage?: string;
     smallText?: string;
   };
+  miniAppData?: MiniApp;
 }
 
 export interface User {
@@ -28,7 +29,8 @@ export interface User {
   blockedUsers?: string[];
   notes?: Record<string, string>;
   isBot?: boolean;
-  badges?: string[];
+    isPublished?: boolean;
+    badges?: string[];
   is2FAEnabled?: boolean;
   role?: 'user' | 'moderator' | 'admin';
   isVerified?: boolean;
@@ -43,6 +45,17 @@ export interface User {
   createdAt: string;
 }
 
+export interface MiniApp {
+    _id: string;
+    name: string;
+    url: string;
+    owner: string | User;
+    isPublished: boolean;
+    avatar?: string;
+    banner?: string;
+    description?: string;
+    createdAt: string;
+}
 
 export interface Role {
   _id: string;

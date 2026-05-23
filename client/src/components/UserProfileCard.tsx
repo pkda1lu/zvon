@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { CloseIcon, PlusIcon, CheckIcon, TrashIcon, BotIcon } from './Icons';
+import { CloseIcon, PlusIcon, CheckIcon, TrashIcon, BotIcon, MonitorIcon } from './Icons';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
@@ -389,6 +389,22 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                                     <div className="activity-name">{user.activity.name}</div>
                                     <div className="activity-state">Играет в {user.activity.name}</div>
                                     {user.activity.timestamps?.start && <ActivityTimer startTime={user.activity.timestamps.start} />}
+                                    
+                                    {user.activity.miniAppData && (
+                                        <button 
+                                            className="profile-action-btn secondary small" 
+                                            style={{ marginTop: '10px', height: '32px', width: 'auto', padding: '0 12px' }}
+                                            onClick={() => {
+                                                window.dispatchEvent(new CustomEvent('open-mini-app', { 
+                                                    detail: { app: user.activity?.miniAppData } 
+                                                }));
+                                                onClose();
+                                            }}
+                                        >
+                                            <MonitorIcon size={14} />
+                                            <span>Запустить мини-приложение</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

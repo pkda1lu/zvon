@@ -51,6 +51,21 @@ router.get('/my', auth, async (req, res) => {
     }
 });
 
+// Toggle bot publish status
+router.patch('/:id/publish', auth, async (req, res) => {
+    try {
+        const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
+        if (!bot) return res.status(404).json({ message: 'Bot not found' });
+
+        bot.isPublished = !bot.isPublished;
+        await bot.save();
+
+        res.json({ message: bot.isPublished ? 'Бот опубликован на витрине' : 'Бот снят с витрины', isPublished: bot.isPublished });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // Regenerate bot token
 router.post('/:id/regenerate-token', auth, async (req, res) => {
     try {
@@ -197,6 +212,26 @@ router.post('/:id/banner', auth, (req, res, next) => {
         }
 
         res.json({ message: 'Баннер обновлен', banner: bannerUrl });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Reset bot banner
+router.delete('/:id/banner', auth, async (req, res) => {
+    try {
+        const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
+        if (!bot) return res.status(404).json({ message: 'Bot not found' });
+
+        bot.banner = null;
+        await bot.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('user-updated', { _id: bot._id, banner: null });
+        }
+
+        res.json({ message: 'Баннер сброшен' });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }

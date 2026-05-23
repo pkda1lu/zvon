@@ -88,12 +88,43 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         localStorage.setItem('appearance-settings', JSON.stringify(settings));
         applySettings(settings);
 
-        // Apply icon
+        // Apply icon to Electron
         const electron = (window as any).electron;
         if (electron && electron.ipc) {
             electron.ipc.send('change-icon', settings.appIcon);
         }
+
+        // Apply icon to Browser Favicon
+        updateFavicon(settings.appIcon);
     }, [settings]);
+
+    const updateFavicon = (iconType: AppIconType) => {
+        const iconMap: Record<AppIconType, string> = {
+            'default': 'icon.png',
+            'icon1': 'icon1.PNG',
+            'icon2': 'icon2.png',
+            'icon3': 'icon3.png',
+            'icon4': 'icon4.png',
+            'legacy': 'zvon_legacy.png'
+        };
+
+        const fileName = iconMap[iconType] || 'icon.png';
+        const fullUrl = `${import.meta.env.BASE_URL}${fileName}`;
+
+        // Find or create the favicon link elements
+        const linkTags = document.querySelectorAll("link[rel*='icon']");
+        
+        if (linkTags.length > 0) {
+            linkTags.forEach(tag => {
+                (tag as HTMLLinkElement).href = fullUrl;
+            });
+        } else {
+            const newLink = document.createElement('link');
+            newLink.rel = 'icon';
+            newLink.href = fullUrl;
+            document.head.appendChild(newLink);
+        }
+    };
 
     const applySettings = (s: AppearanceSettings) => {
         const root = document.documentElement;
