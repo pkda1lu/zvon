@@ -33,6 +33,10 @@ const miniAppSchema = new mongoose.Schema({
     maxlength: 500,
     default: ''
   },
+  isSystem: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -27,7 +27,9 @@
       "Bash(xargs grep -l \"join-voice-channel\")",
       "Bash(Get-ChildItem -Path \"D:\\\\work_study\\\\zvon\" -Directory)",
       "Bash(Select-Object Name)",
-      "Bash(xargs grep -l \"activity-update\\\\|miniAppData\")"
+      "Bash(xargs grep -l \"activity-update\\\\|miniAppData\")",
+      "Bash(node -e \"const x = require\\('yandex-music-client'\\); console.log\\(Object.keys\\(x\\)\\)\")",
+      "Bash(node -e \"const x = require\\('./server/node_modules/yandex-music-client'\\); console.log\\(Object.keys\\(x\\)\\)\")"
     ]
   }
 }
