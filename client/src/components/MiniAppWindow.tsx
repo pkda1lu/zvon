@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import { MiniApp } from '../types';
 import { CloseIcon, MaximizeIcon, LayoutGridIcon, MonitorIcon } from './Icons';
@@ -10,6 +11,10 @@ import './MiniAppWindow.css';
 interface MiniAppWindowProps {
     app: MiniApp;
     onClose: (appId: string) => void;
+    onMinimize?: (appId: string) => void;
+    /** When true, window is hidden visually but iframe stays mounted so audio /
+     *  WebRTC publications keep running in the background. */
+    minimized?: boolean;
 }
 
 /** Try to obtain a MediaStreamTrack from a mini-app message. The SDK supports
@@ -29,7 +34,7 @@ function pickTrackFromMessage(msg: any, iframe?: HTMLIFrameElement | null): Medi
     }
 }
 
-const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
+const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize, minimized = false }) => {
     const [position, setPosition] = useState({ x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 });
     const [size, setSize] = useState({ width: 800, height: 600 });
     const [isDragging, setIsDragging] = useState(false);
@@ -387,9 +392,31 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
     }, [isDragging, isResizing, handleMouseMove, handleMouseUp]);
 
     return (
-        <div
+        <motion.div
             className="miniapp-window"
-            style={{ left: position.x, top: position.y, width: size.width, height: size.height, zIndex: isDragging || isResizing ? 9001 : 9000 }}
+            style={{
+                left: position.x,
+                top: position.y,
+                width: size.width,
+                height: size.height,
+                zIndex: isDragging || isResizing ? 9001 : 9000,
+                transformOrigin: '0 0',
+                pointerEvents: minimized ? 'none' : 'auto',
+            }}
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={
+                minimized
+                    ? {
+                          opacity: 0,
+                          scale: 0.05,
+                          // Morph towards the left sidebar (≈40px from left, ≈260px from top
+                          // under the showcase icon — close enough without measuring DOM).
+                          x: -position.x + 40,
+                          y: -position.y + 260,
+                      }
+                    : { opacity: 1, scale: 1, x: 0, y: 0 }
+            }
+            transition={{ type: 'spring', stiffness: 320, damping: 34, mass: 0.85 }}
         >
             <div className="miniapp-header" onMouseDown={handleMouseDown}>
                 <div className="header-info">
@@ -400,6 +427,18 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                     <a href={absoluteUrl} target="_blank" rel="noopener noreferrer" className="header-btn" title="Открыть в новой вкладке" onMouseDown={e => e.stopPropagation()}>
                         <MaximizeIcon size={16} />
                     </a>
+                    {onMinimize && (
+                        <button
+                            className="header-btn"
+                            onClick={() => onMinimize(app._id)}
+                            onMouseDown={e => e.stopPropagation()}
+                            title="Свернуть"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <line x1="5" y1="19" x2="19" y2="19" />
+                            </svg>
+                        </button>
+                    )}
                     <button className="header-btn" onClick={() => onClose(app._id)} onMouseDown={e => e.stopPropagation()}>
                         <CloseIcon size={18} />
                     </button>
@@ -438,7 +477,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
             <div className="resize-handle right" onMouseDown={(e) => handleResizeDown(e, 'right')} />
             <div className="resize-handle bottom" onMouseDown={(e) => handleResizeDown(e, 'bottom')} />
             <div className="resize-handle bottom-right" onMouseDown={(e) => handleResizeDown(e, 'bottom-right')} />
-        </div>
+        </motion.div>
     );
 };
 

@@ -215,6 +215,10 @@ interface VoiceContextType {
     presenceAudioStreams: Map<string, MediaStream>;
     presenceVideoStreams: Map<string, MediaStream>;
     sendPresenceControl: (channelId: string, sessionId: string, controlId: string, value?: any) => void;
+
+    /** Per-receiver volume for each presence (0..1). Persisted to localStorage. */
+    presenceVolumes: Map<string, number>;
+    setPresenceVolume: (sessionId: string, volume: number) => void;
 }
 
 export interface VoicePresenceInfo {
@@ -1926,7 +1930,9 @@ registerProcessor('vad-processor', VADProcessor);
             ];
             for (const pub of allPubs) {
                 if (pub.trackSid === publicationSid && pub.track) {
-                    await roomRef.current.localParticipant.unpublishTrack(pub.track);
+                    // stopOnUnpublish=false — we want the underlying MediaStreamTrack
+                    // to stay alive so the mini-app can re-publish it later.
+                    await roomRef.current.localParticipant.unpublishTrack(pub.track, false);
                     return;
                 }
             }
@@ -1939,6 +1945,21 @@ registerProcessor('vad-processor', VADProcessor);
     const [voicePresences, setVoicePresences] = useState<Map<string, VoicePresenceInfo>>(new Map());
     const [presenceAudioStreams, setPresenceAudioStreams] = useState<Map<string, MediaStream>>(new Map());
     const [presenceVideoStreams, setPresenceVideoStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [presenceVolumes, setPresenceVolumes] = useState<Map<string, number>>(() => {
+        try {
+            const stored = localStorage.getItem('presenceVolumes');
+            if (stored) return new Map(Object.entries(JSON.parse(stored)) as [string, number][]);
+        } catch {}
+        return new Map();
+    });
+    const setPresenceVolume = useCallback((sessionId: string, volume: number) => {
+        setPresenceVolumes(prev => {
+            const next = new Map(prev);
+            next.set(sessionId, Math.max(0, Math.min(2, volume)));
+            try { localStorage.setItem('presenceVolumes', JSON.stringify(Object.fromEntries(next))); } catch {}
+            return next;
+        });
+    }, []);
 
     useEffect(() => {
         if (!socket) return;
@@ -2012,6 +2033,7 @@ registerProcessor('vad-processor', VADProcessor);
             overlaySize, setOverlaySize,
             publishExternalAudioTrack, publishExternalVideoTrack, unpublishExternalAudioTrack,
             voicePresences, presenceAudioStreams, presenceVideoStreams, sendPresenceControl,
+            presenceVolumes, setPresenceVolume,
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}
@@ -2041,7 +2063,7 @@ registerProcessor('vad-processor', VADProcessor);
                             key={`presence-${sessionId}`}
                             userId={`presence-${sessionId}`}
                             stream={stream}
-                            voiceVolume={1}
+                            voiceVolume={presenceVolumes.get(sessionId) ?? 1}
                             isDeafened={isDeafened || isServerDeafened}
                             isLocalMuted={false}
                             sharedContext={audioContext}

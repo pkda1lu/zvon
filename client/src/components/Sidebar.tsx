@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { User, Server } from '../types';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, Server, MiniApp } from '../types';
 import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
 import { getAvatarUrl } from '../utils/avatar';
@@ -37,6 +37,9 @@ interface SidebarProps {
   onOpenProfile: (userId: string, event?: React.MouseEvent) => void;
   onToggleInbox: () => void;
   inboxUnreadCount: number;
+  minimizedMiniApps?: MiniApp[];
+  onRestoreMiniApp?: (appId: string) => void;
+  onCloseMiniApp?: (appId: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -57,7 +60,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
   onOpenProfile,
   onToggleInbox,
-  inboxUnreadCount
+  inboxUnreadCount,
+  minimizedMiniApps = [],
+  onRestoreMiniApp,
+  onCloseMiniApp,
 }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
 
@@ -113,6 +119,39 @@ const Sidebar: React.FC<SidebarProps> = ({
             <LayoutGridIcon size={28} color="var(--accent-pink)" />
           </motion.div>
         </div>
+
+        <AnimatePresence>
+          {minimizedMiniApps.map(app => (
+            <motion.div
+              key={app._id}
+              className="server-item"
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 0 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+            >
+              <div className="pill"><span /></div>
+              <motion.div
+                className="server-icon miniapp-minimized-icon"
+                onClick={() => onRestoreMiniApp?.(app._id)}
+                onContextMenu={(e) => { e.preventDefault(); onCloseMiniApp?.(app._id); }}
+                title={`${app.name} — нажми чтобы развернуть, ПКМ — закрыть`}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                whileTap={{ scale: 0.88 }}
+                whileHover={{ scale: 1.06 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.7 }}
+              >
+                {app.avatar ? (
+                  <img src={getAvatarUrl(app.avatar) || ''} alt={app.name} />
+                ) : (
+                  <LayoutGridIcon size={24} color="var(--accent-pink)" />
+                )}
+              </motion.div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         <div className="server-item">
           <div className="pill"><span /></div>

@@ -300,6 +300,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     presenceAudioStreams,
     presenceVideoStreams,
     sendPresenceControl,
+    presenceVolumes,
+    setPresenceVolume,
   } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
@@ -590,6 +592,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           key={item._id}
           presence={p}
           videoStream={presenceVideoStreams.get(p.sessionId)}
+          volume={presenceVolumes.get(p.sessionId) ?? 1}
+          onVolumeChange={(v) => setPresenceVolume(p.sessionId, v)}
           onControl={(controlId, value) => sendPresenceControl(p.channelId, p.sessionId, controlId, value)}
         />
       );

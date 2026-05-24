@@ -5,6 +5,8 @@ import './PresenceTile.css';
 interface Props {
     presence: VoicePresenceInfo;
     videoStream?: MediaStream;
+    volume: number;
+    onVolumeChange: (volume: number) => void;
     onControl: (controlId: string, value?: any) => void;
 }
 
@@ -14,7 +16,7 @@ interface Props {
  * Audio playback for the presence happens in VoiceContext (hidden audio elements),
  * not here — keeps this component purely visual and avoids autoplay races.
  */
-const PresenceTile: React.FC<Props> = ({ presence, videoStream, onControl }) => {
+const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolumeChange, onControl }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
@@ -56,6 +58,19 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, onControl }) => 
                     ))}
                 </div>
             )}
+
+            <div className="presence-volume" title={`Громкость: ${Math.round(volume * 100)}%`}>
+                <span className="presence-volume-icon">{volume === 0 ? '🔇' : volume < 0.5 ? '🔈' : volume < 1 ? '🔉' : '🔊'}</span>
+                <input
+                    type="range"
+                    className="presence-volume-slider"
+                    min={0}
+                    max={200}
+                    value={Math.round(volume * 100)}
+                    onChange={(e) => onVolumeChange(Number(e.target.value) / 100)}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
         </div>
     );
 };
