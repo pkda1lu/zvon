@@ -103,7 +103,6 @@ const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
 };
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  console.log('SettingsModal render, isOpen:', isOpen);
   const navigate = useNavigate();
   const { user, logout, updateUser, updateGlobalUser } = useAuth();
   const { confirm, prompt, alert } = useDialog();

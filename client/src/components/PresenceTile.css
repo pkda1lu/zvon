@@ -1,101 +1,110 @@
-.presence-tile {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  aspect-ratio: 16 / 9;
-  background-color: #1a1a22;
+/* Reuses .p-card / .p-bg / .p-info from VoiceChannelView.css so the tile
+   sits naturally in the same grid. We only add presence-specific overlays. */
+
+.presence-card {
+  cursor: default !important;
+}
+
+/* The front cover layer: small inset cover image instead of full-bleed,
+   matching the avatar slot of a regular user tile in visual weight. */
+.presence-cover-front {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 110px;
+  height: 110px;
+  margin: -55px 0 0 -55px;
+  border-radius: 18px;
   background-size: cover;
   background-position: center;
-  border: 2px solid var(--accent-pink, #ff00c8);
-  box-shadow: 0 10px 30px rgba(255, 0, 200, 0.18);
-  display: flex;
-  flex-direction: column;
-}
-
-.presence-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 1;
-}
-
-.presence-tile-overlay {
-  position: absolute;
-  inset: 0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 12px 14px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.35) 50%, transparent 100%);
-  gap: 10px;
+  transform: translateY(-10px);
 }
 
-.presence-tile-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: white;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.presence-info {
+  z-index: 3;
 }
 
-.presence-tile-badge {
-  font-size: 9px;
+.presence-badge {
+  background: var(--accent-pink, #ff00c8) !important;
+  color: white !important;
+  font-size: 9px !important;
   font-weight: 800;
   letter-spacing: 0.5px;
   padding: 2px 6px;
   border-radius: 6px;
-  background: var(--accent-pink, #ff00c8);
-  color: white;
-  box-shadow: 0 0 12px rgba(255, 0, 200, 0.6);
+  box-shadow: 0 0 12px rgba(255, 0, 200, 0.45);
 }
 
-.presence-tile-controls {
+.presence-controls {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 44px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   align-items: center;
+  gap: 6px;
+  z-index: 4;
+  padding: 6px 8px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.p-card.presence-card:hover .presence-controls,
+.p-card.presence-card:focus-within .presence-controls {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .presence-btn {
-  min-width: 32px;
+  width: 32px;
   height: 32px;
-  padding: 0 10px;
+  padding: 0;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
   color: white;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  transition: transform 0.15s, background 0.15s, border-color 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
 }
 
 .presence-btn:hover {
-  transform: scale(1.06);
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.32);
+  transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
 }
-.presence-btn-primary { background: var(--accent-pink, #ff00c8); border-color: var(--accent-pink, #ff00c8); }
-.presence-btn-danger { background: #ff3b30; border-color: #ff3b30; }
+.presence-btn-primary {
+  background: var(--primary-neon, #006aff);
+  border-color: var(--primary-neon, #006aff);
+}
+.presence-btn-primary:hover {
+  background: var(--primary-neon, #006aff);
+  filter: brightness(1.15);
+}
+.presence-btn-danger {
+  background: #ff3b30;
+  border-color: #ff3b30;
+}
 
 .presence-slider {
   flex: 1;
-  min-width: 100px;
+  min-width: 60px;
   height: 4px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -105,13 +114,13 @@
   -webkit-appearance: none;
   width: 12px; height: 12px;
   border-radius: 50%;
-  background: var(--accent-pink, #ff00c8);
+  background: var(--primary-neon, #006aff);
   border: 2px solid white;
-  box-shadow: 0 0 8px rgba(255, 0, 200, 0.6);
+  box-shadow: 0 0 8px rgba(0, 106, 255, 0.6);
 }
 .presence-slider::-moz-range-thumb {
   width: 12px; height: 12px;
   border-radius: 50%;
-  background: var(--accent-pink, #ff00c8);
+  background: var(--primary-neon, #006aff);
   border: 2px solid white;
 }

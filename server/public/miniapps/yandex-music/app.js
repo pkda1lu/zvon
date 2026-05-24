@@ -41,6 +41,20 @@
   let presence = null;
   let progressTimer = null;
 
+  // --- Audio capture pipeline ---
+  // MediaStreamDestination tracks aren't transferable across iframes; only
+  // tracks from getUserMedia/captureStream are. Use audio.captureStream() —
+  // returns the same stream on subsequent calls so we cache the track.
+  let _captureStream = null;
+  function getCaptureTrack() {
+    if (typeof audio.captureStream !== 'function') {
+      console.error('[YM] audio.captureStream not supported in this browser');
+      return null;
+    }
+    if (!_captureStream) _captureStream = audio.captureStream();
+    return _captureStream.getAudioTracks()[0] || null;
+  }
+
   audio.addEventListener('ended', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback(); });
   audio.addEventListener('timeupdate', () => { updateLocalProgress(); pushPresenceProgress(); });
   audio.addEventListener('play', () => { $('#btn-play').textContent = '⏸'; updatePresenceControls(); });
@@ -295,9 +309,14 @@
       await presence.setBackground({ type: 'image', url });
     }
     try {
-      const stream = audio.captureStream();
-      const at = stream.getAudioTracks()[0];
-      if (at) await presence.publishAudio(at);
+      const at = getCaptureTrack();
+      console.log('[YM] presence track:', at, 'enabled:', at?.enabled, 'readyState:', at?.readyState);
+      if (at) {
+        const sid = await presence.publishAudio(at);
+        console.log('[YM] publishAudio sid:', sid);
+      } else {
+        console.warn('[YM] No audio track from capture destination');
+      }
     } catch (e) { console.error('[YM] presence publishAudio failed:', e); }
     await presence.setControls(getControlSchema());
   }

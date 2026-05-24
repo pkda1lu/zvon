@@ -544,8 +544,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Mini-app voice presence tracks — keep them isolated from normal user audio/video.
             const trackName = (publication.trackName || '') as string;
+            console.log('[Voice] Subscribed track name=', trackName, 'kind=', track.kind, 'source=', publication.source);
             if (trackName.startsWith('zvon-presence:')) {
                 const sessionId = trackName.slice('zvon-presence:'.length).split(':')[0];
+                console.log('[Voice] -> routing to presence', sessionId);
                 if (track.kind === Track.Kind.Audio) {
                     setPresenceAudioStreams(prev => new Map(prev).set(sessionId, new MediaStream([track.mediaStreamTrack!])));
                 } else {
@@ -2032,6 +2034,19 @@ registerProcessor('vad-processor', VADProcessor);
                             outputDeviceId={selectedOutputDeviceId} masterVolume={outputVolume}
                             isWatching={watchedScreenIds.has(userId)}
                             volume={screenVolumes.get(userId) ?? 1}
+                        />
+                    ))}
+                    {Array.from(presenceAudioStreams.entries()).map(([sessionId, stream]) => (
+                        <RemoteAudio
+                            key={`presence-${sessionId}`}
+                            userId={`presence-${sessionId}`}
+                            stream={stream}
+                            voiceVolume={1}
+                            isDeafened={isDeafened || isServerDeafened}
+                            isLocalMuted={false}
+                            sharedContext={audioContext}
+                            outputDeviceId={selectedOutputDeviceId}
+                            masterVolume={outputVolume}
                         />
                     ))}
                 </div>
