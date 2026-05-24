@@ -5,6 +5,16 @@
   cursor: default !important;
 }
 
+.presence-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  filter: brightness(0.6) saturate(1.1);
+}
+
 /* The front cover layer: small inset cover image instead of full-bleed,
    matching the avatar slot of a regular user tile in visual weight. */
 .presence-cover-front {

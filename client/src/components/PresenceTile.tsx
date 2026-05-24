@@ -18,6 +18,7 @@ interface Props {
  */
 const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolumeChange, onControl }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const bgVideoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
         if (!videoStream || !videoRef.current) return;
@@ -26,21 +27,34 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
     }, [videoStream]);
 
     const bg = presence.background;
-    const cover = !videoStream && bg?.type === 'image' && bg.url
+    const videoUrl = !videoStream && bg?.type === 'video' && bg.url ? bg.url : null;
+    const cover = !videoStream && !videoUrl && bg?.type === 'image' && bg.url
         ? bg.url
-        : (!videoStream && presence.avatar) || null;
+        : (!videoStream && !videoUrl && presence.avatar) || null;
+    const solidBg = !videoStream && !videoUrl && bg?.type === 'color' && bg.color ? bg.color : undefined;
 
-    const solidBg = !videoStream && bg?.type === 'color' && bg.color ? bg.color : undefined;
+    useEffect(() => {
+        const el = bgVideoRef.current;
+        if (!el || !videoUrl) return;
+        if (el.src !== videoUrl) el.src = videoUrl;
+        el.muted = true;
+        el.loop = true;
+        el.playsInline = true;
+        el.play().catch(() => {});
+    }, [videoUrl]);
 
     return (
         <div className="p-card presence-card" onClick={(e) => e.stopPropagation()}>
             {videoStream && <video ref={videoRef} className="p-camera-video" autoPlay playsInline muted />}
-            {!videoStream && cover && (
+            {videoUrl && (
+                <video ref={bgVideoRef} className="p-camera-video presence-bg-video" autoPlay loop muted playsInline />
+            )}
+            {!videoStream && !videoUrl && cover && (
                 <div className="p-bg presence-cover" style={{ backgroundImage: `url('${cover}')` }} />
             )}
             {solidBg && <div className="p-bg" style={{ background: solidBg, opacity: 1, filter: 'none' }} />}
 
-            {!videoStream && cover && (
+            {!videoStream && !videoUrl && cover && (
                 <div className="presence-cover-front" style={{ backgroundImage: `url('${cover}')` }} />
             )}
 
