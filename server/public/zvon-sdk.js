@@ -39,46 +39,40 @@
   );
 
   function sendTrack(type, payload, track) {
-    // Two paths:
-    //  1. transferable MediaStreamTrack (works cross-origin, Chrome 116+ / Electron 25+)
-    //  2. same-origin stash (works regardless of transferable support, but only when
-    //     iframe and host share origin)
-    // We stash unconditionally so the bridge can pick whichever path succeeded.
+    // VERSION 2 of track handoff logic
     const stashId = nextId();
     _trackStash.set(stashId, track);
     const fullPayload = { ...payload, __trackStashId: stashId };
 
     if (track.readyState === 'ended') {
-      console.warn('[zvon-sdk] Sending a track that is already in "ended" state. It might have been transferred before.');
+      console.warn('[zvon-sdk v2] Sending a track that is already in "ended" state.');
     }
 
     return new Promise((resolve, reject) => {
       const id = nextId();
       callbacks.set(id, { resolve, reject });
       
-      // Envelope for transferable path: MUST include the track object.
-      // Envelope for fallback path: MUST NOT include the track object (as it's not clonable).
+      // Envelope for transferable path.
       const envelope = { __zvon: true, id, type, payload: fullPayload, track };
 
-      // Try transferable first.
       try {
-        console.log('[zvon-sdk] Attempting to send track via transferable...', {
+        console.log('[zvon-sdk v2] Attempting transferable transfer...', {
           type,
           stashId,
-          trackKind: track.kind,
-          trackState: track.readyState,
-          constructor: track.constructor?.name,
-          toString: Object.prototype.toString.call(track)
+          kind: track.kind,
+          state: track.readyState,
+          label: track.label,
+          constructor: track.constructor?.name
         });
         HOST.postMessage(envelope, '*', [track]);
       } catch (e) {
-        console.warn('[zvon-sdk] Transferable postMessage failed, falling back to stash-only path:', e.message);
-        // Transferable rejected — retry without transfer list and WITHOUT the track in envelope.
+        console.warn('[zvon-sdk v2] Transferable failed, using fallback stash path:', e.message);
         try {
+          // Fallback: envelope MUST NOT contain the track object.
           const fallbackEnvelope = { __zvon: true, id, type, payload: fullPayload };
           HOST.postMessage(fallbackEnvelope, '*');
         } catch (e2) {
-          console.error('[zvon-sdk] Fallback postMessage also failed:', e2.message);
+          console.error('[zvon-sdk v2] Fallback failed:', e2.message);
           callbacks.delete(id);
           reject(e2);
           return;
