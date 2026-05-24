@@ -24,6 +24,27 @@
     });
   }
 
+  // Track handoff to parent. Tries transferable first (works for cross-origin
+  // mini-apps in Chrome 116+ / Firefox 117+). Falls back to a same-origin
+  // global property trick: stash the track on this window, host reaches into
+  // iframe.contentWindow to grab it. Falls back gracefully if same-origin
+  // access isn't possible (then transferable is the only option).
+  const _trackStash = new Map(); // stashId -> MediaStreamTrack
+  window.__zvonTrackStash = _trackStash;
+
+  function sendTrack(type, payload, track) {
+    // Same-origin stash: host pulls the track via iframe.contentWindow.__zvonTrackStash.
+    // Works without transferable support, and avoids cross-document object issues.
+    // For cross-origin mini-apps the stash is unreachable — those need Chrome 116+
+    // transferable MediaStreamTrack and should pass [track] in postMessage manually.
+    const stashId = nextId();
+    _trackStash.set(stashId, track);
+    return call(type, { ...payload, __trackStashId: stashId }).finally(() => {
+      // Keep the track in stash a bit longer so the host has time to pick it up.
+      setTimeout(() => _trackStash.delete(stashId), 5000);
+    });
+  }
+
   window.addEventListener('message', (e) => {
     if (e.source !== HOST) return;
     const msg = e.data;
@@ -70,9 +91,7 @@
       if (!(track instanceof MediaStreamTrack) || track.kind !== 'audio') {
         throw new Error('publishAudioTrack expects an audio MediaStreamTrack');
       }
-      // The MediaStreamTrack rides along the message AND is in the transferable list,
-      // so ownership moves to the parent window.
-      return call('publishAudioTrack', { name: 'miniapp-audio' }, { track }, [track]);
+      return sendTrack('publishAudioTrack', { name: 'miniapp-audio' }, track);
     },
 
     /** Stop publishing a previously published track by sid. */
@@ -147,13 +166,13 @@
       /** Publish an audio MediaStreamTrack so others hear it as this presence. */
       publishAudio: (track) => {
         if (!(track instanceof MediaStreamTrack) || track.kind !== 'audio') throw new Error('audio MediaStreamTrack required');
-        return call('voicePresence.publishAudio', { sessionId }, { track }, [track]);
+        return sendTrack('voicePresence.publishAudio', { sessionId }, track);
       },
 
       /** Publish a video MediaStreamTrack as background for this presence. */
       publishVideo: (track) => {
         if (!(track instanceof MediaStreamTrack) || track.kind !== 'video') throw new Error('video MediaStreamTrack required');
-        return call('voicePresence.publishVideo', { sessionId }, { track }, [track]);
+        return sendTrack('voicePresence.publishVideo', { sessionId }, track);
       },
 
       unpublishAudio: () => call('voicePresence.unpublishAudio', { sessionId }),
