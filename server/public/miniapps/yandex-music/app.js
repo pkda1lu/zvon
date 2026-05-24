@@ -42,17 +42,23 @@
   let progressTimer = null;
 
   // --- Audio capture pipeline ---
-  // MediaStreamDestination tracks aren't transferable across iframes; only
-  // tracks from getUserMedia/captureStream are. Use audio.captureStream() —
-  // returns the same stream on subsequent calls so we cache the track.
-  let _captureStream = null;
+  // Web Audio MediaStreamDestination gives a track that does NOT end when the
+  // audio element's src changes (unlike audio.captureStream()). That's the
+  // right primitive for a playlist where we want one stable published track.
+  // createMediaElementSource() can only be called once per element.
+  let audioCtx = null;
+  let _captureTrack = null;
   function getCaptureTrack() {
-    if (typeof audio.captureStream !== 'function') {
-      console.error('[YM] audio.captureStream not supported in this browser');
-      return null;
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaElementSource(audio);
+      const dest = audioCtx.createMediaStreamDestination();
+      src.connect(audioCtx.destination);   // local speakers
+      src.connect(dest);                    // capture
+      _captureTrack = dest.stream.getAudioTracks()[0] || null;
     }
-    if (!_captureStream) _captureStream = audio.captureStream();
-    return _captureStream.getAudioTracks()[0] || null;
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return _captureTrack;
   }
 
   audio.addEventListener('ended', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback(); });
@@ -308,15 +314,12 @@
       const url = 'https://' + track.coverUri.replace('%%', '400x400');
       await presence.setBackground({ type: 'image', url });
     }
+    // The capture track is stable across audio src changes (Web Audio dest),
+    // so publishing once is enough. The bridge no-ops on repeat publishes of
+    // the same track to avoid LiveKit republish thrashing.
     try {
       const at = getCaptureTrack();
-      console.log('[YM] presence track:', at, 'enabled:', at?.enabled, 'readyState:', at?.readyState);
-      if (at) {
-        const sid = await presence.publishAudio(at);
-        console.log('[YM] publishAudio sid:', sid);
-      } else {
-        console.warn('[YM] No audio track from capture destination');
-      }
+      if (at) await presence.publishAudio(at);
     } catch (e) { console.error('[YM] presence publishAudio failed:', e); }
     await presence.setControls(getControlSchema());
   }
