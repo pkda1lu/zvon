@@ -1847,14 +1847,14 @@ function MiniAppsSettings() {
         Мини-приложения открываются в виде плавающих окон внутри ZVON.
       </p>
 
-      <form onSubmit={createApp} className="glass-panel-base" style={{ padding: '20px', borderRadius: '16px', marginBottom: '40px', display: 'flex', gap: '12px' }}>
+      <form onSubmit={createApp} className="glass-panel-base" style={{ padding: '20px', borderRadius: '16px', marginBottom: '40px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="text"
           placeholder="Название нового приложения..."
           value={appName}
           onChange={e => setAppName(e.target.value)}
           className="settings-input"
-          style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
+          style={{ flex: '1 1 200px', minWidth: 0, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
         />
         <input
           type="text"
@@ -1862,9 +1862,9 @@ function MiniAppsSettings() {
           value={appUrl}
           onChange={e => setAppUrl(e.target.value)}
           className="settings-input"
-          style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
+          style={{ flex: '1 1 200px', minWidth: 0, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
         />
-        <button type="submit" className="save-button" style={{ margin: 0, height: '44px' }} disabled={loading}>
+        <button type="submit" className="save-button" style={{ margin: 0, height: '44px', flexShrink: 0 }} disabled={loading}>
           Создать приложение
         </button>
       </form>
@@ -1914,21 +1914,23 @@ function MiniAppsSettings() {
 
               {editingApp?._id === app._id && (
                 <div className="card-v2-edit-form">
-                  <div className="user-settings-account-card" style={{ marginBottom: '20px', background: 'transparent', border: 'none' }}>
+                  <div className="user-settings-account-card" style={{ marginBottom: '60px', background: 'transparent', border: 'none', overflow: 'visible', boxShadow: 'none', backdropFilter: 'none' }}>
                     <div
                       className="account-banner"
-                      style={{ height: '120px', borderRadius: '14px', background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--secondary-neon)' }}
+                      style={{ height: '120px', borderRadius: '14px', background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--secondary-neon)', position: 'relative' }}
                     >
-                      <label className="change-banner-button" style={{ cursor: 'pointer' }}>
-                        Изменить баннер
-                        <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
-                      </label>
-                      {previewBanner && (
-                        <button className="change-banner-button" style={{ right: '145px', background: 'rgba(255, 59, 48, 0.6)' }} onClick={resetBanner}>
-                          Сбросить
-                        </button>
-                      )}
-                      <label className="account-avatar-wrapper" style={{ cursor: 'pointer', width: '80px', height: '80px', left: '20px', bottom: '-40px' }}>
+                      <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 8, zIndex: 11 }}>
+                        {previewBanner && (
+                          <button className="change-banner-button" style={{ position: 'static', background: 'rgba(255, 59, 48, 0.6)' }} onClick={resetBanner}>
+                            Сбросить
+                          </button>
+                        )}
+                        <label className="change-banner-button" style={{ position: 'static', cursor: 'pointer' }}>
+                          Изменить баннер
+                          <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
+                        </label>
+                      </div>
+                      <label className="account-avatar-wrapper" style={{ cursor: 'pointer', width: '80px', height: '80px', left: '20px', top: 'auto', bottom: '-40px' }}>
                         {previewAvatar ? (
                           <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
@@ -1940,7 +1942,7 @@ function MiniAppsSettings() {
                     </div>
                   </div>
                   
-                  <div style={{ marginTop: '55px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div className="settings-form-group">
                       <label>Название</label>
                       <input type="text" value={editName} onChange={e => setEditName(e.target.value)} />
@@ -2132,16 +2134,16 @@ function BotsSettings() {
         Создавайте ботов для автоматизации или интеграций. Боты работают через WebSocket API.
       </p>
 
-      <form onSubmit={createBot} className="glass-panel-base" style={{ padding: '20px', borderRadius: '16px', marginBottom: '40px', display: 'flex', gap: '12px' }}>
+      <form onSubmit={createBot} className="glass-panel-base" style={{ padding: '20px', borderRadius: '16px', marginBottom: '40px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="text"
           placeholder="Имя нового бота..."
           value={botName}
           onChange={e => setBotName(e.target.value)}
           className="settings-input"
-          style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
+          style={{ flex: '1 1 200px', minWidth: 0, background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}
         />
-        <button type="submit" className="save-button" style={{ margin: 0, height: '44px' }} disabled={loading}>
+        <button type="submit" className="save-button" style={{ margin: 0, height: '44px', flexShrink: 0 }} disabled={loading}>
           Создать бота
         </button>
       </form>
@@ -2219,21 +2221,23 @@ function BotsSettings() {
 
               {editingBot?._id === bot._id && (
                 <div className="card-v2-edit-form">
-                  <div className="user-settings-account-card" style={{ marginBottom: '20px', background: 'transparent', border: 'none' }}>
+                  <div className="user-settings-account-card" style={{ marginBottom: '60px', background: 'transparent', border: 'none', overflow: 'visible', boxShadow: 'none', backdropFilter: 'none' }}>
                     <div
                       className="account-banner"
-                      style={{ height: '120px', borderRadius: '14px', background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--primary-neon)' }}
+                      style={{ height: '120px', borderRadius: '14px', background: previewBanner ? `url(${previewBanner}) center/cover` : 'var(--primary-neon)', position: 'relative' }}
                     >
-                      <label className="change-banner-button" style={{ cursor: 'pointer' }}>
-                        Изменить баннер
-                        <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
-                      </label>
-                      {previewBanner && (
-                        <button className="change-banner-button" style={{ right: '145px', background: 'rgba(255, 59, 48, 0.6)' }} onClick={resetBanner}>
-                          Сбросить
-                        </button>
-                      )}
-                      <label className="account-avatar-wrapper" style={{ cursor: 'pointer', width: '80px', height: '80px', left: '20px', bottom: '-40px' }}>
+                      <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 8, zIndex: 11 }}>
+                        {previewBanner && (
+                          <button className="change-banner-button" style={{ position: 'static', background: 'rgba(255, 59, 48, 0.6)' }} onClick={resetBanner}>
+                            Сбросить
+                          </button>
+                        )}
+                        <label className="change-banner-button" style={{ position: 'static', cursor: 'pointer' }}>
+                          Изменить баннер
+                          <input type="file" accept="image/*" onChange={handleBannerSelect} hidden />
+                        </label>
+                      </div>
+                      <label className="account-avatar-wrapper" style={{ cursor: 'pointer', width: '80px', height: '80px', left: '20px', top: 'auto', bottom: '-40px' }}>
                         {previewAvatar ? (
                           <img src={previewAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
@@ -2245,7 +2249,7 @@ function BotsSettings() {
                     </div>
                   </div>
                   
-                  <div style={{ marginTop: '55px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div className="settings-form-group">
                       <label>Имя бота</label>
                       <input type="text" value={editName} onChange={e => setEditName(e.target.value)} />

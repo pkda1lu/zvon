@@ -57,22 +57,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
     };
 
     const handleOpenApp = (app: any) => {
-        if (socket) {
-            socket.emit('activity-update', {
-                name: app.name,
-                type: 'playing',
-                state: 'В приложении',
-                details: app.description ? app.description.slice(0, 100) : '',
-                assets: {
-                    largeImage: app.avatar || null,
-                    largeText: app.name
-                },
-                timestamps: {
-                    start: Date.now()
-                },
-                miniAppData: app
-            });
-        }
+        // Activity is computed centrally in Main based on game vs open mini-apps.
         onOpenMiniApp(app);
     };
 
