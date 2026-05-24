@@ -7,7 +7,7 @@
   // The mini-app developer registers an OAuth client at https://oauth.yandex.ru/
   // with redirect URI = the absolute URL of oauth-callback.html in this folder.
   // The client_id is public; replace with yours.
-  const YANDEX_CLIENT_ID = window.YM_CLIENT_ID || '23cabbbae6534cfe9d50f3c7a5b97041';
+  const YANDEX_CLIENT_ID = window.YM_CLIENT_ID || 'f714685f466146d983e91542ee0267d3';
 
   const YA_API = 'https://api.music.yandex.net';
   const HEADERS_BASE = {
@@ -55,7 +55,7 @@
   sdk.on('voiceChannelChanged', (p) => {
     // If user leaves voice while we are streaming, drop the published track.
     if (!p.channelId && publishedSid) {
-      sdk.unpublishAudioTrack(publishedSid).catch(() => {});
+      sdk.unpublishAudioTrack(publishedSid).catch(() => { });
       publishedSid = null;
     }
   });
@@ -276,14 +276,14 @@
   }
 
   async function stopPlayback() {
-    try { audio.pause(); } catch {}
+    try { audio.pause(); } catch { }
     audio.removeAttribute('src');
-    try { audio.load(); } catch {}
+    try { audio.load(); } catch { }
     currentIndex = -1;
     renderQueue();
     player.classList.add('hidden');
     if (publishedSid) {
-      try { await sdk.unpublishAudioTrack(publishedSid); } catch {}
+      try { await sdk.unpublishAudioTrack(publishedSid); } catch { }
       publishedSid = null;
     }
   }
@@ -353,25 +353,27 @@
   }
   // -- Tiny MD5 (RFC 1321) implementation --
   function md5js(s) {
-    function L(k,d){return(k<<d)|(k>>>(32-d))}
-    function K(G,k){var I,d,F,H,x;F=(G&2147483648);H=(k&2147483648);I=(G&1073741824);d=(k&1073741824);x=(G&1073741823)+(k&1073741823);if(I&d)return(x^2147483648^F^H);if(I|d){if(x&1073741824)return(x^3221225472^F^H);else return(x^1073741824^F^H)}else return(x^F^H)}
-    function r(d,F,k){return(d&F)|((~d)&k)}
-    function q(d,F,k){return(d&k)|(F&(~k))}
-    function p(d,F,k){return(d^F^k)}
-    function n(d,F,k){return(F^(d|(~k)))}
-    function u(G,F,aa,Z,k,H,I){G=K(G,K(K(r(F,aa,Z),k),I));return K(L(G,H),F)}
-    function f(G,F,aa,Z,k,H,I){G=K(G,K(K(q(F,aa,Z),k),I));return K(L(G,H),F)}
-    function D(G,F,aa,Z,k,H,I){G=K(G,K(K(p(F,aa,Z),k),I));return K(L(G,H),F)}
-    function t(G,F,aa,Z,k,H,I){G=K(G,K(K(n(F,aa,Z),k),I));return K(L(G,H),F)}
-    function e(G){var Z,F=G.length,x=F+8,k=(x-(x%64))/64,I=(k+1)*16,aa=Array(I-1),d=0,H=0;while(H<F){Z=(H-(H%4))/4;d=(H%4)*8;aa[Z]=(aa[Z]|(G.charCodeAt(H)<<d));H++}Z=(H-(H%4))/4;d=(H%4)*8;aa[Z]=aa[Z]|(128<<d);aa[I-2]=F<<3;aa[I-1]=F>>>29;return aa}
-    function B(x){var k="",F="",G,d;for(d=0;d<=3;d++){G=(x>>>(d*8))&255;F="0"+G.toString(16);k=k+F.substr(F.length-2,2)}return k}
-    function J(k){k=k.replace(/\r\n/g,"\n");var d="";for(var F=0;F<k.length;F++){var x=k.charCodeAt(F);if(x<128){d+=String.fromCharCode(x)}else if((x>127)&&(x<2048)){d+=String.fromCharCode((x>>6)|192);d+=String.fromCharCode((x&63)|128)}else{d+=String.fromCharCode((x>>12)|224);d+=String.fromCharCode(((x>>6)&63)|128);d+=String.fromCharCode((x&63)|128)}}return d}
-    var C=Array(),P,h,E,v,g,Y,M,X,W,o=7,T=12,R=17,O=22,A=5,z=9,y=14,w=20,N=4,U=11,S=16,Q=23,V=6,b=10,a=15,c=21;s=J(s);C=e(s);Y=1732584193;M=4023233417;X=2562383102;W=271733878;
-    for(P=0;P<C.length;P+=16){h=Y;E=M;v=X;g=W;Y=u(Y,M,X,W,C[P+0],o,3614090360);W=u(W,Y,M,X,C[P+1],T,3905402710);X=u(X,W,Y,M,C[P+2],R,606105819);M=u(M,X,W,Y,C[P+3],O,3250441966);Y=u(Y,M,X,W,C[P+4],o,4118548399);W=u(W,Y,M,X,C[P+5],T,1200080426);X=u(X,W,Y,M,C[P+6],R,2821735955);M=u(M,X,W,Y,C[P+7],O,4249261313);Y=u(Y,M,X,W,C[P+8],o,1770035416);W=u(W,Y,M,X,C[P+9],T,2336552879);X=u(X,W,Y,M,C[P+10],R,4294925233);M=u(M,X,W,Y,C[P+11],O,2304563134);Y=u(Y,M,X,W,C[P+12],o,1804603682);W=u(W,Y,M,X,C[P+13],T,4254626195);X=u(X,W,Y,M,C[P+14],R,2792965006);M=u(M,X,W,Y,C[P+15],O,1236535329);
-    Y=f(Y,M,X,W,C[P+1],A,4129170786);W=f(W,Y,M,X,C[P+6],z,3225465664);X=f(X,W,Y,M,C[P+11],y,643717713);M=f(M,X,W,Y,C[P+0],w,3921069994);Y=f(Y,M,X,W,C[P+5],A,3593408605);W=f(W,Y,M,X,C[P+10],z,38016083);X=f(X,W,Y,M,C[P+15],y,3634488961);M=f(M,X,W,Y,C[P+4],w,3889429448);Y=f(Y,M,X,W,C[P+9],A,568446438);W=f(W,Y,M,X,C[P+14],z,3275163606);X=f(X,W,Y,M,C[P+3],y,4107603335);M=f(M,X,W,Y,C[P+8],w,1163531501);Y=f(Y,M,X,W,C[P+13],A,2850285829);W=f(W,Y,M,X,C[P+2],z,4243563512);X=f(X,W,Y,M,C[P+7],y,1735328473);M=f(M,X,W,Y,C[P+12],w,2368359562);
-    Y=D(Y,M,X,W,C[P+5],N,4294588738);W=D(W,Y,M,X,C[P+8],U,2272392833);X=D(X,W,Y,M,C[P+11],S,1839030562);M=D(M,X,W,Y,C[P+14],Q,4259657740);Y=D(Y,M,X,W,C[P+1],N,2763975236);W=D(W,Y,M,X,C[P+4],U,1272893353);X=D(X,W,Y,M,C[P+7],S,4139469664);M=D(M,X,W,Y,C[P+10],Q,3200236656);Y=D(Y,M,X,W,C[P+13],N,681279174);W=D(W,Y,M,X,C[P+0],U,3936430074);X=D(X,W,Y,M,C[P+3],S,3572445317);M=D(M,X,W,Y,C[P+6],Q,76029189);Y=D(Y,M,X,W,C[P+9],N,3654602809);W=D(W,Y,M,X,C[P+12],U,3873151461);X=D(X,W,Y,M,C[P+15],S,530742520);M=D(M,X,W,Y,C[P+2],Q,3299628645);
-    Y=t(Y,M,X,W,C[P+0],V,4096336452);W=t(W,Y,M,X,C[P+7],b,1126891415);X=t(X,W,Y,M,C[P+14],a,2878612391);M=t(M,X,W,Y,C[P+5],c,4237533241);Y=t(Y,M,X,W,C[P+12],V,1700485571);W=t(W,Y,M,X,C[P+3],b,2399980690);X=t(X,W,Y,M,C[P+10],a,4293915773);M=t(M,X,W,Y,C[P+1],c,2240044497);Y=t(Y,M,X,W,C[P+8],V,1873313359);W=t(W,Y,M,X,C[P+15],b,4264355552);X=t(X,W,Y,M,C[P+6],a,2734768916);M=t(M,X,W,Y,C[P+13],c,1309151649);Y=t(Y,M,X,W,C[P+4],V,4149444226);W=t(W,Y,M,X,C[P+11],b,3174756917);X=t(X,W,Y,M,C[P+2],a,718787259);M=t(M,X,W,Y,C[P+9],c,3951481745);
-    Y=K(Y,h);M=K(M,E);X=K(X,v);W=K(W,g)}
-    return(B(Y)+B(M)+B(X)+B(W)).toLowerCase()
+    function L(k, d) { return (k << d) | (k >>> (32 - d)) }
+    function K(G, k) { var I, d, F, H, x; F = (G & 2147483648); H = (k & 2147483648); I = (G & 1073741824); d = (k & 1073741824); x = (G & 1073741823) + (k & 1073741823); if (I & d) return (x ^ 2147483648 ^ F ^ H); if (I | d) { if (x & 1073741824) return (x ^ 3221225472 ^ F ^ H); else return (x ^ 1073741824 ^ F ^ H) } else return (x ^ F ^ H) }
+    function r(d, F, k) { return (d & F) | ((~d) & k) }
+    function q(d, F, k) { return (d & k) | (F & (~k)) }
+    function p(d, F, k) { return (d ^ F ^ k) }
+    function n(d, F, k) { return (F ^ (d | (~k))) }
+    function u(G, F, aa, Z, k, H, I) { G = K(G, K(K(r(F, aa, Z), k), I)); return K(L(G, H), F) }
+    function f(G, F, aa, Z, k, H, I) { G = K(G, K(K(q(F, aa, Z), k), I)); return K(L(G, H), F) }
+    function D(G, F, aa, Z, k, H, I) { G = K(G, K(K(p(F, aa, Z), k), I)); return K(L(G, H), F) }
+    function t(G, F, aa, Z, k, H, I) { G = K(G, K(K(n(F, aa, Z), k), I)); return K(L(G, H), F) }
+    function e(G) { var Z, F = G.length, x = F + 8, k = (x - (x % 64)) / 64, I = (k + 1) * 16, aa = Array(I - 1), d = 0, H = 0; while (H < F) { Z = (H - (H % 4)) / 4; d = (H % 4) * 8; aa[Z] = (aa[Z] | (G.charCodeAt(H) << d)); H++ } Z = (H - (H % 4)) / 4; d = (H % 4) * 8; aa[Z] = aa[Z] | (128 << d); aa[I - 2] = F << 3; aa[I - 1] = F >>> 29; return aa }
+    function B(x) { var k = "", F = "", G, d; for (d = 0; d <= 3; d++) { G = (x >>> (d * 8)) & 255; F = "0" + G.toString(16); k = k + F.substr(F.length - 2, 2) } return k }
+    function J(k) { k = k.replace(/\r\n/g, "\n"); var d = ""; for (var F = 0; F < k.length; F++) { var x = k.charCodeAt(F); if (x < 128) { d += String.fromCharCode(x) } else if ((x > 127) && (x < 2048)) { d += String.fromCharCode((x >> 6) | 192); d += String.fromCharCode((x & 63) | 128) } else { d += String.fromCharCode((x >> 12) | 224); d += String.fromCharCode(((x >> 6) & 63) | 128); d += String.fromCharCode((x & 63) | 128) } } return d }
+    var C = Array(), P, h, E, v, g, Y, M, X, W, o = 7, T = 12, R = 17, O = 22, A = 5, z = 9, y = 14, w = 20, N = 4, U = 11, S = 16, Q = 23, V = 6, b = 10, a = 15, c = 21; s = J(s); C = e(s); Y = 1732584193; M = 4023233417; X = 2562383102; W = 271733878;
+    for (P = 0; P < C.length; P += 16) {
+      h = Y; E = M; v = X; g = W; Y = u(Y, M, X, W, C[P + 0], o, 3614090360); W = u(W, Y, M, X, C[P + 1], T, 3905402710); X = u(X, W, Y, M, C[P + 2], R, 606105819); M = u(M, X, W, Y, C[P + 3], O, 3250441966); Y = u(Y, M, X, W, C[P + 4], o, 4118548399); W = u(W, Y, M, X, C[P + 5], T, 1200080426); X = u(X, W, Y, M, C[P + 6], R, 2821735955); M = u(M, X, W, Y, C[P + 7], O, 4249261313); Y = u(Y, M, X, W, C[P + 8], o, 1770035416); W = u(W, Y, M, X, C[P + 9], T, 2336552879); X = u(X, W, Y, M, C[P + 10], R, 4294925233); M = u(M, X, W, Y, C[P + 11], O, 2304563134); Y = u(Y, M, X, W, C[P + 12], o, 1804603682); W = u(W, Y, M, X, C[P + 13], T, 4254626195); X = u(X, W, Y, M, C[P + 14], R, 2792965006); M = u(M, X, W, Y, C[P + 15], O, 1236535329);
+      Y = f(Y, M, X, W, C[P + 1], A, 4129170786); W = f(W, Y, M, X, C[P + 6], z, 3225465664); X = f(X, W, Y, M, C[P + 11], y, 643717713); M = f(M, X, W, Y, C[P + 0], w, 3921069994); Y = f(Y, M, X, W, C[P + 5], A, 3593408605); W = f(W, Y, M, X, C[P + 10], z, 38016083); X = f(X, W, Y, M, C[P + 15], y, 3634488961); M = f(M, X, W, Y, C[P + 4], w, 3889429448); Y = f(Y, M, X, W, C[P + 9], A, 568446438); W = f(W, Y, M, X, C[P + 14], z, 3275163606); X = f(X, W, Y, M, C[P + 3], y, 4107603335); M = f(M, X, W, Y, C[P + 8], w, 1163531501); Y = f(Y, M, X, W, C[P + 13], A, 2850285829); W = f(W, Y, M, X, C[P + 2], z, 4243563512); X = f(X, W, Y, M, C[P + 7], y, 1735328473); M = f(M, X, W, Y, C[P + 12], w, 2368359562);
+      Y = D(Y, M, X, W, C[P + 5], N, 4294588738); W = D(W, Y, M, X, C[P + 8], U, 2272392833); X = D(X, W, Y, M, C[P + 11], S, 1839030562); M = D(M, X, W, Y, C[P + 14], Q, 4259657740); Y = D(Y, M, X, W, C[P + 1], N, 2763975236); W = D(W, Y, M, X, C[P + 4], U, 1272893353); X = D(X, W, Y, M, C[P + 7], S, 4139469664); M = D(M, X, W, Y, C[P + 10], Q, 3200236656); Y = D(Y, M, X, W, C[P + 13], N, 681279174); W = D(W, Y, M, X, C[P + 0], U, 3936430074); X = D(X, W, Y, M, C[P + 3], S, 3572445317); M = D(M, X, W, Y, C[P + 6], Q, 76029189); Y = D(Y, M, X, W, C[P + 9], N, 3654602809); W = D(W, Y, M, X, C[P + 12], U, 3873151461); X = D(X, W, Y, M, C[P + 15], S, 530742520); M = D(M, X, W, Y, C[P + 2], Q, 3299628645);
+      Y = t(Y, M, X, W, C[P + 0], V, 4096336452); W = t(W, Y, M, X, C[P + 7], b, 1126891415); X = t(X, W, Y, M, C[P + 14], a, 2878612391); M = t(M, X, W, Y, C[P + 5], c, 4237533241); Y = t(Y, M, X, W, C[P + 12], V, 1700485571); W = t(W, Y, M, X, C[P + 3], b, 2399980690); X = t(X, W, Y, M, C[P + 10], a, 4293915773); M = t(M, X, W, Y, C[P + 1], c, 2240044497); Y = t(Y, M, X, W, C[P + 8], V, 1873313359); W = t(W, Y, M, X, C[P + 15], b, 4264355552); X = t(X, W, Y, M, C[P + 6], a, 2734768916); M = t(M, X, W, Y, C[P + 13], c, 1309151649); Y = t(Y, M, X, W, C[P + 4], V, 4149444226); W = t(W, Y, M, X, C[P + 11], b, 3174756917); X = t(X, W, Y, M, C[P + 2], a, 718787259); M = t(M, X, W, Y, C[P + 9], c, 3951481745);
+      Y = K(Y, h); M = K(M, E); X = K(X, v); W = K(W, g)
+    }
+    return (B(Y) + B(M) + B(X) + B(W)).toLowerCase()
   }
 })();
