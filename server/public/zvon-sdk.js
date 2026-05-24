@@ -150,7 +150,14 @@
     version: 1,
 
     /** Initial handshake. Returns { user, app, voiceChannelId }. Call this first. */
-    init: () => call('init', {}),
+    init: () => call('init', {}).then(res => {
+      if (res && res.port && res.port instanceof MessagePort) {
+        console.log('[zvon-sdk v4] Captured MessagePort from init response');
+        _port = res.port;
+        _port.onmessage = (e) => handleMsg(e.data);
+      }
+      return res;
+    }),
 
     /** Current Zvon user info. */
     getUser: () => call('getUser', {}),
