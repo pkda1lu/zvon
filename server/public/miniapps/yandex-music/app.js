@@ -100,12 +100,28 @@
   async function connectYandex() {
     const redirectUri = new URL('./oauth-callback.html', window.location.href).toString();
     const url = `https://oauth.yandex.ru/authorize?response_type=token&client_id=${encodeURIComponent(YANDEX_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&force_confirm=yes`;
+    console.log('[YM OAuth] redirect_uri =', redirectUri);
+    console.log('[YM OAuth] open URL    =', url);
     try {
       const r = await sdk.oauthPopup(url, { width: 600, height: 720 });
-      // r.hash like "#access_token=...&token_type=bearer&expires_in=..."
-      const params = new URLSearchParams((r.hash || '').replace(/^#/, ''));
-      const accessToken = params.get('access_token');
-      if (!accessToken) throw new Error('Токен не получен');
+      console.log('[YM OAuth] popup returned:', r);
+
+      // Implicit flow returns token in hash. Errors may come back in search.
+      const hashParams = new URLSearchParams((r.hash || '').replace(/^#/, ''));
+      const queryParams = new URLSearchParams((r.search || '').replace(/^\?/, ''));
+
+      const oauthError = hashParams.get('error') || queryParams.get('error');
+      const errorDesc = hashParams.get('error_description') || queryParams.get('error_description');
+      if (oauthError) throw new Error(`Яндекс: ${oauthError}${errorDesc ? ' — ' + decodeURIComponent(errorDesc.replace(/\+/g, ' ')) : ''}`);
+
+      const accessToken = hashParams.get('access_token');
+      if (!accessToken) {
+        throw new Error(
+          'access_token не пришёл. Вероятная причина: в настройках OAuth-приложения Яндекса не включён Implicit Grant. ' +
+          'Полный URL возврата: ' + (r.href || '(пусто)')
+        );
+      }
+
       await sdk.storage.set('access_token', accessToken);
       token = accessToken;
       const acc = await yaCall('/account/status');
@@ -119,6 +135,7 @@
       renderAccount();
       renderSearchScreen();
     } catch (e) {
+      console.error('[YM OAuth]', e);
       alert('Ошибка авторизации: ' + e.message);
     }
   }
