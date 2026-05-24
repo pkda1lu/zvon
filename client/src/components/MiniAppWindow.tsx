@@ -24,7 +24,10 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     const { user } = useAuth();
-    const { activeChannelId, publishExternalAudioTrack, unpublishExternalAudioTrack } = useVoice();
+    const {
+        activeChannelId,
+        publishExternalAudioTrack, publishExternalVideoTrack, unpublishExternalAudioTrack,
+    } = useVoice();
     const { socket } = useSocket();
 
     const getAbsoluteUrl = (url: string) => {
@@ -37,6 +40,18 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
 
     // Track of publication sids we created for this app, to clean up on unmount.
     const publishedSidsRef = useRef<Set<string>>(new Set());
+    // sessionId -> { channelId, audioSid, videoSid }
+    const presencesRef = useRef<Map<string, { channelId: string; audioSid?: string; videoSid?: string }>>(new Map());
+
+    /** Resolve the LiveKit-style channel id for the user's current voice context. */
+    const currentVoiceChannelId = useCallback((): string | null => {
+        // VoiceContext.activeChannelId is the server-voice channel id (raw). For DM
+        // the active voice room is encoded as call-<dmId> on the LiveKit side, but
+        // VoiceContext doesn't track DM call membership. We expose only server
+        // voice for now; DM presence can be added later by surfacing dmCallId.
+        if (activeChannelId) return 'channel-' + activeChannelId;
+        return null;
+    }, [activeChannelId]);
 
     // postMessage bridge
     useEffect(() => {
@@ -129,6 +144,91 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                         break;
                     }
 
+                    case 'voicePresence.create': {
+                        const { sessionId, displayName, avatar } = payload;
+                        const channelId = currentVoiceChannelId();
+                        if (!channelId) { respond(id, { ok: false, error: 'Не в голосовом канале' }); break; }
+                        if (!socket) { respond(id, { ok: false, error: 'no socket' }); break; }
+                        socket.emit('voice-presence-create', { sessionId, channelId, displayName, avatar });
+                        presencesRef.current.set(sessionId, { channelId });
+                        respond(id, { ok: true, result: channelId });
+                        break;
+                    }
+                    case 'voicePresence.publishAudio': {
+                        const { sessionId } = payload;
+                        const track = (msg as any).track as MediaStreamTrack | undefined;
+                        const slot = presencesRef.current.get(sessionId);
+                        if (!track || !slot) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        if (slot.audioSid) await unpublishExternalAudioTrack(slot.audioSid);
+                        const sid = await publishExternalAudioTrack(track, 'zvon-presence:' + sessionId);
+                        if (sid) { slot.audioSid = sid; publishedSidsRef.current.add(sid); }
+                        respond(id, { ok: !!sid, result: sid });
+                        break;
+                    }
+                    case 'voicePresence.publishVideo': {
+                        const { sessionId } = payload;
+                        const track = (msg as any).track as MediaStreamTrack | undefined;
+                        const slot = presencesRef.current.get(sessionId);
+                        if (!track || !slot) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        if (slot.videoSid) await unpublishExternalAudioTrack(slot.videoSid);
+                        const sid = await publishExternalVideoTrack(track, 'zvon-presence:' + sessionId);
+                        if (sid) { slot.videoSid = sid; publishedSidsRef.current.add(sid); }
+                        respond(id, { ok: !!sid, result: sid });
+                        break;
+                    }
+                    case 'voicePresence.unpublishAudio': {
+                        const slot = presencesRef.current.get(payload.sessionId);
+                        if (slot?.audioSid) {
+                            await unpublishExternalAudioTrack(slot.audioSid);
+                            publishedSidsRef.current.delete(slot.audioSid);
+                            slot.audioSid = undefined;
+                        }
+                        respond(id, { ok: true });
+                        break;
+                    }
+                    case 'voicePresence.unpublishVideo': {
+                        const slot = presencesRef.current.get(payload.sessionId);
+                        if (slot?.videoSid) {
+                            await unpublishExternalAudioTrack(slot.videoSid);
+                            publishedSidsRef.current.delete(slot.videoSid);
+                            slot.videoSid = undefined;
+                        }
+                        respond(id, { ok: true });
+                        break;
+                    }
+                    case 'voicePresence.setBackground': {
+                        const slot = presencesRef.current.get(payload.sessionId);
+                        if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        socket.emit('voice-presence-update', { sessionId: payload.sessionId, channelId: slot.channelId, patch: { background: payload.background } });
+                        respond(id, { ok: true });
+                        break;
+                    }
+                    case 'voicePresence.setControls': {
+                        const slot = presencesRef.current.get(payload.sessionId);
+                        if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        socket.emit('voice-presence-update', { sessionId: payload.sessionId, channelId: slot.channelId, patch: { controls: payload.controls } });
+                        respond(id, { ok: true });
+                        break;
+                    }
+                    case 'voicePresence.updateControl': {
+                        const slot = presencesRef.current.get(payload.sessionId);
+                        if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        socket.emit('voice-presence-update', { sessionId: payload.sessionId, channelId: slot.channelId, patch: { controlPatch: { id: payload.controlId, partial: payload.partial } } });
+                        respond(id, { ok: true });
+                        break;
+                    }
+                    case 'voicePresence.destroy': {
+                        const slot = presencesRef.current.get(payload.sessionId);
+                        if (slot) {
+                            if (slot.audioSid) { await unpublishExternalAudioTrack(slot.audioSid); publishedSidsRef.current.delete(slot.audioSid); }
+                            if (slot.videoSid) { await unpublishExternalAudioTrack(slot.videoSid); publishedSidsRef.current.delete(slot.videoSid); }
+                            if (socket) socket.emit('voice-presence-destroy', { sessionId: payload.sessionId, channelId: slot.channelId });
+                            presencesRef.current.delete(payload.sessionId);
+                        }
+                        respond(id, { ok: true });
+                        break;
+                    }
+
                     case 'oauthPopup': {
                         // Open OAuth in a popup. Resolves when popup navigates to a URL
                         // that matches the supplied redirect_uri (substring match). The
@@ -182,15 +282,32 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
         } catch {}
     }, [activeChannelId]);
 
-    // Cleanup any published tracks on unmount
+    // Forward voice-presence-control events from the host socket to the iframe,
+    // but only when the targeted session is owned by THIS iframe.
+    useEffect(() => {
+        if (!socket) return;
+        const onControl = (data: { sessionId: string; channelId: string; controlId: string; value?: any; fromUserId: string }) => {
+            if (!presencesRef.current.has(data.sessionId)) return;
+            const iframe = iframeRef.current;
+            try { iframe?.contentWindow?.postMessage({ __zvon: true, event: 'voicePresenceControl', payload: data }, '*'); } catch {}
+        };
+        socket.on('voice-presence-control', onControl);
+        return () => { socket.off('voice-presence-control', onControl); };
+    }, [socket]);
+
+    // Cleanup any published tracks and presences on unmount
     useEffect(() => {
         return () => {
             for (const sid of publishedSidsRef.current) {
                 unpublishExternalAudioTrack(sid).catch(() => {});
             }
             publishedSidsRef.current.clear();
+            for (const [sessionId, slot] of presencesRef.current.entries()) {
+                if (socket) socket.emit('voice-presence-destroy', { sessionId, channelId: slot.channelId });
+            }
+            presencesRef.current.clear();
         };
-    }, [unpublishExternalAudioTrack]);
+    }, [unpublishExternalAudioTrack, socket]);
 
     useEffect(() => {
         const timer = setTimeout(() => { if (isLoading) setIsBlocked(true); }, 7000);

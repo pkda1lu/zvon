@@ -90,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className={`server-item ${showFriends ? 'active' : ''}`}>
           <div className="pill"><span /></div>
           <motion.div
-            className={`server-icon home-icon ${showFriends ? 'active' : ''}`}
+            className={`server-icon friends-sidebar-icon ${showFriends ? 'active' : ''}`}
             onClick={onShowFriends}
             title="Друзья"
             {...pressFeedback}
@@ -105,12 +105,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className={`server-item ${showShowcase ? 'active' : ''}`}>
           <div className="pill"><span /></div>
           <motion.div
-            className={`server-icon home-icon ${showShowcase ? 'active' : ''}`}
+            className={`server-icon showcase-sidebar-icon ${showShowcase ? 'active' : ''}`}
             onClick={onShowShowcase}
             title="Витрина ботов и мини-приложений"
             {...pressFeedback}
           >
-            <LayoutGridIcon size={28} />
+            <LayoutGridIcon size={28} color="var(--accent-pink)" />
           </motion.div>
         </div>
 

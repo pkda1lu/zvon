@@ -34,15 +34,17 @@
   const audio = new Audio();
   audio.crossOrigin = 'anonymous';
   audio.preload = 'auto';
-  let captureStream = null;
-  let publishedSid = null;
   let queue = [];
   let currentIndex = -1;
 
+  // Voice channel presence (the mini-app's tile inside the user's voice channel).
+  let presence = null;
+  let progressTimer = null;
+
   audio.addEventListener('ended', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback(); });
-  audio.addEventListener('timeupdate', updateProgress);
-  audio.addEventListener('play', () => { $('#btn-play').textContent = '⏸'; });
-  audio.addEventListener('pause', () => { $('#btn-play').textContent = '▶'; });
+  audio.addEventListener('timeupdate', () => { updateLocalProgress(); pushPresenceProgress(); });
+  audio.addEventListener('play', () => { $('#btn-play').textContent = '⏸'; updatePresenceControls(); });
+  audio.addEventListener('pause', () => { $('#btn-play').textContent = '▶'; updatePresenceControls(); });
 
   $('#vol').addEventListener('input', (e) => { audio.volume = Number(e.target.value) / 100; });
   audio.volume = 0.8;
@@ -52,11 +54,11 @@
   $('#btn-next').addEventListener('click', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); });
   $('#btn-stop').addEventListener('click', stopPlayback);
 
-  sdk.on('voiceChannelChanged', (p) => {
-    // If user leaves voice while we are streaming, drop the published track.
-    if (!p.channelId && publishedSid) {
-      sdk.unpublishAudioTrack(publishedSid).catch(() => { });
-      publishedSid = null;
+  sdk.on('voiceChannelChanged', async (p) => {
+    if (!p.channelId && presence) {
+      try { await presence.destroy(); } catch {}
+      presence = null;
+      renderVoiceJoinButton();
     }
   });
 
@@ -183,9 +185,8 @@
   }
 
   function renderSearchScreen() {
-    const noVoice = !init.voiceChannelId;
     main.innerHTML = `
-      ${noVoice ? '<div class="banner warn">Зайди в голосовой канал, чтобы транслировать музыку другим. Без канала проигрывание будет только у тебя.</div>' : ''}
+      <div id="voice-banner"></div>
       <div class="search-box">
         <input id="q" placeholder="Поиск или вставь ссылку на трек / альбом / плейлист…" autocomplete="off" />
         <button id="search-btn">Найти</button>
@@ -196,12 +197,109 @@
       <div id="results" class="track-list"></div>
     `;
     renderQueue();
+    renderVoiceJoinButton();
     const q = $('#q');
     q.focus();
     let searchTimer = null;
     q.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => doSearch(q.value), 400); });
     $('#search-btn').addEventListener('click', () => doSearch(q.value));
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(q.value); });
+  }
+
+  function renderVoiceJoinButton() {
+    const b = $('#voice-banner');
+    if (!b) return;
+    if (!init.voiceChannelId) {
+      b.innerHTML = '<div class="banner warn">Зайди в голосовой канал в Zvon — появится кнопка «Включиться в голосовой канал».</div>';
+      return;
+    }
+    if (presence) {
+      b.innerHTML = `
+        <div class="banner info" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+          <span>🎵 Активна в голосовом канале — другие участники видят плеер и могут управлять им.</span>
+          <button id="leave-voice-btn" class="connect-btn" style="background:#666;padding:6px 14px;font-size:12px">Отключиться</button>
+        </div>`;
+      $('#leave-voice-btn').addEventListener('click', leaveVoicePresence);
+    } else {
+      b.innerHTML = `
+        <div class="banner info" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+          <span>Готов выйти в эфир — другие участники увидят плеер с обложкой и смогут жать кнопки.</span>
+          <button id="join-voice-btn" class="connect-btn" style="padding:6px 14px;font-size:12px">Включиться в голосовой канал</button>
+        </div>`;
+      $('#join-voice-btn').addEventListener('click', joinVoicePresence);
+    }
+  }
+
+  async function joinVoicePresence() {
+    if (presence) return;
+    try {
+      presence = await sdk.voicePresence.create({ displayName: 'Яндекс Музыка', avatar: null });
+      presence.on('control', onPresenceControl);
+      await presence.setControls(getControlSchema());
+      // If we are already playing a track, immediately publish audio + cover.
+      if (!audio.paused && audio.src) await reattachPresenceMedia();
+    } catch (e) {
+      alert('Не получилось встать в голосовой канал: ' + e.message);
+      presence = null;
+    }
+    renderVoiceJoinButton();
+  }
+
+  async function leaveVoicePresence() {
+    if (!presence) return;
+    try { await presence.destroy(); } catch {}
+    presence = null;
+    renderVoiceJoinButton();
+  }
+
+  function getControlSchema() {
+    const t = queue[currentIndex];
+    return [
+      { id: 'prev', kind: 'button', label: '⏮', tooltip: 'Предыдущий', style: '' },
+      { id: 'play-pause', kind: 'button', label: audio.paused ? '▶' : '⏸', tooltip: 'Пауза', style: 'primary' },
+      { id: 'next', kind: 'button', label: '⏭', tooltip: 'Следующий', style: '' },
+      { id: 'seek', kind: 'slider', label: 'Прогресс',
+        min: 0, max: 100,
+        value: t && isFinite(audio.duration) ? Math.round((audio.currentTime / audio.duration) * 100) : 0,
+      },
+    ];
+  }
+
+  function onPresenceControl({ controlId, value }) {
+    if (controlId === 'play-pause') audio.paused ? audio.play() : audio.pause();
+    else if (controlId === 'next') { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); }
+    else if (controlId === 'prev') { if (currentIndex > 0) playIndex(currentIndex - 1); }
+    else if (controlId === 'seek' && isFinite(audio.duration)) audio.currentTime = (Number(value) / 100) * audio.duration;
+  }
+
+  async function updatePresenceControls() {
+    if (!presence) return;
+    try { await presence.updateControl('play-pause', { label: audio.paused ? '▶' : '⏸' }); } catch {}
+  }
+
+  function pushPresenceProgress() {
+    if (!presence) return;
+    if (!isFinite(audio.duration) || audio.duration === 0) return;
+    const pct = Math.round((audio.currentTime / audio.duration) * 100);
+    // Throttle: only push when value actually changes (1% steps).
+    if (pushPresenceProgress._last === pct) return;
+    pushPresenceProgress._last = pct;
+    presence.updateControl('seek', { value: pct }).catch(() => {});
+  }
+
+  async function reattachPresenceMedia() {
+    if (!presence) return;
+    const track = queue[currentIndex];
+    if (track?.coverUri) {
+      const url = 'https://' + track.coverUri.replace('%%', '400x400');
+      await presence.setBackground({ type: 'image', url });
+    }
+    try {
+      const stream = audio.captureStream();
+      const at = stream.getAudioTracks()[0];
+      if (at) await presence.publishAudio(at);
+    } catch (e) { console.error('[YM] presence publishAudio failed:', e); }
+    await presence.setControls(getControlSchema());
   }
 
   async function doSearch(query) {
@@ -438,8 +536,6 @@
     catch (e) { console.error('[YM] stream url failed:', e); showPlayer(track, false, 'Не удалось получить поток: ' + e.message); return; }
 
     try {
-      // Fetch the audio bytes via proxy so the resulting Blob URL is same-origin
-      // and captureStream() works without CORS issues.
       const r = await sdk.fetch(streamUrl, { responseType: 'arraybuffer', headers: { ...HEADERS_BASE } });
       if (r.status >= 400) throw new Error('HTTP ' + r.status);
       const bytes = Uint8Array.from(atob(r.base64), c => c.charCodeAt(0));
@@ -447,27 +543,11 @@
       audio.src = URL.createObjectURL(blob);
       await audio.play();
       showPlayer(track, false);
-      await ensurePublished();
+      pushPresenceProgress._last = -1; // reset throttle so first update fires
+      if (presence) await reattachPresenceMedia();
     } catch (e) {
       console.error('[YM] playback failed:', e);
       showPlayer(track, false, 'Ошибка проигрывания: ' + e.message);
-    }
-  }
-
-  async function ensurePublished() {
-    if (publishedSid) return;
-    if (!init.voiceChannelId) return;
-    if (typeof audio.captureStream !== 'function') {
-      console.warn('[YM] captureStream not supported in this browser');
-      return;
-    }
-    try {
-      captureStream = audio.captureStream();
-      const track = captureStream.getAudioTracks()[0];
-      if (!track) return;
-      publishedSid = await sdk.publishAudioTrack(track);
-    } catch (e) {
-      console.error('[YM] publishAudioTrack failed:', e);
     }
   }
 
@@ -478,9 +558,10 @@
     currentIndex = -1;
     renderQueue();
     player.classList.add('hidden');
-    if (publishedSid) {
-      try { await sdk.unpublishAudioTrack(publishedSid); } catch { }
-      publishedSid = null;
+    if (presence) {
+      try { await presence.unpublishAudio(); } catch { }
+      try { await presence.setBackground(null); } catch { }
+      try { await presence.setControls(getControlSchema()); } catch { }
     }
   }
 
@@ -495,7 +576,7 @@
     $('#player-bar-fill').style.width = '0%';
   }
 
-  function updateProgress() {
+  function updateLocalProgress() {
     if (!isFinite(audio.duration) || audio.duration === 0) return;
     const pct = (audio.currentTime / audio.duration) * 100;
     $('#player-bar-fill').style.width = pct + '%';

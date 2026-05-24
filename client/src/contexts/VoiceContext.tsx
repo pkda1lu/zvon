@@ -207,7 +207,24 @@ interface VoiceContextType {
     setOverlaySize: (size: number) => void;
 
     publishExternalAudioTrack: (track: MediaStreamTrack, name?: string) => Promise<string | null>;
+    publishExternalVideoTrack: (track: MediaStreamTrack, name?: string) => Promise<string | null>;
     unpublishExternalAudioTrack: (publicationSid: string) => Promise<void>;
+
+    /** Virtual mini-app participants in any voice context. Keyed by sessionId. */
+    voicePresences: Map<string, VoicePresenceInfo>;
+    presenceAudioStreams: Map<string, MediaStream>;
+    presenceVideoStreams: Map<string, MediaStream>;
+    sendPresenceControl: (channelId: string, sessionId: string, controlId: string, value?: any) => void;
+}
+
+export interface VoicePresenceInfo {
+    sessionId: string;
+    channelId: string;
+    ownerUserId: string;
+    displayName: string;
+    avatar: string | null;
+    background: { type: 'image' | 'color'; url?: string; color?: string } | null;
+    controls: Array<{ id: string; kind: 'button' | 'slider'; label?: string; value?: number; min?: number; max?: number; tooltip?: string; style?: string }>;
 }
 
 interface VoiceLevelContextType {
@@ -525,6 +542,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 publication.source === Track.Source.ScreenShareAudio;
             const isCamera = publication.source === Track.Source.Camera;
 
+            // Mini-app voice presence tracks — keep them isolated from normal user audio/video.
+            const trackName = (publication.trackName || '') as string;
+            if (trackName.startsWith('zvon-presence:')) {
+                const sessionId = trackName.slice('zvon-presence:'.length).split(':')[0];
+                if (track.kind === Track.Kind.Audio) {
+                    setPresenceAudioStreams(prev => new Map(prev).set(sessionId, new MediaStream([track.mediaStreamTrack!])));
+                } else {
+                    setPresenceVideoStreams(prev => new Map(prev).set(sessionId, new MediaStream([track.mediaStreamTrack!])));
+                }
+                return;
+            }
+
             console.log(`[Voice] Track subscribed: ${track.kind} from ${userId} (Source: ${publication.source})`);
 
             if (isScreen) {
@@ -596,6 +625,17 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const userId = participant.identity;
         const isScreen = publication.source === Track.Source.ScreenShare ||
             publication.source === Track.Source.ScreenShareAudio;
+
+        const trackName = (publication.trackName || '') as string;
+        if (trackName.startsWith('zvon-presence:')) {
+            const sessionId = trackName.slice('zvon-presence:'.length).split(':')[0];
+            if (track.kind === Track.Kind.Audio) {
+                setPresenceAudioStreams(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
+            } else {
+                setPresenceVideoStreams(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
+            }
+            return;
+        }
 
         console.log(`[Voice] Track unsubscribed: ${track.kind} from ${userId} (Source: ${publication.source})`);
 
@@ -1834,7 +1874,7 @@ registerProcessor('vad-processor', VADProcessor);
 
     const publishExternalAudioTrack = useCallback(async (track: MediaStreamTrack, name = 'miniapp-audio'): Promise<string | null> => {
         if (!roomRef.current || !roomRef.current.localParticipant) {
-            console.warn('[Voice] Cannot publish external track: no active room');
+            console.warn('[Voice] Cannot publish external audio: no active room');
             return null;
         }
         try {
@@ -1854,11 +1894,35 @@ registerProcessor('vad-processor', VADProcessor);
         }
     }, []);
 
+    const publishExternalVideoTrack = useCallback(async (track: MediaStreamTrack, name = 'miniapp-video'): Promise<string | null> => {
+        if (!roomRef.current || !roomRef.current.localParticipant) {
+            console.warn('[Voice] Cannot publish external video: no active room');
+            return null;
+        }
+        try {
+            const { LocalVideoTrack } = await import('livekit-client');
+            const localTrack = new LocalVideoTrack(track, undefined, true);
+            const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
+                name,
+                source: Track.Source.Unknown,
+                stream: 'miniapp',
+                simulcast: false,
+            });
+            return pub.trackSid;
+        } catch (e) {
+            console.error('[Voice] publishExternalVideoTrack failed:', e);
+            return null;
+        }
+    }, []);
+
     const unpublishExternalAudioTrack = useCallback(async (publicationSid: string): Promise<void> => {
         if (!roomRef.current?.localParticipant) return;
         try {
-            const pubs = roomRef.current.localParticipant.audioTrackPublications;
-            for (const pub of pubs.values()) {
+            const allPubs = [
+                ...Array.from(roomRef.current.localParticipant.audioTrackPublications.values()),
+                ...Array.from(roomRef.current.localParticipant.videoTrackPublications.values()),
+            ];
+            for (const pub of allPubs) {
                 if (pub.trackSid === publicationSid && pub.track) {
                     await roomRef.current.localParticipant.unpublishTrack(pub.track);
                     return;
@@ -1868,6 +1932,48 @@ registerProcessor('vad-processor', VADProcessor);
             console.warn('[Voice] unpublishExternalAudioTrack failed:', e);
         }
     }, []);
+
+    // --- Voice presences (mini-app virtual participants) ---
+    const [voicePresences, setVoicePresences] = useState<Map<string, VoicePresenceInfo>>(new Map());
+    const [presenceAudioStreams, setPresenceAudioStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [presenceVideoStreams, setPresenceVideoStreams] = useState<Map<string, MediaStream>>(new Map());
+
+    useEffect(() => {
+        if (!socket) return;
+        const onAdded = (p: VoicePresenceInfo) => setVoicePresences(prev => new Map(prev).set(p.sessionId, p));
+        const onUpdated = (p: VoicePresenceInfo) => setVoicePresences(prev => new Map(prev).set(p.sessionId, p));
+        const onRemoved = ({ sessionId }: { sessionId: string }) => {
+            setVoicePresences(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
+            setPresenceAudioStreams(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
+            setPresenceVideoStreams(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
+        };
+        const onSnapshot = ({ presences }: { presences: VoicePresenceInfo[] }) => {
+            setVoicePresences(prev => {
+                const next = new Map(prev);
+                presences.forEach(p => next.set(p.sessionId, p));
+                return next;
+            });
+        };
+        socket.on('voice-presence-added', onAdded);
+        socket.on('voice-presence-updated', onUpdated);
+        socket.on('voice-presence-removed', onRemoved);
+        socket.on('voice-presences-snapshot', onSnapshot);
+        return () => {
+            socket.off('voice-presence-added', onAdded);
+            socket.off('voice-presence-updated', onUpdated);
+            socket.off('voice-presence-removed', onRemoved);
+            socket.off('voice-presences-snapshot', onSnapshot);
+        };
+    }, [socket]);
+
+    const sendPresenceControl = useCallback((channelId: string, sessionId: string, controlId: string, value?: any) => {
+        if (!socket) return;
+        socket.emit('voice-presence-control', { channelId, sessionId, controlId, value });
+    }, [socket]);
+
+    // Expose state to MiniAppWindow's bridge so iframes get presence-control events
+    // for sessions they own — done by storing the streams + presence state on window.
+    // The bridge subscribes to the same socket directly in MiniAppWindow.
 
     const voiceLevelValue = useMemo(() => ({
         currentInputLevel,
@@ -1902,7 +2008,8 @@ registerProcessor('vad-processor', VADProcessor);
             overlayPosition, setOverlayPosition,
             overlayOpacity, setOverlayOpacity,
             overlaySize, setOverlaySize,
-            publishExternalAudioTrack, unpublishExternalAudioTrack,
+            publishExternalAudioTrack, publishExternalVideoTrack, unpublishExternalAudioTrack,
+            voicePresences, presenceAudioStreams, presenceVideoStreams, sendPresenceControl,
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}

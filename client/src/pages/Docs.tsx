@@ -436,6 +436,97 @@ const me = await zvon.fetch('https://api.provider.com/me', {
                             </section>
 
                             <section>
+                                <h2>🎙️ Voice Presence — мини-аппка как участник голосового канала</h2>
+                                <p>
+                                    Мощный примитив: мини-аппка может «встать» виртуальным участником в текущий
+                                    голосовой канал пользователя. Появится отдельная карточка-тайл с обложкой
+                                    (или live-видео), кнопками управления и слайдером прогресса — всё интерактивно
+                                    для остальных членов канала.
+                                </p>
+                                <p>
+                                    <strong>Кто видит:</strong> все, кто сейчас в этом голосовом канале (включая инициатора).<br />
+                                    <strong>Кто контролирует:</strong> любой член канала, нажатия приходят владельцу-мини-аппке.<br />
+                                    <strong>Когда исчезает:</strong> при <code>destroy()</code>, при выходе хоста из канала, при дисконнекте.
+                                </p>
+
+                                <h3>Создание сессии</h3>
+                                <div className="code-block">
+                                    <pre>{`const presence = await zvon.voicePresence.create({
+  displayName: 'Яндекс Музыка',
+  avatar: '/miniapps/yandex-music/icon.png', // fallback если не задан background
+});
+
+// Опционально — обложка/цвет на фоне тайла
+await presence.setBackground({ type: 'image', url: 'https://.../cover.jpg' });
+// или: { type: 'color', color: '#a155ff' }
+// или: null — fallback на avatar`}</pre>
+                                </div>
+
+                                <h3>Трансляция аудио в канал</h3>
+                                <div className="code-block">
+                                    <pre>{`const audio = new Audio(blobUrl);
+await audio.play();
+const track = audio.captureStream().getAudioTracks()[0];
+await presence.publishAudio(track);
+
+// потом:
+await presence.unpublishAudio();`}</pre>
+                                </div>
+                                <p>
+                                    Аудио идёт через того же пользователя, что создал presence, но как отдельный
+                                    LiveKit-трек с именем <code>zvon-presence:&lt;sessionId&gt;</code>. Получатели
+                                    автоматически роутят его в нужный тайл, минуя обычный mic-микс.
+                                </p>
+
+                                <h3>Live-видео (фон тайла)</h3>
+                                <div className="code-block">
+                                    <pre>{`const v = document.createElement('video');
+v.src = '/path/to/clip.mp4';
+await v.play();
+const vt = v.captureStream().getVideoTracks()[0];
+await presence.publishVideo(vt); // background tile показывает live-видео`}</pre>
+                                </div>
+
+                                <h3>Контролы (кнопки + слайдеры)</h3>
+                                <div className="code-block">
+                                    <pre>{`await presence.setControls([
+  { id: 'prev',       kind: 'button', label: '⏮', tooltip: 'Предыдущий' },
+  { id: 'play-pause', kind: 'button', label: '⏸', style: 'primary' },
+  { id: 'next',       kind: 'button', label: '⏭' },
+  { id: 'seek',       kind: 'slider', min: 0, max: 100, value: 0 },
+]);
+
+// Обновляй слайдер/лейбл по ходу проигрывания:
+setInterval(() => {
+  const pct = Math.round((audio.currentTime / audio.duration) * 100);
+  presence.updateControl('seek', { value: pct });
+}, 1000);
+
+// Когда кто-то кликает — событие прилетает только владельцу presence:
+presence.on('control', ({ controlId, value, fromUserId }) => {
+  if (controlId === 'play-pause') audio.paused ? audio.play() : audio.pause();
+  if (controlId === 'next') skipNext();
+  if (controlId === 'seek')  audio.currentTime = (value / 100) * audio.duration;
+});`}</pre>
+                                </div>
+                                <p>
+                                    Контролы поддерживают два <code>kind</code>: <code>button</code> и <code>slider</code>.
+                                    Поля: <code>id</code>, <code>label</code>, <code>tooltip</code>, <code>style</code>
+                                    (<code>'primary' | 'danger' | ''</code>), <code>min</code>/<code>max</code>/<code>value</code> для слайдеров.
+                                </p>
+
+                                <h3>Завершение</h3>
+                                <div className="code-block">
+                                    <pre>{`await presence.destroy(); // снимает audio/video с публикации, удаляет тайл у всех`}</pre>
+                                </div>
+
+                                <p style={{ color: '#ff9966', marginTop: 16 }}>
+                                    <strong>Сейчас работает только в серверных голосовых каналах.</strong> Поддержка DM-звонков —
+                                    в следующих версиях (там LiveKit-комната живёт в другом компоненте).
+                                </p>
+                            </section>
+
+                            <section>
                                 <h2>🍿 Готовый пример</h2>
                                 <p>
                                     Аппка <strong>Яндекс Музыка</strong> в витрине Zvon написана целиком на этом SDK — без какой-либо специальной серверной логики. Исходники: <code>server/public/miniapps/yandex-music/</code> в репозитории.
