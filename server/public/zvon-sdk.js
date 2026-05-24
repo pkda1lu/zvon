@@ -32,6 +32,12 @@
   const _trackStash = new Map(); // stashId -> MediaStreamTrack
   window.__zvonTrackStash = _trackStash;
 
+  const isMediaStreamTrack = (t) => t && (
+    (typeof MediaStreamTrack !== 'undefined' && t instanceof MediaStreamTrack) ||
+    (t.constructor && t.constructor.name === 'MediaStreamTrack') ||
+    (typeof t.stop === 'function' && typeof t.clone === 'function' && 'enabled' in t)
+  );
+
   function sendTrack(type, payload, track) {
     // Two paths:
     //  1. transferable MediaStreamTrack (works cross-origin, Chrome 116+ / Electron 25+)
@@ -49,17 +55,28 @@
     return new Promise((resolve, reject) => {
       const id = nextId();
       callbacks.set(id, { resolve, reject });
+      
+      // Envelope for transferable path: MUST include the track object.
+      // Envelope for fallback path: MUST NOT include the track object (as it's not clonable).
       const envelope = { __zvon: true, id, type, payload: fullPayload, track };
 
       // Try transferable first.
       try {
-        console.log('[zvon-sdk] Attempting to send track via transferable...', type, stashId);
+        console.log('[zvon-sdk] Attempting to send track via transferable...', {
+          type,
+          stashId,
+          trackKind: track.kind,
+          trackState: track.readyState,
+          constructor: track.constructor?.name,
+          toString: Object.prototype.toString.call(track)
+        });
         HOST.postMessage(envelope, '*', [track]);
       } catch (e) {
         console.warn('[zvon-sdk] Transferable postMessage failed, falling back to stash-only path:', e.message);
-        // Transferable rejected — retry without transfer list (stash-only).
+        // Transferable rejected — retry without transfer list and WITHOUT the track in envelope.
         try {
-          HOST.postMessage(envelope, '*');
+          const fallbackEnvelope = { __zvon: true, id, type, payload: fullPayload };
+          HOST.postMessage(fallbackEnvelope, '*');
         } catch (e2) {
           console.error('[zvon-sdk] Fallback postMessage also failed:', e2.message);
           callbacks.delete(id);
@@ -115,7 +132,7 @@
      * The user must be in a voice channel.
      */
     publishAudioTrack: async (track) => {
-      if (!(track instanceof MediaStreamTrack) || track.kind !== 'audio') {
+      if (!isMediaStreamTrack(track) || track.kind !== 'audio') {
         throw new Error('publishAudioTrack expects an audio MediaStreamTrack');
       }
       return sendTrack('publishAudioTrack', { name: 'miniapp-audio' }, track);
@@ -192,13 +209,13 @@
 
       /** Publish an audio MediaStreamTrack so others hear it as this presence. */
       publishAudio: (track) => {
-        if (!(track instanceof MediaStreamTrack) || track.kind !== 'audio') throw new Error('audio MediaStreamTrack required');
+        if (!isMediaStreamTrack(track) || track.kind !== 'audio') throw new Error('audio MediaStreamTrack required');
         return sendTrack('voicePresence.publishAudio', { sessionId }, track);
       },
 
       /** Publish a video MediaStreamTrack as background for this presence. */
       publishVideo: (track) => {
-        if (!(track instanceof MediaStreamTrack) || track.kind !== 'video') throw new Error('video MediaStreamTrack required');
+        if (!isMediaStreamTrack(track) || track.kind !== 'video') throw new Error('video MediaStreamTrack required');
         return sendTrack('voicePresence.publishVideo', { sessionId }, track);
       },
 
