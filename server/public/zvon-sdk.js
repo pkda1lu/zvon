@@ -90,10 +90,20 @@
 
     /**
      * Open an OAuth popup. Resolves with { href, hash, search } once the popup
-     * navigates back to a same-origin URL (your app's redirect page).
-     * Use this for OAuth implicit flow (response_type=token).
+     * navigates to your `redirectUri` (substring match on origin + path).
+     * Pass redirectUri explicitly so the bridge can ignore intermediate auth
+     * pages (login screens, consent prompts) that occur during the flow.
      */
-    oauthPopup: (url, options) => call('oauthPopup', { url, ...(options || {}) }),
+    oauthPopup: (url, options) => {
+      let redirectUri = options && options.redirectUri;
+      if (!redirectUri) {
+        try {
+          const u = new URL(url);
+          redirectUri = u.searchParams.get('redirect_uri') || undefined;
+        } catch {}
+      }
+      return call('oauthPopup', { url, redirectUri, ...(options || {}) });
+    },
 
     /** Per-user, per-app key-value storage (server-backed, persists across sessions). */
     storage,

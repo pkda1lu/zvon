@@ -130,24 +130,31 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                     }
 
                     case 'oauthPopup': {
-                        // Open OAuth in a popup. Resolves when popup navigates back to a
-                        // same-origin URL (the app's own page), reading hash/search from it.
+                        // Open OAuth in a popup. Resolves when popup navigates to a URL
+                        // that matches the supplied redirect_uri (substring match). The
+                        // OAuth flow passes through several intermediate URLs (login pages,
+                        // consent screens), all of which we must IGNORE — only the final
+                        // redirect back to the app is meaningful.
                         const win = window.open(payload.url, 'zvon-oauth', `width=${payload.width||600},height=${payload.height||720}`);
                         if (!win) { respond(id, { ok: false, error: 'popup blocked' }); break; }
+                        const expected = payload.redirectUri ? String(payload.redirectUri) : null;
                         const start = Date.now();
                         const poll = setInterval(() => {
                             try {
                                 if (win.closed) { clearInterval(poll); respond(id, { ok: false, error: 'closed' }); return; }
                                 const href = win.location.href;
-                                if (href && (href.includes('#') || href.includes('?'))) {
-                                    const url = new URL(href);
-                                    // Same-origin detection (cross-origin access throws)
-                                    clearInterval(poll);
-                                    win.close();
-                                    respond(id, { ok: true, result: { href, hash: url.hash, search: url.search } });
-                                }
+                                if (!href || href === 'about:blank') return;
+                                // Strict gate: must look like our redirect (or at least same-origin to host)
+                                const isOurRedirect = expected
+                                    ? href.startsWith(expected.split('#')[0].split('?')[0])
+                                    : href.startsWith(window.location.origin);
+                                if (!isOurRedirect) return;
+                                const url = new URL(href);
+                                clearInterval(poll);
+                                try { win.close(); } catch {}
+                                respond(id, { ok: true, result: { href, hash: url.hash, search: url.search } });
                             } catch {
-                                // Cross-origin — keep polling
+                                // Cross-origin — keep polling silently
                             }
                             if (Date.now() - start > 300000) { clearInterval(poll); try { win.close(); } catch {}; respond(id, { ok: false, error: 'timeout' }); }
                         }, 400);
