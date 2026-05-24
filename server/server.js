@@ -67,7 +67,7 @@ app.get('/zvon-sdk.js', (req, res) => {
 app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
   setHeaders: (res) => {
     res.removeHeader('X-Frame-Options');
-    res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https: http:");
   }
 }));
 app.use('/api/moderation', require('./routes/moderation'));
