@@ -187,35 +187,60 @@ const Main: React.FC = () => {
     };
   }, []);
 
+  // --- Activity orchestration ---
+  // Game (from electron detection) has priority. If no game is running, fall
+  // back to the most-recently-opened mini-app. If neither, clear activity.
+  // Minimizing a mini-app does NOT clear activity — it keeps running.
+  const [currentGameActivity, setCurrentGameActivity] = useState<any>(null);
+
   useEffect(() => {
     // @ts-ignore
     const electron = window.electron;
     if (electron && socket && user) {
       electron.getCurrentActivity?.().then((activity: any) => {
-        if (activity) {
-          socket.emit('activity-update', {
-            name: activity.name,
-            type: 'playing',
-            assets: { largeImage: activity.icon },
-            timestamps: { start: activity.startTime }
-          });
-        }
+        if (activity) setCurrentGameActivity({
+          name: activity.name, type: 'playing',
+          assets: { largeImage: activity.icon },
+          timestamps: { start: activity.startTime },
+        });
       });
       const removeActivityListener = electron.onActivityChanged?.((activity: any) => {
         if (activity) {
-          socket.emit('activity-update', {
-            name: activity.name,
-            type: 'playing',
+          setCurrentGameActivity({
+            name: activity.name, type: 'playing',
             assets: { largeImage: activity.icon },
-            timestamps: { start: activity.startTime }
+            timestamps: { start: activity.startTime },
           });
         } else {
-          socket.emit('activity-update', null);
+          setCurrentGameActivity(null);
         }
       });
       return () => { if (removeActivityListener) removeActivityListener(); };
     }
   }, [socket, user?._id]);
+
+  // Single source of truth: emit activity based on current game + open mini-apps.
+  useEffect(() => {
+    if (!socket) return;
+    if (currentGameActivity) {
+      socket.emit('activity-update', currentGameActivity);
+      return;
+    }
+    if (openMiniApps.length > 0) {
+      const app = openMiniApps[openMiniApps.length - 1];
+      socket.emit('activity-update', {
+        name: app.name,
+        type: 'playing',
+        state: 'В приложении',
+        details: app.description ? app.description.slice(0, 100) : '',
+        assets: { largeImage: app.avatar || null, largeText: app.name },
+        timestamps: { start: Date.now() },
+        miniAppData: app,
+      });
+      return;
+    }
+    socket.emit('activity-update', null);
+  }, [socket, currentGameActivity, openMiniApps]);
 
   useEffect(() => {
     if (selectedChannel) {
@@ -637,9 +662,7 @@ const Main: React.FC = () => {
     const handleCloseMiniApp = (appId: string) => {
         setOpenMiniApps(openMiniApps.filter(a => a._id !== appId));
         setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(appId); return n; });
-        if (socket) {
-            socket.emit('activity-update', null);
-        }
+        // Activity is recomputed by the centralized effect (game > miniapps > null).
     };
 
     const handleMinimizeMiniApp = (appId: string) => {

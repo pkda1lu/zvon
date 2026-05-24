@@ -90,6 +90,7 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+  min-width: 0;
 }
 
 .card-v2-name {
@@ -98,11 +99,19 @@
   color: #fff;
   margin: 0;
   letter-spacing: -0.4px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-v2-badges {
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .card-v2-badge {
@@ -129,6 +138,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  min-width: 0;
+}
+.card-v2-meta > span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-v2-bio {
