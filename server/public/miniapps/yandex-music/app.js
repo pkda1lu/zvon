@@ -278,25 +278,81 @@
       return vols.flat().map(normalizeTrack);
     }
     if (p.kind === 'playlist') {
-      // Share-link plays IDs are UUIDs (sometimes with prefix like "lk.").
-      // Personal playlists for a user use integer `kind`. Try the UUID endpoint
-      // first when there's no explicit owner or the id looks UUID-ish.
+      // Share-link IDs are UUIDs (with prefix like "ps.", "lk.", etc.).
+      // Personal user playlists use integer `kind`.
       const looksUuid = !p.owner || /[a-f0-9-]{8,}/i.test(p.pid);
+      const errors = [];
+
       if (looksUuid) {
+        // Endpoint 1: path-style UUID
+        try {
+          const r = await yaCall(`/playlist/${encodeURIComponent(p.pid)}`);
+          const tracks = await materializeTracks(r.result);
+          if (tracks.length) return tracks;
+        } catch (e) { errors.push('GET /playlist/{uuid}: ' + e.message); }
+
+        // Endpoint 2: legacy query-style
         try {
           const r = await yaCall(`/playlist?playlistId=${encodeURIComponent(p.pid)}`);
-          const items = r.result?.tracks || [];
-          if (items.length) return items.map(it => normalizeTrack(it.track || it));
-        } catch (_) { /* fall through */ }
+          const tracks = await materializeTracks(r.result);
+          if (tracks.length) return tracks;
+        } catch (e) { errors.push('GET /playlist?playlistId: ' + e.message); }
+
+        // Endpoint 3: bulk POST
+        try {
+          const r = await sdk.fetch(YA_API + '/playlists/list', {
+            method: 'POST',
+            headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'playlistIds=' + encodeURIComponent(p.pid),
+            responseType: 'json',
+          });
+          if (r.status < 400) {
+            const pl = (r.data?.result || [])[0];
+            const tracks = await materializeTracks(pl);
+            if (tracks.length) return tracks;
+          } else {
+            errors.push('POST /playlists/list: ' + r.status);
+          }
+        } catch (e) { errors.push('POST /playlists/list: ' + e.message); }
       }
+
       if (p.owner) {
         const r = await yaCall(`/users/${encodeURIComponent(p.owner)}/playlists/${encodeURIComponent(p.pid)}`);
-        const items = r.result?.tracks || [];
-        return items.map(it => normalizeTrack(it.track || it));
+        const tracks = await materializeTracks(r.result);
+        if (tracks.length) return tracks;
+        errors.push('GET /users/{owner}/playlists/{kind}: empty');
       }
-      throw new Error('Не получилось определить владельца плейлиста');
+
+      throw new Error('Не удалось загрузить плейлист. ' + errors.join('; '));
     }
     return [];
+  }
+
+  // Some endpoints return tracks as full objects, others as { id, albumId } refs.
+  // Refs need a second call to /tracks to fetch full metadata.
+  async function materializeTracks(playlist) {
+    if (!playlist) return [];
+    const raw = playlist.tracks || [];
+    if (!raw.length) return [];
+    // Detect ref-style (no .track field, no .title)
+    const isRef = raw.every(it => !it.track && !it.title && (it.id || it.trackId));
+    if (!isRef) {
+      return raw.map(it => normalizeTrack(it.track || it));
+    }
+    const ids = raw.map(it => String(it.id || it.trackId).split(':')[0]);
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+    const all = [];
+    for (const c of chunks) {
+      const r = await sdk.fetch(YA_API + '/tracks', {
+        method: 'POST',
+        headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'track-ids=' + c.join(','),
+        responseType: 'json',
+      });
+      if (r.status < 400) (r.data?.result || []).forEach(t => all.push(normalizeTrack(t)));
+    }
+    return all;
   }
 
   function renderQueue() {
