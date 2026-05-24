@@ -350,9 +350,24 @@
     if (track?.id) {
       try {
         const sup = await yaCall(`/tracks/${track.id}/supplement`);
-        const vs = sup.result?.videoShot || sup.result?.videoShots?.[0];
-        if (vs?.uri) videoUrl = vs.uri.startsWith('http') ? vs.uri : ('https://' + vs.uri);
-      } catch (e) { console.warn('[YM] no videoShot for', track.id, e.message); }
+        console.log('[YM] supplement response for', track.id, ':', sup);
+        const candidates = [
+          sup.result?.videoShot,
+          ...(Array.isArray(sup.result?.videoShots) ? sup.result.videoShots : []),
+          sup.result?.video,
+          sup.result?.musicVideo,
+        ];
+        for (const c of candidates) {
+          if (!c) continue;
+          const u = c.uri || c.url || c.streamUri || c.player?.url;
+          if (u) {
+            videoUrl = u.startsWith('http') ? u : ('https://' + u);
+            console.log('[YM] videoShot found:', videoUrl, 'from candidate:', c);
+            break;
+          }
+        }
+        if (!videoUrl) console.log('[YM] no video field in supplement. Available keys:', Object.keys(sup.result || {}));
+      } catch (e) { console.warn('[YM] supplement failed for', track.id, e.message); }
     }
 
     if (videoUrl) {
