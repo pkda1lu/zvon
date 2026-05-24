@@ -455,9 +455,13 @@ function createWindow() {
     } else {
         // Use custom protocol in production to bypass file:// restrictions
         protocol.handle('app', (request) => {
-            const url = request.url.replace('app://', '');
-            // Simple path normalization: if it's empty or just /, serve index.html
-            const relativePath = (url === '' || url === '/') ? 'index.html' : url;
+            const url = new URL(request.url);
+            let relativePath = url.pathname;
+            
+            // On Windows, the pathname might start with a leading slash or be the hostname
+            if (relativePath.startsWith('/')) relativePath = relativePath.slice(1);
+            if (!relativePath || relativePath === 'index.html') relativePath = 'index.html';
+            
             const filePath = path.join(__dirname, relativePath);
             return net.fetch(`file://${filePath}`);
         });
