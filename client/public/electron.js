@@ -386,11 +386,11 @@ function createWindow() {
 
     // Final Strike: Robustly strip and replace protection headers
     mainWindow.webContents.session.webRequest.onHeadersReceived(
-        { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'] },
+        { urls: ['*://*/*'] }, // Apply to all URLs to handle frame-ancestors globally
         (details, callback) => {
             const responseHeaders = {};
             
-            // Filter out existing security and CORS headers to prevent duplicates
+            // Filter out existing security and CORS headers to prevent duplicates and iframe blocks
             Object.keys(details.responseHeaders).forEach(key => {
                 const lowerKey = key.toLowerCase();
                 if (![
@@ -409,15 +409,23 @@ function createWindow() {
             // Dynamic mirroring for CORS with Credentials support
             let requestOrigin = details.requestHeaders?.['Origin'] || details.requestHeaders?.['origin'];
             
-            // Fallback for Electron file protocol (null origin)
-            if (!requestOrigin || requestOrigin === 'null' || requestOrigin === 'file://') {
-                requestOrigin = 'https://www.youtube-nocookie.com';
+            // Fallback for Electron custom protocols
+            if (!requestOrigin || requestOrigin === 'null' || requestOrigin === 'file://' || requestOrigin.startsWith('app://')) {
+                // If it's a YouTube request, use their origin, otherwise use the request origin or fallback
+                if (details.url.includes('youtube.com') || details.url.includes('youtube-nocookie.com')) {
+                    requestOrigin = 'https://www.youtube-nocookie.com';
+                } else {
+                    requestOrigin = '*';
+                }
             }
             
             responseHeaders['Access-Control-Allow-Origin'] = [requestOrigin];
             responseHeaders['Access-Control-Allow-Headers'] = ['*'];
             responseHeaders['Access-Control-Allow-Methods'] = ['*'];
-            responseHeaders['Access-Control-Allow-Credentials'] = ['true'];
+            // Only set credentials true if origin is not wildcard
+            if (requestOrigin !== '*') {
+                responseHeaders['Access-Control-Allow-Credentials'] = ['true'];
+            }
             
             callback({ responseHeaders });
         }
