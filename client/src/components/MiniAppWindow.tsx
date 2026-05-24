@@ -57,8 +57,14 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
 
     // Track of publication sids we created for this app, to clean up on unmount.
     const publishedSidsRef = useRef<Set<string>>(new Set());
-    // sessionId -> { channelId, audioSid, videoSid }
-    const presencesRef = useRef<Map<string, { channelId: string; audioSid?: string; videoSid?: string }>>(new Map());
+    // sessionId -> { channelId, audioSid, videoSid, audioTrack, videoTrack }
+    const presencesRef = useRef<Map<string, {
+        channelId: string;
+        audioSid?: string;
+        videoSid?: string;
+        audioTrack?: MediaStreamTrack;
+        videoTrack?: MediaStreamTrack;
+    }>>(new Map());
 
     /** Resolve the LiveKit-style channel id for the user's current voice context. */
     const currentVoiceChannelId = useCallback((): string | null => {
@@ -176,9 +182,16 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                         const track = pickTrackFromMessage(msg, iframe);
                         const slot = presencesRef.current.get(sessionId);
                         if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
+                        // Skip if this exact track is already published — avoid
+                        // unpublish/publish thrashing that causes "could not find
+                        // local track subscription" warnings.
+                        if (slot.audioSid && slot.audioTrack === track && track.readyState === 'live') {
+                            respond(id, { ok: true, result: slot.audioSid });
+                            break;
+                        }
                         if (slot.audioSid) await unpublishExternalAudioTrack(slot.audioSid);
                         const sid = await publishExternalAudioTrack(track, 'zvon-presence:' + sessionId);
-                        if (sid) { slot.audioSid = sid; publishedSidsRef.current.add(sid); }
+                        if (sid) { slot.audioSid = sid; slot.audioTrack = track; publishedSidsRef.current.add(sid); }
                         respond(id, { ok: !!sid, result: sid });
                         break;
                     }
@@ -187,9 +200,13 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                         const track = pickTrackFromMessage(msg, iframe);
                         const slot = presencesRef.current.get(sessionId);
                         if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
+                        if (slot.videoSid && slot.videoTrack === track && track.readyState === 'live') {
+                            respond(id, { ok: true, result: slot.videoSid });
+                            break;
+                        }
                         if (slot.videoSid) await unpublishExternalAudioTrack(slot.videoSid);
                         const sid = await publishExternalVideoTrack(track, 'zvon-presence:' + sessionId);
-                        if (sid) { slot.videoSid = sid; publishedSidsRef.current.add(sid); }
+                        if (sid) { slot.videoSid = sid; slot.videoTrack = track; publishedSidsRef.current.add(sid); }
                         respond(id, { ok: !!sid, result: sid });
                         break;
                     }
