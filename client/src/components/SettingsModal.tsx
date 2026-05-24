@@ -1705,7 +1705,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 {activeTab === 'keybinds' && renderKeybindsSettings()}
                 {activeTab === 'windows' && renderWindowsSettings()}
                 {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
-                {activeTab === 'activity' && <ActivitySettings />}
+                {activeTab === 'activity' && renderPlaceholder('Активность', <EllipsisIcon size={80} />)}
                 {activeTab === 'bots' && <BotsSettings />}
                 {activeTab === 'miniapps' && <MiniAppsSettings />}
               </div>
