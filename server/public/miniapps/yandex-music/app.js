@@ -91,59 +91,51 @@
     main.innerHTML = `
       <div class="connect-screen">
         <h2>Подключи аккаунт Яндекс Музыки</h2>
-        <p>Чтобы слушать музыку вместе с друзьями в голосовом канале, авторизуйся через Яндекс ID. Токен хранится только в твоём профиле Zvon.</p>
-        <button class="connect-btn" id="connect-btn">Войти через Яндекс</button>
-        <details style="margin-top:14px;max-width:480px;text-align:left">
-          <summary style="cursor:pointer;color:#aaa;font-size:13px">Треки играют по 30 секунд?</summary>
-          <p style="font-size:12px;color:#aaa;line-height:1.5">
-            Это значит, что Яндекс отдаёт только превью — нужна подписка Plus или особый scope <code>music:content</code>,
-            который из обычного OAuth-кабинета добавить нельзя. Используй альтернативный вход через известный
-            client_id Android-приложения Яндекс Музыки: получишь полноценный токен с доступом к Музыке.
+        <p>Чтобы слушать музыку вместе с друзьями в голосовом канале, нужен токен Яндекса с доступом к Музыке.</p>
+        <button class="connect-btn" id="connect-btn">Войти через OAuth (для базового профиля)</button>
+        <details open style="margin-top:14px;max-width:520px;text-align:left">
+          <summary style="cursor:pointer;color:#ffcc00;font-size:13px;font-weight:700">⚡ Рекомендуемый способ — вставить токен вручную</summary>
+          <p style="font-size:12px;color:#aaa;line-height:1.5;margin-top:10px">
+            OAuth-приложения, регистрируемые публично, <strong>не получают scope <code>music:content</code></strong> —
+            Яндекс отдаёт только 30-секундные превью. Но если ты уже залогинен в Яндекс Музыку с подпиской Plus,
+            ты можешь забрать готовый токен прямо из браузера.
           </p>
-          <button class="connect-btn" id="connect-alt-btn" style="margin-top:8px;background:#666;color:white">Альтернативный вход (через код)</button>
+          <ol style="font-size:12px;color:#ccc;line-height:1.7;padding-left:18px">
+            <li>Открой <a href="https://music.yandex.ru" target="_blank" style="color:#ffcc00">music.yandex.ru</a> и убедись, что залогинен (тот аккаунт с Plus).</li>
+            <li>Открой DevTools (F12) → вкладка <strong>Network</strong>.</li>
+            <li>Обнови страницу (F5). В фильтре набери <code>api.music.yandex.net</code>.</li>
+            <li>Кликни любой запрос → раздел <strong>Request Headers</strong> → найди <code>Authorization: OAuth y0_…</code> (или <code>Authorization: OAuth AQA…</code>).</li>
+            <li>Скопируй ТОЛЬКО токен (без слова <code>OAuth</code>) и вставь ниже.</li>
+          </ol>
+          <input id="manual-token" type="password" placeholder="y0_AgAAA…" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:white;font-size:13px;font-family:monospace;outline:none;margin-top:8px" />
+          <button class="connect-btn" id="manual-token-btn" style="margin-top:10px">Сохранить токен</button>
         </details>
       </div>`;
     $('#connect-btn').addEventListener('click', connectYandex);
-    $('#connect-alt-btn').addEventListener('click', connectYandexAlt);
+    $('#manual-token-btn').addEventListener('click', connectManual);
+    $('#manual-token').addEventListener('keydown', (e) => { if (e.key === 'Enter') connectManual(); });
   }
 
-  async function connectYandexAlt() {
-    // Use the well-known Yandex Music Android client_id. Yandex shows a 7-character
-    // verification code on the page; the user copies and pastes it here. The token
-    // we exchange for has full music access (preview=false).
-    const ALT_CLIENT_ID = '23cabbbae6534cfe9d50f3c7a5b97041';
-    const ALT_CLIENT_SECRET = '53bc75238f0c4d08a118e51fe9203300';
-    const authUrl = `https://oauth.yandex.ru/authorize?response_type=code&client_id=${ALT_CLIENT_ID}`;
-    window.open(authUrl, '_blank', 'width=600,height=720');
-    const code = prompt('Открылась страница Яндекса с 7-значным кодом подтверждения. Скопируй его и вставь сюда:');
-    if (!code) return;
+  async function connectManual() {
+    const inp = $('#manual-token');
+    const raw = (inp.value || '').trim().replace(/^OAuth\s+/i, '');
+    if (!raw) { inp.focus(); return; }
+    token = raw;
     try {
-      const params = new URLSearchParams();
-      params.set('grant_type', 'authorization_code');
-      params.set('code', code.trim());
-      params.set('client_id', ALT_CLIENT_ID);
-      params.set('client_secret', ALT_CLIENT_SECRET);
-      const r = await sdk.fetch('https://oauth.yandex.ru/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-        responseType: 'json',
-      });
-      if (r.status !== 200 || !r.data?.access_token) throw new Error(JSON.stringify(r.data));
-      await sdk.storage.set('access_token', r.data.access_token);
-      token = r.data.access_token;
       const acc = await yaCall('/account/status');
       const accInfo = {
-        login: acc.result?.account?.login,
+        login: acc.result?.account?.login || '(токен)',
         uid: String(acc.result?.account?.uid || ''),
         hasPlus: !!(acc.result?.plus?.hasPlus || acc.result?.permissions?.values?.includes('landing-play')),
       };
+      await sdk.storage.set('access_token', token);
       await sdk.storage.set('account', accInfo);
       ymAccount = accInfo;
       renderAccount();
       renderSearchScreen();
     } catch (e) {
-      alert('Не получилось обменять код на токен: ' + e.message);
+      token = null;
+      alert('Токен не работает: ' + e.message);
     }
   }
 
@@ -286,10 +278,23 @@
       return vols.flat().map(normalizeTrack);
     }
     if (p.kind === 'playlist') {
-      const owner = p.owner || 'yamusic-personal';
-      const r = await yaCall(`/users/${encodeURIComponent(owner)}/playlists/${encodeURIComponent(p.pid)}`);
-      const items = r.result?.tracks || [];
-      return items.map(it => normalizeTrack(it.track || it));
+      // Share-link plays IDs are UUIDs (sometimes with prefix like "lk.").
+      // Personal playlists for a user use integer `kind`. Try the UUID endpoint
+      // first when there's no explicit owner or the id looks UUID-ish.
+      const looksUuid = !p.owner || /[a-f0-9-]{8,}/i.test(p.pid);
+      if (looksUuid) {
+        try {
+          const r = await yaCall(`/playlist?playlistId=${encodeURIComponent(p.pid)}`);
+          const items = r.result?.tracks || [];
+          if (items.length) return items.map(it => normalizeTrack(it.track || it));
+        } catch (_) { /* fall through */ }
+      }
+      if (p.owner) {
+        const r = await yaCall(`/users/${encodeURIComponent(p.owner)}/playlists/${encodeURIComponent(p.pid)}`);
+        const items = r.result?.tracks || [];
+        return items.map(it => normalizeTrack(it.track || it));
+      }
+      throw new Error('Не получилось определить владельца плейлиста');
     }
     return [];
   }
