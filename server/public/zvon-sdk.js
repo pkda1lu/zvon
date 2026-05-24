@@ -39,44 +39,65 @@
   );
 
   function sendTrack(type, payload, track) {
-    // VERSION 2 of track handoff logic
+    // VERSION 3: Multiple transfer strategies (track, clone, stream)
     const stashId = nextId();
     _trackStash.set(stashId, track);
-    const fullPayload = { ...payload, __trackStashId: stashId };
+    
+    // Clean payload for fallback to avoid DataCloneError
+    const cleanPayload = {};
+    if (payload && typeof payload === 'object') {
+      for (const k in payload) {
+        if (typeof payload[k] !== 'object' || payload[k] === null) {
+          cleanPayload[k] = payload[k];
+        }
+      }
+    }
+    cleanPayload.__trackStashId = stashId;
 
     if (track.readyState === 'ended') {
-      console.warn('[zvon-sdk v2] Sending a track that is already in "ended" state.');
+      console.warn('[zvon-sdk v3] Sending a track that is already in "ended" state.');
     }
 
     return new Promise((resolve, reject) => {
       const id = nextId();
       callbacks.set(id, { resolve, reject });
       
-      // Envelope for transferable path.
-      const envelope = { __zvon: true, id, type, payload: fullPayload, track };
+      const envelope = { __zvon: true, id, type, payload: cleanPayload };
 
-      try {
-        console.log('[zvon-sdk v2] Attempting transferable transfer...', {
-          type,
-          stashId,
-          kind: track.kind,
-          state: track.readyState,
-          label: track.label,
-          constructor: track.constructor?.name
-        });
-        HOST.postMessage(envelope, '*', [track]);
-      } catch (e) {
-        console.warn('[zvon-sdk v2] Transferable failed, using fallback stash path:', e.message);
+      const tryTransfer = (obj, label, key) => {
         try {
-          // Fallback: envelope MUST NOT contain the track object.
-          const fallbackEnvelope = { __zvon: true, id, type, payload: fullPayload };
-          HOST.postMessage(fallbackEnvelope, '*');
-        } catch (e2) {
-          console.error('[zvon-sdk v2] Fallback failed:', e2.message);
-          callbacks.delete(id);
-          reject(e2);
-          return;
+          console.log(`[zvon-sdk v3] Attempting ${label} transfer...`);
+          HOST.postMessage({ ...envelope, [key]: obj }, '*', [obj]);
+          return true;
+        } catch (e) {
+          console.warn(`[zvon-sdk v3] ${label} transfer failed:`, e.message);
+          return false;
         }
+      };
+
+      // Strategy 1: Original track
+      if (tryTransfer(track, 'original track', 'track')) return;
+
+      // Strategy 2: Cloned track
+      try {
+        const cloned = track.clone();
+        if (tryTransfer(cloned, 'cloned track', 'track')) return;
+      } catch (e) { console.warn('[zvon-sdk v3] clone() failed:', e.message); }
+
+      // Strategy 3: MediaStream (works in some browsers where track doesn't)
+      try {
+        const stream = new MediaStream([track]);
+        if (tryTransfer(stream, 'MediaStream', 'stream')) return;
+      } catch (e) { console.warn('[zvon-sdk v3] MediaStream wrap failed:', e.message); }
+
+      // Total failure of transferable path -> Fallback to stash
+      console.warn('[zvon-sdk v3] All transferable paths failed, using fallback stash path');
+      try {
+        HOST.postMessage(envelope, '*');
+      } catch (e2) {
+        console.error('[zvon-sdk v3] Total failure:', e2.message);
+        callbacks.delete(id);
+        reject(e2);
       }
     }).finally(() => {
       setTimeout(() => _trackStash.delete(stashId), 5000);
