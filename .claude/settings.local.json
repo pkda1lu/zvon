@@ -30,7 +30,9 @@
       "Bash(xargs grep -l \"activity-update\\\\|miniAppData\")",
       "Bash(node -e \"const x = require\\('yandex-music-client'\\); console.log\\(Object.keys\\(x\\)\\)\")",
       "Bash(node -e \"const x = require\\('./server/node_modules/yandex-music-client'\\); console.log\\(Object.keys\\(x\\)\\)\")",
-      "Bash(npx --prefix client tsc -p client --noEmit)"
+      "Bash(npx --prefix client tsc -p client --noEmit)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(node ./node_modules/typescript/bin/tsc --noEmit)"
     ]
   }
 }

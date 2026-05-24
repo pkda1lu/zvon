@@ -589,9 +589,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         <PresenceTile
           key={item._id}
           presence={p}
-          audioStream={presenceAudioStreams.get(p.sessionId)}
           videoStream={presenceVideoStreams.get(p.sessionId)}
-          isDeafened={isDeafened}
           onControl={(controlId, value) => sendPresenceControl(p.channelId, p.sessionId, controlId, value)}
         />
       );
