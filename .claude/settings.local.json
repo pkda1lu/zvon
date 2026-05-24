@@ -24,7 +24,10 @@
       "Bash(Get-ChildItem -Path \"D:\\\\work_study\\\\zvon\\\\client\\\\src\\\\components\" -Recurse -Filter \"*.jsx\")",
       "Bash(Select-Object -First 30)",
       "Bash(xargs grep -l \"livekit/token\\\\|livekit.*token\")",
-      "Bash(xargs grep -l \"join-voice-channel\")"
+      "Bash(xargs grep -l \"join-voice-channel\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\work_study\\\\zvon\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(xargs grep -l \"activity-update\\\\|miniAppData\")"
     ]
   }
 }
