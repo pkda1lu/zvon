@@ -12,6 +12,23 @@ interface MiniAppWindowProps {
     onClose: (appId: string) => void;
 }
 
+/** Try to obtain a MediaStreamTrack from a mini-app message. The SDK supports
+ *  two paths: transferable (track is on msg.track) and same-origin stash
+ *  (track is in iframe.contentWindow.__zvonTrackStash, keyed by stashId). */
+function pickTrackFromMessage(msg: any, iframe?: HTMLIFrameElement | null): MediaStreamTrack | null {
+    if (msg.track instanceof MediaStreamTrack) return msg.track;
+    const stashId = msg.payload?.__trackStashId;
+    if (!stashId) return null;
+    try {
+        const stash = (iframe?.contentWindow as any)?.__zvonTrackStash as Map<string, MediaStreamTrack> | undefined;
+        const t = stash?.get(stashId);
+        return t || null;
+    } catch (e) {
+        console.warn('[MiniApp] Track stash unreachable (cross-origin):', e);
+        return null;
+    }
+}
+
 const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
     const [position, setPosition] = useState({ x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 });
     const [size, setSize] = useState({ width: 800, height: 600 });
@@ -119,8 +136,8 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                     }
 
                     case 'publishAudioTrack': {
-                        const track = (msg as any).track as MediaStreamTrack | undefined;
-                        if (!track) { respond(id, { ok: false, error: 'no track in transferable' }); break; }
+                        const track = pickTrackFromMessage(msg, iframe);
+                        if (!track) { respond(id, { ok: false, error: 'no track received' }); break; }
                         const sid = await publishExternalAudioTrack(track, payload?.name || app.name);
                         if (sid) publishedSidsRef.current.add(sid);
                         respond(id, { ok: !!sid, result: sid });
@@ -156,9 +173,9 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                     }
                     case 'voicePresence.publishAudio': {
                         const { sessionId } = payload;
-                        const track = (msg as any).track as MediaStreamTrack | undefined;
+                        const track = pickTrackFromMessage(msg, iframe);
                         const slot = presencesRef.current.get(sessionId);
-                        if (!track || !slot) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
                         if (slot.audioSid) await unpublishExternalAudioTrack(slot.audioSid);
                         const sid = await publishExternalAudioTrack(track, 'zvon-presence:' + sessionId);
                         if (sid) { slot.audioSid = sid; publishedSidsRef.current.add(sid); }
@@ -167,9 +184,9 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                     }
                     case 'voicePresence.publishVideo': {
                         const { sessionId } = payload;
-                        const track = (msg as any).track as MediaStreamTrack | undefined;
+                        const track = pickTrackFromMessage(msg, iframe);
                         const slot = presencesRef.current.get(sessionId);
-                        if (!track || !slot) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
                         if (slot.videoSid) await unpublishExternalAudioTrack(slot.videoSid);
                         const sid = await publishExternalVideoTrack(track, 'zvon-presence:' + sessionId);
                         if (sid) { slot.videoSid = sid; publishedSidsRef.current.add(sid); }
