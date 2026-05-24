@@ -8,6 +8,7 @@
   const callbacks = new Map();
   const eventHandlers = new Map();
   let _seq = 0;
+  let _port = null;
 
   function nextId() { return 'm_' + (++_seq) + '_' + Date.now(); }
 
@@ -16,7 +17,8 @@
       const id = nextId();
       callbacks.set(id, { resolve, reject });
       try {
-        HOST.postMessage({ __zvon: true, id, type, payload, ...(extra || {}) }, '*', transfer || []);
+        const target = _port || HOST;
+        target.postMessage({ __zvon: true, id, type, payload, ...(extra || {}) }, '*', transfer || []);
       } catch (e) {
         callbacks.delete(id);
         reject(e);
@@ -39,7 +41,7 @@
   );
 
   function sendTrack(type, payload, track) {
-    // VERSION 3: Multiple transfer strategies (track, clone, stream)
+    // VERSION 4: Port-based transfer + multiple strategies
     const stashId = nextId();
     _trackStash.set(stashId, track);
     
@@ -55,7 +57,7 @@
     cleanPayload.__trackStashId = stashId;
 
     if (track.readyState === 'ended') {
-      console.warn('[zvon-sdk v3] Sending a track that is already in "ended" state.');
+      console.warn('[zvon-sdk v4] Sending a track that is already in "ended" state.');
     }
 
     return new Promise((resolve, reject) => {
@@ -63,14 +65,19 @@
       callbacks.set(id, { resolve, reject });
       
       const envelope = { __zvon: true, id, type, payload: cleanPayload };
+      const target = _port || HOST;
 
       const tryTransfer = (obj, label, key) => {
         try {
-          console.log(`[zvon-sdk v3] Attempting ${label} transfer...`);
-          HOST.postMessage({ ...envelope, [key]: obj }, '*', [obj]);
+          console.log(`[zvon-sdk v4] Attempting ${label} transfer via ${_port ? 'port' : 'window'}...`);
+          if (_port) {
+            _port.postMessage({ ...envelope, [key]: obj }, [obj]);
+          } else {
+            HOST.postMessage({ ...envelope, [key]: obj }, '*', [obj]);
+          }
           return true;
         } catch (e) {
-          console.warn(`[zvon-sdk v3] ${label} transfer failed:`, e.message);
+          console.warn(`[zvon-sdk v4] ${label} transfer failed:`, e.message);
           return false;
         }
       };
@@ -82,20 +89,20 @@
       try {
         const cloned = track.clone();
         if (tryTransfer(cloned, 'cloned track', 'track')) return;
-      } catch (e) { console.warn('[zvon-sdk v3] clone() failed:', e.message); }
+      } catch (e) { console.warn('[zvon-sdk v4] clone() failed:', e.message); }
 
-      // Strategy 3: MediaStream (works in some browsers where track doesn't)
+      // Strategy 3: MediaStream wrap (note: streams are not transferable in all browsers)
       try {
         const stream = new MediaStream([track]);
         if (tryTransfer(stream, 'MediaStream', 'stream')) return;
-      } catch (e) { console.warn('[zvon-sdk v3] MediaStream wrap failed:', e.message); }
+      } catch (e) { console.warn('[zvon-sdk v4] MediaStream wrap failed:', e.message); }
 
       // Total failure of transferable path -> Fallback to stash
-      console.warn('[zvon-sdk v3] All transferable paths failed, using fallback stash path');
+      console.warn('[zvon-sdk v4] All transferable paths failed, using fallback stash path');
       try {
-        HOST.postMessage(envelope, '*');
+        target.postMessage(envelope, '*');
       } catch (e2) {
-        console.error('[zvon-sdk v3] Total failure:', e2.message);
+        console.error('[zvon-sdk v4] Total failure:', e2.message);
         callbacks.delete(id);
         reject(e2);
       }
@@ -104,10 +111,15 @@
     });
   }
 
-  window.addEventListener('message', (e) => {
-    if (e.source !== HOST) return;
-    const msg = e.data;
+  const handleMsg = (msg) => {
     if (!msg || !msg.__zvon) return;
+
+    if (msg.type === 'setupPort' && msg.port) {
+      console.log('[zvon-sdk v4] Received MessagePort from host');
+      _port = msg.port;
+      _port.onmessage = (e) => handleMsg(e.data);
+      return;
+    }
 
     if (msg.id != null && callbacks.has(msg.id)) {
       const { resolve, reject } = callbacks.get(msg.id);
@@ -120,6 +132,11 @@
       const handlers = eventHandlers.get(msg.event) || [];
       handlers.forEach(h => { try { h(msg.payload); } catch (err) { console.error(err); } });
     }
+  };
+
+  window.addEventListener('message', (e) => {
+    if (e.source !== HOST) return;
+    handleMsg(e.data);
   });
 
   const storage = {

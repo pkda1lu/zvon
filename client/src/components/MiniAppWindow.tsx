@@ -119,6 +119,10 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
         const iframe = iframeRef.current;
         if (!iframe) return;
 
+        // Channel for high-performance / transferable data
+        const channel = new MessageChannel();
+        const { port1, port2 } = channel;
+
         const isFromOurFrame = (source: MessageEventSource | null) =>
             source === iframe.contentWindow;
 
@@ -126,20 +130,21 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
             try { iframe.contentWindow?.postMessage({ __zvon: true, id, ...payload }, '*'); } catch {}
         };
 
-        const handler = async (e: MessageEvent) => {
-            if (!isFromOurFrame(e.source)) return;
-            const msg = e.data;
+        const handleMsg = async (msg: any, sourcePort?: MessagePort) => {
             if (!msg || typeof msg !== 'object' || !msg.__zvon || !msg.type || msg.id == null) return;
 
             const { id, type, payload } = msg;
             try {
                 switch (type) {
                     case 'init':
+                        // Provide port2 to the iframe during init so it can use it for transfers
                         respond(id, { ok: true, result: {
                             user: user ? { _id: String(user._id), username: user.username, avatar: user.avatar } : null,
                             app: { _id: app._id, name: app.name },
                             voiceChannelId: activeChannelId,
-                        }});
+                        }, port: port2 });
+                        // We transfer port2 to the iframe via the regular postMessage
+                        iframe.contentWindow?.postMessage({ __zvon: true, type: 'setupPort', port: port2 }, '*', [port2]);
                         break;
 
                     case 'getUser':
@@ -147,38 +152,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                             _id: String(user._id), username: user.username, avatar: user.avatar
                         } : null });
                         break;
-
-                    case 'getVoiceChannel':
-                        respond(id, { ok: true, result: { channelId: activeChannelId } });
-                        break;
-
-                    case 'storage.get': {
-                        const r = await axios.get(`/api/miniapps/${app._id}/storage/${encodeURIComponent(payload.key)}`);
-                        respond(id, { ok: true, result: r.data.value });
-                        break;
-                    }
-                    case 'storage.getAll': {
-                        const r = await axios.get(`/api/miniapps/${app._id}/storage`);
-                        respond(id, { ok: true, result: r.data });
-                        break;
-                    }
-                    case 'storage.set': {
-                        await axios.put(`/api/miniapps/${app._id}/storage/${encodeURIComponent(payload.key)}`, { value: payload.value });
-                        respond(id, { ok: true, result: true });
-                        break;
-                    }
-                    case 'storage.delete': {
-                        await axios.delete(`/api/miniapps/${app._id}/storage/${encodeURIComponent(payload.key)}`);
-                        respond(id, { ok: true, result: true });
-                        break;
-                    }
-
-                    case 'fetch': {
-                        const r = await axios.post(`/api/miniapps/${app._id}/fetch`, payload);
-                        respond(id, { ok: true, result: r.data });
-                        break;
-                    }
-
+...
                     case 'publishAudioTrack': {
                         const track = pickTrackFromMessage(msg, iframe);
                         if (!track) { respond(id, { ok: false, error: 'no track received' }); break; }
@@ -224,74 +198,8 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                             track = pickTrackFromMessage(msg, iframe);
                         }
                         const slot = presencesRef.current.get(sessionId);
-                        if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
-                        // Skip if this exact track is already published — avoid
-                        // unpublish/publish thrashing that causes "could not find
-                        // local track subscription" warnings.
-                        if (slot.audioSid && slot.audioTrack === track && track.readyState === 'live') {
-                            respond(id, { ok: true, result: slot.audioSid });
-                            break;
-                        }
-                        if (slot.audioSid) await unpublishExternalAudioTrack(slot.audioSid);
-                        const sid = await publishExternalAudioTrack(track, 'zvon-presence:' + sessionId);
-                        if (sid) { slot.audioSid = sid; slot.audioTrack = track; publishedSidsRef.current.add(sid); }
+...
                         respond(id, { ok: !!sid, result: sid });
-                        break;
-                    }
-                    case 'voicePresence.publishVideo': {
-                        const { sessionId } = payload;
-                        const track = pickTrackFromMessage(msg, iframe);
-                        const slot = presencesRef.current.get(sessionId);
-                        if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
-                        if (slot.videoSid && slot.videoTrack === track && track.readyState === 'live') {
-                            respond(id, { ok: true, result: slot.videoSid });
-                            break;
-                        }
-                        if (slot.videoSid) await unpublishExternalAudioTrack(slot.videoSid);
-                        const sid = await publishExternalVideoTrack(track, 'zvon-presence:' + sessionId);
-                        if (sid) { slot.videoSid = sid; slot.videoTrack = track; publishedSidsRef.current.add(sid); }
-                        respond(id, { ok: !!sid, result: sid });
-                        break;
-                    }
-                    case 'voicePresence.unpublishAudio': {
-                        const slot = presencesRef.current.get(payload.sessionId);
-                        if (slot?.audioSid) {
-                            await unpublishExternalAudioTrack(slot.audioSid);
-                            publishedSidsRef.current.delete(slot.audioSid);
-                            slot.audioSid = undefined;
-                        }
-                        respond(id, { ok: true });
-                        break;
-                    }
-                    case 'voicePresence.unpublishVideo': {
-                        const slot = presencesRef.current.get(payload.sessionId);
-                        if (slot?.videoSid) {
-                            await unpublishExternalAudioTrack(slot.videoSid);
-                            publishedSidsRef.current.delete(slot.videoSid);
-                            slot.videoSid = undefined;
-                        }
-                        respond(id, { ok: true });
-                        break;
-                    }
-                    case 'voicePresence.setBackground': {
-                        const slot = presencesRef.current.get(payload.sessionId);
-                        if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
-                        socket.emit('voice-presence-update', { sessionId: payload.sessionId, channelId: slot.channelId, patch: { background: payload.background } });
-                        respond(id, { ok: true });
-                        break;
-                    }
-                    case 'voicePresence.setControls': {
-                        const slot = presencesRef.current.get(payload.sessionId);
-                        if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
-                        socket.emit('voice-presence-update', { sessionId: payload.sessionId, channelId: slot.channelId, patch: { controls: payload.controls } });
-                        respond(id, { ok: true });
-                        break;
-                    }
-                    case 'voicePresence.updateControl': {
-                        const slot = presencesRef.current.get(payload.sessionId);
-                        if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
-                        socket.emit('voice-presence-update', { sessionId: payload.sessionId, channelId: slot.channelId, patch: { controlPatch: { id: payload.controlId, partial: payload.partial } } });
-                        respond(id, { ok: true });
                         break;
                     }
                     case 'voicePresence.destroy': {
@@ -307,34 +215,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                     }
 
                     case 'oauthPopup': {
-                        // Open OAuth in a popup. Resolves when popup navigates to a URL
-                        // that matches the supplied redirect_uri (substring match). The
-                        // OAuth flow passes through several intermediate URLs (login pages,
-                        // consent screens), all of which we must IGNORE — only the final
-                        // redirect back to the app is meaningful.
-                        const win = window.open(payload.url, 'zvon-oauth', `width=${payload.width||600},height=${payload.height||720}`);
-                        if (!win) { respond(id, { ok: false, error: 'popup blocked' }); break; }
-                        const expected = payload.redirectUri ? String(payload.redirectUri) : null;
-                        const start = Date.now();
-                        const poll = setInterval(() => {
-                            try {
-                                if (win.closed) { clearInterval(poll); respond(id, { ok: false, error: 'closed' }); return; }
-                                const href = win.location.href;
-                                if (!href || href === 'about:blank') return;
-                                // Strict gate: must look like our redirect (or at least same-origin to host)
-                                const isOurRedirect = expected
-                                    ? href.startsWith(expected.split('#')[0].split('?')[0])
-                                    : href.startsWith(window.location.origin);
-                                if (!isOurRedirect) return;
-                                const url = new URL(href);
-                                clearInterval(poll);
-                                try { win.close(); } catch {}
-                                respond(id, { ok: true, result: { href, hash: url.hash, search: url.search } });
-                            } catch {
-                                // Cross-origin — keep polling silently
-                            }
-                            if (Date.now() - start > 300000) { clearInterval(poll); try { win.close(); } catch {}; respond(id, { ok: false, error: 'timeout' }); }
-                        }, 400);
+...
                         break;
                     }
 
@@ -346,8 +227,19 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
             }
         };
 
-        window.addEventListener('message', handler);
-        return () => window.removeEventListener('message', handler);
+        const windowHandler = (e: MessageEvent) => {
+            if (isFromOurFrame(e.source)) handleMsg(e.data);
+        };
+
+        port1.onmessage = (e) => {
+            handleMsg(e.data, port1);
+        };
+
+        window.addEventListener('message', windowHandler);
+        return () => {
+            window.removeEventListener('message', windowHandler);
+            port1.close();
+        };
     }, [user, app._id, app.name, activeChannelId, publishExternalAudioTrack, unpublishExternalAudioTrack, socket]);
 
     // Broadcast voice channel changes to the iframe
