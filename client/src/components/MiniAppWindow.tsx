@@ -21,15 +21,28 @@ interface MiniAppWindowProps {
  *  two paths: transferable (track is on msg.track) and same-origin stash
  *  (track is in iframe.contentWindow.__zvonTrackStash, keyed by stashId). */
 function pickTrackFromMessage(msg: any, iframe?: HTMLIFrameElement | null): MediaStreamTrack | null {
-    if (msg.track instanceof MediaStreamTrack) return msg.track;
+    // Path 1: transferable (Chrome 116+, cross-origin friendly)
+    if (msg.track instanceof MediaStreamTrack) {
+        console.log('[MiniApp bridge] got track via transferable');
+        return msg.track;
+    }
+    // Path 2: same-origin stash
     const stashId = msg.payload?.__trackStashId;
-    if (!stashId) return null;
+    console.log('[MiniApp bridge] stashId from msg:', stashId, 'payload keys:', msg.payload && Object.keys(msg.payload));
+    if (!stashId) {
+        console.warn('[MiniApp bridge] no stashId and no transferable track in message');
+        return null;
+    }
     try {
-        const stash = (iframe?.contentWindow as any)?.__zvonTrackStash as Map<string, MediaStreamTrack> | undefined;
-        const t = stash?.get(stashId);
+        const win = iframe?.contentWindow as any;
+        const stash = win?.__zvonTrackStash as Map<string, MediaStreamTrack> | undefined;
+        console.log('[MiniApp bridge] iframe window:', !!win, 'stash:', stash, 'stash.size:', stash?.size);
+        if (!stash) return null;
+        const t = stash.get(stashId);
+        console.log('[MiniApp bridge] stash.get(', stashId, ') =', t, 'kind:', t?.kind, 'readyState:', t?.readyState);
         return t || null;
     } catch (e) {
-        console.warn('[MiniApp] Track stash unreachable (cross-origin):', e);
+        console.warn('[MiniApp bridge] Track stash unreachable (cross-origin?):', e);
         return null;
     }
 }
@@ -184,7 +197,12 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                     }
                     case 'voicePresence.publishAudio': {
                         const { sessionId } = payload;
-                        const track = pickTrackFromMessage(msg, iframe);
+                        let track = pickTrackFromMessage(msg, iframe);
+                        if (!track) {
+                            // Sometimes the stash assignment lags by a microtask. Retry once after a frame.
+                            await new Promise(r => setTimeout(r, 50));
+                            track = pickTrackFromMessage(msg, iframe);
+                        }
                         const slot = presencesRef.current.get(sessionId);
                         if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
                         // Skip if this exact track is already published — avoid
