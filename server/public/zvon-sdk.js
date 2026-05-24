@@ -118,7 +118,90 @@
         eventHandlers.set(event, cur.filter(h => h !== handler));
       };
     },
+
+    voicePresence: {
+      /**
+       * Create a virtual "voice presence" — the mini-app appears as its own
+       * participant tile inside the user's current voice channel, with custom
+       * display name, avatar/background, and clickable controls that other
+       * channel members can interact with.
+       *
+       * Returns a PresenceSession with methods to publish audio/video,
+       * update the background, control schema, and react to control events.
+       */
+      create: async ({ displayName, avatar } = {}) => {
+        const sessionId = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+        const channelId = await call('voicePresence.create', { sessionId, displayName, avatar });
+        return makePresence(sessionId, channelId);
+      },
+    },
   };
+
+  const presenceControlHandlers = new Map(); // sessionId -> [handler]
+
+  function makePresence(sessionId, channelId) {
+    return {
+      sessionId,
+      channelId,
+
+      /** Publish an audio MediaStreamTrack so others hear it as this presence. */
+      publishAudio: (track) => {
+        if (!(track instanceof MediaStreamTrack) || track.kind !== 'audio') throw new Error('audio MediaStreamTrack required');
+        return call('voicePresence.publishAudio', { sessionId }, { track }, [track]);
+      },
+
+      /** Publish a video MediaStreamTrack as background for this presence. */
+      publishVideo: (track) => {
+        if (!(track instanceof MediaStreamTrack) || track.kind !== 'video') throw new Error('video MediaStreamTrack required');
+        return call('voicePresence.publishVideo', { sessionId }, { track }, [track]);
+      },
+
+      unpublishAudio: () => call('voicePresence.unpublishAudio', { sessionId }),
+      unpublishVideo: () => call('voicePresence.unpublishVideo', { sessionId }),
+
+      /**
+       * Background of the presence tile:
+       *   { type: 'image', url: '...' }       — static cover
+       *   { type: 'color', color: '#a155ff' } — solid color
+       *   null                                 — fall back to avatar
+       * For a live video background, use publishVideo() instead.
+       */
+      setBackground: (background) => call('voicePresence.setBackground', { sessionId, background }),
+
+      /**
+       * Define the controls rendered on the tile. Each control:
+       *   { id, kind: 'button'|'slider', label, value, min, max, style, tooltip }
+       */
+      setControls: (controls) => call('voicePresence.setControls', { sessionId, controls }),
+
+      /** Patch a single control (e.g. progress slider). */
+      updateControl: (controlId, partial) =>
+        call('voicePresence.updateControl', { sessionId, controlId, partial }),
+
+      /** Subscribe to control interactions from any channel member. */
+      on: (event, handler) => {
+        if (event !== 'control') throw new Error('unknown event: ' + event);
+        const list = presenceControlHandlers.get(sessionId) || [];
+        list.push(handler);
+        presenceControlHandlers.set(sessionId, list);
+        return () => {
+          const cur = presenceControlHandlers.get(sessionId) || [];
+          presenceControlHandlers.set(sessionId, cur.filter(h => h !== handler));
+        };
+      },
+
+      destroy: () => {
+        presenceControlHandlers.delete(sessionId);
+        return call('voicePresence.destroy', { sessionId });
+      },
+    };
+  }
+
+  // Route voicePresenceControl events into per-session handlers.
+  eventHandlers.set('voicePresenceControl', [(payload) => {
+    const list = presenceControlHandlers.get(payload.sessionId) || [];
+    list.forEach(h => { try { h(payload); } catch (e) { console.error(e); } });
+  }]);
 
   window.zvon = zvon;
   // Fire a custom event when SDK is ready

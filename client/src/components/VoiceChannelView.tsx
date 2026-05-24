@@ -13,6 +13,7 @@ import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import SharedYouTubePlayer from './SharedYouTubePlayer';
+import PresenceTile from './PresenceTile';
 import './panel-hero.css';
 import './VoiceChannelView.css';
 
@@ -294,7 +295,11 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     remoteStreams,
     isVideoOn,
     toggleVideo,
-    localCameraStream
+    localCameraStream,
+    voicePresences,
+    presenceAudioStreams,
+    presenceVideoStreams,
+    sendPresenceControl,
   } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
@@ -520,8 +525,16 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       items.push({ _id: 'youtube-watch', type: 'youtube', ...ytSession });
     }
 
+    // Virtual mini-app presences for this channel
+    const channelKey = 'channel-' + channel._id;
+    for (const p of voicePresences.values()) {
+      if (p.channelId === channelKey) {
+        items.push({ _id: 'presence-' + p.sessionId, type: 'presence', presence: p });
+      }
+    }
+
     return items;
-  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, isVideoOn, localCameraStream, externalParticipants, userStates, remoteScreenStreams, remoteStreams, ytSession]);
+  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, isVideoOn, localCameraStream, externalParticipants, userStates, remoteScreenStreams, remoteStreams, ytSession, voicePresences, channel._id]);
 
   useEffect(() => {
     if (!isConnectedToThisChannel) {
@@ -566,6 +579,20 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           expandedStreamId={expandedStreamId}
           setExpandedStreamId={setExpandedStreamId}
           screenStream={screenStream}
+        />
+      );
+    }
+
+    if (item.type === 'presence') {
+      const p = item.presence;
+      return (
+        <PresenceTile
+          key={item._id}
+          presence={p}
+          audioStream={presenceAudioStreams.get(p.sessionId)}
+          videoStream={presenceVideoStreams.get(p.sessionId)}
+          isDeafened={isDeafened}
+          onControl={(controlId, value) => sendPresenceControl(p.channelId, p.sessionId, controlId, value)}
         />
       );
     }

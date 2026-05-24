@@ -133,6 +133,52 @@ app.get('/api/channels/:id/voice-participants', async (req, res) => {
 
 const voiceChannelYouTubeStates = new Map();
 
+// --- Voice presences (mini-app virtual participants) ---
+// Map<channelId, Map<sessionId, presence>>
+const voicePresencesByChannel = new Map();
+
+function getPresencesSnapshot(channelId) {
+  const m = voicePresencesByChannel.get(String(channelId));
+  return m ? Array.from(m.values()) : [];
+}
+function setPresence(channelId, presence) {
+  const key = String(channelId);
+  let m = voicePresencesByChannel.get(key);
+  if (!m) { m = new Map(); voicePresencesByChannel.set(key, m); }
+  m.set(presence.sessionId, presence);
+}
+function removePresence(channelId, sessionId) {
+  const m = voicePresencesByChannel.get(String(channelId));
+  if (!m) return null;
+  const p = m.get(sessionId);
+  if (!p) return null;
+  m.delete(sessionId);
+  if (m.size === 0) voicePresencesByChannel.delete(String(channelId));
+  return p;
+}
+function cleanupUserPresencesInChannel(channelId, userId, io) {
+  const m = voicePresencesByChannel.get(String(channelId));
+  if (!m) return;
+  for (const [sid, p] of Array.from(m.entries())) {
+    if (String(p.ownerUserId) === String(userId)) {
+      m.delete(sid);
+      io.to(`voice-channel-${channelId}`).emit('voice-presence-removed', { sessionId: sid, channelId });
+    }
+  }
+  if (m.size === 0) voicePresencesByChannel.delete(String(channelId));
+}
+function cleanupUserPresencesEverywhere(userId, io) {
+  for (const [chId, m] of voicePresencesByChannel.entries()) {
+    for (const [sid, p] of Array.from(m.entries())) {
+      if (String(p.ownerUserId) === String(userId)) {
+        m.delete(sid);
+        io.to(`voice-channel-${chId}`).emit('voice-presence-removed', { sessionId: sid, channelId: chId });
+      }
+    }
+    if (m.size === 0) voicePresencesByChannel.delete(chId);
+  }
+}
+
 app.set('io', io);
 app.set('voiceManager', { getVoiceChannelUsers, notifyVoiceChannelUpdate });
 
@@ -576,9 +622,86 @@ io.on('connection', (socket) => {
       }
     }
     socket.emit('dm-call-existing-users', existing);
+    socket.emit('voice-presences-snapshot', {
+      channelId: `call-${data.dmId}`,
+      presences: getPresencesSnapshot(`call-${data.dmId}`),
+    });
+  });
+
+  // --- Voice presence lifecycle ---
+  // The mini-app sends a "channelHint" — either the LiveKit room name (e.g.
+  // "call-<dmId>" or "channel-<id>") — and the server validates the user is
+  // actually in that room before broadcasting.
+
+  function presenceSocketRoom(channelId) {
+    if (channelId.startsWith('call-')) return 'dm-call-' + channelId.slice(5);
+    if (channelId.startsWith('channel-')) return 'voice-channel-' + channelId.slice(8);
+    return null;
+  }
+  function userIsInPresenceChannel(s, channelId) {
+    if (channelId.startsWith('call-')) return s.dmCallId === channelId.slice(5);
+    if (channelId.startsWith('channel-')) return String(s.voiceChannelId) === channelId.slice(8);
+    return false;
+  }
+
+  socket.on('voice-presence-create', (data) => {
+    const { sessionId, channelId, displayName, avatar } = data || {};
+    if (!sessionId || !channelId || !userIsInPresenceChannel(socket, channelId)) return;
+    const room = presenceSocketRoom(channelId);
+    if (!room) return;
+    const presence = {
+      sessionId, channelId,
+      ownerUserId: String(socket.userId),
+      displayName: displayName || 'Мини-приложение',
+      avatar: avatar || null,
+      background: null,
+      controls: [],
+    };
+    setPresence(channelId, presence);
+    io.to(room).emit('voice-presence-added', presence);
+    if (typeof socket._ownedPresences !== 'object') socket._ownedPresences = new Set();
+    socket._ownedPresences.add(sessionId + '|' + channelId);
+  });
+
+  socket.on('voice-presence-update', (data) => {
+    const { sessionId, channelId, patch } = data || {};
+    const m = voicePresencesByChannel.get(String(channelId));
+    const presence = m?.get(sessionId);
+    if (!presence || presence.ownerUserId !== String(socket.userId)) return;
+    if (patch.background !== undefined) presence.background = patch.background;
+    if (Array.isArray(patch.controls)) presence.controls = patch.controls;
+    if (patch.controlPatch) {
+      const ctrl = (presence.controls || []).find(c => c.id === patch.controlPatch.id);
+      if (ctrl) Object.assign(ctrl, patch.controlPatch.partial || {});
+    }
+    const room = presenceSocketRoom(channelId);
+    if (room) io.to(room).emit('voice-presence-updated', presence);
+  });
+
+  socket.on('voice-presence-destroy', (data) => {
+    const { sessionId, channelId } = data || {};
+    const m = voicePresencesByChannel.get(String(channelId));
+    const presence = m?.get(sessionId);
+    if (!presence || presence.ownerUserId !== String(socket.userId)) return;
+    removePresence(channelId, sessionId);
+    const room = presenceSocketRoom(channelId);
+    if (room) io.to(room).emit('voice-presence-removed', { sessionId, channelId });
+    socket._ownedPresences?.delete(sessionId + '|' + channelId);
+  });
+
+  // Any voice-channel member can send a control — forwarded to the presence owner.
+  socket.on('voice-presence-control', (data) => {
+    const { sessionId, channelId, controlId, value } = data || {};
+    if (!userIsInPresenceChannel(socket, channelId)) return;
+    const presence = voicePresencesByChannel.get(String(channelId))?.get(sessionId);
+    if (!presence) return;
+    io.to(`user-${presence.ownerUserId}`).emit('voice-presence-control', {
+      sessionId, channelId, controlId, value, fromUserId: String(socket.userId),
+    });
   });
 
   socket.on('leave-dm-call', (data) => {
+    cleanupUserPresencesInChannel('call-' + data.dmId, socket.userId, io);
     console.log(`[Call] User ${socket.userId} left DM room ${data.dmId}`);
     socket.leave(`dm-call-${data.dmId}`);
     socket.dmCallId = null;
@@ -617,6 +740,7 @@ io.on('connection', (socket) => {
       }
       const existingUsers = await getVoiceChannelUsers(channelId);
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
+      socket.emit('voice-presences-snapshot', { channelId, presences: getPresencesSnapshot(channelId) });
       // user is already declared above
       socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', {
         userId: socket.userId,
@@ -753,6 +877,7 @@ io.on('connection', (socket) => {
 
   socket.on('leave-voice-channel', async (data) => {
     const channelId = data.channelId;
+    cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
     socket.leave(`voice-channel-${channelId}`);
     socket.voiceChannelId = null;
     io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
@@ -870,14 +995,17 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async () => {
     if (socket.voiceChannelId) {
       const channelId = socket.voiceChannelId;
+      cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
       io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
       await notifyVoiceChannelUpdate(channelId);
-      
+
       const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
       if (!room || room.size === 0) {
         voiceChannelYouTubeStates.delete(channelId);
       }
     }
+    if (socket.dmCallId) cleanupUserPresencesInChannel('call-' + socket.dmCallId, socket.userId, io);
+    cleanupUserPresencesEverywhere(socket.userId, io);
     const connections = io.sockets.adapter.rooms.get(`user-${String(socket.userId)}`);
     if (!connections || connections.size === 0) {
       try {
