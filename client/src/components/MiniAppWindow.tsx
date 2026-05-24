@@ -30,11 +30,26 @@ function pickTrackFromMessage(msg: any, iframe?: HTMLIFrameElement | null): Medi
         console.log('[MiniApp bridge] got track via transferable');
         return msg.track;
     }
+
+    // Path 1.5: transferable MediaStream (sometimes works when track doesn't)
+    if (msg.stream) {
+        try {
+            const stream = msg.stream as MediaStream;
+            const t = stream.getAudioTracks()[0] || stream.getVideoTracks()[0];
+            if (isTrack(t)) {
+                console.log('[MiniApp bridge] got track via transferable stream');
+                return t;
+            }
+        } catch (e) {
+            console.warn('[MiniApp bridge] failed to extract track from msg.stream:', e);
+        }
+    }
+
     // Path 2: same-origin stash
     const stashId = msg.payload?.__trackStashId;
     console.log('[MiniApp bridge] stashId from msg:', stashId, 'msg keys:', Object.keys(msg), 'payload keys:', msg.payload && Object.keys(msg.payload));
     if (!stashId) {
-        if (msg.track) console.warn('[MiniApp bridge] msg.track present but failed isTrack check:', msg.track);
+        if (msg.track || msg.stream) console.warn('[MiniApp bridge] msg.track/stream present but failed isTrack check');
         else console.warn('[MiniApp bridge] no stashId and no transferable track in message');
         return null;
     }
