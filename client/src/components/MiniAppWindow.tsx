@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { MiniApp } from '../types';
 import { CloseIcon, MaximizeIcon, LayoutGridIcon, MonitorIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
+import { useVoice } from '../contexts/VoiceContext';
+import { useSocket } from '../contexts/SocketContext';
 import './MiniAppWindow.css';
 
 interface MiniAppWindowProps {
@@ -17,69 +21,198 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
     const [isBlocked, setIsBlocked] = useState(false);
     const dragStartRef = useRef({ x: 0, y: 0 });
     const resizeStartRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
+    const iframeRef = useRef<HTMLIFrameElement>(null);
 
-    // Ensure URL is absolute
+    const { user } = useAuth();
+    const { activeChannelId, publishExternalAudioTrack, unpublishExternalAudioTrack } = useVoice();
+    const { socket } = useSocket();
+
     const getAbsoluteUrl = (url: string) => {
         if (!url) return '';
         if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        if (url.startsWith('/')) return url;
         return `https://${url}`;
     };
-
     const absoluteUrl = getAbsoluteUrl(app.url);
 
+    // Track of publication sids we created for this app, to clean up on unmount.
+    const publishedSidsRef = useRef<Set<string>>(new Set());
+
+    // postMessage bridge
     useEffect(() => {
-        const timer = setTimeout(() => {
-            if (isLoading) {
-                setIsBlocked(true);
+        const iframe = iframeRef.current;
+        if (!iframe) return;
+
+        const isFromOurFrame = (source: MessageEventSource | null) =>
+            source === iframe.contentWindow;
+
+        const respond = (id: string, payload: any) => {
+            try { iframe.contentWindow?.postMessage({ __zvon: true, id, ...payload }, '*'); } catch {}
+        };
+
+        const handler = async (e: MessageEvent) => {
+            if (!isFromOurFrame(e.source)) return;
+            const msg = e.data;
+            if (!msg || typeof msg !== 'object' || !msg.__zvon || !msg.type || msg.id == null) return;
+
+            const { id, type, payload } = msg;
+            try {
+                switch (type) {
+                    case 'init':
+                        respond(id, { ok: true, result: {
+                            user: user ? { _id: String(user._id), username: user.username, avatar: user.avatar } : null,
+                            app: { _id: app._id, name: app.name },
+                            voiceChannelId: activeChannelId,
+                        }});
+                        break;
+
+                    case 'getUser':
+                        respond(id, { ok: true, result: user ? {
+                            _id: String(user._id), username: user.username, avatar: user.avatar
+                        } : null });
+                        break;
+
+                    case 'getVoiceChannel':
+                        respond(id, { ok: true, result: { channelId: activeChannelId } });
+                        break;
+
+                    case 'storage.get': {
+                        const r = await axios.get(`/api/miniapps/${app._id}/storage/${encodeURIComponent(payload.key)}`);
+                        respond(id, { ok: true, result: r.data.value });
+                        break;
+                    }
+                    case 'storage.getAll': {
+                        const r = await axios.get(`/api/miniapps/${app._id}/storage`);
+                        respond(id, { ok: true, result: r.data });
+                        break;
+                    }
+                    case 'storage.set': {
+                        await axios.put(`/api/miniapps/${app._id}/storage/${encodeURIComponent(payload.key)}`, { value: payload.value });
+                        respond(id, { ok: true, result: true });
+                        break;
+                    }
+                    case 'storage.delete': {
+                        await axios.delete(`/api/miniapps/${app._id}/storage/${encodeURIComponent(payload.key)}`);
+                        respond(id, { ok: true, result: true });
+                        break;
+                    }
+
+                    case 'fetch': {
+                        const r = await axios.post(`/api/miniapps/${app._id}/fetch`, payload);
+                        respond(id, { ok: true, result: r.data });
+                        break;
+                    }
+
+                    case 'publishAudioTrack': {
+                        const track = (msg as any).track as MediaStreamTrack | undefined;
+                        if (!track) { respond(id, { ok: false, error: 'no track in transferable' }); break; }
+                        const sid = await publishExternalAudioTrack(track, payload?.name || app.name);
+                        if (sid) publishedSidsRef.current.add(sid);
+                        respond(id, { ok: !!sid, result: sid });
+                        break;
+                    }
+
+                    case 'unpublishAudioTrack': {
+                        const sid = payload?.sid;
+                        if (sid && publishedSidsRef.current.has(sid)) {
+                            await unpublishExternalAudioTrack(sid);
+                            publishedSidsRef.current.delete(sid);
+                        }
+                        respond(id, { ok: true });
+                        break;
+                    }
+
+                    case 'sendMessage': {
+                        if (!socket) { respond(id, { ok: false, error: 'no socket' }); break; }
+                        socket.emit('send-message', payload);
+                        respond(id, { ok: true });
+                        break;
+                    }
+
+                    case 'oauthPopup': {
+                        // Open OAuth in a popup. Resolves when popup navigates back to a
+                        // same-origin URL (the app's own page), reading hash/search from it.
+                        const win = window.open(payload.url, 'zvon-oauth', `width=${payload.width||600},height=${payload.height||720}`);
+                        if (!win) { respond(id, { ok: false, error: 'popup blocked' }); break; }
+                        const start = Date.now();
+                        const poll = setInterval(() => {
+                            try {
+                                if (win.closed) { clearInterval(poll); respond(id, { ok: false, error: 'closed' }); return; }
+                                const href = win.location.href;
+                                if (href && (href.includes('#') || href.includes('?'))) {
+                                    const url = new URL(href);
+                                    // Same-origin detection (cross-origin access throws)
+                                    clearInterval(poll);
+                                    win.close();
+                                    respond(id, { ok: true, result: { href, hash: url.hash, search: url.search } });
+                                }
+                            } catch {
+                                // Cross-origin — keep polling
+                            }
+                            if (Date.now() - start > 300000) { clearInterval(poll); try { win.close(); } catch {}; respond(id, { ok: false, error: 'timeout' }); }
+                        }, 400);
+                        break;
+                    }
+
+                    default:
+                        respond(id, { ok: false, error: 'unknown type: ' + type });
+                }
+            } catch (err: any) {
+                respond(id, { ok: false, error: err?.response?.data?.message || err?.message || 'error' });
             }
-        }, 7000); // 7 seconds threshold for blocking detection
-        
+        };
+
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, [user, app._id, app.name, activeChannelId, publishExternalAudioTrack, unpublishExternalAudioTrack, socket]);
+
+    // Broadcast voice channel changes to the iframe
+    useEffect(() => {
+        const iframe = iframeRef.current;
+        if (!iframe) return;
+        try {
+            iframe.contentWindow?.postMessage({ __zvon: true, event: 'voiceChannelChanged', payload: { channelId: activeChannelId } }, '*');
+        } catch {}
+    }, [activeChannelId]);
+
+    // Cleanup any published tracks on unmount
+    useEffect(() => {
+        return () => {
+            for (const sid of publishedSidsRef.current) {
+                unpublishExternalAudioTrack(sid).catch(() => {});
+            }
+            publishedSidsRef.current.clear();
+        };
+    }, [unpublishExternalAudioTrack]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => { if (isLoading) setIsBlocked(true); }, 7000);
         return () => clearTimeout(timer);
     }, [isLoading]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         setIsDragging(true);
-        dragStartRef.current = {
-            x: e.clientX - position.x,
-            y: e.clientY - position.y
-        };
+        dragStartRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
     };
-
     const handleResizeDown = (e: React.MouseEvent, direction: string) => {
         e.stopPropagation();
         setIsResizing(direction);
-        resizeStartRef.current = {
-            x: e.clientX,
-            y: e.clientY,
-            w: size.width,
-            h: size.height
-        };
+        resizeStartRef.current = { x: e.clientX, y: e.clientY, w: size.width, h: size.height };
     };
-
     const handleMouseMove = useCallback((e: MouseEvent) => {
         if (isDragging) {
-            setPosition({
-                x: e.clientX - dragStartRef.current.x,
-                y: e.clientY - dragStartRef.current.y
-            });
+            setPosition({ x: e.clientX - dragStartRef.current.x, y: e.clientY - dragStartRef.current.y });
         } else if (isResizing) {
             const dx = e.clientX - resizeStartRef.current.x;
             const dy = e.clientY - resizeStartRef.current.y;
-            
             let newW = resizeStartRef.current.w;
             let newH = resizeStartRef.current.h;
-
             if (isResizing.includes('right')) newW = Math.max(400, resizeStartRef.current.w + dx);
             if (isResizing.includes('bottom')) newH = Math.max(300, resizeStartRef.current.h + dy);
-            
             setSize({ width: newW, height: newH });
         }
     }, [isDragging, isResizing]);
-
-    const handleMouseUp = useCallback(() => {
-        setIsDragging(false);
-        setIsResizing(null);
-    }, []);
+    const handleMouseUp = useCallback(() => { setIsDragging(false); setIsResizing(null); }, []);
 
     useEffect(() => {
         if (isDragging || isResizing) {
@@ -95,31 +228,10 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
         };
     }, [isDragging, isResizing, handleMouseMove, handleMouseUp]);
 
-    useEffect(() => {
-        if (!isLoading) {
-            setIsBlocked(false);
-            return;
-        }
-
-        const timer = setTimeout(() => {
-            if (isLoading) {
-                setIsBlocked(true);
-            }
-        }, 7000);
-        
-        return () => clearTimeout(timer);
-    }, [isLoading]);
-
     return (
-        <div 
+        <div
             className="miniapp-window"
-            style={{
-                left: position.x,
-                top: position.y,
-                width: size.width,
-                height: size.height,
-                zIndex: isDragging || isResizing ? 9001 : 9000
-            }}
+            style={{ left: position.x, top: position.y, width: size.width, height: size.height, zIndex: isDragging || isResizing ? 9001 : 9000 }}
         >
             <div className="miniapp-header" onMouseDown={handleMouseDown}>
                 <div className="header-info">
@@ -127,14 +239,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                     <span>{app.name}</span>
                 </div>
                 <div className="header-actions">
-                    <a 
-                        href={absoluteUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="header-btn"
-                        title="Открыть в новой вкладке"
-                        onMouseDown={e => e.stopPropagation()}
-                    >
+                    <a href={absoluteUrl} target="_blank" rel="noopener noreferrer" className="header-btn" title="Открыть в новой вкладке" onMouseDown={e => e.stopPropagation()}>
                         <MaximizeIcon size={16} />
                     </a>
                     <button className="header-btn" onClick={() => onClose(app._id)} onMouseDown={e => e.stopPropagation()}>
@@ -160,25 +265,18 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose }) => {
                         <div className="loading-spinner-rings"><div></div><div></div><div></div><div></div></div>
                     </div>
                 )}
-                <iframe 
-                    src={absoluteUrl} 
+                <iframe
+                    ref={iframeRef}
+                    src={absoluteUrl}
                     title={app.name}
                     width="100%"
                     height="100%"
                     frameBorder="0"
-                    onLoad={() => {
-                        setIsLoading(false);
-                        setIsBlocked(false);
-                    }}
-                    allow="geolocation; microphone; camera; midi; vr; accelerometer; gyroscope; payment; ambient-light-sensor; encrypted-media; usb"
-                    style={{ 
-                        pointerEvents: isDragging || isResizing ? 'none' : 'auto', 
-                        background: 'white',
-                        display: isBlocked ? 'none' : 'block'
-                    }}
+                    onLoad={() => { setIsLoading(false); setIsBlocked(false); }}
+                    allow="geolocation; microphone; camera; midi; vr; accelerometer; gyroscope; payment; ambient-light-sensor; encrypted-media; usb; autoplay"
+                    style={{ pointerEvents: isDragging || isResizing ? 'none' : 'auto', background: 'white', display: isBlocked ? 'none' : 'block' }}
                 />
             </div>
-            {/* Resize Handles */}
             <div className="resize-handle right" onMouseDown={(e) => handleResizeDown(e, 'right')} />
             <div className="resize-handle bottom" onMouseDown={(e) => handleResizeDown(e, 'bottom')} />
             <div className="resize-handle bottom-right" onMouseDown={(e) => handleResizeDown(e, 'bottom-right')} />

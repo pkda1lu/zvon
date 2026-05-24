@@ -205,6 +205,9 @@ interface VoiceContextType {
     setOverlayOpacity: (opacity: number) => void;
     overlaySize: number;
     setOverlaySize: (size: number) => void;
+
+    publishExternalAudioTrack: (track: MediaStreamTrack, name?: string) => Promise<string | null>;
+    unpublishExternalAudioTrack: (publicationSid: string) => Promise<void>;
 }
 
 interface VoiceLevelContextType {
@@ -1829,6 +1832,43 @@ registerProcessor('vad-processor', VADProcessor);
         syncMuteState();
     }, [isServerMuted, isServerDeafened, isMuted, isDeafened, isConnected, handleLocalMicPublication]);
 
+    const publishExternalAudioTrack = useCallback(async (track: MediaStreamTrack, name = 'miniapp-audio'): Promise<string | null> => {
+        if (!roomRef.current || !roomRef.current.localParticipant) {
+            console.warn('[Voice] Cannot publish external track: no active room');
+            return null;
+        }
+        try {
+            const { LocalAudioTrack } = await import('livekit-client');
+            const localTrack = new LocalAudioTrack(track, undefined, true);
+            const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
+                name,
+                source: Track.Source.Unknown,
+                stream: 'miniapp',
+                dtx: false,
+                red: false,
+            });
+            return pub.trackSid;
+        } catch (e) {
+            console.error('[Voice] publishExternalAudioTrack failed:', e);
+            return null;
+        }
+    }, []);
+
+    const unpublishExternalAudioTrack = useCallback(async (publicationSid: string): Promise<void> => {
+        if (!roomRef.current?.localParticipant) return;
+        try {
+            const pubs = roomRef.current.localParticipant.audioTrackPublications;
+            for (const pub of pubs.values()) {
+                if (pub.trackSid === publicationSid && pub.track) {
+                    await roomRef.current.localParticipant.unpublishTrack(pub.track);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[Voice] unpublishExternalAudioTrack failed:', e);
+        }
+    }, []);
+
     const voiceLevelValue = useMemo(() => ({
         currentInputLevel,
         speakingUsers
@@ -1861,7 +1901,8 @@ registerProcessor('vad-processor', VADProcessor);
             toggleOverlay,
             overlayPosition, setOverlayPosition,
             overlayOpacity, setOverlayOpacity,
-            overlaySize, setOverlaySize
+            overlaySize, setOverlaySize,
+            publishExternalAudioTrack, unpublishExternalAudioTrack,
         }}>
             <VoiceLevelContext.Provider value={voiceLevelValue}>
                 {children}

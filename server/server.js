@@ -59,6 +59,17 @@ app.use('/api/showcase', require('./routes/showcase'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/upload-files', require('./routes/uploads'));
 app.use('/api/livekit', require('./routes/livekit'));
+app.get('/zvon-sdk.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.sendFile(path.join(__dirname, 'public/zvon-sdk.js'));
+});
+app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
+  setHeaders: (res) => {
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Content-Security-Policy', "frame-ancestors *");
+  }
+}));
 app.use('/api/moderation', require('./routes/moderation'));
 app.use('/api/version', require('./routes/version'));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
@@ -744,8 +755,7 @@ io.on('connection', (socket) => {
     socket.voiceChannelId = null;
     io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
     await notifyVoiceChannelUpdate(channelId);
-    
-    // If room is empty, clear YT state
+
     const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
     if (!room || room.size === 0) {
       voiceChannelYouTubeStates.delete(channelId);
@@ -879,5 +889,9 @@ io.on('connection', (socket) => {
   });
 });
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').then(() => { console.log('Connected to MongoDB'); }).catch(err => { console.error('MongoDB connection error:', err); });
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').then(async () => {
+  console.log('Connected to MongoDB');
+  try { await require('./bootstrap/systemMiniApps')(); }
+  catch (e) { console.error('[MiniApps] bootstrap failed:', e.message); }
+}).catch(err => { console.error('MongoDB connection error:', err); });
 server.listen(process.env.PORT || 5000, () => { console.log(`Server running on port ${process.env.PORT || 5000}`); });
