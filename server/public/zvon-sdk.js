@@ -33,14 +33,41 @@
   window.__zvonTrackStash = _trackStash;
 
   function sendTrack(type, payload, track) {
-    // Same-origin stash: host pulls the track via iframe.contentWindow.__zvonTrackStash.
-    // Works without transferable support, and avoids cross-document object issues.
-    // For cross-origin mini-apps the stash is unreachable — those need Chrome 116+
-    // transferable MediaStreamTrack and should pass [track] in postMessage manually.
+    // Two paths:
+    //  1. transferable MediaStreamTrack (works cross-origin, Chrome 116+ / Electron 25+)
+    //  2. same-origin stash (works regardless of transferable support, but only when
+    //     iframe and host share origin)
+    // We stash unconditionally so the bridge can pick whichever path succeeded.
     const stashId = nextId();
     _trackStash.set(stashId, track);
-    return call(type, { ...payload, __trackStashId: stashId }).finally(() => {
-      // Keep the track in stash a bit longer so the host has time to pick it up.
+    const fullPayload = { ...payload, __trackStashId: stashId };
+
+    if (track.readyState === 'ended') {
+      console.warn('[zvon-sdk] Sending a track that is already in "ended" state. It might have been transferred before.');
+    }
+
+    return new Promise((resolve, reject) => {
+      const id = nextId();
+      callbacks.set(id, { resolve, reject });
+      const envelope = { __zvon: true, id, type, payload: fullPayload, track };
+
+      // Try transferable first.
+      try {
+        console.log('[zvon-sdk] Attempting to send track via transferable...', type, stashId);
+        HOST.postMessage(envelope, '*', [track]);
+      } catch (e) {
+        console.warn('[zvon-sdk] Transferable postMessage failed, falling back to stash-only path:', e.message);
+        // Transferable rejected — retry without transfer list (stash-only).
+        try {
+          HOST.postMessage(envelope, '*');
+        } catch (e2) {
+          console.error('[zvon-sdk] Fallback postMessage also failed:', e2.message);
+          callbacks.delete(id);
+          reject(e2);
+          return;
+        }
+      }
+    }).finally(() => {
       setTimeout(() => _trackStash.delete(stashId), 5000);
     });
   }
