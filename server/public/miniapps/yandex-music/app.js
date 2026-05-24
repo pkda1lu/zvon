@@ -61,18 +61,51 @@
     return _captureTrack;
   }
 
+  // SVG icons for play/pause toggle.
+  const ICON_PLAY = '<path d="M8 5v14l11-7z"/>';
+  const ICON_PAUSE = '<path d="M6 4h4v16H6zm8 0h4v16h-4z"/>';
+  function setPlayIcon(playing) {
+    const el = $('#play-icon');
+    if (el) el.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+  }
+  function setVolIcon(v) {
+    const el = $('#vol-icon');
+    if (!el) return;
+    if (v === 0) el.innerHTML = '<path d="M3.63 3.63a1 1 0 0 0 0 1.41L7.29 8.7 7 9H3v6h4l5 5v-6.59l4.18 4.18c-.49.37-1.02.68-1.6.91-.36.15-.58.53-.58.92 0 .72.73 1.18 1.39.91.8-.33 1.55-.77 2.22-1.31l1.34 1.34a1 1 0 0 0 1.41-1.41L5.05 3.63c-.39-.39-1.02-.39-1.42 0zM19 12c0 .82-.15 1.61-.41 2.34l1.53 1.53c.56-1.17.88-2.48.88-3.87 0-3.83-2.4-7.11-5.78-8.4-.59-.23-1.22.23-1.22.86v.19c0 .38.25.71.61.85C17.18 6.54 19 9.06 19 12zm-8.71-6.29l-.17.17L12 7.76V6.41c0-.89-1.08-1.33-1.71-.7zM16.5 12A4.5 4.5 0 0 0 14 7.97v1.79l2.48 2.48c.01-.08.02-.16.02-.24z"/>';
+    else if (v < 0.5) el.innerHTML = '<path d="M7 9v6h4l5 5V4l-5 5H7z"/>';
+    else el.innerHTML = '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/>';
+  }
+
   audio.addEventListener('ended', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback(); });
   audio.addEventListener('timeupdate', () => { updateLocalProgress(); pushPresenceProgress(); });
-  audio.addEventListener('play', () => { $('#btn-play').textContent = '⏸'; updatePresenceControls(); });
-  audio.addEventListener('pause', () => { $('#btn-play').textContent = '▶'; updatePresenceControls(); });
+  audio.addEventListener('play',  () => { setPlayIcon(true);  updatePresenceControls(); });
+  audio.addEventListener('pause', () => { setPlayIcon(false); updatePresenceControls(); });
 
-  $('#vol').addEventListener('input', (e) => { audio.volume = Number(e.target.value) / 100; });
-  audio.volume = 0.8;
+  // Persisted volume — restored from storage, saved on change.
+  const savedVol = await sdk.storage.get('volume').catch(() => null);
+  audio.volume = (typeof savedVol === 'number') ? Math.max(0, Math.min(1, savedVol)) : 0.8;
+  $('#vol').value = String(Math.round(audio.volume * 100));
+  setVolIcon(audio.volume);
+  let _volSaveTimer = null;
+  $('#vol').addEventListener('input', (e) => {
+    audio.volume = Number(e.target.value) / 100;
+    setVolIcon(audio.volume);
+    clearTimeout(_volSaveTimer);
+    _volSaveTimer = setTimeout(() => sdk.storage.set('volume', audio.volume).catch(() => {}), 300);
+  });
 
   $('#btn-play').addEventListener('click', () => { audio.paused ? audio.play() : audio.pause(); });
   $('#btn-prev').addEventListener('click', () => { if (currentIndex > 0) playIndex(currentIndex - 1); });
   $('#btn-next').addEventListener('click', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); });
   $('#btn-stop').addEventListener('click', stopPlayback);
+
+  // Click on player progress bar to seek.
+  $('#player-bar')?.addEventListener('click', (e) => {
+    if (!isFinite(audio.duration) || audio.duration === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    audio.currentTime = Math.max(0, Math.min(audio.duration, pct * audio.duration));
+  });
 
   sdk.on('voiceChannelChanged', async (p) => {
     if (!p.channelId && presence) {
@@ -95,7 +128,7 @@
   function renderAccount() {
     if (token && ymAccount) {
       account.innerHTML = `<span class="login">${escape(ymAccount.login || '')}</span>` +
-        (ymAccount.hasPlus ? '<span title="Plus активна">⭐</span>' : '') +
+        (ymAccount.hasPlus ? '<span class="plus-badge">PLUS</span>' : '') +
         '<button id="logout">Выйти</button>';
       $('#logout').addEventListener('click', async () => {
         await sdk.storage.delete('access_token');
@@ -230,21 +263,21 @@
     const b = $('#voice-banner');
     if (!b) return;
     if (!init.voiceChannelId) {
-      b.innerHTML = '<div class="banner warn">Зайди в голосовой канал в Zvon — появится кнопка «Включиться в голосовой канал».</div>';
+      b.innerHTML = '<div class="banner warn"><span>Зайди в голосовой канал в Zvon, чтобы транслировать музыку.</span></div>';
       return;
     }
     if (presence) {
       b.innerHTML = `
-        <div class="banner info" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
-          <span>🎵 Активна в голосовом канале — другие участники видят плеер и могут управлять им.</span>
-          <button id="leave-voice-btn" class="connect-btn" style="background:#666;padding:6px 14px;font-size:12px">Отключиться</button>
+        <div class="banner info">
+          <span>🎵 Активна в голосовом канале — другие участники слышат и могут управлять плеером.</span>
+          <button id="leave-voice-btn">Отключиться</button>
         </div>`;
       $('#leave-voice-btn').addEventListener('click', leaveVoicePresence);
     } else {
       b.innerHTML = `
-        <div class="banner info" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
-          <span>Готов выйти в эфир — другие участники увидят плеер с обложкой и смогут жать кнопки.</span>
-          <button id="join-voice-btn" class="connect-btn" style="padding:6px 14px;font-size:12px">Включиться в голосовой канал</button>
+        <div class="banner info">
+          <span>Готов выйти в эфир — другие участники увидят плеер с обложкой и кнопками.</span>
+          <button id="join-voice-btn" class="primary">Включиться в голосовой канал</button>
         </div>`;
       $('#join-voice-btn').addEventListener('click', joinVoicePresence);
     }
@@ -336,22 +369,24 @@
       try {
         const tracks = await loadByUrl(parsed);
         if (!tracks.length) { results.innerHTML = '<div class="empty">Ничего не загрузилось</div>'; return; }
-        results.innerHTML = `<div class="banner info">Загружено ${tracks.length} треков из ${labelKind(parsed.kind)}</div>`;
-        const addAllBtn = document.createElement('button');
-        addAllBtn.textContent = `+ Все ${tracks.length} в очередь`;
-        addAllBtn.style.cssText = 'padding:8px 14px;border-radius:10px;border:none;background:#ffcc00;color:black;font-weight:700;cursor:pointer;margin-bottom:10px';
-        addAllBtn.onclick = () => { tracks.forEach(t => queue.push(t)); renderQueue(); };
-        results.appendChild(addAllBtn);
+        results.innerHTML = `<div class="banner info"><span>Загружено ${tracks.length} треков из ${labelKind(parsed.kind)}</span></div>`;
+        const actions = document.createElement('div');
+        actions.className = 'bulk-actions';
         const playAllBtn = document.createElement('button');
+        playAllBtn.className = 'primary';
         playAllBtn.textContent = `▶ Играть всё`;
-        playAllBtn.style.cssText = 'padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:transparent;color:white;font-weight:700;cursor:pointer;margin-bottom:10px;margin-left:8px';
         playAllBtn.onclick = async () => {
           const startIdx = queue.length;
           tracks.forEach(t => queue.push(t));
           renderQueue();
           await playIndex(startIdx);
         };
-        results.appendChild(playAllBtn);
+        const addAllBtn = document.createElement('button');
+        addAllBtn.textContent = `+ В очередь`;
+        addAllBtn.onclick = () => { tracks.forEach(t => queue.push(t)); renderQueue(); };
+        actions.appendChild(playAllBtn);
+        actions.appendChild(addAllBtn);
+        results.appendChild(actions);
         tracks.forEach(t => results.appendChild(renderTrackRow(t, false)));
       } catch (e) {
         results.innerHTML = `<div class="banner error">Не получилось загрузить: ${escape(e.message)}</div>`;
@@ -499,16 +534,22 @@
     `;
     const actions = div.querySelector('.track-actions');
     if (inQueue) {
-      const playBtn = document.createElement('button'); playBtn.textContent = '▶';
+      const playBtn = document.createElement('button');
+      playBtn.className = 'primary';
+      playBtn.textContent = '▶ Играть';
       playBtn.addEventListener('click', (e) => { e.stopPropagation(); playIndex(queueIndex); });
-      const rmBtn = document.createElement('button'); rmBtn.textContent = '✕';
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = 'Убрать';
       rmBtn.addEventListener('click', (e) => { e.stopPropagation(); removeFromQueue(queueIndex); });
       actions.appendChild(playBtn); actions.appendChild(rmBtn);
       div.addEventListener('click', () => playIndex(queueIndex));
     } else {
-      const playNow = document.createElement('button'); playNow.textContent = 'Играть';
+      const playNow = document.createElement('button');
+      playNow.className = 'primary';
+      playNow.textContent = '▶ Играть';
       playNow.addEventListener('click', (e) => { e.stopPropagation(); addAndPlay(track); });
-      const addBtn = document.createElement('button'); addBtn.textContent = '+ в очередь';
+      const addBtn = document.createElement('button');
+      addBtn.textContent = '+ В очередь';
       addBtn.addEventListener('click', (e) => { e.stopPropagation(); addToQueue(track); });
       actions.appendChild(playNow); actions.appendChild(addBtn);
     }

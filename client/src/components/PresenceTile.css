@@ -124,3 +124,54 @@
   background: var(--primary-neon, #006aff);
   border: 2px solid white;
 }
+
+.presence-volume {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.p-card.presence-card:hover .presence-volume,
+.p-card.presence-card:focus-within .presence-volume {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.presence-volume-icon { font-size: 13px; line-height: 1; }
+
+.presence-volume-slider {
+  width: 90px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.presence-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+}
+.presence-volume-slider::-moz-range-thumb {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+}

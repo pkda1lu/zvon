@@ -61,6 +61,7 @@ const Main: React.FC = () => {
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showShowcase, setShowShowcase] = useState(false);
   const [openMiniApps, setOpenMiniApps] = useState<MiniApp[]>([]);
+  const [minimizedMiniAppIds, setMinimizedMiniAppIds] = useState<Set<string>>(new Set());
 
   const userRef = useRef(user);
   const selectedServerRef = useRef(selectedServer);
@@ -626,6 +627,8 @@ const Main: React.FC = () => {
     };
 
     const handleOpenMiniApp = (app: MiniApp) => {
+        // If app already open but minimized — just restore it.
+        setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(app._id); return n; });
         if (!openMiniApps.find(a => a._id === app._id)) {
             setOpenMiniApps([...openMiniApps, app]);
         }
@@ -633,9 +636,18 @@ const Main: React.FC = () => {
 
     const handleCloseMiniApp = (appId: string) => {
         setOpenMiniApps(openMiniApps.filter(a => a._id !== appId));
+        setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(appId); return n; });
         if (socket) {
             socket.emit('activity-update', null);
         }
+    };
+
+    const handleMinimizeMiniApp = (appId: string) => {
+        setMinimizedMiniAppIds(prev => new Set(prev).add(appId));
+    };
+
+    const handleRestoreMiniApp = (appId: string) => {
+        setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(appId); return n; });
     };
 
     const handleUserClick = (userId: string, event?: React.MouseEvent | CustomEvent) => {
@@ -694,6 +706,9 @@ const Main: React.FC = () => {
           onOpenProfile={handleUserClick}
           onToggleInbox={() => setShowInbox(!showInbox)}
           inboxUnreadCount={inboxUnreadCount}
+          minimizedMiniApps={openMiniApps.filter(a => minimizedMiniAppIds.has(a._id))}
+          onRestoreMiniApp={handleRestoreMiniApp}
+          onCloseMiniApp={handleCloseMiniApp}
         />
       )}
 
@@ -1068,7 +1083,9 @@ const Main: React.FC = () => {
 
         <MiniAppContainer
             openApps={openMiniApps}
+            minimizedIds={minimizedMiniAppIds}
             onClose={handleCloseMiniApp}
+            onMinimize={handleMinimizeMiniApp}
         />
     </div>
   );
