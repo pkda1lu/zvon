@@ -10,7 +10,7 @@ const SYSTEM_APPS = [
 ];
 
 module.exports = async function registerSystemMiniApps() {
-  const publicUrl = (process.env.PUBLIC_URL || process.env.CLIENT_URL || 'http://localhost:5000').replace(/\/$/, '');
+  const publicUrl = (process.env.PUBLIC_URL || process.env.CLIENT_URL || 'https://zvonserver.ru').replace(/\/$/, '');
   let owner = await User.findOne({ role: 'admin' });
   if (!owner) owner = await User.findOne();
   if (!owner) { console.warn('[MiniApps] No user found yet — system apps will register on next boot.'); return; }
