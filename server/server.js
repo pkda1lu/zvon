@@ -67,7 +67,7 @@ app.get('/zvon-sdk.js', (req, res) => {
 app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
   setHeaders: (res) => {
     res.removeHeader('X-Frame-Options');
-    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https: http:");
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https: http: file: zvon:;");
   }
 }));
 app.use('/api/moderation', require('./routes/moderation'));
@@ -88,6 +88,8 @@ app.use(express.static(path.join(__dirname, '../client/build')));
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
 app.get(/^(?!\/api).+/, (req, res) => {
+  res.removeHeader('X-Frame-Options');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https: http: file: zvon:;");
   res.sendFile(path.join(__dirname, '../client/build/index.html'));
 });
 
