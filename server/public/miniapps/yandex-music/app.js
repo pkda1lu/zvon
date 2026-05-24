@@ -42,23 +42,24 @@
   let progressTimer = null;
 
   // --- Audio capture pipeline ---
-  // Web Audio MediaStreamDestination gives a track that does NOT end when the
-  // audio element's src changes (unlike audio.captureStream()). That's the
-  // right primitive for a playlist where we want one stable published track.
-  // createMediaElementSource() can only be called once per element.
-  let audioCtx = null;
-  let _captureTrack = null;
+  // audio.captureStream() gives a transferable MediaStreamTrack (works across
+  // iframe boundaries in Electron / Chrome 116+). The stream object persists
+  // across src changes — tracks keep flowing audio of whatever is currently
+  // playing. We cache the stream and refresh tracks if they ever become ended.
+  let _captureStream = null;
   function getCaptureTrack() {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = audioCtx.createMediaElementSource(audio);
-      const dest = audioCtx.createMediaStreamDestination();
-      src.connect(audioCtx.destination);   // local speakers
-      src.connect(dest);                    // capture
-      _captureTrack = dest.stream.getAudioTracks()[0] || null;
+    if (typeof audio.captureStream !== 'function') {
+      console.error('[YM] audio.captureStream not supported');
+      return null;
     }
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    return _captureTrack;
+    if (!_captureStream) _captureStream = audio.captureStream();
+    let t = _captureStream.getAudioTracks()[0];
+    if (!t || t.readyState === 'ended') {
+      // Try recapturing once.
+      _captureStream = audio.captureStream();
+      t = _captureStream.getAudioTracks()[0];
+    }
+    return t || null;
   }
 
   // SVG icons for play/pause toggle.

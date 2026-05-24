@@ -22,15 +22,20 @@ interface MiniAppWindowProps {
  *  (track is in iframe.contentWindow.__zvonTrackStash, keyed by stashId). */
 function pickTrackFromMessage(msg: any, iframe?: HTMLIFrameElement | null): MediaStreamTrack | null {
     // Path 1: transferable (Chrome 116+, cross-origin friendly)
-    if (msg.track instanceof MediaStreamTrack) {
+    // We check both instanceof and a "quack" check because across different
+    // contexts (even same-origin in some Electron configs), instanceof can fail.
+    const isTrack = (t: any) => t && (t instanceof MediaStreamTrack || (typeof t === 'object' && t.constructor?.name === 'MediaStreamTrack' && typeof t.stop === 'function'));
+
+    if (isTrack(msg.track)) {
         console.log('[MiniApp bridge] got track via transferable');
         return msg.track;
     }
     // Path 2: same-origin stash
     const stashId = msg.payload?.__trackStashId;
-    console.log('[MiniApp bridge] stashId from msg:', stashId, 'payload keys:', msg.payload && Object.keys(msg.payload));
+    console.log('[MiniApp bridge] stashId from msg:', stashId, 'msg keys:', Object.keys(msg), 'payload keys:', msg.payload && Object.keys(msg.payload));
     if (!stashId) {
-        console.warn('[MiniApp bridge] no stashId and no transferable track in message');
+        if (msg.track) console.warn('[MiniApp bridge] msg.track present but failed isTrack check:', msg.track);
+        else console.warn('[MiniApp bridge] no stashId and no transferable track in message');
         return null;
     }
     try {
