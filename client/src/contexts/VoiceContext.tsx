@@ -227,7 +227,7 @@ export interface VoicePresenceInfo {
     ownerUserId: string;
     displayName: string;
     avatar: string | null;
-    background: { type: 'image' | 'color'; url?: string; color?: string } | null;
+    background: { type: 'image' | 'color' | 'video'; url?: string; color?: string } | null;
     controls: Array<{ id: string; kind: 'button' | 'slider'; label?: string; value?: number; min?: number; max?: number; tooltip?: string; style?: string }>;
 }
 

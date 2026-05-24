@@ -343,10 +343,25 @@
   async function reattachPresenceMedia() {
     if (!presence) return;
     const track = queue[currentIndex];
-    if (track?.coverUri) {
+
+    // Try to fetch a "video shot" (Yandex's short music-video clip for the track).
+    // If found — use it as live video background. Otherwise fall back to cover.
+    let videoUrl = null;
+    if (track?.id) {
+      try {
+        const sup = await yaCall(`/tracks/${track.id}/supplement`);
+        const vs = sup.result?.videoShot || sup.result?.videoShots?.[0];
+        if (vs?.uri) videoUrl = vs.uri.startsWith('http') ? vs.uri : ('https://' + vs.uri);
+      } catch (e) { console.warn('[YM] no videoShot for', track.id, e.message); }
+    }
+
+    if (videoUrl) {
+      await presence.setBackground({ type: 'video', url: videoUrl });
+    } else if (track?.coverUri) {
       const url = 'https://' + track.coverUri.replace('%%', '400x400');
       await presence.setBackground({ type: 'image', url });
     }
+
     // The capture track is stable across audio src changes (Web Audio dest),
     // so publishing once is enough. The bridge no-ops on repeat publishes of
     // the same track to avoid LiveKit republish thrashing.
