@@ -93,8 +93,58 @@
         <h2>Подключи аккаунт Яндекс Музыки</h2>
         <p>Чтобы слушать музыку вместе с друзьями в голосовом канале, авторизуйся через Яндекс ID. Токен хранится только в твоём профиле Zvon.</p>
         <button class="connect-btn" id="connect-btn">Войти через Яндекс</button>
+        <details style="margin-top:14px;max-width:480px;text-align:left">
+          <summary style="cursor:pointer;color:#aaa;font-size:13px">Треки играют по 30 секунд?</summary>
+          <p style="font-size:12px;color:#aaa;line-height:1.5">
+            Это значит, что Яндекс отдаёт только превью — нужна подписка Plus или особый scope <code>music:content</code>,
+            который из обычного OAuth-кабинета добавить нельзя. Используй альтернативный вход через известный
+            client_id Android-приложения Яндекс Музыки: получишь полноценный токен с доступом к Музыке.
+          </p>
+          <button class="connect-btn" id="connect-alt-btn" style="margin-top:8px;background:#666;color:white">Альтернативный вход (через код)</button>
+        </details>
       </div>`;
     $('#connect-btn').addEventListener('click', connectYandex);
+    $('#connect-alt-btn').addEventListener('click', connectYandexAlt);
+  }
+
+  async function connectYandexAlt() {
+    // Use the well-known Yandex Music Android client_id. Yandex shows a 7-character
+    // verification code on the page; the user copies and pastes it here. The token
+    // we exchange for has full music access (preview=false).
+    const ALT_CLIENT_ID = '23cabbbae6534cfe9d50f3c7a5b97041';
+    const ALT_CLIENT_SECRET = '53bc75238f0c4d08a118e51fe9203300';
+    const authUrl = `https://oauth.yandex.ru/authorize?response_type=code&client_id=${ALT_CLIENT_ID}`;
+    window.open(authUrl, '_blank', 'width=600,height=720');
+    const code = prompt('Открылась страница Яндекса с 7-значным кодом подтверждения. Скопируй его и вставь сюда:');
+    if (!code) return;
+    try {
+      const params = new URLSearchParams();
+      params.set('grant_type', 'authorization_code');
+      params.set('code', code.trim());
+      params.set('client_id', ALT_CLIENT_ID);
+      params.set('client_secret', ALT_CLIENT_SECRET);
+      const r = await sdk.fetch('https://oauth.yandex.ru/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+        responseType: 'json',
+      });
+      if (r.status !== 200 || !r.data?.access_token) throw new Error(JSON.stringify(r.data));
+      await sdk.storage.set('access_token', r.data.access_token);
+      token = r.data.access_token;
+      const acc = await yaCall('/account/status');
+      const accInfo = {
+        login: acc.result?.account?.login,
+        uid: String(acc.result?.account?.uid || ''),
+        hasPlus: !!(acc.result?.plus?.hasPlus || acc.result?.permissions?.values?.includes('landing-play')),
+      };
+      await sdk.storage.set('account', accInfo);
+      ymAccount = accInfo;
+      renderAccount();
+      renderSearchScreen();
+    } catch (e) {
+      alert('Не получилось обменять код на токен: ' + e.message);
+    }
   }
 
   async function connectYandex() {
@@ -145,10 +195,10 @@
     main.innerHTML = `
       ${noVoice ? '<div class="banner warn">Зайди в голосовой канал, чтобы транслировать музыку другим. Без канала проигрывание будет только у тебя.</div>' : ''}
       <div class="search-box">
-        <input id="q" placeholder="Поиск трека, исполнителя…" autocomplete="off" />
+        <input id="q" placeholder="Поиск или вставь ссылку на трек / альбом / плейлист…" autocomplete="off" />
         <button id="search-btn">Найти</button>
       </div>
-      <div class="section-title">Очередь</div>
+      <div class="section-title">Очередь <span id="queue-count" style="color:#666;font-weight:normal"></span></div>
       <div id="queue" class="queue empty-or-list"></div>
       <div class="section-title">Результаты</div>
       <div id="results" class="track-list"></div>
@@ -166,6 +216,37 @@
     query = (query || '').trim();
     const results = $('#results');
     if (!query) { results.innerHTML = ''; return; }
+
+    // If query is a Yandex Music URL, parse and load tracks directly.
+    const parsed = parseYandexUrl(query);
+    if (parsed) {
+      results.innerHTML = '<div class="loading">Загружаю…</div>';
+      try {
+        const tracks = await loadByUrl(parsed);
+        if (!tracks.length) { results.innerHTML = '<div class="empty">Ничего не загрузилось</div>'; return; }
+        results.innerHTML = `<div class="banner info">Загружено ${tracks.length} треков из ${labelKind(parsed.kind)}</div>`;
+        const addAllBtn = document.createElement('button');
+        addAllBtn.textContent = `+ Все ${tracks.length} в очередь`;
+        addAllBtn.style.cssText = 'padding:8px 14px;border-radius:10px;border:none;background:#ffcc00;color:black;font-weight:700;cursor:pointer;margin-bottom:10px';
+        addAllBtn.onclick = () => { tracks.forEach(t => queue.push(t)); renderQueue(); };
+        results.appendChild(addAllBtn);
+        const playAllBtn = document.createElement('button');
+        playAllBtn.textContent = `▶ Играть всё`;
+        playAllBtn.style.cssText = 'padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:transparent;color:white;font-weight:700;cursor:pointer;margin-bottom:10px;margin-left:8px';
+        playAllBtn.onclick = async () => {
+          const startIdx = queue.length;
+          tracks.forEach(t => queue.push(t));
+          renderQueue();
+          await playIndex(startIdx);
+        };
+        results.appendChild(playAllBtn);
+        tracks.forEach(t => results.appendChild(renderTrackRow(t, false)));
+      } catch (e) {
+        results.innerHTML = `<div class="banner error">Не получилось загрузить: ${escape(e.message)}</div>`;
+      }
+      return;
+    }
+
     results.innerHTML = '<div class="loading">Поиск…</div>';
     try {
       const r = await yaCall('/search?type=track&page=0&text=' + encodeURIComponent(query));
@@ -178,9 +259,46 @@
     }
   }
 
+  function parseYandexUrl(s) {
+    if (!/music\.yandex\.[a-z]+/i.test(s)) return null;
+    const clean = s.split('?')[0].split('#')[0];
+    let m;
+    if ((m = clean.match(/\/album\/(\d+)\/track\/(\d+)/))) return { kind: 'track', id: m[2] };
+    if ((m = clean.match(/\/track\/(\d+)/))) return { kind: 'track', id: m[1] };
+    if ((m = clean.match(/\/users\/([^/]+)\/playlists\/([^/]+)/))) return { kind: 'playlist', owner: m[1], pid: m[2] };
+    if ((m = clean.match(/\/playlists\/([^/]+)/))) return { kind: 'playlist', owner: null, pid: m[1] };
+    if ((m = clean.match(/\/album\/(\d+)/))) return { kind: 'album', id: m[1] };
+    return null;
+  }
+
+  function labelKind(k) { return { track: 'трека', album: 'альбома', playlist: 'плейлиста' }[k] || k; }
+
+  async function loadByUrl(p) {
+    if (p.kind === 'track') {
+      const r = await yaCall(`/tracks?track-ids=${p.id}`);
+      const t = r.result?.[0];
+      if (!t) throw new Error('Трек не найден');
+      return [normalizeTrack(t)];
+    }
+    if (p.kind === 'album') {
+      const r = await yaCall(`/albums/${p.id}/with-tracks`);
+      const vols = r.result?.volumes || [];
+      return vols.flat().map(normalizeTrack);
+    }
+    if (p.kind === 'playlist') {
+      const owner = p.owner || 'yamusic-personal';
+      const r = await yaCall(`/users/${encodeURIComponent(owner)}/playlists/${encodeURIComponent(p.pid)}`);
+      const items = r.result?.tracks || [];
+      return items.map(it => normalizeTrack(it.track || it));
+    }
+    return [];
+  }
+
   function renderQueue() {
     const el = $('#queue');
-    if (!queue.length) { el.innerHTML = '<div class="empty">Очередь пуста — добавь треки из результатов поиска</div>'; return; }
+    const count = $('#queue-count');
+    if (count) count.textContent = queue.length ? `· ${queue.length}` : '';
+    if (!queue.length) { el.innerHTML = '<div class="empty">Очередь пуста — добавь треки из результатов поиска или вставь ссылку на плейлист</div>'; return; }
     el.innerHTML = '';
     queue.forEach((t, i) => el.appendChild(renderTrackRow(t, true, i)));
   }
@@ -344,7 +462,11 @@
     const infos = infoRes.result || [];
     if (!infos.length) throw new Error('No download info');
     infos.sort((a, b) => b.bitrateKbps - a.bitrateKbps);
-    const info = infos.find(i => i.codec === 'mp3' && !i.preview) || infos[0];
+    const fullTrack = infos.find(i => i.codec === 'mp3' && !i.preview);
+    if (!fullTrack) {
+      throw new Error('Доступно только превью (~30 сек). Нужна подписка Яндекс Плюс или альтернативный вход через Android-клиент.');
+    }
+    const info = fullTrack;
     const url = info.downloadInfoUrl + (info.downloadInfoUrl.includes('?') ? '&' : '?') + 'format=json';
 
     const dl = await sdk.fetch(url, { method: 'GET', headers, responseType: 'json' });
