@@ -36,11 +36,15 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
     useEffect(() => {
         const el = bgVideoRef.current;
         if (!el || !videoUrl) return;
+        console.log('[PresenceTile] loading bg video:', videoUrl);
         if (el.src !== videoUrl) el.src = videoUrl;
         el.muted = true;
         el.loop = true;
         el.playsInline = true;
-        el.play().catch(() => {});
+        el.play().then(() => console.log('[PresenceTile] bg video playing')).catch((e) => console.warn('[PresenceTile] bg video play failed:', e));
+        const onErr = (e: any) => console.warn('[PresenceTile] bg video error:', e, el.error);
+        el.addEventListener('error', onErr);
+        return () => el.removeEventListener('error', onErr);
     }, [videoUrl]);
 
     return (
