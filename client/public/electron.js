@@ -1,10 +1,17 @@
-const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer, globalShortcut, Notification, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer, globalShortcut, Notification, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const axios = require('axios');
+
+// Register custom protocol for the app to bypass file:// restrictions
+if (!isDev) {
+    protocol.registerSchemesAsPrivileged([
+        { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, allowServiceWorkers: true, corsEnabled: true, stream: true } }
+    ]);
+}
 
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
@@ -99,8 +106,12 @@ if (!isDev) {
 
 // Disable the yellow/green border on Windows 10/11 when capturing windows
 // Also disable Vulkan which can cause green screen/flickering on some GPUs
-app.commandLine.appendSwitch('disable-features', 'WinrtCaptureBorders,Vulkan');
+// Added IsolateOrigins and site-per-process to disable-features to fix cross-origin track transfer
+app.commandLine.appendSwitch('disable-features', 'WinrtCaptureBorders,Vulkan,IsolateOrigins,site-per-process');
 app.commandLine.appendSwitch('disable-site-isolation-trials');
+app.commandLine.appendSwitch('disable-web-security');
+app.commandLine.appendSwitch('allow-running-insecure-content');
+app.commandLine.appendSwitch('allow-file-access-from-files');
 
 const stateFilePath = path.join(app.getPath('userData'), 'window-state.json');
 
@@ -438,7 +449,21 @@ function createWindow() {
     });
     mainWindow.on('enter-full-screen', () => mainWindow.webContents.send('fullscreen-changed', true));
     mainWindow.on('leave-full-screen', () => mainWindow.webContents.send('fullscreen-changed', false));
-    mainWindow.loadURL(isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, 'index.html')}`);
+    
+    if (isDev) {
+        mainWindow.loadURL('http://localhost:3000');
+    } else {
+        // Use custom protocol in production to bypass file:// restrictions
+        protocol.handle('app', (request) => {
+            const url = request.url.replace('app://', '');
+            // Simple path normalization: if it's empty or just /, serve index.html
+            const relativePath = (url === '' || url === '/') ? 'index.html' : url;
+            const filePath = path.join(__dirname, relativePath);
+            return net.fetch(`file://${filePath}`);
+        });
+        mainWindow.loadURL('app://index.html');
+    }
+
     mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
     mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
 
