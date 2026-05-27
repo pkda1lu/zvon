@@ -209,6 +209,8 @@ interface VoiceContextType {
     publishExternalAudioTrack: (track: MediaStreamTrack, name?: string) => Promise<string | null>;
     publishExternalVideoTrack: (track: MediaStreamTrack, name?: string) => Promise<string | null>;
     unpublishExternalAudioTrack: (publicationSid: string) => Promise<void>;
+    /** Replace the underlying MediaStreamTrack of an existing publication, in place. */
+    replaceExternalTrack: (publicationSid: string, newTrack: MediaStreamTrack) => Promise<boolean>;
 
     /** Virtual mini-app participants in any voice context. Keyed by sessionId. */
     voicePresences: Map<string, VoicePresenceInfo>;
@@ -1925,6 +1927,28 @@ registerProcessor('vad-processor', VADProcessor);
         }
     }, []);
 
+    /** Replaces underlying MediaStreamTrack of an existing publication in place,
+     *  avoiding unpublish/publish thrashing that confuses LiveKit subscribers. */
+    const replaceExternalTrack = useCallback(async (publicationSid: string, newTrack: MediaStreamTrack): Promise<boolean> => {
+        if (!roomRef.current?.localParticipant) return false;
+        const allPubs = [
+            ...Array.from(roomRef.current.localParticipant.audioTrackPublications.values()),
+            ...Array.from(roomRef.current.localParticipant.videoTrackPublications.values()),
+        ];
+        for (const pub of allPubs) {
+            if (pub.trackSid === publicationSid && pub.track) {
+                try {
+                    await (pub.track as any).replaceTrack(newTrack, true);
+                    return true;
+                } catch (e) {
+                    console.warn('[Voice] replaceTrack failed:', e);
+                    return false;
+                }
+            }
+        }
+        return false;
+    }, []);
+
     const unpublishExternalAudioTrack = useCallback(async (publicationSid: string): Promise<void> => {
         if (!roomRef.current?.localParticipant) return;
         try {
@@ -2036,6 +2060,7 @@ registerProcessor('vad-processor', VADProcessor);
             overlayOpacity, setOverlayOpacity,
             overlaySize, setOverlaySize,
             publishExternalAudioTrack, publishExternalVideoTrack, unpublishExternalAudioTrack,
+            replaceExternalTrack,
             voicePresences, presenceAudioStreams, presenceVideoStreams, sendPresenceControl,
             presenceVolumes, setPresenceVolume,
         }}>
