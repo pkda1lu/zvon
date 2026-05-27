@@ -343,6 +343,28 @@
   margin-top: auto; /* Push actions to bottom */
   display: flex;
   width: 100%;
+  gap: 8px;
+  align-items: center;
+}
+
+.report-icon-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  color: var(--text-dim, #888);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+.report-icon-btn:hover {
+  background: rgba(255, 87, 101, 0.12);
+  border-color: rgba(255, 87, 101, 0.4);
+  color: #ff5765;
 }
 
 .profile-action-btn {
