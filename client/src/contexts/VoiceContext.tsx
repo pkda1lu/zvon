@@ -226,6 +226,10 @@ export interface VoicePresenceInfo {
     channelId: string;
     ownerUserId: string;
     displayName: string;
+    /** Free-form text under the title — typically "Track — Artist" for music apps. */
+    subtitle?: string | null;
+    /** Accent color used for the pulse animation and controls. */
+    accentColor?: string | null;
     avatar: string | null;
     background: { type: 'image' | 'color' | 'video'; url?: string; color?: string } | null;
     controls: Array<{ id: string; kind: 'button' | 'slider'; label?: string; value?: number; min?: number; max?: number; tooltip?: string; style?: string }>;

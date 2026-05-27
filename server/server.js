@@ -669,6 +669,10 @@ io.on('connection', (socket) => {
     const presence = m?.get(sessionId);
     if (!presence || presence.ownerUserId !== String(socket.userId)) return;
     if (patch.background !== undefined) presence.background = patch.background;
+    if (patch.subtitle !== undefined) presence.subtitle = patch.subtitle;
+    if (patch.accentColor !== undefined) presence.accentColor = patch.accentColor;
+    if (patch.displayName !== undefined) presence.displayName = patch.displayName;
+    if (patch.avatar !== undefined) presence.avatar = patch.avatar;
     if (Array.isArray(patch.controls)) presence.controls = patch.controls;
     if (patch.controlPatch) {
       const ctrl = (presence.controls || []).find(c => c.id === patch.controlPatch.id);

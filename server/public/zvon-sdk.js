@@ -264,11 +264,24 @@
       /**
        * Background of the presence tile:
        *   { type: 'image', url: '...' }       — static cover
+       *   { type: 'video', url: '...' }       — auto-playing looping video
        *   { type: 'color', color: '#a155ff' } — solid color
        *   null                                 — fall back to avatar
-       * For a live video background, use publishVideo() instead.
+       * For a streamed video background from a captured element, use publishVideo() instead.
        */
       setBackground: (background) => call('voicePresence.setBackground', { sessionId, background }),
+
+      /** Secondary line under the title (e.g. "Track — Artist"). */
+      setSubtitle: (subtitle) => call('voicePresence.update', { sessionId, patch: { subtitle } }),
+
+      /** Accent color (CSS hex like '#ffcc00') used for the pulse + active controls. */
+      setAccentColor: (accentColor) => call('voicePresence.update', { sessionId, patch: { accentColor } }),
+
+      /** Rename the presence at runtime. */
+      setDisplayName: (displayName) => call('voicePresence.update', { sessionId, patch: { displayName } }),
+
+      /** Swap avatar at runtime. */
+      setAvatar: (avatar) => call('voicePresence.update', { sessionId, patch: { avatar } }),
 
       /**
        * Define the controls rendered on the tile. Each control:

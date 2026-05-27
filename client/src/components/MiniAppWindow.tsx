@@ -283,6 +283,13 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                         respond(id, { ok: true });
                         break;
                     }
+                    case 'voicePresence.update': {
+                        const slot = presencesRef.current.get(payload.sessionId);
+                        if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
+                        socket.emit('voice-presence-update', { sessionId: payload.sessionId, channelId: slot.channelId, patch: payload.patch || {} });
+                        respond(id, { ok: true });
+                        break;
+                    }
                     case 'voicePresence.setControls': {
                         const slot = presencesRef.current.get(payload.sessionId);
                         if (!slot || !socket) { respond(id, { ok: false, error: 'invalid' }); break; }
