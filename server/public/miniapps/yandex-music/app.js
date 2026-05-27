@@ -250,6 +250,9 @@
     }
   }
 
+  // Hoisted state for the library section (rendered inside renderSearchScreen).
+  let _libraryCache = null;
+
   function renderSearchScreen() {
     main.innerHTML = `
       <div id="voice-banner"></div>
@@ -276,7 +279,6 @@
   }
 
   // ---------- My Library ----------
-  let _libraryCache = null;
 
   async function renderLibrary() {
     const wrap = $('#library');
