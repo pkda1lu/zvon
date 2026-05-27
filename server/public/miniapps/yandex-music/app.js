@@ -33,6 +33,7 @@
   // Player state
   let queue = [];
   let currentIndex = -1;
+  let shuffleMode = false;
   let _libraryCache = null;
   const _libraryExpanded = new Set();
 
@@ -112,6 +113,26 @@
   $('#btn-prev').addEventListener('click', () => { if (currentIndex > 0) playIndex(currentIndex - 1); });
   $('#btn-next').addEventListener('click', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); });
   $('#btn-stop').addEventListener('click', stopPlayback);
+  $('#btn-shuffle').addEventListener('click', toggleShuffle);
+
+  function toggleShuffle() {
+    shuffleMode = !shuffleMode;
+    const btn = $('#btn-shuffle');
+    if (btn) btn.classList.toggle('active', shuffleMode);
+    // When turning on, shuffle the queue (keeping current track in place).
+    if (shuffleMode && queue.length > currentIndex + 2) {
+      const head = queue.slice(0, currentIndex + 1);
+      const tail = queue.slice(currentIndex + 1);
+      for (let i = tail.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tail[i], tail[j]] = [tail[j], tail[i]];
+      }
+      queue = head.concat(tail);
+      renderQueue();
+      if ($('#queue-page-tracks')) renderQueuePageTracks();
+    }
+    updatePresenceControls();
+  }
 
   // Click on player progress bar to seek.
   $('#player-bar')?.addEventListener('click', (e) => {
@@ -510,8 +531,16 @@
     `;
     $('#page-back').addEventListener('click', renderSearchScreen);
     $('#page-clear').addEventListener('click', () => {
-      stopPlayback();
-      renderSearchScreen();
+      // Don't stop the current track — let it finish. Just drop everything else
+      // from the queue. If nothing is playing, clear entirely.
+      if (currentIndex >= 0 && currentIndex < queue.length) {
+        queue = [queue[currentIndex]];
+        currentIndex = 0;
+      } else {
+        queue = [];
+        currentIndex = -1;
+      }
+      renderQueue();
     });
     renderQueuePageTracks();
   }
@@ -681,27 +710,33 @@
 
   function getControlSchema() {
     const t = queue[currentIndex];
+    const isPaused = !audio || audio.paused;
     return [
+      { id: 'shuffle', kind: 'button', label: '🔀', tooltip: 'Перемешать', style: shuffleMode ? 'primary' : '' },
       { id: 'prev', kind: 'button', label: '⏮', tooltip: 'Предыдущий', style: '' },
-      { id: 'play-pause', kind: 'button', label: audio.paused ? '▶' : '⏸', tooltip: 'Пауза', style: 'primary' },
+      { id: 'play-pause', kind: 'button', label: isPaused ? '▶' : '⏸', tooltip: 'Пауза', style: 'primary' },
       { id: 'next', kind: 'button', label: '⏭', tooltip: 'Следующий', style: '' },
       { id: 'seek', kind: 'slider', label: 'Прогресс',
         min: 0, max: 100,
-        value: t && isFinite(audio.duration) ? Math.round((audio.currentTime / audio.duration) * 100) : 0,
+        value: t && audio && isFinite(audio.duration) ? Math.round((audio.currentTime / audio.duration) * 100) : 0,
       },
     ];
   }
 
   function onPresenceControl({ controlId, value }) {
-    if (controlId === 'play-pause') audio.paused ? audio.play() : audio.pause();
+    if (controlId === 'play-pause') audio && (audio.paused ? audio.play() : audio.pause());
     else if (controlId === 'next') { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); }
     else if (controlId === 'prev') { if (currentIndex > 0) playIndex(currentIndex - 1); }
-    else if (controlId === 'seek' && isFinite(audio.duration)) audio.currentTime = (Number(value) / 100) * audio.duration;
+    else if (controlId === 'shuffle') toggleShuffle();
+    else if (controlId === 'seek' && audio && isFinite(audio.duration)) audio.currentTime = (Number(value) / 100) * audio.duration;
   }
 
   async function updatePresenceControls() {
     if (!presence) return;
-    try { await presence.updateControl('play-pause', { label: audio.paused ? '▶' : '⏸' }); } catch {}
+    try {
+      // setControls replaces the whole schema — keeps shuffle/play-pause styles in sync.
+      await presence.setControls(getControlSchema());
+    } catch {}
   }
 
   function pushPresenceProgress() {

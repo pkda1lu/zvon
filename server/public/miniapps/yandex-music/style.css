@@ -503,6 +503,21 @@ details input[type="password"]:focus { border-color: var(--accent); }
 .player-controls button.play-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
 .player-controls button.danger { color: var(--text-muted); }
 .player-controls button.danger:hover { color: var(--error); background: rgba(255, 87, 101, 0.1); }
+.player-controls button.active { color: var(--accent); }
+.player-controls button.active:hover { color: var(--accent-hover); background: rgba(255, 204, 0, 0.1); }
+.player-controls button.active::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.player-controls button { position: relative; }
 
 .player-volume {
   display: flex;
