@@ -82,6 +82,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
     const {
         activeChannelId,
         publishExternalAudioTrack, publishExternalVideoTrack, unpublishExternalAudioTrack,
+        replaceExternalTrack,
     } = useVoice();
     const { socket } = useSocket();
 
@@ -222,20 +223,28 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                         const { sessionId } = payload;
                         let track = pickTrackFromMessage(msg, iframe);
                         if (!track) {
-                            // Sometimes the stash assignment lags by a microtask. Retry once after a frame.
                             await new Promise(r => setTimeout(r, 50));
                             track = pickTrackFromMessage(msg, iframe);
                         }
                         const slot = presencesRef.current.get(sessionId);
                         if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
-                        // Skip if this exact track is already published — avoid
-                        // unpublish/publish thrashing that causes "could not find
-                        // local track subscription" warnings.
+                        // Same track ref — no-op.
                         if (slot.audioSid && slot.audioTrack === track && track.readyState === 'live') {
                             respond(id, { ok: true, result: slot.audioSid });
                             break;
                         }
-                        if (slot.audioSid) await unpublishExternalAudioTrack(slot.audioSid);
+                        // Different track but same slot — try replaceTrack first. Keeps
+                        // the LiveKit publication intact, so receivers don't lose audio.
+                        if (slot.audioSid) {
+                            const replaced = await replaceExternalTrack(slot.audioSid, track);
+                            if (replaced) {
+                                slot.audioTrack = track;
+                                respond(id, { ok: true, result: slot.audioSid });
+                                break;
+                            }
+                            // replaceTrack failed — fall back to unpublish+publish
+                            await unpublishExternalAudioTrack(slot.audioSid);
+                        }
                         const sid = await publishExternalAudioTrack(track, 'zvon-presence:' + sessionId);
                         if (sid) { slot.audioSid = sid; slot.audioTrack = track; publishedSidsRef.current.add(sid); }
                         respond(id, { ok: !!sid, result: sid });
