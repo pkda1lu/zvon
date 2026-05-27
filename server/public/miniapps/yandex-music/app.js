@@ -146,6 +146,7 @@
         await sdk.storage.delete('access_token');
         await sdk.storage.delete('account');
         token = null; ymAccount = null;
+        _libraryCache = null;
         renderAccount();
         renderConnectScreen();
       });
@@ -256,6 +257,8 @@
         <input id="q" placeholder="Поиск или вставь ссылку на трек / альбом / плейлист…" autocomplete="off" />
         <button id="search-btn">Найти</button>
       </div>
+      <div class="section-title">Моя медиатека <span id="library-status" style="color:#666;font-weight:normal"></span></div>
+      <div id="library" class="library-grid"></div>
       <div class="section-title">Очередь <span id="queue-count" style="color:#666;font-weight:normal"></span></div>
       <div id="queue" class="queue empty-or-list"></div>
       <div class="section-title">Результаты</div>
@@ -263,12 +266,134 @@
     `;
     renderQueue();
     renderVoiceJoinButton();
+    renderLibrary();
     const q = $('#q');
     q.focus();
     let searchTimer = null;
     q.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => doSearch(q.value), 400); });
     $('#search-btn').addEventListener('click', () => doSearch(q.value));
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(q.value); });
+  }
+
+  // ---------- My Library ----------
+  let _libraryCache = null;
+
+  async function renderLibrary() {
+    const wrap = $('#library');
+    const status = $('#library-status');
+    if (!wrap) return;
+    if (!ymAccount?.uid) {
+      wrap.innerHTML = '<div class="empty">Авторизуйся, чтобы увидеть свои плейлисты.</div>';
+      return;
+    }
+    if (!_libraryCache) {
+      wrap.innerHTML = '<div class="loading">Загружаю медиатеку…</div>';
+      try {
+        _libraryCache = await loadLibrary(ymAccount.uid);
+      } catch (e) {
+        wrap.innerHTML = `<div class="banner error">Не удалось загрузить плейлисты: ${escape(e.message)}</div>`;
+        return;
+      }
+    }
+    const items = _libraryCache;
+    if (status) status.textContent = items.length ? `· ${items.length}` : '';
+    if (!items.length) { wrap.innerHTML = '<div class="empty">У тебя пока нет плейлистов.</div>'; return; }
+    wrap.innerHTML = '';
+    items.forEach(p => wrap.appendChild(renderLibraryCard(p)));
+  }
+
+  async function loadLibrary(uid) {
+    const items = [];
+    // 1. "Мне нравится" — virtual playlist of liked tracks
+    try {
+      const likes = await yaCall(`/users/${encodeURIComponent(uid)}/likes/tracks`);
+      const likedIds = (likes.result?.library?.tracks || []).map(t => String(t.id));
+      if (likedIds.length) {
+        items.push({
+          virtual: 'likes',
+          uid,
+          title: 'Мне нравится',
+          trackCount: likedIds.length,
+          cover: null,
+          accent: '#ff3b6b',
+          icon: '♥',
+          trackIds: likedIds,
+        });
+      }
+    } catch (e) { console.warn('[YM] likes failed:', e.message); }
+
+    // 2. User's own playlists
+    try {
+      const lst = await yaCall(`/users/${encodeURIComponent(uid)}/playlists/list`);
+      (lst.result || []).forEach(p => {
+        items.push({
+          uid,
+          kind: p.kind,
+          title: p.title,
+          trackCount: p.trackCount,
+          cover: p.cover?.uri || p.ogImage,
+          modified: p.modified,
+        });
+      });
+    } catch (e) { console.warn('[YM] playlists list failed:', e.message); }
+
+    return items;
+  }
+
+  function renderLibraryCard(p) {
+    const div = document.createElement('div');
+    div.className = 'library-card';
+    const cover = p.cover ? `https://${p.cover.replace('%%', '200x200')}` : '';
+    div.innerHTML = `
+      <div class="library-cover" style="${cover ? `background-image:url('${cover}')` : `background:linear-gradient(135deg, ${p.accent || '#3a3a44'}, #1a1a22)`}">
+        ${p.icon ? `<span class="library-cover-icon">${p.icon}</span>` : ''}
+      </div>
+      <div class="library-meta">
+        <div class="library-title">${escape(p.title)}</div>
+        <div class="library-count">${p.trackCount || 0} трек.</div>
+      </div>
+    `;
+    div.addEventListener('click', () => openLibraryPlaylist(p));
+    return div;
+  }
+
+  async function openLibraryPlaylist(p) {
+    const results = $('#results');
+    if (results) results.innerHTML = '<div class="loading">Загружаю плейлист…</div>';
+    try {
+      let tracks;
+      if (p.virtual === 'likes') {
+        // Bulk-resolve liked track IDs to full track objects
+        tracks = await materializeTracks({ tracks: p.trackIds.map(id => ({ id })) });
+      } else {
+        const r = await yaCall(`/users/${encodeURIComponent(p.uid)}/playlists/${encodeURIComponent(p.kind)}`);
+        tracks = await materializeTracks(r.result);
+      }
+      if (!tracks.length) { if (results) results.innerHTML = '<div class="empty">В плейлисте нет треков.</div>'; return; }
+      if (results) {
+        results.innerHTML = `<div class="banner info"><span>📂 ${escape(p.title)} — ${tracks.length} треков</span></div>`;
+        const actions = document.createElement('div');
+        actions.className = 'bulk-actions';
+        const playAllBtn = document.createElement('button');
+        playAllBtn.className = 'primary';
+        playAllBtn.textContent = '▶ Играть всё';
+        playAllBtn.onclick = async () => {
+          const startIdx = queue.length;
+          tracks.forEach(t => queue.push(t));
+          renderQueue();
+          await playIndex(startIdx);
+        };
+        const addAllBtn = document.createElement('button');
+        addAllBtn.textContent = '+ В очередь';
+        addAllBtn.onclick = () => { tracks.forEach(t => queue.push(t)); renderQueue(); };
+        actions.appendChild(playAllBtn);
+        actions.appendChild(addAllBtn);
+        results.appendChild(actions);
+        tracks.forEach(t => results.appendChild(renderTrackRow(t, false)));
+      }
+    } catch (e) {
+      if (results) results.innerHTML = `<div class="banner error">Не получилось загрузить: ${escape(e.message)}</div>`;
+    }
   }
 
   function renderVoiceJoinButton() {
