@@ -34,6 +34,7 @@
   let queue = [];
   let currentIndex = -1;
   let _libraryCache = null;
+  const _libraryExpanded = new Set();
 
   // Voice channel presence (the mini-app's tile inside the user's voice channel).
   let presence = null;
@@ -301,20 +302,37 @@
     if (!total) { wrap.innerHTML = '<div class="empty">У тебя пока пустая медиатека.</div>'; return; }
 
     wrap.innerHTML = '';
-    const renderSection = (title, items) => {
+    const renderSection = (title, items, sectionKey) => {
       if (!items.length) return;
       const head = document.createElement('div');
       head.className = 'library-section-title';
-      head.textContent = title;
+      head.innerHTML = `<span>${escape(title)}</span>`;
       wrap.appendChild(head);
+
       const grid = document.createElement('div');
       grid.className = 'library-row';
-      items.forEach(p => grid.appendChild(renderLibraryCard(p)));
       wrap.appendChild(grid);
+
+      const SHOW_LIMIT = 4;
+      const expanded = _libraryExpanded.has(sectionKey);
+      const visible = expanded ? items : items.slice(0, SHOW_LIMIT);
+      visible.forEach(p => grid.appendChild(renderLibraryCard(p)));
+
+      if (items.length > SHOW_LIMIT) {
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'library-show-more';
+        toggleBtn.textContent = expanded ? 'Скрыть' : `Показать все (${items.length})`;
+        toggleBtn.onclick = () => {
+          if (expanded) _libraryExpanded.delete(sectionKey);
+          else _libraryExpanded.add(sectionKey);
+          renderLibrary();
+        };
+        head.appendChild(toggleBtn);
+      }
     };
-    renderSection('Мои плейлисты', ownPlaylists);
-    renderSection('Любимые плейлисты', likedPlaylists);
-    renderSection('Любимые альбомы', likedAlbums);
+    renderSection('Мои плейлисты', ownPlaylists, 'own');
+    renderSection('Любимые плейлисты', likedPlaylists, 'likedPl');
+    renderSection('Любимые альбомы', likedAlbums, 'likedAl');
   }
 
   async function loadLibrary(uid) {
@@ -382,11 +400,35 @@
       });
     } catch (e) { console.warn('[YM] liked playlists failed:', e.message); }
 
-    // 4. Liked albums
+    // 4. Liked albums — response shape varies: top-level array OR { library: { albums: [...] } }
+    //    Each item may be a bare album, { album: {...} }, or an id-only ref.
     try {
       const la = await yaCall(`/users/${encodeURIComponent(uid)}/likes/albums`);
-      (la.result || []).forEach(entry => {
+      console.log('[YM] liked albums raw:', la);
+      const rawAlbums = la.result?.library?.albums || la.result?.albums || la.result || [];
+      // If items are id-only refs, fetch full albums in one batch.
+      const albums = [];
+      const needsFetch = [];
+      for (const entry of rawAlbums) {
         const a = entry.album || entry;
+        if (a?.title) {
+          albums.push(a);
+        } else if (a?.id || entry.id) {
+          needsFetch.push(String(a?.id || entry.id));
+        }
+      }
+      if (needsFetch.length) {
+        try {
+          const r = await sdk.fetch(YA_API + '/albums', {
+            method: 'POST',
+            headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'album-ids=' + needsFetch.join(','),
+            responseType: 'json',
+          });
+          if (r.status < 400) (r.data?.result || []).forEach(a => albums.push(a));
+        } catch (e) { console.warn('[YM] bulk albums fetch failed:', e.message); }
+      }
+      albums.forEach(a => {
         if (!a?.title) return;
         sections.likedAlbums.push({
           kind: 'album',
@@ -815,6 +857,7 @@
     const el = $('#queue');
     const count = $('#queue-count');
     if (count) count.textContent = queue.length ? `· ${queue.length}` : '';
+    if (!el) return; // not on search screen — no queue DOM rendered
     if (!queue.length) { el.innerHTML = '<div class="empty">Очередь пуста — добавь треки из результатов поиска или вставь ссылку на плейлист</div>'; return; }
     el.innerHTML = '';
     queue.forEach((t, i) => el.appendChild(renderTrackRow(t, true, i)));

@@ -175,12 +175,13 @@ details input[type="password"]:focus { border-color: var(--accent); }
 .search-box {
   display: flex;
   gap: 10px;
-  margin-bottom: 22px;
+  margin: -24px -28px 22px;
+  padding: 16px 28px 14px;
   position: sticky;
   top: 0;
-  z-index: 5;
-  padding: 4px 0 6px;
-  background: linear-gradient(to bottom, var(--bg-base) 0%, var(--bg-base) 90%, transparent 100%);
+  z-index: 20;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .search-box input {
   flex: 1;
@@ -544,6 +545,29 @@ details input[type="password"]:focus { border-color: var(--accent); }
   text-transform: uppercase;
   color: var(--text-muted);
   margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.library-show-more {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.library-show-more:hover {
+  background: var(--bg-elev-2);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 
 .library-row {
