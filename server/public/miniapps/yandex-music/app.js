@@ -158,6 +158,7 @@
   }
 
   function renderConnectScreen() {
+    $('#search-bar-host').innerHTML = '';
     main.innerHTML = `
       <div class="connect-screen">
         <h2>Подключи аккаунт Яндекс Музыки</h2>
@@ -253,28 +254,45 @@
   }
 
   function renderSearchScreen() {
-    main.innerHTML = `
-      <div id="voice-banner"></div>
+    // Search box lives OUTSIDE the scrollable .main so it stays put.
+    const host = $('#search-bar-host');
+    host.innerHTML = `
       <div class="search-box">
         <input id="q" placeholder="Поиск или вставь ссылку на трек / альбом / плейлист…" autocomplete="off" />
         <button id="search-btn">Найти</button>
+        <button id="queue-btn" class="queue-btn" title="Очередь воспроизведения">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+          <span>Очередь</span>
+          <span id="queue-badge" class="queue-badge"></span>
+        </button>
+      </div>
+    `;
+    main.innerHTML = `
+      <div id="voice-banner"></div>
+      <div id="results-section" hidden>
+        <div class="section-title">Результаты</div>
+        <div id="results" class="track-list"></div>
       </div>
       <div class="section-title">Моя медиатека <span id="library-status" style="color:#666;font-weight:normal"></span></div>
       <div id="library" class="library-grid"></div>
-      <div class="section-title">Очередь <span id="queue-count" style="color:#666;font-weight:normal"></span></div>
-      <div id="queue" class="queue empty-or-list"></div>
-      <div class="section-title">Результаты</div>
-      <div id="results" class="track-list"></div>
     `;
-    renderQueue();
     renderVoiceJoinButton();
     renderLibrary();
+    updateQueueBadge();
     const q = $('#q');
     q.focus();
     let searchTimer = null;
     q.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => doSearch(q.value), 400); });
     $('#search-btn').addEventListener('click', () => doSearch(q.value));
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(q.value); });
+    $('#queue-btn').addEventListener('click', openQueuePage);
+  }
+
+  function updateQueueBadge() {
+    const b = $('#queue-badge');
+    if (!b) return;
+    if (queue.length) { b.textContent = String(queue.length); b.style.display = ''; }
+    else b.style.display = 'none';
   }
 
   // ---------- My Library ----------
@@ -465,8 +483,58 @@
     return div;
   }
 
+  /** Full-screen view of the current playback queue. */
+  function openQueuePage() {
+    $('#search-bar-host').innerHTML = '';
+    main.innerHTML = `
+      <div class="page-header">
+        <button id="page-back" class="page-back-btn" title="Назад">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Назад
+        </button>
+      </div>
+      <div class="page-hero">
+        <div class="page-hero-cover" id="page-cover" style="background:linear-gradient(135deg, #ffcc00, #b38b00)">
+          <span class="page-cover-icon">♬</span>
+        </div>
+        <div class="page-hero-body">
+          <div class="page-hero-kind">Сейчас в очереди</div>
+          <h1 class="page-hero-title">Очередь</h1>
+          <div class="page-hero-subtitle" id="page-queue-count">${queue.length} треков</div>
+          <div class="page-hero-actions">
+            <button id="page-clear" class="page-secondary-btn">Очистить</button>
+          </div>
+        </div>
+      </div>
+      <div id="queue-page-tracks" class="track-list"></div>
+    `;
+    $('#page-back').addEventListener('click', renderSearchScreen);
+    $('#page-clear').addEventListener('click', () => {
+      stopPlayback();
+      renderSearchScreen();
+    });
+    renderQueuePageTracks();
+  }
+
+  function renderQueuePageTracks() {
+    const list = $('#queue-page-tracks');
+    const count = $('#page-queue-count');
+    if (count) count.textContent = `${queue.length} треков`;
+    if (!list) return;
+    if (!queue.length) {
+      list.innerHTML = '<div class="empty">Очередь пуста — добавь треки из медиатеки или поиска.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    queue.forEach((t, i) => {
+      const row = renderTrackRow(t, true, i);
+      list.appendChild(row);
+    });
+  }
+
   /** Full-screen view of a playlist/album with hero + filter + tracks. */
   async function openItemPage(p) {
+    $('#search-bar-host').innerHTML = ''; // hide global search on item page
     main.innerHTML = `
       <div class="page-header">
         <button id="page-back" class="page-back-btn" title="Назад в медиатеку">
@@ -703,7 +771,13 @@
   async function doSearch(query) {
     query = (query || '').trim();
     const results = $('#results');
-    if (!query) { results.innerHTML = ''; return; }
+    const section = $('#results-section');
+    if (!query) {
+      if (results) results.innerHTML = '';
+      if (section) section.hidden = true;
+      return;
+    }
+    if (section) section.hidden = false;
 
     // If query is a Yandex Music URL, parse and load tracks directly.
     const parsed = parseYandexUrl(query);
@@ -854,13 +928,9 @@
   }
 
   function renderQueue() {
-    const el = $('#queue');
-    const count = $('#queue-count');
-    if (count) count.textContent = queue.length ? `· ${queue.length}` : '';
-    if (!el) return; // not on search screen — no queue DOM rendered
-    if (!queue.length) { el.innerHTML = '<div class="empty">Очередь пуста — добавь треки из результатов поиска или вставь ссылку на плейлист</div>'; return; }
-    el.innerHTML = '';
-    queue.forEach((t, i) => el.appendChild(renderTrackRow(t, true, i)));
+    updateQueueBadge();
+    // If queue page is currently open, refresh it too.
+    if ($('#queue-page-tracks')) renderQueuePageTracks();
   }
 
   function renderTrackRow(track, inQueue, queueIndex) {
