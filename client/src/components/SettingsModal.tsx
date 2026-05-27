@@ -1891,11 +1891,19 @@ function MiniAppsSettings() {
                   <h3 className="card-v2-name">{app.name}</h3>
                   <div className="card-v2-badges">
                     <span className="card-v2-badge">APP</span>
-                    <span className={`card-v2-badge ${app.isPublished ? 'active' : ''}`}>
-                      {app.isPublished ? 'Опубликовано' : 'Черновик'}
+                    <span className={`card-v2-badge ${app.isPublished ? 'active' : ''}`} style={app.moderationStatus === 'pending' ? { background: '#ffcc00', color: 'black', borderColor: '#ffcc00' } : app.moderationStatus === 'rejected' ? { background: '#ff5765', color: 'white', borderColor: '#ff5765' } : undefined}>
+                      {app.isBlocked ? '⛔ Заблокировано' :
+                       app.moderationStatus === 'pending' ? '⏳ На модерации' :
+                       app.moderationStatus === 'rejected' ? '✗ Отклонено' :
+                       app.isPublished ? '✓ Опубликовано' : 'Черновик'}
                     </span>
                   </div>
                 </div>
+                {app.moderationReason && (app.moderationStatus === 'rejected' || app.isBlocked) && (
+                  <div style={{ marginTop: 6, padding: '8px 12px', background: 'rgba(255,87,101,0.1)', border: '1px solid rgba(255,87,101,0.25)', borderRadius: 8, fontSize: 12, color: '#ff8a93' }}>
+                    Причина: {app.blockReason || app.moderationReason}
+                  </div>
+                )}
                 <div className="card-v2-meta">
                   <span style={{ color: 'var(--secondary-neon)' }}>{app.url}</span>
                 </div>
@@ -1904,8 +1912,16 @@ function MiniAppsSettings() {
 
               <div className="card-v2-footer">
                 <div className="card-v2-button-group">
-                  <button className={`btn-v2 ${app.isPublished ? '' : 'primary'}`} onClick={() => togglePublish(app._id)}>
-                    {app.isPublished ? 'Снять с публикации' : 'Опубликовать'}
+                  <button
+                    className={`btn-v2 ${app.isPublished || app.moderationStatus === 'pending' ? '' : 'primary'}`}
+                    onClick={() => togglePublish(app._id)}
+                    disabled={app.isBlocked}
+                    title={app.isBlocked ? 'Снято модерацией' : undefined}
+                  >
+                    {app.isBlocked ? 'Заблокировано' :
+                     app.isPublished ? 'Снять с публикации' :
+                     app.moderationStatus === 'pending' ? 'Отозвать заявку' :
+                     'Отправить на модерацию'}
                   </button>
                   <button className="btn-v2" onClick={() => startEdit(app)}>Настроить профиль</button>
                   <button className="btn-v2 danger" onClick={() => deleteApp(app._id)}>Удалить</button>
@@ -2170,8 +2186,11 @@ function BotsSettings() {
                   <h3 className="card-v2-name">{bot.username}</h3>
                   <div className="card-v2-badges">
                     <span className="card-v2-badge">BOT</span>
-                    <span className={`card-v2-badge ${bot.isPublished ? 'active' : ''}`}>
-                      {bot.isPublished ? 'Опубликован' : 'Черновик'}
+                    <span className={`card-v2-badge ${bot.isPublished ? 'active' : ''}`} style={bot.botModerationStatus === 'pending' ? { background: '#ffcc00', color: 'black', borderColor: '#ffcc00' } : bot.botModerationStatus === 'rejected' ? { background: '#ff5765', color: 'white', borderColor: '#ff5765' } : undefined}>
+                      {bot.botIsBlocked ? '⛔ Заблокирован' :
+                       bot.botModerationStatus === 'pending' ? '⏳ На модерации' :
+                       bot.botModerationStatus === 'rejected' ? '✗ Отклонён' :
+                       bot.isPublished ? '✓ Опубликован' : 'Черновик'}
                     </span>
                   </div>
                 </div>
@@ -2179,12 +2198,24 @@ function BotsSettings() {
                   <span>ID: {bot._id}</span>
                 </div>
                 {bot.bio && <p className="card-v2-bio">{bot.bio}</p>}
+                {(bot.botModerationReason || bot.botBlockReason) && (bot.botModerationStatus === 'rejected' || bot.botIsBlocked) && (
+                  <div style={{ marginTop: 6, padding: '8px 12px', background: 'rgba(255,87,101,0.1)', border: '1px solid rgba(255,87,101,0.25)', borderRadius: 8, fontSize: 12, color: '#ff8a93' }}>
+                    Причина: {bot.botBlockReason || bot.botModerationReason}
+                  </div>
+                )}
               </div>
 
               <div className="card-v2-footer">
                 <div className="card-v2-button-group">
-                  <button className={`btn-v2 ${bot.isPublished ? '' : 'primary'}`} onClick={() => togglePublishBot(bot._id)}>
-                    {bot.isPublished ? 'Снять с публикации' : 'Опубликовать'}
+                  <button
+                    className={`btn-v2 ${bot.isPublished || bot.botModerationStatus === 'pending' ? '' : 'primary'}`}
+                    onClick={() => togglePublishBot(bot._id)}
+                    disabled={bot.botIsBlocked}
+                  >
+                    {bot.botIsBlocked ? 'Заблокирован' :
+                     bot.isPublished ? 'Снять с публикации' :
+                     bot.botModerationStatus === 'pending' ? 'Отозвать заявку' :
+                     'Отправить на модерацию'}
                   </button>
                   <button className="btn-v2" onClick={() => startEdit(bot)}>Настроить профиль</button>
                   <button className="btn-v2" onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}>
@@ -2280,6 +2311,7 @@ function ModerationSettings() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
+  const [mainTab, setMainTab] = useState<'reports' | 'marketplace'>('reports');
 
   const fetchReports = async (status: string) => {
     setLoading(true);
@@ -2297,6 +2329,35 @@ function ModerationSettings() {
   return (
     <div className="settings-section-content">
       <h2 className="settings-section-title">Система модерации</h2>
+
+      <div style={{ marginBottom: '24px', display: 'flex', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <button
+          onClick={() => setMainTab('reports')}
+          style={{
+            padding: '12px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
+            color: mainTab === 'reports' ? 'var(--primary-neon)' : 'var(--text-dim)',
+            fontWeight: 700, fontSize: '14px',
+            borderBottom: `2px solid ${mainTab === 'reports' ? 'var(--primary-neon)' : 'transparent'}`,
+            marginBottom: '-1px', marginRight: '20px',
+          }}
+        >
+          Жалобы
+        </button>
+        <button
+          onClick={() => setMainTab('marketplace')}
+          style={{
+            padding: '12px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
+            color: mainTab === 'marketplace' ? 'var(--primary-neon)' : 'var(--text-dim)',
+            fontWeight: 700, fontSize: '14px',
+            borderBottom: `2px solid ${mainTab === 'marketplace' ? 'var(--primary-neon)' : 'transparent'}`,
+            marginBottom: '-1px',
+          }}
+        >
+          Витрина
+        </button>
+      </div>
+
+      {mainTab === 'marketplace' ? <MarketplaceModeration /> : <>
 
       <div className="moderation-header" style={{ marginBottom: '20px', display: 'flex', gap: '15px' }}>
         <div className={`filter-tab ${filter === 'pending' ? 'active' : ''}`} onClick={() => setFilter('pending')} style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'pending' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'pending' ? 'black' : 'white', borderRadius: '8px', fontWeight: 600 }}>
@@ -2400,8 +2461,212 @@ function ModerationSettings() {
           ))
         )}
       </div>
+
+      </>}
     </div>
   );
 };
+
+function MarketplaceModeration() {
+  const { confirm, prompt, alert } = useDialog();
+  const [tab, setTab] = useState<'pending' | 'approved' | 'rejected' | 'blocked'>('pending');
+  const [data, setData] = useState<{ bots: any[]; miniApps: any[] }>({ bots: [], miniApps: [] });
+  const [loading, setLoading] = useState(false);
+
+  const fetchData = async (status: string) => {
+    setLoading(true);
+    try {
+      const r = await axios.get(`/api/moderation/marketplace?status=${status}`);
+      setData(r.data);
+    } catch (e) { setData({ bots: [], miniApps: [] }); }
+    setLoading(false);
+  };
+  useEffect(() => { fetchData(tab); }, [tab]);
+
+  const act = async (type: 'bot' | 'miniapp', id: string, action: string, body?: any) => {
+    try {
+      await axios.post(`/api/moderation/marketplace/${type}/${id}/${action}`, body || {});
+      fetchData(tab);
+    } catch (e: any) {
+      await alert(e?.response?.data?.message || 'Ошибка');
+    }
+  };
+
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'pending',  label: 'На модерации' },
+    { id: 'approved', label: 'Опубликовано' },
+    { id: 'rejected', label: 'Отклонено' },
+    { id: 'blocked',  label: 'Заблокировано' },
+  ];
+
+  const totalCount = data.bots.length + data.miniApps.length;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 999,
+              border: '1px solid ' + (tab === t.id ? 'var(--primary-neon)' : 'rgba(255,255,255,0.08)'),
+              background: tab === t.id ? 'var(--primary-neon)' : 'transparent',
+              color: tab === t.id ? 'black' : 'white',
+              fontWeight: 600, fontSize: 12, cursor: 'pointer',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div className="placeholder-settings">Загрузка…</div>}
+      {!loading && totalCount === 0 && (
+        <div className="placeholder-settings" style={{ padding: 40 }}>
+          {tab === 'pending' ? 'Заявок на модерацию нет. 🎉' : 'Пусто.'}
+        </div>
+      )}
+
+      {!loading && data.bots.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, margin: '20px 0 10px' }}>Боты ({data.bots.length})</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {data.bots.map(bot => (
+              <MarketplaceCard
+                key={bot._id}
+                type="bot"
+                item={{
+                  _id: bot._id,
+                  title: bot.username,
+                  subtitle: bot.bio || '',
+                  avatar: bot.avatar,
+                  banner: bot.banner,
+                  owner: bot.owner,
+                  reason: bot.botModerationReason || bot.botBlockReason,
+                }}
+                tab={tab}
+                act={(action, body) => act('bot', bot._id, action, body)}
+                confirm={confirm}
+                prompt={prompt}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {!loading && data.miniApps.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, margin: '24px 0 10px' }}>Мини-приложения ({data.miniApps.length})</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {data.miniApps.map(app => (
+              <MarketplaceCard
+                key={app._id}
+                type="miniapp"
+                item={{
+                  _id: app._id,
+                  title: app.name,
+                  subtitle: app.description || app.url,
+                  avatar: app.avatar,
+                  banner: app.banner,
+                  owner: app.owner,
+                  reason: app.moderationReason || app.blockReason,
+                }}
+                tab={tab}
+                act={(action, body) => act('miniapp', app._id, action, body)}
+                confirm={confirm}
+                prompt={prompt}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MarketplaceCard({ type, item, tab, act, confirm, prompt }: {
+  type: 'bot' | 'miniapp';
+  item: any;
+  tab: 'pending' | 'approved' | 'rejected' | 'blocked';
+  act: (action: string, body?: any) => Promise<void>;
+  confirm: (msg: string) => Promise<boolean>;
+  prompt: (msg: string, def?: string) => Promise<string | null>;
+}) {
+  const avatarUrl = item.avatar ? getFullUrl(item.avatar) : null;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      padding: 14, borderRadius: 14,
+      background: 'rgba(255,255,255,0.03)',
+      border: '1px solid rgba(255,255,255,0.08)',
+    }}>
+      <div style={{
+        width: 52, height: 52, borderRadius: 12, flexShrink: 0,
+        background: avatarUrl ? `url(${avatarUrl}) center/cover` : 'var(--secondary-neon)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'white', fontWeight: 800, fontSize: 18,
+      }}>
+        {!avatarUrl && (item.title?.[0] || '?').toUpperCase()}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.title}
+          <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.07)', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase' }}>
+            {type === 'bot' ? 'BOT' : 'APP'}
+          </span>
+        </div>
+        {item.subtitle && (
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subtitle}</div>
+        )}
+        {item.owner && (
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 3 }}>Автор: <strong>{item.owner.username}</strong></div>
+        )}
+        {item.reason && (
+          <div style={{ fontSize: 11, color: '#ff9966', marginTop: 4 }}>Причина: {item.reason}</div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        {tab === 'pending' && (
+          <>
+            <button
+              onClick={async () => { if (await confirm('Опубликовать на витрине?')) await act('approve'); }}
+              style={{ padding: '8px 14px', borderRadius: 999, border: 'none', background: '#34d27e', color: 'black', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+            >Одобрить</button>
+            <button
+              onClick={async () => {
+                const r = await prompt('Причина отклонения:', 'Не соответствует правилам');
+                if (r) await act('reject', { reason: r });
+              }}
+              style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
+            >Отклонить</button>
+          </>
+        )}
+        {tab === 'approved' && (
+          <button
+            onClick={async () => {
+              const r = await prompt('Причина блокировки:', 'Нарушение правил');
+              if (r) await act('block', { reason: r });
+            }}
+            style={{ padding: '8px 14px', borderRadius: 999, border: 'none', background: '#ff5765', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+          >Заблокировать</button>
+        )}
+        {tab === 'blocked' && (
+          <button
+            onClick={async () => { if (await confirm('Снять блокировку?')) await act('unblock'); }}
+            style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
+          >Разблокировать</button>
+        )}
+        {tab === 'rejected' && (
+          <button
+            onClick={async () => { if (await confirm('Принудительно одобрить?')) await act('approve'); }}
+            style={{ padding: '8px 14px', borderRadius: 999, border: 'none', background: '#34d27e', color: 'black', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+          >Одобрить</button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default SettingsModal;

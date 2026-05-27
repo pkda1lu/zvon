@@ -100,6 +100,17 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  /** For bot accounts: status of marketplace publication review. */
+  botModerationStatus: {
+    type: String,
+    enum: ['draft', 'pending', 'approved', 'rejected'],
+    default: 'draft'
+  },
+  botModerationReason: { type: String, default: null },
+  botModeratedAt: { type: Date, default: null },
+  botModeratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  botIsBlocked: { type: Boolean, default: false },
+  botBlockReason: { type: String, default: null },
   botToken: {
     type: String,
     unique: true,
