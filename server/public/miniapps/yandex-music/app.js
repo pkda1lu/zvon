@@ -291,33 +291,51 @@
       try {
         _libraryCache = await loadLibrary(ymAccount.uid);
       } catch (e) {
-        wrap.innerHTML = `<div class="banner error">Не удалось загрузить плейлисты: ${escape(e.message)}</div>`;
+        wrap.innerHTML = `<div class="banner error">Не удалось загрузить медиатеку: ${escape(e.message)}</div>`;
         return;
       }
     }
-    const items = _libraryCache;
-    if (status) status.textContent = items.length ? `· ${items.length}` : '';
-    if (!items.length) { wrap.innerHTML = '<div class="empty">У тебя пока нет плейлистов.</div>'; return; }
+    const { ownPlaylists, likedPlaylists, likedAlbums } = _libraryCache;
+    const total = ownPlaylists.length + likedPlaylists.length + likedAlbums.length;
+    if (status) status.textContent = total ? `· ${total}` : '';
+    if (!total) { wrap.innerHTML = '<div class="empty">У тебя пока пустая медиатека.</div>'; return; }
+
     wrap.innerHTML = '';
-    items.forEach(p => wrap.appendChild(renderLibraryCard(p)));
+    const renderSection = (title, items) => {
+      if (!items.length) return;
+      const head = document.createElement('div');
+      head.className = 'library-section-title';
+      head.textContent = title;
+      wrap.appendChild(head);
+      const grid = document.createElement('div');
+      grid.className = 'library-row';
+      items.forEach(p => grid.appendChild(renderLibraryCard(p)));
+      wrap.appendChild(grid);
+    };
+    renderSection('Мои плейлисты', ownPlaylists);
+    renderSection('Любимые плейлисты', likedPlaylists);
+    renderSection('Любимые альбомы', likedAlbums);
   }
 
   async function loadLibrary(uid) {
-    const items = [];
-    // 1. "Мне нравится" — virtual playlist of liked tracks
+    const sections = { ownPlaylists: [], likedPlaylists: [], likedAlbums: [] };
+
+    // 1. "Мне нравится" — virtual playlist of liked tracks → first own item
     try {
       const likes = await yaCall(`/users/${encodeURIComponent(uid)}/likes/tracks`);
       const likedIds = (likes.result?.library?.tracks || []).map(t => String(t.id));
       if (likedIds.length) {
-        items.push({
-          virtual: 'likes',
+        sections.ownPlaylists.push({
+          kind: 'likes',
           uid,
           title: 'Мне нравится',
+          subtitle: ymAccount?.login || '',
           trackCount: likedIds.length,
           cover: null,
           accent: '#ff3b6b',
           icon: '♥',
           trackIds: likedIds,
+          loader: () => materializeTracks({ tracks: likedIds.map(id => ({ id })) }),
         });
       }
     } catch (e) { console.warn('[YM] likes failed:', e.message); }
@@ -326,18 +344,66 @@
     try {
       const lst = await yaCall(`/users/${encodeURIComponent(uid)}/playlists/list`);
       (lst.result || []).forEach(p => {
-        items.push({
+        sections.ownPlaylists.push({
+          kind: 'playlist',
           uid,
-          kind: p.kind,
+          playlistKind: p.kind,
           title: p.title,
+          subtitle: p.owner?.login || ymAccount?.login || '',
           trackCount: p.trackCount,
           cover: p.cover?.uri || p.ogImage,
-          modified: p.modified,
+          loader: async () => {
+            const r = await yaCall(`/users/${encodeURIComponent(uid)}/playlists/${encodeURIComponent(p.kind)}`);
+            return materializeTracks(r.result);
+          },
         });
       });
     } catch (e) { console.warn('[YM] playlists list failed:', e.message); }
 
-    return items;
+    // 3. Liked playlists (other people's playlists user liked)
+    try {
+      const lp = await yaCall(`/users/${encodeURIComponent(uid)}/likes/playlists`);
+      (lp.result || []).forEach(entry => {
+        const p = entry.playlist || entry;
+        if (!p?.title) return;
+        sections.likedPlaylists.push({
+          kind: 'playlist',
+          uid: p.owner?.uid || p.uid,
+          playlistKind: p.kind,
+          title: p.title,
+          subtitle: p.owner?.name || p.owner?.login || '',
+          trackCount: p.trackCount,
+          cover: p.cover?.uri || p.ogImage,
+          loader: async () => {
+            const r = await yaCall(`/users/${encodeURIComponent(p.owner?.uid || p.uid)}/playlists/${encodeURIComponent(p.kind)}`);
+            return materializeTracks(r.result);
+          },
+        });
+      });
+    } catch (e) { console.warn('[YM] liked playlists failed:', e.message); }
+
+    // 4. Liked albums
+    try {
+      const la = await yaCall(`/users/${encodeURIComponent(uid)}/likes/albums`);
+      (la.result || []).forEach(entry => {
+        const a = entry.album || entry;
+        if (!a?.title) return;
+        sections.likedAlbums.push({
+          kind: 'album',
+          albumId: a.id,
+          title: a.title,
+          subtitle: (a.artists || []).map(ar => ar.name).join(', '),
+          trackCount: a.trackCount,
+          cover: a.coverUri,
+          loader: async () => {
+            const r = await yaCall(`/albums/${a.id}/with-tracks`);
+            return (r.result?.volumes || []).flat().map(normalizeTrack);
+          },
+        });
+      });
+    } catch (e) { console.warn('[YM] liked albums failed:', e.message); }
+
+    return sections;
   }
 
   function renderLibraryCard(p) {
@@ -350,50 +416,107 @@
       </div>
       <div class="library-meta">
         <div class="library-title">${escape(p.title)}</div>
-        <div class="library-count">${p.trackCount || 0} трек.</div>
+        <div class="library-count">${p.subtitle ? escape(p.subtitle) + ' · ' : ''}${p.trackCount || 0} трек.</div>
       </div>
     `;
-    div.addEventListener('click', () => openLibraryPlaylist(p));
+    div.addEventListener('click', () => openItemPage(p));
     return div;
   }
 
-  async function openLibraryPlaylist(p) {
-    const results = $('#results');
-    if (results) results.innerHTML = '<div class="loading">Загружаю плейлист…</div>';
-    try {
-      let tracks;
-      if (p.virtual === 'likes') {
-        // Bulk-resolve liked track IDs to full track objects
-        tracks = await materializeTracks({ tracks: p.trackIds.map(id => ({ id })) });
-      } else {
-        const r = await yaCall(`/users/${encodeURIComponent(p.uid)}/playlists/${encodeURIComponent(p.kind)}`);
-        tracks = await materializeTracks(r.result);
-      }
-      if (!tracks.length) { if (results) results.innerHTML = '<div class="empty">В плейлисте нет треков.</div>'; return; }
-      if (results) {
-        results.innerHTML = `<div class="banner info"><span>📂 ${escape(p.title)} — ${tracks.length} треков</span></div>`;
-        const actions = document.createElement('div');
-        actions.className = 'bulk-actions';
-        const playAllBtn = document.createElement('button');
-        playAllBtn.className = 'primary';
-        playAllBtn.textContent = '▶ Играть всё';
-        playAllBtn.onclick = async () => {
-          const startIdx = queue.length;
-          tracks.forEach(t => queue.push(t));
-          renderQueue();
-          await playIndex(startIdx);
-        };
-        const addAllBtn = document.createElement('button');
-        addAllBtn.textContent = '+ В очередь';
-        addAllBtn.onclick = () => { tracks.forEach(t => queue.push(t)); renderQueue(); };
-        actions.appendChild(playAllBtn);
-        actions.appendChild(addAllBtn);
-        results.appendChild(actions);
-        tracks.forEach(t => results.appendChild(renderTrackRow(t, false)));
-      }
-    } catch (e) {
-      if (results) results.innerHTML = `<div class="banner error">Не получилось загрузить: ${escape(e.message)}</div>`;
+  /** Full-screen view of a playlist/album with hero + filter + tracks. */
+  async function openItemPage(p) {
+    main.innerHTML = `
+      <div class="page-header">
+        <button id="page-back" class="page-back-btn" title="Назад в медиатеку">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Назад
+        </button>
+      </div>
+      <div class="page-hero">
+        <div class="page-hero-cover" id="page-cover"></div>
+        <div class="page-hero-body">
+          <div class="page-hero-kind">${p.kind === 'album' ? 'Альбом' : 'Плейлист'}</div>
+          <h1 class="page-hero-title">${escape(p.title)}</h1>
+          ${p.subtitle ? `<div class="page-hero-subtitle">${escape(p.subtitle)}</div>` : ''}
+          <div class="page-hero-actions">
+            <button id="page-play-all" class="page-play-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Слушать
+            </button>
+            <button id="page-add-all" class="page-secondary-btn">+ В очередь</button>
+          </div>
+        </div>
+      </div>
+      <div class="page-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="page-filter" type="text" placeholder="Поиск трека в плейлисте…" autocomplete="off" />
+      </div>
+      <div id="page-tracks" class="track-list">
+        <div class="loading">Загружаю треки…</div>
+      </div>
+    `;
+
+    const cover = p.cover ? `https://${p.cover.replace('%%', '400x400')}` : '';
+    if (cover) {
+      $('#page-cover').style.backgroundImage = `url('${cover}')`;
+    } else {
+      $('#page-cover').style.background = `linear-gradient(135deg, ${p.accent || '#3a3a44'}, #1a1a22)`;
+      if (p.icon) $('#page-cover').innerHTML = `<span class="page-cover-icon">${p.icon}</span>`;
     }
+
+    $('#page-back').addEventListener('click', renderSearchScreen);
+
+    let tracks = [];
+    try {
+      tracks = await p.loader();
+    } catch (e) {
+      $('#page-tracks').innerHTML = `<div class="banner error">Не удалось загрузить: ${escape(e.message)}</div>`;
+      return;
+    }
+    if (!tracks.length) {
+      $('#page-tracks').innerHTML = '<div class="empty">Пусто.</div>';
+      return;
+    }
+
+    const renderTracks = (filter) => {
+      const list = $('#page-tracks');
+      list.innerHTML = '';
+      const filtered = filter
+        ? tracks.filter(t =>
+            t.title?.toLowerCase().includes(filter) ||
+            t.artists?.some(a => a.toLowerCase().includes(filter)))
+        : tracks;
+      if (!filtered.length) { list.innerHTML = '<div class="empty">Ничего не найдено.</div>'; return; }
+      filtered.forEach((t, i) => {
+        const row = renderTrackRow(t, false);
+        // Click row → play this single track immediately
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          const idx = tracks.indexOf(t);
+          const startIdx = queue.length;
+          tracks.slice(idx).forEach(tr => queue.push(tr));
+          renderQueue();
+          playIndex(startIdx);
+        });
+        list.appendChild(row);
+      });
+    };
+    renderTracks('');
+
+    $('#page-filter').addEventListener('input', (e) => {
+      renderTracks(e.target.value.trim().toLowerCase());
+    });
+
+    $('#page-play-all').addEventListener('click', () => {
+      const startIdx = queue.length;
+      tracks.forEach(t => queue.push(t));
+      renderQueue();
+      playIndex(startIdx);
+    });
+    $('#page-add-all').addEventListener('click', () => {
+      tracks.forEach(t => queue.push(t));
+      renderQueue();
+    });
   }
 
   function renderVoiceJoinButton() {
