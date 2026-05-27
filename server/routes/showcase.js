@@ -7,11 +7,12 @@ const auth = require('../middleware/auth');
 // Get all published bots and mini-apps
 router.get('/', auth, async (req, res) => {
     try {
+        // Strict moderation: only approved + not-blocked. System mini-apps bypass.
         const bots = await User.find({
                 isBot: true,
                 isPublished: true,
                 botIsBlocked: { $ne: true },
-                $or: [{ botModerationStatus: 'approved' }, { botModerationStatus: { $exists: false } }],
+                botModerationStatus: 'approved',
             })
             .select('username bio avatar banner createdAt');
 
@@ -20,8 +21,7 @@ router.get('/', auth, async (req, res) => {
                 isBlocked: { $ne: true },
                 $or: [
                     { moderationStatus: 'approved' },
-                    { isSystem: true },                 // system apps bypass review
-                    { moderationStatus: { $exists: false } },
+                    { isSystem: true },
                 ],
             })
             .select('name url description avatar banner createdAt isSystem');

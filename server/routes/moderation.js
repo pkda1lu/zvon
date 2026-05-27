@@ -24,16 +24,17 @@ const isAdmin = async (req, res, next) => {
   }
 };
 
-// Create a report
+// Create a report — target can be a user (incl. bot) or a mini-app.
 router.post('/report', auth, [
-  body('userId').isMongoId().withMessage('Invalid user ID'),
   body('reason').notEmpty().withMessage('Reason is required'),
 ], async (req, res) => {
   try {
-    const { userId, reason, description, messageId } = req.body;
+    const { userId, miniAppId, reason, description, messageId } = req.body;
+    if (!userId && !miniAppId) return res.status(400).json({ message: 'Нужно указать userId или miniAppId' });
     const report = new Report({
       reporter: req.user._id,
-      reportedUser: userId,
+      reportedUser: userId || null,
+      reportedMiniApp: miniAppId || null,
       reason,
       description,
       messageContext: messageId || null
@@ -54,6 +55,7 @@ router.get('/reports', [auth, isModerator], async (req, res) => {
     const reports = await Report.find(query)
       .populate('reporter', 'username avatar')
       .populate('reportedUser', 'username avatar')
+      .populate('reportedMiniApp', 'name avatar')
       .populate('resolvedBy', 'username')
       .populate('messageContext')
       .sort('-createdAt');

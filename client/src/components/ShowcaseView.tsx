@@ -26,7 +26,22 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
     const [searchQuery, setSearchQuery] = useState('');
     const [userServers, setUserServers] = useState<any[]>([]);
     const [showServerSelect, setShowServerSelect] = useState<string | null>(null);
-    const { alert } = useDialog();
+    const { alert, prompt } = useDialog();
+
+    const reportItem = async (type: 'bot' | 'miniapp', id: string, name: string) => {
+        const description = await prompt(`Пожаловаться на «${name}». Опиши проблему:`, '');
+        if (!description) return;
+        try {
+            await axios.post('/api/moderation/report', {
+                [type === 'bot' ? 'userId' : 'miniAppId']: id,
+                reason: 'inappropriate_content',
+                description,
+            });
+            await alert('Спасибо! Жалоба отправлена модераторам.');
+        } catch (e: any) {
+            await alert('Не удалось отправить жалобу: ' + (e?.response?.data?.message || 'ошибка'));
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -83,6 +98,16 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                     </div>
                 </div>
                 <div className="profile-card-actions">
+                    <button
+                        className="report-icon-btn"
+                        title="Пожаловаться"
+                        onClick={(e) => { e.stopPropagation(); reportItem('bot', bot._id, bot.username); }}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                            <line x1="4" y1="22" x2="4" y2="15"/>
+                        </svg>
+                    </button>
                     <div className="action-button-container">
                         <button className="profile-action-btn primary" onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}>
                             <PlusIcon size={18} />
@@ -123,6 +148,16 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                     </div>
                 </div>
                 <div className="profile-card-actions">
+                    <button
+                        className="report-icon-btn"
+                        title="Пожаловаться"
+                        onClick={(e) => { e.stopPropagation(); reportItem('miniapp', app._id, app.name); }}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                            <line x1="4" y1="22" x2="4" y2="15"/>
+                        </svg>
+                    </button>
                     <button className="profile-action-btn secondary" onClick={() => handleOpenApp(app)}>
                         <MonitorIcon size={18} />
                         <span>Открыть</span>
