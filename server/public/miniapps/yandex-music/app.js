@@ -31,9 +31,6 @@
   let ymAccount = await sdk.storage.get('account').catch(() => null);
 
   // Player state
-  const audio = new Audio();
-  audio.crossOrigin = 'anonymous';
-  audio.preload = 'auto';
   let queue = [];
   let currentIndex = -1;
 
@@ -41,26 +38,43 @@
   let presence = null;
   let progressTimer = null;
 
-  // --- Audio capture pipeline ---
-  // audio.captureStream() gives a transferable MediaStreamTrack (works across
-  // iframe boundaries in Electron / Chrome 116+). The stream object persists
-  // across src changes — tracks keep flowing audio of whatever is currently
-  // playing. We cache the stream and refresh tracks if they ever become ended.
+  // --- Audio element (recreated per track) ---
+  // Chrome's audio.captureStream() returns the SAME MediaStream across src
+  // changes, and the captured track often stops carrying audio after a src
+  // swap. The reliable fix is to use a fresh <audio> per track and capture
+  // its stream once — the track stays live for the duration of that blob.
+  let audio = null;
   let _captureStream = null;
+  let _userVolume = 0.8;
+  function recreateAudio() {
+    // Tear down old element if any.
+    if (audio) {
+      try { audio.pause(); } catch {}
+      audio.src = '';
+      try { audio.load(); } catch {}
+    }
+    if (_captureStream) {
+      _captureStream.getTracks().forEach(t => { try { t.stop(); } catch {} });
+    }
+    _captureStream = null;
+    audio = new Audio();
+    audio.crossOrigin = 'anonymous';
+    audio.preload = 'auto';
+    audio.volume = _userVolume;
+    audio.addEventListener('ended', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback(); });
+    audio.addEventListener('timeupdate', () => { updateLocalProgress(); pushPresenceProgress(); });
+    audio.addEventListener('play',  () => { setPlayIcon(true);  updatePresenceControls(); });
+    audio.addEventListener('pause', () => { setPlayIcon(false); updatePresenceControls(); });
+  }
   function getCaptureTrack() {
-    if (typeof audio.captureStream !== 'function') {
-      console.error('[YM] audio.captureStream not supported');
+    if (!audio || typeof audio.captureStream !== 'function') {
+      console.error('[YM] audio.captureStream not supported / no audio element');
       return null;
     }
     if (!_captureStream) _captureStream = audio.captureStream();
-    let t = _captureStream.getAudioTracks()[0];
-    if (!t || t.readyState === 'ended') {
-      // Try recapturing once.
-      _captureStream = audio.captureStream();
-      t = _captureStream.getAudioTracks()[0];
-    }
-    return t || null;
+    return _captureStream.getAudioTracks()[0] || null;
   }
+  recreateAudio();
 
   // SVG icons for play/pause toggle.
   const ICON_PLAY = '<path d="M8 5v14l11-7z"/>';
@@ -77,32 +91,29 @@
     else el.innerHTML = '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/>';
   }
 
-  audio.addEventListener('ended', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback(); });
-  audio.addEventListener('timeupdate', () => { updateLocalProgress(); pushPresenceProgress(); });
-  audio.addEventListener('play',  () => { setPlayIcon(true);  updatePresenceControls(); });
-  audio.addEventListener('pause', () => { setPlayIcon(false); updatePresenceControls(); });
-
   // Persisted volume — restored from storage, saved on change.
   const savedVol = await sdk.storage.get('volume').catch(() => null);
-  audio.volume = (typeof savedVol === 'number') ? Math.max(0, Math.min(1, savedVol)) : 0.8;
-  $('#vol').value = String(Math.round(audio.volume * 100));
-  setVolIcon(audio.volume);
+  _userVolume = (typeof savedVol === 'number') ? Math.max(0, Math.min(1, savedVol)) : 0.8;
+  audio.volume = _userVolume;
+  $('#vol').value = String(Math.round(_userVolume * 100));
+  setVolIcon(_userVolume);
   let _volSaveTimer = null;
   $('#vol').addEventListener('input', (e) => {
-    audio.volume = Number(e.target.value) / 100;
-    setVolIcon(audio.volume);
+    _userVolume = Number(e.target.value) / 100;
+    if (audio) audio.volume = _userVolume;
+    setVolIcon(_userVolume);
     clearTimeout(_volSaveTimer);
-    _volSaveTimer = setTimeout(() => sdk.storage.set('volume', audio.volume).catch(() => {}), 300);
+    _volSaveTimer = setTimeout(() => sdk.storage.set('volume', _userVolume).catch(() => {}), 300);
   });
 
-  $('#btn-play').addEventListener('click', () => { audio.paused ? audio.play() : audio.pause(); });
+  $('#btn-play').addEventListener('click', () => { if (audio) audio.paused ? audio.play() : audio.pause(); });
   $('#btn-prev').addEventListener('click', () => { if (currentIndex > 0) playIndex(currentIndex - 1); });
   $('#btn-next').addEventListener('click', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); });
   $('#btn-stop').addEventListener('click', stopPlayback);
 
   // Click on player progress bar to seek.
   $('#player-bar')?.addEventListener('click', (e) => {
-    if (!isFinite(audio.duration) || audio.duration === 0) return;
+    if (!audio || !isFinite(audio.duration) || audio.duration === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
     audio.currentTime = Math.max(0, Math.min(audio.duration, pct * audio.duration));
@@ -634,6 +645,8 @@
       if (r.status >= 400) throw new Error('HTTP ' + r.status);
       const bytes = Uint8Array.from(atob(r.base64), c => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: 'audio/mpeg' });
+      // Fresh audio element per track ensures captureStream gives a live track.
+      recreateAudio();
       audio.src = URL.createObjectURL(blob);
       await audio.play();
       showPlayer(track, false);
@@ -646,9 +659,15 @@
   }
 
   async function stopPlayback() {
-    try { audio.pause(); } catch { }
-    audio.removeAttribute('src');
-    try { audio.load(); } catch { }
+    if (audio) {
+      try { audio.pause(); } catch { }
+      audio.removeAttribute('src');
+      try { audio.load(); } catch { }
+    }
+    if (_captureStream) {
+      _captureStream.getTracks().forEach(t => { try { t.stop(); } catch {} });
+      _captureStream = null;
+    }
     currentIndex = -1;
     renderQueue();
     player.classList.add('hidden');
