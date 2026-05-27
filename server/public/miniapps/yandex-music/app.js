@@ -33,6 +33,7 @@
   // Player state
   let queue = [];
   let currentIndex = -1;
+  let _libraryCache = null;
 
   // Voice channel presence (the mini-app's tile inside the user's voice channel).
   let presence = null;
@@ -249,9 +250,6 @@
       alert('Ошибка авторизации: ' + e.message);
     }
   }
-
-  // Hoisted state for the library section (rendered inside renderSearchScreen).
-  let _libraryCache = null;
 
   function renderSearchScreen() {
     main.innerHTML = `
