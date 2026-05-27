@@ -671,10 +671,12 @@
     currentIndex = -1;
     renderQueue();
     player.classList.add('hidden');
+    // When playback ends (queue exhausted or user pressed stop), leave the
+    // voice channel — no point in keeping an idle presence tile around.
     if (presence) {
-      try { await presence.unpublishAudio(); } catch { }
-      try { await presence.setBackground(null); } catch { }
-      try { await presence.setControls(getControlSchema()); } catch { }
+      try { await presence.destroy(); } catch { }
+      presence = null;
+      renderVoiceJoinButton();
     }
   }
 
