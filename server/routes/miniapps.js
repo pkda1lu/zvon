@@ -58,16 +58,40 @@ router.patch('/:id', auth, async (req, res) => {
     }
 });
 
-// Toggle mini-app publish status
+// Submit mini-app for marketplace review / un-publish.
 router.patch('/:id/publish', auth, async (req, res) => {
     try {
         const miniApp = await MiniApp.findOne({ _id: req.params.id, owner: req.user._id });
         if (!miniApp) return res.status(404).json({ message: 'MiniApp not found' });
 
-        miniApp.isPublished = !miniApp.isPublished;
-        await miniApp.save();
+        if (miniApp.isBlocked) {
+            return res.status(403).json({ message: 'Приложение заблокировано модерацией: ' + (miniApp.blockReason || 'без указания причины') });
+        }
 
-        res.json({ message: miniApp.isPublished ? 'Опубликовано на витрине' : 'Снято с витрины', isPublished: miniApp.isPublished });
+        // System apps bypass moderation — they're built-in.
+        if (miniApp.isSystem) {
+            miniApp.isPublished = !miniApp.isPublished;
+            await miniApp.save();
+            return res.json({ message: miniApp.isPublished ? 'Опубликовано' : 'Снято', isPublished: miniApp.isPublished });
+        }
+
+        let message;
+        if (miniApp.isPublished) {
+            miniApp.isPublished = false;
+            miniApp.moderationStatus = 'draft';
+            message = 'Снято с витрины';
+        } else if (miniApp.moderationStatus === 'pending') {
+            miniApp.moderationStatus = 'draft';
+            message = 'Заявка на публикацию отозвана';
+        } else {
+            miniApp.moderationStatus = 'pending';
+            miniApp.moderationReason = null;
+            miniApp.moderatedAt = null;
+            miniApp.moderatedBy = null;
+            message = 'Приложение отправлено на модерацию';
+        }
+        await miniApp.save();
+        res.json({ message, isPublished: miniApp.isPublished, moderationStatus: miniApp.moderationStatus });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }

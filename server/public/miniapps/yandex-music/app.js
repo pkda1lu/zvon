@@ -712,7 +712,6 @@
     const t = queue[currentIndex];
     const isPaused = !audio || audio.paused;
     return [
-      { id: 'shuffle', kind: 'button', label: '🔀', tooltip: 'Перемешать', style: shuffleMode ? 'primary' : '' },
       { id: 'prev', kind: 'button', label: '⏮', tooltip: 'Предыдущий', style: '' },
       { id: 'play-pause', kind: 'button', label: isPaused ? '▶' : '⏸', tooltip: 'Пауза', style: 'primary' },
       { id: 'next', kind: 'button', label: '⏭', tooltip: 'Следующий', style: '' },
@@ -727,7 +726,6 @@
     if (controlId === 'play-pause') audio && (audio.paused ? audio.play() : audio.pause());
     else if (controlId === 'next') { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); }
     else if (controlId === 'prev') { if (currentIndex > 0) playIndex(currentIndex - 1); }
-    else if (controlId === 'shuffle') toggleShuffle();
     else if (controlId === 'seek' && audio && isFinite(audio.duration)) audio.currentTime = (Number(value) / 100) * audio.duration;
   }
 
