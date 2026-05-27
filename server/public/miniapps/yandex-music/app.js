@@ -298,11 +298,15 @@
   async function joinVoicePresence() {
     if (presence) return;
     try {
-      presence = await sdk.voicePresence.create({ displayName: 'Яндекс Музыка', avatar: null });
+      presence = await sdk.voicePresence.create({
+        displayName: 'Яндекс Музыка',
+        avatar: 'https://music.yandex.ru/favicon.ico',
+      });
       presence.on('control', onPresenceControl);
+      await presence.setAccentColor('#ffcc00');
       await presence.setControls(getControlSchema());
-      // If we are already playing a track, immediately publish audio + cover.
-      if (!audio.paused && audio.src) await reattachPresenceMedia();
+      // If we are already playing a track, immediately publish audio + cover + subtitle.
+      if (audio && !audio.paused && audio.src) await reattachPresenceMedia();
     } catch (e) {
       alert('Не получилось встать в голосовой канал: ' + e.message);
       presence = null;
@@ -387,6 +391,13 @@
     } else if (track?.coverUri) {
       const url = 'https://' + track.coverUri.replace('%%', '400x400');
       await presence.setBackground({ type: 'image', url });
+    }
+
+    // "Now playing" subtitle — e.g. "Lose Yourself — Eminem"
+    if (track) {
+      const artists = (track.artists || []).join(', ');
+      const subtitle = artists ? `${track.title} — ${artists}` : track.title;
+      try { await presence.setSubtitle(subtitle); } catch {}
     }
 
     // The capture track is stable across audio src changes (Web Audio dest),
@@ -674,6 +685,7 @@
     // When playback ends (queue exhausted or user pressed stop), leave the
     // voice channel — no point in keeping an idle presence tile around.
     if (presence) {
+      try { await presence.setSubtitle(null); } catch { }
       try { await presence.destroy(); } catch { }
       presence = null;
       renderVoiceJoinButton();
