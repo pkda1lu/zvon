@@ -1580,18 +1580,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
             const localUser = user;
             
+            // Try to find the local user's server-specific nickname from connectedUsers
+            // (server sends nickname alongside other voice members; me-as-member entry
+            // may not always be present, fall back to username).
+            const meAsMember = connectedUsers.find(u => String(u._id) === String(localUser?._id)) as any;
+            const localNickname = meAsMember?.nickname || (localUser as any)?.nickname || localUser?.username;
+
             const overlayUsers = [
                 ...(localUser ? [{
                     id: localUser._id,
-                    username: localUser.username,
+                    username: localNickname || localUser.username,
                     avatar: getAvatarUrl(localUser.avatar) || undefined,
                     isSpeaking: speakingUsers.has(localUser._id),
                     isMuted: isMuted || isServerMuted,
                     isDeafened: isDeafened || isServerDeafened
                 }] : []),
-                ...connectedUsers.map(u => ({
+                ...connectedUsers.filter(u => String(u._id) !== String(localUser?._id)).map(u => ({
                     id: u._id,
-                    username: u.username,
+                    username: (u as any).nickname || u.username,
                     avatar: getAvatarUrl(u.avatar) || undefined,
                     isSpeaking: speakingUsers.has(u._id),
                     isMuted: userStates.get(u._id)?.isMuted || userStates.get(u._id)?.isServerMuted,

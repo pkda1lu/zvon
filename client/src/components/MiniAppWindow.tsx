@@ -421,6 +421,29 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
         return () => clearTimeout(timer);
     }, [isLoading]);
 
+    // Auto-minimize on click outside the window (anywhere else inside Zvon).
+    // Clicks INSIDE the iframe are isolated to that document and don't bubble
+    // here, so they don't trigger this.
+    const windowRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (minimized || !onMinimize) return;
+        const onDocMouseDown = (e: MouseEvent) => {
+            const target = e.target as Node | null;
+            if (target && windowRef.current && !windowRef.current.contains(target)) {
+                onMinimize(app._id);
+            }
+        };
+        // Defer attachment to the next tick so the click that OPENED this window
+        // (from showcase/sidebar) doesn't immediately minimize it.
+        const handle = setTimeout(() => {
+            document.addEventListener('mousedown', onDocMouseDown);
+        }, 0);
+        return () => {
+            clearTimeout(handle);
+            document.removeEventListener('mousedown', onDocMouseDown);
+        };
+    }, [minimized, onMinimize, app._id]);
+
     const handleMouseDown = (e: React.MouseEvent) => {
         setIsDragging(true);
         dragStartRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
@@ -461,6 +484,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
 
     return (
         <motion.div
+            ref={windowRef}
             className="miniapp-window"
             style={{
                 left: position.x,
