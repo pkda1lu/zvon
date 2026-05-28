@@ -98,6 +98,17 @@ const getVoiceChannelUsers = async (channelId) => {
   if (!room) return [];
   const users = [];
   const User = require('./models/User');
+  // Build nickname map for this server's members
+  let nickByUserId = new Map();
+  try {
+    const channel = await Channel.findById(channelId).select('server');
+    if (channel?.server) {
+      const srv = await Server.findById(channel.server).select('members');
+      (srv?.members || []).forEach(m => {
+        if (m.user && m.nickname) nickByUserId.set(String(m.user), m.nickname);
+      });
+    }
+  } catch (e) { /* fall back to username */ }
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.userId) {
@@ -109,6 +120,7 @@ const getVoiceChannelUsers = async (channelId) => {
         userData.isScreenSharing = socket.isScreenSharing || false;
         userData.isServerMuted = socket.isServerMuted || false;
         userData.isServerDeafened = socket.isServerDeafened || false;
+        userData.nickname = nickByUserId.get(String(user._id)) || null;
         users.push(userData);
       }
     }
@@ -746,11 +758,14 @@ io.on('connection', (socket) => {
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
       socket.emit('voice-presences-snapshot', { channelId, presences: getPresencesSnapshot(channelId) });
       // user is already declared above
+      const memberRec = (fullServer.members || []).find(m => String(m.user) === String(socket.userId));
+      const serverNickname = memberRec?.nickname || null;
       socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', {
         userId: socket.userId,
         user: {
           _id: user._id,
           username: user.username,
+          nickname: serverNickname,
           avatar: user.avatar,
           banner: user.banner,
           badges: user.badges || [],
