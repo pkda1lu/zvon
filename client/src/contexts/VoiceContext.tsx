@@ -269,6 +269,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isMuted, setIsMuted] = useState(false);
     const [isDeafened, setIsDeafened] = useState(false);
     const [isServerMuted, setIsServerMuted] = useState(false); // New state
+    const [myServerNickname, setMyServerNickname] = useState<string | null>(null);
     const [isServerDeafened, setIsServerDeafened] = useState(false); // New state
     const [noiseSuppressionMode, setNoiseSuppressionModeState] = useState<'none' | 'standard' | 'rnnoise'>(
         (localStorage.getItem('noiseSuppressionMode') as any) || 'rnnoise'
@@ -1286,9 +1287,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             joinChannelRef.current(data.channelId);
         };
 
-        const handleServerStateUpdate = (data: { isServerMuted?: boolean; isServerDeafened?: boolean }) => {
+        const handleServerStateUpdate = (data: { isServerMuted?: boolean; isServerDeafened?: boolean; myNickname?: string | null }) => {
             if (data.isServerMuted !== undefined) setIsServerMuted(data.isServerMuted);
             if (data.isServerDeafened !== undefined) setIsServerDeafened(data.isServerDeafened);
+            if (data.myNickname !== undefined) setMyServerNickname(data.myNickname);
         };
 
         socket.on('voice-existing-users', (users) => {
@@ -1580,11 +1582,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
             const localUser = user;
             
-            // Try to find the local user's server-specific nickname from connectedUsers
-            // (server sends nickname alongside other voice members; me-as-member entry
-            // may not always be present, fall back to username).
-            const meAsMember = connectedUsers.find(u => String(u._id) === String(localUser?._id)) as any;
-            const localNickname = meAsMember?.nickname || (localUser as any)?.nickname || localUser?.username;
+            // Local user's server nickname is delivered explicitly via
+            // 'voice-server-state-update' (myNickname) when we join a voice channel.
+            const localNickname = myServerNickname || localUser?.username;
 
             const overlayUsers = [
                 ...(localUser ? [{
@@ -1612,7 +1612,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         syncOverlay();
-    }, [speakingUsers, connectedUsers, isConnected, isMuted, isDeafened, isServerMuted, isServerDeafened, userStates, user, activeChannelId, isOverlayEnabled]);
+    }, [speakingUsers, connectedUsers, isConnected, isMuted, isDeafened, isServerMuted, isServerDeafened, userStates, user, activeChannelId, isOverlayEnabled, myServerNickname]);
 
     // Initial overlay toggle sync
     useEffect(() => {

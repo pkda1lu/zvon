@@ -779,7 +779,8 @@ io.on('connection', (socket) => {
       socket.emit('voice-existing-users', existingUsers);
       socket.emit('voice-server-state-update', {
         isServerMuted: socket.isServerMuted || false,
-        isServerDeafened: socket.isServerDeafened || false
+        isServerDeafened: socket.isServerDeafened || false,
+        myNickname: serverNickname,
       });
       await notifyVoiceChannelUpdate(channelId);
       const ch = await Channel.findById(channelId);
