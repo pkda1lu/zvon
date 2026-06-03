@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Совместный просмотр — Zvon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
+  <script src="/zvon-sdk.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M21.58 7.19a2.51 2.51 0 0 0-1.77-1.77C18.25 5 12 5 12 5s-6.25 0-7.81.42A2.51 2.51 0 0 0 2.42 7.19 26.3 26.3 0 0 0 2 12a26.3 26.3 0 0 0 .42 4.81 2.51 2.51 0 0 0 1.77 1.77C5.75 19 12 19 12 19s6.25 0 7.81-.42a2.51 2.51 0 0 0 1.77-1.77A26.3 26.3 0 0 0 22 12a26.3 26.3 0 0 0-.42-4.81zM10 15V9l5.2 3z"/></svg>
+        <span>Совместный просмотр</span>
+      </div>
+      <div id="status" class="status"></div>
+    </header>
+
+    <div id="control-bar" class="control-bar">
+      <input id="url" placeholder="Вставь ссылку на YouTube видео…" autocomplete="off" />
+      <button id="start-btn" class="start-btn">Смотреть вместе</button>
+      <button id="stop-btn" class="stop-btn hidden" title="Завершить просмотр">Завершить</button>
+    </div>
+
+    <main id="stage" class="stage">
+      <div id="idle" class="idle">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor"><path d="M21.58 7.19a2.51 2.51 0 0 0-1.77-1.77C18.25 5 12 5 12 5s-6.25 0-7.81.42A2.51 2.51 0 0 0 2.42 7.19 26.3 26.3 0 0 0 2 12a26.3 26.3 0 0 0 .42 4.81 2.51 2.51 0 0 0 1.77 1.77C5.75 19 12 19 12 19s6.25 0 7.81-.42a2.51 2.51 0 0 0 1.77-1.77A26.3 26.3 0 0 0 22 12a26.3 26.3 0 0 0-.42-4.81zM10 15V9l5.2 3z"/></svg>
+        <h2>Смотрите YouTube вместе</h2>
+        <p id="idle-hint">Вставь ссылку на видео и нажми «Смотреть вместе» — оно откроется у всех в голосовом канале и будет синхронизировано.</p>
+      </div>
+      <div id="player-wrap" class="player-wrap hidden">
+        <div id="yt-player"></div>
+        <div id="follower-lock" class="follower-lock hidden"></div>
+      </div>
+    </main>
+
+    <div id="banner" class="banner hidden"></div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

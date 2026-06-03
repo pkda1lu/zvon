@@ -242,6 +242,31 @@ const Main: React.FC = () => {
     socket.emit('activity-update', null);
   }, [socket, currentGameActivity, openMiniApps]);
 
+  // Auto-open a collaborative mini-app (e.g. watch-together) when another member
+  // of our voice channel starts a session, or when we join a channel that already
+  // has one running. The server emits 'miniapp-open-app' with the app id.
+  useEffect(() => {
+    if (!socket) return;
+    const onOpenApp = async ({ appId }: { appId: string }) => {
+      setOpenMiniApps(prev => {
+        if (prev.find(a => a._id === appId)) return prev; // already open
+        // Fetch the app meta then append (guard against double-open via the ref check above).
+        axios.get(`/api/miniapps/${appId}`)
+          .then(r => {
+            const app = r.data?.app || r.data;
+            if (app && app._id) {
+              setMinimizedMiniAppIds(p => { const n = new Set(p); n.delete(app._id); return n; });
+              setOpenMiniApps(cur => cur.find(a => a._id === app._id) ? cur : [...cur, app]);
+            }
+          })
+          .catch(err => console.warn('[MiniApp] auto-open failed:', err?.message));
+        return prev;
+      });
+    };
+    socket.on('miniapp-open-app', onOpenApp);
+    return () => { socket.off('miniapp-open-app', onOpenApp); };
+  }, [socket]);
+
   useEffect(() => {
     if (selectedChannel) {
       setUnreadCounts((prev: Record<string, number>) => {

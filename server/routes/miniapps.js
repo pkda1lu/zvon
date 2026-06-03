@@ -40,6 +40,21 @@ router.get('/my', auth, async (req, res) => {
     }
 });
 
+// Public meta for a single mini-app (used to auto-open collaborative apps).
+// Only returns apps that are launchable: system, published, or owned by the user.
+router.get('/:id', auth, async (req, res) => {
+    try {
+        const app = await MiniApp.findById(req.params.id)
+            .select('name url description avatar banner owner isSystem isPublished isBlocked');
+        if (!app) return res.status(404).json({ message: 'MiniApp not found' });
+        const launchable = app.isSystem || (app.isPublished && !app.isBlocked) || String(app.owner) === String(req.user._id);
+        if (!launchable) return res.status(403).json({ message: 'Not available' });
+        res.json({ app });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // Update mini-app
 router.patch('/:id', auth, async (req, res) => {
     try {

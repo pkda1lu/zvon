@@ -6,13 +6,12 @@ import { Channel, User, Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon, PlayIcon, MaximizeIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon, FullscreenIcon, YouTubeIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon, PlayIcon, MaximizeIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon, FullscreenIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
-import SharedYouTubePlayer from './SharedYouTubePlayer';
 import PresenceTile from './PresenceTile';
 import './panel-hero.css';
 import './VoiceChannelView.css';
@@ -310,37 +309,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const [showScreenSelector, setShowScreenSelector] = useState(false);
   const [expandedStreamId, setExpandedStreamId] = useState<string | null>(null);
   const [focusedStreamId, setFocusedStreamId] = useState<string | null>(null);
-  const [ytSession, setYtSession] = useState<any>(null);
-  const [ytInputOpen, setYtInputOpen] = useState(false);
-  const [ytPlaceholderRect, setYtPlaceholderRect] = useState<DOMRect | null>(null);
-  const ytPlaceholderRef = useRef<HTMLDivElement>(null);
-  const [ytUrl, setYtUrl] = useState('');
   const viewRef = useRef<HTMLDivElement>(null);
   const [ctrlsRect, setCtrlsRect] = useState<{bottom: number, left: number, width: number} | null>(null);
-
-  const getYouTubeId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
-
-  const handleStartYouTube = () => {
-    const id = getYouTubeId(ytUrl);
-    if (id) {
-      socket?.emit('yt-watch-start', { channelId: channel._id, youtubeId: id });
-      setYtInputOpen(false);
-      setYtUrl('');
-    } else {
-      alert('Некорректная ссылка на YouTube');
-    }
-  };
-
-  const handleStopYouTube = () => {
-    socket?.emit('yt-watch-stop', { channelId: channel._id });
-    setYtSession(null);
-    if (focusedStreamId === 'youtube-watch') setFocusedStreamId(null);
-    if (expandedStreamId === 'youtube-watch') setExpandedStreamId(null);
-  };
 
   const handleCloseContextMenu = () => setContextMenu(null);
 
@@ -371,48 +341,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         }
       };
 
-      const handleYtWatchState = (state: any) => {
-        setYtSession(state);
-        if (state && !focusedStreamId) {
-          setFocusedStreamId('youtube-watch');
-        } else if (!state) {
-          if (focusedStreamId === 'youtube-watch') setFocusedStreamId(null);
-          if (expandedStreamId === 'youtube-watch') setExpandedStreamId(null);
-        }
-      };
-
       socket.on('voice-channel-users-update', handleUpdate);
-      socket.on('yt-watch-state', handleYtWatchState);
-      
+
       return () => {
         socket.off('voice-channel-users-update', handleUpdate);
-        socket.off('yt-watch-state', handleYtWatchState);
       };
     }
   }, [channel._id, socket]);
-
-  // Sync YouTube placeholder position
-  useEffect(() => {
-    if (!ytSession || !ytPlaceholderRef.current) return;
-
-    const updateRect = () => {
-      if (ytPlaceholderRef.current) {
-        setYtPlaceholderRect(ytPlaceholderRef.current.getBoundingClientRect());
-      }
-    };
-
-    updateRect();
-    const observer = new ResizeObserver(updateRect);
-    observer.observe(ytPlaceholderRef.current);
-    window.addEventListener('scroll', updateRect, true);
-    window.addEventListener('resize', updateRect);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', updateRect, true);
-      window.removeEventListener('resize', updateRect);
-    };
-  }, [ytSession, expandedStreamId, focusedStreamId]);
 
   // Track voice-channel-view bounds for portaled controls positioning
   useEffect(() => {
@@ -523,10 +458,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       });
     }
     
-    if (ytSession) {
-      items.push({ _id: 'youtube-watch', type: 'youtube', ...ytSession });
-    }
-
     // Virtual mini-app presences for this channel
     const channelKey = 'channel-' + channel._id;
     for (const p of voicePresences.values()) {
@@ -536,7 +467,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     }
 
     return items;
-  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, isVideoOn, localCameraStream, externalParticipants, userStates, remoteScreenStreams, remoteStreams, ytSession, voicePresences, channel._id]);
+  }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, isVideoOn, localCameraStream, externalParticipants, userStates, remoteScreenStreams, remoteStreams, voicePresences, channel._id]);
 
   useEffect(() => {
     if (!isConnectedToThisChannel) {
@@ -596,24 +527,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           onVolumeChange={(v) => setPresenceVolume(p.sessionId, v)}
           onControl={(controlId, value) => sendPresenceControl(p.channelId, p.sessionId, controlId, value)}
         />
-      );
-    }
-
-    if (item.type === 'youtube') {
-      const isExpanded = expandedStreamId === 'youtube-watch';
-      return (
-        <div 
-          key="youtube-watch" 
-          ref={ytPlaceholderRef}
-          className={`p-card youtube-placeholder ${focusedStreamId === 'youtube-watch' ? 'is-focused' : ''} ${isExpanded ? 'is-expanded' : ''}`} 
-          onClick={() => setFocusedStreamId(focusedStreamId === 'youtube-watch' ? null : 'youtube-watch')}
-          style={{ background: '#000' }}
-        >
-          {/* Real player is in Portal to avoid restart */}
-          <div className="stream-overlay">
-            <YouTubeIcon size={48} color="rgba(255,255,255,0.1)" />
-          </div>
-        </div>
       );
     }
 
@@ -746,13 +659,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               >
                 <MonitorIcon size={20} />
               </button>
-              <button
-                className={`ctrl-btn ${ytSession ? 'streaming' : ''}`}
-                onClick={() => ytSession ? (focusedStreamId === 'youtube-watch' ? setFocusedStreamId(null) : setFocusedStreamId('youtube-watch')) : setYtInputOpen(true)}
-                title={ytSession ? 'Просмотр YouTube' : 'Запустить совместный просмотр YouTube'}
-              >
-                <YouTubeIcon size={20} />
-              </button>
               <div className="ctrl-sep"></div>
               <button
                 className="ctrl-btn hangup"
@@ -781,42 +687,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         />
       )}
 
-      {ytInputOpen && createPortal(
-        <div className="yt-input-modal-overlay" onClick={() => setYtInputOpen(false)}>
-          <div className="yt-input-modal" onClick={e => e.stopPropagation()}>
-            <h3>Совместный просмотр YouTube</h3>
-            <p>Вставьте ссылку на видео, чтобы начать просмотр вместе с остальными участниками.</p>
-            <input 
-              type="text" 
-              placeholder="https://www.youtube.com/watch?v=..." 
-              value={ytUrl}
-              onChange={e => setYtUrl(e.target.value)}
-              autoFocus
-              onKeyDown={e => e.key === 'Enter' && handleStartYouTube()}
-            />
-            <div className="yt-modal-actions">
-              <button className="btn-cancel" onClick={() => setYtInputOpen(false)}>Отмена</button>
-              <button className="btn-start" onClick={handleStartYouTube}>Запустить</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-      {ytSession && createPortal(
-        <SharedYouTubePlayer
-          channelId={channel._id}
-          youtubeId={ytSession.youtubeId}
-          isHost={String(ytSession.hostId) === String(currentUser?._id)}
-          onStop={handleStopYouTube}
-          initialTime={ytSession.currentTime}
-          initialPlaying={ytSession.playing}
-          isFocused={focusedStreamId === 'youtube-watch'}
-          onToggleExpand={() => setExpandedStreamId(expandedStreamId === 'youtube-watch' ? null : 'youtube-watch')}
-          isExpanded={expandedStreamId === 'youtube-watch'}
-          placeholderRect={ytPlaceholderRect}
-        />,
-        document.body
-      )}
     </div>
   );
 };

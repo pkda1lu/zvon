@@ -1979,32 +1979,58 @@ registerProcessor('vad-processor', VADProcessor);
     const [voicePresences, setVoicePresences] = useState<Map<string, VoicePresenceInfo>>(new Map());
     const [presenceAudioStreams, setPresenceAudioStreams] = useState<Map<string, MediaStream>>(new Map());
     const [presenceVideoStreams, setPresenceVideoStreams] = useState<Map<string, MediaStream>>(new Map());
-    const [presenceVolumes, setPresenceVolumes] = useState<Map<string, number>>(() => {
+    // Listener-side volume for each mini-app presence.
+    //
+    // The runtime map is keyed by the ephemeral `sessionId` (recreated every time
+    // the mini-app restarts), but persistence is keyed by a STABLE key derived
+    // from owner + app name. That way the volume a user set survives mini-app
+    // restarts: when the same app rejoins under a fresh sessionId, we re-seed its
+    // volume from the stored value.
+    const presenceVolStore = useRef<Record<string, number>>((() => {
         try {
             const stored = localStorage.getItem('presenceVolumes');
-            if (stored) return new Map(Object.entries(JSON.parse(stored)) as [string, number][]);
+            if (stored) return JSON.parse(stored) as Record<string, number>;
         } catch {}
-        return new Map();
-    });
+        return {};
+    })());
+    // sessionId -> stable persistence key, populated as presences arrive.
+    const presenceKeyRef = useRef<Map<string, string>>(new Map());
+    const [presenceVolumes, setPresenceVolumes] = useState<Map<string, number>>(new Map());
+
+    const presenceStableKey = (p: VoicePresenceInfo) => `${p.ownerUserId}::${p.displayName}`;
+
+    // Map a freshly-seen presence to its stored volume (if any).
+    const seedPresenceVolume = useCallback((p: VoicePresenceInfo) => {
+        const key = presenceStableKey(p);
+        presenceKeyRef.current.set(p.sessionId, key);
+        const stored = presenceVolStore.current[key];
+        if (typeof stored === 'number') {
+            setPresenceVolumes(prev => (prev.has(p.sessionId) ? prev : new Map(prev).set(p.sessionId, stored)));
+        }
+    }, []);
+
     const setPresenceVolume = useCallback((sessionId: string, volume: number) => {
-        setPresenceVolumes(prev => {
-            const next = new Map(prev);
-            next.set(sessionId, Math.max(0, Math.min(2, volume)));
-            try { localStorage.setItem('presenceVolumes', JSON.stringify(Object.fromEntries(next))); } catch {}
-            return next;
-        });
+        const vol = Math.max(0, Math.min(2, volume));
+        setPresenceVolumes(prev => new Map(prev).set(sessionId, vol));
+        const key = presenceKeyRef.current.get(sessionId);
+        if (key) {
+            presenceVolStore.current[key] = vol;
+            try { localStorage.setItem('presenceVolumes', JSON.stringify(presenceVolStore.current)); } catch {}
+        }
     }, []);
 
     useEffect(() => {
         if (!socket) return;
-        const onAdded = (p: VoicePresenceInfo) => setVoicePresences(prev => new Map(prev).set(p.sessionId, p));
-        const onUpdated = (p: VoicePresenceInfo) => setVoicePresences(prev => new Map(prev).set(p.sessionId, p));
+        const onAdded = (p: VoicePresenceInfo) => { seedPresenceVolume(p); setVoicePresences(prev => new Map(prev).set(p.sessionId, p)); };
+        const onUpdated = (p: VoicePresenceInfo) => { seedPresenceVolume(p); setVoicePresences(prev => new Map(prev).set(p.sessionId, p)); };
         const onRemoved = ({ sessionId }: { sessionId: string }) => {
+            presenceKeyRef.current.delete(sessionId);
             setVoicePresences(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
             setPresenceAudioStreams(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
             setPresenceVideoStreams(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
         };
         const onSnapshot = ({ presences }: { presences: VoicePresenceInfo[] }) => {
+            presences.forEach(seedPresenceVolume);
             setVoicePresences(prev => {
                 const next = new Map(prev);
                 presences.forEach(p => next.set(p.sessionId, p));
@@ -2021,7 +2047,7 @@ registerProcessor('vad-processor', VADProcessor);
             socket.off('voice-presence-removed', onRemoved);
             socket.off('voice-presences-snapshot', onSnapshot);
         };
-    }, [socket]);
+    }, [socket, seedPresenceVolume]);
 
     const sendPresenceControl = useCallback((channelId: string, sessionId: string, controlId: string, value?: any) => {
         if (!socket) return;

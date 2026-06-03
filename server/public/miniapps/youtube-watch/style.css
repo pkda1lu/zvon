@@ -1,0 +1,189 @@
+:root {
+  --bg: #0e0e10;
+  --bg-elev-1: #131316;
+  --bg-elev-2: #1a1a1f;
+  --border: #26262c;
+  --text: #f3f3f5;
+  --text-dim: #9a9aa3;
+  --accent: #ff3b30;
+  --accent-2: #ff6a5f;
+  --host: #4ade80;
+  --guest: #60a5fa;
+  --warn: #fbbf24;
+  --error: #f87171;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ---------- Topbar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-elev-1);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.brand svg { color: var(--accent); flex: none; }
+
+.status {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.status.host { color: var(--host); }
+.status.guest { color: var(--guest); }
+
+/* ---------- Control bar ---------- */
+.control-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+#url {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color .15s ease;
+}
+
+#url::placeholder { color: var(--text-dim); }
+#url:focus { border-color: var(--accent); }
+
+.start-btn, .stop-btn {
+  flex: none;
+  border: none;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 18px;
+  cursor: pointer;
+  transition: transform .1s ease, opacity .15s ease, background .15s ease;
+}
+
+.start-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+}
+
+.start-btn:hover { opacity: .92; }
+.start-btn:active { transform: scale(.97); }
+
+.stop-btn {
+  background: var(--bg-elev-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.stop-btn:hover { background: #24242a; border-color: #34343c; }
+.stop-btn:active { transform: scale(.97); }
+
+/* ---------- Stage ---------- */
+.stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  background: #000;
+  overflow: hidden;
+}
+
+.idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 32px;
+  color: var(--text-dim);
+  max-width: 440px;
+}
+
+.idle svg { color: #2c2c33; }
+.idle h2 { font-size: 19px; font-weight: 700; color: var(--text); }
+.idle p { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+
+/* ---------- Player ---------- */
+.player-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+#yt-player, #yt-player iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+  display: block;
+}
+
+/* Followers can't interact with the player — invisible overlay swallows clicks. */
+.follower-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+/* ---------- Banner ---------- */
+.banner {
+  flex: none;
+  margin: 0;
+  padding: 11px 16px;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+.banner.info { background: var(--bg-elev-1); color: var(--text-dim); }
+.banner.warn { background: rgba(251, 191, 36, .12); color: var(--warn); }
+.banner.error { background: rgba(248, 113, 113, .12); color: var(--error); }
+
+.hidden { display: none !important; }
