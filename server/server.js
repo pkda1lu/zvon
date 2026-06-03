@@ -143,7 +143,10 @@ app.get('/api/channels/:id/voice-participants', async (req, res) => {
   catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
-const voiceChannelYouTubeStates = new Map();
+// Active collaborative mini-app session per voice channel, used to auto-open the
+// app for members who join while a session (e.g. a watch-together) is running.
+// Map<channelId, { appId, hostUserId, ts }>
+const miniappWatchByChannel = new Map();
 
 // --- Voice presences (mini-app virtual participants) ---
 // Map<channelId, Map<sessionId, presence>>
@@ -178,6 +181,18 @@ function cleanupUserPresencesInChannel(channelId, userId, io) {
     }
   }
   if (m.size === 0) voicePresencesByChannel.delete(String(channelId));
+}
+// If the leaving user hosts the channel's collaborative session, tear it down.
+// `channelId` here is the RAW voice channel id (the key used by miniappWatchByChannel
+// and the `voice-channel-<id>` socket room).
+function endWatchIfHost(channelId, userId, io) {
+  const w = miniappWatchByChannel.get(String(channelId));
+  if (w && String(w.hostUserId) === String(userId)) {
+    miniappWatchByChannel.delete(String(channelId));
+    io.to(`voice-channel-${channelId}`).emit('miniapp-broadcast', {
+      appId: w.appId, event: 'stop', data: {}, fromUserId: String(userId),
+    });
+  }
 }
 function cleanupUserPresencesEverywhere(userId, io) {
   for (const [chId, m] of voicePresencesByChannel.entries()) {
@@ -786,41 +801,32 @@ io.on('connection', (socket) => {
       const ch = await Channel.findById(channelId);
       if (ch && ch.server) io.to(`server-${ch.server}`).emit('voice-channel-users-update', { channelId, users: await getVoiceChannelUsers(channelId) });
 
-      // Sync YouTube state if active
-      if (voiceChannelYouTubeStates.has(channelId)) {
-        socket.emit('yt-watch-state', voiceChannelYouTubeStates.get(channelId));
+      // If a collaborative mini-app session (e.g. watch-together) is active in
+      // this channel, auto-open the app for the joining member so they sync up.
+      const activeWatch = miniappWatchByChannel.get(channelId);
+      if (activeWatch && String(activeWatch.hostUserId) !== String(socket.userId)) {
+        socket.emit('miniapp-open-app', { appId: activeWatch.appId });
       }
     } catch (e) { console.error('Join voice error', e); }
   });
 
-  socket.on('yt-watch-start', (data) => {
-    const { channelId, youtubeId } = data;
-    if (!channelId || !youtubeId) return;
-    const state = { youtubeId, currentTime: 0, playing: true, lastUpdated: Date.now(), hostId: socket.userId };
-    voiceChannelYouTubeStates.set(channelId, state);
-    io.to(`voice-channel-${channelId}`).emit('yt-watch-state', state);
-  });
-
-  socket.on('yt-watch-sync', (data) => {
-    const { channelId, state } = data;
-    if (!channelId || !state) return;
-    const currentState = voiceChannelYouTubeStates.get(channelId);
-    if (!currentState) return;
-    
-    // Update state
-    currentState.currentTime = state.currentTime;
-    currentState.playing = state.playing;
-    currentState.lastUpdated = Date.now();
-    
-    // Broadcast to others
-    socket.to(`voice-channel-${channelId}`).emit('yt-watch-state', currentState);
-  });
-
-  socket.on('yt-watch-stop', (data) => {
-    const { channelId } = data;
-    if (!channelId) return;
-    voiceChannelYouTubeStates.delete(channelId);
-    io.to(`voice-channel-${channelId}`).emit('yt-watch-state', null);
+  // Generic real-time relay between members of a voice channel who have the same
+  // mini-app open. Powers collaborative apps via zvon.broadcast(event, data).
+  socket.on('miniapp-broadcast', (data) => {
+    const { channelId, appId, event, data: payload, open } = data || {};
+    if (!channelId || !appId || !event) return;
+    socket.to(`voice-channel-${channelId}`).emit('miniapp-broadcast', {
+      appId, event, data: payload, fromUserId: String(socket.userId),
+    });
+    if (open) {
+      miniappWatchByChannel.set(channelId, { appId, hostUserId: String(socket.userId), ts: Date.now() });
+      socket.to(`voice-channel-${channelId}`).emit('miniapp-open-app', { appId });
+    }
+    // A collaborative session ends — stop auto-opening for late joiners.
+    if (event === 'stop') {
+      const w = miniappWatchByChannel.get(channelId);
+      if (w && w.appId === appId) miniappWatchByChannel.delete(channelId);
+    }
   });
 
   socket.on('admin-voice-kick', async (data) => {
@@ -898,15 +904,11 @@ io.on('connection', (socket) => {
   socket.on('leave-voice-channel', async (data) => {
     const channelId = data.channelId;
     cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
+    endWatchIfHost(channelId, socket.userId, io);
     socket.leave(`voice-channel-${channelId}`);
     socket.voiceChannelId = null;
     io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
     await notifyVoiceChannelUpdate(channelId);
-
-    const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
-    if (!room || room.size === 0) {
-      voiceChannelYouTubeStates.delete(channelId);
-    }
   });
 
   socket.on('admin-voice-move', async (data) => {
@@ -1016,13 +1018,9 @@ io.on('connection', (socket) => {
     if (socket.voiceChannelId) {
       const channelId = socket.voiceChannelId;
       cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
+      endWatchIfHost(channelId, socket.userId, io);
       io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
       await notifyVoiceChannelUpdate(channelId);
-
-      const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
-      if (!room || room.size === 0) {
-        voiceChannelYouTubeStates.delete(channelId);
-      }
     }
     if (socket.dmCallId) cleanupUserPresencesInChannel('call-' + socket.dmCallId, socket.userId, io);
     cleanupUserPresencesEverywhere(socket.userId, io);

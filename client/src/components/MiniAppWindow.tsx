@@ -209,6 +209,20 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                         break;
                     }
 
+                    case 'broadcast': {
+                        if (!socket) { respond(id, { ok: false, error: 'no socket' }); break; }
+                        if (!activeChannelId) { respond(id, { ok: false, error: 'Не в голосовом канале' }); break; }
+                        socket.emit('miniapp-broadcast', {
+                            channelId: activeChannelId,
+                            appId: app._id,
+                            event: payload?.event,
+                            data: payload?.data,
+                            open: !!payload?.open,
+                        });
+                        respond(id, { ok: true });
+                        break;
+                    }
+
                     case 'voicePresence.create': {
                         const { sessionId, displayName, avatar } = payload;
                         const channelId = currentVoiceChannelId();
@@ -401,6 +415,19 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
         socket.on('voice-presence-control', onControl);
         return () => { socket.off('voice-presence-control', onControl); };
     }, [socket]);
+
+    // Forward collaborative broadcasts (zvon.broadcast) destined for THIS app
+    // from other channel members into the iframe as a 'broadcast' event.
+    useEffect(() => {
+        if (!socket) return;
+        const onBroadcast = (data: { appId: string; event: string; data: any; fromUserId: string }) => {
+            if (String(data.appId) !== String(app._id)) return;
+            const iframe = iframeRef.current;
+            try { iframe?.contentWindow?.postMessage({ __zvon: true, event: 'broadcast', payload: { event: data.event, data: data.data, fromUserId: data.fromUserId } }, '*'); } catch {}
+        };
+        socket.on('miniapp-broadcast', onBroadcast);
+        return () => { socket.off('miniapp-broadcast', onBroadcast); };
+    }, [socket, app._id]);
 
     // Cleanup any published tracks and presences on unmount
     useEffect(() => {

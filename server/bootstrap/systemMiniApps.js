@@ -7,6 +7,11 @@ const SYSTEM_APPS = [
     path: '/miniapps/yandex-music/',
     description: 'Слушайте Яндекс Музыку вместе в голосовом канале. Эта мини-аппка — пример использования Zvon Mini-App SDK: любой может написать свою такую же.',
   },
+  {
+    name: 'Совместный просмотр',
+    path: '/miniapps/youtube-watch/',
+    description: 'Смотрите YouTube вместе в голосовом канале: видео синхронно открывается у всех участников и управляется ведущим. Пример коллаборативной мини-аппки на Zvon SDK.',
+  },
 ];
 
 module.exports = async function registerSystemMiniApps() {

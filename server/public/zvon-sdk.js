@@ -191,6 +191,20 @@
     sendMessage: (channelId, payload) => call('sendMessage', { channelId, ...payload }),
 
     /**
+     * Broadcast a real-time message to every other member of the user's current
+     * voice channel who has THIS mini-app open. Use it to build collaborative
+     * experiences (watch-together, shared whiteboards, etc.).
+     *
+     *   event — your own string tag, e.g. 'start' | 'sync' | 'stop'
+     *   data  — any JSON-serializable payload
+     *   opts.open — if true, also asks the server to auto-open this mini-app for
+     *               every other channel member (so they instantly join the session).
+     *
+     * Receive broadcasts via `zvon.on('broadcast', ({ event, data, fromUserId }) => ...)`.
+     */
+    broadcast: (event, data, opts) => call('broadcast', { event, data, open: !!(opts && opts.open) }),
+
+    /**
      * Open an OAuth popup. Resolves with { href, hash, search } once the popup
      * navigates to your `redirectUri` (substring match on origin + path).
      * Pass redirectUri explicitly so the bridge can ignore intermediate auth
