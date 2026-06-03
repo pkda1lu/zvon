@@ -37,6 +37,12 @@
   let _libraryCache = null;
   const _libraryExpanded = new Set();
 
+  // "Моя волна" — infinite personalized radio (Yandex rotor station).
+  let waveMode = false;
+  const waveStation = 'user:onyourwave';
+  let waveBatchId = null;
+  let waveLoading = false;
+
   // Voice channel presence (the mini-app's tile inside the user's voice channel).
   let presence = null;
   let progressTimer = null;
@@ -64,7 +70,10 @@
     audio.crossOrigin = 'anonymous';
     audio.preload = 'auto';
     audio.volume = _userVolume;
-    audio.addEventListener('ended', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback(); });
+    audio.addEventListener('ended', () => {
+      if (waveMode) sendWaveFeedback('trackFinished', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio.duration || 0) });
+      if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback();
+    });
     audio.addEventListener('timeupdate', () => { updateLocalProgress(); pushPresenceProgress(); });
     audio.addEventListener('play',  () => { setPlayIcon(true);  updatePresenceControls(); });
     audio.addEventListener('pause', () => { setPlayIcon(false); updatePresenceControls(); });
@@ -111,7 +120,10 @@
 
   $('#btn-play').addEventListener('click', () => { if (audio) audio.paused ? audio.play() : audio.pause(); });
   $('#btn-prev').addEventListener('click', () => { if (currentIndex > 0) playIndex(currentIndex - 1); });
-  $('#btn-next').addEventListener('click', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); });
+  $('#btn-next').addEventListener('click', () => {
+    if (waveMode) sendWaveFeedback('skip', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
+    if (currentIndex < queue.length - 1) playIndex(currentIndex + 1);
+  });
   $('#btn-stop').addEventListener('click', stopPlayback);
   $('#btn-shuffle').addEventListener('click', toggleShuffle);
 
@@ -290,6 +302,18 @@
     `;
     main.innerHTML = `
       <div id="voice-banner"></div>
+      ${ymAccount?.uid ? `
+      <button id="wave-card" class="wave-card" type="button">
+        <div class="wave-card-glow"></div>
+        <div class="wave-card-eq"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="wave-card-text">
+          <div class="wave-card-title">Моя волна</div>
+          <div class="wave-card-sub">Бесконечный поток музыки для тебя</div>
+        </div>
+        <div class="wave-card-play">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+      </button>` : ''}
       <div id="results-section" hidden>
         <div class="section-title">Результаты</div>
         <div id="results" class="track-list"></div>
@@ -300,6 +324,7 @@
     renderVoiceJoinButton();
     renderLibrary();
     updateQueueBadge();
+    $('#wave-card')?.addEventListener('click', startWave);
     const q = $('#q');
     q.focus();
     let searchTimer = null;
@@ -631,6 +656,7 @@
         // Click row → play this single track immediately
         row.addEventListener('click', (e) => {
           if (e.target.closest('button')) return;
+          exitWave();
           const idx = tracks.indexOf(t);
           const startIdx = queue.length;
           tracks.slice(idx).forEach(tr => queue.push(tr));
@@ -647,6 +673,7 @@
     });
 
     $('#page-play-all').addEventListener('click', () => {
+      exitWave();
       const startIdx = queue.length;
       tracks.forEach(t => queue.push(t));
       renderQueue();
@@ -724,7 +751,10 @@
 
   function onPresenceControl({ controlId, value }) {
     if (controlId === 'play-pause') audio && (audio.paused ? audio.play() : audio.pause());
-    else if (controlId === 'next') { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); }
+    else if (controlId === 'next') {
+      if (waveMode) sendWaveFeedback('skip', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
+      if (currentIndex < queue.length - 1) playIndex(currentIndex + 1);
+    }
     else if (controlId === 'prev') { if (currentIndex > 0) playIndex(currentIndex - 1); }
     else if (controlId === 'seek' && audio && isFinite(audio.duration)) audio.currentTime = (Number(value) / 100) * audio.duration;
   }
@@ -1027,43 +1057,131 @@
     renderQueue();
   }
   async function addAndPlay(track) {
+    exitWave();
     queue.push(track);
     renderQueue();
     await playIndex(queue.length - 1);
   }
 
+  // ---------- "Моя волна" (rotor radio) ----------
+
+  async function fetchWaveBatch(prevTrackId) {
+    let path = `/rotor/station/${encodeURIComponent(waveStation)}/tracks?settings2=true`;
+    if (prevTrackId) path += `&queue=${encodeURIComponent(prevTrackId)}`;
+    const data = await yaCall(path);
+    if (data.result?.batchId) waveBatchId = data.result.batchId;
+    const seq = data.result?.sequence || [];
+    return seq.map(s => s.track).filter(Boolean).map(normalizeTrack);
+  }
+
+  // Best-effort: rotor personalizes "Моя волна" from these play/skip events.
+  function sendWaveFeedback(type, extra) {
+    const body = Object.assign({ type, from: 'zvon-radio', timestamp: new Date().toISOString() }, extra || {});
+    let path = `/rotor/station/${encodeURIComponent(waveStation)}/feedback`;
+    if (waveBatchId && type !== 'radioStarted') path += `?batch-id=${encodeURIComponent(waveBatchId)}`;
+    sdk.fetch(YA_API + path, {
+      method: 'POST',
+      headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      responseType: 'json',
+    }).catch(e => console.warn('[YM] wave feedback failed:', type, e.message));
+  }
+
+  async function startWave() {
+    if (waveLoading) return;
+    const card = $('#wave-card');
+    if (card) card.classList.add('loading');
+    waveLoading = true;
+    try {
+      sendWaveFeedback('radioStarted', { from: 'zvon-radio-' + waveStation });
+      const tracks = await fetchWaveBatch(null);
+      if (!tracks.length) throw new Error('пустой ответ от rotor');
+      waveMode = true;
+      queue = tracks.slice();
+      currentIndex = -1;
+      renderQueue();
+      updateQueueBadge();
+      if (card) card.classList.remove('loading');
+      waveLoading = false;
+      await playIndex(0); // may kick off its own refill (manages waveLoading)
+    } catch (e) {
+      waveMode = false;
+      waveLoading = false;
+      if (card) card.classList.remove('loading');
+      console.error('[YM] wave start failed:', e);
+      const sub = card?.querySelector('.wave-card-sub');
+      if (sub) sub.textContent = 'Не удалось запустить: ' + e.message;
+    }
+  }
+
+  // Keep the wave flowing: append a fresh batch when the queue runs low.
+  function refillWave(prevTrackId) {
+    if (!waveMode || waveLoading) return;
+    waveLoading = true;
+    fetchWaveBatch(prevTrackId)
+      .then(more => {
+        if (!waveMode || !more?.length) return;
+        const have = new Set(queue.map(t => t.id));
+        const fresh = more.filter(t => !have.has(t.id));
+        if (fresh.length) { fresh.forEach(t => queue.push(t)); renderQueue(); updateQueueBadge(); }
+      })
+      .catch(e => console.warn('[YM] wave refill failed:', e.message))
+      .finally(() => { waveLoading = false; });
+  }
+
+  // Leaving wave mode whenever the user starts a hand-picked playlist/track,
+  // so the radio stops refilling and feedback stops firing.
+  function exitWave() { waveMode = false; waveBatchId = null; }
+
   // ---------- Playback ----------
 
-  async function playIndex(index) {
+  async function playIndex(index, _attemptedSet) {
     if (index < 0 || index >= queue.length) return;
+    // Guard against infinite skip loops if everything is blocked.
+    const attempted = _attemptedSet || new Set();
+    if (attempted.has(index)) { console.warn('[YM] all remaining tracks failed, stopping'); stopPlayback(); return; }
+    attempted.add(index);
+
     currentIndex = index;
     renderQueue();
     const track = queue[index];
     showPlayer(track, true);
 
+    const skipToNext = (reason) => {
+      console.warn('[YM] skipping track:', track.title, '—', reason);
+      if (currentIndex < queue.length - 1) playIndex(currentIndex + 1, attempted);
+      else { showPlayer(track, false, reason); stopPlayback(); }
+    };
+
     let streamUrl;
     try { streamUrl = await resolveStreamUrl(track.id); }
-    catch (e) { console.error('[YM] stream url failed:', e); showPlayer(track, false, 'Не удалось получить поток: ' + e.message); return; }
+    catch (e) { return skipToNext('недоступен: ' + e.message); }
 
     try {
       const r = await sdk.fetch(streamUrl, { responseType: 'arraybuffer', headers: { ...HEADERS_BASE } });
-      if (r.status >= 400) throw new Error('HTTP ' + r.status);
+      if (r.status >= 400) return skipToNext('HTTP ' + r.status);
       const bytes = Uint8Array.from(atob(r.base64), c => c.charCodeAt(0));
+      if (bytes.length < 1024) return skipToNext('пустой ответ');
       const blob = new Blob([bytes], { type: 'audio/mpeg' });
-      // Fresh audio element per track ensures captureStream gives a live track.
       recreateAudio();
       audio.src = URL.createObjectURL(blob);
-      await audio.play();
+      try { await audio.play(); }
+      catch (playErr) { return skipToNext('audio.play() ' + playErr.message); }
       showPlayer(track, false);
-      pushPresenceProgress._last = -1; // reset throttle so first update fires
+      pushPresenceProgress._last = -1;
       if (presence) await reattachPresenceMedia();
+      if (waveMode) {
+        sendWaveFeedback('trackStarted', { trackId: track.id });
+        if (index >= queue.length - 2) refillWave(track.id);
+      }
     } catch (e) {
       console.error('[YM] playback failed:', e);
-      showPlayer(track, false, 'Ошибка проигрывания: ' + e.message);
+      return skipToNext(e.message);
     }
   }
 
   async function stopPlayback() {
+    exitWave();
     if (audio) {
       try { audio.pause(); } catch { }
       audio.removeAttribute('src');
