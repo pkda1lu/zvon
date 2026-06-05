@@ -263,6 +263,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { alert } = useDialog();
 
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+    const activeChannelIdRef = useRef<string | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const isConnectedRef = useRef(false);
 
@@ -378,6 +379,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     useEffect(() => { isAutomaticSensitivityRef.current = isAutomaticSensitivity; }, [isAutomaticSensitivity]);
 
     useEffect(() => { isConnectedRef.current = isConnected; }, [isConnected]);
+    useEffect(() => { activeChannelIdRef.current = activeChannelId; }, [activeChannelId]);
 
     useEffect(() => {
         localStorage.setItem('selectedInputDeviceId', selectedInputDeviceId);
@@ -977,6 +979,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return;
         }
 
+        // Idempotent join: if we're already in this exact channel with a live
+        // LiveKit connection, do nothing. Prevents reconnect loops when a join is
+        // re-issued (e.g. force-join-voice fan-out to multiple sockets, or a
+        // self-targeted admin move) from tearing down and rebuilding a healthy room.
+        if (
+            activeChannelIdRef.current === channelId &&
+            isConnectedRef.current &&
+            roomRef.current &&
+            roomRef.current.state === ConnectionState.Connected
+        ) {
+            console.warn('[LiveKit] Already connected to this channel, ignoring duplicate join.');
+            return;
+        }
+
         // Use either the flag or the presence of a room as a reason to cleanup first
         if (isConnectedRef.current || roomRef.current) {
             await leaveChannel();
@@ -1284,6 +1300,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         const handleForceJoin = (data: { channelId: string }) => {
+            // Ignore a move into the channel we're already in — re-joining would
+            // needlessly drop and rebuild the LiveKit connection.
+            if (data.channelId === activeChannelIdRef.current) return;
             joinChannelRef.current(data.channelId);
         };
 
