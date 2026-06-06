@@ -21,6 +21,8 @@
   let syncTimer = null;       // host periodic sync
   let driftTimer = null;      // follower drift correction
   let suppressUntil = 0;      // ignore our own programmatic state changes
+  let presence = null;        // host's voice-channel tile for this watch party
+  let videoTitle = '';
 
   // ---------- YouTube IFrame API ----------
   window.onYouTubeIframeAPIReady = () => { ytReady = true; flushYT(); };
@@ -95,6 +97,61 @@
     return player && player.getPlayerState && player.getPlayerState() === window.YT.PlayerState.PLAYING;
   }
 
+  // ---------- Voice-channel presence tile (host only) ----------
+  // The host publishes a tile into the voice channel so EVERY member sees that a
+  // watch party is running and can control it — even before opening the player.
+  function thumbUrl(vid) { return 'https://img.youtube.com/vi/' + vid + '/hqdefault.jpg'; }
+
+  function presenceControls() {
+    return [
+      { id: 'play-pause', kind: 'button', label: isPlaying() ? '⏸' : '▶', tooltip: 'Пауза / Воспроизведение', style: 'primary' },
+      { id: 'stop', kind: 'button', label: '⏹', tooltip: 'Завершить просмотр', style: '' },
+    ];
+  }
+
+  async function fetchTitle(vid) {
+    try {
+      const r = await sdk.fetch('https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=' + vid, { responseType: 'json' });
+      return (r && r.data && r.data.title) || '';
+    } catch { return ''; }
+  }
+
+  async function createWatchPresence(vid) {
+    if (presence) { try { await presence.setBackground({ type: 'image', url: thumbUrl(vid) }); } catch {} return; }
+    try {
+      presence = await sdk.voicePresence.create({ displayName: 'Совместный просмотр', avatar: thumbUrl(vid) });
+      presence.on('control', onPresenceControl);
+      await presence.setAccentColor('#ff3b30');
+      await presence.setBackground({ type: 'image', url: thumbUrl(vid) });
+      await presence.setControls(presenceControls());
+      videoTitle = await fetchTitle(vid);
+      if (videoTitle) await presence.setSubtitle(videoTitle);
+    } catch (e) {
+      console.warn('[YTW] presence create failed', e.message);
+      presence = null;
+    }
+  }
+
+  async function destroyWatchPresence() {
+    if (!presence) return;
+    const p = presence; presence = null;
+    try { await p.destroy(); } catch {}
+  }
+
+  function refreshPresenceControls() {
+    if (presence) presence.setControls(presenceControls()).catch(() => {});
+  }
+
+  // Any member can tap the tile controls; only the host (tile owner) receives them.
+  function onPresenceControl(payload) {
+    if (!isHost || !playerReady) return;
+    if (payload.controlId === 'play-pause') {
+      if (isPlaying()) player.pauseVideo(); else player.playVideo();
+    } else if (payload.controlId === 'stop') {
+      teardown(true);
+    }
+  }
+
   // ---------- Host actions ----------
   function startSession(vid) {
     isHost = true;
@@ -108,6 +165,7 @@
     showBanner(null);
     broadcast('start', { videoId: vid, hostUserId: me, time: 0, playing: true, ts: Date.now() }, true);
     startHostSync();
+    createWatchPresence(vid);
   }
 
   function startHostSync() {
@@ -137,7 +195,8 @@
       player.loadVideoById({ videoId: data.videoId, startSeconds: targetTime(pendingSync) });
       applyPending();
     });
-    if (isHost) startHostSync(); else startFollowerDrift();
+    if (isHost) { startHostSync(); createWatchPresence(data.videoId); }
+    else { startFollowerDrift(); destroyWatchPresence(); }
   }
 
   function onRemoteSync(data) {
@@ -198,6 +257,7 @@
         playing: st === window.YT.PlayerState.PLAYING,
         ts: Date.now(),
       });
+      refreshPresenceControls();
     }
   }
 
@@ -209,6 +269,7 @@
   function teardown(broadcastStop) {
     if (broadcastStop) broadcast('stop', {});
     stopTimers();
+    destroyWatchPresence();
     const wasHost = isHost;
     isHost = false; hostUserId = null; videoId = null; pendingSync = null;
     if (player && player.stopVideo) { try { player.stopVideo(); } catch {} }
