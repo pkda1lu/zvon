@@ -11,6 +11,8 @@
   isolation: isolate;
 }
 
+.presence-card.is-launchable { cursor: pointer !important; }
+
 /* Lush blurred-cover backdrop layer — fills the tile, blurred for depth.
    Sits beneath the hero artwork and overlays. */
 .presence-cover-bg {

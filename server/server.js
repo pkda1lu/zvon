@@ -672,7 +672,7 @@ io.on('connection', (socket) => {
   }
 
   socket.on('voice-presence-create', (data) => {
-    const { sessionId, channelId, displayName, avatar } = data || {};
+    const { sessionId, channelId, displayName, avatar, appId } = data || {};
     if (!sessionId || !channelId || !userIsInPresenceChannel(socket, channelId)) return;
     const room = presenceSocketRoom(channelId);
     if (!room) return;
@@ -681,6 +681,7 @@ io.on('connection', (socket) => {
       ownerUserId: String(socket.userId),
       displayName: displayName || 'Мини-приложение',
       avatar: avatar || null,
+      appId: appId ? String(appId) : null,
       background: null,
       controls: [],
     };

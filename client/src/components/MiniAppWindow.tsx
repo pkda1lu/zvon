@@ -228,7 +228,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                         const channelId = currentVoiceChannelId();
                         if (!channelId) { respond(id, { ok: false, error: 'Не в голосовом канале' }); break; }
                         if (!socket) { respond(id, { ok: false, error: 'no socket' }); break; }
-                        socket.emit('voice-presence-create', { sessionId, channelId, displayName, avatar });
+                        socket.emit('voice-presence-create', { sessionId, channelId, displayName, avatar, appId: app._id });
                         presencesRef.current.set(sessionId, { channelId });
                         respond(id, { ok: true, result: channelId });
                         break;
