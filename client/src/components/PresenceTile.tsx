@@ -52,8 +52,20 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
         ...(solidBg ? { background: solidBg } : {}),
     };
 
+    // Tiles backed by a mini-app (e.g. watch-together) act as a launcher: clicking
+    // opens/restores that app's window for this member so they see the live content.
+    const openApp = () => {
+        if (!presence.appId) return;
+        window.dispatchEvent(new CustomEvent('zvon-open-miniapp', { detail: { appId: presence.appId } }));
+    };
+
     return (
-        <div className="p-card presence-card" style={tileStyle} onClick={(e) => e.stopPropagation()}>
+        <div
+            className={`p-card presence-card${presence.appId ? ' is-launchable' : ''}`}
+            style={tileStyle}
+            title={presence.appId ? 'Открыть окно мини-приложения' : undefined}
+            onClick={(e) => { e.stopPropagation(); openApp(); }}
+        >
             {/* Backdrop: blurred cover (for static images, gives lush colour spill) */}
             {cover && <div className="presence-cover-bg" style={{ backgroundImage: `url('${cover}')` }} />}
 

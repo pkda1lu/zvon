@@ -248,8 +248,10 @@ const Main: React.FC = () => {
   useEffect(() => {
     if (!socket) return;
     const onOpenApp = async ({ appId }: { appId: string }) => {
+      // Always make sure it's not minimized (restore if the user had collapsed it).
+      setMinimizedMiniAppIds(p => { if (!p.has(appId)) return p; const n = new Set(p); n.delete(appId); return n; });
       setOpenMiniApps(prev => {
-        if (prev.find(a => a._id === appId)) return prev; // already open
+        if (prev.find(a => a._id === appId)) return prev; // already open — just restored above
         // Fetch the app meta then append (guard against double-open via the ref check above).
         axios.get(`/api/miniapps/${appId}`)
           .then(r => {
@@ -263,8 +265,17 @@ const Main: React.FC = () => {
         return prev;
       });
     };
+    // Triggered remotely (host starts a session) and locally (clicking a watch tile).
+    const onLocalOpenApp = (e: Event) => {
+      const appId = (e as CustomEvent).detail?.appId;
+      if (appId) onOpenApp({ appId });
+    };
     socket.on('miniapp-open-app', onOpenApp);
-    return () => { socket.off('miniapp-open-app', onOpenApp); };
+    window.addEventListener('zvon-open-miniapp', onLocalOpenApp);
+    return () => {
+      socket.off('miniapp-open-app', onOpenApp);
+      window.removeEventListener('zvon-open-miniapp', onLocalOpenApp);
+    };
   }, [socket]);
 
   useEffect(() => {

@@ -233,6 +233,8 @@ export interface VoicePresenceInfo {
     /** Accent color used for the pulse animation and controls. */
     accentColor?: string | null;
     avatar: string | null;
+    /** Mini-app id that owns this presence — lets the tile re-open the app window. */
+    appId?: string | null;
     background: { type: 'image' | 'color' | 'video'; url?: string; color?: string } | null;
     controls: Array<{ id: string; kind: 'button' | 'slider'; label?: string; value?: number; min?: number; max?: number; tooltip?: string; style?: string }>;
 }
