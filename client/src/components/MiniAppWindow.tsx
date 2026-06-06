@@ -589,7 +589,8 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                     height="100%"
                     frameBorder="0"
                     onLoad={() => { setIsLoading(false); setIsBlocked(false); }}
-                    allow="geolocation; microphone; camera; midi; vr; accelerometer; gyroscope; payment; ambient-light-sensor; encrypted-media; usb; autoplay"
+                    allowFullScreen
+                    allow="geolocation; microphone; camera; midi; vr; accelerometer; gyroscope; payment; ambient-light-sensor; encrypted-media; usb; autoplay; fullscreen; clipboard-write; web-share"
                     style={{ pointerEvents: isDragging || isResizing ? 'none' : 'auto', background: 'white', display: isBlocked ? 'none' : 'block' }}
                 />
             </div>
