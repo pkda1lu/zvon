@@ -12,6 +12,11 @@ const SYSTEM_APPS = [
     path: '/miniapps/youtube-watch/',
     description: 'Смотрите YouTube вместе в голосовом канале: видео синхронно открывается у всех участников и управляется ведущим. Пример коллаборативной мини-аппки на Zvon SDK.',
   },
+  {
+    name: 'VPN Магазин',
+    path: '/miniapps/vpn-store/',
+    description: 'Онлайн-магазин VLESS VPN прямо в Zvon: тарифы, промокоды, оформление и личный кабинет с ключом и QR. Построен на Zvon Mini-App SDK.',
+  },
 ];
 
 module.exports = async function registerSystemMiniApps() {
