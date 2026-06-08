@@ -126,21 +126,15 @@
 <script>
 /* =========================================================================
  *  VPN-магазин — мини-апп для Zvon.
- *  Каталог и логика повторяют Telegram-бота (bot_single_release.py).
  *
- *  Режимы выдачи ключа:
- *   - SELF-CONTAINED (по умолчанию): заказы хранятся в zvon.storage,
- *     ключ генерируется локально (демо-режим, помечается значком «демо»).
- *   - BRIDGE: задайте BACKEND.base — и оформление пойдёт реальным запросом
- *     через zvon.fetch (серверный прокси Zvon, обходит CORS) на ваш VPN-бэкенд.
- *     Контракт см. в createOrderViaBackend().
+ *  Оплата и выдача ключей идут НАПРЯМУЮ через store-бэкенд самого Zvon
+ *  (zvon.store.*): сервер сам обращается к YooKassa/CryptoBot и к провижинеру
+ *  3x-ui. Никакого Telegram-бота. Когда мини-апп открыт внутри Zvon —
+ *  работает реальный режим; вне Zvon остаётся демо-витрина.
  * ====================================================================== */
-const BACKEND = {
-  base: "",        // напр. "https://shop.vlessconf.ru"  (пусто = демо-режим)
-  apiKey: "",      // общий секрет, который проверяет бэкенд
-};
 
-// Каталог тарифов — 1:1 с PLAN_* из бота
+// Каталог по умолчанию (используется как демо/фолбэк; внутри Zvon заменяется
+// каталогом с сервера через zvon.store.catalog).
 const CATALOG = [
   { code:"trial24h",      title:"Пробный доступ", days:1,  price:0,   whitelist:false, trial:true,  desc:"24 часа бесплатно. Доступно один раз." },
   { code:"30d",           title:"1 месяц",        days:30, price:189, whitelist:false, trial:false, desc:"30 дней полного доступа к VPN." },
@@ -164,9 +158,21 @@ const OS_INSTRUCTIONS = {
 
 const STATE = {
   user: null, tab: "shop",
-  buy: { plan:null, os:"windows", promo:null, promoPct:0 },
+  buy: { plan:null, os:"windows", promo:null, promoPct:0, method:"yookassa" },
   orders: [],
+  catalog: CATALOG, paymentMethods: [{ id:"yookassa", label:"💳 Банковская карта" }],
 };
+// Реальный режим — когда мини-апп открыт внутри Zvon и доступен store-SDK.
+const STORE = !!(window.zvon && window.zvon.store);
+
+/* Вызов store-бэкенда Zvon (zvon.store.*). Хост проксирует с авторизацией
+ * текущего пользователя. Возвращает объект ответа сервера, кидает при ok:false. */
+async function storeCall(method, ...args){
+  const data = await window.zvon.store[method](...args);
+  if (!data) throw new Error("Пустой ответ сервера");
+  if (data.ok === false) throw new Error(data.error || "Ошибка магазина");
+  return data;
+}
 
 // ---------- helpers ----------
 const $ = (s, r=document) => r.querySelector(s);
@@ -199,7 +205,16 @@ async function boot(){
     }
   } catch(e){}
   if (!STATE.user) STATE.user = { _id:"guest", username:"Гость", avatar:null };
-  STATE.orders = await loadOrders();
+  if (STORE){
+    try {
+      const cat = await storeCall("catalog");
+      if (Array.isArray(cat.plans) && cat.plans.length){
+        STATE.catalog = cat.plans.map(p=>({ ...p, desc: p.trial?"24 часа бесплатно. Доступно один раз.":(p.days+" дней доступа"+(p.whitelist?" + белые списки":"")) }));
+      }
+      if (Array.isArray(cat.paymentMethods) && cat.paymentMethods.length) STATE.paymentMethods = cat.paymentMethods;
+    } catch(e){}
+  }
+  STATE.orders = STORE ? [] : await loadOrders();
   $("#loading").classList.add("hidden");
   $("#content").classList.remove("hidden");
   $("#tabbar").classList.remove("hidden");
@@ -244,7 +259,7 @@ function renderShop(c){
   c.appendChild(el(`<h1>Тарифы</h1>`));
   c.appendChild(el(`<div class="sub">Выберите план и подключитесь за минуту</div>`));
 
-  CATALOG.filter(p=>!p.trial || (!hasAnyPurchase() && !usedTrial())).forEach(p=>{
+  STATE.catalog.filter(p=>!p.trial || (!hasAnyPurchase() && !usedTrial())).forEach(p=>{
     const sel = STATE.buy.plan===p.code;
     const card = el(`<div class="card plan ${sel?'selected':''}">
       <div class="plan-top">
@@ -260,7 +275,7 @@ function renderShop(c){
   });
 
   if(!STATE.buy.plan) return;
-  const plan = CATALOG.find(p=>p.code===STATE.buy.plan);
+  const plan = STATE.catalog.find(p=>p.code===STATE.buy.plan);
 
   const box = el(`<div class="card"></div>`);
   box.appendChild(el(`<label>Операционная система</label>`));
@@ -277,16 +292,32 @@ function renderShop(c){
     const wrap = el(`<div class="row" style="margin-top:6px"></div>`);
     const inp = el(`<input id="promo" placeholder="Напр. WELCOME" value="${STATE.buy.promo||''}" style="margin-top:0">`);
     const ok = el(`<button class="btn ghost small" style="width:auto;padding:12px 18px;margin-top:0">OK</button>`);
-    ok.onclick = ()=>{
+    ok.onclick = async ()=>{
       const code=(inp.value||"").trim().toUpperCase();
       if(!code){ STATE.buy.promo=null; STATE.buy.promoPct=0; render(); return; }
-      if(PROMOS[code]){ STATE.buy.promo=code; STATE.buy.promoPct=PROMOS[code]; toast(`Промокод −${PROMOS[code]}%`); }
+      if(STORE){
+        try {
+          const r = await storeCall("promoCheck", code, plan.code);
+          STATE.buy.promo=code; STATE.buy.promoPct=r.discountPercent||0; toast(`Промокод −${r.discountPercent}%`);
+        } catch(e){ STATE.buy.promo=null; STATE.buy.promoPct=0; toast(e.message||"Промокод недействителен"); }
+      } else if(PROMOS[code]){ STATE.buy.promo=code; STATE.buy.promoPct=PROMOS[code]; toast(`Промокод −${PROMOS[code]}%`); }
       else { STATE.buy.promo=null; STATE.buy.promoPct=0; toast("Промокод недействителен"); }
       render();
     };
     wrap.appendChild(inp); wrap.appendChild(ok);
     box.appendChild(wrap);
     if(STATE.buy.promoPct>0) box.appendChild(el(`<div style="margin-top:8px;color:var(--green);font-size:13px">−${STATE.buy.promoPct}% применено</div>`));
+
+    if(STATE.paymentMethods.length>1){
+      box.appendChild(el(`<label style="display:block;margin-top:12px">Способ оплаты</label>`));
+      const pm = el(`<div class="seg" style="grid-template-columns:1fr 1fr"></div>`);
+      STATE.paymentMethods.forEach(m=>{
+        const b = el(`<button class="${STATE.buy.method===m.id?'active':''}">${m.label}</button>`);
+        b.onclick=()=>{ STATE.buy.method=m.id; render(); };
+        pm.appendChild(b);
+      });
+      box.appendChild(pm);
+    }
   }
   c.appendChild(box);
 
@@ -295,22 +326,65 @@ function renderShop(c){
   btn.onclick = ()=>checkout(btn, plan, finalPrice);
   c.appendChild(btn);
 
-  if(!BACKEND.base) c.appendChild(el(`<div class="demo-note">⚙️ Демо-режим: ключ генерируется локально. Для реальной выдачи VLESS укажите <b>BACKEND.base</b> в index.html — оформление пойдёт на ваш VPN-бэкенд через zvon.fetch.</div>`));
+  if(!STORE) c.appendChild(el(`<div class="demo-note">⚙️ Демо-режим (открыто вне Zvon): ключ генерируется локально и не подключает реальный VPN. Внутри Zvon оплата и выдача идут через store-бэкенд.</div>`));
 }
 
 async function checkout(btn, plan, finalPrice){
   btn.disabled=true; const orig=btn.textContent; btn.textContent="Оформляем…";
   try {
-    let order;
-    if(BACKEND.base) order = await createOrderViaBackend(plan, finalPrice);
-    else order = await createOrderDemo(plan, finalPrice);
-    const orders=[order, ...STATE.orders]; await saveOrders(orders);
-    showResult(order);
+    if(STORE){
+      const data = await storeCall("order", { plan: plan.code, os: STATE.buy.os, promo: STATE.buy.promo, paymentMethod: STATE.buy.method || (STATE.paymentMethods[0]||{}).id });
+      if(data.status === "pending" && data.payUrl){ showPaymentScreen(plan, data); return; }
+      showResult(storeOrderObject(plan, data)); return;
+    }
+    const order = await createOrderDemo(plan, finalPrice);
+    await saveOrders([order, ...STATE.orders]); showResult(order);
   } catch(e){ toast(e.message||"Ошибка оформления"); btn.disabled=false; btn.textContent=orig; }
 }
 
+function storeOrderObject(plan, data){
+  return {
+    id: data.orderId || ("ord_"+Date.now().toString(36)),
+    plan: plan.code, plan_title: plan.title, os: STATE.buy.os,
+    amount: data.amount ?? 0, created_at: Date.now(),
+    expiry_ms: data.expiryMs || (Date.now()+plan.days*86400000),
+    status: "paid", demo: false, sub_url: data.subUrl || null,
+    instructions: data.instructions,
+  };
+}
+
+function showPaymentScreen(plan, data){
+  STATE.buy.plan=null; STATE.buy.promo=null; STATE.buy.promoPct=0;
+  const c=$("#content"); c.innerHTML=""; c.appendChild(header());
+  c.appendChild(el(`<h1>Оплата</h1>`));
+  c.appendChild(el(`<div class="card center">
+    <div style="font-size:30px;font-weight:800;margin-bottom:4px">${data.amount}₽</div>
+    ${data.amountUsd?`<div class="dim">≈ ${data.amountUsd} USDT</div>`:''}
+    <div class="dim" style="margin-top:10px">Оплатите по кнопке, затем нажмите «Проверить оплату».</div>
+  </div>`));
+  const pay = el(`<button class="btn">Перейти к оплате</button>`);
+  pay.onclick = ()=>{ try{ window.open(data.payUrl,"_blank"); }catch(e){ location.href=data.payUrl; } };
+  c.appendChild(pay);
+  const check = el(`<button class="btn green">Проверить оплату</button>`);
+  check.onclick = async ()=>{
+    check.disabled=true; check.textContent="Проверяем…";
+    try {
+      const res = await storeCall("orderCheck", data.orderId);
+      if(res.status === "paid"){ showResult(storeOrderObject(plan, { ...res, orderId: data.orderId, amount: data.amount })); return; }
+      if(res.status === "pending") toast("Платёж ещё не подтверждён");
+      else if(res.status === "canceled") toast("Платёж отменён или истёк");
+      else toast("Статус: "+res.status);
+    } catch(e){ toast(e.message); }
+    check.disabled=false; check.textContent="Проверить оплату";
+  };
+  c.appendChild(check);
+  const back = el(`<button class="btn ghost">← В магазин</button>`);
+  back.onclick = ()=>{ STATE.tab="shop"; renderTabs(); render(); };
+  c.appendChild(back);
+}
+
 function createOrderDemo(plan, finalPrice){
-  // Демо-ключ (НЕ рабочий VPN) — для проверки UI/потока внутри Zvon.
+  // Демо-ключ (НЕ рабочий VPN) — только когда открыто вне Zvon.
   const id = "ord_"+Date.now().toString(36);
   const token = Math.random().toString(36).slice(2,14);
   const sub_url = `vless://demo-${token}@vlessconf.ru:443?type=tcp&security=reality&sni=zvon#${encodeURIComponent("Zvon "+plan.title)}`;
@@ -320,33 +394,6 @@ function createOrderDemo(plan, finalPrice){
     created_at: Date.now(), expiry_ms: Date.now()+plan.days*86400000,
     status: "paid", demo: true, sub_url,
   });
-}
-
-/* Контракт BRIDGE-режима. Ваш бэкенд должен принять POST {base}/api/zvon/order
- * с телом { apiKey, userId, username, plan, os, promo } и вернуть JSON
- * { ok:true, sub_url, expiry_ms } (мгновенная выдача) либо { ok:true, pay_url, order_id }
- * (тогда добавьте кнопку «Проверить оплату» -> {base}/api/zvon/order/check). */
-async function createOrderViaBackend(plan, finalPrice){
-  const res = await zvon.fetch(`${BACKEND.base}/api/zvon/order`, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({
-      apiKey: BACKEND.apiKey, userId: String(STATE.user._id), username: STATE.user.username,
-      plan: plan.code, os: STATE.buy.os, promo: STATE.buy.promo,
-    }),
-    responseType:"json",
-  });
-  const data = res && res.data ? res.data : res;
-  if(!data || data.ok===false) throw new Error((data&&data.error)||"Бэкенд отклонил заказ");
-  if(data.pay_url){ try{ window.open(data.pay_url,"_blank"); }catch(e){} }
-  return {
-    id: data.order_id || ("ord_"+Date.now().toString(36)),
-    plan:plan.code, plan_title:plan.title, os:STATE.buy.os,
-    amount:finalPrice, promo:STATE.buy.promo, created_at:Date.now(),
-    expiry_ms: data.expiry_ms || (Date.now()+plan.days*86400000),
-    status: data.sub_url ? "paid" : "pending",
-    sub_url: data.sub_url || null, demo:false,
-  };
 }
 
 function showResult(order){
@@ -372,10 +419,22 @@ function showResult(order){
 }
 
 // ---------- CABINET ----------
-function renderCabinet(c){
+async function renderCabinet(c){
   c.appendChild(el(`<h1>Мои подключения</h1>`));
-  if(!STATE.orders.length){ c.appendChild(el(`<div class="card center dim">Пока нет покупок.<br>Выберите тариф в магазине.</div>`)); return; }
-  STATE.orders.forEach(o=>{
+  let orders = STATE.orders;
+  if(STORE){
+    const holder = el(`<div><div class="spinner"></div></div>`); c.appendChild(holder);
+    try {
+      const r = await storeCall("cabinet");
+      orders = (r.subscriptions||[]).map(s=>({
+        id:s.orderId, plan:s.plan, plan_title:s.planTitle, os:"windows",
+        created_at:s.createdAt, expiry_ms:s.expiryMs, status:"paid", demo:false, sub_url:s.subUrl,
+      }));
+    } catch(e){ holder.remove(); c.appendChild(el(`<div class="card center dim">${e.message}</div>`)); return; }
+    holder.remove();
+  }
+  if(!orders.length){ c.appendChild(el(`<div class="card center dim">Пока нет покупок.<br>Выберите тариф в магазине.</div>`)); return; }
+  orders.forEach(o=>{
     const active = o.expiry_ms && o.expiry_ms>Date.now();
     const left = active ? Math.max(1, Math.ceil((o.expiry_ms-Date.now())/86400000)) : 0;
     const card = el(`<div class="card">
@@ -400,9 +459,11 @@ function renderCabinet(c){
     }
     c.appendChild(card);
   });
-  const clear = el(`<button class="btn ghost small" style="margin-top:6px">Очистить историю</button>`);
-  clear.onclick = async ()=>{ if(confirm("Удалить все заказы из кабинета?")){ await saveOrders([]); render(); } };
-  c.appendChild(clear);
+  if(!STORE){
+    const clear = el(`<button class="btn ghost small" style="margin-top:6px">Очистить историю</button>`);
+    clear.onclick = async ()=>{ if(confirm("Удалить все заказы из кабинета?")){ await saveOrders([]); render(); } };
+    c.appendChild(clear);
+  }
 }
 
 // ---------- REFERRAL ----------
@@ -411,6 +472,7 @@ function renderReferral(c){
   const link = `${location.origin}/?ref=${code}`;
   const paid = STATE.orders.filter(o=>o.status==="paid" && o.plan!=="trial24h").length;
   c.appendChild(el(`<h1>Рефералы</h1>`));
+
   c.appendChild(el(`<div class="stat-grid" style="margin-bottom:12px">
     <div class="stat"><div class="n">${code}</div><div class="l">Ваш код</div></div>
     <div class="stat"><div class="n">${paid}</div><div class="l">Ваших покупок</div></div>
@@ -421,7 +483,7 @@ function renderReferral(c){
   const cp = el(`<button class="btn">📋 Скопировать ссылку</button>`); cp.onclick=()=>copy(link);
   card.appendChild(cp);
   c.appendChild(card);
-  c.appendChild(el(`<div class="card dim" style="font-size:13px">Месяц (189₽) от друга = 1 балл, «месяц + бс» (289₽) = 2 балла. 6 баллов → 300₽ к выводу.<br><br>Учёт по рефералам между пользователями требует общего бэкенда (BACKEND.base) — в демо-режиме показывается только ваш код.</div>`));
+  c.appendChild(el(`<div class="card dim" style="font-size:13px">Месяц (189₽) от друга = 1 балл, «месяц + бс» (289₽) = 2 балла. 6 баллов → 300₽ к выводу.</div>`));
 }
 
 // старт

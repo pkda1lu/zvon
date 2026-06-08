@@ -224,6 +224,20 @@
     /** Per-user, per-app key-value storage (server-backed, persists across sessions). */
     storage,
 
+    /**
+     * VPN-магазин: вызывает встроенный store-бэкенд Zvon от имени текущего
+     * пользователя (хост проксирует с его авторизацией). Доступно только
+     * системному мини-аппу магазина. Все методы резолвятся объектом ответа
+     * сервера (содержит поле ok).
+     */
+    store: {
+      catalog: () => call('store', { action: 'catalog' }),
+      promoCheck: (code, plan) => call('store', { action: 'promoCheck', data: { code, plan } }),
+      order: (data) => call('store', { action: 'order', data }),
+      orderCheck: (orderId) => call('store', { action: 'orderCheck', data: { orderId } }),
+      cabinet: () => call('store', { action: 'cabinet' }),
+    },
+
     /** Subscribe to host events. Returns an unsubscribe function. */
     on: (event, handler) => {
       const list = eventHandlers.get(event) || [];
