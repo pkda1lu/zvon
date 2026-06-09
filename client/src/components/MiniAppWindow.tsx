@@ -192,19 +192,29 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                             respond(id, { ok: false, error: 'store недоступен для этого приложения' });
                             break;
                         }
-                        const STORE_ROUTES: Record<string, { method: 'GET' | 'POST'; path: string }> = {
-                            catalog:    { method: 'GET',  path: '/api/store/catalog' },
-                            promoCheck: { method: 'POST', path: '/api/store/promo/check' },
-                            order:      { method: 'POST', path: '/api/store/order' },
-                            orderCheck: { method: 'POST', path: '/api/store/order/check' },
-                            cabinet:    { method: 'GET',  path: '/api/store/cabinet' },
+                        const d = payload?.data || {};
+                        const STORE_ROUTES: Record<string, { method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string }> = {
+                            catalog:       { method: 'GET',    path: '/api/store/catalog' },
+                            promoCheck:    { method: 'POST',   path: '/api/store/promo/check' },
+                            order:         { method: 'POST',   path: '/api/store/order' },
+                            orderCheck:    { method: 'POST',   path: '/api/store/order/check' },
+                            cabinet:       { method: 'GET',    path: '/api/store/cabinet' },
+                            adminProducts: { method: 'GET',    path: '/api/store/admin/products' },
+                            adminCreate:   { method: 'POST',   path: '/api/store/admin/product' },
+                            adminUpdate:   { method: 'PUT',    path: `/api/store/admin/product/${d.id}` },
+                            adminDelete:   { method: 'DELETE', path: `/api/store/admin/product/${d.id}` },
+                            adminUpload:   { method: 'POST',   path: '/api/store/admin/upload' },
+                            adminOrders:   { method: 'GET',    path: '/api/store/admin/orders' },
+                            adminFulfill:  { method: 'POST',   path: '/api/store/admin/order/fulfill' },
                         };
                         const route = STORE_ROUTES[payload?.action];
                         if (!route) { respond(id, { ok: false, error: 'unknown store action' }); break; }
                         try {
-                            const r = route.method === 'GET'
-                                ? await axios.get(route.path)
-                                : await axios.post(route.path, payload?.data || {});
+                            let r;
+                            if (route.method === 'GET') r = await axios.get(route.path);
+                            else if (route.method === 'DELETE') r = await axios.delete(route.path);
+                            else if (route.method === 'PUT') r = await axios.put(route.path, d);
+                            else r = await axios.post(route.path, d);
                             respond(id, { ok: true, result: r.data });
                         } catch (e: any) {
                             respond(id, { ok: false, error: e?.response?.data?.error || e?.response?.data?.message || e?.message || 'store error' });

@@ -232,10 +232,19 @@
      */
     store: {
       catalog: () => call('store', { action: 'catalog' }),
-      promoCheck: (code, plan) => call('store', { action: 'promoCheck', data: { code, plan } }),
+      promoCheck: (code, productId) => call('store', { action: 'promoCheck', data: { code, productId } }),
       order: (data) => call('store', { action: 'order', data }),
       orderCheck: (orderId) => call('store', { action: 'orderCheck', data: { orderId } }),
       cabinet: () => call('store', { action: 'cabinet' }),
+      admin: {
+        products: () => call('store', { action: 'adminProducts' }),
+        create: (product) => call('store', { action: 'adminCreate', data: product }),
+        update: (id, product) => call('store', { action: 'adminUpdate', data: { ...product, id } }),
+        remove: (id) => call('store', { action: 'adminDelete', data: { id } }),
+        upload: (dataUrl) => call('store', { action: 'adminUpload', data: { dataUrl } }),
+        orders: () => call('store', { action: 'adminOrders' }),
+        fulfill: (orderId, fulfillment) => call('store', { action: 'adminFulfill', data: { orderId, fulfillment } }),
+      },
     },
 
     /** Subscribe to host events. Returns an unsubscribe function. */
