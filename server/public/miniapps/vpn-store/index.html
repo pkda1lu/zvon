@@ -5,106 +5,112 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Магазин Zvon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="/zvon-sdk.js"></script>
 <style>
   :root {
-    --bg:#0e0b16; --bg-2:#16111f; --card:#1c1530; --card-2:#241a3d;
-    --line:rgba(161,85,255,.16); --text:#ece8f7; --dim:#9b91b8;
-    --neon:#a155ff; --neon-2:#6c5cff; --green:#3ddc84; --red:#ff5d73; --yellow:#ffc24d;
-    --radius:18px;
+    --bg:#0F0F12; --surface:#15151A; --surface-2:#1B1B21; --elev:#202027;
+    --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.16);
+    --text:#F2F2F2; --dim:#9A9AA2; --faint:#6E6E76;
+    --accent:#FFFFFF; --danger:#E5687A; --ok:#7FCBA3;
+    /* совместимость со старыми inline-ссылками */
+    --neon:#F2F2F2; --neon-2:#9A9AA2; --green:#FFFFFF; --red:#E5687A; --yellow:#D9C089;
+    --serif:"Playfair Display", Georgia, serif;
+    --r:14px;
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { margin:0; padding:0; background:radial-gradient(1200px 600px at 50% -10%, #241a3d 0%, var(--bg) 55%); color:var(--text); font-family:"Inter",system-ui,sans-serif; font-size:15px; }
-  #app { max-width:680px; margin:0 auto; padding:16px 14px 96px; }
-  h1 { font-size:22px; margin:2px 0; letter-spacing:-.02em; }
-  h2 { font-size:16px; margin:18px 0 10px; }
-  .dim { color:var(--dim); }
-  .sub { color:var(--dim); font-size:13px; margin-bottom:14px; }
+  html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:"Inter",system-ui,sans-serif; font-size:15px; -webkit-font-smoothing:antialiased; }
+  #app { max-width:720px; margin:0 auto; padding:18px 16px 100px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:30px; line-height:1.1; margin:6px 0 2px; letter-spacing:-.01em; }
+  h2 { font-family:var(--serif); font-weight:600; font-size:19px; margin:24px 0 12px; }
+  .dim { color:var(--dim); } .faint { color:var(--faint); }
+  .sub { color:var(--dim); font-size:14px; margin-bottom:18px; }
   .center { text-align:center; } .hidden { display:none !important; }
+  .eyebrow { text-transform:uppercase; letter-spacing:.18em; font-size:11px; color:var(--faint); font-weight:600; }
 
-  .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
-  .brand { display:flex; align-items:center; gap:10px; }
-  .brand .logo { width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--neon),var(--neon-2));color:#fff;box-shadow:0 6px 22px rgba(161,85,255,.45); }
-  .who { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--dim); }
-  .who img { width:28px;height:28px;border-radius:50%;object-fit:cover; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; padding-bottom:16px; border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .brand .logo { width:42px; height:42px; border-radius:11px; display:grid; place-items:center; border:1px solid var(--line-2); color:var(--text); }
+  .wordmark { font-family:var(--serif); font-weight:600; font-size:19px; letter-spacing:.01em; }
+  .who { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--dim); }
+  .who img { width:30px; height:30px; border-radius:50%; object-fit:cover; }
+  .who .ava { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; background:var(--surface-2); border:1px solid var(--line); color:var(--text); font-weight:600; font-size:13px; }
 
-  .card { background:linear-gradient(180deg,var(--card-2),var(--card)); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:12px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:18px; margin-bottom:14px; }
 
-  .chips { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
-  .chip { border:1px solid var(--line); background:transparent; color:var(--dim); padding:7px 14px; border-radius:20px; font-size:13px; cursor:pointer; font-family:inherit; }
-  .chip.active { background:var(--neon); border-color:var(--neon); color:#fff; }
+  /* категории — текстовая навигация с подчёркиванием */
+  .chips { display:flex; gap:22px; margin:6px 0 20px; border-bottom:1px solid var(--line); }
+  .chip { border:none; background:none; color:var(--faint); padding:0 0 12px; font-size:14px; cursor:pointer; font-family:inherit; position:relative; letter-spacing:.01em; }
+  .chip.active { color:var(--text); }
+  .chip.active::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--accent); }
 
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .pcard { background:linear-gradient(180deg,var(--card-2),var(--card)); border:1px solid var(--line); border-radius:16px; overflow:hidden; cursor:pointer; transition:transform .08s, border-color .15s; display:flex; flex-direction:column; }
-  .pcard:active { transform:scale(.985); }
-  .pcard:hover { border-color:var(--neon); }
-  .pimg { width:100%; aspect-ratio:1/1; object-fit:cover; background:#120d1c; display:block; }
-  .pimg.placeholder { display:grid; place-items:center; color:var(--neon); }
-  .pbody { padding:11px 12px 13px; display:flex; flex-direction:column; gap:6px; flex:1; }
-  .ptitle { font-weight:700; font-size:14px; line-height:1.25; }
-  .pbottom { display:flex; align-items:center; justify-content:space-between; margin-top:auto; }
-  .pprice { font-weight:800; font-size:15px; }
-  .tag { display:inline-block; font-size:10px; padding:2px 7px; border-radius:20px; background:rgba(161,85,255,.16); color:#c9a6ff; }
-  .tag.green { background:rgba(61,220,132,.16); color:#8ff0b6; }
-  .tag.merch { background:rgba(108,92,255,.18); color:#bcb4ff; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media(min-width:560px){ .grid { grid-template-columns:1fr 1fr 1fr; } }
+  .pcard { cursor:pointer; display:flex; flex-direction:column; gap:10px; }
+  .pcard .imgwrap { width:100%; aspect-ratio:1/1; border-radius:12px; overflow:hidden; background:var(--surface); border:1px solid var(--line); position:relative; }
+  .pcard .imgwrap img { width:100%; height:100%; object-fit:cover; transition:transform .5s cubic-bezier(.2,.7,.2,1); }
+  .pcard:hover .imgwrap img { transform:scale(1.05); }
+  .pcard .imgwrap.placeholder { display:grid; place-items:center; font-size:40px; color:var(--faint); }
+  .ptitle { font-weight:500; font-size:14.5px; line-height:1.3; }
+  .pbottom { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .pprice { font-weight:600; font-size:15px; }
+  .tag { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:600; }
 
-  .btn { display:block; width:100%; border:none; cursor:pointer; font-family:inherit; background:linear-gradient(135deg,var(--neon),var(--neon-2)); color:#fff; font-size:16px; font-weight:700; padding:14px; border-radius:13px; margin-top:10px; transition:opacity .15s, transform .08s; box-shadow:0 8px 24px rgba(108,92,255,.35); }
-  .btn:active { transform:scale(.985); }
-  .btn:disabled { opacity:.5; cursor:default; box-shadow:none; }
-  .btn.ghost { background:rgba(255,255,255,.06); color:var(--text); box-shadow:none; border:1px solid var(--line); }
-  .btn.green { background:linear-gradient(135deg,#34d27b,#1fae8f); box-shadow:0 8px 24px rgba(52,210,123,.3); color:#062114; }
-  .btn.danger { background:linear-gradient(135deg,#ff5d73,#d23b56); box-shadow:none; }
-  .btn.small { font-size:13px; padding:9px; margin-top:0; }
-  .btn.auto { width:auto; padding:12px 18px; margin-top:0; }
-  .row { display:flex; gap:8px; }
-  .row.wrap { flex-wrap:wrap; }
+  .btn { display:block; width:100%; border:none; cursor:pointer; font-family:inherit; background:var(--accent); color:#0E0E11; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:16px; border-radius:11px; margin-top:12px; transition:opacity .15s, transform .06s; }
+  .btn:active { transform:translateY(1px); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .btn.ghost { background:transparent; color:var(--text); border:1px solid var(--line-2); }
+  .btn.green { background:var(--accent); color:#0E0E11; }
+  .btn.danger { background:transparent; border:1px solid rgba(229,104,122,.4); color:var(--danger); }
+  .btn.small { font-size:11px; padding:11px; margin-top:0; }
+  .btn.auto { width:auto; padding:14px 20px; margin-top:0; }
+  .row { display:flex; gap:10px; } .row.wrap { flex-wrap:wrap; }
 
-  .seg { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0; }
-  .seg button { border:1px solid var(--line); background:transparent; color:var(--text); padding:10px 6px; border-radius:11px; font-size:13px; cursor:pointer; font-family:inherit; }
-  .seg button.active { background:var(--neon); border-color:var(--neon); color:#fff; }
+  .seg { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:8px 0; }
+  .seg button { border:1px solid var(--line-2); background:transparent; color:var(--text); padding:11px 6px; border-radius:9px; font-size:13px; cursor:pointer; font-family:inherit; transition:.12s; }
+  .seg button.active { background:var(--accent); border-color:var(--accent); color:#0E0E11; font-weight:600; }
 
-  label { font-size:13px; color:var(--dim); display:block; margin-top:10px; }
-  input,select,textarea { width:100%; padding:11px; border-radius:11px; font-size:15px; font-family:inherit; background:var(--bg-2); color:var(--text); border:1px solid var(--line); margin-top:6px; }
-  textarea { resize:vertical; min-height:64px; }
-  input:focus,select:focus,textarea:focus { outline:none; border-color:var(--neon); }
-  .check { display:flex; align-items:center; gap:8px; margin-top:12px; color:var(--text); font-size:14px; }
-  .check input { width:auto; margin:0; }
+  label { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:600; display:block; margin-top:16px; }
+  input,select,textarea { width:100%; padding:13px; border-radius:10px; font-size:15px; font-family:inherit; background:var(--surface-2); color:var(--text); border:1px solid var(--line); margin-top:8px; }
+  textarea { resize:vertical; min-height:66px; }
+  input:focus,select:focus,textarea:focus { outline:none; border-color:var(--line-2); }
+  .check { display:flex; align-items:center; gap:9px; margin-top:14px; color:var(--text); font-size:14px; text-transform:none; letter-spacing:0; }
+  .check input { width:auto; margin:0; accent-color:var(--accent); }
 
-  .code-box { background:var(--bg-2); border:1px solid var(--line); border-radius:12px; padding:12px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; word-break:break-all; margin-top:10px; }
-  .qr { display:block; margin:14px auto 6px; border-radius:14px; background:#fff; padding:10px; }
-  pre.instr { white-space:pre-wrap; font-family:inherit; font-size:13px; margin:0; }
+  .code-box { background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:13px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; word-break:break-all; margin-top:12px; color:var(--dim); }
+  .qr { display:block; margin:16px auto 6px; border-radius:12px; background:#fff; padding:12px; }
+  pre.instr { white-space:pre-wrap; font-family:inherit; font-size:13.5px; margin:0; color:var(--dim); line-height:1.5; }
 
-  .qty { display:flex; align-items:center; gap:12px; margin-top:8px; }
-  .qty button { width:38px; height:38px; border-radius:10px; border:1px solid var(--line); background:var(--bg-2); color:var(--text); font-size:20px; cursor:pointer; }
-  .qty span { font-weight:700; min-width:24px; text-align:center; }
+  .qty { display:flex; align-items:center; gap:14px; margin-top:10px; }
+  .qty button { width:40px; height:40px; border-radius:9px; border:1px solid var(--line-2); background:transparent; color:var(--text); font-size:20px; cursor:pointer; }
+  .qty span { font-weight:600; min-width:24px; text-align:center; font-size:16px; }
 
-  .thumbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-  .thumb { position:relative; width:64px; height:64px; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+  .thumbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .thumb { position:relative; width:66px; height:66px; border-radius:9px; overflow:hidden; border:1px solid var(--line); cursor:pointer; }
   .thumb img { width:100%; height:100%; object-fit:cover; }
-  .thumb button { position:absolute; top:2px; right:2px; width:20px; height:20px; border-radius:50%; border:none; background:rgba(0,0,0,.7); color:#fff; cursor:pointer; font-size:12px; line-height:1; }
+  .thumb button { position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; border:none; background:rgba(0,0,0,.75); color:#fff; cursor:pointer; font-size:12px; line-height:1; }
 
-  .tabbar { position:fixed; bottom:0; left:0; right:0; background:rgba(20,15,30,.92); backdrop-filter:blur(12px); border-top:1px solid var(--line); display:flex; padding:6px 4px 10px; z-index:50; }
-  .tabbar button { flex:1; background:none; border:none; color:var(--dim); font-size:11px; padding:6px 2px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; font-family:inherit; }
-  .tabbar button.active { color:#c9a6ff; }
-  .tabbar .ic { font-size:20px; }
+  .tabbar { position:fixed; bottom:0; left:0; right:0; background:rgba(15,15,18,.94); backdrop-filter:blur(16px); border-top:1px solid var(--line); display:flex; padding:8px 6px calc(10px + env(safe-area-inset-bottom)); z-index:50; }
+  .tabbar button { flex:1; background:none; border:none; color:var(--faint); font-size:10px; letter-spacing:.06em; text-transform:uppercase; padding:6px 2px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:5px; font-family:inherit; transition:color .15s; }
+  .tabbar button.active { color:var(--text); }
+  .tabbar .ic { font-size:19px; }
 
-  .list-item { border-bottom:1px solid var(--line); padding:13px 0; }
+  .list-item { border-bottom:1px solid var(--line); padding:14px 0; }
   .list-item:last-child { border-bottom:none; }
   .flex-between { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .pill { font-size:11px; padding:2px 9px; border-radius:8px; }
-  .pill.active { background:rgba(61,220,132,.16); color:#8ff0b6; }
-  .pill.exp { background:rgba(255,93,115,.16); color:#ffb3bd; }
-  .pill.new { background:rgba(255,194,77,.16); color:var(--yellow); }
-  .pill.processing { background:rgba(108,92,255,.18); color:#bcb4ff; }
-  .pill.shipped { background:rgba(61,220,132,.16); color:#8ff0b6; }
-  .pill.done { background:rgba(155,145,184,.18); color:var(--dim); }
-  .demo-note { font-size:12px; color:var(--yellow); background:rgba(255,194,77,.08); border:1px solid rgba(255,194,77,.25); border-radius:10px; padding:10px; margin-top:10px; }
-  .spinner { width:28px;height:28px;border:3px solid rgba(255,255,255,.12);border-top-color:var(--neon);border-radius:50%;animation:spin .8s linear infinite;margin:36px auto; }
+  .pill { font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:4px 10px; border-radius:7px; border:1px solid var(--line-2); color:var(--dim); font-weight:600; }
+  .pill.active,.pill.shipped { color:var(--ok); border-color:rgba(127,203,163,.35); }
+  .pill.exp { color:var(--danger); border-color:rgba(229,104,122,.35); }
+  .pill.new,.pill.processing { color:var(--text); }
+  .pill.done { color:var(--faint); }
+  .demo-note { font-size:12.5px; color:var(--dim); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:12px; }
+  .spinner { width:26px;height:26px;border:2px solid rgba(255,255,255,.14);border-top-color:var(--text);border-radius:50%;animation:spin .7s linear infinite;margin:40px auto; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  .toast { position:fixed; left:50%; bottom:84px; transform:translateX(-50%) translateY(20px); background:rgba(0,0,0,.9); border:1px solid var(--line); color:#fff; padding:10px 18px; border-radius:22px; font-size:13px; opacity:0; transition:.25s; z-index:100; pointer-events:none; max-width:90%; }
+  .toast { position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(20px); background:#000; border:1px solid var(--line-2); color:#fff; padding:12px 20px; border-radius:12px; font-size:13px; opacity:0; transition:.25s; z-index:100; pointer-events:none; max-width:90%; }
   .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-  .back { background:none; border:none; color:var(--neon); font-size:14px; cursor:pointer; padding:4px 0; font-family:inherit; margin-bottom:6px; }
+  .back { background:none; border:none; color:var(--dim); font-size:13px; cursor:pointer; padding:4px 0; font-family:inherit; margin-bottom:8px; letter-spacing:.04em; }
+  .back:hover { color:var(--text); }
 </style>
 </head>
 <body>
@@ -121,18 +127,18 @@
 
 const OS_LIST = [["windows","🖥️ Windows"],["macos","🍎 macOS"],["linux","🐧 Linux"],["android","📱 Android"],["ios","🍎 iOS"]];
 const OS_INSTRUCTIONS = {
-  windows:"🖥️ Windows:\n• Скачайте Vlyne Client: github.com/pkda1lu/vlyne-client/releases\n• Запустите, импортируйте конфигурацию ниже\n• Подключитесь 🚀",
-  macos:"🍎 macOS:\n• Установите V2rayU\n• Импортируйте конфигурацию ниже\n• Подключитесь 🚀",
-  android:"📱 Android:\n• Установите v2raytun из Google Play\n• Импортируйте конфигурацию ниже",
-  ios:"🍎 iOS:\n• Установите v2raytun из App Store\n• Импортируйте конфигурацию ниже",
-  linux:"🐧 Linux:\n• v2ray-core: github.com/v2fly/v2ray-core/releases\n• Настройте конфигурацию ниже",
+  windows:"Windows\n• Скачайте Vlyne Client: github.com/pkda1lu/vlyne-client/releases\n• Запустите, импортируйте конфигурацию ниже\n• Подключитесь",
+  macos:"macOS\n• Установите V2rayU\n• Импортируйте конфигурацию ниже\n• Подключитесь",
+  android:"Android\n• Установите v2raytun из Google Play\n• Импортируйте конфигурацию ниже",
+  ios:"iOS\n• Установите v2raytun из App Store\n• Импортируйте конфигурацию ниже",
+  linux:"Linux\n• v2ray-core: github.com/v2fly/v2ray-core/releases\n• Настройте конфигурацию ниже",
 };
 const FULFILL_LABEL = { new:"Новый", processing:"В работе", shipped:"Отправлен", done:"Завершён" };
 const FULFILL_NEXT = { new:"processing", processing:"shipped", shipped:"done", done:"done" };
 
 const STATE = {
   user:null, isAdmin:false, tab:"shop", screen:"catalog",
-  cat:"all", products:[], paymentMethods:[{id:"yookassa",label:"💳 Карта"}],
+  cat:"all", products:[], paymentMethods:[{id:"yookassa",label:"Карта"}],
   product:null,
   buy:{ os:"windows", promo:null, promoPct:0, method:"yookassa", qty:1, shipping:{} },
   pay:null, result:null,
@@ -148,8 +154,7 @@ function copy(t){ navigator.clipboard?.writeText(t).then(()=>toast("Скопир
 function fmtDate(ts){ if(!ts) return "—"; const d=new Date(ts); return d.toLocaleDateString("ru-RU")+" "+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}); }
 function qrUrl(d){ return "https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data="+encodeURIComponent(d); }
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function money(n){ return (n===0?"Бесплатно":n+"₽"); }
-// обернуть промис store-вызова: бросает при ok:false
+function money(n){ return (n===0?"Бесплатно":n+" ₽"); }
 async function S(p){ const d=await p; if(!d) throw new Error("Пустой ответ"); if(d.ok===false) throw new Error(d.error||"Ошибка"); return d; }
 
 // ---------- bootstrap ----------
@@ -163,7 +168,7 @@ async function boot(){
       STATE.isAdmin=!!cat.isAdmin;
       if(Array.isArray(cat.paymentMethods)&&cat.paymentMethods.length) STATE.paymentMethods=cat.paymentMethods;
       STATE.buy.method=(STATE.paymentMethods[0]||{}).id||"yookassa";
-    } catch(e){ /* покажем пустой каталог */ }
+    } catch(e){}
   } else {
     STATE.products=[
       { id:"demo1", type:"vpn", title:"VPN — 1 месяц", description:"Демо", price:189, images:[], vpn:{days:30} },
@@ -177,8 +182,8 @@ async function boot(){
 }
 
 function renderTabs(){
-  const tabs=[["shop","🛒","Магазин"],["cabinet","🔑","Кабинет"]];
-  if(STATE.isAdmin) tabs.push(["admin","⚙️","Админка"]);
+  const tabs=[["shop","◧","Магазин"],["cabinet","✦","Кабинет"]];
+  if(STATE.isAdmin) tabs.push(["admin","⚙","Админка"]);
   const bar=$("#tabbar"); bar.innerHTML="";
   tabs.forEach(([id,ic,label])=>{
     const b=el(`<button class="${STATE.tab===id?'active':''}"><span class="ic">${ic}</span><span>${label}</span></button>`);
@@ -189,11 +194,11 @@ function renderTabs(){
 
 function header(){
   const u=STATE.user;
-  const av=u.avatar?`<img src="${u.avatar}" alt="">`:`<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--neon),var(--neon-2));display:grid;place-items:center;color:#fff;font-weight:700">${(u.username||'?')[0].toUpperCase()}</div>`;
+  const av=u.avatar?`<img src="${esc(u.avatar)}" alt="">`:`<div class="ava">${(u.username||'?')[0].toUpperCase()}</div>`;
   return el(`<div class="topbar">
     <div class="brand">
-      <div class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h2l2 12h10l2-8H6"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg></div>
-      <div><div style="font-weight:800;font-size:17px">Магазин Zvon</div><div class="dim" style="font-size:12px">VPN и мерч</div></div>
+      <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h2l2.2 11.5a1.5 1.5 0 0 0 1.5 1.2h8.3a1.5 1.5 0 0 0 1.5-1.2L20.5 8H6.2"/><circle cx="9.5" cy="20" r="1.2"/><circle cx="17.5" cy="20" r="1.2"/></svg></div>
+      <div><div class="wordmark">Магазин Zvon</div><div class="eyebrow" style="margin-top:2px">VPN · MERCH</div></div>
     </div>
     <div class="who">${av}<span>${esc(u.username||'Гость')}</span></div>
   </div>`);
@@ -212,18 +217,18 @@ function render(){
 }
 
 // ---------- CATALOG ----------
-function productImg(p, cls){
-  if(p.images && p.images[0]) return `<img class="pimg ${cls||''}" src="${esc(p.images[0])}" alt="">`;
-  const icon = p.type==="vpn" ? "🛡️" : "👕";
-  return `<div class="pimg placeholder ${cls||''}" style="font-size:42px">${icon}</div>`;
+function productImg(p){
+  if(p.images && p.images[0]) return `<div class="imgwrap"><img src="${esc(p.images[0])}" alt=""></div>`;
+  return `<div class="imgwrap placeholder">${p.type==='vpn'?'🛡':'👕'}</div>`;
 }
 function renderCatalog(c){
-  c.appendChild(el(`<h1>Каталог</h1>`));
+  c.appendChild(el(`<div class="eyebrow">Каталог</div>`));
+  c.appendChild(el(`<h1>Витрина Zvon</h1>`));
   const types=new Set(STATE.products.map(p=>p.type));
   const chips=el(`<div class="chips"></div>`);
   const cats=[["all","Все"]]; if(types.has("vpn")) cats.push(["vpn","VPN"]); if(types.has("merch")) cats.push(["merch","Мерч"]);
   cats.forEach(([id,label])=>{ const b=el(`<button class="chip ${STATE.cat===id?'active':''}">${label}</button>`); b.onclick=()=>{ STATE.cat=id; render(); }; chips.appendChild(b); });
-  if(cats.length>1) c.appendChild(chips);
+  if(cats.length>1) c.appendChild(chips); else c.appendChild(el(`<div style="height:8px"></div>`));
 
   const list=STATE.products.filter(p=>STATE.cat==="all"||p.type===STATE.cat);
   if(!list.length){ c.appendChild(el(`<div class="card center dim">Товаров пока нет.</div>`)); return; }
@@ -231,11 +236,11 @@ function renderCatalog(c){
   list.forEach(p=>{
     const card=el(`<div class="pcard">
       ${productImg(p)}
-      <div class="pbody">
+      <div>
         <div class="ptitle">${esc(p.title)}</div>
         <div class="pbottom">
           <span class="pprice">${money(p.price)}</span>
-          <span class="tag ${p.type==='merch'?'merch':(p.price===0?'green':'')}">${p.type==='vpn'?(p.vpn?.trialOnce?'пробный':'VPN'):'мерч'}</span>
+          <span class="tag">${p.type==='vpn'?(p.vpn?.trialOnce?'Пробный':'VPN'):'Мерч'}</span>
         </div>
       </div>
     </div>`);
@@ -249,29 +254,29 @@ function renderCatalog(c){
 // ---------- PRODUCT DETAIL ----------
 function renderProduct(c){
   const p=STATE.product;
-  const back=el(`<button class="back">← Назад в каталог</button>`); back.onclick=()=>{ STATE.screen="catalog"; render(); }; c.appendChild(back);
+  const back=el(`<button class="back">← Каталог</button>`); back.onclick=()=>{ STATE.screen="catalog"; render(); }; c.appendChild(back);
 
-  const card=el(`<div class="card"></div>`);
+  const media=el(`<div></div>`);
   if(p.images && p.images.length){
-    const g=el(`<div></div>`);
-    g.appendChild(el(`<img src="${esc(p.images[0])}" style="width:100%;border-radius:12px;aspect-ratio:1/1;object-fit:cover;background:#120d1c">`));
-    if(p.images.length>1){ const row=el(`<div class="thumbs"></div>`); p.images.forEach(u=>{ const t=el(`<div class="thumb"><img src="${esc(u)}"></div>`); t.onclick=()=>{ g.firstChild.src=u; }; row.appendChild(t); }); g.appendChild(row); }
-    card.appendChild(g);
-  } else { card.appendChild(el(`<div class="pimg placeholder" style="font-size:64px;border-radius:12px;aspect-ratio:1/1">${p.type==='vpn'?'🛡️':'👕'}</div>`)); }
-  card.appendChild(el(`<h1 style="margin-top:12px">${esc(p.title)}</h1>`));
-  card.appendChild(el(`<div class="pprice" style="font-size:22px;margin:4px 0 8px">${money(p.price)}</div>`));
-  if(p.description) card.appendChild(el(`<div class="dim" style="white-space:pre-wrap">${esc(p.description)}</div>`));
-  c.appendChild(card);
+    media.appendChild(el(`<img src="${esc(p.images[0])}" style="width:100%;border-radius:14px;aspect-ratio:1/1;object-fit:cover;background:var(--surface);border:1px solid var(--line)">`));
+    if(p.images.length>1){ const row=el(`<div class="thumbs"></div>`); p.images.forEach(u=>{ const t=el(`<div class="thumb"><img src="${esc(u)}"></div>`); t.onclick=()=>{ media.firstChild.src=u; }; row.appendChild(t); }); media.appendChild(row); }
+  } else { media.appendChild(el(`<div class="imgwrap placeholder" style="font-size:64px;aspect-ratio:1/1">${p.type==='vpn'?'🛡':'👕'}</div>`)); }
+  c.appendChild(media);
+
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:18px">${p.type==='vpn'?'Подписка':'Товар'}</div>`));
+  c.appendChild(el(`<h1 style="margin-top:4px">${esc(p.title)}</h1>`));
+  c.appendChild(el(`<div class="pprice" style="font-size:24px;margin:6px 0 10px">${money(p.price)}</div>`));
+  if(p.description) c.appendChild(el(`<div class="dim" style="white-space:pre-wrap;line-height:1.5">${esc(p.description)}</div>`));
 
   if(p.type==="vpn") renderVpnBuy(c, p); else renderMerchBuy(c, p);
 }
 
 function promoBlock(c, p){
   if(p.price<=0) return;
-  const box=el(`<div class="card"></div>`);
+  const box=el(`<div class="card" style="margin-top:16px"></div>`);
   box.appendChild(el(`<label style="margin-top:0">Промокод</label>`));
-  const wrap=el(`<div class="row" style="margin-top:6px"></div>`);
-  const inp=el(`<input placeholder="Напр. WELCOME" value="${STATE.buy.promo||''}" style="margin-top:0">`);
+  const wrap=el(`<div class="row" style="margin-top:8px"></div>`);
+  const inp=el(`<input placeholder="WELCOME" value="${esc(STATE.buy.promo||'')}" style="margin-top:0">`);
   const ok=el(`<button class="btn ghost auto">OK</button>`);
   ok.onclick=async ()=>{
     const code=(inp.value||"").trim().toUpperCase();
@@ -281,7 +286,7 @@ function promoBlock(c, p){
     render();
   };
   wrap.appendChild(inp); wrap.appendChild(ok); box.appendChild(wrap);
-  if(STATE.buy.promoPct>0) box.appendChild(el(`<div style="margin-top:8px;color:var(--green);font-size:13px">−${STATE.buy.promoPct}% применено</div>`));
+  if(STATE.buy.promoPct>0) box.appendChild(el(`<div style="margin-top:10px;color:var(--ok);font-size:13px">−${STATE.buy.promoPct}% применено</div>`));
   c.appendChild(box);
 }
 function paymentBlock(box){
@@ -297,7 +302,7 @@ function finalPrice(p, unitOnly){
 }
 
 function renderVpnBuy(c, p){
-  const box=el(`<div class="card"></div>`);
+  const box=el(`<div class="card" style="margin-top:16px"></div>`);
   box.appendChild(el(`<label style="margin-top:0">Операционная система</label>`));
   const seg=el(`<div class="seg"></div>`);
   OS_LIST.forEach(([id,label])=>{ const b=el(`<button class="${STATE.buy.os===id?'active':''}">${label}</button>`); b.onclick=()=>{ STATE.buy.os=id; render(); }; seg.appendChild(b); });
@@ -306,13 +311,13 @@ function renderVpnBuy(c, p){
   c.appendChild(box);
   promoBlock(c, p);
   const fp=finalPrice(p);
-  const btn=el(`<button class="btn green">${fp===0?'Получить доступ':('Оплатить '+fp+'₽')}</button>`);
+  const btn=el(`<button class="btn green">${fp===0?'Получить доступ':('Оплатить '+fp+' ₽')}</button>`);
   btn.onclick=()=>checkout(btn,p);
   c.appendChild(btn);
 }
 
 function renderMerchBuy(c, p){
-  const box=el(`<div class="card"></div>`);
+  const box=el(`<div class="card" style="margin-top:16px"></div>`);
   const opts=p.merch?.options||[];
   if(opts.length){
     box.appendChild(el(`<label style="margin-top:0">Вариант</label>`));
@@ -338,7 +343,7 @@ function renderMerchBuy(c, p){
   c.appendChild(box);
   promoBlock(c, p);
   const fp=finalPrice(p);
-  const btn=el(`<button class="btn green">Оплатить ${fp}₽</button>`);
+  const btn=el(`<button class="btn green">Оплатить ${fp} ₽</button>`);
   btn.onclick=()=>checkout(btn,p);
   c.appendChild(btn);
 }
@@ -361,14 +366,12 @@ function orderResult(p, data){
 // ---------- PAY ----------
 function renderPay(c){
   const d=STATE.pay;
-  c.appendChild(el(`<h1>Оплата</h1>`));
-  c.appendChild(el(`<div class="card center">
-    <div style="font-size:30px;font-weight:800;margin-bottom:4px">${d.amount}₽</div>
-    ${d.amountUsd?`<div class="dim">≈ ${d.amountUsd} USDT</div>`:''}
-    <div class="dim" style="margin-top:10px">Оплатите по кнопке, затем нажмите «Проверить оплату».</div>
-  </div>`));
+  c.appendChild(el(`<div class="eyebrow">Оплата</div>`));
+  c.appendChild(el(`<h1>${d.amount} ₽</h1>`));
+  if(d.amountUsd) c.appendChild(el(`<div class="dim">≈ ${d.amountUsd} USDT</div>`));
+  c.appendChild(el(`<div class="card" style="margin-top:14px"><div class="dim">Оплатите по кнопке ниже, затем вернитесь и нажмите «Проверить оплату».</div></div>`));
   const pay=el(`<button class="btn">Перейти к оплате</button>`); pay.onclick=()=>{ try{ window.open(d.payUrl,"_blank"); }catch(e){ location.href=d.payUrl; } }; c.appendChild(pay);
-  const check=el(`<button class="btn green">Проверить оплату</button>`);
+  const check=el(`<button class="btn ghost">Проверить оплату</button>`);
   check.onclick=async ()=>{
     check.disabled=true; check.textContent="Проверяем…";
     try {
@@ -381,36 +384,39 @@ function renderPay(c){
     check.disabled=false; check.textContent="Проверить оплату";
   };
   c.appendChild(check);
-  const back=el(`<button class="btn ghost">← В каталог</button>`); back.onclick=()=>{ STATE.screen="catalog"; render(); }; c.appendChild(back);
+  const back=el(`<button class="back" style="margin-top:14px">← В каталог</button>`); back.onclick=()=>{ STATE.screen="catalog"; render(); }; c.appendChild(back);
 }
 
 // ---------- RESULT ----------
 function renderResult(c){
   const r=STATE.result;
-  c.appendChild(el(`<h1>🎉 Готово!</h1>`));
+  c.appendChild(el(`<div class="eyebrow">Готово</div>`));
   if(r.type==="vpn"){
-    c.appendChild(el(`<div class="sub">Подписка «${esc(r.title)}» активна.</div>`));
+    c.appendChild(el(`<h1>Подписка активна</h1>`));
+    c.appendChild(el(`<div class="sub">${esc(r.title)}</div>`));
     if(r.subUrl){
       const card=el(`<div class="card center"></div>`);
       card.appendChild(el(`<img class="qr" src="${qrUrl(r.subUrl)}" width="220" height="220">`));
       card.appendChild(el(`<div class="code-box" style="text-align:left">${esc(r.subUrl)}</div>`));
-      const cp=el(`<button class="btn">📋 Скопировать ссылку</button>`); cp.onclick=()=>copy(r.subUrl); card.appendChild(cp);
+      const cp=el(`<button class="btn">Скопировать ссылку</button>`); cp.onclick=()=>copy(r.subUrl); card.appendChild(cp);
       c.appendChild(card);
     }
     if(r.instructions) c.appendChild(el(`<div class="card"><pre class="instr">${esc(r.instructions)}</pre></div>`));
   } else {
-    c.appendChild(el(`<div class="sub">Заказ «${esc(r.title)}» оплачен.</div>`));
-    c.appendChild(el(`<div class="card">📦 Мы получили заказ и свяжемся по доставке. Статус — во вкладке «Кабинет».</div>`));
+    c.appendChild(el(`<h1>Заказ оформлен</h1>`));
+    c.appendChild(el(`<div class="sub">${esc(r.title)}</div>`));
+    c.appendChild(el(`<div class="card dim">Мы получили заказ и свяжемся по доставке. Статус — во вкладке «Кабинет».</div>`));
   }
-  const ok=el(`<button class="btn green">${r.type==='vpn'?'В кабинет':'Мои заказы'}</button>`);
+  const ok=el(`<button class="btn">${r.type==='vpn'?'В кабинет':'Мои заказы'}</button>`);
   ok.onclick=()=>{ STATE.tab="cabinet"; STATE.screen="catalog"; renderTabs(); render(); };
   c.appendChild(ok);
-  const more=el(`<button class="btn ghost">← В каталог</button>`); more.onclick=()=>{ STATE.tab="shop"; STATE.screen="catalog"; renderTabs(); render(); }; c.appendChild(more);
+  const more=el(`<button class="btn ghost">Продолжить покупки</button>`); more.onclick=()=>{ STATE.tab="shop"; STATE.screen="catalog"; renderTabs(); render(); }; c.appendChild(more);
 }
 
 // ---------- CABINET ----------
 async function renderCabinet(c){
-  c.appendChild(el(`<h1>Кабинет</h1>`));
+  c.appendChild(el(`<div class="eyebrow">Личный кабинет</div>`));
+  c.appendChild(el(`<h1>Мои покупки</h1>`));
   if(!STORE){ c.appendChild(el(`<div class="card center dim">Доступно внутри Zvon.</div>`)); return; }
   const holder=el(`<div><div class="spinner"></div></div>`); c.appendChild(holder);
   try {
@@ -419,29 +425,29 @@ async function renderCabinet(c){
     const subs=r.subscriptions||[], merch=r.merch||[];
     if(!subs.length && !merch.length){ holder.appendChild(el(`<div class="card center dim">Пока нет покупок.</div>`)); return; }
     if(subs.length){
-      holder.appendChild(el(`<h2 style="margin-top:0">🔑 VPN-подписки</h2>`));
+      holder.appendChild(el(`<h2 style="margin-top:6px">VPN-подписки</h2>`));
       subs.forEach(s=>{
         const active=s.expiryMs && s.expiryMs>Date.now();
         const left=active?Math.max(1,Math.ceil((s.expiryMs-Date.now())/86400000)):0;
         const card=el(`<div class="card">
-          <div class="flex-between"><div class="ptitle">${esc(s.title)}</div><span class="pill ${active?'active':'exp'}">${active?('активна · '+left+' дн'):'истекла'}</span></div>
-          <div class="dim" style="font-size:13px;margin-top:6px">🗓 ${fmtDate(s.createdAt)} · до ${s.expiryMs?fmtDate(s.expiryMs):'—'}</div>
+          <div class="flex-between"><div class="ptitle">${esc(s.title)}</div><span class="pill ${active?'active':'exp'}">${active?(left+' дн'):'истекла'}</span></div>
+          <div class="dim" style="font-size:13px;margin-top:8px">${fmtDate(s.createdAt)} → ${s.expiryMs?fmtDate(s.expiryMs):'—'}</div>
         </div>`);
         if(s.subUrl){
-          const b=el(`<button class="btn ghost small" style="margin-top:10px">🔗 Ключ и QR</button>`);
-          b.onclick=()=>{ if(card.querySelector(".qr")) return; const box=el(`<div class="center" style="margin-top:10px"></div>`); box.appendChild(el(`<img class="qr" src="${qrUrl(s.subUrl)}" width="200" height="200">`)); box.appendChild(el(`<div class="code-box" style="text-align:left">${esc(s.subUrl)}</div>`)); const cp=el(`<button class="btn small">📋 Скопировать</button>`); cp.onclick=()=>copy(s.subUrl); box.appendChild(cp); card.appendChild(box); };
+          const b=el(`<button class="btn ghost small" style="margin-top:12px">Ключ и QR</button>`);
+          b.onclick=()=>{ if(card.querySelector(".qr")) return; const box=el(`<div class="center" style="margin-top:12px"></div>`); box.appendChild(el(`<img class="qr" src="${qrUrl(s.subUrl)}" width="200" height="200">`)); box.appendChild(el(`<div class="code-box" style="text-align:left">${esc(s.subUrl)}</div>`)); const cp=el(`<button class="btn small">Скопировать</button>`); cp.onclick=()=>copy(s.subUrl); box.appendChild(cp); card.appendChild(box); };
           card.appendChild(b);
         }
         holder.appendChild(card);
       });
     }
     if(merch.length){
-      holder.appendChild(el(`<h2>📦 Заказы мерча</h2>`));
+      holder.appendChild(el(`<h2>Заказы мерча</h2>`));
       merch.forEach(m=>{
         holder.appendChild(el(`<div class="card">
           <div class="flex-between"><div class="ptitle">${esc(m.title)} ×${m.qty}</div><span class="pill ${m.fulfillment}">${FULFILL_LABEL[m.fulfillment]||m.fulfillment}</span></div>
-          <div class="dim" style="font-size:13px;margin-top:6px">🗓 ${fmtDate(m.createdAt)} · ${m.amount}₽</div>
-          ${m.shipping&&m.shipping.address?`<div class="dim" style="font-size:12px;margin-top:4px">📍 ${esc(m.shipping.address)}</div>`:''}
+          <div class="dim" style="font-size:13px;margin-top:8px">${fmtDate(m.createdAt)} · ${m.amount} ₽</div>
+          ${m.shipping&&m.shipping.address?`<div class="dim" style="font-size:12px;margin-top:4px">${esc(m.shipping.address)}</div>`:''}
         </div>`));
       });
     }
@@ -450,10 +456,11 @@ async function renderCabinet(c){
 
 // ---------- ADMIN ----------
 async function renderAdmin(c){
+  c.appendChild(el(`<div class="eyebrow">Управление</div>`));
   c.appendChild(el(`<h1>Админка</h1>`));
   if(STATE.adminEdit!==null){ renderProductForm(c, STATE.adminEdit); return; }
 
-  const addBtn=el(`<button class="btn">➕ Добавить товар</button>`);
+  const addBtn=el(`<button class="btn">+ Добавить товар</button>`);
   addBtn.onclick=()=>{ STATE.adminEdit={ type:"merch", title:"", description:"", price:0, images:[], active:true, sortOrder:0, vpn:{days:30,whitelist:false,trialOnce:false}, merch:{stock:"",requiresShipping:true,options:""} }; render(); };
   c.appendChild(addBtn);
 
@@ -463,16 +470,16 @@ async function renderAdmin(c){
     const r=await S(zvon.store.admin.products());
     holder.innerHTML="";
     (r.products||[]).forEach(p=>{
-      const item=el(`<div class="card" style="padding:12px"><div class="row" style="align-items:center;gap:12px">
-        <div style="width:52px;height:52px;border-radius:10px;overflow:hidden;flex:none;background:#120d1c;display:grid;place-items:center">${p.images&&p.images[0]?`<img src="${esc(p.images[0])}" style="width:100%;height:100%;object-fit:cover">`:(p.type==='vpn'?'🛡️':'👕')}</div>
+      const item=el(`<div class="card" style="padding:14px"><div class="row" style="align-items:center;gap:14px">
+        <div style="width:54px;height:54px;border-radius:10px;overflow:hidden;flex:none;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;font-size:22px">${p.images&&p.images[0]?`<img src="${esc(p.images[0])}" style="width:100%;height:100%;object-fit:cover">`:(p.type==='vpn'?'🛡':'👕')}</div>
         <div style="flex:1;min-width:0">
           <div class="ptitle">${esc(p.title)} ${p.active?'':'<span class="pill exp">скрыт</span>'}</div>
-          <div class="dim" style="font-size:12px">${p.type.toUpperCase()} · ${money(p.price)}</div>
+          <div class="tag" style="margin-top:4px">${p.type} · ${money(p.price)}</div>
         </div>
       </div></div>`);
-      const row=el(`<div class="row" style="margin-top:10px"></div>`);
-      const edit=el(`<button class="btn ghost small" style="flex:1">✏️ Изменить</button>`); edit.onclick=()=>{ STATE.adminEdit=adminToForm(p); render(); };
-      const del=el(`<button class="btn danger small" style="flex:1">🗑 Удалить</button>`); del.onclick=async ()=>{ if(!confirm("Удалить товар?")) return; try{ await S(zvon.store.admin.remove(p.id)); toast("Удалено"); render(); }catch(e){ toast(e.message); } };
+      const row=el(`<div class="row" style="margin-top:12px"></div>`);
+      const edit=el(`<button class="btn ghost small" style="flex:1">Изменить</button>`); edit.onclick=()=>{ STATE.adminEdit=adminToForm(p); render(); };
+      const del=el(`<button class="btn danger small" style="flex:1">Удалить</button>`); del.onclick=async ()=>{ if(!confirm("Удалить товар?")) return; try{ await S(zvon.store.admin.remove(p.id)); toast("Удалено"); render(); }catch(e){ toast(e.message); } };
       row.append(edit, del); item.appendChild(row);
       holder.appendChild(item);
     });
@@ -485,13 +492,13 @@ async function renderAdmin(c){
     oh.innerHTML="";
     if(!(r.orders||[]).length) oh.appendChild(el(`<div class="card center dim">Заказов нет.</div>`));
     (r.orders||[]).forEach(o=>{
-      const card=el(`<div class="card" style="padding:13px">
+      const card=el(`<div class="card" style="padding:14px">
         <div class="flex-between"><div class="ptitle">${esc(o.title)} ${o.type==='merch'?('×'+o.qty):''}</div><span class="pill ${o.status==='paid'?'active':(o.status==='canceled'?'exp':'new')}">${o.status}</span></div>
-        <div class="dim" style="font-size:12px;margin-top:6px">@${esc(o.username||'?')} · ${o.amount}₽ · ${o.provider||''} · ${fmtDate(o.createdAt)}</div>
-        ${o.type==='merch'&&o.shipping?`<div class="dim" style="font-size:12px;margin-top:6px">📦 ${esc(o.shipping.name||'')} · ${esc(o.shipping.phone||'')}<br>📍 ${esc(o.shipping.address||'')}${o.shipping.option?(' · '+esc(o.shipping.option)):''}${o.shipping.comment?('<br>💬 '+esc(o.shipping.comment)):''}</div>`:''}
+        <div class="dim" style="font-size:12px;margin-top:8px">@${esc(o.username||'?')} · ${o.amount} ₽ · ${o.provider||''} · ${fmtDate(o.createdAt)}</div>
+        ${o.type==='merch'&&o.shipping?`<div class="dim" style="font-size:12px;margin-top:8px">${esc(o.shipping.name||'')} · ${esc(o.shipping.phone||'')}<br>${esc(o.shipping.address||'')}${o.shipping.option?(' · '+esc(o.shipping.option)):''}${o.shipping.comment?('<br>'+esc(o.shipping.comment)):''}</div>`:''}
       </div>`);
       if(o.type==='merch' && o.status==='paid'){
-        const fr=el(`<div class="flex-between" style="margin-top:10px"><span class="pill ${o.fulfillment}">${FULFILL_LABEL[o.fulfillment]||o.fulfillment}</span></div>`);
+        const fr=el(`<div class="flex-between" style="margin-top:12px"><span class="pill ${o.fulfillment}">${FULFILL_LABEL[o.fulfillment]||o.fulfillment}</span></div>`);
         if(o.fulfillment!=='done'){ const nx=el(`<button class="btn ghost small auto">→ ${FULFILL_LABEL[FULFILL_NEXT[o.fulfillment]]}</button>`); nx.onclick=async ()=>{ try{ await S(zvon.store.admin.fulfill(o.orderId, FULFILL_NEXT[o.fulfillment])); toast("Обновлено"); render(); }catch(e){ toast(e.message); } }; fr.appendChild(nx); }
         card.appendChild(fr);
       }
@@ -509,11 +516,11 @@ function adminToForm(p){
 function renderProductForm(c, f){
   const back=el(`<button class="back">← К списку</button>`); back.onclick=()=>{ STATE.adminEdit=null; render(); }; c.appendChild(back);
   c.appendChild(el(`<h1>${f.id?'Изменить товар':'Новый товар'}</h1>`));
-  const box=el(`<div class="card"></div>`);
+  const box=el(`<div class="card" style="margin-top:10px"></div>`);
 
   box.appendChild(el(`<label style="margin-top:0">Тип товара</label>`));
   const typeSeg=el(`<div class="seg" style="grid-template-columns:1fr 1fr"></div>`);
-  [["vpn","🛡️ VPN"],["merch","👕 Мерч"]].forEach(([id,label])=>{ const b=el(`<button class="${f.type===id?'active':''}">${label}</button>`); b.onclick=()=>{ f.type=id; STATE.adminEdit=f; render(); }; typeSeg.appendChild(b); });
+  [["vpn","🛡 VPN"],["merch","👕 Мерч"]].forEach(([id,label])=>{ const b=el(`<button class="${f.type===id?'active':''}">${label}</button>`); b.onclick=()=>{ f.type=id; STATE.adminEdit=f; render(); }; typeSeg.appendChild(b); });
   box.appendChild(typeSeg);
 
   const title=el(`<input placeholder="Название" value="${esc(f.title)}">`); title.oninput=e=>f.title=e.target.value;
@@ -525,20 +532,18 @@ function renderProductForm(c, f){
   const sort=el(`<input type="number" inputmode="numeric" value="${f.sortOrder}">`); sort.oninput=e=>f.sortOrder=parseInt(e.target.value,10)||0;
   box.appendChild(el(`<label>Порядок сортировки</label>`)); box.appendChild(sort);
 
-  // Картинки
   box.appendChild(el(`<label>Картинки</label>`));
   const thumbs=el(`<div class="thumbs"></div>`);
   function redrawThumbs(){ thumbs.innerHTML=""; f.images.forEach((u,i)=>{ const t=el(`<div class="thumb"><img src="${esc(u)}"><button>✕</button></div>`); t.querySelector("button").onclick=()=>{ f.images.splice(i,1); redrawThumbs(); }; thumbs.appendChild(t); }); }
   redrawThumbs(); box.appendChild(thumbs);
-  const imgRow=el(`<div class="row" style="margin-top:8px"></div>`);
+  const imgRow=el(`<div class="row" style="margin-top:10px"></div>`);
   const urlInp=el(`<input placeholder="URL картинки" style="margin-top:0">`);
-  const addUrl=el(`<button class="btn ghost auto">+URL</button>`); addUrl.onclick=()=>{ const u=(urlInp.value||"").trim(); if(u){ f.images.push(u); urlInp.value=""; redrawThumbs(); } };
+  const addUrl=el(`<button class="btn ghost auto">+ URL</button>`); addUrl.onclick=()=>{ const u=(urlInp.value||"").trim(); if(u){ f.images.push(u); urlInp.value=""; redrawThumbs(); } };
   imgRow.append(urlInp, addUrl); box.appendChild(imgRow);
-  const fileInp=el(`<input type="file" accept="image/*" style="margin-top:8px">`);
+  const fileInp=el(`<input type="file" accept="image/*" style="margin-top:10px">`);
   fileInp.onchange=async ()=>{ const file=fileInp.files[0]; if(!file) return; if(!STORE){ toast("Загрузка только внутри Zvon"); return; } const reader=new FileReader(); reader.onload=async ()=>{ try{ const r=await S(zvon.store.admin.upload(reader.result)); f.images.push(r.url); redrawThumbs(); toast("Картинка загружена"); }catch(e){ toast(e.message); } }; reader.readAsDataURL(file); fileInp.value=""; };
-  box.appendChild(el(`<div class="dim" style="font-size:12px;margin-top:6px">или загрузите файл:</div>`)); box.appendChild(fileInp);
+  box.appendChild(el(`<div class="dim" style="font-size:12px;margin-top:8px">или загрузите файл:</div>`)); box.appendChild(fileInp);
 
-  // Тип-специфичные поля
   if(f.type==="vpn"){
     const days=el(`<input type="number" inputmode="numeric" value="${f.vpn.days}">`); days.oninput=e=>f.vpn.days=parseInt(e.target.value,10)||1;
     box.appendChild(el(`<label>Дней доступа</label>`)); box.appendChild(days);
@@ -547,14 +552,14 @@ function renderProductForm(c, f){
   } else {
     const stock=el(`<input placeholder="пусто = без ограничения" inputmode="numeric" value="${f.merch.stock}">`); stock.oninput=e=>f.merch.stock=e.target.value;
     box.appendChild(el(`<label>Остаток на складе</label>`)); box.appendChild(stock);
-    const opts=el(`<input placeholder="через запятую, напр. S, M, L" value="${esc(f.merch.options)}">`); opts.oninput=e=>f.merch.options=e.target.value;
+    const opts=el(`<input placeholder="через запятую: S, M, L" value="${esc(f.merch.options)}">`); opts.oninput=e=>f.merch.options=e.target.value;
     box.appendChild(el(`<label>Варианты (размеры и т.п.)</label>`)); box.appendChild(opts);
     const sh=el(`<label class="check"><input type="checkbox" ${f.merch.requiresShipping?'checked':''}> Требуется адрес доставки</label>`); sh.querySelector("input").onchange=e=>f.merch.requiresShipping=e.target.checked; box.appendChild(sh);
   }
   const act=el(`<label class="check"><input type="checkbox" ${f.active?'checked':''}> Показывать в каталоге</label>`); act.querySelector("input").onchange=e=>f.active=e.target.checked; box.appendChild(act);
   c.appendChild(box);
 
-  const save=el(`<button class="btn green">💾 Сохранить</button>`);
+  const save=el(`<button class="btn green">Сохранить</button>`);
   save.onclick=async ()=>{
     if(!f.title.trim()){ toast("Укажите название"); return; }
     save.disabled=true; save.textContent="Сохраняем…";
@@ -563,10 +568,10 @@ function renderProductForm(c, f){
       merch:{ stock:f.merch.stock===""?null:f.merch.stock, requiresShipping:f.merch.requiresShipping, options:f.merch.options } };
     try { if(f.id) await S(zvon.store.admin.update(f.id, payload)); else await S(zvon.store.admin.create(payload)); toast("Сохранено"); STATE.adminEdit=null;
       const cat=await S(zvon.store.catalog()); STATE.products=cat.products||[]; render();
-    } catch(e){ toast(e.message); save.disabled=false; save.textContent="💾 Сохранить"; }
+    } catch(e){ toast(e.message); save.disabled=false; save.textContent="Сохранить"; }
   };
   c.appendChild(save);
-  if(f.id){ const del=el(`<button class="btn danger">🗑 Удалить товар</button>`); del.onclick=async ()=>{ if(!confirm("Удалить товар?")) return; try{ await S(zvon.store.admin.remove(f.id)); toast("Удалено"); STATE.adminEdit=null; const cat=await S(zvon.store.catalog()); STATE.products=cat.products||[]; render(); }catch(e){ toast(e.message); } }; c.appendChild(del); }
+  if(f.id){ const del=el(`<button class="btn danger">Удалить товар</button>`); del.onclick=async ()=>{ if(!confirm("Удалить товар?")) return; try{ await S(zvon.store.admin.remove(f.id)); toast("Удалено"); STATE.adminEdit=null; const cat=await S(zvon.store.catalog()); STATE.products=cat.products||[]; render(); }catch(e){ toast(e.message); } }; c.appendChild(del); }
 }
 
 // старт
