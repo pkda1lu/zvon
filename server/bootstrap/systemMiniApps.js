@@ -15,7 +15,7 @@ const SYSTEM_APPS = [
   {
     name: 'VPN Магазин',
     path: '/miniapps/vpn-store/',
-    description: 'Онлайн-магазин VLESS VPN прямо в Zvon: тарифы, промокоды, оформление и личный кабинет с ключом и QR. Построен на Zvon Mini-App SDK.',
+    description: 'Магазин Zvon: VPN-тарифы и мерч, каталог с картинками, промокоды, оплата картой/криптой, личный кабинет и админка с редактированием товаров. Построен на Zvon Mini-App SDK.',
   },
 ];
 
