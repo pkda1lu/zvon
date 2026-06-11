@@ -32,10 +32,10 @@ export const BRANDS: Record<'zvon' | 'maxcord', BrandConfig> = {
         id: 'maxcord',
         name: 'MAXCORD',
         logo: 'maxcord/logo.png',
-        favicon: 'maxcord/icon.png',
+        favicon: 'maxcord/logo.png',
         appIcons: [
-            { id: 'max_default', label: 'Градиент', img: 'maxcord/icon.png' },
-            { id: 'max_white', label: 'Белый', img: 'maxcord/trans.png' },
+            { id: 'max_default', label: 'Градиент', img: 'maxcord/logo.png' },
+            { id: 'max_white', label: 'Белый', img: 'maxcord/logo-trans.png' },
         ]
     }
 };
