@@ -1,5 +1,5 @@
 import React from 'react';
-import { getBrand } from '../utils/branding';
+import { getBrand, getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
@@ -25,7 +25,7 @@ const Landing: React.FC = () => {
 
             <nav className="landing-nav">
                 <div className="nav-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                    <img src={`${import.meta.env.BASE_URL}${getBrand().favicon}`} alt={getBrand().name} />
+                    <img src={`${import.meta.env.BASE_URL}${getIconBrand().favicon}`} alt={getBrand().name} />
                     <span>{getBrand().name}</span>
                 </div>
                 <div className="nav-links">
