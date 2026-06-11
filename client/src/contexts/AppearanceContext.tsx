@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getBrand } from '../utils/branding';
+import { getIconBrand } from '../utils/branding';
 
 export type ThemeType = 'dark' | 'amoled';
 export type DensityType = 'cozy' | 'compact';
@@ -100,7 +100,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }, [settings]);
 
     const updateFavicon = (iconType: AppIconType) => {
-        const brand = getBrand();
+        const brand = getIconBrand();
         const iconOption = brand.appIcons.find(i => i.id === iconType) || brand.appIcons[0];
         const fileName = iconOption.img;
         const fullUrl = `${import.meta.env.BASE_URL}${fileName}`;
