@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getBrand } from '../utils/branding';
+import { getIconBrand } from '../utils/branding';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './Auth.css';
@@ -191,7 +191,7 @@ const Register: React.FC = () => {
           </div>
 
           <h1 style={{ marginTop: '20px', fontSize: '32px', fontWeight: 800, marginBottom: '10px', color: 'white' }}>Создать аккаунт</h1>
-          <p style={{ color: 'var(--text-dim)', marginBottom: '40px', fontSize: '15px' }}>Присоединяйтесь к экосистеме {getBrand().name}.</p>
+          <p style={{ color: 'var(--text-dim)', marginBottom: '40px', fontSize: '15px' }}>Присоединяйтесь к экосистеме {getIconBrand().name}.</p>
 
           <form onSubmit={handleSubmit} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {error && (

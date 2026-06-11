@@ -1,5 +1,5 @@
 import React from 'react';
-import { getBrand } from '../utils/branding';
+import { getIconBrand } from '../utils/branding';
 import './TitleBar.css';
 
 const TitleBar: React.FC = () => {
@@ -35,7 +35,7 @@ const TitleBar: React.FC = () => {
     return (
         <div className="title-bar">
             <div className="title-bar-drag-area">
-                <div className="title-bar-title">{getBrand().name}</div>
+                <div className="title-bar-title">{getIconBrand().name}</div>
             </div>
             <div className="title-bar-controls">
                 <button className="control-btn minimize" onClick={handleMinimize} title="Свернуть">
