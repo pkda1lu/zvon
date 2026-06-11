@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { getBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
@@ -703,20 +704,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             <div className="settings-section-block">
               <h3>Иконка приложения</h3>
               <div className="app-icon-grid">
-                {[
-                  { id: 'default', label: 'Стандарт', img: 'icon.png' },
-                  { id: 'icon1', label: 'Неон', img: 'icon1.PNG' },
-                  { id: 'icon2', label: 'Лазурь', img: 'icon2.png' },
-                  { id: 'icon3', label: 'Аметист', img: 'icon3.png' },
-                  { id: 'icon4', label: 'Космос', img: 'icon4.png' },
-                  { id: 'legacy', label: 'Легаси', img: 'zvon_legacy.png' }
-                ].map(icon => (
+                {getBrand().appIcons.map(icon => (
                   <div
                     key={icon.id}
                     className={`app-icon-option ${appIcon === icon.id ? 'active' : ''}`}
                     onClick={() => setAppIcon(icon.id as any)}
                   >
-                    <img src={(window as any).electron ? icon.img : '/' + icon.img} alt={icon.label} />
+                    <img src={(window as any).electron ? icon.img : (icon.img.startsWith('http') || icon.img.startsWith('/') ? icon.img : '/' + icon.img)} alt={icon.label} />
                     <span>{icon.label}</span>
                   </div>
                 ))}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import './Docs.css';
 
@@ -10,8 +11,8 @@ const Docs: React.FC = () => {
         <div className="docs-container">
             <nav className="docs-nav">
                 <div className="nav-logo" onClick={() => navigate('/')}>
-                    <img src={`${import.meta.env.BASE_URL}icon.png`} alt="Zvon" />
-                    <span>Zvon Docs</span>
+                    <img src={`${import.meta.env.BASE_URL}icon.png`} alt="{getBrand().name}" />
+                    <span>{getBrand().name} Docs</span>
                 </div>
                 <button className="btn-back" onClick={() => navigate('/')}>На главную</button>
             </nav>
@@ -41,12 +42,12 @@ const Docs: React.FC = () => {
                 <main className="docs-main">
                     {activeTab === 'general' && (
                         <div className="docs-content">
-                            <h1>Документация Zvon</h1>
-                            <p className="lead">Zvon — это современная платформа для общения, стриминга и совместного проведения времени.</p>
+                            <h1>Документация {getBrand().name}</h1>
+                            <p className="lead">{getBrand().name} — это современная платформа для общения, стриминга и совместного проведения времени.</p>
 
                             <section>
                                 <h2>🚀 Начало работы</h2>
-                                <p>Чтобы начать пользоваться Zvon, зарегистрируйтесь или войдите в свою учетную запись. Вы можете использовать веб-версию или скачать клиент для Windows.</p>
+                                <p>Чтобы начать пользоваться {getBrand().name}, зарегистрируйтесь или войдите в свою учетную запись. Вы можете использовать веб-версию или скачать клиент для Windows.</p>
                                 <ul>
                                     <li><strong>Серверы:</strong> Основное место для общения. Вы можете создать свой сервер или присоединиться к существующему по ссылке-приглашению.</li>
                                     <li><strong>Каналы:</strong> На каждом сервере есть Текстовые и Голосовые каналы.</li>
@@ -56,7 +57,7 @@ const Docs: React.FC = () => {
 
                             <section>
                                 <h2>🎧 Голосовое общение и Стриминг</h2>
-                                <p>Zvon поддерживает высококачественный звук и передачу видео в 4K.</p>
+                                <p>{getBrand().name} поддерживает высококачественный звук и передачу видео в 4K.</p>
                                 <ul>
                                     <li><strong>Шумоподавление:</strong> Встроено по умолчанию для кристальной чистоты звука.</li>
                                     <li><strong>Демонстрация экрана:</strong> Стримить можно как весь экран, так и отдельное окно приложения.</li>
@@ -66,7 +67,7 @@ const Docs: React.FC = () => {
 
                             <section>
                                 <h2>🛡️ Безопасность и Шифрование</h2>
-                                <p>Zvon использует современные стандарты безопасности для защиты ваших данных.</p>
+                                <p>{getBrand().name} использует современные стандарты безопасности для защиты ваших данных.</p>
                                 <ul>
                                     <li><strong>LiveKit E2EE:</strong> Голосовые и видеопотоки поддерживают сквозное шифрование (E2EE), что гарантирует, что даже сервер не может прослушать ваш разговор.</li>
                                     <li><strong>Защита сообщений:</strong> Все текстовые сообщения передаются через TLS 1.3 и хранятся в защищенной базе данных.</li>
@@ -89,7 +90,7 @@ const Docs: React.FC = () => {
                     {activeTab === 'bot-api' && (
                         <div className="docs-content">
                             <h1>API для ботов (Webhooks & Sockets)</h1>
-                            <p className="lead">Вы можете создавать своих ботов для Zvon, используя наш простой SDK на основе Socket.io и Webhooks.</p>
+                            <p className="lead">Вы можете создавать своих ботов для {getBrand().name}, используя наш простой SDK на основе Socket.io и Webhooks.</p>
 
                             <section>
                                 <h2>🔑 Авторизация</h2>
@@ -129,7 +130,7 @@ const Docs: React.FC = () => {
 
                             <section>
                                 <h2>🎤 Работа с Голосом и Живой Поток</h2>
-                                <p>Zvon использует RTC-узлы для передачи звука. Рекомендуется использовать официальный LiveKit SDK для Node.js для подключения к голосовым каналам.</p>
+                                <p>{getBrand().name} использует RTC-узлы для передачи звука. Рекомендуется использовать официальный LiveKit SDK для Node.js для подключения к голосовым каналам.</p>
                                 <div className="code-block">
                                     <pre>{`// Пример подключения к голосовому каналу (Node.js)
 const { Room, AudioSource, LocalAudioTrack } = require("@livekit/rtc-node");
@@ -158,22 +159,22 @@ ffmpeg.stdout.on("data", (chunk) => {
                     {activeTab === 'miniapps' && (
                         <div className="docs-content">
                             <h1>Мини-приложения (Embedded Web Apps)</h1>
-                            <p className="lead">Интегрируйте свои веб-сервисы, игры или инструменты прямо в интерфейс Zvon.</p>
+                            <p className="lead">Интегрируйте свои веб-сервисы, игры или инструменты прямо в интерфейс {getBrand().name}.</p>
 
                             <section className="disclaimer-section" style={{ background: 'rgba(255, 107, 0, 0.1)', borderLeft: '4px solid #ff6b00', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
                                 <h3 style={{ color: '#ff6b00', marginTop: 0 }}>⚠️ Критическое требование</h3>
-                                <p>Сайт, на котором размещено ваше мини-приложение, <strong>НЕ ДОЛЖЕН блокировать</strong> возможность открытия в <code>iframe</code> (плавающем окне Zvon).</p>
+                                <p>Сайт, на котором размещено ваше мини-приложение, <strong>НЕ ДОЛЖЕН блокировать</strong> возможность открытия в <code>iframe</code> (плавающем окне {getBrand().name}).</p>
                                 <p>Убедитесь, что заголовки на вашем сервере настроены следующим образом:</p>
                                 <ul>
                                     <li><code>X-Frame-Options</code>: не должен иметь значение <code>DENY</code> или <code>SAMEORIGIN</code>.</li>
-                                    <li><code>Content-Security-Policy</code>: директива <code>frame-ancestors</code> должна разрешать домены Zvon или быть установлена в <code>*</code>.</li>
+                                    <li><code>Content-Security-Policy</code>: директива <code>frame-ancestors</code> должна разрешать домены {getBrand().name} или быть установлена в <code>*</code>.</li>
                                 </ul>
                                 <p style={{ marginBottom: 0 }}>Если эти заголовки настроены неверно, приложение отобразится в виде пустого окна (отказ в соединении).</p>
                             </section>
 
                             <section>
                                 <h2>🚀 Как это работает</h2>
-                                <p>Мини-приложения открываются внутри Zvon как изолированные плавающие окна. Это позволяет пользователям взаимодействовать с вашим контентом, не покидая чат или голосовой канал.</p>
+                                <p>Мини-приложения открываются внутри {getBrand().name} как изолированные плавающие окна. Это позволяет пользователям взаимодействовать с вашим контентом, не покидая чат или голосовой канал.</p>
                                 <ul>
                                     <li><strong>Изоляция:</strong> Каждое приложение работает в своем контексте.</li>
                                     <li><strong>Адаптивность:</strong> Окна могут изменять размер, поэтому ваше приложение должно быть полностью адаптивным.</li>
@@ -194,14 +195,14 @@ ffmpeg.stdout.on("data", (chunk) => {
 
                             <hr style={{ border: 0, borderTop: '1px solid rgba(255,255,255,0.08)', margin: '40px 0' }} />
 
-                            <h1 style={{ marginTop: 0 }}>Zvon Mini-App SDK</h1>
+                            <h1 style={{ marginTop: 0 }}>{getBrand().name} Mini-App SDK</h1>
                             <p className="lead">
-                                Универсальный JavaScript-SDK для взаимодействия мини-аппки с хостом Zvon: профиль пользователя, голосовой канал, трансляция аудио в voice, постоянное хранилище, CORS-прокси, OAuth-попап.
+                                Универсальный JavaScript-SDK для взаимодействия мини-аппки с хостом {getBrand().name}: профиль пользователя, голосовой канал, трансляция аудио в voice, постоянное хранилище, CORS-прокси, OAuth-попап.
                             </p>
 
                             <section>
                                 <h2>🧩 Подключение</h2>
-                                <p>Подключите SDK скриптом в <code>&lt;head&gt;</code>. Он отдаётся с того же домена, что и Zvon, и доступен по абсолютному пути <code>/zvon-sdk.js</code>.</p>
+                                <p>Подключите SDK скриптом в <code>&lt;head&gt;</code>. Он отдаётся с того же домена, что и {getBrand().name}, и доступен по абсолютному пути <code>/zvon-sdk.js</code>.</p>
                                 <div className="code-block">
                                     <pre>{`<!DOCTYPE html>
 <html>
@@ -223,7 +224,7 @@ ffmpeg.stdout.on("data", (chunk) => {
 </body>
 </html>`}</pre>
                                 </div>
-                                <p>SDK работает только когда страница загружена внутри iframe Zvon. Если открыть напрямую — методы будут висеть без ответа.</p>
+                                <p>SDK работает только когда страница загружена внутри iframe {getBrand().name}. Если открыть напрямую — методы будут висеть без ответа.</p>
                             </section>
 
                             <section>
@@ -239,7 +240,7 @@ ffmpeg.stdout.on("data", (chunk) => {
                                 </div>
 
                                 <h3>zvon.getUser()</h3>
-                                <p>Профиль текущего пользователя Zvon.</p>
+                                <p>Профиль текущего пользователя {getBrand().name}.</p>
                                 <div className="code-block">
                                     <pre>{`const user = await zvon.getUser();
 // { _id: "65f...", username: "anton", avatar: "/api/uploads/..." } | null`}</pre>
@@ -280,7 +281,7 @@ await zvon.unpublishAudioTrack(sid);`}</pre>
 
                                 <h3>zvon.fetch(url, options)</h3>
                                 <p>
-                                    HTTP-запрос через серверный прокси Zvon — обходит CORS. Используйте, когда нужно дёргать сторонние API, которые не отдают <code>Access-Control-Allow-Origin</code>.
+                                    HTTP-запрос через серверный прокси {getBrand().name} — обходит CORS. Используйте, когда нужно дёргать сторонние API, которые не отдают <code>Access-Control-Allow-Origin</code>.
                                 </p>
                                 <div className="code-block">
                                     <pre>{`const r = await zvon.fetch('https://api.example.com/data', {
@@ -361,7 +362,7 @@ off();`}</pre>
                                     <li><code>DELETE /api/miniapps/:id/storage/:key</code></li>
                                     <li><code>POST /api/miniapps/:id/fetch</code> — body <code>{`{ url, method, headers, body, responseType, timeout }`}</code></li>
                                 </ul>
-                                <p>Все запросы требуют JWT-токен Zvon (<code>Authorization: Bearer ...</code>) — SDK подставляет автоматически.</p>
+                                <p>Все запросы требуют JWT-токен {getBrand().name} (<code>Authorization: Bearer ...</code>) — SDK подставляет автоматически.</p>
                             </section>
 
                             <section>
@@ -542,7 +543,7 @@ presence.on('control', ({ controlId, value, fromUserId }) => {
                             <section>
                                 <h2>🍿 Готовый пример</h2>
                                 <p>
-                                    Аппка <strong>Яндекс Музыка</strong> в витрине Zvon написана целиком на этом SDK — без какой-либо специальной серверной логики. Исходники: <code>server/public/miniapps/yandex-music/</code> в репозитории.
+                                    Аппка <strong>Яндекс Музыка</strong> в витрине {getBrand().name} написана целиком на этом SDK — без какой-либо специальной серверной логики. Исходники: <code>server/public/miniapps/yandex-music/</code> в репозитории.
                                 </p>
                             </section>
                         </div>
