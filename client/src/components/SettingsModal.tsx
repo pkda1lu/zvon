@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { getBrand } from '../utils/branding';
+import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
@@ -704,7 +704,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             <div className="settings-section-block">
               <h3>Иконка приложения</h3>
               <div className="app-icon-grid">
-                {getBrand().appIcons.map(icon => (
+                {getIconBrand().appIcons.map(icon => (
                   <div
                     key={icon.id}
                     className={`app-icon-option ${appIcon === icon.id ? 'active' : ''}`}
