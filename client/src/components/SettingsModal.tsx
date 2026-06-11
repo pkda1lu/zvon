@@ -105,7 +105,7 @@ const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { user, logout, updateUser, updateGlobalUser } = useAuth();
+  const { user, logout, updateUser, updateGlobalUser, refreshUser, toggle2FA, requestEmailChange, verifyEmailChange } = useAuth();
   const { confirm, prompt, alert } = useDialog();
   const {
     noiseSuppressionMode, setNoiseSuppressionMode,
@@ -487,13 +487,48 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
       <div className="settings-section-block">
         <h3>Безопасность учетной записи</h3>
-        <div className="settings-form-group-checkbox disabled">
+        <div className="settings-form-group-checkbox">
           <div className="checkbox-label">
             <span className="checkbox-title">Двухфакторная аутентификация (2FA)</span>
-            <span className="checkbox-description"> (Отключено для локальной разработки) </span>
+            <span className="checkbox-description">
+              Защитите свой аккаунт дополнительным кодом, который будет приходить на вашу почту при входе.
+            </span>
           </div>
           <label className="switch">
-            <input type="checkbox" checked={false} disabled />
+            <input
+              type="checkbox"
+              checked={user?.is2FAEnabled || false}
+              onChange={async () => {
+                const confirmed = await confirm(
+                  user?.is2FAEnabled
+                    ? 'Вы уверены, что хотите ОТКЛЮЧИТЬ двухфакторную аутентификацию?'
+                    : 'Вы уверены, что хотите ВКЛЮЧИТЬ двухфакторную аутентификацию?'
+                );
+                if (confirmed) {
+                  try {
+                    const enable = !user?.is2FAEnabled;
+                    await toggle2FA(enable);
+                    await alert(enable ? '2FA успешно включена!' : '2FA отключена');
+                  } catch (err) {
+                    await alert('Ошибка при изменении настроек 2FA');
+                  }
+                }
+              }}
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Приватность сообщений</h3>
+        <div className="settings-form-group-checkbox disabled">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Разрешить личные сообщения от участников сервера</span>
+            <span className="checkbox-description">Эту настройку можно переопределить для каждого сервера отдельно.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={true} disabled />
             <span className="slider round"></span>
           </label>
         </div>
@@ -1698,7 +1733,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 {activeTab === 'keybinds' && renderKeybindsSettings()}
                 {activeTab === 'windows' && renderWindowsSettings()}
                 {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
-                {activeTab === 'activity' && renderPlaceholder('Активность', <EllipsisIcon size={80} />)}
+                {activeTab === 'activity' && <ActivitySettings />}
                 {activeTab === 'bots' && <BotsSettings />}
                 {activeTab === 'miniapps' && <MiniAppsSettings />}
               </div>
@@ -2658,6 +2693,201 @@ function MarketplaceCard({ type, item, tab, act, confirm, prompt }: {
             style={{ padding: '8px 14px', borderRadius: 999, border: 'none', background: '#34d27e', color: 'black', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
           >Одобрить</button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ActivitySettings() {
+  const { user, refreshUser } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [showStatus, setShowStatus] = useState(user?.settings?.showActivityStatus ?? true);
+  const [visibility, setVisibility] = useState(user?.settings?.activityVisibility ?? 'everyone');
+  const [hiddenActivities, setHiddenActivities] = useState<string[]>(user?.settings?.hiddenActivities ?? []);
+  const [newHiddenActivity, setNewHiddenActivity] = useState('');
+
+  const saveSettings = async (newSettings: any) => {
+    setLoading(true);
+    try {
+      await axios.put('/api/users/settings', { settings: newSettings });
+      await refreshUser();
+    } catch (e) {
+      console.error('Failed to save activity settings', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = (val: boolean) => {
+    setShowStatus(val);
+    saveSettings({ showActivityStatus: val });
+  };
+
+  const handleVisibilityChange = (val: string) => {
+    setVisibility(val as any);
+    saveSettings({ activityVisibility: val });
+  };
+
+  const addHiddenActivity = () => {
+    if (!newHiddenActivity.trim()) return;
+    const updated = [...hiddenActivities, newHiddenActivity.trim()];
+    setHiddenActivities(updated);
+    saveSettings({ hiddenActivities: updated });
+    setNewHiddenActivity('');
+  };
+
+  const removeHiddenActivity = (name: string) => {
+    const updated = hiddenActivities.filter(a => a !== name);
+    setHiddenActivities(updated);
+    saveSettings({ hiddenActivities: updated });
+  };
+
+  return (
+    <div className="settings-section-content">
+      <h2 className="settings-section-title">Настройки активности</h2>
+
+      <div className="settings-section-block">
+        <h3>Системные настройки</h3>
+        <div className="settings-form-group-checkbox">
+          <div className="checkbox-label">
+            <span className="checkbox-title">Отображать текущую активность как статус</span>
+            <span className="checkbox-description">Когда эта настройка включена, ваше текущее занятие (игры, музыка) будет отображаться в вашем профиле и списке друзей.</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={showStatus}
+              onChange={(e) => handleToggleStatus(e.target.checked)}
+              disabled={loading}
+            />
+            <span className="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Конфиденциальность активности</h3>
+        <div className="settings-form-group">
+          <label>Кто может видеть вашу активность?</label>
+          <div className="status-selector-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+            {[
+              { id: 'everyone', label: 'Все', desc: 'Участники серверов и друзья' },
+              { id: 'friends', label: 'Друзья', desc: 'Только ваши друзья' },
+              { id: 'none', label: 'Никто', desc: 'Активность скрыта для всех' }
+            ].map(opt => (
+              <div
+                key={opt.id}
+                className={`status-option ${visibility === opt.id ? 'active' : ''}`}
+                onClick={() => handleVisibilityChange(opt.id)}
+                style={{ height: 'auto', padding: '15px' }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontWeight: 700 }}>{opt.label}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.2 }}>{opt.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Исключения (Скрытые игры)</h3>
+        <p style={{ color: 'var(--text-dim)', fontSize: '13px', marginBottom: '15px' }}>
+          Добавьте названия приложений или игр, которые вы не хотите отображать в статусе, даже если общая настройка включена.
+        </p>
+
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <input
+            type="text"
+            placeholder="Название игры (например: Solitaire)"
+            value={newHiddenActivity}
+            onChange={(e) => setNewHiddenActivity(e.target.value)}
+            className="settings-input"
+            style={{ flex: 1 }}
+          />
+          <button
+            className="save-button"
+            style={{ margin: 0, padding: '0 20px' }}
+            onClick={addHiddenActivity}
+            disabled={loading}
+          >
+            Добавить
+          </button>
+        </div>
+
+        <div className="hidden-activities-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {hiddenActivities.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', border: '1px dashed var(--glass-border)', borderRadius: '12px' }}>
+              Список исключений пуст
+            </div>
+          )}
+          {hiddenActivities.map(activity => (
+            <div key={activity} style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 16px',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '10px',
+              border: '1px solid var(--glass-border)'
+            }}>
+              <span style={{ fontWeight: 600 }}>{activity}</span>
+              <button
+                className="msg-action-btn danger"
+                onClick={() => removeHiddenActivity(activity)}
+                style={{ padding: '6px 12px' }}
+              >
+                Удалить
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="settings-section-block">
+        <h3>Текущая активность</h3>
+        <div style={{ padding: '20px', background: 'rgba(0, 229, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 229, 255, 0.1)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            background: user?.activity?.assets?.largeImage ? 'transparent' : 'var(--primary-neon)',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            flexShrink: 0
+          }}>
+            {user?.activity?.assets?.largeImage ? (
+              <img
+                src={getFullUrl(user.activity.assets.largeImage)!}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : user?.activity?.assets?.smallImage ? (
+              <img
+                src={getFullUrl(user.activity.assets.smallImage)!}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <MonitorIcon size={32} color="black" />
+            )}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, color: 'white', fontSize: '16px' }}>{user?.activity?.name || 'Ничего не запущено'}</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '2px' }}>
+              {user?.activity ? (
+                <>
+                  {user.activity.details && <div>{user.activity.details}</div>}
+                  {user.activity.state && <div>{user.activity.state}</div>}
+                  <div style={{ color: 'var(--primary-neon)', marginTop: '4px', fontWeight: 600 }}>В процессе</div>
+                </>
+              ) : 'Запустите игру, чтобы увидеть её здесь'}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

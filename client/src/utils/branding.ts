@@ -38,6 +38,7 @@ export const BRANDS: Record<'zvon' | 'maxcord', BrandConfig> = {
             { id: 'max_white', label: 'Белый', img: 'maxcord/logo-trans.png' },
         ]
     }
+
 };
 
 export const getBrand = (): BrandConfig => {

@@ -1249,6 +1249,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (roomRef.current && isConnected) {
                 console.log(`[Voice] Switching LiveKit microphone to device: ${selectedInputDeviceId}`);
                 try {
+                    // Force disable and release the current track first
+                    await roomRef.current.localParticipant.setMicrophoneEnabled(false);
+                    
+                    // Small delay to let OS release the device
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
                     await roomRef.current.localParticipant.setMicrophoneEnabled(true, {
                         echoCancellation: true,
                         noiseSuppression: noiseSuppressionMode === 'standard' || noiseSuppressionMode === 'rnnoise',
@@ -1528,7 +1534,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const localId = user?._id || 'local';
             const VAD_HOLD_TIME = 250;
             const isLocalVADOpen = (now - lastSpeakingTimeRef.current) < VAD_HOLD_TIME;
-            if (isLocalVADOpen) nowSpeaking.add(localId);
+            if (isLocalVADOpen && !isMuted && !isServerMuted) nowSpeaking.add(localId);
 
             // Apply Gating only when required
             if (isConnected && localStreamRef.current) {
