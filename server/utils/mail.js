@@ -16,18 +16,18 @@ const checkConfig = () => {
   }
 };
 
-const sendVerificationEmail = async (email, token) => {
+const sendVerificationEmail = async (email, token, brandName = 'Zvon') => {
   checkConfig();
   const baseUrl = process.env.API_URL || process.env.CLIENT_URL || 'http://localhost:5000';
   const url = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
   await transporter.sendMail({
-    from: `"Zvon" <${process.env.SMTP_USER}>`,
+    from: `"${brandName}" <${process.env.SMTP_USER}>`,
     to: email,
-    subject: 'Подтверждение регистрации в Zvon',
+    subject: `Подтверждение регистрации в ${brandName}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-        <h2 style="color: #5865F2; text-align: center;">Добро пожаловать в Zvon!</h2>
+        <h2 style="color: #5865F2; text-align: center;">Добро пожаловать в ${brandName}!</h2>
         <p>Для завершения регистрации, пожалуйста, подтвердите ваш адрес электронной почты, нажав на кнопку ниже:</p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${url}" style="background-color: #5865F2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Подтвердить почту</a>
@@ -35,23 +35,23 @@ const sendVerificationEmail = async (email, token) => {
         <p>Если кнопка не работает, скопируйте и вставьте эту ссылку в браузер:</p>
         <p style="word-break: break-all; color: #5865F2;">${url}</p>
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="font-size: 12px; color: #999;">Если вы не регистрировались в Zvon, просто проигнорируйте это письмо.</p>
+        <p style="font-size: 12px; color: #999;">Если вы не регистрировались в ${brandName}, просто проигнорируйте это письмо.</p>
       </div>
     `,
   });
 };
 
-const sendLoginCode = async (email, code) => {
+const sendLoginCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   try {
     await transporter.sendMail({
-      from: `"Zvon" <${process.env.SMTP_USER}>`,
+      from: `"${brandName}" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: 'Код подтверждения входа Zvon',
+      subject: `Код подтверждения входа ${brandName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
           <h2 style="color: #5865F2; text-align: center;">Код подтверждения</h2>
-          <p>Вы пытаетесь войти в свой аккаунт Zvon. Используйте следующий код для подтверждения:</p>
+          <p>Вы пытаетесь войти в свой аккаунт ${brandName}. Используйте следующий код для подтверждения:</p>
           <div style="text-align: center; margin: 30px 0;">
             <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
           </div>
@@ -67,16 +67,16 @@ const sendLoginCode = async (email, code) => {
   }
 };
 
-const sendResetCode = async (email, code) => {
+const sendResetCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   await transporter.sendMail({
-    from: `"Zvon" <${process.env.SMTP_USER}>`,
+    from: `"${brandName}" <${process.env.SMTP_USER}>`,
     to: email,
-    subject: 'Код для сброса пароля Zvon',
+    subject: `Код для сброса пароля ${brandName}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
         <h2 style="color: #5865F2; text-align: center;">Сброс пароля</h2>
-        <p>Вы запросили сброс пароля для вашего аккаунта Zvon. Используйте следующий код для подтверждения:</p>
+        <p>Вы запросили сброс пароля для вашего аккаунта ${brandName}. Используйте следующий код для подтверждения:</p>
         <div style="text-align: center; margin: 30px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
         </div>
@@ -88,16 +88,16 @@ const sendResetCode = async (email, code) => {
   });
 };
 
-const sendRegistrationCode = async (email, code) => {
+const sendRegistrationCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   await transporter.sendMail({
-    from: `"Zvon" <${process.env.SMTP_USER}>`,
+    from: `"${brandName}" <${process.env.SMTP_USER}>`,
     to: email,
-    subject: 'Код регистрации в Zvon',
+    subject: `Код регистрации в ${brandName}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
         <h2 style="color: #5865F2; text-align: center;">Код регистрации</h2>
-        <p>Для завершения регистрации в Zvon, пожалуйста, введите следующий код:</p>
+        <p>Для завершения регистрации в ${brandName}, пожалуйста, введите следующий код:</p>
         <div style="text-align: center; margin: 30px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
         </div>
@@ -108,16 +108,16 @@ const sendRegistrationCode = async (email, code) => {
   });
 };
 
-const sendEmailChangeCode = async (email, code) => {
+const sendEmailChangeCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   await transporter.sendMail({
-    from: `"Zvon" <${process.env.SMTP_USER}>`,
+    from: `"${brandName}" <${process.env.SMTP_USER}>`,
     to: email,
-    subject: 'Код подтверждения смены почты Zvon',
+    subject: `Код подтверждения смены почты ${brandName}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
         <h2 style="color: #5865F2; text-align: center;">Смена почты</h2>
-        <p>Вы пытаетесь привязать эту почту к вашему аккаунту Zvon. Используйте следующий код:</p>
+        <p>Вы пытаетесь привязать эту почту к вашему аккаунту ${brandName}. Используйте следующий код:</p>
         <div style="text-align: center; margin: 30px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5865F2; background: #f0f0f0; padding: 10px 20px; border-radius: 5px;">${code}</span>
         </div>

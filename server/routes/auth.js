@@ -6,6 +6,7 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const crypto = require('crypto');
 const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCode, sendEmailChangeCode } = require('../utils/mail');
+const { getBrand } = require('../utils/branding');
 
 
 router.post('/register', [
@@ -44,7 +45,7 @@ router.post('/register', [
     await user.save();
 
     try {
-      await sendRegistrationCode(user.email, verificationCode);
+      await sendRegistrationCode(user.email, verificationCode, getBrand(req).name);
     } catch (mailError) {
       console.error('Failed to send registration code:', mailError);
       // We still created the user, but we should inform them email might have failed
@@ -111,7 +112,7 @@ router.post('/login', [
       await user.save();
 
       try {
-        await sendLoginCode(user.email, code);
+        await sendLoginCode(user.email, code, getBrand(req).name);
       } catch (mailError) {
         console.error('Failed to send login code:', mailError);
         return res.status(500).json({ message: 'Ошибка при отправке кода 2FA. Пожалуйста, убедитесь, что настройки почты на сервере верны.' });
@@ -211,7 +212,7 @@ router.post('/resend-verification', async (req, res) => {
     user.verificationCodeExpires = verificationCodeExpires;
     await user.save();
 
-    await sendRegistrationCode(user.email, verificationCode);
+    await sendRegistrationCode(user.email, verificationCode, getBrand(req).name);
     res.json({ message: 'Код подтверждения отправлен повторно' });
   } catch (error) {
     console.error('Resend verification error:', error);
@@ -241,7 +242,7 @@ router.post('/forgot-password', [
     await user.save();
 
     try {
-      await sendResetCode(user.email, code);
+      await sendResetCode(user.email, code, getBrand(req).name);
     } catch (mailError) {
       console.error('Failed to send reset code:', mailError);
       return res.status(500).json({ message: 'Ошибка отправки почты' });
@@ -336,7 +337,7 @@ router.post('/email-change/request', auth, [
     user.emailChangeCodeExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    await sendEmailChangeCode(newEmail, code);
+    await sendEmailChangeCode(newEmail, code, getBrand(req).name);
     res.json({ message: 'Код подтверждения отправлен на новую почту' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });

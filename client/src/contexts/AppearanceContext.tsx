@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getBrand } from '../utils/branding';
 
 export type ThemeType = 'dark' | 'amoled';
 export type DensityType = 'cozy' | 'compact';
@@ -99,16 +100,9 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }, [settings]);
 
     const updateFavicon = (iconType: AppIconType) => {
-        const iconMap: Record<AppIconType, string> = {
-            'default': 'icon.png',
-            'icon1': 'icon1.PNG',
-            'icon2': 'icon2.png',
-            'icon3': 'icon3.png',
-            'icon4': 'icon4.png',
-            'legacy': 'zvon_legacy.png'
-        };
-
-        const fileName = iconMap[iconType] || 'icon.png';
+        const brand = getBrand();
+        const iconOption = brand.appIcons.find(i => i.id === iconType) || brand.appIcons[0];
+        const fileName = iconOption.img;
         const fullUrl = `${import.meta.env.BASE_URL}${fileName}`;
 
         // Find or create the favicon link elements
