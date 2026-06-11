@@ -22,7 +22,11 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
         setLoading(true); setError('');
         try {
             const res = await axios.post('/api/invites', { serverId, expiresIn: 604800 });
-            let baseUrl = (window.location.protocol === 'file:') ? (import.meta.env.VITE_SERVER_URL || 'https://zvonserver.ru').replace(/\/$/, '') : `${window.location.protocol}//${window.location.host}`;
+            let baseUrl = window.location.origin;
+            if (baseUrl.includes('file://') || baseUrl.includes('app://') || baseUrl.includes('index.html')) {
+                baseUrl = import.meta.env.VITE_SERVER_URL || 'https://zvonserver.ru';
+            }
+            baseUrl = baseUrl.replace(/\/$/, '');
             setInviteLink(`${baseUrl}/invite/${res.data.code}`);
         } catch (err: any) { setError(err.response?.data?.message || 'Не удалось создать приглашение'); }
         finally { setLoading(false); }
