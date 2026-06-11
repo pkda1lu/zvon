@@ -1,9 +1,10 @@
 import React from 'react';
-import { getBrand } from '../utils/branding';
+import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 
 const Policy: React.FC = () => {
     const navigate = useNavigate();
+    const brand = getIconBrand();
 
     return (
         <div className="docs-container" style={{ padding: '0 20px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -42,9 +43,9 @@ const Policy: React.FC = () => {
                   Назад на главную
                 </button>
 
-                <h1 style={{ fontSize: '48px', fontWeight: 900, marginBottom: '20px', letterSpacing: '-1.2px', background: 'linear-gradient(135deg, #fff 0%, #64748b 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Политика конфиденциальности {getBrand().name}</h1>
+                <h1 style={{ fontSize: '48px', fontWeight: 900, marginBottom: '20px', letterSpacing: '-1.2px', background: 'linear-gradient(135deg, #fff 0%, #64748b 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Политика конфиденциальности {brand.name}</h1>
                 <p className="lead" style={{ fontSize: '20px', color: '#94a3b8', marginBottom: '80px', lineHeight: 1.6 }}>
-                    Этот документ объясняет, как мы собираем, используем, передаем и защищаем вашу информацию. Мы обязуемся защищать частную жизнь каждого пользователя {getBrand().name}.
+                    Этот документ объясняет, как мы собираем, используем, передаем и защищаем вашу информацию. Мы обязуемся защищать частную жизнь каждого пользователя {brand.name}.
                 </p>
 
                 <div className="policy-sections" style={{ display: 'grid', gap: '80px' }}>
@@ -55,7 +56,7 @@ const Policy: React.FC = () => {
                         <div style={{ color: '#cbd5e1', lineHeight: '2', fontSize: '15.5px' }}>
                             <h3 style={{ color: '#fff', fontSize: '17px', marginBottom: '16px' }}>1.1. Информацию, которую вы предоставляете нам напрямую</h3>
                             <ul style={{ paddingLeft: '20px', marginBottom: '32px' }}>
-                                <li><strong>Информация об учетной записи:</strong> При регистрации в {getBrand().name} вы предоставляете нам адрес электронной почты, желаемое имя пользователя и пароль. Если вы включаете двухфакторную аутентификацию (2FA), мы храним соответствующие настройки безопасности. Также мы можем хранить данные вашего профиля: аватары, баннеры и пользовательские статусы.</li>
+                                <li><strong>Информация об учетной записи:</strong> При регистрации в {brand.name} вы предоставляете нам адрес электронной почты, желаемое имя пользователя и пароль. Если вы включаете двухфакторную аутентификацию (2FA), мы храним соответствующие настройки безопасности. Также мы можем хранить данные вашего профиля: аватары, баннеры и пользовательские статусы.</li>
                                 <li><strong>Контент:</strong> Мы храним ваши сообщения, изображения, видео, аудиофайлы и другие материалы, которые вы отправляете через чаты. Это необходимо для того, чтобы вы могли получать доступ к своей истории переписок с любого устройства в любое время.</li>
                                 <li><strong>Коммуникации с поддержкой:</strong> Если вы обращаетесь к нам с вопросами или жалобами, мы сохраняем историю этого общения для решения возникших проблем.</li>
                             </ul>
@@ -92,9 +93,9 @@ const Policy: React.FC = () => {
                     <section>
                         <h2 style={{ color: 'var(--primary-neon, #00e5ff)', fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2.5px', marginBottom: '32px', borderBottom: '1px solid rgba(0, 229, 255, 0.2)', paddingBottom: '12px' }}>3. Передача и Раскрытие информации</h2>
                         <div style={{ color: '#cbd5e1', lineHeight: '2', fontSize: '15.5px' }}>
-                            {getBrand().name} **не продает** вашу персональную информацию рекламодателям или сторонним компаниям. Мы можем передавать информацию только в случаях:
+                            {brand.name} **не продает** вашу персональную информацию рекламодателям или сторонним компаниям. Мы можем передавать информацию только в случаях:
                             <ul style={{ paddingLeft: '20px', marginTop: '16px' }}>
-                                <li><strong>Публичный контент:</strong> Сообщения и данные профиля видны другим пользователям {getBrand().name} в соответствии с настройками прав доступа (серверные каналы, личные переписки).</li>
+                                <li><strong>Публичный контент:</strong> Сообщения и данные профиля видны другим пользователям {brand.name} в соответствии с настройками прав доступа (серверные каналы, личные переписки).</li>
                                 <li><strong>Сервис-провайдеры:</strong> Мы можем использовать сторонние инструменты для хостинга (серверы базы данных, узлы LiveKit, почтовые шлюзы для 2FA). Эти провайдеры получают доступ к данным только для выполнения своих задач и обязаны сохранять конфиденциальность.</li>
                                 <li><strong>Требования закона:</strong> Мы можем раскрыть информацию, если добросовестно считаем, что это необходимо для выполнения судебного приказа, соблюдения закона или защиты жизни и здоровья пользователей.</li>
                             </ul>
@@ -105,7 +106,7 @@ const Policy: React.FC = () => {
                     <section>
                         <h2 style={{ color: 'var(--primary-neon, #00e5ff)', fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2.5px', marginBottom: '32px', borderBottom: '1px solid rgba(0, 229, 255, 0.2)', paddingBottom: '12px' }}>4. Ваши права и Контроль</h2>
                         <div style={{ color: '#cbd5e1', lineHeight: '2', fontSize: '15.5px' }}>
-                            {getBrand().name} предоставляет вам широкий спектр инструментов для управления данными:
+                            {brand.name} предоставляет вам широкий спектр инструментов для управления данными:
                             <ul style={{ paddingLeft: '20px', marginTop: '16px' }}>
                                 <li><strong>Правка и удаление:</strong> Вы можете изменять данные своего профиля и удалять отправленные сообщения. При удалении сообщения оно становится недоступным для других пользователей и стирается из нашей основной базы данных.</li>
                                 <li><strong>Копия данных:</strong> Вы имеете право запросить выгрузку своих данных, хранящихся у нас.</li>
@@ -118,7 +119,7 @@ const Policy: React.FC = () => {
                     <section>
                         <h2 style={{ color: 'var(--primary-neon, #00e5ff)', fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2.5px', marginBottom: '32px', borderBottom: '1px solid rgba(0, 229, 255, 0.2)', paddingBottom: '12px' }}>5. Защита детей</h2>
                         <div style={{ color: '#cbd5e1', lineHeight: '2', fontSize: '15.5px' }}>
-                            Сервис {getBrand().name} предназначен для лиц, достигших 13 лет (или минимального возраста в соответствии с законами вашей страны). Мы не собираем намеренно информацию от детей. Если нам станет известно, что ребенок младше 13 лет предоставил нам свои данные, мы предпримем шаги для немедленного удаления такой информации и закрытия учетной записи.
+                            Сервис {brand.name} предназначен для лиц, достигших 13 лет (или минимального возраста в соответствии с законами вашей страны). Мы не собираем намеренно информацию от детей. Если нам станет известно, что ребенок младше 13 лет предоставил нам свои данные, мы предпримем шаги для немедленного удаления такой информации и закрытия учетной записи.
                         </div>
                     </section>
 
@@ -163,7 +164,7 @@ const Policy: React.FC = () => {
                 </div>
 
                 <div style={{ marginTop: '100px', paddingTop: '40px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
-                    {getBrand().name} Platform • Privacy & Safety Center • Последнее обновление: {new Date().toLocaleDateString('ru-RU')}
+                    {brand.name} Platform • Privacy & Safety Center • Последнее обновление: {new Date().toLocaleDateString('ru-RU')}
                 </div>
             </div>
         </div>

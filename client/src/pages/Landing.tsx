@@ -1,5 +1,5 @@
 import React from 'react';
-import { getBrand, getIconBrand } from '../utils/branding';
+import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
@@ -9,6 +9,10 @@ const Landing: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { alert } = useDialog();
+    const brand = getIconBrand();
+    const isMax = brand.id === 'maxcord';
+    const heroPremiumImg = `${import.meta.env.BASE_URL}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero_premium.png'}`;
+    const heroImg = `${import.meta.env.BASE_URL}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero.png'}`;
 
     const handleOpenApp = () => {
         if (user) {
@@ -25,8 +29,8 @@ const Landing: React.FC = () => {
 
             <nav className="landing-nav">
                 <div className="nav-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                    <img src={`${import.meta.env.BASE_URL}${getIconBrand().favicon}`} alt={getBrand().name} />
-                    <span>{getBrand().name}</span>
+                    <img src={`${import.meta.env.BASE_URL}${brand.favicon}`} alt={brand.name} />
+                    <span>{brand.name}</span>
                 </div>
                 <div className="nav-links">
                     <span className="nav-link" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Возможности</span>
@@ -37,11 +41,11 @@ const Landing: React.FC = () => {
                     {!user && (
                         <button className="btn-nav-neon nav-desktop-only" onClick={() => { window.location.href = 'zvon://'; }}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
-                            Запустить {getBrand().name}
+                            Запустить {brand.name}
                         </button>
                     )}
                     <button className="btn-login" onClick={() => navigate('/login')}>
-                        {user ? 'Открыть {getBrand().name}' : 'Войти'}
+                        {user ? `Открыть ${brand.name}` : 'Войти'}
                     </button>
                 </div>
             </nav>
@@ -51,9 +55,9 @@ const Landing: React.FC = () => {
                 {/* Hero Image - Premium 3D Abstract */}
                 <div className="hero-image-container">
                     <img
-                        src={`${import.meta.env.BASE_URL}landing_hero_premium.png`} // We expect this to be available
+                        src={heroPremiumImg}
                         className="hero-main-img"
-                        alt="{getBrand().name} Premium UI"
+                        alt={`${brand.name} Premium UI`}
                         onError={(e) => {
                             e.currentTarget.src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200';
                         }}
@@ -62,7 +66,7 @@ const Landing: React.FC = () => {
                 <div className="hero-content">
                     <h1 className="hero-h1">Место, где звук <br/> становится чувством.</h1>
                     <p className="hero-p">
-                        {getBrand().name} — это революционная платформа для общения.
+                        {brand.name} — это революционная платформа для общения.
                         Погрузитесь в атмосферу кристально чистого звука и стриминга в 4K.
                         Создано для геймеров, разработчиков и тех, кто ценит качество.
                     </p>
@@ -108,13 +112,13 @@ const Landing: React.FC = () => {
                     <div className="showcase-text">
                         <h2>Создайте свой мир.</h2>
                         <p>
-                            Серверы {getBrand().name} позволяют организовать пространство так, как удобно вам.
+                            Серверы {brand.name} позволяют организовать пространство так, как удобно вам.
                             Создавайте роли, настраивайте права доступа и делайте свой сервер уникальным.
                         </p>
                         <button className="btn-secondary" onClick={() => navigate('/register')}>Присоединиться сейчас</button>
                     </div>
                     <div className="showcase-image">
-                        <img src={`${import.meta.env.BASE_URL}landing_hero.png`} alt="{getBrand().name} Interface" onError={(e) => {
+                        <img src={heroImg} alt={`${brand.name} Interface`} onError={(e) => {
                             e.currentTarget.src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200';
                         }} />
                     </div>
@@ -124,7 +128,7 @@ const Landing: React.FC = () => {
             <section className="cta-section" id="download">
                 <div className="cta-card">
                     <h2>Готовы начать свое общение?</h2>
-                    <p>Более 100,000 пользователей уже выбрали {getBrand().name} как основной инструмент для связи.</p>
+                    <p>Более 100,000 пользователей уже выбрали {brand.name} как основной инструмент для связи.</p>
                     <button className="btn-login" style={{ padding: '16px 48px', fontSize: '18px' }} onClick={() => navigate('/register')}>
                         Зарегистрироваться
                     </button>
@@ -134,8 +138,8 @@ const Landing: React.FC = () => {
             <footer id="support">
                 <div className="footer-content">
                     <div className="footer-brand">
-                        <h4>{getBrand().name}</h4>
-                        <p>© 2026 {getBrand().name} Platform. Все права защищены.</p>
+                        <h4>{brand.name}</h4>
+                        <p>© 2026 {brand.name} Platform. Все права защищены.</p>
                         <div className="bot-api-showcase">
                             <h3>Мощный Bot API</h3>
                             <p>Создавайте уникальные интеграции с помощью Webhooks и Socket.io SDK. Музыкальные боты, управление ролями и кастомные команды.</p>
