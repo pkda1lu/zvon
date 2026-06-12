@@ -39,7 +39,7 @@
 
   // "Моя волна" — infinite personalized radio (Yandex rotor station).
   let waveMode = false;
-  const waveStation = 'user:onyourwave';
+  let waveStation = 'user:onyourwave';
   let waveBatchId = null;
   let waveLoading = false;
 
@@ -94,6 +94,8 @@
   function setPlayIcon(playing) {
     const el = $('#play-icon');
     if (el) el.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+    const v = $('#vibe-play-icon');
+    if (v) v.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
   }
   function setVolIcon(v) {
     const el = $('#vol-icon');
@@ -165,7 +167,7 @@
   renderAccount();
   setupSidebar();
   if (!token) renderConnectScreen();
-  else { renderSearchScreen(); setSidebarActive('nav-search'); }
+  else renderVibeScreen();
 
   // ---------- UI screens ----------
 
@@ -198,13 +200,13 @@
 
   function setupSidebar() {
     const go = {
-      'nav-search':     () => { renderSearchScreen(); setTimeout(() => $('#q')?.focus(), 0); },
-      'nav-vibe':       () => { if (ymAccount?.uid) { renderSearchScreen(); startWave(); } else renderSearchScreen(); },
-      'nav-collection': () => { renderSearchScreen(); setTimeout(() => $('#library')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); },
-      'nav-foryou':     () => renderSearchScreen(),
-      'nav-concerts':   () => renderSearchScreen(),
-      'nav-books':      () => renderSearchScreen(),
-      'nav-kids':       () => renderSearchScreen(),
+      'nav-vibe':       () => renderVibeScreen(),
+      'nav-search':     () => { renderSearchScreen(); setSidebarActive('nav-search'); setTimeout(() => $('#q')?.focus(), 0); },
+      'nav-collection': () => { renderSearchScreen(); setSidebarActive('nav-collection'); setTimeout(() => $('#library')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); },
+      'nav-foryou':     () => { renderSearchScreen(); setSidebarActive('nav-foryou'); },
+      'nav-concerts':   () => { renderSearchScreen(); setSidebarActive('nav-concerts'); },
+      'nav-books':      () => { renderSearchScreen(); setSidebarActive('nav-books'); },
+      'nav-kids':       () => { renderSearchScreen(); setSidebarActive('nav-kids'); },
     };
     Object.entries(go).forEach(([id, fn]) => {
       const elBtn = document.getElementById(id);
@@ -235,6 +237,86 @@
       row.addEventListener('click', () => openItemPage(p));
       host.appendChild(row);
     });
+  }
+
+  // ---------- My Vibe (домашний экран как в оригинале) ----------
+  // Станции-настроения (rotor). Главная — "Моя волна" (user:onyourwave).
+  const VIBE_STATIONS = [
+    { id: 'user:onyourwave', title: 'Моя волна',     grad: 'linear-gradient(135deg,#ff2d8e,#8b3bff 55%,#2d6bff)' },
+    { id: 'genre:rusrap',    title: 'Русский рэп',   grad: 'linear-gradient(135deg,#13c2c2,#0a6e6e)' },
+    { id: 'genre:pop',       title: 'Поп',           grad: 'linear-gradient(135deg,#ff6ec4,#7873f5)' },
+    { id: 'genre:rock',      title: 'Рок',           grad: 'linear-gradient(135deg,#f7971e,#ffd200)' },
+    { id: 'genre:electronics', title: 'Электроника', grad: 'linear-gradient(135deg,#43e97b,#38f9d7)' },
+    { id: 'activity:party',  title: 'Вечеринка',     grad: 'linear-gradient(135deg,#fa709a,#fee140)' },
+    { id: 'mood:energetic',  title: 'Энергия',       grad: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
+    { id: 'mood:calm',       title: 'Спокойствие',   grad: 'linear-gradient(135deg,#a18cd1,#fbc2eb)' },
+    { id: 'genre:indie',     title: 'Инди',          grad: 'linear-gradient(135deg,#30cfd0,#330867)' },
+  ];
+
+  function renderVibeScreen() {
+    setSidebarActive('nav-vibe');
+    $('#search-bar-host').innerHTML = '';
+    if (!token) { renderConnectScreen(); return; }
+    main.innerHTML = `
+      <div id="voice-banner"></div>
+      <div class="vibe-screen">
+        <div class="vibe-list" id="vibe-list"></div>
+        <div class="vibe-hero">
+          <div class="vibe-bg"></div>
+          <div class="vibe-hero-inner">
+            <div class="vibe-eyebrow">Моя волна</div>
+            <div class="vibe-title" id="vibe-title">My Vibe</div>
+            <div class="vibe-track" id="vibe-track" style="display:none"></div>
+            <div class="vibe-controls">
+              <button id="vibe-prev" class="vibe-ctrl" title="Предыдущий"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+              <button id="vibe-play" class="vibe-play" title="Слушать"><svg id="vibe-play-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">${ICON_PLAY}</svg></button>
+              <button id="vibe-next" class="vibe-ctrl" title="Следующий"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    renderVoiceJoinButton();
+
+    const list = $('#vibe-list');
+    VIBE_STATIONS.forEach(s => {
+      const item = document.createElement('button');
+      item.className = 'vibe-item' + (s.id === waveStation && waveMode ? ' active' : '');
+      item.innerHTML = `<span class="vibe-ic" style="background:${s.grad}"></span><span class="vibe-it-title">${escape(s.title)}</span>`;
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.vibe-item').forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+        startWave(s.id);
+      });
+      list.appendChild(item);
+    });
+
+    $('#vibe-play').addEventListener('click', () => {
+      if (audio && audio.src && currentIndex >= 0) { audio.paused ? audio.play() : audio.pause(); }
+      else startWave('user:onyourwave');
+    });
+    $('#vibe-prev').addEventListener('click', () => { if (currentIndex > 0) playIndex(currentIndex - 1); });
+    $('#vibe-next').addEventListener('click', () => { if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); });
+
+    updateVibeNowPlaying(queue[currentIndex]);
+    setPlayIcon(!!(audio && !audio.paused && audio.src));
+
+    // Подтягиваем плейлисты в сайдбар (фоном), если ещё не загружены.
+    if (ymAccount?.uid) {
+      if (_libraryCache) renderSidebarPlaylists();
+      else loadLibrary(ymAccount.uid).then(c => { _libraryCache = c; renderSidebarPlaylists(); }).catch(() => {});
+    }
+  }
+
+  function updateVibeNowPlaying(track) {
+    const t = $('#vibe-title'); const pill = $('#vibe-track');
+    if (!t) return;
+    if (track) {
+      t.textContent = (track.artists && track.artists.length) ? track.artists.join(', ') : (track.title || 'My Vibe');
+      if (pill) { pill.textContent = track.title || ''; pill.style.display = track.title ? '' : 'none'; }
+    } else {
+      t.textContent = 'My Vibe';
+      if (pill) pill.style.display = 'none';
+    }
   }
 
   function renderConnectScreen() {
@@ -283,7 +365,7 @@
       await sdk.storage.set('account', accInfo);
       ymAccount = accInfo;
       renderAccount();
-      renderSearchScreen();
+      renderVibeScreen();
     } catch (e) {
       token = null;
       alert('Токен не работает: ' + e.message);
@@ -326,7 +408,7 @@
       await sdk.storage.set('account', accInfo);
       ymAccount = accInfo;
       renderAccount();
-      renderSearchScreen();
+      renderVibeScreen();
     } catch (e) {
       console.error('[YM OAuth]', e);
       alert('Ошибка авторизации: ' + e.message);
@@ -1135,8 +1217,9 @@
     }).catch(e => console.warn('[YM] wave feedback failed:', type, e.message));
   }
 
-  async function startWave() {
+  async function startWave(stationId) {
     if (waveLoading) return;
+    if (stationId) waveStation = stationId;
     const card = $('#wave-card');
     if (card) card.classList.add('loading');
     waveLoading = true;
@@ -1261,6 +1344,7 @@
     $('#player-duration').textContent = fmtMs(track.durationMs);
     $('#player-elapsed').textContent = '0:00';
     $('#player-bar-fill').style.width = '0%';
+    updateVibeNowPlaying(track);
   }
 
   function updateLocalProgress() {
