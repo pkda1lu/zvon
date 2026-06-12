@@ -43,6 +43,20 @@
   let waveBatchId = null;
   let waveLoading = false;
 
+  // Станции-настроения для домашнего экрана My Vibe (rotor).
+  // Объявлено здесь (до первого renderVibeScreen при старте), чтобы не попасть в TDZ.
+  const VIBE_STATIONS = [
+    { id: 'user:onyourwave',   title: 'Моя волна',   grad: 'linear-gradient(135deg,#ff2d8e,#8b3bff 55%,#2d6bff)' },
+    { id: 'genre:rusrap',      title: 'Русский рэп', grad: 'linear-gradient(135deg,#13c2c2,#0a6e6e)' },
+    { id: 'genre:pop',         title: 'Поп',         grad: 'linear-gradient(135deg,#ff6ec4,#7873f5)' },
+    { id: 'genre:rock',        title: 'Рок',         grad: 'linear-gradient(135deg,#f7971e,#ffd200)' },
+    { id: 'genre:electronics', title: 'Электроника', grad: 'linear-gradient(135deg,#43e97b,#38f9d7)' },
+    { id: 'activity:party',    title: 'Вечеринка',   grad: 'linear-gradient(135deg,#fa709a,#fee140)' },
+    { id: 'mood:energetic',    title: 'Энергия',     grad: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
+    { id: 'mood:calm',         title: 'Спокойствие', grad: 'linear-gradient(135deg,#a18cd1,#fbc2eb)' },
+    { id: 'genre:indie',       title: 'Инди',        grad: 'linear-gradient(135deg,#30cfd0,#330867)' },
+  ];
+
   // Voice channel presence (the mini-app's tile inside the user's voice channel).
   let presence = null;
   let progressTimer = null;
@@ -201,12 +215,12 @@
   function setupSidebar() {
     const go = {
       'nav-vibe':       () => renderVibeScreen(),
-      'nav-search':     () => { renderSearchScreen(); setSidebarActive('nav-search'); setTimeout(() => $('#q')?.focus(), 0); },
-      'nav-collection': () => { renderSearchScreen(); setSidebarActive('nav-collection'); setTimeout(() => $('#library')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); },
-      'nav-foryou':     () => { renderSearchScreen(); setSidebarActive('nav-foryou'); },
-      'nav-concerts':   () => { renderSearchScreen(); setSidebarActive('nav-concerts'); },
-      'nav-books':      () => { renderSearchScreen(); setSidebarActive('nav-books'); },
-      'nav-kids':       () => { renderSearchScreen(); setSidebarActive('nav-kids'); },
+      'nav-search':     () => { renderSearchScreen(); setTimeout(() => $('#q')?.focus(), 0); },
+      'nav-collection': () => { renderSearchScreen(); setTimeout(() => $('#library')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); },
+      'nav-foryou':     () => renderStubScreen('🎧', 'For you and Trends', 'Персональные подборки и тренды доступны в полном приложении Яндекс Музыки. Здесь пользуйся «My Vibe» и поиском.'),
+      'nav-concerts':   () => renderStubScreen('🎤', 'Концерты', 'Раздел концертов недоступен в мини-аппе.'),
+      'nav-books':      () => renderStubScreen('📚', 'Книги и подкасты', 'Раздел книг и подкастов недоступен в мини-аппе.'),
+      'nav-kids':       () => renderStubScreen('🧸', 'Детям', 'Детский раздел недоступен в мини-аппе.'),
     };
     Object.entries(go).forEach(([id, fn]) => {
       const elBtn = document.getElementById(id);
@@ -239,19 +253,46 @@
     });
   }
 
+  // Заглушка для разделов, которых нет в мини-аппе (но кнопка должна реагировать).
+  function renderStubScreen(emoji, title, note) {
+    $('#search-bar-host').innerHTML = '';
+    main.innerHTML = `<div class="stub"><div class="stub-emoji">${emoji}</div><h2>${escape(title)}</h2><p>${escape(note)}</p></div>`;
+  }
+
   // ---------- My Vibe (домашний экран как в оригинале) ----------
-  // Станции-настроения (rotor). Главная — "Моя волна" (user:onyourwave).
-  const VIBE_STATIONS = [
-    { id: 'user:onyourwave', title: 'Моя волна',     grad: 'linear-gradient(135deg,#ff2d8e,#8b3bff 55%,#2d6bff)' },
-    { id: 'genre:rusrap',    title: 'Русский рэп',   grad: 'linear-gradient(135deg,#13c2c2,#0a6e6e)' },
-    { id: 'genre:pop',       title: 'Поп',           grad: 'linear-gradient(135deg,#ff6ec4,#7873f5)' },
-    { id: 'genre:rock',      title: 'Рок',           grad: 'linear-gradient(135deg,#f7971e,#ffd200)' },
-    { id: 'genre:electronics', title: 'Электроника', grad: 'linear-gradient(135deg,#43e97b,#38f9d7)' },
-    { id: 'activity:party',  title: 'Вечеринка',     grad: 'linear-gradient(135deg,#fa709a,#fee140)' },
-    { id: 'mood:energetic',  title: 'Энергия',       grad: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
-    { id: 'mood:calm',       title: 'Спокойствие',   grad: 'linear-gradient(135deg,#a18cd1,#fbc2eb)' },
-    { id: 'genre:indie',     title: 'Инди',          grad: 'linear-gradient(135deg,#30cfd0,#330867)' },
-  ];
+  // Тянем РЕАЛЬНЫЙ список станций из rotor (валидные id + названия + цвета иконок).
+  // Первой всегда «Моя волна». При ошибке — откат на curated VIBE_STATIONS.
+  async function loadStations() {
+    const out = [{ id: 'user:onyourwave', title: 'Моя волна', grad: 'linear-gradient(135deg,#ff2d8e,#8b3bff 55%,#2d6bff)' }];
+    try {
+      const r = await yaCall('/rotor/stations/list?language=ru');
+      (r.result || []).forEach(e => {
+        const st = e.station || e;
+        if (!st?.id?.type || !st?.id?.tag) return;
+        const id = `${st.id.type}:${st.id.tag}`;
+        if (id === 'user:onyourwave') return;
+        out.push({ id, title: st.name || id, color: st.icon?.backgroundColor || null, icon: st.icon?.imageUrl || null });
+      });
+    } catch (e) {
+      console.warn('[YM] stations list failed:', e.message);
+      if (out.length === 1) VIBE_STATIONS.slice(1).forEach(s => out.push(s));
+    }
+    return out;
+  }
+
+  function makeStationTile(s) {
+    const item = document.createElement('button');
+    item.className = 'vibe-item' + (s.id === waveStation && waveMode ? ' active' : '');
+    const bg = s.grad || s.color || '#3a3a44';
+    const img = s.icon ? `https://${s.icon.replace('%%', '100x100')}` : '';
+    item.innerHTML = `<span class="vibe-ic" style="background:${bg}">${img ? `<img src="${img}" alt="">` : ''}</span><span class="vibe-it-title">${escape(s.title)}</span>`;
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.vibe-item').forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
+      startWave(s.id);
+    });
+    return item;
+  }
 
   function renderVibeScreen() {
     setSidebarActive('nav-vibe');
@@ -278,16 +319,13 @@
     renderVoiceJoinButton();
 
     const list = $('#vibe-list');
-    VIBE_STATIONS.forEach(s => {
-      const item = document.createElement('button');
-      item.className = 'vibe-item' + (s.id === waveStation && waveMode ? ' active' : '');
-      item.innerHTML = `<span class="vibe-ic" style="background:${s.grad}"></span><span class="vibe-it-title">${escape(s.title)}</span>`;
-      item.addEventListener('click', () => {
-        document.querySelectorAll('.vibe-item').forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
-        startWave(s.id);
-      });
-      list.appendChild(item);
+    list.innerHTML = '<div class="loading">Загружаю станции…</div>';
+    loadStations().then(stations => {
+      list.innerHTML = '';
+      stations.forEach(s => list.appendChild(makeStationTile(s)));
+    }).catch(() => {
+      list.innerHTML = '';
+      VIBE_STATIONS.forEach(s => list.appendChild(makeStationTile(s)));
     });
 
     $('#vibe-play').addEventListener('click', () => {
@@ -1196,7 +1234,7 @@
   // ---------- "Моя волна" (rotor radio) ----------
 
   async function fetchWaveBatch(prevTrackId) {
-    let path = `/rotor/station/${encodeURIComponent(waveStation)}/tracks?settings2=true`;
+    let path = `/rotor/station/${waveStation}/tracks?settings2=true`;
     if (prevTrackId) path += `&queue=${encodeURIComponent(prevTrackId)}`;
     const data = await yaCall(path);
     if (data.result?.batchId) waveBatchId = data.result.batchId;
@@ -1207,7 +1245,7 @@
   // Best-effort: rotor personalizes "Моя волна" from these play/skip events.
   function sendWaveFeedback(type, extra) {
     const body = Object.assign({ type, from: 'zvon-radio', timestamp: new Date().toISOString() }, extra || {});
-    let path = `/rotor/station/${encodeURIComponent(waveStation)}/feedback`;
+    let path = `/rotor/station/${waveStation}/feedback`;
     if (waveBatchId && type !== 'radioStarted') path += `?batch-id=${encodeURIComponent(waveBatchId)}`;
     sdk.fetch(YA_API + path, {
       method: 'POST',
@@ -1242,6 +1280,9 @@
       console.error('[YM] wave start failed:', e);
       const sub = card?.querySelector('.wave-card-sub');
       if (sub) sub.textContent = 'Не удалось запустить: ' + e.message;
+      // На экране My Vibe карточки нет — показываем ошибку в пилюле под заголовком.
+      const vt = $('#vibe-track');
+      if (vt) { vt.style.display = ''; vt.textContent = 'Не удалось запустить станцию (' + e.message + ')'; }
     }
   }
 
