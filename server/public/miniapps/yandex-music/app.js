@@ -127,50 +127,6 @@
   $('#btn-stop').addEventListener('click', stopPlayback);
   $('#btn-shuffle').addEventListener('click', toggleShuffle);
 
-  // Mute volume button
-  let _previousVolume = 0.8;
-  $('#btn-mute')?.addEventListener('click', () => {
-    if (audio) {
-      if (audio.volume > 0) {
-        _previousVolume = audio.volume;
-        audio.volume = 0;
-        $('#vol').value = '0';
-      } else {
-        audio.volume = _previousVolume;
-        $('#vol').value = String(Math.round(_previousVolume * 100));
-      }
-      setVolIcon(audio.volume);
-    }
-  });
-
-  // Fullscreen lyrics control buttons
-  $('#lyrics-btn-play')?.addEventListener('click', () => { if (audio) audio.paused ? audio.play() : audio.pause(); });
-  $('#lyrics-btn-prev')?.addEventListener('click', () => { if (currentIndex > 0) playIndex(currentIndex - 1); });
-  $('#lyrics-btn-next')?.addEventListener('click', () => {
-    if (waveMode) sendWaveFeedback('skip', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
-    if (currentIndex < queue.length - 1) playIndex(currentIndex + 1);
-  });
-  $('#lyrics-progress-bar')?.addEventListener('click', (e) => {
-    if (!audio || !isFinite(audio.duration) || audio.duration === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = (e.clientX - rect.left) / rect.width;
-    audio.currentTime = Math.max(0, Math.min(audio.duration, pct * audio.duration));
-  });
-
-  // Like / Dislike buttons
-  $('#lyrics-btn-like')?.addEventListener('click', (e) => {
-    const track = queue[currentIndex];
-    if (track) toggleLikeTrack(track.id, e.currentTarget);
-  });
-  $('#lyrics-btn-dislike')?.addEventListener('click', () => {
-    if (waveMode) sendWaveFeedback('skip', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
-    if (currentIndex < queue.length - 1) playIndex(currentIndex + 1);
-  });
-
-  // Lyrics toggle
-  $('#btn-show-lyrics')?.addEventListener('click', () => toggleLyrics(true));
-  $('#btn-close-lyrics')?.addEventListener('click', () => toggleLyrics(false));
-
   function toggleShuffle() {
     shuffleMode = !shuffleMode;
     const btn = $('#btn-shuffle');
@@ -207,17 +163,8 @@
   });
 
   renderAccount();
-  if (!token) {
-    renderConnectScreen();
-  } else {
-    switchView('wave');
-  }
-
-  // Bind sidebar items
-  $('#nav-search')?.addEventListener('click', () => switchView('search'));
-  $('#nav-wave')?.addEventListener('click', () => switchView('wave'));
-  $('#nav-collection')?.addEventListener('click', () => switchView('collection'));
-  $('#nav-queue')?.addEventListener('click', () => switchView('queue'));
+  if (!token) renderConnectScreen();
+  else renderSearchScreen();
 
   // ---------- UI screens ----------
 
@@ -607,7 +554,7 @@
       </div>
       <div id="queue-page-tracks" class="track-list"></div>
     `;
-    $('#page-back').addEventListener('click', () => switchView(activeView));
+    $('#page-back').addEventListener('click', renderSearchScreen);
     $('#page-clear').addEventListener('click', () => {
       // Don't stop the current track — let it finish. Just drop everything else
       // from the queue. If nothing is playing, clear entirely.
@@ -681,7 +628,7 @@
       if (p.icon) $('#page-cover').innerHTML = `<span class="page-cover-icon">${p.icon}</span>`;
     }
 
-    $('#page-back').addEventListener('click', () => switchView(activeView));
+    $('#page-back').addEventListener('click', renderSearchScreen);
 
     let tracks = [];
     try {
@@ -1156,11 +1103,6 @@
       updateQueueBadge();
       if (card) card.classList.remove('loading');
       waveLoading = false;
-      if (activeView !== 'wave') {
-        switchView('wave');
-      } else {
-        renderMyVibeScreen();
-      }
       await playIndex(0); // may kick off its own refill (manages waveLoading)
     } catch (e) {
       waveMode = false;
@@ -1264,67 +1206,20 @@
 
   function showPlayer(track, loading, errorMsg) {
     player.classList.remove('hidden');
-    const cover = track.coverUri ? `https://${track.coverUri.replace('%%', '400x400')}` : '';
-    const cover200 = track.coverUri ? `https://${track.coverUri.replace('%%', '200x200')}` : '';
-    
-    // Update player bar cover
-    $('#player-cover').style.backgroundImage = `url('${cover200}')`;
+    const cover = track.coverUri ? `https://${track.coverUri.replace('%%', '200x200')}` : '';
+    $('#player-cover').style.backgroundImage = `url('${cover}')`;
     $('#player-title').innerHTML = (loading ? '<span class="spinner"></span> ' : '') + escape(track.title);
-    const artistStr = errorMsg || track.artists.join(', ');
-    $('#player-artist').textContent = artistStr;
+    $('#player-artist').textContent = errorMsg || track.artists.join(', ');
     $('#player-duration').textContent = fmtMs(track.durationMs);
     $('#player-elapsed').textContent = '0:00';
     $('#player-bar-fill').style.width = '0%';
-
-    // Update Vibe view elements
-    if (activeView === 'wave') {
-      const artistGiant = $('#vibe-artist-giant');
-      if (artistGiant) artistGiant.textContent = track.artists ? track.artists.join(', ') : 'Исполнитель';
-      updateVibeGlow(track);
-      
-      const pContainer = document.getElementById('vibe-player-container');
-      if (pContainer && player.parentElement !== pContainer) {
-        pContainer.appendChild(player);
-      }
-      document.body.classList.add('vibe-active');
-    }
-
-    // Update Lyrics view elements
-    const lyricsCover = $('#lyrics-cover');
-    if (lyricsCover) lyricsCover.style.backgroundImage = `url('${cover}')`;
-    const lyricsTitle = $('#lyrics-title');
-    if (lyricsTitle) lyricsTitle.textContent = track.title;
-    const lyricsArtist = $('#lyrics-artist');
-    if (lyricsArtist) lyricsArtist.textContent = track.artists ? track.artists.join(', ') : '';
-    const lyricsDur = $('#lyrics-duration');
-    if (lyricsDur) lyricsDur.textContent = fmtMs(track.durationMs);
-    const lyricsElapsed = $('#lyrics-elapsed');
-    if (lyricsElapsed) lyricsElapsed.textContent = '0:00';
-    const lyricsBarFill = $('#lyrics-bar-fill');
-    if (lyricsBarFill) lyricsBarFill.style.width = '0%';
-
-    if (lyricsOpen) {
-      loadTrackLyrics(track);
-    }
   }
 
   function updateLocalProgress() {
     if (!isFinite(audio.duration) || audio.duration === 0) return;
     const pct = (audio.currentTime / audio.duration) * 100;
-    
-    // Update player progress bar
     $('#player-bar-fill').style.width = pct + '%';
     $('#player-elapsed').textContent = fmtSec(audio.currentTime);
-
-    // Update Lyrics progress bar
-    const lyricsBarFill = $('#lyrics-bar-fill');
-    if (lyricsBarFill) lyricsBarFill.style.width = pct + '%';
-    const lyricsElapsed = $('#lyrics-elapsed');
-    if (lyricsElapsed) lyricsElapsed.textContent = fmtSec(audio.currentTime);
-
-    if (lyricsOpen) {
-      updateLyricsHighlight(audio.currentTime);
-    }
   }
 
   // ---------- Yandex API helpers ----------
@@ -1399,344 +1294,6 @@
       Y = t(Y, M, X, W, C[P + 0], V, 4096336452); W = t(W, Y, M, X, C[P + 7], b, 1126891415); X = t(X, W, Y, M, C[P + 14], a, 2878612391); M = t(M, X, W, Y, C[P + 5], c, 4237533241); Y = t(Y, M, X, W, C[P + 12], V, 1700485571); W = t(W, Y, M, X, C[P + 3], b, 2399980690); X = t(X, W, Y, M, C[P + 10], a, 4293915773); M = t(M, X, W, Y, C[P + 1], c, 2240044497); Y = t(Y, M, X, W, C[P + 8], V, 1873313359); W = t(W, Y, M, X, C[P + 15], b, 4264355552); X = t(X, W, Y, M, C[P + 6], a, 2734768916); M = t(M, X, W, Y, C[P + 13], c, 1309151649); Y = t(Y, M, X, W, C[P + 4], V, 4149444226); W = t(W, Y, M, X, C[P + 11], b, 3174756917); X = t(X, W, Y, M, C[P + 2], a, 718787259); M = t(M, X, W, Y, C[P + 9], c, 3951481745);
       Y = K(Y, h); M = K(M, E); X = K(X, v); W = K(W, g)
     }
-    return (B(Y) + B(M) + B(X) + B(W)).toLowerCase()
-  }
-
-  // --- Multi-View Navigation & Overrides ---
-  let activeView = 'wave';
-  let lyricsOpen = false;
-  let activeLyricLineIndex = -1;
-  let lyricLines = [];
-
-  function switchView(viewName) {
-    activeView = viewName;
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    const btn = $(`#nav-${viewName}`);
-    if (btn) btn.classList.add('active');
-
-    // Reset vibe mode
-    document.body.classList.remove('vibe-active');
-    
-    // Restore player position
-    const playerEl = $('#player');
-    if (playerEl && playerEl.parentElement !== $('#app') && playerEl.parentElement !== null) {
-      $('#app').appendChild(playerEl);
-    }
-
-    if (viewName === 'search') {
-      renderSearchScreen();
-    } else if (viewName === 'wave') {
-      renderMyVibeScreen();
-    } else if (viewName === 'collection') {
-      renderCollectionScreen();
-    } else if (viewName === 'queue') {
-      openQueuePage();
-    }
-  }
-
-  function renderCollectionScreen() {
-    $('#search-bar-host').innerHTML = '';
-    main.innerHTML = `
-      <div class="section-title">Моя коллекция <span id="library-status" style="color:#666;font-weight:normal"></span></div>
-      <div id="library" class="library-grid"></div>
-    `;
-    renderLibrary();
-  }
-
-  function renderMyVibeScreen() {
-    $('#search-bar-host').innerHTML = '';
-    
-    if (!waveMode) {
-      main.innerHTML = `
-        <div class="vibe-landing-screen">
-          <div class="vibe-landing-logo">
-            <svg viewBox="0 0 24 24" width="80" height="80" fill="none" stroke="#ffd200" stroke-width="2">
-              <circle cx="12" cy="12" r="4" fill="#ffd200"/>
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-            </svg>
-          </div>
-          <h2>Моя волна</h2>
-          <p>Бесконечный поток музыки, подобранный специально для вас. Нажмите кнопку ниже, чтобы запустить.</p>
-          <button id="btn-start-vibe-main" class="vibe-start-btn">Слушать</button>
-        </div>
-      `;
-      $('#btn-start-vibe-main').addEventListener('click', startWave);
-      return;
-    }
-
-    const currentTrack = queue[currentIndex] || {};
-    const artistName = currentTrack.artists ? currentTrack.artists.join(', ') : 'Исполнитель';
-    
-    main.innerHTML = `
-      <div class="vibe-layout">
-        <!-- Left Column: Moods -->
-        <div class="vibe-moods-pane">
-          <div class="vibe-pane-title">Настройки волны</div>
-          <div class="vibe-mood-list">
-            <div class="vibe-mood-card active">
-              <div class="vibe-mood-icon">✨</div>
-              <div class="vibe-mood-info">
-                <div class="vibe-mood-name">Моя волна</div>
-                <div class="vibe-mood-desc">Основной поток по вашим вкусам</div>
-              </div>
-            </div>
-            <div class="vibe-mood-card" onclick="alert('Настройка применится к следующему треку')">
-              <div class="vibe-mood-icon">🔥</div>
-              <div class="vibe-mood-info">
-                <div class="vibe-mood-name">Энергичное</div>
-                <div class="vibe-mood-desc">Заряжающий бит и темп</div>
-              </div>
-            </div>
-            <div class="vibe-mood-card" onclick="alert('Настройка применится к следующему треку')">
-              <div class="vibe-mood-icon">🍃</div>
-              <div class="vibe-mood-info">
-                <div class="vibe-mood-name">Спокойное</div>
-                <div class="vibe-mood-desc">Музыка для расслабления и фокуса</div>
-              </div>
-            </div>
-            <div class="vibe-mood-card" onclick="alert('Настройка применится к следующему треку')">
-              <div class="vibe-mood-icon">🇷🇺</div>
-              <div class="vibe-mood-info">
-                <div class="vibe-mood-name">Только русское</div>
-                <div class="vibe-mood-desc">Отечественные треки</div>
-              </div>
-            </div>
-            <div class="vibe-mood-card" onclick="alert('Настройка применится к следующему треку')">
-              <div class="vibe-mood-icon">⚡</div>
-              <div class="vibe-mood-info">
-                <div class="vibe-mood-name">Yo, rap</div>
-                <div class="vibe-mood-desc">Хип-хоп и трэп ритмы</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Player and Glow -->
-        <div class="vibe-player-pane">
-          <div class="vibe-glow-container">
-            <div class="vibe-mesh-glow" id="vibe-mesh-glow"></div>
-          </div>
-          
-          <div class="vibe-player-content">
-            <div class="vibe-title-label">My Vibe</div>
-            <h1 class="vibe-artist-giant" id="vibe-artist-giant">${escape(artistName)}</h1>
-            
-            <div id="vibe-player-container" class="vibe-player-container"></div>
-            
-            <div class="vibe-stars">✨</div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Reparent player to vibe player container
-    const playerEl = $('#player');
-    playerEl.classList.remove('hidden');
-    document.getElementById('vibe-player-container').appendChild(playerEl);
-    document.body.classList.add('vibe-active');
-    updateVibeGlow(currentTrack);
-  }
-
-  function updateVibeGlow(track) {
-    const glow = $('#vibe-mesh-glow');
-    if (!glow) return;
-    
-    // Hash track to generate stable gorgeous colors
-    const str = (track.title || '') + (track.artists ? track.artists.join('') : '');
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const hue1 = Math.abs(hash % 360);
-    const hue2 = (hue1 + 120) % 360;
-    const hue3 = (hue1 + 240) % 360;
-    
-    glow.style.background = `radial-gradient(circle at 20% 30%, hsl(${hue1}, 85%, 35%), transparent 60%),
-                            radial-gradient(circle at 80% 20%, hsl(${hue2}, 85%, 30%), transparent 60%),
-                            radial-gradient(circle at 50% 80%, hsl(${hue3}, 85%, 25%), transparent 65%),
-                            #050508`;
-                            
-    const lyricsOverlay = $('#lyrics-overlay');
-    if (lyricsOverlay) {
-      lyricsOverlay.style.background = `radial-gradient(circle at 30% 30%, hsl(${hue1}, 40%, 12%), transparent 70%),
-                                       radial-gradient(circle at 80% 70%, hsl(${hue2}, 40%, 10%), transparent 70%),
-                                       #0a0a0c`;
-    }
-  }
-
-  // --- Fullscreen Lyrics / Karaoke Screen ---
-  function toggleLyrics(show) {
-    lyricsOpen = show;
-    const overlay = $('#lyrics-overlay');
-    if (show) {
-      overlay.classList.remove('hidden');
-      document.body.classList.add('lyrics-active');
-      
-      // Sync values with lyrics panel
-      const currentTrack = queue[currentIndex] || {};
-      const cover = currentTrack.coverUri ? `https://${currentTrack.coverUri.replace('%%', '400x400')}` : '';
-      
-      $('#lyrics-cover').style.backgroundImage = `url('${cover}')`;
-      $('#lyrics-title').textContent = currentTrack.title || '';
-      $('#lyrics-artist').textContent = currentTrack.artists ? currentTrack.artists.join(', ') : '';
-      $('#lyrics-duration').textContent = fmtMs(currentTrack.durationMs);
-      
-      setPlayIcon(!audio.paused);
-      
-      loadTrackLyrics(currentTrack);
-    } else {
-      overlay.classList.add('hidden');
-      document.body.classList.remove('lyrics-active');
-    }
-  }
-
-  async function loadTrackLyrics(track) {
-    const textContainer = $('#lyrics-text-container');
-    textContainer.innerHTML = '<div class="lyrics-loading">Загрузка текста...</div>';
-    lyricLines = [];
-    activeLyricLineIndex = -1;
-    
-    if (!track || !track.id) return;
-    
-    try {
-      const id = String(track.id).split(':')[0];
-      const res = await yaCall(`/tracks/${id}/supplement`);
-      
-      if (res && res.result && res.result.lyrics) {
-        const lyricsInfo = res.result.lyrics;
-        
-        if (lyricsInfo.downloadUrl) {
-          try {
-            const downloadRes = await sdk.fetch(lyricsInfo.downloadUrl, { method: 'GET', responseType: 'text' });
-            if (downloadRes && downloadRes.data) {
-              parseLyrics(downloadRes.data);
-              renderLyrics();
-              return;
-            }
-          } catch (err) {
-            console.warn('[YM] Failed to download lyrics xml:', err);
-          }
-        }
-        
-        if (lyricsInfo.fullLyrics) {
-          parsePlainLyrics(lyricsInfo.fullLyrics);
-          renderLyrics();
-          return;
-        }
-      }
-      
-      textContainer.innerHTML = '<div class="lyrics-placeholder">Инструментальная композиция или текст отсутствует</div>';
-    } catch (e) {
-      console.warn('[YM] supplement call failed:', e);
-      textContainer.innerHTML = '<div class="lyrics-placeholder">Не удалось загрузить текст песни</div>';
-    }
-  }
-
-  function parseLyrics(data) {
-    lyricLines = [];
-    
-    const xmlLineRegex = /<line\s+[^>]*text="([^"]+)"[^>]*start="(\d+)"/g;
-    let match;
-    while ((match = xmlLineRegex.exec(data)) !== null) {
-      const text = decodeHTMLEntities(match[1]);
-      const timeMs = parseInt(match[2], 10);
-      lyricLines.push({ text, time: timeMs / 1000 });
-    }
-    
-    if (lyricLines.length === 0) {
-      const lrcRegex = /\[(\d+):(\d+)(?:\.(\d+))?\](.*)/g;
-      while ((match = lrcRegex.exec(data)) !== null) {
-        const min = parseInt(match[1], 10);
-        const sec = parseInt(match[2], 10);
-        const ms = match[3] ? parseInt(match[3], 10) * 10 : 0;
-        const time = min * 60 + sec + ms / 1000;
-        const text = match[4].trim();
-        if (text) {
-          lyricLines.push({ text, time });
-        }
-      }
-    }
-    
-    lyricLines.sort((a, b) => a.time - b.time);
-  }
-
-  function parsePlainLyrics(text) {
-    lyricLines = text.split(/\r?\n/).map(line => ({
-      text: line.trim(),
-      time: -1
-    })).filter(l => l.text.length > 0);
-  }
-
-  function renderLyrics() {
-    const textContainer = $('#lyrics-text-container');
-    if (lyricLines.length === 0) {
-      textContainer.innerHTML = '<div class="lyrics-placeholder">Текст песни пуст</div>';
-      return;
-    }
-    
-    textContainer.innerHTML = lyricLines.map((line, idx) => {
-      return `<div class="lyrics-line" id="lyric-line-${idx}" data-time="${line.time}">${escape(line.text)}</div>`;
-    }).join('');
-  }
-
-  function updateLyricsHighlight(time) {
-    if (!lyricsOpen || lyricLines.length === 0) return;
-    
-    let activeIdx = -1;
-    if (lyricLines[0] && lyricLines[0].time !== -1) {
-      for (let i = 0; i < lyricLines.length; i++) {
-        if (time >= lyricLines[i].time) {
-          activeIdx = i;
-        } else {
-          break;
-        }
-      }
-    }
-    
-    if (activeIdx !== -1 && activeIdx !== activeLyricLineIndex) {
-      const prevLine = $(`#lyric-line-${activeLyricLineIndex}`);
-      if (prevLine) prevLine.classList.remove('active');
-      
-      const activeLine = $(`#lyric-line-${activeIdx}`);
-      if (activeLine) {
-        activeLine.classList.add('active');
-        activeLyricLineIndex = activeIdx;
-        activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }
-
-  function decodeHTMLEntities(str) {
-    return str
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&apos;/g, "'");
-  }
-
-  async function toggleLikeTrack(trackId, button) {
-    if (!token || !ymAccount?.uid) return;
-    try {
-      const id = String(trackId).split(':')[0];
-      const isLiked = button.classList.contains('active');
-      const action = isLiked ? 'remove' : 'add';
-      
-      const path = `/users/${ymAccount.uid}/likes/tracks/${action}`;
-      await sdk.fetch(YA_API + path, {
-        method: 'POST',
-        headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token },
-        body: JSON.stringify({ 'track-ids': [id] }),
-        responseType: 'json'
-      });
-      
-      button.classList.toggle('active');
-    } catch (e) {
-      console.warn('[YM] Like action failed:', e.message);
-    }
-  }
-
     return (B(Y) + B(M) + B(X) + B(W)).toLowerCase()
   }
 })();
