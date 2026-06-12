@@ -163,8 +163,9 @@
   });
 
   renderAccount();
+  setupSidebar();
   if (!token) renderConnectScreen();
-  else renderSearchScreen();
+  else { renderSearchScreen(); setSidebarActive('nav-search'); }
 
   // ---------- UI screens ----------
 
@@ -188,6 +189,52 @@
     } else {
       account.innerHTML = '';
     }
+  }
+
+  // ---------- Sidebar (навигация как в оригинале) ----------
+  function setSidebarActive(id) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.id === id));
+  }
+
+  function setupSidebar() {
+    const go = {
+      'nav-search':     () => { renderSearchScreen(); setTimeout(() => $('#q')?.focus(), 0); },
+      'nav-vibe':       () => { if (ymAccount?.uid) { renderSearchScreen(); startWave(); } else renderSearchScreen(); },
+      'nav-collection': () => { renderSearchScreen(); setTimeout(() => $('#library')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); },
+      'nav-foryou':     () => renderSearchScreen(),
+      'nav-concerts':   () => renderSearchScreen(),
+      'nav-books':      () => renderSearchScreen(),
+      'nav-kids':       () => renderSearchScreen(),
+    };
+    Object.entries(go).forEach(([id, fn]) => {
+      const elBtn = document.getElementById(id);
+      if (!elBtn) return;
+      elBtn.addEventListener('click', () => {
+        if (!token) { renderConnectScreen(); return; }
+        setSidebarActive(id);
+        fn();
+      });
+    });
+    document.getElementById('side-collapse')?.addEventListener('click', () => {
+      document.getElementById('app')?.classList.toggle('sidebar-collapsed');
+    });
+  }
+
+  function renderSidebarPlaylists() {
+    const host = document.getElementById('side-playlists');
+    if (!host || !_libraryCache) return;
+    const items = (_libraryCache.ownPlaylists || []).slice(0, 6);
+    host.innerHTML = '';
+    items.forEach(p => {
+      const cover = p.cover ? `https://${p.cover.replace('%%', '100x100')}` : '';
+      const row = document.createElement('div');
+      row.className = 'side-pl';
+      row.innerHTML = `
+        <div class="side-pl-cover" style="${cover ? `background-image:url('${cover}')` : `background:linear-gradient(135deg, ${p.accent || '#3a3a44'}, #1a1a22)`}"></div>
+        <div class="side-pl-meta"><div class="t">${escape(p.title)}</div><div class="s">Плейлист</div></div>`;
+      row.addEventListener('click', () => openItemPage(p));
+      host.appendChild(row);
+    });
   }
 
   function renderConnectScreen() {
@@ -397,6 +444,7 @@
     renderSection('Мои плейлисты', ownPlaylists, 'own');
     renderSection('Любимые плейлисты', likedPlaylists, 'likedPl');
     renderSection('Любимые альбомы', likedAlbums, 'likedAl');
+    renderSidebarPlaylists();
   }
 
   async function loadLibrary(uid) {
