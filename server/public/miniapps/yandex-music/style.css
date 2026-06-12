@@ -260,15 +260,20 @@ details input[type="password"]:focus { border-color: var(--accent); }
 }
 
 /* === My Vibe (домашний экран) === */
-.vibe-screen { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.25fr); gap: 28px; align-items: stretch; }
+.vibe-screen { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.3fr); gap: 28px; align-items: stretch; min-height: 100%; }
+.stub { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 70%; gap: 12px; color: var(--text-secondary); padding: 40px 20px; }
+.stub-emoji { font-size: 64px; }
+.stub h2 { font-size: 26px; font-weight: 800; color: var(--text-primary); margin: 0; letter-spacing: -0.02em; }
+.stub p { max-width: 460px; line-height: 1.55; margin: 0; }
 .vibe-list { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
 .vibe-item { display: flex; align-items: center; gap: 18px; padding: 9px 8px; border: none; background: none; cursor: pointer; border-radius: 14px; color: var(--text-secondary); text-align: left; transition: background .15s, color .15s; }
 .vibe-item:hover { background: rgba(255,255,255,.05); color: var(--text-primary); }
 .vibe-item.active { color: var(--text-primary); }
-.vibe-ic { width: 64px; height: 64px; border-radius: 16px; flex-shrink: 0; box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+.vibe-ic { width: 64px; height: 64px; border-radius: 16px; flex-shrink: 0; box-shadow: 0 8px 20px rgba(0,0,0,.45); overflow: hidden; }
+.vibe-ic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .vibe-it-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
 
-.vibe-hero { position: relative; border-radius: 22px; overflow: hidden; min-height: 460px; display: flex; align-items: center; justify-content: center; background: #060608; }
+.vibe-hero { position: relative; border-radius: 22px; overflow: hidden; min-height: 460px; height: 100%; display: flex; align-items: center; justify-content: center; background: #060608; }
 .vibe-bg { position: absolute; inset: -25%; pointer-events: none; filter: blur(64px); opacity: .9;
   background:
     radial-gradient(38% 38% at 32% 38%, #ff1f8f 0%, transparent 62%),
