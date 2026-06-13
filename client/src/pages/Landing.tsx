@@ -4,6 +4,7 @@ import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Landing3D from '../components/Landing3D';
+import PromoReel from '../components/PromoReel';
 import ScreenshotReel, { ReelSlide } from '../components/ScreenshotReel';
 import './Landing.css';
 
@@ -145,30 +146,10 @@ const Landing: React.FC = () => {
                 </div>
             </section>
 
-            {/* ===== Промо-ролик (фоновое видео) ===== */}
+            {/* ===== Промо-ролик (код-ролик вместо картинки) ===== */}
             <section className="reel-section" id="reel">
-                <motion.div className="reel-frame" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }}>
-                    {promoOk ? (
-                        <video
-                            className="reel-video"
-                            src={promoSrc}
-                            poster={heroPremiumImg}
-                            autoPlay muted loop playsInline
-                            onError={() => setPromoOk(false)}
-                        />
-                    ) : (
-                        <div className="reel-fallback" style={{ backgroundImage: `url(${heroPremiumImg})` }} />
-                    )}
-                    <div className="reel-overlay" />
-                    <div className="reel-copy">
-                        <div className="eyebrow">Промо</div>
-                        <h2>Почувствуй {brand.name} в движении</h2>
-                        <p>Анимации, 3D и живой звук — посмотри, как это работает.</p>
-                        <button className="btn-primary-neon" onClick={() => setVideoOpen(true)}>
-                            <span className="play-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>
-                            Смотреть полный ролик
-                        </button>
-                    </div>
+                <motion.div className="reel-frame reel-frame-clean" style={{ aspectRatio: '16 / 9' }} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }}>
+                    <PromoReel />
                 </motion.div>
             </section>
 
@@ -251,7 +232,6 @@ const Landing: React.FC = () => {
                         <motion.div className="video-modal" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }} onClick={(e) => e.stopPropagation()}>
                             <button className="video-modal-close" onClick={() => setVideoOpen(false)} aria-label="Закрыть">✕</button>
                             <div className="video-modal-player"><ScreenshotReel slides={SHOTS} /></div>
-                            <div className="video-modal-hint">Ролик собирается из скриншотов в <code>client/public/promo/</code> (1.png … 5.png). Кнопка «Скачать ролик» сохранит его в .webp/.webm.</div>
                         </motion.div>
                     </motion.div>
                 )}
