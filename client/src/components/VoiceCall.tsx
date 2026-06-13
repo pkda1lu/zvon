@@ -50,7 +50,8 @@ const RemoteAudioPlayer: React.FC<{
     if (!audio) return;
     audio.srcObject = stream;
     audio.muted = false;
-    const tryPlay = () => audio.play().catch(() => {
+    const tryPlay = () => audio.play().catch((e) => {
+      if (e?.name !== 'AbortError') setTimeout(() => audio.play().catch(() => { }), 300);
       // Автоплей заблокирован — повторим при следующем клике пользователя.
       const retry = () => { audio.play().catch(() => { }); document.removeEventListener('click', retry); };
       document.addEventListener('click', retry, { once: true });
@@ -89,6 +90,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const [remoteSharingScreen, setRemoteSharingScreen] = useState<Set<string>>(new Set());
   const [watchingParticipants, setWatchingParticipants] = useState<Set<string>>(new Set());
   const [participantsMetadata, setParticipantsMetadata] = useState<Map<string, User>>(new Map());
+  // id видеотреков, которые на паузе/завершены (нативный mute/ended) — чтобы не показывать застывший кадр
+  const [mutedVideoIds, setMutedVideoIds] = useState<Set<string>>(new Set());
 
   const [localSpeaking, setLocalSpeaking] = useState(false);
   const [remoteSpeaking, setRemoteSpeaking] = useState(false);
@@ -207,6 +210,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const joinLiveKitRoom = async () => {
     if (roomRef.current || joiningRoomRef.current) return;
     joiningRoomRef.current = true;
+    console.log('[DM Voice] media handlers v3 — deafened:', isGlobalDeafened);
     try {
       const { data } = await axios.get('/api/livekit/token', {
         params: {
@@ -277,6 +281,20 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           }
         })
         .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          // Нативные mute/ended на самом MediaStreamTrack — срабатывают, когда кадры
+          // реально прекращаются (камера/экран выключены), даже если LiveKit не шлёт unsubscribe.
+          if (track.kind === Track.Kind.Video) {
+            const mst = track.mediaStreamTrack;
+            const markMuted = () => setMutedVideoIds(prev => new Set(prev).add(mst.id));
+            const markLive = () => setMutedVideoIds(prev => { const n = new Set(prev); n.delete(mst.id); return n; });
+            mst.addEventListener('mute', markMuted);
+            mst.addEventListener('unmute', markLive);
+            mst.addEventListener('ended', markMuted);
+            if (mst.muted) markMuted(); else markLive();
+          }
+          if (track.kind === Track.Kind.Audio) {
+            console.log('[DM Voice] audio subscribed from', participant.identity);
+          }
           if (publication.source === Track.Source.ScreenShare) {
             // Force highest quality for screen share
             if (track.kind === Track.Kind.Video) {
@@ -334,33 +352,15 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             });
           }
         })
-        // Камеру часто не отписывают, а ставят на mute — тогда TrackUnsubscribed не
-        // приходит и кадр «замерзает». Убираем видеотрек из стрима на mute, возвращаем на unmute.
-        .on(RoomEvent.TrackMuted, (publication, participant) => {
-          if (participant.identity === user?._id?.toString()) return;
-          if (publication.source !== Track.Source.Camera) return;
-          const tid = publication.track?.mediaStreamTrack?.id;
-          if (!tid) return;
-          setRemoteStreams(prev => {
-            const next = new Map(prev);
-            const stream = next.get(participant.identity);
-            if (stream) next.set(participant.identity, new MediaStream(stream.getTracks().filter(t => t.id !== tid)));
-            return next;
-          });
+        // Дублируем сигнал mute через события LiveKit (camera И screen) — на случай,
+        // если нативный track-event не пришёл. Кадр не показываем, пока трек на паузе.
+        .on(RoomEvent.TrackMuted, (publication) => {
+          const id = publication.track?.mediaStreamTrack?.id;
+          if (id && publication.kind === Track.Kind.Video) setMutedVideoIds(prev => new Set(prev).add(id));
         })
-        .on(RoomEvent.TrackUnmuted, (publication, participant) => {
-          if (participant.identity === user?._id?.toString()) return;
-          if (publication.source !== Track.Source.Camera) return;
-          const mst = publication.track?.mediaStreamTrack;
-          if (!mst) return;
-          setRemoteStreams(prev => {
-            const next = new Map(prev);
-            const existing = next.get(participant.identity);
-            const tracks = existing ? existing.getTracks().filter(t => t.id !== mst.id) : [];
-            tracks.push(mst);
-            next.set(participant.identity, new MediaStream(tracks));
-            return next;
-          });
+        .on(RoomEvent.TrackUnmuted, (publication) => {
+          const id = publication.track?.mediaStreamTrack?.id;
+          if (id && publication.kind === Track.Kind.Video) setMutedVideoIds(prev => { const n = new Set(prev); n.delete(id); return n; });
         })
         .on(RoomEvent.LocalTrackPublished, () => syncLocalStream())
         .on(RoomEvent.LocalTrackUnpublished, () => syncLocalStream());
@@ -541,6 +541,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
   const anyRemoteScreenSharing = remoteScreenStreams.size > 0 || isScreenSharing;
 
+  // Видео показываем только если есть живой (не на паузе/не завершённый) видеотрек —
+  // иначе при выключении камеры/экрана остаётся застывший последний кадр.
+  const hasLiveVideo = (s: MediaStream | null | undefined): boolean =>
+    !!s && s.getVideoTracks().some(t => t.readyState === 'live' && !mutedVideoIds.has(t.id));
+
   return (
     <motion.div
       className={`voice-call-full-view ${isGroup ? 'group-mode' : ''}`}
@@ -582,10 +587,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.8 }}
               >
-                {stream && stream.getVideoTracks().length > 0 ? (
+                {hasLiveVideo(stream) ? (
                   <video
                     autoPlay playsInline muted={p.isMe}
-                    ref={el => { if (el && el.srcObject !== stream) el.srcObject = stream; }}
+                    ref={el => { if (el && el.srcObject !== stream) el.srcObject = stream || null; }}
                     className="participant-video"
                   />
                 ) : (
@@ -597,7 +602,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                     </div>
                   </div>
                 )}
-                {screenShare && (
+                {screenShare && hasLiveVideo(screenShare) && (
                   <div className="participant-screenshare">
                     <video
                       autoPlay playsInline muted={p.isMe}
