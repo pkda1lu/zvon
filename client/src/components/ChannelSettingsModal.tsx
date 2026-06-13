@@ -19,6 +19,20 @@ interface ChannelSettingsModalProps {
 
 type Tab = 'overview' | 'permissions';
 
+// Шаги слайдера медленного режима (индекс 0..10 → секунды), как в Discord.
+const SLOW_STEPS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 3600, 21600];
+const fmtSlow = (s: number): string => {
+    if (!s) return 'Выкл';
+    if (s < 60) return `${s} сек`;
+    if (s < 3600) return `${s / 60} мин`;
+    return `${s / 3600} ч`;
+};
+const slowToIdx = (s: number): number => {
+    let best = 0;
+    for (let i = 0; i < SLOW_STEPS.length; i++) if (SLOW_STEPS[i] <= s) best = i;
+    return best;
+};
+
 const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     isOpen,
     onClose,
@@ -38,16 +52,17 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     const [showAddAccessDropdown, setShowAddAccessDropdown] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Voice specific placeholders (since our type doesn't have them yet, we simulate them for the UI)
     const [bitrate, setBitrate] = useState(64);
     const [userLimit, setUserLimit] = useState(0);
+    const [slowIdx, setSlowIdx] = useState(0);
 
     useEffect(() => {
         setName(channel.name);
         setTopic(channel.topic || '');
         setOverwrites(channel.permissionOverwrites || []);
+        setSlowIdx(slowToIdx((channel as any).slowMode || 0));
         if (channel.type === 'voice') {
-            setBitrate((channel as any).bitrate / 1000 || 64);
+            setBitrate(((channel as any).bitrate || 64000) / 1000);
             setUserLimit((channel as any).userLimit || 0);
         }
         setActiveTab('overview');
@@ -64,6 +79,8 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
             if (channel.type === 'voice') {
                 payload.bitrate = bitrate * 1000;
                 payload.userLimit = userLimit;
+            } else {
+                payload.slowMode = SLOW_STEPS[slowIdx];
             }
             const res = await axios.put(`/api/channels/${channel._id}`, payload);
             onChannelUpdate(res.data);
@@ -104,7 +121,8 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 
     const isDirty = name !== channel.name ||
         topic !== (channel.topic || '') ||
-        (channel.type === 'voice' && (bitrate !== ((channel as any).bitrate / 1000 || 64) || userLimit !== ((channel as any).userLimit || 0))) ||
+        (channel.type === 'voice' && (bitrate !== (((channel as any).bitrate || 64000) / 1000) || userLimit !== ((channel as any).userLimit || 0))) ||
+        (channel.type !== 'voice' && SLOW_STEPS[slowIdx] !== ((channel as any).slowMode || 0)) ||
         JSON.stringify(overwrites) !== JSON.stringify(channel.permissionOverwrites);
 
     return (
@@ -210,13 +228,21 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 
                                         <div className="settings-divider" />
                                         <div className="settings-input-group">
-                                            <label>Медленный режим</label>
+                                            <label>Медленный режим — {fmtSlow(SLOW_STEPS[slowIdx])}</label>
                                             <div className="slow-mode-container">
                                                 <div className="slow-mode-labels">
                                                     <span>Без задержки</span>
                                                     <span>6 часов</span>
                                                 </div>
-                                                <input type="range" min="0" max="10" step="1" className="slow-mode-slider" defaultValue="0" />
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max={SLOW_STEPS.length - 1}
+                                                    step="1"
+                                                    className="slow-mode-slider"
+                                                    value={slowIdx}
+                                                    onChange={(e) => setSlowIdx(parseInt(e.target.value, 10))}
+                                                />
                                                 <p className="settings-description">
                                                     Участники смогут отправлять сообщения только один раз в заданный промежуток времени.
                                                 </p>

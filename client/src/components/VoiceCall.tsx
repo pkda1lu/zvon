@@ -50,7 +50,12 @@ const RemoteAudioPlayer: React.FC<{
     if (!audio) return;
     audio.srcObject = stream;
     audio.muted = false;
-    audio.play().catch(() => { });
+    const tryPlay = () => audio.play().catch(() => {
+      // Автоплей заблокирован — повторим при следующем клике пользователя.
+      const retry = () => { audio.play().catch(() => { }); document.removeEventListener('click', retry); };
+      document.addEventListener('click', retry, { once: true });
+    });
+    tryPlay();
   }, [stream]);
 
   useEffect(() => {
@@ -185,6 +190,20 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   }, [socket, dmId, isGroup]);
 
   const joiningRoomRef = useRef(false);
+
+  // Пересобирает локальный стрим (микрофон + камера) из публикаций — новый объект
+  // на каждое изменение, чтобы локальная плитка обновлялась и не зависала при выкл. камеры.
+  const syncLocalStream = () => {
+    const lp = roomRef.current?.localParticipant;
+    if (!lp) return;
+    const tracks: MediaStreamTrack[] = [];
+    const mic = lp.getTrackPublication(Track.Source.Microphone);
+    const cam = lp.getTrackPublication(Track.Source.Camera);
+    if (mic?.track) tracks.push(mic.track.mediaStreamTrack!);
+    if (cam?.track && !cam.isMuted) tracks.push(cam.track.mediaStreamTrack!);
+    setLocalStream(tracks.length ? new MediaStream(tracks) : null);
+  };
+
   const joinLiveKitRoom = async () => {
     if (roomRef.current || joiningRoomRef.current) return;
     joiningRoomRef.current = true;
@@ -269,17 +288,22 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
             setRemoteScreenStreams(prev => {
               const next = new Map(prev);
-              const existing = next.get(participant.identity) || new MediaStream();
-              existing.addTrack(track.mediaStreamTrack!);
-              next.set(participant.identity, existing);
+              const existing = next.get(participant.identity);
+              const tracks = existing ? existing.getTracks().filter(t => t.id !== track.mediaStreamTrack!.id) : [];
+              tracks.push(track.mediaStreamTrack!);
+              next.set(participant.identity, new MediaStream(tracks));
               return next;
             });
           } else {
+            // ВАЖНО: создаём НОВЫЙ MediaStream (новая ссылка) на каждое добавление трека,
+            // иначе <audio>/<video> не переподхватывают srcObject и поздно пришедший
+            // аудиотрек собеседника не воспроизводится.
             setRemoteStreams(prev => {
               const next = new Map(prev);
-              const existing = next.get(participant.identity) || new MediaStream();
-              existing.addTrack(track.mediaStreamTrack!);
-              next.set(participant.identity, existing);
+              const existing = next.get(participant.identity);
+              const tracks = existing ? existing.getTracks().filter(t => t.id !== track.mediaStreamTrack!.id) : [];
+              tracks.push(track.mediaStreamTrack!);
+              next.set(participant.identity, new MediaStream(tracks));
               return next;
             });
           }
@@ -309,7 +333,37 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
               return next;
             });
           }
-        });
+        })
+        // Камеру часто не отписывают, а ставят на mute — тогда TrackUnsubscribed не
+        // приходит и кадр «замерзает». Убираем видеотрек из стрима на mute, возвращаем на unmute.
+        .on(RoomEvent.TrackMuted, (publication, participant) => {
+          if (participant.identity === user?._id?.toString()) return;
+          if (publication.source !== Track.Source.Camera) return;
+          const tid = publication.track?.mediaStreamTrack?.id;
+          if (!tid) return;
+          setRemoteStreams(prev => {
+            const next = new Map(prev);
+            const stream = next.get(participant.identity);
+            if (stream) next.set(participant.identity, new MediaStream(stream.getTracks().filter(t => t.id !== tid)));
+            return next;
+          });
+        })
+        .on(RoomEvent.TrackUnmuted, (publication, participant) => {
+          if (participant.identity === user?._id?.toString()) return;
+          if (publication.source !== Track.Source.Camera) return;
+          const mst = publication.track?.mediaStreamTrack;
+          if (!mst) return;
+          setRemoteStreams(prev => {
+            const next = new Map(prev);
+            const existing = next.get(participant.identity);
+            const tracks = existing ? existing.getTracks().filter(t => t.id !== mst.id) : [];
+            tracks.push(mst);
+            next.set(participant.identity, new MediaStream(tracks));
+            return next;
+          });
+        })
+        .on(RoomEvent.LocalTrackPublished, () => syncLocalStream())
+        .on(RoomEvent.LocalTrackUnpublished, () => syncLocalStream());
 
       await room.connect(serverUrl, token);
       const existingParticipants = Array.from(room.remoteParticipants.values());
@@ -328,8 +382,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       await room.localParticipant.setMicrophoneEnabled(true);
       if (isVideoEnabled) await room.localParticipant.setCameraEnabled(true);
 
-      const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-      if (micTrack?.track) setLocalStream(new MediaStream([micTrack.track.mediaStreamTrack!]));
+      syncLocalStream();
 
       setIsCallActive(true);
       wasCallEstablishedRef.current = true;
@@ -370,8 +423,17 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     if (screenStream) screenStream.getTracks().forEach(track => track.stop());
   };
 
-  const toggleMute = () => { setIsMuted(!isMuted); roomRef.current?.localParticipant.setMicrophoneEnabled(isMuted); };
-  const toggleVideo = async () => { setIsVideoEnabled(!isVideoEnabled); await roomRef.current?.localParticipant.setCameraEnabled(!isVideoEnabled); };
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    roomRef.current?.localParticipant.setMicrophoneEnabled(!next).catch(() => { });
+  };
+  const toggleVideo = async () => {
+    const next = !isVideoEnabled;
+    setIsVideoEnabled(next);
+    try { await roomRef.current?.localParticipant.setCameraEnabled(next); } catch (e) { console.warn('[DM Voice] camera toggle failed', e); }
+    syncLocalStream();
+  };
 
   const toggleScreenShare = async (sourceId?: string, options?: { resolution: string, frameRate: string, videoCodec: 'av1' | 'vp9' | 'h264' }) => {
     if (isScreenSharing) {
