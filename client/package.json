@@ -13,6 +13,7 @@
     "gifenc": "^1.0.3",
     "gifuct-js": "^2.1.2",
     "react-virtuoso": "^4.18.7",
+    "three": "^0.160.1",
     "zvon-native-audio": "file:./native-audio"
   },
   "main": "public/electron.js",

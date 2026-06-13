@@ -1,26 +1,44 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useDialog } from '../contexts/DialogContext';
+import Landing3D from '../components/Landing3D';
+import ScreenshotReel, { ReelSlide } from '../components/ScreenshotReel';
 import './Landing.css';
+
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+const fadeUp = {
+    hidden: { opacity: 0, y: 40 },
+    show: (i = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.6, delay: i * 0.08, ease: EASE } }),
+};
 
 const Landing: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { alert } = useDialog();
     const brand = getIconBrand();
     const isMax = brand.id === 'maxcord';
-    const heroPremiumImg = `${import.meta.env.BASE_URL}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero_premium.png'}`;
-    const heroImg = `${import.meta.env.BASE_URL}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero.png'}`;
+    const base = import.meta.env.BASE_URL;
+    const heroPremiumImg = `${base}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero_premium.png'}`;
+    const heroImg = `${base}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero.png'}`;
+    // Промо-видео в секции (опционально): client/public/promo.mp4
+    const promoSrc = `${base}promo.mp4`;
 
-    const handleOpenApp = () => {
-        if (user) {
-            navigate('/app');
-        } else {
-            navigate('/login');
-        }
-    };
+    // Ролик из твоих скриншотов: положи PNG/JPG в client/public/promo/ и
+    // перечисли их здесь (подписи можно менять). Чего нет — то пропустится;
+    // если совсем пусто — покажется сгенерированный ролик.
+    const SHOTS: ReelSlide[] = [
+        { src: `${base}promo/1.png`, title: 'Голосовые каналы', sub: 'Кристальный звук и видеосвязь' },
+        { src: `${base}promo/2.png`, title: 'Свой сервер', sub: 'Каналы, роли и права под тебя' },
+        { src: `${base}promo/3.png`, title: 'Демонстрация экрана', sub: 'Стриминг в 4K/60fps' },
+        { src: `${base}promo/4.png`, title: 'Боты и мини-приложения', sub: 'Музыка, магазин, модерация' },
+        { src: `${base}promo/5.png`, title: brand.name, sub: 'Присоединяйся бесплатно' },
+    ];
+
+    const [videoOpen, setVideoOpen] = useState(false);
+    const [promoOk, setPromoOk] = useState(true);
+
+    const handleOpenApp = () => navigate(user ? '/app' : '/login');
 
     return (
         <div className="landing-container">
@@ -29,18 +47,19 @@ const Landing: React.FC = () => {
 
             <nav className="landing-nav">
                 <div className="nav-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                    <img src={`${import.meta.env.BASE_URL}${brand.favicon}`} alt={brand.name} />
+                    <img src={`${base}${brand.favicon}`} alt={brand.name} />
                     <span>{brand.name}</span>
                 </div>
                 <div className="nav-links">
                     <span className="nav-link" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Возможности</span>
+                    <span className="nav-link" onClick={() => document.getElementById('reel')?.scrollIntoView({ behavior: 'smooth' })}>Видео</span>
                     <span className="nav-link" onClick={() => document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' })}>Демонстрация</span>
                     <span className="nav-link" onClick={() => navigate('/docs')}>Документация</span>
                 </div>
                 <div className="nav-actions">
                     {!user && (
                         <button className="btn-nav-neon nav-desktop-only" onClick={() => { window.location.href = 'zvon://'; }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></svg>
                             Запустить {brand.name}
                         </button>
                     )}
@@ -50,89 +69,138 @@ const Landing: React.FC = () => {
                 </div>
             </nav>
 
-            <section className="hero-section">
-                <div className="hero-bg"></div>
-                {/* Hero Image - Premium 3D Abstract */}
-                <div className="hero-image-container">
-                    <img
-                        src={heroPremiumImg}
-                        className="hero-main-img"
-                        alt={`${brand.name} Premium UI`}
-                        onError={(e) => {
-                            e.currentTarget.src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200';
-                        }}
-                    />
-                </div>
-                <div className="hero-content">
-                    <h1 className="hero-h1">Место, где звук <br/> становится чувством.</h1>
-                    <p className="hero-p">
-                        {brand.name} — это революционная платформа для общения.
-                        Погрузитесь в атмосферу кристально чистого звука и стриминга в 4K.
-                        Создано для геймеров, разработчиков и тех, кто ценит качество.
-                    </p>
-                    <div className="hero-buttons">
-                        <button className="btn-primary-neon" onClick={handleOpenApp}>
-                            Запустить в браузере
-                        </button>
+            {/* ===== HERO с 3D-сценой ===== */}
+            <section className="hero-section hero-3d">
+                <Landing3D className="hero-3d-canvas" />
+                <div className="hero-3d-overlay" />
+                <div className="hero-content hero-content-center">
+                    <motion.div className="hero-badge" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                        <span className="dot" /> Новое поколение голосового общения
+                    </motion.div>
+                    <motion.h1 className="hero-h1 hero-h1-xl" initial="hidden" animate="show" variants={fadeUp}>
+                        Место, где звук <br /> становится <span className="grad-text">чувством</span>.
+                    </motion.h1>
+                    <motion.p className="hero-p" initial="hidden" animate="show" custom={1} variants={fadeUp}>
+                        {brand.name} — платформа для общения с кристально чистым звуком, стримингом в 4K и
+                        живой 3D-атмосферой. Для геймеров, разработчиков и тех, кто ценит качество.
+                    </motion.p>
+                    <motion.div className="hero-buttons" initial="hidden" animate="show" custom={2} variants={fadeUp}>
+                        <button className="btn-primary-neon" onClick={handleOpenApp}>Запустить в браузере</button>
                         <button className="btn-secondary-outline" onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
                             Скачать для Windows
                         </button>
-                    </div>
+                        <button className="btn-play-reel" onClick={() => setVideoOpen(true)}>
+                            <span className="play-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>
+                            Смотреть ролик
+                        </button>
+                    </motion.div>
+                </div>
+                <div className="scroll-cue" onClick={() => document.getElementById('stats')?.scrollIntoView({ behavior: 'smooth' })}>
+                    <span /> <span /> <span />
                 </div>
             </section>
 
+            {/* ===== Бегущая строка / статы ===== */}
+            <section className="stats-section" id="stats">
+                <div className="marquee">
+                    <div className="marquee-track">
+                        {['КРИСТАЛЬНЫЙ ЗВУК', '4K СТРИМИНГ', 'НИЗКАЯ ЗАДЕРЖКА', '3D-АТМОСФЕРА', 'BOT API', 'ПРИВАТНОСТЬ', 'КРОСС-ПЛАТФОРМА']
+                            .concat(['КРИСТАЛЬНЫЙ ЗВУК', '4K СТРИМИНГ', 'НИЗКАЯ ЗАДЕРЖКА', '3D-АТМОСФЕРА', 'BOT API', 'ПРИВАТНОСТЬ', 'КРОСС-ПЛАТФОРМА'])
+                            .map((t, i) => <span key={i} className="marquee-item">{t} <i>✦</i></span>)}
+                    </div>
+                </div>
+                <div className="stats-grid">
+                    {[['100K+', 'пользователей'], ['4K·60', 'fps стриминг'], ['<40ms', 'задержка'], ['99.9%', 'аптайм']].map(([n, l], i) => (
+                        <motion.div key={i} className="stat-pill" variants={fadeUp} custom={i} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.6 }}>
+                            <div className="stat-n">{n}</div>
+                            <div className="stat-l">{l}</div>
+                        </motion.div>
+                    ))}
+                </div>
+            </section>
+
+            {/* ===== Возможности (тилт-карточки) ===== */}
             <section className="features-section" id="features">
+                <motion.div className="section-head" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}>
+                    <div className="eyebrow">Возможности</div>
+                    <h2>Всё для идеального общения</h2>
+                </motion.div>
                 <div className="features-grid">
-                    <div className="feature-card">
-                        <div className="feature-icon">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /></svg>
-                        </div>
-                        <h3>Кристальный звук</h3>
-                        <p>Наше шумоподавление нового поколения убирает всё лишнее. Вас слышно идеально даже в шумной обстановке.</p>
-                    </div>
-                    <div className="feature-card">
-                        <div className="feature-icon">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
-                        </div>
-                        <h3>Стриминг 4K/60fps</h3>
-                        <p>Делитесь своим экраном с минимальной задержкой. Поддержка захвата системного аудио включена по умолчанию.</p>
-                    </div>
-                    <div className="feature-card">
-                        <div className="feature-icon">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                        </div>
-                        <h3>Полная приватность</h3>
-                        <p>Ваши звонки и сообщения защищены. Мы ценим вашу конфиденциальность и безопасность данных.</p>
-                    </div>
+                    {[
+                        { t: 'Кристальный звук', d: 'Шумоподавление нового поколения убирает всё лишнее. Вас слышно идеально даже в шумной обстановке.', svg: <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3" /> },
+                        { t: 'Стриминг 4K/60fps', d: 'Делитесь экраном с минимальной задержкой. Захват системного аудио включён по умолчанию.', svg: <><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8 M12 17v4" /></> },
+                        { t: 'Полная приватность', d: 'Ваши звонки и сообщения защищены. Мы ценим вашу конфиденциальность и безопасность данных.', svg: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /> },
+                        { t: '3D-атмосфера', d: 'Живые сцены и анимации делают присутствие ощутимым — общение становится событием.', svg: <><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5 M2 12l10 5 10-5" /></> },
+                        { t: 'Мощный Bot API', d: 'Webhooks и Socket.io SDK: музыкальные боты, роли, кастомные команды и мини-приложения.', svg: <><rect x="3" y="11" width="18" height="10" rx="2" /><path d="M12 7v4 M8 2v3 M16 2v3" /><circle cx="8.5" cy="16" r="1" /><circle cx="15.5" cy="16" r="1" /></> },
+                        { t: 'Кросс-платформа', d: 'Браузер, Windows и десктоп — единый опыт везде, где вы есть.', svg: <><rect x="2" y="4" width="14" height="10" rx="1" /><path d="M18 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-2 M2 18h10" /></> },
+                    ].map((f, i) => (
+                        <motion.div key={i} className="feature-card tilt" variants={fadeUp} custom={i} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }}>
+                            <div className="feature-icon">
+                                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{f.svg}</svg>
+                            </div>
+                            <h3>{f.t}</h3>
+                            <p>{f.d}</p>
+                        </motion.div>
+                    ))}
                 </div>
             </section>
 
+            {/* ===== Промо-ролик (фоновое видео) ===== */}
+            <section className="reel-section" id="reel">
+                <motion.div className="reel-frame" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }}>
+                    {promoOk ? (
+                        <video
+                            className="reel-video"
+                            src={promoSrc}
+                            poster={heroPremiumImg}
+                            autoPlay muted loop playsInline
+                            onError={() => setPromoOk(false)}
+                        />
+                    ) : (
+                        <div className="reel-fallback" style={{ backgroundImage: `url(${heroPremiumImg})` }} />
+                    )}
+                    <div className="reel-overlay" />
+                    <div className="reel-copy">
+                        <div className="eyebrow">Промо</div>
+                        <h2>Почувствуй {brand.name} в движении</h2>
+                        <p>Анимации, 3D и живой звук — посмотри, как это работает.</p>
+                        <button className="btn-primary-neon" onClick={() => setVideoOpen(true)}>
+                            <span className="play-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>
+                            Смотреть полный ролик
+                        </button>
+                    </div>
+                </motion.div>
+            </section>
+
+            {/* ===== Демонстрация интерфейса ===== */}
             <section className="showcase-section" id="showcase">
                 <div className="showcase-content">
-                    <div className="showcase-text">
+                    <motion.div className="showcase-text" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.4 }}>
+                        <div className="eyebrow">Сервера</div>
                         <h2>Создайте свой мир.</h2>
                         <p>
                             Серверы {brand.name} позволяют организовать пространство так, как удобно вам.
                             Создавайте роли, настраивайте права доступа и делайте свой сервер уникальным.
                         </p>
                         <button className="btn-secondary" onClick={() => navigate('/register')}>Присоединиться сейчас</button>
-                    </div>
-                    <div className="showcase-image">
+                    </motion.div>
+                    <motion.div className="showcase-image tilt" initial={{ opacity: 0, x: 60 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: 0.4 }} transition={{ duration: 0.7, ease: EASE }}>
                         <img src={heroImg} alt={`${brand.name} Interface`} onError={(e) => {
                             e.currentTarget.src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200';
                         }} />
-                    </div>
+                    </motion.div>
                 </div>
             </section>
 
+            {/* ===== CTA ===== */}
             <section className="cta-section" id="download">
-                <div className="cta-card">
+                <motion.div className="cta-card" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.5 }}>
                     <h2>Готовы начать свое общение?</h2>
                     <p>Более 100,000 пользователей уже выбрали {brand.name} как основной инструмент для связи.</p>
                     <button className="btn-login" style={{ padding: '16px 48px', fontSize: '18px' }} onClick={() => navigate('/register')}>
                         Зарегистрироваться
                     </button>
-                </div>
+                </motion.div>
             </section>
 
             <footer id="support">
@@ -175,6 +243,19 @@ const Landing: React.FC = () => {
                     </div>
                 </div>
             </footer>
+
+            {/* ===== Модалка с роликом ===== */}
+            <AnimatePresence>
+                {videoOpen && (
+                    <motion.div className="video-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVideoOpen(false)}>
+                        <motion.div className="video-modal" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }} onClick={(e) => e.stopPropagation()}>
+                            <button className="video-modal-close" onClick={() => setVideoOpen(false)} aria-label="Закрыть">✕</button>
+                            <div className="video-modal-player"><ScreenshotReel slides={SHOTS} /></div>
+                            <div className="video-modal-hint">Ролик собирается из скриншотов в <code>client/public/promo/</code> (1.png … 5.png). Кнопка «Скачать ролик» сохранит его в .webp/.webm.</div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

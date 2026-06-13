@@ -388,6 +388,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       wasCallEstablishedRef.current = true;
     } catch (e) {
       console.error('[DM Voice] LiveKit join error:', e);
+      const msg = String((e as Error)?.message || '');
+      if (/support|webRTC|supported on this browser/i.test(msg)) {
+        alert('Не удалось установить соединение: WebRTC недоступен в этом браузере. Скорее всего его блокирует расширение (например, MetaMask или «WebRTC Leak Prevent»). Откройте звонок в десктоп-приложении Zvon или отключите расширения, блокирующие WebRTC.');
+      } else {
+        alert('Не удалось подключиться к звонку: ' + (msg || 'неизвестная ошибка') + '. Попробуйте ещё раз.');
+      }
     } finally {
       joiningRoomRef.current = false;
     }
