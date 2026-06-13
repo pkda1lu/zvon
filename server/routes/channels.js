@@ -59,11 +59,14 @@ router.put('/:id', auth, async (req, res, next) => {
 }, checkPermission(Permissions.MANAGE_CHANNELS), async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id);
-    const { name, topic, position, permissionOverwrites } = req.body;
+    const { name, topic, position, permissionOverwrites, slowMode, bitrate, userLimit } = req.body;
     if (name) channel.name = name;
     if (topic !== undefined) channel.topic = topic;
     if (position !== undefined) channel.position = position;
     if (permissionOverwrites !== undefined) channel.permissionOverwrites = permissionOverwrites;
+    if (slowMode !== undefined) channel.slowMode = Math.max(0, Math.min(21600, parseInt(slowMode, 10) || 0));
+    if (bitrate !== undefined) channel.bitrate = parseInt(bitrate, 10) || 64000;
+    if (userLimit !== undefined) channel.userLimit = Math.max(0, Math.min(99, parseInt(userLimit, 10) || 0));
     await channel.save();
 
     await logAction({

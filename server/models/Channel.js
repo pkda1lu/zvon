@@ -55,6 +55,24 @@ const channelSchema = new mongoose.Schema({
     type: String,
     maxlength: 500
   },
+  // Медленный режим (сек между сообщениями), 0 = выключен. Только для текстовых.
+  slowMode: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 21600
+  },
+  // Голосовые каналы
+  bitrate: {
+    type: Number,
+    default: 64000
+  },
+  userLimit: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 99
+  },
   permissionOverwrites: [permissionOverwriteSchema],
   createdAt: {
     type: Date,

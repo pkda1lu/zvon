@@ -19,6 +19,9 @@ const compression = require('compression');
 const app = express();
 const server = http.createServer(app);
 
+// Медленный режим: последний таймстемп отправки сообщения, ключ `${channelId}:${userId}`.
+const slowModeTracker = new Map();
+
 app.use(compression());
 
 const io = socketIo(server, {
@@ -346,6 +349,24 @@ io.on('connection', (socket) => {
         const perms = computePermissions(socket.userId, server, channel);
         if (!hasPermission(perms, Permissions.SEND_MESSAGES)) {
           return socket.emit('error', { message: 'У вас нет прав для отправки сообщений в этот канал' });
+        }
+        // Медленный режим
+        const slow = channel.slowMode || 0;
+        if (slow > 0) {
+          const isOwner = String(server.owner) === String(socket.userId);
+          const exempt = isOwner
+            || hasPermission(perms, Permissions.MANAGE_MESSAGES)
+            || hasPermission(perms, Permissions.MANAGE_CHANNELS)
+            || hasPermission(perms, Permissions.ADMINISTRATOR);
+          if (!exempt) {
+            const key = `${data.channelId}:${socket.userId}`;
+            const now = Date.now();
+            const waitMs = slow * 1000 - (now - (slowModeTracker.get(key) || 0));
+            if (waitMs > 0) {
+              return socket.emit('error', { message: `Медленный режим: подождите ${Math.ceil(waitMs / 1000)} с.` });
+            }
+            slowModeTracker.set(key, now);
+          }
         }
       }
       const message = new Message(messageData);
