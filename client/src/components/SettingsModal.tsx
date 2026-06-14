@@ -1154,7 +1154,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           >
             <option value="none">Отключено (Чистый звук)</option>
             <option value="standard">Стандартное (Браузер)</option>
-            <option value="rnnoise">RNNoise (Werman / Нейросеть)</option>
+            <option value="rnnoise">RNNoise + гейт (рекомендуется, лёгкое)</option>
+            <option value="deepfilter">DeepFilterNet (максимальное, нейросеть)</option>
           </select>
         </div>
 

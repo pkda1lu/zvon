@@ -3,6 +3,7 @@ import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { User } from '../types';
 import { setupNoiseSuppression } from '../utils/audioProcessing';
+import { createDeepFilterProcessor } from '../utils/deepFilter';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { nativeAudioManager } from '../utils/nativeAudio';
 import vadWorkletUrl from '../utils/vad-worklet.js?url';
@@ -158,8 +159,8 @@ interface VoiceContextType {
     userStates: Map<string, { isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isVideoOn?: boolean; isServerMuted?: boolean; isServerDeafened?: boolean }>;
     localMutes: Set<string>;
     toggleLocalMute: (userId: string) => void;
-    noiseSuppressionMode: 'none' | 'standard' | 'rnnoise';
-    setNoiseSuppressionMode: (mode: 'none' | 'standard' | 'rnnoise') => void;
+    noiseSuppressionMode: 'none' | 'standard' | 'rnnoise' | 'deepfilter';
+    setNoiseSuppressionMode: (mode: 'none' | 'standard' | 'rnnoise' | 'deepfilter') => void;
     audioContext: AudioContext | null;
     inputDevices: MediaDeviceInfo[];
     outputDevices: MediaDeviceInfo[];
@@ -274,7 +275,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isServerMuted, setIsServerMuted] = useState(false); // New state
     const [myServerNickname, setMyServerNickname] = useState<string | null>(null);
     const [isServerDeafened, setIsServerDeafened] = useState(false); // New state
-    const [noiseSuppressionMode, setNoiseSuppressionModeState] = useState<'none' | 'standard' | 'rnnoise'>(
+    const [noiseSuppressionMode, setNoiseSuppressionModeState] = useState<'none' | 'standard' | 'rnnoise' | 'deepfilter'>(
         (localStorage.getItem('noiseSuppressionMode') as any) || 'rnnoise'
     );
 
@@ -368,6 +369,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const audioContextRef = useRef<AudioContext | null>(null);
     const localGainNodeRef = useRef<GainNode | null>(null);
     const livekitTrackRef = useRef<MediaStreamTrack | null>(null); // The REAL LiveKit track for VAD gating
+    const dfProcessorRef = useRef<ReturnType<typeof createDeepFilterProcessor> | null>(null); // active DeepFilterNet processor
     const isVadActiveRef = useRef(false);
     const lastSpeakingTimeRef = useRef<number>(0);
     const lastVadMessageTimeRef = useRef<number>(0);
@@ -476,23 +478,50 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         console.log(`[Voice] Local microphone handling for: ${track.sid || 'initial'}`);
 
-        // Re-apply noise suppression if needed
-        if (noiseSuppressionMode === 'rnnoise' && track.kind === Track.Kind.Audio) {
-            const rawTrack = track.mediaStreamTrack!;
-            // Only apply if it's not already a suppressed track (we check custom property)
-            if (!(track.mediaStreamTrack as any).__isSuppressed) {
-                try {
-                    const ctx = getAudioContext();
-                    const suppressedStream = await setupNoiseSuppression(ctx, new MediaStream([rawTrack]));
-                    const suppressedTrack = suppressedStream.getAudioTracks()[0];
-                    if (suppressedTrack) {
-                        // Mark as suppressed to avoid infinite loops if this is called again
-                        (suppressedTrack as any).__isSuppressed = true;
-                        console.log("[Voice] Re-applying noise suppression to mic track");
-                        await (track as any).replaceTrack(suppressedTrack);
+        // Apply the selected custom noise-suppression engine. Browser-side NS
+        // (the `standard` mode) is handled purely via getUserMedia constraints
+        // and needs nothing here. RNNoise and DeepFilterNet are applied to the
+        // published LiveKit track below.
+        if (track.kind === Track.Kind.Audio) {
+            const lt = track as any;
+
+            // Tear down a DeepFilterNet processor if we're no longer in that mode.
+            if (noiseSuppressionMode !== 'deepfilter' && dfProcessorRef.current) {
+                try { await lt.stopProcessor?.(); } catch (e) { /* */ }
+                dfProcessorRef.current = null;
+            }
+
+            if (noiseSuppressionMode === 'deepfilter') {
+                // DeepFilterNet3 plugs in as a LiveKit TrackProcessor (handles its
+                // own worklet graph + resampling internally).
+                if (!dfProcessorRef.current) {
+                    try {
+                        const proc = createDeepFilterProcessor(90);
+                        await lt.setProcessor(proc);
+                        dfProcessorRef.current = proc;
+                        console.log('[Voice] DeepFilterNet3 processor attached to mic track');
+                    } catch (e) {
+                        console.warn('[Voice] DeepFilterNet init failed, falling back to raw audio:', e);
+                        dfProcessorRef.current = null;
                     }
-                } catch (e) {
-                    console.warn("[Voice] Failed to re-apply NS:", e);
+                }
+            } else if (noiseSuppressionMode === 'rnnoise') {
+                const rawTrack = track.mediaStreamTrack!;
+                // Only apply if it's not already a suppressed track (custom marker).
+                if (!(track.mediaStreamTrack as any).__isSuppressed) {
+                    try {
+                        const ctx = getAudioContext();
+                        const suppressedStream = await setupNoiseSuppression(ctx, new MediaStream([rawTrack]));
+                        const suppressedTrack = suppressedStream.getAudioTracks()[0];
+                        if (suppressedTrack) {
+                            // Mark as suppressed to avoid infinite loops if this is called again
+                            (suppressedTrack as any).__isSuppressed = true;
+                            console.log("[Voice] Re-applying RNNoise to mic track");
+                            await (track as any).replaceTrack(suppressedTrack);
+                        }
+                    } catch (e) {
+                        console.warn("[Voice] Failed to re-apply NS:", e);
+                    }
                 }
             }
         }
@@ -721,6 +750,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             await roomRef.current.disconnect();
             roomRef.current = null;
         }
+
+        // Release the DeepFilterNet processor (its worklet graph is torn down
+        // when the underlying track stops, but drop our reference too).
+        dfProcessorRef.current = null;
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
@@ -1013,7 +1046,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             const audioTrackPromise = createLocalAudioTrack({
                 echoCancellation: true,
-                noiseSuppression: true,
+                // Browser NS only for 'standard'. For rnnoise/deepfilter we feed a
+                // clean (un-pre-processed) signal to our own engine to avoid
+                // double-suppression artifacts.
+                noiseSuppression: noiseSuppressionMode === 'standard',
                 autoGainControl: true,
                 deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined,
             }).catch((e) => {
@@ -1176,7 +1212,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             } else {
                 await room.localParticipant.setMicrophoneEnabled(true, {
                     echoCancellation: true,
-                    noiseSuppression: true,
+                    noiseSuppression: noiseSuppressionMode === 'standard',
                     autoGainControl: true,
                     deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
                 });
@@ -1257,7 +1293,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                     await roomRef.current.localParticipant.setMicrophoneEnabled(true, {
                         echoCancellation: true,
-                        noiseSuppression: noiseSuppressionMode === 'standard' || noiseSuppressionMode === 'rnnoise',
+                        noiseSuppression: noiseSuppressionMode === 'standard',
                         autoGainControl: true,
                         deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
                     });
@@ -1502,7 +1538,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [isMuted, isDeafened, isConnected]);
 
 
-    const setNoiseSuppressionMode = useCallback(async (mode: 'none' | 'standard' | 'rnnoise') => {
+    const setNoiseSuppressionMode = useCallback(async (mode: 'none' | 'standard' | 'rnnoise' | 'deepfilter') => {
         setNoiseSuppressionModeState(mode);
         localStorage.setItem('noiseSuppressionMode', mode);
         
@@ -1510,7 +1546,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             // Update the source track constraints first
             const localParticipant = roomRef.current.localParticipant;
             await localParticipant.setMicrophoneEnabled(true, {
-                noiseSuppression: mode === 'standard' || mode === 'rnnoise',
+                noiseSuppression: mode === 'standard',
                 echoCancellation: true,
                 autoGainControl: true,
                 deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined
