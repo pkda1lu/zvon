@@ -76,6 +76,13 @@ app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
 }));
 app.use('/api/moderation', require('./routes/moderation'));
 app.use('/api/version', require('./routes/version'));
+const { router: downloadRouter, latestRedirect: downloadLatestRedirect } = require('./routes/download');
+app.use('/api/download', downloadRouter);
+// Friendly public URLs (registered before the SPA catch-all below):
+//   https://zvonserver.ru/download         -> latest Windows installer
+//   https://zvonserver.ru/download/latest  -> latest installer (?platform=win|mac|linux)
+app.get('/download', downloadLatestRedirect);
+app.get('/download/latest', downloadLatestRedirect);
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '7d',
   immutable: true,

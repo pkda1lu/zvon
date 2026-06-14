@@ -87,7 +87,7 @@ const Landing: React.FC = () => {
                     </motion.p>
                     <motion.div className="hero-buttons" initial="hidden" animate="show" custom={2} variants={fadeUp}>
                         <button className="btn-primary-neon" onClick={handleOpenApp}>Запустить в браузере</button>
-                        <button className="btn-secondary-outline" onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
+                        <button className="btn-secondary-outline" onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || 'https://zvonserver.ru'}/api/download/latest?platform=win`; }}>
                             Скачать для Windows
                         </button>
                         <button className="btn-play-reel" onClick={() => setVideoOpen(true)}>
@@ -199,17 +199,17 @@ const Landing: React.FC = () => {
                         <div className="footer-column">
                             <h5>Продукт</h5>
                             <ul>
-                                <li><a onClick={() => navigate('/login')}>Безопасность</a></li>
+                                <li><a onClick={() => navigate('/security')}>Безопасность</a></li>
                                 <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon/commits/main', '_blank')}>Список изменений</a></li>
-                                <li><a onClick={() => navigate('/register')}>Серверы</a></li>
+                                <li><a onClick={() => navigate('/servers')}>Серверы</a></li>
                                 <li><a onClick={() => navigate('/docs')}>API для ботов</a></li>
                             </ul>
                         </div>
                         <div className="footer-column">
                             <h5>Компания</h5>
                             <ul>
-                                <li><a onClick={() => navigate('/')}>О нас</a></li>
-                                <li><a onClick={() => document.getElementById('download')?.scrollIntoView({ behavior: 'smooth' })}>Загрузить</a></li>
+                                <li><a onClick={() => navigate('/about')}>О нас</a></li>
+                                <li><a onClick={() => navigate('/download')}>Загрузить</a></li>
                                 <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon', '_blank')}>Github</a></li>
                             </ul>
                         </div>

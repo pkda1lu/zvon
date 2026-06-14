@@ -7,6 +7,10 @@ import Register from './pages/Register';
 import InvitePage from './pages/InvitePage';
 import Docs from './pages/Docs';
 import Policy from './pages/Policy';
+import Security from './pages/Security';
+import Servers from './pages/Servers';
+import About from './pages/About';
+import Download from './pages/Download';
 import Home from './Home';
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
@@ -206,6 +210,10 @@ const AnimatedRoutes: React.FC = () => {
           <Route path="/invite/:code" element={<PageShell><InvitePage /></PageShell>} />
           <Route path="/docs"    element={<PageShell><Docs /></PageShell>} />
           <Route path="/policy"  element={<PageShell><Policy /></PageShell>} />
+          <Route path="/security" element={<PageShell><Security /></PageShell>} />
+          <Route path="/servers" element={<PageShell><Servers /></PageShell>} />
+          <Route path="/about"   element={<PageShell><About /></PageShell>} />
+          <Route path="/download" element={<PageShell><Download /></PageShell>} />
           <Route path="/"        element={<PageShell><Home /></PageShell>} />
           <Route path="/*"       element={<PageShell><Home /></PageShell>} />
         </Routes>
