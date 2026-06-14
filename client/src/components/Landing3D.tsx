@@ -10,7 +10,14 @@ import React, { useEffect, useRef } from 'react';
  * three подключается динамически (npm i three) — поэтому импорт помечен
  * @ts-ignore, чтобы проверка типов не падала до установки пакета.
  */
-const Landing3D: React.FC<{ className?: string }> = ({ className }) => {
+// Локальный набор аватарок (см. client/public/avatars/). Можно переопределить
+// через проп `avatars` (например, подмешать аватар текущего юзера). Если файла
+// нет — текстура падает в градиентный фолбэк, ничего не ломается.
+const DEFAULT_AVATARS = [1, 2, 3, 4, 5, 6, 7, 8].map(
+    (n) => `${import.meta.env.BASE_URL}avatars/av${n}.svg`
+);
+
+const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ className, avatars }) => {
     const mountRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -58,6 +65,96 @@ const Landing3D: React.FC<{ className?: string }> = ({ className }) => {
                 new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.55 })
             );
             scene.add(wire);
+
+            // ===== Аватарки на гранях =====
+            // Берём базовый икосаэдр (20 крупных граней), считаем центроид и нормаль
+            // каждой грани, ставим туда плоскость-«аватарку», которую периодически
+            // проявляем (fade in → пауза → fade out) — только на гранях, повёрнутых
+            // к камере. Все плитки лежат в группе, синхронной с вращением ядра.
+            const avatarUrls = (avatars && avatars.length ? avatars : DEFAULT_AVATARS);
+
+            // Круглая текстура из картинки (cover) + неоновое кольцо; пока картинка
+            // грузится / если её нет — рисуем градиентный фолбэк.
+            const makeAvatarTexture = (url: string) => {
+                const S = 256;
+                const cv = document.createElement('canvas');
+                cv.width = cv.height = S;
+                const ctx = cv.getContext('2d')!;
+                const tex = new THREE.CanvasTexture(cv);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                const draw = (image: HTMLImageElement | null) => {
+                    ctx.clearRect(0, 0, S, S);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(S / 2, S / 2, S / 2 - 8, 0, Math.PI * 2);
+                    ctx.closePath();
+                    ctx.clip();
+                    if (image) {
+                        const scale = Math.max(S / image.width, S / image.height);
+                        const dw = image.width * scale, dh = image.height * scale;
+                        ctx.drawImage(image, (S - dw) / 2, (S - dh) / 2, dw, dh);
+                    } else {
+                        const g = ctx.createLinearGradient(0, 0, S, S);
+                        g.addColorStop(0, '#00e5ff');
+                        g.addColorStop(1, '#a155ff');
+                        ctx.fillStyle = g;
+                        ctx.fillRect(0, 0, S, S);
+                    }
+                    ctx.restore();
+                    // неоновое кольцо
+                    ctx.lineWidth = 12;
+                    ctx.strokeStyle = 'rgba(0,229,255,0.9)';
+                    ctx.beginPath();
+                    ctx.arc(S / 2, S / 2, S / 2 - 8, 0, Math.PI * 2);
+                    ctx.stroke();
+                    tex.needsUpdate = true;
+                };
+                draw(null);
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => { if (!disposed) draw(img); };
+                img.onerror = () => { /* остаётся фолбэк */ };
+                img.src = url;
+                return tex;
+            };
+            const avatarTextures = avatarUrls.map(makeAvatarTexture);
+
+            // Центроиды/нормали 20 граней базового икосаэдра
+            const faceGeo = new THREE.IcosahedronGeometry(1.4, 0);
+            const fpos = faceGeo.getAttribute('position');
+            const faceNormals: any[] = [];
+            const tileSize = 0.66;
+            const tileGeo = new THREE.PlaneGeometry(tileSize, tileSize);
+            const avatarGroup = new THREE.Group();
+            const tiles: any[] = [];
+            for (let i = 0; i < fpos.count; i += 3) {
+                const a = new THREE.Vector3().fromBufferAttribute(fpos, i);
+                const b = new THREE.Vector3().fromBufferAttribute(fpos, i + 1);
+                const c = new THREE.Vector3().fromBufferAttribute(fpos, i + 2);
+                const centroid = new THREE.Vector3().addVectors(a, b).add(c).multiplyScalar(1 / 3);
+                const normal = centroid.clone().normalize();
+                faceNormals.push(normal);
+                const mat = new THREE.MeshBasicMaterial({
+                    transparent: true, opacity: 0, depthWrite: false, depthTest: false,
+                    side: THREE.DoubleSide, toneMapped: false,
+                });
+                const tile = new THREE.Mesh(tileGeo, mat);
+                // Радиус ядра (вершины на 1.4, каркас 1.43) — выносим плитку наружу,
+                // чтобы она «лежала» на грани, а не тонула внутри меша.
+                tile.position.copy(normal).multiplyScalar(1.5);
+                tile.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+                tile.renderOrder = 5;
+                tile.visible = false;
+                tile.userData = { state: 'idle', t0: 0, dur: 0.6, hold: 0, normal };
+                avatarGroup.add(tile);
+                tiles.push(tile);
+            }
+            faceGeo.dispose();
+            scene.add(avatarGroup);
+
+            let nextSpawn = 1.5;
+            const MAX_VISIBLE = 4;
+            const _wn = new THREE.Vector3();
 
             // Частицы-«волны»
             const COUNT = 1100;
@@ -120,6 +217,55 @@ const Landing3D: React.FC<{ className?: string }> = ({ className }) => {
                     b.rotation.x = t * (0.4 + d.rx);
                     b.rotation.y = t * (0.4 + d.ry);
                 });
+
+                // Аватарки на гранях — группа едет вместе с ядром
+                avatarGroup.rotation.copy(core.rotation);
+                avatarGroup.scale.copy(core.scale);
+                if (avatarTextures.length) {
+                    let visible = 0;
+                    for (const tl of tiles) if (tl.userData.state !== 'idle') visible++;
+                    // Спавн новой аватарки на свободной грани, повёрнутой к камере
+                    if (!reduce && t > nextSpawn && visible < MAX_VISIBLE) {
+                        const candidates = tiles.filter((tl) => {
+                            if (tl.userData.state !== 'idle') return false;
+                            _wn.copy(tl.userData.normal).applyQuaternion(avatarGroup.quaternion);
+                            return _wn.z > 0.35; // фронтальная грань
+                        });
+                        if (candidates.length) {
+                            const tl = candidates[Math.floor(Math.random() * candidates.length)];
+                            tl.material.map = avatarTextures[Math.floor(Math.random() * avatarTextures.length)];
+                            tl.material.needsUpdate = true;
+                            tl.visible = true;
+                            tl.userData.state = 'in';
+                            tl.userData.t0 = t;
+                            tl.userData.dur = 0.6;
+                            tl.userData.hold = 3 + Math.random() * 4;
+                        }
+                        nextSpawn = t + 0.8 + Math.random() * 1.2;
+                    }
+                    // Обновление состояний плиток
+                    for (const tl of tiles) {
+                        const u = tl.userData;
+                        if (u.state === 'idle') continue;
+                        const e = t - u.t0;
+                        if (u.state === 'in') {
+                            const k = Math.min(e / u.dur, 1);
+                            tl.material.opacity = k;
+                            tl.scale.setScalar(0.7 + 0.3 * k);
+                            if (k >= 1) { u.state = 'show'; u.t0 = t; }
+                        } else if (u.state === 'show') {
+                            tl.material.opacity = 1;
+                            tl.scale.setScalar(1);
+                            if (e > u.hold) { u.state = 'out'; u.t0 = t; u.dur = 0.6; }
+                        } else if (u.state === 'out') {
+                            const k = Math.min(e / u.dur, 1);
+                            tl.material.opacity = 1 - k;
+                            tl.scale.setScalar(1 - 0.25 * k);
+                            if (k >= 1) { u.state = 'idle'; tl.visible = false; }
+                        }
+                    }
+                }
+
                 camera.position.x += (mx * 1.3 - camera.position.x) * 0.05;
                 camera.position.y += (-my * 1.1 - camera.position.y) * 0.05;
                 camera.lookAt(0, 0, 0);
@@ -139,6 +285,8 @@ const Landing3D: React.FC<{ className?: string }> = ({ className }) => {
             cleanup = () => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('resize', onResize);
+                avatarTextures.forEach((tex: any) => tex.dispose?.());
+                tileGeo.dispose();
                 scene.traverse((obj: any) => {
                     if (obj.geometry) obj.geometry.dispose?.();
                     if (obj.material) {

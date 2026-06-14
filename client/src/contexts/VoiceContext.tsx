@@ -786,31 +786,32 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             let width = 1280;
             let height = 720;
-            let bitrate = 8_000_000;
+            let bitrate = 2_500_000;
 
+            // Bitrate ladder tuned for screen content (VP9/AV1 compress desktop well).
+            // ~half of broadcast-grade values: lighter on CPU/GPU and network. The
+            // RTP override below allows the stream to adapt below these caps (no min
+            // floor), so a static screen costs almost nothing.
             if (resolution === '2160') {
                 width = 3840;
                 height = 2160;
-                // Bitrate: 35-45 Mbps (Good), 60 Mbps (Excellent). 120fps gets 100Mbps.
-                bitrate = frameRate >= 120 ? 100_000_000 : (frameRate >= 60 ? 60_000_000 : 40_000_000);
+                bitrate = frameRate >= 120 ? 45_000_000 : (frameRate >= 60 ? 28_000_000 : 18_000_000);
             } else if (resolution === '1440') {
                 width = 2560;
                 height = 1440;
-                // Bitrate: 16-25 Mbps. 120fps gets 40Mbps.
-                bitrate = frameRate >= 120 ? 40_000_000 : (frameRate >= 60 ? 25_000_000 : 18_000_000);
+                bitrate = frameRate >= 120 ? 22_000_000 : (frameRate >= 60 ? 14_000_000 : 9_000_000);
             } else if (resolution === '1080') {
                 width = 1920;
                 height = 1080;
-                // Bitrate: 12-15 Mbps. 120fps gets 25Mbps.
-                bitrate = frameRate >= 120 ? 25_000_000 : (frameRate >= 60 ? 15_000_000 : 10_000_000);
+                bitrate = frameRate >= 120 ? 12_000_000 : (frameRate >= 60 ? 8_000_000 : 5_000_000);
             } else if (resolution === '720') {
                 width = 1280;
                 height = 720;
-                bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
+                bitrate = frameRate >= 60 ? 4_000_000 : 2_500_000;
             } else if (resolution === '480') {
                 width = 854;
                 height = 480;
-                bitrate = frameRate >= 60 ? 3_000_000 : 2_000_000;
+                bitrate = frameRate >= 60 ? 1_800_000 : 1_200_000;
             }
 
             // Efficient Electron constraints - Use ideal instead of mandatory for resolution
@@ -876,8 +877,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         degradationPreference: 'maintain-resolution' // Keep resolution, drop FPS if needed
                     });
 
-                    // CRITICAL: Force RTP sender parameters to prevent WebRTC BWE from throttling
-                    // Without this, the browser's bandwidth estimator often limits to ~500kbps
+                    // Apply the bitrate cap to the RTP sender, but let WebRTC's bandwidth
+                    // estimator adapt BELOW it. No min floor and no scaleResolutionDownBy
+                    // lock — a static or low-motion screen drops to a fraction of the cap,
+                    // and a congested link backs off instead of pinning the max. We keep
+                    // degradationPreference 'maintain-resolution' so text stays sharp
+                    // (it sheds FPS first), and medium priority so it never starves audio.
                     setTimeout(async () => {
                         try {
                             const pub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
@@ -888,21 +893,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                                     params.encodings.forEach((enc: any) => {
                                         enc.maxBitrate = bitrate;
                                         enc.maxFramerate = frameRate;
-                                        // Set minimum bitrate to 70% to prevent extreme throttling
-                                        enc.minBitrate = Math.floor(bitrate * 0.7);
-                                        // Prevent resolution downscaling
-                                        enc.scaleResolutionDownBy = 1.0;
-                                        enc.networkPriority = 'high';
-                                        enc.priority = 'high';
+                                        enc.networkPriority = 'medium';
+                                        enc.priority = 'medium';
                                     });
-                                    // degradationPreference at the params level
                                     (params as any).degradationPreference = 'maintain-resolution';
                                     await sender.setParameters(params);
-                                    console.log(`[Voice] RTP sender params forced: ${bitrate}bps, no downscaling`);
+                                    console.log(`[Voice] RTP sender cap applied: ${bitrate}bps max, adaptive below`);
                                 }
                             }
                         } catch (e) {
-                            console.warn('[Voice] Failed to override RTP sender params:', e);
+                            console.warn('[Voice] Failed to apply RTP sender params:', e);
                         }
                     }, 1000); // Delay to ensure track is fully established
                 }
