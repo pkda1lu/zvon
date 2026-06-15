@@ -16,6 +16,7 @@ import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
 import TitleBar from './components/TitleBar';
+import Landing3D from './components/Landing3D';
 import Overlay from './pages/Overlay';
 import UpdateNotifier from './components/UpdateNotifier';
 
@@ -131,19 +132,10 @@ const AppBackground: React.FC = () => {
         }} />
       )}
 
-      {/* Auth Background Image Layer */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundImage: isAuthPage ? 'url("redesign-assets/bg.png")' : 'none',
-        backgroundPosition: 'center center',
-        backgroundSize: 'cover',
-        backgroundRepeat: 'no-repeat',
-        opacity: isAuthPage ? 1 : 0,
-        zIndex: 3,
-        transition: 'opacity 0.6s ease',
-        transform: isAuthPage ? 'scale(1.05)' : 'scale(1)', // Subtle scale shift
-      }} />
+      {/* Auth Background — живая 3D-сцена с планетой (в стиле лендинга) */}
+      {isAuthPage && !performanceMode && (
+        <Landing3D className="auth-bg-3d" />
+      )}
 
       {/* Decorative spheres - Always present and moving */}
       {!performanceMode && !customBackground && (

@@ -45,12 +45,16 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
             camera.position.set(0, 0, 6.2);
 
+            // Группа планеты — двигается/масштабируется по скроллу (кинематограф).
+            const planet = new THREE.Group();
+            scene.add(planet);
+
             // Свет: мягкая заливка + «солнце» сбоку для объёмной терминаторной тени.
-            scene.add(new THREE.AmbientLight(0x223044, 0.9));
-            const sun = new THREE.DirectionalLight(0xfff4e6, 2.6);
+            scene.add(new THREE.AmbientLight(0x3a4f6b, 1.4));
+            const sun = new THREE.DirectionalLight(0xfff4e6, 3.2);
             sun.position.set(5, 2, 4);
             scene.add(sun);
-            const rim = new THREE.PointLight(0x2a6cff, 1.2, 60);
+            const rim = new THREE.PointLight(0x3a86ff, 1.7, 60);
             rim.position.set(-6, -1, 2);
             scene.add(rim);
 
@@ -73,12 +77,17 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 normalMap,
                 normalScale: new THREE.Vector2(0.85, 0.85),
                 roughnessMap: specMap, // океаны (светлые в spec) → более гладкие/блестящие
-                roughness: 0.95,
+                roughness: 0.8,
                 metalness: 0.0,
+                // Самосвечение по дневной текстуре — планета яркая и сочная,
+                // ночная сторона не проваливается в чёрный.
+                emissiveMap: dayMap,
+                emissive: 0xffffff,
+                emissiveIntensity: 0.4,
             });
             const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 64), earthMat);
             earth.rotation.z = -0.41; // наклон оси ~23.5°
-            scene.add(earth);
+            planet.add(earth);
 
             // ===== Облака =====
             const cloudsMap = load('earth_clouds.png');
@@ -96,7 +105,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 })
             );
             clouds.rotation.z = earth.rotation.z;
-            scene.add(clouds);
+            planet.add(clouds);
 
             // ===== Атмосферное свечение (Fresnel-halo) =====
             const atmoMat = new THREE.ShaderMaterial({
@@ -122,7 +131,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 depthWrite: false,
             });
             const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(R * 1.22, 64, 64), atmoMat);
-            scene.add(atmosphere);
+            planet.add(atmosphere);
 
             // ===== Звёзды =====
             // Спрайт-звезда: мягкое радиальное свечение на canvas.
@@ -248,7 +257,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 const phase = Math.random() * Math.PI * 2;
                 const speed = 0.35 + Math.random() * 0.3;
                 sat.userData = { orbitR, incl, node, phase, speed };
-                scene.add(sat);
+                planet.add(sat);
                 satellites.push(sat);
 
                 // Тонкое кольцо орбиты.
@@ -263,7 +272,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 );
                 ring.rotation.x = Math.PI / 2 + incl;
                 ring.rotation.y = node;
-                scene.add(ring);
+                planet.add(ring);
             }
 
             const satPos = (d: any, t: number) => {
@@ -287,6 +296,35 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             };
             window.addEventListener('mousemove', onMove);
 
+            // ===== Скролл-кинематограф: «остановки» планеты =====
+            // Каждая остановка соответствует full-screen сцене лендинга.
+            // x/y — смещение в мире (низ-влево, низ-вправо…), s — масштаб (зум).
+            const STOPS = [
+                { x: 0.0, y: 0.0, s: 1.0 },   // 0 — герой, в центре
+                { x: -2.7, y: -1.5, s: 1.55 }, // 1 — вниз-влево, текст справа
+                { x: 2.7, y: -1.5, s: 1.65 },  // 2 — вниз-вправо, текст слева
+                { x: -2.5, y: 1.4, s: 1.4 },   // 3 — вверх-влево, текст внизу-справа
+                { x: 0.0, y: -0.2, s: 1.15 },  // 4 — снова в центр, CTA
+            ];
+            const SEGMENTS = STOPS.length - 1;
+            // Лендинг скроллится НЕ окном, а контейнером (.landing-container, overflow:auto).
+            // Находим реальный скролл-контейнер и читаем его scrollTop прямо в кадре.
+            const findScroller = (): any => {
+                let n: any = el.parentElement;
+                while (n && n !== document.body) {
+                    const oy = getComputedStyle(n).overflowY;
+                    if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 4) return n;
+                    n = n.parentElement;
+                }
+                return window;
+            };
+            const scroller: any = findScroller();
+            const readTop = () => (scroller === window ? (window.scrollY || 0) : (scroller.scrollTop || 0));
+            const readVh = () => (scroller === window ? (window.innerHeight || 1) : (scroller.clientHeight || 1));
+            const smooth = (a: number) => a * a * (3 - 2 * a);
+            // На узких экранах смещение в углы уменьшаем, чтобы планета не улетала.
+            const rf = () => Math.min(1, (window.innerWidth || 1000) / 1100);
+
             const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             const clock = new THREE.Clock();
             const _v = new THREE.Vector3();
@@ -309,8 +347,23 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                     sat.rotateY(t * 0.5);
                 });
 
-                camera.position.x += (mx * 1.3 - camera.position.x) * 0.05;
-                camera.position.y += (-my * 1.1 - camera.position.y) * 0.05;
+                // Скролл: интерполяция между остановками + плавный лерп планеты.
+                const scrollP = Math.max(0, Math.min(1, readTop() / (SEGMENTS * readVh())));
+                const seg = scrollP * SEGMENTS;
+                const i0 = Math.min(SEGMENTS, Math.floor(seg));
+                const i1 = Math.min(SEGMENTS, i0 + 1);
+                const f = smooth(seg - i0);
+                const factor = rf();
+                const tx = (STOPS[i0].x + (STOPS[i1].x - STOPS[i0].x) * f) * factor;
+                const ty = STOPS[i0].y + (STOPS[i1].y - STOPS[i0].y) * f;
+                const ts = STOPS[i0].s + (STOPS[i1].s - STOPS[i0].s) * f;
+                planet.position.x += (tx - planet.position.x) * 0.08;
+                planet.position.y += (ty - planet.position.y) * 0.08;
+                const cs = planet.scale.x + (ts - planet.scale.x) * 0.08;
+                planet.scale.setScalar(cs);
+
+                camera.position.x += (mx * 0.9 - camera.position.x) * 0.05;
+                camera.position.y += (-my * 0.7 - camera.position.y) * 0.05;
                 camera.lookAt(0, 0, 0);
                 renderer.render(scene, camera);
             };
