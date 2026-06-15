@@ -44,6 +44,33 @@ function parseUserAgent(ua = '') {
   return { browser, os, deviceType, deviceName };
 }
 
+function platformToOs(p) {
+  switch (String(p || '').toLowerCase()) {
+    case 'win32': return 'Windows';
+    case 'darwin': return 'macOS';
+    case 'linux': return 'Linux';
+    default: return '';
+  }
+}
+
+// Возвращает описание клиента, учитывая фирменные заголовки десктоп-приложения.
+// Если запрос пришёл из клиента Zvon — называем устройство «Zvon Desktop · <OS>».
+function getClientInfo(req) {
+  const ua = req.header?.('user-agent') || req.headers?.['user-agent'] || '';
+  const clientType = (req.headers?.['x-zvon-client'] || '').toLowerCase();
+
+  if (clientType === 'desktop') {
+    const os = platformToOs(req.headers?.['x-zvon-platform']) || parseUserAgent(ua).os;
+    return { browser: 'Zvon Desktop', os, deviceType: 'app', deviceName: `Zvon Desktop · ${os || 'ПК'}` };
+  }
+  if (clientType === 'mobile') {
+    const info = parseUserAgent(ua);
+    return { browser: 'Zvon Mobile', os: info.os, deviceType: 'mobile', deviceName: `Zvon Mobile · ${info.os}` };
+  }
+
+  return parseUserAgent(ua);
+}
+
 // Достаём реальный IP клиента (с учётом прокси/nginx).
 function getClientIp(req) {
   const xff = req.headers['x-forwarded-for'];
@@ -79,4 +106,4 @@ async function lookupGeo(ip) {
   }
 }
 
-module.exports = { parseUserAgent, getClientIp, isPrivateIp, lookupGeo };
+module.exports = { parseUserAgent, getClientInfo, getClientIp, isPrivateIp, lookupGeo };

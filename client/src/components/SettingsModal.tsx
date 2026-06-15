@@ -130,7 +130,7 @@ const SessionRow: React.FC<{
   return (
     <div className={`session-row ${session.current ? 'session-current' : ''}`}>
       <div className="session-icon">
-        {isMobileLike ? <SmartphoneIcon size={26} /> : <MonitorIcon size={26} />}
+        {isMobileLike ? <SmartphoneIcon size={28} /> : <MonitorIcon size={28} />}
       </div>
       <div className="session-info">
         <div className="session-title">

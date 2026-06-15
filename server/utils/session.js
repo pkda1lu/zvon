@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const Session = require('../models/Session');
-const { parseUserAgent, getClientIp, lookupGeo } = require('./deviceInfo');
+const { getClientInfo, getClientIp, lookupGeo } = require('./deviceInfo');
 
 // Срок жизни в днях → секунды для jwt expiresIn.
 function daysToExpiresIn(days) {
@@ -35,7 +35,7 @@ function fillGeoInBackground(sessionId, ip) {
 async function createSession(user, req, { days = 7 } = {}) {
   const ua = req.header?.('user-agent') || req.headers?.['user-agent'] || '';
   const ip = getClientIp(req);
-  const info = parseUserAgent(ua);
+  const info = getClientInfo(req);
 
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
@@ -78,7 +78,7 @@ async function findOrCreateSessionForToken(user, req, token, expSeconds) {
 
   const ua = req.header?.('user-agent') || req.headers?.['user-agent'] || '';
   const ip = getClientIp(req);
-  const info = parseUserAgent(ua);
+  const info = getClientInfo(req);
   const expiresAt = expSeconds
     ? new Date(expSeconds * 1000)
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);

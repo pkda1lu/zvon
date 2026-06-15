@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const electronAPI = {
     isElectron: true,
+    platform: process.platform, // 'win32' | 'darwin' | 'linux'
     ipc: {
         invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
         on: (channel, func) => {
