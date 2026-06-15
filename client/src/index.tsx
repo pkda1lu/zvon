@@ -13,6 +13,14 @@ root.render(
   </React.StrictMode>
 );
 
+// PWA: регистрируем service worker (только в браузере, не в Electron).
+const _isElectron = !!((window as any).electron?.isElectron || (navigator.userAgent || '').includes('Electron'));
+if ('serviceWorker' in navigator && !_isElectron) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('[PWA] SW registration failed:', e));
+  });
+}
+
 
 
 
