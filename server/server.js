@@ -89,10 +89,20 @@ app.get('/download/latest', downloadLatestRedirect);
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '7d',
   immutable: true,
-  setHeaders: (res, path) => {
+  setHeaders: (res, filePath) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // Защита от stored XSS через загруженные файлы (SVG/HTML с <script>):
+    // запрет MIME-сниффинга + песочница для документов (скрипты не выполняются,
+    // origin становится opaque — нет доступа к localStorage/токену).
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+    // SVG/HTML/прочее потенциально активное — отдаём как вложение, не как страницу.
+    if (/\.(svg|svgz|html?|xht(ml)?|xml|js|mjs)$/i.test(filePath)) {
+      res.setHeader('Content-Disposition', 'attachment');
+      res.setHeader('Content-Type', 'application/octet-stream');
+    }
   }
 }));
 

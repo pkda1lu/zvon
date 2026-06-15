@@ -6,8 +6,9 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<any>;
+  loginWithToken: (token: string) => Promise<boolean>;
   register: (username: string, email: string, password: string) => Promise<any>;
-  verifyLogin: (email: string, code: string) => Promise<void>;
+  verifyLogin: (email: string, code: string) => Promise<any>;
   logout: () => void;
   loading: boolean;
   updateUser: (updatedUser: Partial<User>) => void;
@@ -104,6 +105,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return response.data;
   };
 
+  // Быстрый вход по сохранённому токену (менеджер аккаунтов). true — токен валиден.
+  const loginWithToken = async (newToken: string): Promise<boolean> => {
+    localStorage.setItem('token', newToken);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    try {
+      const r = await axios.get('/api/auth/me');
+      setToken(newToken);
+      setUser(r.data);
+      if (r.data?._id) updateGlobalUser(r.data._id, r.data);
+      return true;
+    } catch {
+      localStorage.removeItem('token');
+      delete axios.defaults.headers.common['Authorization'];
+      return false;
+    }
+  };
+
   const register = async (username: string, email: string, password: string) => {
     const response = await axios.post('/api/auth/register', { username, email, password });
     return response.data;
@@ -117,6 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(userData);
     if (userData?._id) updateGlobalUser(userData._id, userData);
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    return response.data;
   };
 
   const logout = () => {
@@ -175,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ 
-      user, token, login, register, verifyLogin, logout, loading, 
+      user, token, login, loginWithToken, register, verifyLogin, logout, loading, 
       updateUser, refreshUser, forgotPassword, resetPassword, toggle2FA, 
       resendVerification, verifyRegistration, requestEmailChange, 
       verifyEmailChange, globalUsers, updateGlobalUser 

@@ -235,7 +235,6 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                           {u.username}
                           <UserBadges badges={u.badges} size={14} />
                         </div>
-                        <div className="result-email">{u.email}</div>
                       </div>
                       <button className="add-button" onClick={() => sendFriendRequest(u._id)} disabled={!!loadingAction}>{loadingAction === u._id ? '...' : 'Добавить'}</button>
                     </div>
