@@ -1373,10 +1373,10 @@
 /* --- DEVICES / SESSIONS --- */
 .settings-section-subtitle {
   color: rgba(255, 255, 255, 0.55);
-  font-size: 14px;
-  line-height: 1.5;
-  margin: -8px 0 26px;
-  max-width: 640px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  margin: -6px 0 34px;
+  max-width: 660px;
 }
 
 .sessions-block-header {
@@ -1384,6 +1384,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 24px;
 }
 
 .sessions-block-header h3 {
@@ -1395,7 +1396,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 56px 24px;
   color: rgba(255, 255, 255, 0.5);
   font-size: 15px;
   text-align: center;
@@ -1408,91 +1409,101 @@
 .session-row {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  transition: border-color 0.25s ease, background 0.25s ease;
+  gap: 22px;
+  padding: 22px 24px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
 }
 
 .session-row + .session-row {
-  margin-top: 12px;
+  margin-top: 18px;
 }
 
 .session-row:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .session-row.session-current {
   border-color: var(--primary-neon, #00e5ff);
-  box-shadow: 0 0 0 1px var(--primary-neon, #00e5ff) inset, 0 0 24px -12px var(--primary-neon, #00e5ff);
+  background: rgba(0, 229, 255, 0.05);
+  box-shadow: 0 0 0 1px var(--primary-neon, #00e5ff) inset, 0 0 36px -14px var(--primary-neon, #00e5ff);
 }
 
 .session-icon {
   flex: 0 0 auto;
-  width: 48px;
-  height: 48px;
+  width: 58px;
+  height: 58px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--primary-neon, #00e5ff);
+}
+
+.session-current .session-icon {
+  background: rgba(0, 229, 255, 0.12);
 }
 
 .session-info {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .session-title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  font-size: 15px;
+  gap: 12px;
+  font-size: 16.5px;
   font-weight: 700;
   color: #fff;
+  letter-spacing: 0.2px;
 }
 
 .session-badge {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
   font-weight: 800;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
   color: #04121a;
   background: var(--primary-neon, #00e5ff);
+  box-shadow: 0 0 18px -4px var(--primary-neon, #00e5ff);
 }
 
 .session-meta {
-  margin-top: 4px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.62);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.64);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .session-meta-dim {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 12px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 12.5px;
 }
 
 .session-revoke {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 14px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 92, 92, 0.4);
   background: rgba(255, 92, 92, 0.08);
   color: #ff7a7a;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
@@ -1509,12 +1520,12 @@
 }
 
 .btn-danger-outline {
-  padding: 8px 16px;
-  border-radius: 12px;
+  padding: 10px 20px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 92, 92, 0.45);
   background: transparent;
   color: #ff7a7a;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease;

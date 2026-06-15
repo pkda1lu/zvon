@@ -34,6 +34,23 @@ export const useAuth = () => {
 const API_URL = import.meta.env.VITE_API_URL || 'https://zvonserver.ru';
 axios.defaults.baseURL = API_URL;
 
+// Помечаем запросы из десктоп-клиента Zvon, чтобы сервер корректно называл
+// устройство («Zvon Desktop · Windows»), а не определял его как Chrome.
+(() => {
+  const win = window as any;
+  const isDesktop = !!(
+    win.electron?.isElectron === true ||
+    win.process?.type === 'renderer' ||
+    win.navigator?.userAgent?.includes('Electron')
+  );
+  if (isDesktop) {
+    axios.defaults.headers.common['X-Zvon-Client'] = 'desktop';
+    const platform = win.electron?.platform || win.process?.platform || '';
+    if (platform) axios.defaults.headers.common['X-Zvon-Platform'] = platform;
+    if (win.electron?.appVersion) axios.defaults.headers.common['X-Zvon-Version'] = win.electron.appVersion;
+  }
+})();
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
