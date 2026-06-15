@@ -8,6 +8,9 @@ const sessionSchema = new mongoose.Schema({
     index: true
   },
   // Сырой User-Agent + разобранные поля для отображения.
+  // sha256 токена — для «усыновления» старых токенов без sid (привязка current).
+  tokenHash: { type: String, default: null, index: true },
+
   userAgent: { type: String, default: '' },
   browser: { type: String, default: 'Неизвестно' },
   os: { type: String, default: 'Неизвестно' },

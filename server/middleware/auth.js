@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Session = require('../models/Session');
+const { findOrCreateSessionForToken } = require('../utils/session');
 
 const auth = async (req, res, next) => {
   try {
@@ -12,13 +13,16 @@ const auth = async (req, res, next) => {
 
     let user;
     let sessionId = null;
+    let decoded = null;
+    let isBot = false;
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
       user = await User.findById(decoded.userId).select('-password');
       sessionId = decoded.sid || null;
     } catch (jwtError) {
       if (token.startsWith('bot_')) {
         user = await User.findOne({ botToken: token, isBot: true }).select('-password');
+        isBot = true;
       }
     }
 
@@ -26,19 +30,32 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: 'Token is not valid' });
     }
 
-    // Если токен привязан к сессии — она должна существовать (иначе отозвана).
-    // Токены без sid (выданные до появления управления сессиями) пропускаем.
-    if (sessionId) {
-      const session = await Session.findById(sessionId).select('_id').lean();
-      if (!session) {
-        return res.status(401).json({ message: 'Session revoked', sessionRevoked: true });
+    // Сессии только для обычных пользовательских токенов (не ботов).
+    if (!isBot && decoded) {
+      if (sessionId) {
+        // Токен привязан к сессии — она должна существовать (иначе отозвана).
+        const session = await Session.findById(sessionId).select('_id').lean();
+        if (!session) {
+          return res.status(401).json({ message: 'Session revoked', sessionRevoked: true });
+        }
+        req.sessionId = sessionId;
+      } else {
+        // Старый токен без sid — «усыновляем» по хешу, чтобы устройство было видно.
+        try {
+          const session = await findOrCreateSessionForToken(user, req, token, decoded.exp);
+          req.sessionId = session._id.toString();
+        } catch (e) {
+          // не блокируем запрос, если не удалось создать сессию
+        }
       }
-      req.sessionId = sessionId;
-      // Обновляем «последнюю активность» не чаще раза в 60 сек.
-      Session.updateOne(
-        { _id: sessionId, lastActiveAt: { $lt: new Date(Date.now() - 60 * 1000) } },
-        { $set: { lastActiveAt: new Date() } }
-      ).catch(() => {});
+
+      if (req.sessionId) {
+        // Обновляем «последнюю активность» не чаще раза в 60 сек.
+        Session.updateOne(
+          { _id: req.sessionId, lastActiveAt: { $lt: new Date(Date.now() - 60 * 1000) } },
+          { $set: { lastActiveAt: new Date() } }
+        ).catch(() => {});
+      }
     }
 
     // Check ban
