@@ -179,27 +179,61 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             scene.add(stars);
 
             // ===== Спутники на орбитах =====
-            const makeSatellite = (bodyColor: number) => {
+            // Текстура солнечной панели: тёмно-синее поле с сеткой ячеек.
+            const panelTexture = (() => {
+                const cw = 128, ch = 64;
+                const cv = document.createElement('canvas');
+                cv.width = cw; cv.height = ch;
+                const ctx = cv.getContext('2d')!;
+                ctx.fillStyle = '#0b1f4d';
+                ctx.fillRect(0, 0, cw, ch);
+                ctx.strokeStyle = 'rgba(90,150,255,0.55)';
+                ctx.lineWidth = 1;
+                for (let x = 0; x <= cw; x += 16) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke(); }
+                for (let y = 0; y <= ch; y += 16) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cw, y); ctx.stroke(); }
+                const tex = new THREE.CanvasTexture(cv);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                return tex;
+            })();
+
+            const makeSatellite = (accent: number) => {
                 const sat = new THREE.Group();
-                const body = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.16, 0.16, 0.22),
-                    new THREE.MeshStandardMaterial({ color: 0xdfe6ee, metalness: 0.85, roughness: 0.35 })
-                );
-                sat.add(body);
-                // Солнечные панели
+
+                // Корпус — золотая фольга (цилиндр).
+                const busMat = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 1.0, roughness: 0.35 });
+                const bus = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 16), busMat);
+                bus.rotation.z = Math.PI / 2; // ось корпуса вдоль X
+                sat.add(bus);
+                // Торцы корпуса — тёмный металл.
+                const capMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.9, roughness: 0.4 });
+                const capGeo = new THREE.CylinderGeometry(0.105, 0.105, 0.03, 16);
+                const cap1 = new THREE.Mesh(capGeo, capMat); cap1.rotation.z = Math.PI / 2; cap1.position.x = 0.13; sat.add(cap1);
+                const cap2 = new THREE.Mesh(capGeo, capMat); cap2.rotation.z = Math.PI / 2; cap2.position.x = -0.13; sat.add(cap2);
+
+                // Солнечные панели — два крыла на штангах по оси Z.
                 const panelMat = new THREE.MeshStandardMaterial({
-                    color: bodyColor, emissive: bodyColor, emissiveIntensity: 0.45,
-                    metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide,
+                    map: panelTexture, emissive: 0x18316b, emissiveIntensity: 0.5,
+                    metalness: 0.4, roughness: 0.5, side: THREE.DoubleSide,
                 });
-                const panelGeo = new THREE.BoxGeometry(0.5, 0.01, 0.16);
-                const pl = new THREE.Mesh(panelGeo, panelMat); pl.position.x = 0; sat.add(pl);
-                // Антенна-маяк
-                const beacon = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.035, 12, 12),
-                    new THREE.MeshBasicMaterial({ color: 0xff5a5a })
+                const armMat = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.8, roughness: 0.4 });
+                const panelGeo = new THREE.BoxGeometry(0.04, 0.22, 0.34);
+                const armGeo = new THREE.BoxGeometry(0.012, 0.012, 0.16);
+                for (const dir of [1, -1]) {
+                    const arm = new THREE.Mesh(armGeo, armMat); arm.position.z = dir * 0.18; sat.add(arm);
+                    const wing = new THREE.Mesh(panelGeo, panelMat); wing.position.z = dir * 0.44; sat.add(wing);
+                }
+
+                // Параболическая тарелка-антенна спереди.
+                const dishMat = new THREE.MeshStandardMaterial({ color: 0xeef2f6, metalness: 0.6, roughness: 0.3, side: THREE.DoubleSide });
+                const dish = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2.4), dishMat);
+                dish.rotation.z = -Math.PI / 2; dish.position.x = 0.2; sat.add(dish);
+                const feed = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.02, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: accent })
                 );
-                beacon.position.set(0, 0.12, 0);
-                sat.add(beacon);
+                feed.position.x = 0.28; sat.add(feed);
+
+                sat.scale.setScalar(0.85);
                 return sat;
             };
 
@@ -294,7 +328,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             cleanup = () => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('resize', onResize);
-                [dayMap, normalMap, specMap, cloudsMap, starSprite].forEach((tx: any) => tx.dispose?.());
+                [dayMap, normalMap, specMap, cloudsMap, starSprite, panelTexture].forEach((tx: any) => tx.dispose?.());
                 scene.traverse((obj: any) => {
                     if (obj.geometry) obj.geometry.dispose?.();
                     if (obj.material) {
