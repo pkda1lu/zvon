@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
@@ -31,6 +32,7 @@ const Login: React.FC = () => {
   const { login, loginWithToken, verifyLogin, forgotPassword, resetPassword } = useAuth();
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<SavedAccount[]>(loadAccounts());
+  const [accOpen, setAccOpen] = useState(false);
 
   const rememberAccount = (data: any) => {
     const u = data?.user;
@@ -253,16 +255,43 @@ const Login: React.FC = () => {
 
             {mode === 'login' && accounts.length > 0 && (
               <div className="saved-accounts">
-                <label className="auth-label-neon" style={{ marginBottom: '4px' }}>БЫСТРЫЙ ВХОД</label>
-                {accounts.map((acc) => (
-                  <div key={acc.id} className="saved-account-row" onClick={() => quickLogin(acc)} title={`Войти как ${acc.username}`}>
-                    {getAvatarUrl(acc.avatar)
-                      ? <img className="sa-avatar" src={getAvatarUrl(acc.avatar)!} alt="" />
-                      : <span className="sa-avatar sa-avatar-fallback">{(acc.username || '?')[0].toUpperCase()}</span>}
-                    <span className="sa-name">{acc.username}</span>
-                    <button className="sa-remove" onClick={(e) => forgetAccount(e, acc.id)} title="Убрать из списка" aria-label="Убрать">✕</button>
-                  </div>
-                ))}
+                <button type="button" className={`sa-trigger ${accOpen ? 'open' : ''}`} onClick={() => setAccOpen(o => !o)}>
+                  <span className="sa-trigger-faces">
+                    {accounts.slice(0, 3).map((a) => (
+                      getAvatarUrl(a.avatar)
+                        ? <img key={a.id} className="sa-face" src={getAvatarUrl(a.avatar)!} alt="" />
+                        : <span key={a.id} className="sa-face sa-avatar-fallback">{(a.username || '?')[0].toUpperCase()}</span>
+                    ))}
+                  </span>
+                  <span className="sa-trigger-text">Быстрый вход <b>({accounts.length})</b></span>
+                  <svg className="sa-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {accOpen && (
+                    <motion.div
+                      className="sa-list"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <div className="sa-list-inner">
+                        {accounts.map((acc) => (
+                          <div key={acc.id} className="saved-account-row" onClick={() => quickLogin(acc)} title={`Войти как ${acc.username}`}>
+                            {getAvatarUrl(acc.avatar)
+                              ? <img className="sa-avatar" src={getAvatarUrl(acc.avatar)!} alt="" />
+                              : <span className="sa-avatar sa-avatar-fallback">{(acc.username || '?')[0].toUpperCase()}</span>}
+                            <span className="sa-name">{acc.username}</span>
+                            <button className="sa-remove" onClick={(e) => forgetAccount(e, acc.id)} title="Убрать из списка" aria-label="Убрать">✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="sa-divider"><span>или войдите вручную</span></div>
               </div>
             )}

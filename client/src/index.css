@@ -428,3 +428,22 @@ textarea,
   .main-content-area { width: 100%; border-radius: 0 !important; }
   .message { padding: 8px 12px !important; }
 }
+
+/* ===================== Мобильные/PWA основы ===================== */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overscroll-behavior: none; }                 /* без pull-to-refresh/баунса */
+* { -webkit-tap-highlight-color: transparent; }     /* без серой вспышки по тапу */
+/* Реальная высота вьюпорта на мобиле (учитывает адресную строку) */
+@supports (height: 100dvh) {
+  html, body, #root { min-height: 100dvh; }
+}
+/* В установленном PWA — отступы под «островок»/жесты, чтобы UI не уезжал под вырезы */
+@media (display-mode: standalone) {
+  body { padding-left: var(--safe-left); padding-right: var(--safe-right); }
+}
