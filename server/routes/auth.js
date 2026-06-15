@@ -7,6 +7,7 @@ const auth = require('../middleware/auth');
 const crypto = require('crypto');
 const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCode, sendEmailChangeCode } = require('../utils/mail');
 const { getBrand } = require('../utils/branding');
+const { createSession } = require('../utils/session');
 
 
 router.post('/register', [
@@ -121,9 +122,9 @@ router.post('/login', [
       return res.json({ requires2FA: true, email: user.email });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     user.status = user.statusPreference || 'online';
     await user.save();
+    const { token } = await createSession(user, req, { days: 7 });
 
     return res.json({
       token,
@@ -168,7 +169,7 @@ router.post('/verify-login', [
     user.status = user.statusPreference || 'online';
     await user.save();
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
+    const { token } = await createSession(user, req, { days: 60 });
     res.json({
       token,
       user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }
@@ -396,7 +397,7 @@ router.post('/verify-registration', [
       io.to(`user-${user._id}`).emit('user-verified', { isVerified: true });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '60d' });
+    const { token } = await createSession(user, req, { days: 60 });
     res.json({
       token,
       message: 'Аккаунт успешно подтвержден',

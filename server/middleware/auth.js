@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Session = require('../models/Session');
 
 const auth = async (req, res, next) => {
   try {
@@ -10,9 +11,11 @@ const auth = async (req, res, next) => {
     }
 
     let user;
+    let sessionId = null;
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       user = await User.findById(decoded.userId).select('-password');
+      sessionId = decoded.sid || null;
     } catch (jwtError) {
       if (token.startsWith('bot_')) {
         user = await User.findOne({ botToken: token, isBot: true }).select('-password');
@@ -21,6 +24,21 @@ const auth = async (req, res, next) => {
 
     if (!user) {
       return res.status(401).json({ message: 'Token is not valid' });
+    }
+
+    // Если токен привязан к сессии — она должна существовать (иначе отозвана).
+    // Токены без sid (выданные до появления управления сессиями) пропускаем.
+    if (sessionId) {
+      const session = await Session.findById(sessionId).select('_id').lean();
+      if (!session) {
+        return res.status(401).json({ message: 'Session revoked', sessionRevoked: true });
+      }
+      req.sessionId = sessionId;
+      // Обновляем «последнюю активность» не чаще раза в 60 сек.
+      Session.updateOne(
+        { _id: sessionId, lastActiveAt: { $lt: new Date(Date.now() - 60 * 1000) } },
+        { $set: { lastActiveAt: new Date() } }
+      ).catch(() => {});
     }
 
     // Check ban

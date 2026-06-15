@@ -17,6 +17,8 @@ const { logAction } = require('./utils/auditLogger');
 const compression = require('compression');
 
 const app = express();
+// За nginx/reverse-proxy — доверяем X-Forwarded-* для корректного IP клиента.
+app.set('trust proxy', true);
 const server = http.createServer(app);
 
 // Медленный режим: последний таймстемп отправки сообщения, ключ `${channelId}:${userId}`.
@@ -48,6 +50,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/sessions', require('./routes/sessions'));
 app.use('/api/servers', require('./routes/servers'));
 app.use('/api/channels', require('./routes/channels'));
 app.use('/api/messages', require('./routes/messages'));
