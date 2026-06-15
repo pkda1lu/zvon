@@ -9,8 +9,35 @@ const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCod
 const { getBrand } = require('../utils/branding');
 const { createSession } = require('../utils/session');
 
+// ===== Простой in-memory rate limit (защита от перебора паролей/кодов) =====
+const _rlStore = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _rlStore) if (now - v.ts > 30 * 60 * 1000) _rlStore.delete(k);
+}, 10 * 60 * 1000).unref?.();
+function rateLimit({ windowMs, max, keyFn }) {
+  return (req, res, next) => {
+    try {
+      const key = (keyFn ? keyFn(req) : '') + '|' + (req.ip || req.headers['x-forwarded-for'] || '');
+      const now = Date.now();
+      let rec = _rlStore.get(key);
+      if (!rec || now - rec.ts > windowMs) rec = { count: 0, ts: now };
+      rec.count++;
+      _rlStore.set(key, rec);
+      if (rec.count > max) {
+        return res.status(429).json({ message: 'Слишком много попыток. Попробуйте позже.' });
+      }
+    } catch (e) { /* fail-open, чтобы не ломать вход при сбое лимитера */ }
+    next();
+  };
+}
+const emailKey = (req) => String(req.body?.email || '').toLowerCase();
+const loginLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 12, keyFn: emailKey });
+const codeLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, keyFn: emailKey });
+const registerLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10 });
 
-router.post('/register', [
+
+router.post('/register', registerLimiter, [
   body('username').trim().isLength({ min: 3, max: 20 }).withMessage('Username must be 3-20 characters'),
   body('email').trim().isEmail().withMessage('Please provide a valid email'),
   body('password')
@@ -69,7 +96,7 @@ router.post('/register', [
   }
 });
 
-router.post('/login', [
+router.post('/login', loginLimiter, [
   body('email').exists().withMessage('Email or Username is required').trim(),
   body('password').exists().withMessage('Password is required')
 ], async (req, res) => {
@@ -97,12 +124,6 @@ router.post('/login', [
     if (!isMatch) {
       console.log('[Login] Password mismatch');
       return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    // Auto-promote da1lu to admin for initial setup
-    if (user.username === 'da1lu' && user.role !== 'admin') {
-      user.role = 'admin';
-      await user.save();
     }
 
     // 2FA logic
@@ -139,15 +160,11 @@ router.post('/login', [
     });
   } catch (error) {
     console.error('[Login] CRITICAL ERROR:', error.message);
-    res.status(500).json({
-      message: 'Server error',
-      details: error.message,
-      stack: error.stack
-    });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-router.post('/verify-login', [
+router.post('/verify-login', codeLimiter, [
   body('email').isEmail(),
   body('code').isLength({ min: 6, max: 6 })
 ], async (req, res) => {
@@ -221,7 +238,7 @@ router.post('/resend-verification', async (req, res) => {
   }
 });
 
-router.post('/forgot-password', [
+router.post('/forgot-password', codeLimiter, [
   body('email').isEmail().withMessage('Please provide a valid email')
 ], async (req, res) => {
   try {
@@ -256,7 +273,7 @@ router.post('/forgot-password', [
   }
 });
 
-router.post('/reset-password', [
+router.post('/reset-password', codeLimiter, [
   body('email').isEmail(),
   body('code').isLength({ min: 6, max: 6 }),
   body('password')
@@ -369,7 +386,7 @@ router.post('/email-change/verify', auth, [
   }
 });
 
-router.post('/verify-registration', [
+router.post('/verify-registration', codeLimiter, [
   body('email').isEmail(),
   body('code').isLength({ min: 6, max: 6 })
 ], async (req, res) => {

@@ -1,8 +1,23 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getAvatarUrl } from '../utils/avatar';
 import './Auth.css';
 import './Landing.css';
+
+// ===== Менеджер сохранённых аккаунтов (только аккаунты, вошедшие через эту страницу) =====
+type SavedAccount = { id: string; username: string; avatar?: string; token: string };
+const ACCS_KEY = 'savedAccounts';
+const loadAccounts = (): SavedAccount[] => {
+  try { const v = JSON.parse(localStorage.getItem(ACCS_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+};
+const saveAccounts = (list: SavedAccount[]) => localStorage.setItem(ACCS_KEY, JSON.stringify(list.slice(0, 8)));
+const upsertAccount = (acc: SavedAccount): SavedAccount[] => {
+  const list = [acc, ...loadAccounts().filter(a => a.id !== acc.id)].slice(0, 8);
+  saveAccounts(list);
+  return list;
+};
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -13,8 +28,37 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
-  const { login, verifyLogin, forgotPassword, resetPassword } = useAuth();
+  const { login, loginWithToken, verifyLogin, forgotPassword, resetPassword } = useAuth();
   const navigate = useNavigate();
+  const [accounts, setAccounts] = useState<SavedAccount[]>(loadAccounts());
+
+  const rememberAccount = (data: any) => {
+    const u = data?.user;
+    if (!u || !data?.token) return;
+    setAccounts(upsertAccount({ id: String(u.id || u._id), username: u.username, avatar: u.avatar, token: data.token }));
+  };
+
+  const goAfterAuth = () => {
+    const sp = new URLSearchParams(window.location.search);
+    navigate(sp.get('returnTo') || '/');
+  };
+
+  const quickLogin = async (acc: SavedAccount) => {
+    setError(''); setSuccess('');
+    const ok = await loginWithToken(acc.token);
+    if (ok) { goAfterAuth(); return; }
+    // Токен истёк — убираем из списка и предлагаем войти паролем.
+    const list = loadAccounts().filter(a => a.id !== acc.id);
+    saveAccounts(list); setAccounts(list);
+    setEmail(acc.username);
+    setError('Сессия этого аккаунта истекла — войдите паролем.');
+  };
+
+  const forgetAccount = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const list = loadAccounts().filter(a => a.id !== id);
+    saveAccounts(list); setAccounts(list);
+  };
 
   const handleModeChange = (newMode: 'login' | 'mfa' | 'forgot' | 'reset') => {
     setMode(newMode);
@@ -71,10 +115,9 @@ const Login: React.FC = () => {
         return;
       }
       try {
-        await verifyLogin(actualEmail || email, code);
-        const searchParams = new URLSearchParams(window.location.search);
-        const returnTo = searchParams.get('returnTo');
-        navigate(returnTo || '/');
+        const data = await verifyLogin(actualEmail || email, code);
+        rememberAccount(data);
+        goAfterAuth();
       } catch (err: any) {
         setError(err.response?.data?.message || 'Неверный код');
       }
@@ -133,9 +176,8 @@ const Login: React.FC = () => {
         handleModeChange('mfa');
         setSuccess('Код подтверждения отправлен на вашу почту');
       } else if (data.token) {
-        const searchParams = new URLSearchParams(window.location.search);
-        const returnTo = searchParams.get('returnTo');
-        navigate(returnTo || '/');
+        rememberAccount(data);
+        goAfterAuth();
       }
     } catch (err: any) {
       if (err.response?.data?.errors) {
@@ -206,6 +248,22 @@ const Login: React.FC = () => {
                 color: '#00ff7f', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
               }}>
                 {success}
+              </div>
+            )}
+
+            {mode === 'login' && accounts.length > 0 && (
+              <div className="saved-accounts">
+                <label className="auth-label-neon" style={{ marginBottom: '4px' }}>БЫСТРЫЙ ВХОД</label>
+                {accounts.map((acc) => (
+                  <div key={acc.id} className="saved-account-row" onClick={() => quickLogin(acc)} title={`Войти как ${acc.username}`}>
+                    {getAvatarUrl(acc.avatar)
+                      ? <img className="sa-avatar" src={getAvatarUrl(acc.avatar)!} alt="" />
+                      : <span className="sa-avatar sa-avatar-fallback">{(acc.username || '?')[0].toUpperCase()}</span>}
+                    <span className="sa-name">{acc.username}</span>
+                    <button className="sa-remove" onClick={(e) => forgetAccount(e, acc.id)} title="Убрать из списка" aria-label="Убрать">✕</button>
+                  </div>
+                ))}
+                <div className="sa-divider"><span>или войдите вручную</span></div>
               </div>
             )}
 

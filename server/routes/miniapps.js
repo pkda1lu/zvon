@@ -221,7 +221,22 @@ router.delete('/:id/storage/:key', auth, loadApp, async (req, res) => {
   res.json({ ok: true });
 });
 
-const FETCH_BLOCK_HOSTS = /^(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|0\.|169\.254\.|::1|fc00:|fd00:)/i;
+// SSRF: блокируем localhost/частные/служебные хосты во всех формах записи.
+const FETCH_BLOCK_HOSTS = /^(localhost$|.*\.local(host)?$|.*\.internal$|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|\[?::1\]?|\[?fc00:|\[?fd00:|\[?fe80:)/i;
+function isBlockedHost(hostname) {
+  const h = (hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
+  if (FETCH_BLOCK_HOSTS.test(hostname) || FETCH_BLOCK_HOSTS.test(h)) return true;
+  // IPv4 в десятичной/восьмеричной/шестнадцатеричной записи (обход 127.0.0.1 → 2130706433 и т.п.)
+  let n = null;
+  if (/^0x[0-9a-f]+$/i.test(h)) n = parseInt(h, 16);
+  else if (/^0[0-7]+$/.test(h)) n = parseInt(h, 8);
+  else if (/^\d+$/.test(h)) n = parseInt(h, 10);
+  if (n !== null && Number.isFinite(n)) {
+    const a = (n >>> 24) & 255, b = (n >>> 16) & 255;
+    if (a === 127 || a === 10 || a === 0 || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)) return true;
+  }
+  return false;
+}
 router.post('/:id/fetch', auth, loadApp, async (req, res) => {
   try {
     const { url, method = 'GET', headers = {}, body, responseType = 'json', timeout = 15000 } = req.body || {};
@@ -229,19 +244,22 @@ router.post('/:id/fetch', auth, loadApp, async (req, res) => {
     let parsed;
     try { parsed = new URL(url); } catch { return res.status(400).json({ message: 'invalid url' }); }
     if (!/^https?:$/.test(parsed.protocol)) return res.status(400).json({ message: 'only http(s) allowed' });
-    if (FETCH_BLOCK_HOSTS.test(parsed.hostname)) return res.status(400).json({ message: 'internal host blocked' });
+    if (isBlockedHost(parsed.hostname)) return res.status(400).json({ message: 'internal host blocked' });
 
     const safeHeaders = { ...headers };
     delete safeHeaders.host;
     delete safeHeaders.cookie;
     delete safeHeaders.Cookie;
+    delete safeHeaders.authorization;
+    delete safeHeaders.Authorization;
 
     const r = await axios({
       url, method, headers: safeHeaders, data: body,
       timeout: Math.min(Number(timeout) || 15000, 30000),
       responseType: responseType === 'arraybuffer' ? 'arraybuffer' : 'text',
       validateStatus: () => true,
-      maxRedirects: 5,
+      // Не следуем редиректам: иначе публичный URL может редиректнуть на внутренний (обход проверки).
+      maxRedirects: 0,
     });
 
     let payload;

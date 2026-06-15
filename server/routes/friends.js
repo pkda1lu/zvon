@@ -89,8 +89,14 @@ router.delete('/:id', auth, async (req, res) => {
 router.get('/search', auth, async (req, res) => {
   try {
     const { query } = req.query;
-    if (!query || query.length < 2) return res.json([]);
-    const users = await User.find({ $or: [{ username: { $regex: query, $options: 'i' } }, { email: { $regex: query, $options: 'i' } }], _id: { $ne: req.user._id } }).select('username avatar status email badges activity').limit(20);
+    if (!query || typeof query !== 'string' || query.length < 2) return res.json([]);
+    // Экранируем спецсимволы regex (защита от ReDoS / regex-инъекции).
+    const safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Поиск только по нику; почту не ищем и не отдаём (приватность).
+    const users = await User.find({
+      username: { $regex: safe, $options: 'i' },
+      _id: { $ne: req.user._id }
+    }).select('username avatar status badges activity').limit(20);
     res.json(users);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
