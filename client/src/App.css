@@ -61,3 +61,7 @@ body[data-reduce-motion="force"] #global-liquid-bg,
 body[data-reduce-motion="force"] #global-liquid-bg * {
   animation: none !important;
 }
+
+/* Auth: 3D-фон с планетой вместо bg.png */
+.auth-bg-3d { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.auth-bg-3d canvas { display: block; width: 100% !important; height: 100% !important; }

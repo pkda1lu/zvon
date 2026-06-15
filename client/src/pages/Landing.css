@@ -792,3 +792,38 @@ footer {
     background: linear-gradient(135deg, #00e5ff, #a155ff); color: #05050c; box-shadow: 0 10px 28px rgba(161,85,255,.4); transition: transform .08s, opacity .15s; }
 .ss-dl:hover { transform: translateY(-1px); }
 .ss-dl:disabled { opacity: .6; cursor: default; }
+
+/* ===================== Скролл-кинематограф (планета + сцены) ===================== */
+.landing-cine { position: relative; background: #05050c; }
+.landing-bg-3d { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.landing-bg-3d canvas { display: block; width: 100% !important; height: 100% !important; }
+/* лёгкая виньетка для читаемости текста поверх планеты */
+.landing-bg-veil { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(120% 90% at 50% 30%, rgba(5,5,12,0) 40%, rgba(5,5,12,.55) 100%); }
+
+.landing-cine .landing-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 30; }
+
+/* Полноэкранные сцены поверх фиксированной планеты */
+.scene { position: relative; z-index: 2; min-height: 100vh; display: flex; align-items: center; padding: 0 8vw; }
+.scene-center { justify-content: center; text-align: center; }
+.scene-right { justify-content: flex-end; text-align: right; }
+.scene-left { justify-content: flex-start; text-align: left; }
+.scene-br { justify-content: flex-end; align-items: flex-end; text-align: right; padding-bottom: 14vh; }
+.scene-copy { max-width: 540px; }
+.scene-center .scene-copy { max-width: 860px; }
+.scene-h { font-size: clamp(30px, 5vw, 60px); font-weight: 800; letter-spacing: -.03em; line-height: 1.04; margin: 10px 0 16px;
+    text-shadow: 0 4px 40px rgba(0,0,0,.7); }
+.scene-p { font-size: clamp(15px, 1.9vw, 20px); line-height: 1.6; color: #d3d7f0; margin: 0 0 22px; text-shadow: 0 2px 24px rgba(0,0,0,.7); }
+.scene-right .scene-copy, .scene-br .scene-copy { margin-left: auto; }
+.scene .eyebrow { text-shadow: 0 2px 20px rgba(0,0,0,.7); }
+
+/* Контент после кинематографа — на сплошном фоне, перекрывает планету */
+.landing-rest { position: relative; z-index: 2; background: #07070f; box-shadow: 0 -40px 80px rgba(5,5,12,.8); }
+
+@media (max-width: 720px) {
+    .scene { padding: 0 6vw; }
+    .scene-right, .scene-left, .scene-br { justify-content: center; text-align: center; align-items: center; padding-bottom: 0; }
+    .scene-right .scene-copy, .scene-br .scene-copy { margin: 0 auto; }
+    /* на мобиле планета по центру — даём тексту тёмную подложку снизу */
+    .scene:not(.scene-center) .scene-copy { background: rgba(5,5,12,.5); padding: 22px; border-radius: 18px; backdrop-filter: blur(4px); }
+}

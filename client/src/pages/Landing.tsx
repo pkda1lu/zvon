@@ -42,9 +42,10 @@ const Landing: React.FC = () => {
     const handleOpenApp = () => navigate(user ? '/app' : '/login');
 
     return (
-        <div className="landing-container">
-            <div className="blob blob-1"></div>
-            <div className="blob blob-2"></div>
+        <div className="landing-container landing-cine">
+            {/* Фиксированный 3D-фон: планета едет по углам при скролле */}
+            <Landing3D className="landing-bg-3d" />
+            <div className="landing-bg-veil" />
 
             <nav className="landing-nav">
                 <div className="nav-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
@@ -70,11 +71,9 @@ const Landing: React.FC = () => {
                 </div>
             </nav>
 
-            {/* ===== HERO с 3D-сценой ===== */}
-            <section className="hero-section hero-3d">
-                <Landing3D className="hero-3d-canvas" />
-                <div className="hero-3d-overlay" />
-                <div className="hero-content hero-content-center">
+            {/* ===== СЦЕНА 0 — герой (планета в центре) ===== */}
+            <section className="scene scene-center" id="hero">
+                <div className="scene-copy">
                     <motion.div className="hero-badge" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
                         <span className="dot" /> Новое поколение голосового общения
                     </motion.div>
@@ -90,17 +89,55 @@ const Landing: React.FC = () => {
                         <button className="btn-secondary-outline" onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || 'https://zvonserver.ru'}/api/download/latest?platform=win`; }}>
                             Скачать для Windows
                         </button>
-                        <button className="btn-play-reel" onClick={() => setVideoOpen(true)}>
-                            <span className="play-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>
-                            Смотреть ролик
-                        </button>
                     </motion.div>
                 </div>
-                <div className="scroll-cue" onClick={() => document.getElementById('stats')?.scrollIntoView({ behavior: 'smooth' })}>
+                <div className="scroll-cue" onClick={() => document.getElementById('scene-1')?.scrollIntoView({ behavior: 'smooth' })}>
                     <span /> <span /> <span />
                 </div>
             </section>
 
+            {/* ===== СЦЕНА 1 — планета вниз-влево, текст справа ===== */}
+            <section className="scene scene-right" id="scene-1">
+                <motion.div className="scene-copy" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.5 }}>
+                    <div className="eyebrow">Звук</div>
+                    <h2 className="scene-h">Голос — как будто рядом</h2>
+                    <p className="scene-p">Шумоподавление нового поколения убирает всё лишнее. Кристальная чистота даже в шумной комнате — слышно только тебя.</p>
+                </motion.div>
+            </section>
+
+            {/* ===== СЦЕНА 2 — планета вниз-вправо, текст слева ===== */}
+            <section className="scene scene-left" id="scene-2">
+                <motion.div className="scene-copy" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.5 }}>
+                    <div className="eyebrow">Сообщество</div>
+                    <h2 className="scene-h">Создай свой мир</h2>
+                    <p className="scene-p">Серверы, каналы, роли и тонкие права доступа. Организуй пространство так, как удобно именно тебе и твоим людям.</p>
+                    <button className="btn-secondary-outline" onClick={() => navigate('/register')}>Создать сервер</button>
+                </motion.div>
+            </section>
+
+            {/* ===== СЦЕНА 3 — планета вверх-влево, текст внизу-справа ===== */}
+            <section className="scene scene-br" id="scene-3">
+                <motion.div className="scene-copy" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.5 }}>
+                    <div className="eyebrow">Расширения</div>
+                    <h2 className="scene-h">Боты и мини-приложения</h2>
+                    <p className="scene-p">Музыка, магазин, модерация, игры — прямо внутри. Мощный Bot API на Webhooks и Socket.io для своих интеграций.</p>
+                </motion.div>
+            </section>
+
+            {/* ===== СЦЕНА 4 — планета в центр, CTA ===== */}
+            <section className="scene scene-center" id="scene-4">
+                <motion.div className="scene-copy" variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.5 }}>
+                    <div className="eyebrow">Поехали</div>
+                    <h2 className="scene-h">Весь мир на связи</h2>
+                    <p className="scene-p">Более 100 000 пользователей уже общаются в {brand.name}. Присоединяйся — это бесплатно.</p>
+                    <div className="hero-buttons" style={{ justifyContent: 'center' }}>
+                        <button className="btn-primary-neon" onClick={() => navigate('/register')}>Создать аккаунт</button>
+                        <button className="btn-secondary-outline" onClick={handleOpenApp}>Открыть в браузере</button>
+                    </div>
+                </motion.div>
+            </section>
+
+            <div className="landing-rest">
             {/* ===== Бегущая строка / статы ===== */}
             <section className="stats-section" id="stats">
                 <div className="marquee">
@@ -224,6 +261,7 @@ const Landing: React.FC = () => {
                     </div>
                 </div>
             </footer>
+            </div>
 
             {/* ===== Модалка с роликом ===== */}
             <AnimatePresence>
