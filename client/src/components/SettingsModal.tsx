@@ -58,6 +58,21 @@ type SettingsTab =
   | 'miniapps'
   | 'moderation';
 
+interface DeviceSession {
+  id: string;
+  browser: string;
+  os: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet' | 'app' | 'unknown';
+  deviceName: string;
+  ip: string;
+  country: string;
+  countryCode: string;
+  city: string;
+  createdAt: string;
+  lastActiveAt: string;
+  current: boolean;
+}
+
 const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +114,48 @@ const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
       ) : (
         <video ref={videoRef} autoPlay playsInline muted className="camera-preview-video" />
       )}
+    </div>
+  );
+};
+
+const SessionRow: React.FC<{
+  session: DeviceSession;
+  onRevoke: (s: DeviceSession) => void;
+  revoking: string | null;
+  flag: (code: string) => string;
+  time: (iso: string) => string;
+}> = ({ session, onRevoke, revoking, flag, time }) => {
+  const isMobileLike = session.deviceType === 'mobile' || session.deviceType === 'tablet';
+  const location = [session.city, session.country].filter(Boolean).join(', ');
+  return (
+    <div className={`session-row ${session.current ? 'session-current' : ''}`}>
+      <div className="session-icon">
+        {isMobileLike ? <SmartphoneIcon size={26} /> : <MonitorIcon size={26} />}
+      </div>
+      <div className="session-info">
+        <div className="session-title">
+          {session.deviceName || 'Неизвестное устройство'}
+          {session.current && <span className="session-badge">Это устройство</span>}
+        </div>
+        <div className="session-meta">
+          <span>
+            {flag(session.countryCode)} {location || 'Местоположение неизвестно'}
+            {session.ip ? ` · ${session.ip}` : ''}
+          </span>
+        </div>
+        <div className="session-meta session-meta-dim">
+          {session.current ? 'Активна сейчас' : `Была активна ${time(session.lastActiveAt)}`}
+        </div>
+      </div>
+      <button
+        className="session-revoke"
+        title="Завершить сессию"
+        disabled={revoking === session.id}
+        onClick={() => onRevoke(session)}
+      >
+        <LogOutIcon size={18} />
+        <span>{revoking === session.id ? '…' : (session.current ? 'Выйти' : 'Завершить')}</span>
+      </button>
     </div>
   );
 };
@@ -169,6 +226,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [reports, setReports] = useState<any[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
 
+  // Активные сессии (вкладка «Устройства»)
+  const [sessions, setSessions] = useState<DeviceSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState('');
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
   // Account Form State
   const [username, setUsername] = useState(user?.username || '');
   const [status, setStatus] = useState(user?.status || 'offline');
@@ -199,7 +262,82 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     if (activeTab === 'moderation') {
       fetchReports();
     }
+    if (activeTab === 'devices') {
+      fetchSessions();
+    }
   }, [activeTab]);
+
+  const fetchSessions = async () => {
+    setSessionsLoading(true);
+    setSessionsError('');
+    try {
+      const res = await axios.get('/api/sessions');
+      setSessions(res.data || []);
+    } catch (err) {
+      setSessionsError('Не удалось загрузить список сессий');
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const revokeSession = async (session: DeviceSession) => {
+    const confirmed = await confirm(
+      session.current
+        ? 'Завершить текущую сессию? Вы выйдете из аккаунта на этом устройстве.'
+        : `Завершить сессию «${session.deviceName}»? Это устройство выйдет из аккаунта.`
+    );
+    if (!confirmed) return;
+    setRevokingId(session.id);
+    try {
+      const res = await axios.delete(`/api/sessions/${session.id}`);
+      if (res.data?.current) {
+        // Завершили собственную сессию — разлогиниваемся.
+        logout();
+        onClose();
+        navigate('/login');
+        return;
+      }
+      setSessions((prev) => prev.filter((s) => s.id !== session.id));
+    } catch (err) {
+      await alert('Не удалось завершить сессию');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  const revokeOtherSessions = async () => {
+    const confirmed = await confirm('Завершить все сессии, кроме текущей? Все остальные устройства выйдут из аккаунта.');
+    if (!confirmed) return;
+    setRevokingId('others');
+    try {
+      await axios.delete('/api/sessions/others');
+      setSessions((prev) => prev.filter((s) => s.current));
+      await alert('Остальные сессии завершены');
+    } catch (err) {
+      await alert('Не удалось завершить сессии');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  const formatSessionTime = (iso: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const diff = Date.now() - d.getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return 'только что';
+    if (min < 60) return `${min} мин назад`;
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return `${hours} ч назад`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} дн назад`;
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  const countryFlag = (code: string) => {
+    if (!code || code.length !== 2) return '';
+    return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+  };
 
   const fetchReports = async () => {
     setReportsLoading(true);
@@ -535,6 +673,57 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       </div>
     </div>
   );
+
+  const renderDevicesSettings = () => {
+    const others = sessions.filter((s) => !s.current);
+    return (
+      <div className="settings-section-content">
+        <h2 className="settings-section-title">Устройства и сессии</h2>
+        <p className="settings-section-subtitle">
+          Здесь показаны устройства, с которых выполнен вход в ваш аккаунт. Если вы видите незнакомое
+          устройство — завершите его сессию и смените пароль.
+        </p>
+
+        {sessionsLoading ? (
+          <div className="sessions-empty">Загрузка сессий…</div>
+        ) : sessionsError ? (
+          <div className="sessions-empty sessions-error">
+            {sessionsError}
+            <button className="btn-v2" onClick={fetchSessions} style={{ marginTop: 12 }}>Повторить</button>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="sessions-empty">Активных сессий не найдено.</div>
+        ) : (
+          <>
+            <div className="settings-section-block">
+              <h3>Текущая сессия</h3>
+              {sessions.filter((s) => s.current).map((s) => (
+                <SessionRow key={s.id} session={s} onRevoke={revokeSession} revoking={revokingId} flag={countryFlag} time={formatSessionTime} />
+              ))}
+            </div>
+
+            {others.length > 0 && (
+              <div className="settings-section-block">
+                <div className="sessions-block-header">
+                  <h3>Другие устройства ({others.length})</h3>
+                  <button
+                    className="btn-danger-outline"
+                    disabled={revokingId === 'others'}
+                    onClick={revokeOtherSessions}
+                  >
+                    {revokingId === 'others' ? 'Завершаем…' : 'Завершить все'}
+                  </button>
+                </div>
+                {others.map((s) => (
+                  <SessionRow key={s.id} session={s} onRevoke={revokeSession} revoking={revokingId} flag={countryFlag} time={formatSessionTime} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
 
 
   const renderAppearanceSettings = () => {
@@ -1730,7 +1919,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 {activeTab === 'chat' && renderChatSettings()}
                 {activeTab === 'advanced' && renderPlaceholder('Расширенные', <EllipsisIcon size={80} />)}
                 {activeTab === 'moderation' && <ModerationSettings />}
-                {activeTab === 'devices' && renderPlaceholder('Устройства', <SmartphoneIcon size={80} />)}
+                {activeTab === 'devices' && renderDevicesSettings()}
                 {activeTab === 'keybinds' && renderKeybindsSettings()}
                 {activeTab === 'windows' && renderWindowsSettings()}
                 {activeTab === 'streamer' && renderPlaceholder('Режим стримера', <CameraIcon size={80} />)}
