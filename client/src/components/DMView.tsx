@@ -692,7 +692,7 @@ const DMView: React.FC<DMViewProps> = ({
             </svg>
           </button>
 
-          <div className="dm-header-info" onClick={(e) => !isGroup && otherUser && onUserClick(otherUser._id, e)} style={{ cursor: isGroup ? 'default' : 'pointer' }}>
+          <div className="dm-header-info" onClick={(e) => !isGroup && otherUser && onUserClick(otherUser._id)} style={{ cursor: isGroup ? 'default' : 'pointer' }}>
             <UserAvatar
               user={isGroup ? null : otherUser}
               size={40}
@@ -700,7 +700,7 @@ const DMView: React.FC<DMViewProps> = ({
               onClick={(e) => {
                 if (isGroup) return;
                 e.stopPropagation();
-                otherUser && onUserClick(otherUser._id, e);
+                otherUser && onUserClick(otherUser._id);
               }}
             />
             <div className="dm-header-text-info">

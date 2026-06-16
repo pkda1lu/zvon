@@ -3,7 +3,7 @@ import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
-import UserProfileCard from './UserProfileCard';
+import { MonitorIcon, CloseIcon } from './Icons';
 import './UserProfileCard.css';
 
 interface ProfilePreviewProps {
@@ -13,15 +13,48 @@ interface ProfilePreviewProps {
         bio?: string;
         avatar?: string;
         banner?: string;
+        bannerColor?: string;
         roles?: any[];
+        joinedAt?: string;
     } | null;
     server?: any;
     type: 'full' | 'compact' | 'server-full' | 'server-compact';
     onClose?: () => void;
+    onAvatarClick?: () => void;
+    
+    // Additional data for full profile
+    mutualFriends?: any[];
+    mutualServers?: any[];
+    developments?: { bots: any[], miniApps: any[] };
+    
+    // For actions
+    actionButtons?: React.ReactNode;
 }
 
-const ProfilePreview: React.FC<ProfilePreviewProps> = ({ user, memberData, server, type, onClose: onParentClose }) => {
-    const [showModal, setShowModal] = useState(false);
+const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
+    const [elapsed, setElapsed] = useState('');
+    React.useEffect(() => {
+        const update = () => {
+            const diff = Math.floor((Date.now() - startTime) / 1000);
+            const hours = Math.floor(diff / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            const seconds = diff % 60;
+            if (hours > 0) setElapsed(`${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} прошло`);
+            else setElapsed(`${minutes}:${seconds.toString().padStart(2, '0')} прошло`);
+        };
+        update();
+        const interval = setInterval(update, 1000);
+        return () => clearInterval(interval);
+    }, [startTime]);
+    return <div className="activity-time">{elapsed}</div>;
+};
+
+const ProfilePreview: React.FC<ProfilePreviewProps> = ({ 
+    user, memberData, server, type, onClose, onAvatarClick, 
+    mutualFriends = [], mutualServers = [], developments = { bots: [], miniApps: [] },
+    actionButtons
+}) => {
+    const [activeTab, setActiveTab] = useState<'contacts' | 'activity' | 'developments'>('contacts');
 
     const isServerType = type.startsWith('server-');
     const isCompact = type.endsWith('compact');
@@ -33,120 +66,299 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({ user, memberData, serve
     const bannerColor = (isServerType && memberData?.bannerColor) || user.bannerColor || '#5865f2';
     const roles = (isServerType && memberData?.roles) || [];
 
-    const handleAvatarClick = () => {
-        if (isCompact) {
-            setShowModal(true);
-        }
-    };
-
     const statusColor = user.status === 'online' ? '#23a559' : 
                         user.status === 'away' ? '#f0b232' : 
                         user.status === 'busy' ? '#f23f42' : '#80848e';
 
-    return (
-        <>
-            <div className={`user-profile-card ${isCompact ? 'popout' : 'modal-style'}`} style={{ 
-                position: 'relative', 
-                width: '100%', 
-                maxWidth: isCompact ? '340px' : '600px',
-                minHeight: bio ? 'unset' : '200px'
-            }}>
-                <div 
-                    className="profile-banner" 
-                    style={{ 
-                        backgroundColor: bannerColor, 
-                        backgroundImage: banner ? `url(${getFullUrl(banner)})` : 'none', 
-                        backgroundSize: 'cover',
-                        height: isCompact ? '120px' : '180px'
-                    }}
-                >
-                    {onParentClose && <button className="profile-close-button" onClick={onParentClose}>×</button>}
-                </div>
+    const handleAvatarClick = () => {
+        if (isCompact && onAvatarClick) {
+            onAvatarClick();
+        }
+    };
 
-                <div className="profile-header">
-                    <div className="profile-avatar-container" onClick={handleAvatarClick} style={{ cursor: isCompact ? 'pointer' : 'default' }}>
-                        <UserAvatar
-                            user={{...user, avatar}}
-                            size={isCompact ? 80 : 120}
-                            className={`profile-avatar ${user.status}`}
-                        />
-                        <div className="profile-status-indicator" style={{ backgroundColor: statusColor }}></div>
-                    </div>
-                </div>
+    const handleFriendClick = (friendId: string) => {
+        window.dispatchEvent(new CustomEvent('open-dm', { detail: { userId: friendId } }));
+        if (onClose) onClose();
+    };
 
-                <div className="profile-body">
-                    <div className="profile-names">
-                        <div className="profile-names-top">
-                            <span className="profile-nickname" style={{ fontSize: isCompact ? '20px' : '24px' }}>{displayName}</span>
-                            {user.isBot && <span className="bot-badge-mini">BOT</span>}
-                            <UserBadges badges={user.badges} size={isCompact ? 18 : 22} className="profile-badges" />
-                        </div>
-                        <span className="profile-username sub">@{user.username}</span>
-                    </div>
+    const handleServerClick = (serverId: string) => {
+        window.dispatchEvent(new CustomEvent('select-server', { detail: { serverId } }));
+        if (onClose) onClose();
+    };
 
-                    {bio || !isCompact || roles.length > 0 ? <div className="profile-divider"></div> : null}
-
-                    <div className="info-tab">
-                        {bio && (
-                            <section>
-                                <h4>О СЕБЕ</h4>
-                                <p className="bio-text">{bio}</p>
-                            </section>
-                        )}
-
-                        {isServerType && server && (
-                            <section>
-                                <h4>РОЛИ</h4>
-                                <div className="roles-list">
-                                    {roles.length > 0 ? (
-                                        roles.map((rid: string) => {
-                                            const role = server.roles?.find((r: any) => r._id === rid);
-                                            if (!role) return null;
-                                            return (
-                                                <div key={rid} className="role-chip" style={{ borderColor: role.color + '44' }}>
-                                                    <div className="role-dot" style={{ backgroundColor: role.color }} />
-                                                    <span style={{ color: role.color || '#fff' }}>{role.name}</span>
-                                                </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <span className="no-roles">Нет ролей</span>
-                                    )}
-                                </div>
-                            </section>
-                        )}
-
-                        {!isCompact && (
-                            <>
-                                <section>
-                                    <h4>ДАТА РЕГИСТРАЦИИ</h4>
-                                    <p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                </section>
-                                {user.primaryServer && typeof user.primaryServer === 'object' && (
-                                    <section>
-                                        <h4>ОСНОВНОЙ СЕРВЕР</h4>
-                                        <div className="mutual-item" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px' }}>
-                                            <div className="mutual-avatar server">
-                                                {user.primaryServer.icon ? <img src={getAvatarUrl(user.primaryServer.icon)!} alt="" /> : <span>{user.primaryServer.name.charAt(0).toUpperCase()}</span>}
-                                            </div>
-                                            <span>{user.primaryServer.name}</span>
-                                        </div>
-                                    </section>
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
+    const compactProfileContent = (
+        <div className="compact-profile-wrapper">
+            <div 
+                className="profile-banner" 
+                style={{ 
+                    backgroundColor: bannerColor, 
+                    backgroundImage: banner ? `url(${getFullUrl(banner)})` : 'none', 
+                    backgroundSize: 'cover',
+                    height: '120px'
+                }}
+            >
             </div>
 
-            {showModal && (
-                <UserProfileCard 
-                    userId={user._id} 
-                    serverId={isServerType ? server?._id : undefined}
-                    onClose={() => setShowModal(false)}
-                />
+            <div className="profile-header">
+                <div className="profile-avatar-container" onClick={handleAvatarClick} style={{ cursor: isCompact && onAvatarClick ? 'pointer' : 'default' }}>
+                    <UserAvatar
+                        user={{...user, avatar}}
+                        size={80}
+                        className={`profile-avatar ${user.status}`}
+                        animate={true}
+                    />
+                    <div className="profile-status-indicator" style={{ backgroundColor: statusColor }}></div>
+                </div>
+                {actionButtons && <div className="profile-actions-header">{actionButtons}</div>}
+            </div>
+
+            <div className="profile-body" style={{ marginTop: '40px' }}>
+                <div className="profile-names">
+                    <div className="profile-names-top">
+                        <span className="profile-nickname" style={{ fontSize: '20px' }}>{displayName}</span>
+                        {user.isBot && <span className="bot-badge-mini">BOT</span>}
+                        <UserBadges badges={user.badges} size={18} className="profile-badges" />
+                    </div>
+                    <span className="profile-username sub">@{user.username}</span>
+                </div>
+
+                <div className="profile-divider"></div>
+
+                <div className="info-tab">
+                    {bio && (
+                        <section>
+                            <h4>О СЕБЕ</h4>
+                            <p className="bio-text">{bio}</p>
+                        </section>
+                    )}
+
+                    {isServerType && server && (
+                        <section>
+                            <h4>РОЛИ</h4>
+                            <div className="roles-list">
+                                {roles.length > 0 ? (
+                                    roles.map((rid: string) => {
+                                        const role = server.roles?.find((r: any) => r._id === rid);
+                                        if (!role) return null;
+                                        return (
+                                            <div key={rid} className="role-chip" style={{ borderColor: role.color + '44' }}>
+                                                <div className="role-dot" style={{ backgroundColor: role.color }} />
+                                                <span style={{ color: role.color || '#fff' }}>{role.name}</span>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <span className="no-roles">Нет ролей</span>
+                                )}
+                            </div>
+                        </section>
+                    )}
+
+                    <section>
+                        <h4>ОСНОВНОЙ СЕРВЕР</h4>
+                        {user.primaryServer && typeof user.primaryServer === 'object' ? (
+                            <div className="mutual-item" onClick={() => handleServerClick((user.primaryServer as any)._id)} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px' }}>
+                                <div className="mutual-avatar server">
+                                    {user.primaryServer.icon ? <img src={getAvatarUrl(user.primaryServer.icon)!} alt="" /> : <span>{user.primaryServer.name.charAt(0).toUpperCase()}</span>}
+                                </div>
+                                <span>{user.primaryServer.name}</span>
+                            </div>
+                        ) : (
+                            <div className="empty-mutual-mini">Сервер не выбран</div>
+                        )}
+                    </section>
+
+                    <section>
+                        <h4>ДАТА РЕГИСТРАЦИИ</h4>
+                        <p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    </section>
+                    
+                    {isServerType && memberData && (
+                        <section>
+                            <h4>ДАТА ЗАХОДА НА СЕРВЕР</h4>
+                            <p>{new Date(memberData.joinedAt || user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        </section>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    if (isCompact) {
+        return (
+            <div className="user-profile-card popout" style={{ width: '340px' }}>
+                {compactProfileContent}
+            </div>
+        );
+    }
+
+    return (
+        <div className="user-profile-card modal-style full-profile panel-hero" style={{ width: '1100px', flexDirection: 'row', height: '720px', maxWidth: '95vw' }}>
+            <div className="panel-hero-bg" aria-hidden="true">
+                <div className="blob cyan" />
+                <div className="blob purple" />
+                <div className="blob pink" />
+            </div>
+
+            {onClose && (
+                <div className="profile-close-wrapper" onClick={onClose}>
+                    <div className="profile-close-circle">
+                        <CloseIcon />
+                    </div>
+                    <span className="profile-close-text">ESC</span>
+                </div>
             )}
-        </>
+
+            <div className="full-profile-left" style={{ width: '340px', borderRight: '1px solid var(--glass-border)', overflowY: 'auto' }}>
+                {compactProfileContent}
+            </div>
+            
+            <div className="full-profile-right" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px' }}>
+                <div className="profile-tabs-sidebar">
+                    <button className={`profile-tab-item ${activeTab === 'contacts' ? 'active' : ''}`} onClick={() => setActiveTab('contacts')}>
+                        <span>Общие контакты</span>
+                    </button>
+                    {!user.isBot && (
+                        <>
+                            <button className={`profile-tab-item ${activeTab === 'activity' ? 'active' : ''}`} onClick={() => setActiveTab('activity')}>
+                                <span>Активность</span>
+                            </button>
+                            <button className={`profile-tab-item ${activeTab === 'developments' ? 'active' : ''}`} onClick={() => setActiveTab('developments')}>
+                                <span>Разработки</span>
+                            </button>
+                        </>
+                    )}
+                </div>
+
+                <div className="profile-tab-content-full">
+                    {activeTab === 'contacts' && (
+                        <div className="contacts-tab">
+                            <section>
+                                <h4 className="full-tab-section-title">ОБЩИЕ ДРУЗЬЯ ({mutualFriends.length})</h4>
+                                <div className="mutual-list-members">
+                                    {mutualFriends.length > 0 ? mutualFriends.map(friend => (
+                                        <div key={friend._id} className="member-item" onClick={() => handleFriendClick(friend._id)}>
+                                            <div className="member-avatar-wrap">
+                                                <UserAvatar user={friend} size={32} className="member-avatar" />
+                                                <div className={`status-indicator ${friend.status}`}></div>
+                                            </div>
+                                            <div className="member-info">
+                                                <div className="member-name-row">
+                                                    <span className="member-name">{friend.username}</span>
+                                                    <UserBadges badges={friend.badges} size={14} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )) : <div className="empty-mutual">Нет общих друзей.</div>}
+                                </div>
+                            </section>
+                            
+                            <section style={{ marginTop: '30px' }}>
+                                <h4 className="full-tab-section-title">ОБЩИЕ СЕРВЕРЫ ({mutualServers.length})</h4>
+                                <div className="mutual-list-members">
+                                    {mutualServers.length > 0 ? mutualServers.map(srv => (
+                                        <div key={srv._id} className="member-item" onClick={() => handleServerClick(srv._id)}>
+                                            <div className="member-avatar-wrap">
+                                                <div className="member-avatar server" style={{ width: 32, height: 32, borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    {srv.icon ? <img src={getAvatarUrl(srv.icon)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 14, fontWeight: 800 }}>{srv.name.charAt(0).toUpperCase()}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="member-info">
+                                                <div className="member-name-row">
+                                                    <span className="member-name">{srv.name}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )) : <div className="empty-mutual">Нет общих серверов.</div>}
+                                </div>
+                            </section>
+                        </div>
+                    )}
+
+                    {activeTab === 'activity' && !user.isBot && (
+                        <div className="activity-tab">
+                            {user.activity ? (
+                                <div className="profile-activity-section-full">
+                                    <h4 className="section-title">СЕЙЧАС: {user.activity.type === 'playing' ? 'ИГРАЕТ В' : 'ЗАНИМАЕТСЯ'}</h4>
+                                    <div className="activity-content-full">
+                                        {user.activity.assets?.largeImage && (
+                                            <div className="activity-image-wrapper-full">
+                                                <img src={getFullUrl(user.activity.assets.largeImage)!} alt="" className="activity-large-image" />
+                                            </div>
+                                        )}
+                                        <div className="activity-details-full">
+                                            <div className="activity-name-full">{user.activity.name}</div>
+                                            <div className="activity-state-full">{user.activity.state || `В приложении ${user.activity.name}`}</div>
+                                            {user.activity.timestamps?.start && <ActivityTimer startTime={user.activity.timestamps.start} />}
+                                            {user.activity.miniAppData && (
+                                                <button 
+                                                    className="profile-action-btn primary" 
+                                                    style={{ marginTop: '20px', height: '40px', width: 'auto', padding: '0 20px' }}
+                                                    onClick={() => {
+                                                        window.dispatchEvent(new CustomEvent('open-mini-app', { 
+                                                            detail: { app: user.activity?.miniAppData } 
+                                                        }));
+                                                        if (onClose) onClose();
+                                                    }}
+                                                >
+                                                    <MonitorIcon size={16} />
+                                                    <span>Запустить приложение</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="empty-mutual">Нет текущей активности.</div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'developments' && !user.isBot && (
+                        <div className="developments-tab">
+                            <section>
+                                <h4 className="full-tab-section-title">ЧАТ-БОТЫ ({developments.bots.length})</h4>
+                                <div className="mutual-list-members">
+                                    {developments.bots.length > 0 ? developments.bots.map(bot => (
+                                        <div key={bot._id} className="member-item">
+                                            <div className="member-avatar-wrap">
+                                                <UserAvatar user={bot} size={32} className="member-avatar" />
+                                                <div className="bot-badge-mini" style={{ position: 'absolute', bottom: -2, right: -2, fontSize: 8 }}>BOT</div>
+                                            </div>
+                                            <div className="member-info">
+                                                <div className="member-name-row">
+                                                    <span className="member-name">{bot.username}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )) : <div className="empty-mutual">Нет опубликованных ботов.</div>}
+                                </div>
+                            </section>
+
+                            <section style={{ marginTop: '30px' }}>
+                                <h4 className="full-tab-section-title">МИНИ-ПРИЛОЖЕНИЯ ({developments.miniApps.length})</h4>
+                                <div className="mutual-list-members">
+                                    {developments.miniApps.length > 0 ? developments.miniApps.map(app => (
+                                        <div key={app._id} className="member-item">
+                                            <div className="member-avatar-wrap">
+                                                <div className="member-avatar server" style={{ width: 32, height: 32, borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    {app.avatar ? <img src={getAvatarUrl(app.avatar)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 14, fontWeight: 800 }}>{app.name.charAt(0).toUpperCase()}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="member-info">
+                                                <div className="member-name-row">
+                                                    <span className="member-name">{app.name}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )) : <div className="empty-mutual">Нет опубликованных мини-приложений.</div>}
+                                </div>
+                            </section>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 };
 

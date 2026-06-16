@@ -29,6 +29,11 @@ router.get('/profile/:id', auth, async (req, res) => {
     const mutualFriendIds = currentUserFriendIds.filter(id => targetUserFriendIds.some(tid => tid.toString() === id.toString()));
     const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity');
 
+    // Fetch developments
+    const bots = await User.find({ isBot: true, owner: targetUserId, isPublished: true }).select('username avatar badges banner');
+    const MiniApp = require('../models/MiniApp');
+    const miniApps = await MiniApp.find({ owner: targetUserId, isPublished: true }).select('name avatar banner description');
+
     // Get friendship status between current user and target user
     const friendship = await Friendship.findOne({
       $or: [
@@ -37,10 +42,14 @@ router.get('/profile/:id', auth, async (req, res) => {
       ]
     });
 
-    res.json({ 
-      user, 
-      mutualServers, 
+    res.json({
+      user,
+      mutualServers,
       mutualFriends,
+      developments: {
+        bots,
+        miniApps
+      },
       friendship: friendship ? {
         _id: friendship._id,
         status: friendship.status,
