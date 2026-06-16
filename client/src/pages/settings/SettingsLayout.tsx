@@ -61,7 +61,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     }, [isOpen, initialTab]);
     
     const isWindows = !!(window as any).electron;
-    const isAdmin = user?.role === 'admin';
+    const isModerator = user?.role === 'admin' || user?.role === 'moderator';
 
     if (!isOpen) return null;
 
@@ -148,7 +148,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                     </>
                 )}
 
-                {isAdmin && (
+                {isModerator && (
                     <>
                         <div className="settings-sidebar-divider" />
                         <div className="settings-sidebar-header">Разработчикам</div>

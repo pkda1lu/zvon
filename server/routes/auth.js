@@ -145,6 +145,14 @@ router.post('/login', loginLimiter, [
 
     user.status = user.statusPreference || 'online';
     await user.save();
+    
+    await logGlobalAction({
+      executorId: user._id,
+      action: 'USER_LOGIN',
+      targetId: user._id,
+      targetModel: 'User'
+    });
+
     const { token } = await createSession(user, req, { days: 7 });
 
     return res.json({

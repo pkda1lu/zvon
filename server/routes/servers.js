@@ -11,6 +11,7 @@ const checkPermission = require('../middleware/checkPermission');
 const { Permissions, DEFAULT_PERMISSIONS } = require('../utils/permissions');
 const { computePermissions, getHighestRolePosition } = require('../utils/permissionCalculator');
 const { logAction } = require('../utils/auditLogger');
+const { logGlobalAction } = require('../utils/globalAuditLogger');
 
 
 router.post('/', auth, async (req, res) => {
@@ -887,6 +888,13 @@ router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG),
     res.json(logs);
   } catch (error) {
     console.error('Audit log fetch error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;
+
+le.error('Audit log fetch error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
