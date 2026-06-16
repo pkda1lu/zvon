@@ -140,6 +140,17 @@ const userSchema = new mongoose.Schema({
   },
   banExpires: Date,
   banReason: String,
+  displayName: {
+    type: String,
+    trim: true,
+    maxlength: 32,
+    default: null
+  },
+  primaryServer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Server',
+    default: null
+  },
   settings: {
     showActivityStatus: {
       type: Boolean,
@@ -153,6 +164,21 @@ const userSchema = new mongoose.Schema({
     hiddenActivities: {
       type: [String],
       default: []
+    },
+    whoCanDM: {
+      type: String,
+      enum: ['everyone', 'server_members', 'friends', 'nobody'],
+      default: 'everyone'
+    },
+    whoCanFindInSearch: {
+      type: String,
+      enum: ['everyone', 'friends_of_friends', 'nobody'],
+      default: 'everyone'
+    },
+    whoCanSeeFullProfile: {
+      type: String,
+      enum: ['everyone', 'friends', 'small_servers', 'nobody'],
+      default: 'everyone'
     }
   },
   createdAt: {
