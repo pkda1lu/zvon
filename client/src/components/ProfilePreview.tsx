@@ -4,6 +4,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import { MonitorIcon, CloseIcon } from './Icons';
+import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import './UserProfileCard.css';
 
 interface ProfilePreviewProps {
@@ -55,16 +56,22 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     actionButtons
 }) => {
     const [activeTab, setActiveTab] = useState<'contacts' | 'activity' | 'developments'>('contacts');
+    const { streamerModeEnabled, censorInfo } = useWindowSettings();
 
     const isServerType = type.startsWith('server-');
     const isCompact = type.endsWith('compact');
 
-    const displayName = (isServerType && memberData?.nickname) || user.displayName || user.username;
-    const bio = (isServerType && memberData?.bio) || user.bio;
+    const shouldCensor = streamerModeEnabled && censorInfo;
+
+    const rawDisplayName = (isServerType && memberData?.nickname) || user.displayName || user.username;
+    const displayName = rawDisplayName; // Keep display name visible
+    const bio = shouldCensor ? 'Информация скрыта в режиме стримера.' : ((isServerType && memberData?.bio) || user.bio);
     const avatar = (isServerType && memberData?.avatar) || user.avatar;
     const banner = (isServerType && memberData?.banner) || user.banner;
     const bannerColor = (isServerType && memberData?.bannerColor) || user.bannerColor || '#5865f2';
     const roles = (isServerType && memberData?.roles) || [];
+
+    const username = shouldCensor ? 'user_hidden' : user.username;
 
     const statusColor = user.status === 'online' ? '#23a559' : 
                         user.status === 'away' ? '#f0b232' : 

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import ProfilePreview from '../../components/ProfilePreview';
 import { ChoiceGroup, CustomSelect, GridPicker } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
+import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 
 const AVAILABLE_BADGES = [
     { id: 'dev', label: 'Разработчик', image: './badges/developer.png' },
@@ -18,6 +19,9 @@ const AVAILABLE_BADGES = [
 
 const ProfileSettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
+    const { streamerModeEnabled, censorInfo } = useWindowSettings();
+    const shouldCensor = streamerModeEnabled && censorInfo;
+
     const [displayName, setDisplayName] = useState(user?.displayName || '');
     const [bio, setBio] = useState(user?.bio || '');
     const [primaryServer, setPrimaryServer] = useState(user?.primaryServer || '');
@@ -247,8 +251,9 @@ const ProfileSettings: React.FC = () => {
                     <textarea 
                         className="settings-textarea"
                         style={{ resize: 'none' }}
-                        value={bio}
+                        value={shouldCensor ? 'Скрыто в режиме стримера' : bio}
                         onChange={(e) => {
+                            if (shouldCensor) return;
                             setBio(e.target.value);
                             e.target.style.height = 'auto';
                             e.target.style.height = e.target.scrollHeight + 'px';
@@ -258,6 +263,7 @@ const ProfileSettings: React.FC = () => {
                             e.target.style.height = e.target.scrollHeight + 'px';
                         }}
                         placeholder="Расскажите о себе..."
+                        disabled={shouldCensor}
                     />
                 </div>
 
@@ -301,12 +307,14 @@ const ProfileSettings: React.FC = () => {
                 {/* 6. Основной сервер */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Основной сервер</h3>
-                    <CustomSelect 
-                        options={serverOptions} 
-                        value={primaryServer} 
-                        onChange={handlePrimaryServerChange}
-                        placeholder="Выберите основной сервер..."
-                    />
+                    <div style={{ opacity: shouldCensor ? 0.5 : 1, pointerEvents: shouldCensor ? 'none' : 'auto' }}>
+                        <CustomSelect 
+                            options={serverOptions} 
+                            value={primaryServer} 
+                            onChange={handlePrimaryServerChange}
+                            placeholder={shouldCensor ? 'Скрыто в режиме стримера' : "Выберите основной сервер..."}
+                        />
+                    </div>
                 </div>
             </div>
 
