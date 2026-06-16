@@ -116,19 +116,52 @@
 }
 
 .settings-content-inner.with-preview {
-    max-width: 1100px;
+    max-width: 1200px;
     display: flex;
-    flex-direction: column;
-    gap: 40px;
+    flex-direction: row;
+    gap: 60px;
+    align-items: flex-start;
 }
 
 .settings-main-column {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
 }
 
 .settings-preview-column {
+    width: 340px;
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+}
+
+.settings-preview-column.interface-preview-col {
+    width: 420px;
+}
+
+.interface-preview-scaling-container {
     width: 100%;
     position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.interface-preview-scaling-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1280px; /* Original width of the preview */
+    height: 720px; /* Original height of the preview */
+    transform-origin: top left;
+}
+
+.large-interface-preview.liquid-glass-preview {
+    height: 100% !important;
+    width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 .settings-close-btn {
