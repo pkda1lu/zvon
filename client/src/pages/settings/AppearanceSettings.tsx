@@ -5,15 +5,13 @@ import { ChoiceGroup, SettingsToggle } from './SettingsUI';
 const AppearanceSettings: React.FC = () => {
     const { 
         theme, setTheme, 
-        scale, setScale,
+        fontScale, setFontScale,
         performanceMode, setPerformanceMode 
     } = useAppearance();
 
     const themeOptions = [
         { value: 'dark', label: 'Тёмная' },
-        { value: 'light', label: 'Светлая' },
-        { value: 'system', label: 'Системная' },
-        { value: 'midnight', label: 'Полночь' }
+        { value: 'amoled', label: 'AMOLED' }
     ];
 
     const scaleOptions = [
@@ -37,11 +35,11 @@ const AppearanceSettings: React.FC = () => {
             </div>
 
             <div className="settings-card">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Масштаб интерфейса</h3>
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Масштаб шрифта</h3>
                 <ChoiceGroup 
                     options={scaleOptions}
-                    value={scale.toString()}
-                    onChange={(val) => setScale(parseFloat(val))}
+                    value={(fontScale || 1).toString()}
+                    onChange={(val) => setFontScale(parseFloat(val))}
                 />
             </div>
 
