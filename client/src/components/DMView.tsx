@@ -141,10 +141,44 @@ const DMView: React.FC<DMViewProps> = ({
       }
     };
     socket.on('message-reactions-update', handleReactionsUpdate);
+
+    const handleScrollChat = (e: any) => {
+      const { direction } = e.detail;
+      if (virtuosoRef.current) {
+        if (direction === 'up') {
+          virtuosoRef.current.scrollBy({ top: -300, behavior: 'smooth' });
+        } else {
+          virtuosoRef.current.scrollBy({ top: 300, behavior: 'smooth' });
+        }
+      }
+    };
+
+    const handleEditLast = () => {
+      const myLastMsg = [...messages].reverse().find(m => m.author._id === user?._id);
+      if (myLastMsg) {
+        window.dispatchEvent(new CustomEvent('zvon-edit-message', { detail: { message: myLastMsg } }));
+      }
+    };
+
+    const handleDeleteLast = async () => {
+      const myLastMsg = [...messages].reverse().find(m => m.author._id === user?._id);
+      if (myLastMsg && await customConfirm('Удалить ваше последнее сообщение?')) {
+        socket.emit('delete-message', { messageId: myLastMsg._id, dmId: dm._id });
+      }
+    };
+
+    window.addEventListener('zvon-scroll-chat', handleScrollChat);
+    window.addEventListener('zvon-edit-last-message', handleEditLast);
+    window.addEventListener('zvon-delete-last-message', handleDeleteLast);
+
     return () => {
       socket.off('message-reactions-update', handleReactionsUpdate);
+      window.removeEventListener('zvon-scroll-chat', handleScrollChat);
+      window.removeEventListener('zvon-edit-last-message', handleEditLast);
+      window.removeEventListener('zvon-delete-last-message', handleDeleteLast);
     };
-  }, [socket, setMessages]);
+  }, [socket, setMessages, messages, user?._id, dm._id]);
+
 
   const jumpToMessage = async (messageId: string, createdAt: string) => {
     setShowSearch(false);

@@ -822,13 +822,48 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     };
     socket.on('message-reactions-update', handleReactionsUpdate);
 
+    const handleScrollChat = (e: any) => {
+      const { direction } = e.detail;
+      if (virtuosoRef.current) {
+        if (direction === 'up') {
+          virtuosoRef.current.scrollBy({ top: -300, behavior: 'smooth' });
+        } else {
+          virtuosoRef.current.scrollBy({ top: 300, behavior: 'smooth' });
+        }
+      }
+    };
+
+    const handleEditLast = () => {
+      const myLastMsg = [...messages].reverse().find(m => m.author._id === user?._id);
+      if (myLastMsg) {
+        // Implementation for editing would require changing state of MessageItem or using a global edit state
+        // For now, let's at least scroll to it and focus input with its content as a simple "start over" or use a custom event
+        window.dispatchEvent(new CustomEvent('zvon-edit-message', { detail: { message: myLastMsg } }));
+      }
+    };
+
+    const handleDeleteLast = async () => {
+      const myLastMsg = [...messages].reverse().find(m => m.author._id === user?._id);
+      if (myLastMsg && await customConfirm('Удалить ваше последнее сообщение?')) {
+        socket.emit('delete-message', { messageId: myLastMsg._id, channelId: channel._id });
+      }
+    };
+
+    window.addEventListener('zvon-scroll-chat', handleScrollChat);
+    window.addEventListener('zvon-edit-last-message', handleEditLast);
+    window.addEventListener('zvon-delete-last-message', handleDeleteLast);
+
     return () => {
       socket.off('user-typing', handleTyping);
       socket.off('user-stopped-typing', handleStoppedTyping);
       socket.off('message-updated', handleMessageUpdated);
       socket.off('message-reactions-update', handleReactionsUpdate);
+      window.removeEventListener('zvon-scroll-chat', handleScrollChat);
+      window.removeEventListener('zvon-edit-last-message', handleEditLast);
+      window.removeEventListener('zvon-delete-last-message', handleDeleteLast);
     };
-  }, [socket, channel._id, user?._id, setMessages]);
+  }, [socket, channel._id, user?._id, setMessages, messages]);
+
 
   const handleReact = (messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });

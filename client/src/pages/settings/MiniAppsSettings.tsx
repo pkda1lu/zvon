@@ -217,7 +217,8 @@ const MiniAppsSettings: React.FC = () => {
     const appOptions = miniapps.map(a => ({
         id: a._id,
         name: a.name,
-        icon: a.avatar
+        icon: a.avatar,
+        type: 'app' as const
     }));
 
     const selectedApp = miniapps.find(a => a._id === selectedAppId);

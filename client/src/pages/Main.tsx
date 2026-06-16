@@ -202,6 +202,124 @@ const Main: React.FC = () => {
         setMobileView('content');
       }
     };
+
+    const handleKeybindAction = (e: any) => {
+      const { action } = e.detail;
+      
+      switch (action) {
+        case 'server-next': {
+          if (servers.length <= 1) return;
+          const currentIndex = selectedServer ? servers.findIndex(s => s._id === selectedServer._id) : -1;
+          const nextIndex = (currentIndex + 1) % servers.length;
+          const nextServer = servers[nextIndex];
+          setSelectedServer(nextServer);
+          setShowFriends(false);
+          setShowShowcase(false);
+          setSelectedDM(null);
+          break;
+        }
+        case 'server-prev': {
+          if (servers.length <= 1) return;
+          const currentIndex = selectedServer ? servers.findIndex(s => s._id === selectedServer._id) : -1;
+          const prevIndex = (currentIndex - 1 + servers.length) % servers.length;
+          const prevServer = servers[prevIndex];
+          setSelectedServer(prevServer);
+          setShowFriends(false);
+          setShowShowcase(false);
+          setSelectedDM(null);
+          break;
+        }
+        case 'channel-next': {
+          if (!selectedServer) return;
+          const channels = selectedServer.channels;
+          if (channels.length <= 1) return;
+          const currentIndex = selectedChannel ? channels.findIndex(c => c._id === selectedChannel._id) : -1;
+          const nextIndex = (currentIndex + 1) % channels.length;
+          setSelectedChannel(channels[nextIndex]);
+          break;
+        }
+        case 'channel-prev': {
+          if (!selectedServer) return;
+          const channels = selectedServer.channels;
+          if (channels.length <= 1) return;
+          const currentIndex = selectedChannel ? channels.findIndex(c => c._id === selectedChannel._id) : -1;
+          const prevIndex = (currentIndex - 1 + channels.length) % channels.length;
+          setSelectedChannel(channels[prevIndex]);
+          break;
+        }
+        case 'mark-chat-read': {
+          if (selectedChannel) {
+            setUnreadCounts(prev => {
+              const next = { ...prev };
+              delete next[selectedChannel._id];
+              return next;
+            });
+          } else if (selectedDM) {
+            setUnreadCounts(prev => {
+              const next = { ...prev };
+              delete next[selectedDM._id];
+              return next;
+            });
+          }
+          break;
+        }
+        case 'mark-server-read': {
+          if (selectedServer) {
+            setUnreadCounts(prev => {
+              const next = { ...prev };
+              selectedServer.channels.forEach(c => delete next[c._id]);
+              return next;
+            });
+          }
+          break;
+        }
+        case 'open-notifications': {
+          setShowInbox(prev => !prev);
+          break;
+        }
+        case 'scroll-up': {
+          window.dispatchEvent(new CustomEvent('zvon-scroll-chat', { detail: { direction: 'up' } }));
+          break;
+        }
+        case 'scroll-down': {
+          window.dispatchEvent(new CustomEvent('zvon-scroll-chat', { detail: { direction: 'down' } }));
+          break;
+        }
+        case 'edit-last': {
+          window.dispatchEvent(new CustomEvent('zvon-edit-last-message'));
+          break;
+        }
+        case 'delete-last': {
+          window.dispatchEvent(new CustomEvent('zvon-delete-last-message'));
+          break;
+        }
+        case 'close-window': {
+          if (showSettingsModal) setShowSettingsModal(false);
+          else if (showServerSettings) setShowServerSettings(false);
+          else if (showJoinModal) setShowJoinModal(false);
+          else if (showCreateGroupModal) setShowCreateGroupModal(false);
+          else if (showInbox) setShowInbox(false);
+          else if (showProfileUserId) setShowProfileUserId(null);
+          else {
+              // @ts-ignore
+              if (window.electron && window.electron.ipc) {
+                  // @ts-ignore
+                  window.electron.ipc.send('close-window');
+              }
+          }
+          break;
+        }
+        case 'minimize-to-tray': {
+            // @ts-ignore
+            if (window.electron && window.electron.ipc) {
+                // @ts-ignore
+                window.electron.ipc.send('minimize-to-tray');
+            }
+            break;
+        }
+      }
+    };
+
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
@@ -209,6 +327,7 @@ const Main: React.FC = () => {
     window.addEventListener('open-mini-app', handleOpenMiniAppEvent);
     window.addEventListener('open-dm', handleOpenDM);
     window.addEventListener('select-server', handleSelectServerEvent);
+    window.addEventListener('zvon-keybind-action', handleKeybindAction);
     return () => {
       window.removeEventListener('start-dm', handleStartDMEvent);
       window.removeEventListener('start-call', handleStartCallEvent);
@@ -217,8 +336,10 @@ const Main: React.FC = () => {
       window.removeEventListener('open-mini-app', handleOpenMiniAppEvent);
       window.removeEventListener('open-dm', handleOpenDM);
       window.removeEventListener('select-server', handleSelectServerEvent);
+      window.removeEventListener('zvon-keybind-action', handleKeybindAction);
     };
-  }, [servers]);
+  }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId]);
+
 
   // --- Activity orchestration ---
   // Game (from electron detection) has priority. If no game is running, fall

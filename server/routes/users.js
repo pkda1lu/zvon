@@ -257,6 +257,9 @@ router.put('/settings', auth, async (req, res) => {
     if (settings.language) {
       req.user.settings.language = { ...req.user.settings.language, ...settings.language };
     }
+    if (settings.interaction) {
+      req.user.settings.interaction = { ...req.user.settings.interaction, ...settings.interaction };
+    }
 
     // Handle other settings (privacy etc.)
     const otherKeys = ['showActivityStatus', 'activityVisibility', 'hiddenActivities', 'whoCanDM', 'whoCanFindInSearch', 'whoCanSeeFullProfile'];
