@@ -1,21 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { User } from '../types';
-import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { CloseIcon, PlusIcon, CheckIcon, TrashIcon, BotIcon, MonitorIcon } from './Icons';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
-import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
-import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
 import { motion } from 'framer-motion';
+import { PlusIcon, CheckIcon } from './Icons';
 import {
   popoverVariants,
   popoverTransition,
   modalPopVariants,
   modalPopTransition,
 } from '../animations/transitions';
+import ProfilePreview from './ProfilePreview';
 import './UserProfileCard.css';
 
 interface UserProfileCardProps {
@@ -26,48 +22,29 @@ interface UserProfileCardProps {
     onUserClick?: (userId: string, event?: React.MouseEvent) => void;
 }
 
-const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
-    const [elapsed, setElapsed] = useState('');
-    useEffect(() => {
-        const update = () => {
-            const diff = Math.floor((Date.now() - startTime) / 1000);
-            const hours = Math.floor(diff / 3600);
-            const minutes = Math.floor((diff % 3600) / 60);
-            const seconds = diff % 60;
-            if (hours > 0) setElapsed(`${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} прошло`);
-            else setElapsed(`${minutes}:${seconds.toString().padStart(2, '0')} прошло`);
-        };
-        update();
-        const interval = setInterval(update, 1000);
-        return () => clearInterval(interval);
-    }, [startTime]);
-    return <div className="activity-time">{elapsed}</div>;
-};
-
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId, position, onUserClick }) => {
     const { socket } = useSocket();
-    const { user: currentUser, refreshUser } = useAuth();
+    const { user: currentUser } = useAuth();
     const { alert, confirm } = useDialog();
-    const [profileData, setProfileData] = useState<{
-        user: User;
-        mutualServers: Array<{ _id: string; name: string; icon: string }>;
-        mutualFriends: User[];
-        friendship?: { _id: string, status: string, requester: string, recipient: string } | null;
-    } | null>(null);
+    const [profileData, setProfileData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState<'info' | 'mutualFriends' | 'mutualServers'>('info');
     const [memberData, setMemberData] = useState<any>(null);
     const [server, setServer] = useState<any>(null);
-    const [showRoleSelector, setShowRoleSelector] = useState(false);
-    const [userServers, setUserServers] = useState<any[]>([]);
+    
+    // For handling popout to full modal transition
+    const [forceFull, setForceFull] = useState(false);
     const [showBotServerSelect, setShowBotServerSelect] = useState(false);
+    const [userServers, setUserServers] = useState<any[]>([]);
+
     const cardRef = useRef<HTMLDivElement>(null);
     const [adjustedPos, setAdjustedPos] = useState({ top: position?.y || 0, left: (position?.x || 0) + 20 });
     const [isVisible, setIsVisible] = useState(false);
 
+    const isPopout = position && !forceFull;
+
     useEffect(() => {
-        if (!position || !cardRef.current) return;
+        if (!isPopout || !cardRef.current) return;
 
         let isDisposed = false;
 
@@ -82,17 +59,13 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             let finalX = position.x + 20;
             let finalY = position.y;
 
-            // Horizontal flip logic
             if (finalX + rect.width > winW - 20) {
                 finalX = position.x - rect.width - 20;
             }
-
-            // Vertical flip logic
             if (finalY + rect.height > winH - 20) {
                 finalY = position.y - rect.height;
             }
 
-            // Safety boundaries (clamping)
             if (finalY + rect.height > winH - 10) finalY = winH - rect.height - 10;
             if (finalY < 10) finalY = 10;
             if (finalX < 10) finalX = 10;
@@ -102,10 +75,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             setIsVisible(true);
         };
 
-        // Initial attempt
         updatePosition();
-
-        // Sequence of checks as content renders
         const t1 = setTimeout(updatePosition, 30);
         const t2 = setTimeout(updatePosition, 100);
         const t3 = setTimeout(updatePosition, 300);
@@ -116,16 +86,13 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             clearTimeout(t2);
             clearTimeout(t3);
         };
-    }, [position, profileData, loading]);
-
-    const userPerms = (currentUser && server) ? computePermissions(currentUser._id, server) : 0n;
-    const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES);
+    }, [position, isPopout, profileData, loading]);
 
     useEffect(() => {
         if (socket && userId) {
             const handleUserUpdate = (updatedUser: any) => {
                 if (updatedUser._id === userId) {
-                    setProfileData(prev => prev ? { ...prev, user: { ...prev.user, ...updatedUser } } : prev);
+                    setProfileData((prev: any) => prev ? { ...prev, user: { ...prev.user, ...updatedUser } } : prev);
                 }
             };
             socket.on('user-updated', handleUserUpdate);
@@ -213,11 +180,11 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     };
 
     if (error) return (
-        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+        <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose}>
             <div
-                className={`user-profile-card error ${position ? 'popout' : ''}`}
+                className={`user-profile-card error ${isPopout ? 'popout' : ''}`}
                 onClick={e => e.stopPropagation()}
-                style={position ? {
+                style={isPopout ? {
                     position: 'absolute',
                     top: adjustedPos.top,
                     left: adjustedPos.left,
@@ -233,11 +200,11 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     );
 
     if (loading || !profileData) return (
-        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+        <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose}>
             <div
-                className={`user-profile-card loading-skeleton ${position ? 'popout' : ''}`}
+                className={`user-profile-card loading-skeleton ${isPopout ? 'popout' : ''}`}
                 onClick={e => e.stopPropagation()}
-                style={position ? {
+                style={isPopout ? {
                     position: 'absolute',
                     top: adjustedPos.top,
                     left: adjustedPos.left,
@@ -253,270 +220,98 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         </div>
     );
 
-    const handleToggleRole = async (roleId: string) => {
-        if (!serverId || !userId || !memberData) return;
-        const currentRoles = memberData.roles || [];
-        const isRemoving = currentRoles.includes(roleId);
-        const newRoles = isRemoving
-            ? currentRoles.filter((id: string) => id !== roleId)
-            : [...currentRoles, roleId];
-
-        try {
-            const res = await axios.put(`/api/servers/${serverId}/members/${userId}`, { roles: newRoles });
-            setMemberData({ ...memberData, roles: res.data.roles });
-        } catch (err) {
-            await alert('Не удалось обновить роли');
-        }
-    };
-
-    const { user, mutualServers, mutualFriends, friendship } = profileData;
+    const { user, mutualServers, mutualFriends, friendship, developments } = profileData;
     const isMe = currentUser?._id === userId;
-    const bannerColor = memberData?.bannerColor || user.bannerColor || '#5865f2';
+
+    let type: 'full' | 'compact' | 'server-full' | 'server-compact' = 'full';
+    if (isPopout) {
+        type = serverId ? 'server-compact' : 'compact';
+    } else {
+        type = serverId ? 'server-full' : 'full';
+    }
+
+    const actionButtons = !isMe ? (
+        <>
+            {user.isBot ? (
+                <div className="bot-action-wrapper">
+                    <button className="profile-action-btn primary" onClick={() => setShowBotServerSelect(!showBotServerSelect)}>
+                        <PlusIcon size={16} />
+                        <span>Добавить на сервер</span>
+                    </button>
+                    {showBotServerSelect && (
+                        <div className="bot-server-selector">
+                            {userServers.map(s => (
+                                <div key={s._id} className="bot-server-item" onClick={() => handleAddBotToServer(s._id)}>
+                                    {s.name}
+                                </div>
+                            ))}
+                            {userServers.length === 0 && <div className="no-servers">Нет серверов для приглашения</div>}
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <>
+                    {!friendship && (
+                        <button className="profile-action-btn primary" onClick={handleAddFriend}>
+                            <PlusIcon size={16} />
+                            <span>В друзья</span>
+                        </button>
+                    )}
+                    {friendship?.status === 'pending' && friendship.recipient === currentUser?._id && (
+                        <button className="profile-action-btn success" onClick={() => handleAcceptFriend(friendship._id)}>
+                            <CheckIcon size={16} />
+                            <span>Принять</span>
+                        </button>
+                    )}
+                    {friendship?.status === 'pending' && friendship.requester === currentUser?._id && (
+                        <button className="profile-action-btn secondary disabled">
+                            <span>Ожидание</span>
+                        </button>
+                    )}
+                    {friendship?.status === 'accepted' && (
+                        <button className="profile-action-btn friends-status" onClick={() => handleRemoveFriend(friendship._id)}>
+                            <CheckIcon size={16} />
+                            <span className="btn-text-content">Друзья</span>
+                        </button>
+                    )}
+                </>
+            )}
+        </>
+    ) : null;
 
     return (
-        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+        <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose} style={{ zIndex: 4000 }}>
             <motion.div
-                className={`user-profile-card ${position ? 'popout' : ''}`}
                 onClick={e => e.stopPropagation()}
-                style={position ? {
+                style={isPopout ? {
                     position: 'absolute',
                     top: adjustedPos.top,
                     left: adjustedPos.left,
                     visibility: isVisible ? 'visible' : 'hidden',
-                    transformOrigin: `${Math.max(0, position.x - adjustedPos.left)}px ${Math.max(0, position.y - adjustedPos.top)}px`,
-                } : undefined}
+                    transformOrigin: position ? `${Math.max(0, position.x - adjustedPos.left)}px ${Math.max(0, position.y - adjustedPos.top)}px` : 'center',
+                } : { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}
                 ref={cardRef}
-                variants={position ? popoverVariants : modalPopVariants}
+                variants={isPopout ? popoverVariants : modalPopVariants}
                 initial="initial"
-                animate={position ? (isVisible ? 'animate' : 'initial') : 'animate'}
-                transition={position ? popoverTransition : modalPopTransition}
+                animate={isPopout ? (isVisible ? 'animate' : 'initial') : 'animate'}
+                transition={isPopout ? popoverTransition : modalPopTransition}
             >
-                <div className="profile-banner" style={{ backgroundColor: bannerColor, backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none', backgroundSize: 'cover' }}>
-                    <button className="profile-close-button" onClick={onClose}><CloseIcon /></button>
-                </div>
-
-                <div className="profile-header">
-                    <div className="profile-avatar-container">
-                        <UserAvatar
-                            user={user}
-                            size={80}
-                            className={`profile-avatar ${user.status}`}
-                            animate={true}
-                        />
-                        <div className={`profile-status-indicator ${user.status}`}></div>
-                    </div>
-
-                    {!isMe && (
-                        <div className="profile-actions-header">
-                            {user.isBot ? (
-                                <div className="bot-action-wrapper">
-                                    <button className="profile-action-btn primary" onClick={() => setShowBotServerSelect(!showBotServerSelect)}>
-                                        <PlusIcon size={16} />
-                                        <span>Добавить на сервер</span>
-                                    </button>
-                                    {showBotServerSelect && (
-                                        <div className="bot-server-selector">
-                                            {userServers.map(s => (
-                                                <div key={s._id} className="bot-server-item" onClick={() => handleAddBotToServer(s._id)}>
-                                                    {s.name}
-                                                </div>
-                                            ))}
-                                            {userServers.length === 0 && <div className="no-servers">Нет серверов для приглашения</div>}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <>
-                                    {!friendship && (
-                                        <button className="profile-action-btn primary" onClick={handleAddFriend}>
-                                            <PlusIcon size={16} />
-                                            <span>Добавить в друзья</span>
-                                        </button>
-                                    )}
-                                    {friendship?.status === 'pending' && friendship.recipient === currentUser?._id && (
-                                        <button className="profile-action-btn success" onClick={() => handleAcceptFriend(friendship._id)}>
-                                            <CheckIcon size={16} />
-                                            <span>Принять запрос</span>
-                                        </button>
-                                    )}
-                                    {friendship?.status === 'pending' && friendship.requester === currentUser?._id && (
-                                        <button className="profile-action-btn secondary disabled">
-                                            <span>Ожидание ответа</span>
-                                        </button>
-                                    )}
-                                    {friendship?.status === 'accepted' && (
-                                        <button className="profile-action-btn friends-status" onClick={() => handleRemoveFriend(friendship._id)}>
-                                            <CheckIcon size={16} />
-                                            <span className="btn-text-content">Друзья</span>
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <div className="profile-body">
-                    <div className="profile-names">
-                        <div className="profile-names-top">
-                            {memberData?.nickname ? (
-                                <>
-                                    <span className="profile-nickname">{memberData.nickname}</span>
-                                    {user.isBot && <span className="bot-badge-mini">BOT</span>}
-                                    <UserBadges badges={user.badges} size={18} className="profile-badges" />
-                                </>
-                            ) : (
-                                <>
-                                    <span className="profile-username">{user.username}</span>
-                                    {user.isBot && <span className="bot-badge-mini">BOT</span>}
-                                    <UserBadges badges={user.badges} size={18} className="profile-badges" />
-                                </>
-                            )}
-                        </div>
-                        {memberData?.nickname && <span className="profile-username sub">{user.username}</span>}
-                    </div>
-
-
-                    {user.activity && (
-                        <div className="profile-activity-section">
-                            <h4 className="section-title">ЗАНИМАЕТСЯ:</h4>
-                            <div className="activity-content">
-                                {user.activity.assets?.largeImage && (
-                                    <div className="activity-image-wrapper">
-                                        <img src={getFullUrl(user.activity.assets.largeImage)!} alt="" className="activity-large-image" />
-                                    </div>
-                                )}
-                                <div className="activity-details">
-                                    <div className="activity-name">{user.activity.name}</div>
-                                    <div className="activity-state">Играет в {user.activity.name}</div>
-                                    {user.activity.timestamps?.start && <ActivityTimer startTime={user.activity.timestamps.start} />}
-                                    
-                                    {user.activity.miniAppData && (
-                                        <button 
-                                            className="profile-action-btn secondary small" 
-                                            style={{ marginTop: '10px', height: '32px', width: 'auto', padding: '0 12px' }}
-                                            onClick={() => {
-                                                window.dispatchEvent(new CustomEvent('open-mini-app', { 
-                                                    detail: { app: user.activity?.miniAppData } 
-                                                }));
-                                                onClose();
-                                            }}
-                                        >
-                                            <MonitorIcon size={14} />
-                                            <span>Запустить мини-приложение</span>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="profile-divider"></div>
-
-                    <div className="profile-tabs">
-                        <button className={activeTab === 'info' ? 'active' : ''} onClick={() => setActiveTab('info')}>Информация</button>
-                        <button className={activeTab === 'mutualFriends' ? 'active' : ''} onClick={() => setActiveTab('mutualFriends')}>Общие друзья ({mutualFriends.length})</button>
-                        <button className={activeTab === 'mutualServers' ? 'active' : ''} onClick={() => setActiveTab('mutualServers')}>Общие серверы ({mutualServers.length})</button>
-                    </div>
-
-                    <div className="profile-tab-content">
-                        {activeTab === 'info' && (
-                            <div className="info-tab">
-                                <section><h4>О СЕБЕ</h4><p className="bio-text">{memberData?.bio || user.bio || 'Пользователь ничего не рассказал о себе.'}</p></section>
-
-                                {user.primaryServer && typeof user.primaryServer === 'object' && (
-                                    <section>
-                                        <h4>ОСНОВНОЙ СЕРВЕР</h4>
-                                        <div 
-                                            className="mutual-item" 
-                                            style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', padding: '8px' }}
-                                            onClick={() => {
-                                                window.dispatchEvent(new CustomEvent('join-server-by-id', { 
-                                                    detail: { serverId: user.primaryServer._id } 
-                                                }));
-                                                onClose();
-                                            }}
-                                        >
-                                            <div className="mutual-avatar server">
-                                                {user.primaryServer.icon ? <img src={getAvatarUrl(user.primaryServer.icon)!} alt="" /> : <span>{user.primaryServer.name.charAt(0).toUpperCase()}</span>}
-                                            </div>
-                                            <span>{user.primaryServer.name}</span>
-                                        </div>
-                                    </section>
-                                )}
-
-                                {serverId && server && (
-                                    <section>
-                                        <div className="roles-list-header">
-                                            <h4>РОЛИ</h4>
-                                            {canManageRoles && (
-                                                <button className="add-role-btn" onClick={() => setShowRoleSelector(!showRoleSelector)}>
-                                                    <PlusIcon size={14} />
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="roles-list">
-                                            {(memberData?.roles || []).length > 0 ? (
-                                                memberData.roles.map((rid: string) => {
-                                                    const role = server.roles.find((r: any) => r._id === rid);
-                                                    if (!role) return null;
-                                                    return (
-                                                        <div key={rid} className="role-chip" style={{ borderColor: role.color + '44' }}>
-                                                            <div className="role-dot" style={{ backgroundColor: role.color }} />
-                                                            <span style={{ color: role.color || '#fff' }}>{role.name}</span>
-                                                            {canManageRoles && (
-                                                                <div className="role-remove-icon" onClick={() => handleToggleRole(rid)}>×</div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })
-                                            ) : (
-                                                <span className="no-roles">Нет ролей</span>
-                                            )}
-
-                                            {showRoleSelector && (
-                                                <div className="role-selector-dropdown">
-                                                    {server.roles.filter((r: any) => r.name !== '@everyone' && !memberData.roles?.includes(r._id)).map((role: any) => (
-                                                        <div key={role._id} className="role-select-item-mini" onClick={() => { handleToggleRole(role._id); setShowRoleSelector(false); }}>
-                                                            <div className="role-dot" style={{ backgroundColor: role.color }} />
-                                                            {role.name}
-                                                        </div>
-                                                    ))}
-                                                    {server.roles.filter((r: any) => r.name !== '@everyone' && !memberData.roles?.includes(r._id)).length === 0 && (
-                                                        <div className="no-roles-av">Нет доступных ролей</div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </section>
-                                )}
-
-                                <section><h4>ДАТА РЕГИСТРАЦИИ</h4><p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p></section>
-                            </div>
-                        )}
-                        {activeTab === 'mutualFriends' && (
-                            <div className="mutual-list">
-                                {mutualFriends.length > 0 ? mutualFriends.map(friend => (
-                                    <div key={friend._id} className="mutual-item" onClick={(e) => onUserClick?.(friend._id, e)} style={{ cursor: 'pointer' }}>
-                                        <UserAvatar user={friend} size={32} className="mutual-avatar" />
-                                        <span>{friend.username}</span>
-                                        <UserBadges badges={friend.badges} size={14} />
-                                    </div>
-                                )) : <div className="empty-mutual">Нет общих друзей.</div>}
-                            </div>
-                        )}
-                        {activeTab === 'mutualServers' && (
-                            <div className="mutual-list">
-                                {mutualServers.length > 0 ? mutualServers.map(server => (
-                                    <div key={server._id} className="mutual-item">
-                                        <div className="mutual-avatar server">{server.icon ? <img src={getAvatarUrl(server.icon)!} alt="" /> : <span>{server.name.charAt(0).toUpperCase()}</span>}</div>
-                                        <span>{server.name}</span>
-                                    </div>
-                                )) : <div className="empty-mutual">Нет общих серверов.</div>}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <ProfilePreview
+                    user={user}
+                    memberData={memberData}
+                    server={server}
+                    type={type}
+                    onClose={onClose}
+                    onAvatarClick={() => {
+                        if (isPopout) {
+                            setForceFull(true);
+                        }
+                    }}
+                    mutualFriends={mutualFriends}
+                    mutualServers={mutualServers}
+                    developments={developments}
+                    actionButtons={actionButtons}
+                />
             </motion.div>
         </div>
     );
