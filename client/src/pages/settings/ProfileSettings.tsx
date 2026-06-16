@@ -132,11 +132,14 @@ const ProfileSettings: React.FC = () => {
     };
 
     const userServers = (user?.servers || []) as any[];
-    const serverOptions = userServers.map(s => ({
-        id: typeof s === 'string' ? s : s._id,
-        name: typeof s === 'string' ? s : s.name,
-        icon: typeof s === 'string' ? undefined : s.icon
-    }));
+    const serverOptions = [
+        { id: '', name: 'Не выбран' },
+        ...userServers.map(s => ({
+            id: typeof s === 'string' ? s : s._id,
+            name: typeof s === 'string' ? s : s.name,
+            icon: typeof s === 'string' ? undefined : s.icon
+        }))
+    ];
 
     const statusOptions = [
         { value: 'online', label: 'В сети', color: '#23a559', icon: <div className="status-dot status-online" style={{margin:0}} /> },
