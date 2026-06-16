@@ -1,138 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppearance, AppIconType, ThemeObject, CustomColors } from '../../contexts/AppearanceContext';
 import { ChoiceGroup, GridPicker, RangeSlider, SettingsToggle } from './SettingsUI';
 import { getIconBrand } from '../../utils/branding';
 import { PlusIcon, TrashIcon, CheckIcon, GlobeIcon, LockIcon, BellIcon, PinIcon, UsersIcon, SmileIcon } from '../../components/Icons';
-
-const LargeInterfacePreview: React.FC<{ settings: any }> = ({ settings }) => {
-    const isAmoled = settings.theme === 'amoled';
-    const glassStyle = {
-        background: isAmoled ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.04)',
-        borderColor: isAmoled ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.08)',
-        backdropFilter: 'blur(16px)'
-    };
-
-    return (
-        <div className="appearance-preview-container">
-            <div className="preview-label">Предпросмотр интерфейса</div>
-            <div className="large-interface-preview liquid-glass-preview" style={{ 
-                '--primary-neon': settings.customColors.primary,
-                '--secondary-neon': settings.customColors.secondary,
-                '--accent-pink': settings.customColors.accent,
-                background: isAmoled ? '#000' : '#0a0a0f',
-            } as any}>
-                {settings.customBackground && (
-                    <div className="preview-full-bg" style={{ 
-                        backgroundImage: `url(${settings.customBackground})`,
-                        opacity: 1 - (settings.backgroundDim / 100),
-                        filter: `blur(${settings.backgroundBlur}px)`
-                    }} />
-                )}
-                
-                <div className="preview-layout-grid">
-                    {/* 1. Servers Sidebar */}
-                    <div className="preview-sidebar-servers" style={{...glassStyle, backdropFilter: 'blur(12px)'}}>
-                        <div className="preview-server-item active" style={{background: 'var(--primary-neon)'}} />
-                        <div className="preview-sidebar-sep" />
-                        <div className="preview-server-item" />
-                        <div className="preview-server-item" />
-                        <div className="preview-server-item plus-item">
-                            <PlusIcon size={12} />
-                        </div>
-                    </div>
-
-                    {/* 2. Channels Sidebar */}
-                    <div className="preview-sidebar-channels" style={glassStyle}>
-                        <div className="preview-guild-name-box" />
-                        <div className="preview-scroll-area">
-                            <div className="preview-cat-label" />
-                            <div className="preview-chan-row active">
-                                <div className="preview-chan-icon" />
-                                <div className="preview-chan-line" />
-                            </div>
-                            <div className="preview-chan-row">
-                                <div className="preview-chan-icon" />
-                                <div className="preview-chan-line" />
-                            </div>
-                            <div className="preview-cat-label" />
-                            <div className="preview-chan-row">
-                                <div className="preview-chan-icon" />
-                                <div className="preview-chan-line" />
-                            </div>
-                        </div>
-                        <div className="preview-user-panel" style={{...glassStyle, border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)'}}>
-                            <div className="preview-user-avatar" />
-                            <div className="preview-user-info-lines">
-                                <div className="preview-user-name" />
-                                <div className="preview-user-status" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 3. Main Chat View */}
-                    <div className="preview-chat-main">
-                        <div className="preview-chat-topbar" style={{...glassStyle, backdropFilter: 'blur(10px)'}}>
-                            <div className="preview-topbar-title">
-                                <div className="preview-hash" />
-                                <div className="preview-title-text" />
-                            </div>
-                            <div className="preview-topbar-actions">
-                                <div className="preview-act-icon" />
-                                <div className="preview-act-icon" />
-                                <div className="preview-act-icon" />
-                            </div>
-                        </div>
-                        <div className="preview-messages-list">
-                            <div className="preview-msg-item">
-                                <div className="preview-msg-avatar" style={{background: 'var(--primary-neon)'}} />
-                                <div className="preview-msg-content">
-                                    <div className="preview-msg-author" style={{color: 'var(--primary-neon)'}} />
-                                    <div className="preview-msg-text" />
-                                    <div className="preview-msg-text short" />
-                                </div>
-                            </div>
-                            <div className="preview-msg-item">
-                                <div className="preview-msg-avatar" style={{background: 'var(--secondary-neon)'}} />
-                                <div className="preview-msg-content">
-                                    <div className="preview-msg-author" style={{color: 'var(--secondary-neon)'}} />
-                                    <div className="preview-msg-text" />
-                                </div>
-                            </div>
-                            <div className="preview-msg-item system">
-                                <div className="preview-system-line" />
-                            </div>
-                        </div>
-                        <div className="preview-chat-input-area">
-                            <div className="preview-chat-input" style={glassStyle}>
-                                <div className="preview-input-plus" />
-                                <div className="preview-input-placeholder" />
-                                <div className="preview-input-icons" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 4. Members Sidebar */}
-                    <div className="preview-sidebar-members" style={glassStyle}>
-                        <div className="preview-member-cat" />
-                        <div className="preview-member-row">
-                            <div className="preview-mem-avatar" style={{background: 'var(--primary-neon)'}} />
-                            <div className="preview-mem-name" />
-                        </div>
-                        <div className="preview-member-row">
-                            <div className="preview-mem-avatar" style={{background: 'var(--secondary-neon)'}} />
-                            <div className="preview-mem-name" />
-                        </div>
-                        <div className="preview-member-cat" />
-                        <div className="preview-member-row">
-                            <div className="preview-mem-avatar" />
-                            <div className="preview-mem-name" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
+import InterfacePreview from '../../components/InterfacePreview';
 
 const ThemePreviewCard: React.FC<{ 
     theme: any, 
@@ -162,9 +33,6 @@ const ThemePreviewCard: React.FC<{
                     <div className="palette-color" style={{ background: primary }} />
                     <div className="palette-color" style={{ background: secondary }} />
                     <div className="palette-color" style={{ background: accent }} />
-                </div>
-                <div className="theme-foundation-badge">
-                    {theme.theme === 'amoled' ? 'AMOLED' : 'Dark'}
                 </div>
                 {isActive && <div className="mini-active-badge"><CheckIcon size={12} /></div>}
             </div>
@@ -243,12 +111,16 @@ const AppearanceSettings: React.FC = () => {
         isPublic: true
     };
 
+    const schemaOptions = [
+        { value: 'dark', label: 'Тёмная' },
+        { value: 'amoled', label: 'AMOLED' }
+    ];
+
+    // Scaling for preview
+    const previewScale = 420 / 1280;
+
     return (
         <div className="settings-content-inner with-preview">
-            <div className="settings-preview-column">
-                <LargeInterfacePreview settings={appearance} />
-            </div>
-
             <div className="settings-main-column">
                 <h2 className="settings-page-title">Внешний вид</h2>
                 
@@ -289,8 +161,25 @@ const AppearanceSettings: React.FC = () => {
                     </div>
                 </div>
 
+                {/* COLORS (Combined Schema and Tints) */}
                 <div className="settings-card colors-combined-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>ЦВЕТА</h3>
+                    
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <h3>Схема</h3>
+                            <p>Выберите базовый режим оформления интерфейса.</p>
+                        </div>
+                        <ChoiceGroup 
+                            options={schemaOptions}
+                            value={theme}
+                            onChange={(val) => setTheme(val as any)}
+                        />
+                    </div>
+
+                    <div className="settings-sidebar-divider" style={{margin: '20px 0'}} />
+
+                    <h3 className="settings-section-title" style={{marginTop: 0}}>Оттенки</h3>
                     <p className="settings-description">Настройте основные и акцентные неоновые оттенки.</p>
                     <div className="color-inputs-grid">
                         <div className="color-input-item">
@@ -348,6 +237,15 @@ const AppearanceSettings: React.FC = () => {
                 </div>
             </div>
 
+            <div className="settings-preview-column interface-preview-col">
+                <div className="appearance-preview-sticky">
+                    <div className="preview-label">Предпросмотр интерфейса</div>
+                    <div className="interface-preview-scaling-container">
+                        <InterfacePreview settings={appearance} scale={previewScale} />
+                    </div>
+                </div>
+            </div>
+
             {showSaveModal && (
                 <div className="settings-modal-overlay">
                     <div className="settings-modal-glass">
@@ -375,7 +273,5 @@ const AppearanceSettings: React.FC = () => {
         </div>
     );
 };
-
-
 
 export default AppearanceSettings;
