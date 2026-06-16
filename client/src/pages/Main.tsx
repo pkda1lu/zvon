@@ -84,6 +84,7 @@ const Main: React.FC = () => {
   const [showServerProfile, setShowServerProfile] = useState(false);
   const [serverProfilePosition, setServerProfilePosition] = useState<{ x: number, y: number } | null>(null);
   const [showUserServerProfile, setShowUserServerProfile] = useState(false);
+  const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('profile');

@@ -166,6 +166,7 @@ const AppBackground: React.FC = () => {
 
 import { ChatSettingsProvider } from './contexts/ChatSettingsContext';
 import { WindowSettingsProvider } from './contexts/WindowSettingsContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { DialogProvider } from './contexts/DialogContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { pagePushVariants, iosSpring } from './animations/transitions';
@@ -227,9 +228,10 @@ function App() {
             <AuthProvider>
               <AppearanceProvider>
                 <MotionPreferences>
-                  <ChatSettingsProvider>
-                    <WindowSettingsProvider>
-                      <NotificationProvider>
+                  <LanguageProvider>
+                    <ChatSettingsProvider>
+                      <WindowSettingsProvider>
+                        <NotificationProvider>
                         <div className="App" style={{ position: 'relative' }}>
                           <AppBackground />
                           <TitleBar />
@@ -242,6 +244,7 @@ function App() {
                       </NotificationProvider>
                     </WindowSettingsProvider>
                   </ChatSettingsProvider>
+                </LanguageProvider>
                 </MotionPreferences>
               </AppearanceProvider>
             </AuthProvider>

@@ -247,14 +247,30 @@ router.put('/settings', auth, async (req, res) => {
     const { settings } = req.body;
     if (!settings) return res.status(400).json({ message: 'Settings required' });
     
-    req.user.settings = {
-      ...req.user.settings,
-      ...settings
-    };
+    // Simple deep merge for known interface settings
+    if (settings.appearance) {
+      req.user.settings.appearance = { ...req.user.settings.appearance, ...settings.appearance };
+    }
+    if (settings.chat) {
+      req.user.settings.chat = { ...req.user.settings.chat, ...settings.chat };
+    }
+    if (settings.language) {
+      req.user.settings.language = { ...req.user.settings.language, ...settings.language };
+    }
+
+    // Handle other settings (privacy etc.)
+    const otherKeys = ['showActivityStatus', 'activityVisibility', 'hiddenActivities', 'whoCanDM', 'whoCanFindInSearch', 'whoCanSeeFullProfile'];
+    otherKeys.forEach(key => {
+      if (settings[key] !== undefined) req.user.settings[key] = settings[key];
+    });
     
+    req.user.markModified('settings');
     await req.user.save();
     res.json({ settings: req.user.settings });
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) { 
+    console.error('Settings update error:', error);
+    res.status(500).json({ message: 'Server error' }); 
+  }
 });
 
 router.delete('/me', auth, async (req, res) => {

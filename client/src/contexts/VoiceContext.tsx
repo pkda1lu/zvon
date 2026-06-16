@@ -77,6 +77,12 @@ interface VoiceContextType {
     setInputSensitivity: (val: number) => void;
     isAutomaticSensitivity: boolean;
     setIsAutomaticSensitivity: (val: boolean) => void;
+    echoCancellation: boolean;
+    setEchoCancellation: (val: boolean) => void;
+    autoGainControl: boolean;
+    setAutoGainControl: (val: boolean) => void;
+    attenuation: number;
+    setAttenuation: (val: number) => void;
     startTestStream: () => Promise<void>;
     stopTestStream: () => void;
     ping: number;
@@ -333,6 +339,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
     const [inputSensitivity, setInputSensitivity] = useState(() => Number(localStorage.getItem('inputSensitivity')) || -50);
     const [isAutomaticSensitivity, setIsAutomaticSensitivity] = useState(() => localStorage.getItem('isAutomaticSensitivity') !== 'false');
+    const [echoCancellation, setEchoCancellation] = useState(() => localStorage.getItem('echoCancellation') !== 'false');
+    const [autoGainControl, setAutoGainControl] = useState(() => localStorage.getItem('autoGainControl') !== 'false');
+    const [attenuation, setAttenuation] = useState(() => Number(localStorage.getItem('attenuation')) || 0);
     const [ping, setPing] = useState(0);
     const [connectionQuality, setConnectionQuality] = useState(ConnectionQuality.Unknown);
     const [roomConnectionState, setRoomConnectionState] = useState(ConnectionState.Disconnected);
@@ -349,7 +358,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('outputVolume', String(outputVolume));
         localStorage.setItem('inputSensitivity', String(inputSensitivity));
         localStorage.setItem('isAutomaticSensitivity', String(isAutomaticSensitivity));
-    }, [selectedInputDeviceId, selectedOutputDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity]);
+        localStorage.setItem('echoCancellation', String(echoCancellation));
+        localStorage.setItem('autoGainControl', String(autoGainControl));
+        localStorage.setItem('attenuation', String(attenuation));
+    }, [selectedInputDeviceId, selectedOutputDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity, echoCancellation, autoGainControl, attenuation]);
 
     const getAudioContext = useCallback(() => {
         if (!audioContextRef.current) {
@@ -476,7 +488,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         refreshDevices, isScreenSharing, screenStream, startScreenShare: async () => {}, stopScreenShare: () => {},
         remoteScreenStreams, isVideoOn, toggleVideo: async () => {}, localCameraStream, screenVolumes: new Map(), setScreenVolume: () => {},
         watchedScreenIds: new Set<string>(), setWatchingScreen: () => {}, inputSensitivity, setInputSensitivity,
-        isAutomaticSensitivity, setIsAutomaticSensitivity, startTestStream, stopTestStream,
+        isAutomaticSensitivity, setIsAutomaticSensitivity, 
+        echoCancellation, setEchoCancellation,
+        autoGainControl, setAutoGainControl,
+        attenuation, setAttenuation,
+        startTestStream, stopTestStream,
         ping, connectionQuality, roomConnectionState, isOverlayEnabled: false, toggleOverlay: () => {},
         overlayPosition: 'top-left', setOverlayPosition: () => {}, overlayOpacity: 1, setOverlayOpacity: () => {},
         overlaySize: 1, setOverlaySize: () => {}, publishExternalAudioTrack: async () => null,
@@ -489,6 +505,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         inputDevices, outputDevices, videoDevices, selectedInputDeviceId, selectedOutputDeviceId,
         selectedVideoDeviceId, inputVolume, outputVolume, isScreenSharing, screenStream,
         remoteScreenStreams, isVideoOn, localCameraStream, inputSensitivity, isAutomaticSensitivity,
+        echoCancellation, autoGainControl, attenuation,
         ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel
     ]);
 

@@ -64,7 +64,9 @@ export const CustomSelect: React.FC<{
                         </>
                     ) : <span style={{ color: 'var(--text-faint)' }}>{placeholder}</span>}
                 </div>
-                <ChevronDownIcon size={16} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                <div style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                    <ChevronDownIcon size={16} />
+                </div>
             </div>
             {isOpen && (
                 <div className="custom-select-dropdown">
@@ -130,4 +132,29 @@ export const SettingsToggle: React.FC<{
         <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
         <span className="toggle-slider" />
     </label>
+);
+
+/**
+ * RangeSlider: Stylized slider for numeric values.
+ */
+export const RangeSlider: React.FC<{
+    value: number;
+    min: number;
+    max: number;
+    step?: number;
+    onChange: (val: number) => void;
+    unit?: string;
+}> = ({ value, min, max, step = 1, onChange, unit = '' }) => (
+    <div className="settings-slider-container">
+        <input 
+            type="range" 
+            className="settings-range-input"
+            min={min} 
+            max={max} 
+            step={step} 
+            value={value} 
+            onChange={(e) => onChange(parseFloat(e.target.value))} 
+        />
+        <span className="settings-slider-value">{value}{unit}</span>
+    </div>
 );

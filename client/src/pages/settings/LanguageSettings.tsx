@@ -1,16 +1,12 @@
 import React from 'react';
-import { useWindowSettings } from '../../contexts/WindowSettingsContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { ChoiceGroup } from './SettingsUI';
 
 const LanguageSettings: React.FC = () => {
-    // Note: Assuming there's a context for language, if not we use window settings or simulate
-    const { timeFormat, setTimeFormat } = useWindowSettings();
-    const [lang, setLang] = React.useState('ru');
+    const { language, setLanguage, timeFormat, setTimeFormat } = useLanguage();
 
     const langOptions = [
-        { value: 'ru', label: 'Русский' },
-        { value: 'en', label: 'English' },
-        { value: 'ua', label: 'Українська' }
+        { value: 'ru', label: 'Русский' }
     ];
 
     const timeOptions = [
@@ -24,15 +20,17 @@ const LanguageSettings: React.FC = () => {
             
             <div className="settings-card">
                 <h3 className="settings-section-title" style={{marginTop: 0}}>Язык интерфейса</h3>
+                <p className="settings-description">Выберите язык, на котором будет отображаться интерфейс ZVON.</p>
                 <ChoiceGroup 
                     options={langOptions}
-                    value={lang}
-                    onChange={setLang}
+                    value={language}
+                    onChange={(val) => setLanguage(val as any)}
                 />
             </div>
 
             <div className="settings-card">
                 <h3 className="settings-section-title" style={{marginTop: 0}}>Формат времени</h3>
+                <p className="settings-description">Настройте отображение времени в чатах и профилях.</p>
                 <ChoiceGroup 
                     options={timeOptions}
                     value={timeFormat}

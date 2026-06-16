@@ -288,7 +288,14 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
                 {user && selectedServerId && (
                     <ProfilePreview 
                         user={user} 
-                        memberData={{ nickname, bio, avatar, banner, bannerColor, roles: currentMember?.roles }} 
+                        memberData={{ 
+                            nickname: nickname || undefined, 
+                            bio: bio || undefined, 
+                            avatar: avatar || undefined, 
+                            banner: banner || undefined, 
+                            bannerColor: bannerColor || undefined, 
+                            roles: currentMember?.roles 
+                        }} 
                         server={selectedServer}
                         type="server-compact" 
                     />
