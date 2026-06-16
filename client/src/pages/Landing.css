@@ -799,7 +799,9 @@ footer {
 .landing-bg-3d canvas { display: block; width: 100% !important; height: 100% !important; }
 /* лёгкая виньетка для читаемости текста поверх планеты */
 .landing-bg-veil { position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background: radial-gradient(120% 90% at 50% 30%, rgba(5,5,12,0) 40%, rgba(5,5,12,.55) 100%); }
+    background:
+        radial-gradient(90% 70% at 50% 44%, rgba(5,5,12,0) 28%, rgba(5,5,12,.22) 68%, rgba(5,5,12,.72) 100%),
+        linear-gradient(180deg, rgba(5,5,12,.18) 0%, rgba(5,5,12,0) 34%, rgba(5,5,12,.18) 70%, rgba(5,5,12,.58) 100%); }
 
 .landing-cine .landing-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 30; }
 

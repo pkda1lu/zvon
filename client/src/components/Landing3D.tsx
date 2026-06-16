@@ -50,11 +50,11 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             scene.add(planet);
 
             // Свет: мягкая заливка + «солнце» сбоку для объёмной терминаторной тени.
-            scene.add(new THREE.AmbientLight(0x3a4f6b, 1.4));
+            scene.add(new THREE.AmbientLight(0x33465f, 1.25));
             const sun = new THREE.DirectionalLight(0xfff4e6, 3.2);
             sun.position.set(5, 2, 4);
             scene.add(sun);
-            const rim = new THREE.PointLight(0x3a86ff, 1.7, 60);
+            const rim = new THREE.PointLight(0x5aa7ff, 0.85, 60);
             rim.position.set(-6, -1, 2);
             scene.add(rim);
 
@@ -72,6 +72,12 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             dayMap.colorSpace = THREE.SRGBColorSpace;
             const normalMap = load('earth_normal.jpg');
             const specMap = load('earth_specular.jpg');
+            const moonMap = load('moon_2k.jpg');
+            moonMap.colorSpace = THREE.SRGBColorSpace;
+            const sunMap = load('sun_2k.jpg');
+            sunMap.colorSpace = THREE.SRGBColorSpace;
+            const satelliteMap = load('satellite_goesr.png');
+            satelliteMap.colorSpace = THREE.SRGBColorSpace;
             const earthMat = new THREE.MeshStandardMaterial({
                 map: dayMap,
                 normalMap,
@@ -109,7 +115,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
 
             // ===== Атмосферное свечение (Fresnel-halo) =====
             const atmoMat = new THREE.ShaderMaterial({
-                uniforms: { glowColor: { value: new THREE.Color(0x3a86ff) } },
+                uniforms: { glowColor: { value: new THREE.Color(0x4f9cff) } },
                 vertexShader: `
                     varying vec3 vNormal;
                     void main() {
@@ -121,8 +127,8 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                     uniform vec3 glowColor;
                     varying vec3 vNormal;
                     void main() {
-                        float intensity = pow(0.72 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 4.0);
-                        gl_FragColor = vec4(glowColor, 1.0) * intensity;
+                        float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 5.0);
+                        gl_FragColor = vec4(glowColor, 1.0) * intensity * 0.42;
                     }
                 `,
                 side: THREE.BackSide,
@@ -130,8 +136,84 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 transparent: true,
                 depthWrite: false,
             });
-            const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(R * 1.22, 64, 64), atmoMat);
+            const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(R * 1.13, 64, 64), atmoMat);
             planet.add(atmosphere);
+
+            // ===== Далёкое Солнце =====
+            const coronaTexture = (() => {
+                const S = 512;
+                const cv = document.createElement('canvas');
+                cv.width = cv.height = S;
+                const ctx = cv.getContext('2d')!;
+                const g = ctx.createRadialGradient(S / 2, S / 2, S * 0.12, S / 2, S / 2, S / 2);
+                g.addColorStop(0, 'rgba(255,245,190,0.95)');
+                g.addColorStop(0.2, 'rgba(255,176,64,0.55)');
+                g.addColorStop(0.46, 'rgba(255,92,22,0.18)');
+                g.addColorStop(1, 'rgba(255,92,22,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, S, S);
+                const tex = new THREE.CanvasTexture(cv);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                return tex;
+            })();
+
+            const sunGroup = new THREE.Group();
+            sunGroup.position.set(-5.7, 3.2, -8.5);
+            scene.add(sunGroup);
+
+            const sunSurface = new THREE.Mesh(
+                new THREE.SphereGeometry(0.78, 64, 64),
+                new THREE.MeshBasicMaterial({
+                    map: sunMap,
+                    color: 0xfff0c0,
+                    toneMapped: false,
+                })
+            );
+            sunGroup.add(sunSurface);
+
+            const sunCorona = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: coronaTexture,
+                color: 0xffb25a,
+                transparent: true,
+                opacity: 0.58,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            }));
+            sunCorona.scale.set(4.8, 4.8, 1);
+            sunGroup.add(sunCorona);
+
+            const sunCoreGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: coronaTexture,
+                color: 0xfff1a8,
+                transparent: true,
+                opacity: 0.35,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            }));
+            sunCoreGlow.scale.set(2.1, 2.1, 1);
+            sunGroup.add(sunCoreGlow);
+
+            const sunLight = new THREE.PointLight(0xffc875, 2.0, 80);
+            sunLight.position.copy(sunGroup.position);
+            scene.add(sunLight);
+
+            // ===== Луна на орбите вокруг Земли =====
+            const moonOrbit = new THREE.Group();
+            moonOrbit.rotation.set(0.35, 0.08, -0.22);
+            planet.add(moonOrbit);
+
+            const moon = new THREE.Mesh(
+                new THREE.SphereGeometry(R * 0.24, 48, 48),
+                new THREE.MeshStandardMaterial({
+                    map: moonMap,
+                    bumpMap: moonMap,
+                    bumpScale: 0.025,
+                    roughness: 0.95,
+                    metalness: 0,
+                })
+            );
+            moon.position.set(R + 2.85, 0.28, 0.4);
+            moonOrbit.add(moon);
 
             // ===== Звёзды =====
             // Спрайт-звезда: мягкое радиальное свечение на canvas.
@@ -187,106 +269,48 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             }));
             scene.add(stars);
 
-            // ===== Спутники на орбитах =====
-            // Текстура солнечной панели: тёмно-синее поле с сеткой ячеек.
-            const panelTexture = (() => {
-                const cw = 128, ch = 64;
-                const cv = document.createElement('canvas');
-                cv.width = cw; cv.height = ch;
-                const ctx = cv.getContext('2d')!;
-                ctx.fillStyle = '#0b1f4d';
-                ctx.fillRect(0, 0, cw, ch);
-                ctx.strokeStyle = 'rgba(90,150,255,0.55)';
-                ctx.lineWidth = 1;
-                for (let x = 0; x <= cw; x += 16) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke(); }
-                for (let y = 0; y <= ch; y += 16) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cw, y); ctx.stroke(); }
-                const tex = new THREE.CanvasTexture(cv);
-                tex.colorSpace = THREE.SRGBColorSpace;
-                return tex;
-            })();
-
-            const makeSatellite = (accent: number) => {
-                const sat = new THREE.Group();
-
-                // Корпус — золотая фольга (цилиндр).
-                const busMat = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 1.0, roughness: 0.35 });
-                const bus = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 16), busMat);
-                bus.rotation.z = Math.PI / 2; // ось корпуса вдоль X
-                sat.add(bus);
-                // Торцы корпуса — тёмный металл.
-                const capMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.9, roughness: 0.4 });
-                const capGeo = new THREE.CylinderGeometry(0.105, 0.105, 0.03, 16);
-                const cap1 = new THREE.Mesh(capGeo, capMat); cap1.rotation.z = Math.PI / 2; cap1.position.x = 0.13; sat.add(cap1);
-                const cap2 = new THREE.Mesh(capGeo, capMat); cap2.rotation.z = Math.PI / 2; cap2.position.x = -0.13; sat.add(cap2);
-
-                // Солнечные панели — два крыла на штангах по оси Z.
-                const panelMat = new THREE.MeshStandardMaterial({
-                    map: panelTexture, emissive: 0x18316b, emissiveIntensity: 0.5,
-                    metalness: 0.4, roughness: 0.5, side: THREE.DoubleSide,
-                });
-                const armMat = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.8, roughness: 0.4 });
-                const panelGeo = new THREE.BoxGeometry(0.04, 0.22, 0.34);
-                const armGeo = new THREE.BoxGeometry(0.012, 0.012, 0.16);
-                for (const dir of [1, -1]) {
-                    const arm = new THREE.Mesh(armGeo, armMat); arm.position.z = dir * 0.18; sat.add(arm);
-                    const wing = new THREE.Mesh(panelGeo, panelMat); wing.position.z = dir * 0.44; sat.add(wing);
-                }
-
-                // Параболическая тарелка-антенна спереди.
-                const dishMat = new THREE.MeshStandardMaterial({ color: 0xeef2f6, metalness: 0.6, roughness: 0.3, side: THREE.DoubleSide });
-                const dish = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2.4), dishMat);
-                dish.rotation.z = -Math.PI / 2; dish.position.x = 0.2; sat.add(dish);
-                const feed = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.02, 8, 8),
-                    new THREE.MeshBasicMaterial({ color: accent })
-                );
-                feed.position.x = 0.28; sat.add(feed);
-
-                sat.scale.setScalar(0.85);
+            // ===== Спутники на эллиптических орбитах =====
+            const makeSatellite = (scale = 1) => {
+                const sat = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: satelliteMap,
+                    transparent: true,
+                    depthWrite: false,
+                    alphaTest: 0.04,
+                    toneMapped: false,
+                }));
+                sat.scale.set(0.78 * scale, 0.44 * scale, 1);
                 return sat;
             };
 
-            const satColors = [0x00e5ff, 0xa155ff, 0x38f9d7, 0xffd166];
             const satellites: any[] = [];
-            const SAT_N = 5;
-            for (let i = 0; i < SAT_N; i++) {
-                const sat = makeSatellite(satColors[i % satColors.length]);
-                const orbitR = R + 0.9 + i * 0.45 + Math.random() * 0.2;
-                const incl = (Math.random() - 0.5) * 1.4;
-                const node = Math.random() * Math.PI * 2; // долгота восходящего узла
-                const phase = Math.random() * Math.PI * 2;
-                const speed = 0.35 + Math.random() * 0.3;
-                sat.userData = { orbitR, incl, node, phase, speed };
+            const SAT_ORBITS = [
+                { a: R + 2.35, e: 0.12, incl: 0.58, node: 0.75, arg: 0.25, phase: 0.4, speed: 0.22, scale: 0.82 },
+                { a: R + 3.05, e: 0.2, incl: -0.42, node: 2.45, arg: 1.25, phase: 2.8, speed: 0.16, scale: 0.68 },
+                { a: R + 3.8, e: 0.08, incl: 0.28, node: -1.1, arg: 2.2, phase: 4.6, speed: 0.12, scale: 0.58 },
+            ];
+            SAT_ORBITS.forEach((orbit) => {
+                const sat = makeSatellite(orbit.scale);
+                sat.userData = orbit;
                 planet.add(sat);
                 satellites.push(sat);
-
-                // Тонкое кольцо орбиты.
-                const ring = new THREE.Mesh(
-                    new THREE.RingGeometry(orbitR - 0.004, orbitR + 0.004, 128),
-                    new THREE.MeshBasicMaterial({
-                        color: satColors[i % satColors.length],
-                        transparent: true, opacity: 0.12,
-                        side: THREE.DoubleSide, depthWrite: false,
-                        blending: THREE.AdditiveBlending,
-                    })
-                );
-                ring.rotation.x = Math.PI / 2 + incl;
-                ring.rotation.y = node;
-                planet.add(ring);
-            }
+            });
 
             const satPos = (d: any, t: number) => {
-                const a = d.phase + t * d.speed;
-                // Орбита в плоскости XZ, затем наклон (incl) и поворот узла (node).
-                const x0 = Math.cos(a) * d.orbitR;
-                const z0 = Math.sin(a) * d.orbitR;
-                // наклон вокруг оси X
+                const mean = d.phase + t * d.speed;
+                let eccentric = mean;
+                for (let k = 0; k < 3; k++) {
+                    eccentric -= (eccentric - d.e * Math.sin(eccentric) - mean) / (1 - d.e * Math.cos(eccentric));
+                }
+                const b = d.a * Math.sqrt(1 - d.e * d.e);
+                const ox = d.a * (Math.cos(eccentric) - d.e);
+                const oz = b * Math.sin(eccentric);
+                const ca = Math.cos(d.arg), sa = Math.sin(d.arg);
+                const x0 = ox * ca - oz * sa;
+                const z0 = ox * sa + oz * ca;
                 const y1 = -z0 * Math.sin(d.incl);
                 const z1 = z0 * Math.cos(d.incl);
-                // поворот узла вокруг Y
-                const x = x0 * Math.cos(d.node) + z1 * Math.sin(d.node);
-                const z = -x0 * Math.sin(d.node) + z1 * Math.cos(d.node);
-                return new THREE.Vector3(x, y1, z);
+                const cn = Math.cos(d.node), sn = Math.sin(d.node);
+                return new THREE.Vector3(x0 * cn + z1 * sn, y1, -x0 * sn + z1 * cn);
             };
 
             let mx = 0, my = 0;
@@ -336,15 +360,18 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 earth.rotation.y = t * 0.06;
                 clouds.rotation.y = t * 0.085;
                 stars.rotation.y = t * 0.01;
+                sunSurface.rotation.y = t * 0.018;
+                sunCorona.material.rotation = t * 0.012;
+                sunCoreGlow.material.rotation = -t * 0.018;
+                moonOrbit.rotation.y = t * 0.18;
+                moon.rotation.y = t * 0.045;
 
                 satellites.forEach((sat) => {
                     const d = sat.userData;
                     const p = satPos(d, t);
                     sat.position.copy(p);
-                    // Ориентируем спутник «по движению» (смотрит вперёд по орбите).
-                    const ahead = satPos(d, t + 0.05);
-                    sat.lookAt(ahead);
-                    sat.rotateY(t * 0.5);
+                    const ahead = satPos(d, t + 0.08);
+                    sat.material.rotation = Math.atan2(ahead.y - p.y, ahead.x - p.x) * 0.35 + Math.sin(t * 0.6 + d.phase) * 0.08;
                 });
 
                 // Скролл: интерполяция между остановками + плавный лерп планеты.
@@ -381,7 +408,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             cleanup = () => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('resize', onResize);
-                [dayMap, normalMap, specMap, cloudsMap, starSprite, panelTexture].forEach((tx: any) => tx.dispose?.());
+                [dayMap, normalMap, specMap, moonMap, sunMap, satelliteMap, cloudsMap, coronaTexture, starSprite].forEach((tx: any) => tx.dispose?.());
                 scene.traverse((obj: any) => {
                     if (obj.geometry) obj.geometry.dispose?.();
                     if (obj.material) {
