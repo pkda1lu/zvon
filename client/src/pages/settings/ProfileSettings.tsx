@@ -229,9 +229,9 @@ const ProfileSettings: React.FC = () => {
                     )}
                 </div>
 
-                {/* 2. Отображаемое имя */}
+                {/* 2. Отображаемый никнейм */}
                 <div className="settings-card">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>Отображаемое имя</h3>
+                    <h3 className="settings-section-title" style={{marginTop: 0}}>Отображаемый никнейм</h3>
                     <input 
                         className="settings-input" 
                         value={displayName} 
@@ -240,7 +240,27 @@ const ProfileSettings: React.FC = () => {
                     />
                 </div>
 
-                {/* 3. Статус */}
+                {/* 3. О себе */}
+                <div className="settings-card">
+                    <h3 className="settings-section-title" style={{marginTop: 0}}>О себе</h3>
+                    <textarea 
+                        className="settings-textarea"
+                        style={{ resize: 'none' }}
+                        value={bio}
+                        onChange={(e) => {
+                            setBio(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                        }}
+                        onFocus={(e) => {
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                        }}
+                        placeholder="Расскажите о себе..."
+                    />
+                </div>
+
+                {/* 4. Статус */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Статус</h3>
                     <div className="status-selection-container">
@@ -266,7 +286,7 @@ const ProfileSettings: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 4. Значки (SINGLE SELECT) */}
+                {/* 5. Значки (SINGLE SELECT) */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Значки профиля</h3>
                     <GridPicker 
@@ -277,7 +297,7 @@ const ProfileSettings: React.FC = () => {
                     />
                 </div>
 
-                {/* 5. Основной сервер */}
+                {/* 6. Основной сервер */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Основной сервер</h3>
                     <CustomSelect 
@@ -285,26 +305,6 @@ const ProfileSettings: React.FC = () => {
                         value={primaryServer} 
                         onChange={handlePrimaryServerChange}
                         placeholder="Выберите основной сервер..."
-                    />
-                </div>
-
-                {/* 6. О себе */}
-                <div className="settings-card">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>О себе</h3>
-                    <textarea 
-                        className="settings-textarea"
-                        style={{ resize: 'none' }}
-                        value={bio}
-                        onChange={(e) => {
-                            setBio(e.target.value);
-                            e.target.style.height = 'auto';
-                            e.target.style.height = e.target.scrollHeight + 'px';
-                        }}
-                        onFocus={(e) => {
-                            e.target.style.height = 'auto';
-                            e.target.style.height = e.target.scrollHeight + 'px';
-                        }}
-                        placeholder="Расскажите о себе..."
                     />
                 </div>
             </div>

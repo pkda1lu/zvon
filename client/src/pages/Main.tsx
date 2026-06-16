@@ -86,7 +86,14 @@ const Main: React.FC = () => {
   const [showUserServerProfile, setShowUserServerProfile] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<string>('profile');
+  const [settingsInitialData, setSettingsInitialData] = useState<any>(null);
+
+  const handleOpenSettings = (tab: string = 'profile', data: any = null) => {
+    setSettingsInitialTab(tab);
+    setSettingsInitialData(data);
+    setShowSettingsModal(true);
+  };
   const SIDEBAR_WIDTH = 280;
   const hasViewInitializedRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
@@ -158,8 +165,7 @@ const Main: React.FC = () => {
     };
     const handleStartCallEvent = (e: any) => { handleStartDirectCall(e.detail.user, e.detail.dmId); };
     const handleOpenServerProfileSettings = (e: any) => {
-      setServerProfileServerId(e.detail.serverId);
-      setShowUserServerProfile(true);
+      handleOpenSettings('server-profiles', { serverId: e.detail.serverId });
     };
     const handleStartDMById = async (e: any) => {
       try {
@@ -1151,6 +1157,8 @@ const Main: React.FC = () => {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+        initialTab={settingsInitialTab}
+        initialData={settingsInitialData}
       />
 
       {showCreateGroupModal && (

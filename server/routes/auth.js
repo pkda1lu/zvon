@@ -386,6 +386,56 @@ router.post('/email-change/verify', auth, [
   }
 });
 
+router.post('/password-change/request', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetPasswordCode = code;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+
+    await sendResetCode(user.email, code, getBrand(req).name);
+    res.json({ message: 'Код подтверждения отправлен на вашу почту' });
+  } catch (error) {
+    console.error('Password change request error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/password-change/verify', auth, [
+  body('code').isLength({ min: 6, max: 6 }),
+  body('newPassword').isLength({ min: 8 }).withMessage('Пароль должен содержать минимум 8 символов')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const { code, newPassword } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.resetPasswordCode || user.resetPasswordCode !== code || user.resetPasswordExpires < Date.now()) {
+      return res.status(400).json({ message: 'Неверный или просроченный код' });
+    }
+
+    user.password = newPassword;
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    // Revoke other sessions on password change for security
+    const Session = require('../models/Session');
+    await Session.deleteMany({ user: user._id, _id: { $ne: req.sessionId } });
+
+    res.json({ message: 'Пароль успешно изменен' });
+  } catch (error) {
+    console.error('Password change verify error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post('/verify-registration', codeLimiter, [
   body('email').isEmail(),
   body('code').isLength({ min: 6, max: 6 })

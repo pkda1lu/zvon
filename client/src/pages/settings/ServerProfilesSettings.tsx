@@ -5,9 +5,13 @@ import ProfilePreview from '../../components/ProfilePreview';
 import { CustomSelect } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
 
-const ServerProfilesSettings: React.FC = () => {
+interface ServerProfilesSettingsProps {
+    initialServerId?: string;
+}
+
+const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initialServerId }) => {
     const { user, refreshUser } = useAuth();
-    const [selectedServerId, setSelectedServerId] = useState('');
+    const [selectedServerId, setSelectedServerId] = useState(initialServerId || '');
     const [nickname, setNickname] = useState('');
     const [bio, setBio] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
@@ -24,6 +28,12 @@ const ServerProfilesSettings: React.FC = () => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (initialServerId) {
+            setSelectedServerId(initialServerId);
+        }
+    }, [initialServerId]);
 
     const userServers = (user?.servers || []) as any[];
 
@@ -61,10 +71,11 @@ const ServerProfilesSettings: React.FC = () => {
             await axios.put(`/api/servers/${selectedServerId}/members/${user?._id}`, {
                 [field]: value
             });
+            await refreshUser();
         } catch (e) {
             console.error(`Failed to auto-save server ${field}`, e);
         }
-    }, [selectedServerId, user?._id]);
+    }, [selectedServerId, user?._id, refreshUser]);
 
     useEffect(() => {
         if (!selectedServerId) return;
@@ -153,15 +164,15 @@ const ServerProfilesSettings: React.FC = () => {
 
                 {selectedServerId && (
                     <>
-                        {/* 1. Визуал профиля (ОБЪЕДИНЕНО) */}
+                        {/* 1. Визуал профиля */}
                         <div className="settings-card">
                             <h3 className="settings-section-title" style={{marginTop: 0}}>Визуал на сервере</h3>
                             
-                            {/* Аватар сервера */}
+                            {/* Аватар на сервере */}
                             <div className="settings-row">
                                 <div className="settings-row-text">
-                                    <h3>Аватар сервера</h3>
-                                    <p>Уникальный аватар для этого сервера. Поддерживается обрезка.</p>
+                                    <h3>Аватар на сервере</h3>
+                                    <p>Рекомендуемый размер: 512x512. Поддерживается GIF.</p>
                                 </div>
                                 <div className="settings-btn-group">
                                     <button className="settings-btn" onClick={() => fileInputRef.current?.click()}>
@@ -178,11 +189,11 @@ const ServerProfilesSettings: React.FC = () => {
 
                             <div className="settings-sidebar-divider" style={{margin: '20px 0'}} />
 
-                            {/* Баннер сервера */}
+                            {/* Баннер на сервере */}
                             <div className="settings-row">
                                 <div className="settings-row-text">
-                                    <h3>Баннер сервера</h3>
-                                    <p>Уникальный баннер для этого сервера. Поддерживается обрезка.</p>
+                                    <h3>Баннер на сервере</h3>
+                                    <p>Рекомендуемый размер: 1920x640. Поддерживается GIF.</p>
                                 </div>
                                 <div className="settings-btn-group">
                                     <button className="settings-btn" onClick={() => bannerInputRef.current?.click()}>

@@ -6,6 +6,19 @@ const Friendship = require('../models/Friendship');
 const Server = require('../models/Server');
 const upload = require('../middleware/upload');
 
+router.get('/check-username/:username', auth, async (req, res) => {
+  try {
+    const { username } = req.params;
+    const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
+    if (existingUser && existingUser._id.toString() !== req.user._id.toString()) {
+      return res.json({ available: false });
+    }
+    res.json({ available: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.get('/:id', auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('username displayName primaryServer email avatar status banner badges customStatus theme activity settings');
@@ -18,10 +31,39 @@ router.get('/profile/:id', auth, async (req, res) => {
   try {
     const targetUserId = req.params.id;
     const currentUserId = req.user._id;
-    const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon');
+    const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon members');
     if (!user) return res.status(404).json({ message: 'User not found' });
     
-    const mutualServers = await Server.find({ 'members.user': { $all: [currentUserId, targetUserId] } }).select('name icon');
+    // Privacy logic
+    const settings = user.settings || {};
+    const whoCanSee = Array.isArray(settings.whoCanSeeFullProfile) 
+      ? settings.whoCanSeeFullProfile 
+      : [settings.whoCanSeeFullProfile || 'everyone'];
+    
+    let canSeeFull = whoCanSee.includes('everyone');
+    
+    // Check friendship
+    const friendship = await Friendship.findOne({
+      $or: [
+        { requester: currentUserId, recipient: targetUserId },
+        { requester: targetUserId, recipient: currentUserId }
+      ]
+    });
+    const isFriend = friendship && friendship.status === 'accepted';
+    if (whoCanSee.includes('friends') && isFriend) canSeeFull = true;
+
+    // Check mutual servers and small servers
+    const mutualServers = await Server.find({ 'members.user': { $all: [currentUserId, targetUserId] } }).select('name icon members');
+    
+    if (whoCanSee.includes('small_servers')) {
+      const limit = settings.smallServerLimit || 50;
+      const hasSmallServer = mutualServers.some(s => s.members.length <= limit);
+      if (hasSmallServer) canSeeFull = true;
+    }
+
+    if (whoCanSee.includes('nobody') && targetUserId.toString() !== currentUserId.toString()) canSeeFull = false;
+    if (targetUserId.toString() === currentUserId.toString()) canSeeFull = true;
+
     const currentUserFriendships = await Friendship.find({ $or: [{ requester: currentUserId }, { recipient: currentUserId }], status: 'accepted' });
     const currentUserFriendIds = currentUserFriendships.map(f => f.requester.toString() === currentUserId.toString() ? f.recipient : f.requester);
     const targetUserFriendships = await Friendship.find({ $or: [{ requester: targetUserId }, { recipient: targetUserId }], status: 'accepted' });
@@ -29,22 +71,27 @@ router.get('/profile/:id', auth, async (req, res) => {
     const mutualFriendIds = currentUserFriendIds.filter(id => targetUserFriendIds.some(tid => tid.toString() === id.toString()));
     const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity');
 
-    // Fetch developments
-    const bots = await User.find({ isBot: true, owner: targetUserId, isPublished: true }).select('username avatar badges banner');
-    const MiniApp = require('../models/MiniApp');
-    const miniApps = await MiniApp.find({ owner: targetUserId, isPublished: true }).select('name avatar banner description');
+    // Fetch developments (redacted if not full profile)
+    let bots = [];
+    let miniApps = [];
+    if (canSeeFull) {
+      bots = await User.find({ isBot: true, owner: targetUserId, isPublished: true }).select('username avatar badges banner');
+      const MiniApp = require('../models/MiniApp');
+      miniApps = await MiniApp.find({ owner: targetUserId, isPublished: true }).select('name avatar banner description');
+    }
 
-    // Get friendship status between current user and target user
-    const friendship = await Friendship.findOne({
-      $or: [
-        { requester: currentUserId, recipient: targetUserId },
-        { requester: targetUserId, recipient: currentUserId }
-      ]
-    });
+    // Redact user object if not full
+    const userObj = user.toObject();
+    if (!canSeeFull) {
+      delete userObj.activity;
+      delete userObj.developments;
+      delete userObj.primaryServer;
+      delete userObj.lastActiveAt;
+    }
 
     res.json({
-      user,
-      mutualServers,
+      user: userObj,
+      mutualServers: mutualServers.map(s => ({ _id: s._id, name: s.name, icon: s.icon })),
       mutualFriends,
       developments: {
         bots,
@@ -57,7 +104,10 @@ router.get('/profile/:id', auth, async (req, res) => {
         recipient: friendship.recipient
       } : null
     });
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) { 
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ message: 'Server error' }); 
+  }
 });
 
 router.put('/profile', auth, async (req, res) => {
@@ -205,6 +255,30 @@ router.put('/settings', auth, async (req, res) => {
     await req.user.save();
     res.json({ settings: req.user.settings });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/me', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Delete all sessions
+    const Session = require('../models/Session');
+    await Session.deleteMany({ user: userId });
+    
+    // Delete friendships
+    const Friendship = require('../models/Friendship');
+    await Friendship.deleteMany({ $or: [{ requester: userId }, { recipient: userId }] });
+    
+    // Delete messages? Usually we keep them as "Deleted User" or remove them. 
+    // Requirement says "полностью удалить аккаунт без возможности восстановления".
+    // For now, let's delete the user record.
+    await User.findByIdAndDelete(userId);
+    
+    res.json({ message: 'Account successfully deleted' });
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 module.exports = router;

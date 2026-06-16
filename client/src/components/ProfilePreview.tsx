@@ -70,6 +70,17 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                         user.status === 'away' ? '#f0b232' : 
                         user.status === 'busy' ? '#f23f42' : '#80848e';
 
+    const lastActiveText = () => {
+        if (user.status === 'online') return 'В сети';
+        if (!user.lastActiveAt) return 'Оффлайн';
+        const date = new Date(user.lastActiveAt);
+        const now = new Date();
+        const isToday = date.toDateString() === now.toDateString();
+        const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        if (isToday) return `был(-а) в сети сегодня в ${timeStr}`;
+        return `был(-а) в сети ${date.toLocaleDateString('ru-RU')} в ${timeStr}`;
+    };
+
     const handleAvatarClick = () => {
         if (isCompact && onAvatarClick) {
             onAvatarClick();

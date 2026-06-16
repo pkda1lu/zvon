@@ -16,7 +16,8 @@ import {
     LayoutGridIcon,
     SmartphoneIcon,
     MonitorIcon as AdminIcon,
-    LogOutIcon
+    LogOutIcon,
+    LockIcon
 } from '../../components/Icons';
 import ProfileSettings from './ProfileSettings';
 import ServerProfilesSettings from './ServerProfilesSettings';
@@ -45,11 +46,18 @@ interface SettingsLayoutProps {
     isOpen: boolean;
     onClose: () => void;
     initialTab?: string;
+    initialData?: any;
 }
 
-const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initialTab = 'profile' }) => {
+const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initialTab = 'profile', initialData }) => {
     const [activeTab, setActiveTab] = React.useState(initialTab);
     const { user } = useAuth();
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setActiveTab(initialTab);
+        }
+    }, [isOpen, initialTab]);
     
     const isWindows = !!(window as any).electron;
     const isAdmin = user?.role === 'admin';
@@ -59,7 +67,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     const renderContent = () => {
         switch (activeTab) {
             case 'profile': return <ProfileSettings />;
-            case 'server-profiles': return <ServerProfilesSettings />;
+            case 'server-profiles': return <ServerProfilesSettings initialServerId={initialData?.serverId} />;
             case 'account': return <AccountSettings />;
             case 'devices': return <DevicesSettings />;
             case 'privacy': return <PrivacySettings />;
@@ -104,7 +112,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <div className="settings-sidebar-header">Безопасность</div>
                 <NavItem id="account" label="Учётная запись" icon={ShieldIcon} />
                 <NavItem id="devices" label="Устройства" icon={SmartphoneIcon} />
-                <NavItem id="privacy" label="Приватность" icon={ShieldIcon} />
+                <NavItem id="privacy" label="Приватность" icon={LockIcon} />
 
                 <div className="settings-sidebar-divider" />
                 <div className="settings-sidebar-header">Интерфейс</div>
