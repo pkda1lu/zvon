@@ -77,6 +77,12 @@ interface VoiceContextType {
     setInputSensitivity: (val: number) => void;
     isAutomaticSensitivity: boolean;
     setIsAutomaticSensitivity: (val: boolean) => void;
+    echoCancellation: boolean;
+    setEchoCancellation: (val: boolean) => void;
+    autoGainControl: boolean;
+    setAutoGainControl: (val: boolean) => void;
+    attenuation: number;
+    setAttenuation: (val: number) => void;
     startTestStream: () => Promise<void>;
     stopTestStream: () => void;
     ping: number;
@@ -288,7 +294,7 @@ registerProcessor('vad-processor', VADProcessor);
 
 export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { socket } = useSocket();
-    const { user } = useAuth();
+    const { user, setUser } = useAuth();
     const { alert } = useDialog();
 
     // Refs
@@ -310,7 +316,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isServerMuted, setIsServerMuted] = useState(false);
     const [isServerDeafened, setIsServerDeafened] = useState(false);
     const [noiseSuppressionMode, setNoiseSuppressionModeState] = useState<'none' | 'standard' | 'rnnoise' | 'deepfilter'>(
-        (localStorage.getItem('noiseSuppressionMode') as any) || 'rnnoise'
+        (user?.settings?.interaction?.voice?.noiseSuppression ? 'rnnoise' : 'none') || (localStorage.getItem('noiseSuppressionMode') as any) || 'rnnoise'
     );
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
@@ -331,8 +337,59 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
-    const [inputSensitivity, setInputSensitivity] = useState(() => Number(localStorage.getItem('inputSensitivity')) || -50);
-    const [isAutomaticSensitivity, setIsAutomaticSensitivity] = useState(() => localStorage.getItem('isAutomaticSensitivity') !== 'false');
+    const [inputSensitivity, setInputSensitivity] = useState(() => user?.settings?.interaction?.voice?.inputSensitivity || Number(localStorage.getItem('inputSensitivity')) || -50);
+    const [isAutomaticSensitivity, setIsAutomaticSensitivity] = useState(() => user?.settings?.interaction?.voice?.isAutomaticSensitivity !== undefined ? user.settings.interaction.voice.isAutomaticSensitivity : localStorage.getItem('isAutomaticSensitivity') !== 'false');
+    const [echoCancellation, setEchoCancellation] = useState(() => user?.settings?.interaction?.voice?.echoCancellation !== undefined ? user.settings.interaction.voice.echoCancellation : localStorage.getItem('echoCancellation') !== 'false');
+    const [autoGainControl, setAutoGainControl] = useState(() => user?.settings?.interaction?.voice?.autoGainControl !== undefined ? user.settings.interaction.voice.autoGainControl : localStorage.getItem('autoGainControl') !== 'false');
+    const [attenuation, setAttenuation] = useState(() => user?.settings?.interaction?.voice?.attenuation || Number(localStorage.getItem('attenuation')) || 0);
+
+    const isInitialMount = useRef(true);
+
+    // Sync from server
+    useEffect(() => {
+        if (user?.settings?.interaction?.voice) {
+            const v = user.settings.interaction.voice;
+            if (v.noiseSuppression !== undefined) setNoiseSuppressionModeState(v.noiseSuppression ? 'rnnoise' : 'none');
+            if (v.echoCancellation !== undefined) setEchoCancellation(v.echoCancellation);
+            if (v.autoGainControl !== undefined) setAutoGainControl(v.autoGainControl);
+            if (v.attenuation !== undefined) setAttenuation(v.attenuation);
+            if (v.inputSensitivity !== undefined) setInputSensitivity(v.inputSensitivity);
+            if (v.isAutomaticSensitivity !== undefined) setIsAutomaticSensitivity(v.isAutomaticSensitivity);
+        }
+    }, [user?.settings?.interaction?.voice]);
+
+    // Save to server
+    const saveVoiceSettings = useCallback(async () => {
+        if (!user) return;
+        try {
+            const { data } = await axios.put('/api/users/settings', {
+                settings: {
+                    interaction: {
+                        voice: {
+                            noiseSuppression: noiseSuppressionMode !== 'none',
+                            echoCancellation,
+                            autoGainControl,
+                            attenuation,
+                            inputSensitivity,
+                            isAutomaticSensitivity
+                        }
+                    }
+                }
+            });
+            setUser({ ...user, settings: data.settings });
+        } catch (err) {
+            console.error('Failed to save voice settings:', err);
+        }
+    }, [user, setUser, noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity]);
+
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        const timer = setTimeout(saveVoiceSettings, 2000);
+        return () => clearTimeout(timer);
+    }, [noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity, saveVoiceSettings]);
     const [ping, setPing] = useState(0);
     const [connectionQuality, setConnectionQuality] = useState(ConnectionQuality.Unknown);
     const [roomConnectionState, setRoomConnectionState] = useState(ConnectionState.Disconnected);
@@ -349,7 +406,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('outputVolume', String(outputVolume));
         localStorage.setItem('inputSensitivity', String(inputSensitivity));
         localStorage.setItem('isAutomaticSensitivity', String(isAutomaticSensitivity));
-    }, [selectedInputDeviceId, selectedOutputDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity]);
+        localStorage.setItem('echoCancellation', String(echoCancellation));
+        localStorage.setItem('autoGainControl', String(autoGainControl));
+        localStorage.setItem('attenuation', String(attenuation));
+    }, [selectedInputDeviceId, selectedOutputDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity, echoCancellation, autoGainControl, attenuation]);
 
     const getAudioContext = useCallback(() => {
         if (!audioContextRef.current) {
@@ -476,7 +536,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         refreshDevices, isScreenSharing, screenStream, startScreenShare: async () => {}, stopScreenShare: () => {},
         remoteScreenStreams, isVideoOn, toggleVideo: async () => {}, localCameraStream, screenVolumes: new Map(), setScreenVolume: () => {},
         watchedScreenIds: new Set<string>(), setWatchingScreen: () => {}, inputSensitivity, setInputSensitivity,
-        isAutomaticSensitivity, setIsAutomaticSensitivity, startTestStream, stopTestStream,
+        isAutomaticSensitivity, setIsAutomaticSensitivity, 
+        echoCancellation, setEchoCancellation,
+        autoGainControl, setAutoGainControl,
+        attenuation, setAttenuation,
+        startTestStream, stopTestStream,
         ping, connectionQuality, roomConnectionState, isOverlayEnabled: false, toggleOverlay: () => {},
         overlayPosition: 'top-left', setOverlayPosition: () => {}, overlayOpacity: 1, setOverlayOpacity: () => {},
         overlaySize: 1, setOverlaySize: () => {}, publishExternalAudioTrack: async () => null,
@@ -489,6 +553,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         inputDevices, outputDevices, videoDevices, selectedInputDeviceId, selectedOutputDeviceId,
         selectedVideoDeviceId, inputVolume, outputVolume, isScreenSharing, screenStream,
         remoteScreenStreams, isVideoOn, localCameraStream, inputSensitivity, isAutomaticSensitivity,
+        echoCancellation, autoGainControl, attenuation,
         ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel
     ]);
 

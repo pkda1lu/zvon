@@ -194,7 +194,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <motion.div
           className="user-avatar-wrapper"
           title={`${user.username} (${user.status})`}
-          onClick={(e) => onOpenProfile(user._id, e)}
+          onClick={(e) => onOpenProfile(user._id)}
           style={{ position: 'relative' }}
           {...pressFeedback}
         >

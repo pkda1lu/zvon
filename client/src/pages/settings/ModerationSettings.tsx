@@ -97,7 +97,9 @@ const ModerationSettings: React.FC = () => {
                                                 <strong style={{ color: 'var(--text-dim)' }}>От:</strong> {report.reporter?.username}
                                             </div>
                                             <div style={{ fontSize: '14px' }}>
-                                                <strong style={{ color: 'var(--text-dim)' }}>На:</strong> {report.reportedUser?.username}
+                                                <strong style={{ color: 'var(--text-dim)' }}>На:</strong> {report.reportedUser?.username || report.reportedMiniApp?.name || report.reportedServer?.name || 'Unknown'}
+                                                {report.reportedServer && <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--accent-pink)' }}>(Сервер)</span>}
+                                                {report.reportedMiniApp && <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--secondary-neon)' }}>(Приложение)</span>}
                                             </div>
                                         </div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'right' }}>
@@ -113,7 +115,14 @@ const ModerationSettings: React.FC = () => {
                                             report.reason === 'inappropriate_content' ? 'Контент' :
                                             report.reason === 'scam' ? 'Мошенничество' : 'Другое'}
                                         </div>
-                                        {report.description && <div style={{ fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.5 }}>{report.description}</div>}
+                                        {report.description && <div style={{ fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: report.messageContext ? '12px' : 0 }}>{report.description}</div>}
+                                        
+                                        {report.messageContext && (
+                                            <div style={{ fontSize: '13px', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px', borderLeft: '3px solid var(--primary-neon)' }}>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>Цитата из сообщения:</div>
+                                                {report.messageContext.content}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {report.status !== 'pending' && (

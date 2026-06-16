@@ -16,18 +16,18 @@ import { useAppearance } from '../contexts/AppearanceContext';
  * rules (e.g. disable backdrop-filter animations) without prop-drilling.
  */
 const MotionPreferences: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { performanceMode } = useAppearance();
+  const { performanceMode, reduceMotion } = useAppearance();
 
   React.useEffect(() => {
     const root = document.body;
-    if (performanceMode) root.dataset.reduceMotion = 'force';
+    if (performanceMode || reduceMotion) root.dataset.reduceMotion = 'force';
     else delete root.dataset.reduceMotion;
     return () => { delete root.dataset.reduceMotion; };
-  }, [performanceMode]);
+  }, [performanceMode, reduceMotion]);
 
-  // "user" honors the OS-level media query. When perfMode is on we override to
-  // "always" which forces reduced motion regardless of system setting.
-  const reducedMotion = performanceMode ? 'always' : 'user';
+  // "user" honors the OS-level media query. When perfMode or manual reduceMotion is on 
+  // we override to "always" which forces reduced motion regardless of system setting.
+  const reducedMotion = (performanceMode || reduceMotion) ? 'always' : 'user';
 
   return <MotionConfig reducedMotion={reducedMotion}>{children}</MotionConfig>;
 };

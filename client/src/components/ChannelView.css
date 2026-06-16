@@ -325,6 +325,32 @@
   position: relative;
 }
 
+/* Chat Layout Overrides */
+[data-chat-layout="compact"] .message {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  margin-top: 0;
+}
+[data-chat-layout="compact"] .message-author-avatar {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+[data-chat-layout="light"] .message {
+  padding: 4px 24px;
+  margin-top: 0;
+  border-left: none;
+}
+[data-chat-layout="light"] .message-author-avatar-wrap {
+  display: none;
+}
+[data-chat-layout="light"] .message-header {
+  margin-bottom: 0;
+}
+[data-chat-layout="light"] .message:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .message:hover {
   background: rgba(255, 255, 255, 0.03);
   border-left-color: rgba(255, 255, 255, 0.1);

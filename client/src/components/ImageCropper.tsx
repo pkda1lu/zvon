@@ -167,7 +167,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ image, cropShape = 'round',
 
     return (
         <motion.div
-            className="cropper-overlay"
+            className={`cropper-overlay cropper-target-${cropShape === 'round' ? 'avatar' : 'banner'}`}
             variants={overlayVariants}
             initial="initial"
             animate="animate"

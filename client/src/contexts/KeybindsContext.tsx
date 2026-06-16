@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useVoice } from './VoiceContext';
+import { useAuth } from './AuthContext';
+import axios from 'axios';
 
 export interface Keybind {
     id: string;
@@ -21,34 +23,121 @@ interface KeybindsContextType {
 
 const KeybindsContext = createContext<KeybindsContextType | undefined>(undefined);
 
+const DEFAULT_KEYBINDS: Keybind[] = [
+    { id: '1', action: 'toggle-mute', accelerator: 'CommandOrControl+Shift+M', isEnabled: true },
+    { id: '2', action: 'toggle-deafen', accelerator: 'CommandOrControl+Shift+D', isEnabled: true },
+    { id: '3', action: 'toggle-overlay', accelerator: 'CommandOrControl+Shift+O', isEnabled: true },
+    { id: '4', action: 'server-next', accelerator: 'Alt+Down', isEnabled: true },
+    { id: '5', action: 'server-prev', accelerator: 'Alt+Up', isEnabled: true },
+    { id: '6', action: 'channel-next', accelerator: 'Alt+Right', isEnabled: true },
+    { id: '7', action: 'channel-prev', accelerator: 'Alt+Left', isEnabled: true },
+    { id: '8', action: 'mark-server-read', accelerator: 'Shift+Escape', isEnabled: true },
+    { id: '9', action: 'mark-chat-read', accelerator: 'Escape', isEnabled: true },
+    { id: '10', action: 'open-notifications', accelerator: 'CommandOrControl+I', isEnabled: true },
+    { id: '11', action: 'scroll-up', accelerator: 'PageUp', isEnabled: true },
+    { id: '12', action: 'scroll-down', accelerator: 'PageDown', isEnabled: true },
+    { id: '13', action: 'edit-last', accelerator: 'Up', isEnabled: true },
+    { id: '14', action: 'delete-last', accelerator: 'CommandOrControl+Backspace', isEnabled: true },
+    { id: '15', action: 'close-window', accelerator: 'CommandOrControl+W', isEnabled: true },
+    { id: '16', action: 'minimize-to-tray', accelerator: 'CommandOrControl+M', isEnabled: true }
+];
+
 export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { toggleMute, toggleDeafen, toggleOverlay } = useVoice();
+    const { user, setUser } = useAuth();
     const [keybinds, setKeybinds] = useState<Keybind[]>(() => {
+        if (user?.settings?.interaction?.keybinds?.length > 0) return user.settings.interaction.keybinds;
         const saved = localStorage.getItem('keybinds');
         if (saved) return JSON.parse(saved);
-        return [
-            { id: '1', action: 'toggle-mute', accelerator: 'CommandOrControl+Shift+M', isEnabled: true },
-            { id: '2', action: 'toggle-deafen', accelerator: 'CommandOrControl+Shift+D', isEnabled: true },
-            { id: '3', action: 'toggle-overlay', accelerator: 'CommandOrControl+Shift+O', isEnabled: true }
-        ];
+        return DEFAULT_KEYBINDS;
     });
 
-    const [isRecording, setIsRecording] = useState(false);
-    const [recordingId, setRecordingId] = useState<string | null>(null);
+    const isInitialMount = useRef(true);
 
+    // Load from user object when it changes (e.g. after login)
     useEffect(() => {
-        localStorage.setItem('keybinds', JSON.stringify(keybinds));
+        if (user?.settings?.interaction?.keybinds?.length > 0) {
+            setKeybinds(user.settings.interaction.keybinds);
+        }
+    }, [user?.settings?.interaction?.keybinds]);
+
+    const saveKeybinds = useCallback(async (newKeybinds: Keybind[]) => {
+        localStorage.setItem('keybinds', JSON.stringify(newKeybinds));
         
         // Sync with Electron
         // @ts-ignore
         if (window.electron && window.electron.ipc) {
             // @ts-ignore
-            window.electron.ipc.send('update-keybinds', keybinds.filter(k => k.isEnabled));
+            window.electron.ipc.send('update-keybinds', newKeybinds.filter(k => k.isEnabled));
         }
-    }, [keybinds]);
+
+        if (user) {
+            try {
+                const { data } = await axios.put('/api/users/settings', {
+                    settings: { interaction: { keybinds: newKeybinds } }
+                });
+                setUser({ ...user, settings: data.settings });
+            } catch (err) {
+                console.error('Failed to save keybinds to server:', err);
+            }
+        }
+    }, [user, setUser]);
 
     useEffect(() => {
-        // Listen for shortcuts from main process
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        const timer = setTimeout(() => {
+            saveKeybinds(keybinds);
+        }, 1000); // Debounce saves
+        return () => clearTimeout(timer);
+    }, [keybinds, saveKeybinds]);
+
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingId, setRecordingId] = useState<string | null>(null);
+
+    const handleWebKeybind = useCallback((e: KeyboardEvent) => {
+        const target = e.target as HTMLElement;
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+        const isArrowUpInInput = target.tagName === 'INPUT' && e.key === 'ArrowUp' && (target as HTMLInputElement).value === '';
+        
+        if (isInput && !isArrowUpInInput && e.key !== 'Escape') return;
+
+        const modifiers = [];
+        if (e.ctrlKey || e.metaKey) modifiers.push('CommandOrControl');
+        if (e.shiftKey) modifiers.push('Shift');
+        if (e.altKey) modifiers.push('Alt');
+
+        let key = e.key.toUpperCase();
+        if (key === ' ') key = 'SPACE';
+        if (key === 'ESCAPE') key = 'ESCAPE';
+        if (key === 'BACKSPACE') key = 'BACKSPACE';
+        if (key === 'PAGEUP') key = 'PAGEUP';
+        if (key === 'PAGEDOWN') key = 'PAGEDOWN';
+        if (key === 'ARROWUP') key = 'UP';
+        if (key === 'ARROWDOWN') key = 'DOWN';
+        if (key === 'ARROWLEFT') key = 'LEFT';
+        if (key === 'ARROWRIGHT') key = 'RIGHT';
+
+        const currentAccelerator = [...modifiers, key].join('+');
+        const match = keybinds.find(k => k.isEnabled && k.accelerator.toUpperCase() === currentAccelerator);
+        
+        if (match) {
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent('zvon-keybind-action', { detail: { action: match.action } }));
+            if (match.action === 'toggle-mute') toggleMute();
+            if (match.action === 'toggle-deafen') toggleDeafen();
+            if (match.action === 'toggle-overlay') toggleOverlay();
+        }
+    }, [keybinds, toggleMute, toggleDeafen, toggleOverlay]);
+
+    useEffect(() => {
+        window.addEventListener('keydown', handleWebKeybind);
+        return () => window.removeEventListener('keydown', handleWebKeybind);
+    }, [handleWebKeybind]);
+
+    useEffect(() => {
         // @ts-ignore
         if (window.electron && window.electron.ipc) {
             // @ts-ignore
@@ -57,11 +146,16 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             const unDeafen = window.electron.ipc.on('toggle-deafen-shortcut', () => toggleDeafen());
             // @ts-ignore
             const unOverlay = window.electron.ipc.on('toggle-overlay-shortcut', () => toggleOverlay());
+            // @ts-ignore
+            const unAction = window.electron.ipc.on('keybind-action', (_event: any, action: string) => {
+                window.dispatchEvent(new CustomEvent('zvon-keybind-action', { detail: { action } }));
+                if (action === 'toggle-mute') toggleMute();
+                if (action === 'toggle-deafen') toggleDeafen();
+                if (action === 'toggle-overlay') toggleOverlay();
+            });
 
             return () => {
-                unMute();
-                unDeafen();
-                unOverlay();
+                unMute(); unDeafen(); unOverlay(); unAction();
             };
         }
     }, [toggleMute, toggleDeafen, toggleOverlay]);
@@ -96,14 +190,8 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     return (
         <KeybindsContext.Provider value={{
-            keybinds,
-            addKeybind,
-            removeKeybind,
-            updateKeybind,
-            isRecording,
-            startRecording,
-            stopRecording,
-            recordingId
+            keybinds, addKeybind, removeKeybind, updateKeybind,
+            isRecording, startRecording, stopRecording, recordingId
         }}>
             {children}
         </KeybindsContext.Provider>
@@ -115,3 +203,5 @@ export const useKeybinds = () => {
     if (!context) throw new Error('useKeybinds must be used within KeybindsProvider');
     return context;
 };
+
+

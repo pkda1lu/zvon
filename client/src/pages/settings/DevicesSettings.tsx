@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { MonitorIcon, SmartphoneIcon, LogOutIcon } from '../../components/Icons';
+import { MonitorIcon, SmartphoneIcon, LogOutIcon, ShieldIcon, CheckIcon } from '../../components/Icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 
@@ -21,7 +21,7 @@ interface DeviceSession {
 
 const DevicesSettings: React.FC = () => {
     const { logout } = useAuth();
-    const { confirm } = useDialog();
+    const { confirm, alert } = useDialog();
     const [sessions, setSessions] = useState<DeviceSession[]>([]);
     const [loading, setLoading] = useState(false);
     const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -61,6 +61,23 @@ const DevicesSettings: React.FC = () => {
             setSessions(prev => prev.filter(s => s.id !== session.id));
         } catch (err) {
             console.error("Failed to revoke session", err);
+            alert('Ошибка при завершении сессии');
+        } finally {
+            setRevokingId(null);
+        }
+    };
+
+    const revokeOtherSessions = async () => {
+        const confirmed = await confirm('Вы уверены, что хотите завершить все сессии, кроме текущей?');
+        if (!confirmed) return;
+
+        setRevokingId('others');
+        try {
+            await axios.delete('/api/sessions/others');
+            setSessions(prev => prev.filter(s => s.current));
+            alert('Все остальные сессии успешно завершены');
+        } catch (err) {
+            alert('Ошибка при завершении сессий');
         } finally {
             setRevokingId(null);
         }
@@ -81,46 +98,53 @@ const DevicesSettings: React.FC = () => {
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Устройства</h2>
+            <p className="settings-description">
+                Список устройств, на которых вы вошли в свой аккаунт. Если вы заметили подозрительную активность, завершите сессию и смените пароль.
+            </p>
             
             {loading && sessions.length === 0 ? (
-                <div style={{ color: 'var(--text-dim)' }}>Загрузка сессий...</div>
+                <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px' }}>Загрузка сессий...</div>
             ) : (
                 <>
                     <h3 className="settings-section-title">Текущее устройство</h3>
                     {sessions.filter(s => s.current).map(session => (
-                        <div key={session.id} className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                            <div style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
+                        <div key={session.id} className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', background: 'rgba(35, 165, 89, 0.05)', borderColor: 'rgba(35, 165, 89, 0.2)' }}>
+                            <div style={{ padding: '16px', background: 'rgba(35, 165, 89, 0.1)', borderRadius: '16px', color: 'var(--success)' }}>
                                 {session.deviceType === 'mobile' || session.deviceType === 'tablet' 
-                                    ? <SmartphoneIcon size={32} color="var(--success)" /> 
-                                    : <MonitorIcon size={32} color="var(--success)" />}
+                                    ? <SmartphoneIcon size={32} /> 
+                                    : <MonitorIcon size={32} />}
                             </div>
                             <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--success)' }}>
-                                    {session.deviceName || session.os} (Текущее)
+                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {session.deviceName || session.os}
+                                    <span style={{ fontSize: '10px', background: 'var(--success)', color: '#fff', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>Текущее</span>
                                 </div>
                                 <div style={{ fontSize: '14px', color: 'var(--text-dim)', marginTop: '4px' }}>
-                                    {getFlag(session.countryCode)} {[session.city, session.country].filter(Boolean).join(', ') || 'Локация неизвестна'}
+                                    {getFlag(session.countryCode)} {[session.city, session.country].filter(Boolean).join(', ') || 'Локация неизвестна'} • {session.ip}
                                 </div>
                                 <div style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px' }}>
                                     {session.browser} • Активно сейчас
                                 </div>
                             </div>
-                            <button 
-                                className="settings-btn settings-btn-danger" 
-                                onClick={() => revokeSession(session)}
-                                disabled={revokingId === session.id}
-                            >
-                                {revokingId === session.id ? 'Выход...' : 'Выйти'}
-                            </button>
                         </div>
                     ))}
 
                     {sessions.filter(s => !s.current).length > 0 && (
                         <>
-                            <h3 className="settings-section-title">Другие устройства</h3>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '40px', marginBottom: '12px' }}>
+                                <h3 className="settings-section-title" style={{ margin: 0 }}>Другие устройства</h3>
+                                <button 
+                                    className="settings-btn settings-btn-danger" 
+                                    style={{ fontSize: '12px', padding: '6px 12px' }}
+                                    onClick={revokeOtherSessions}
+                                    disabled={revokingId === 'others'}
+                                >
+                                    Завершить все
+                                </button>
+                            </div>
                             {sessions.filter(s => !s.current).map(session => (
                                 <div key={session.id} className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                    <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '14px' }}>
+                                    <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', color: 'var(--text-dim)' }}>
                                         {session.deviceType === 'mobile' || session.deviceType === 'tablet' 
                                             ? <SmartphoneIcon size={32} /> 
                                             : <MonitorIcon size={32} />}
@@ -138,7 +162,7 @@ const DevicesSettings: React.FC = () => {
                                     </div>
                                     <button 
                                         className="settings-btn" 
-                                        style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }}
+                                        style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', padding: '10px' }}
                                         onClick={() => revokeSession(session)}
                                         disabled={revokingId === session.id}
                                     >
@@ -150,6 +174,18 @@ const DevicesSettings: React.FC = () => {
                     )}
                 </>
             )}
+
+            <div className="settings-card" style={{ marginTop: '40px', background: 'rgba(0, 106, 255, 0.05)', border: '1px solid rgba(0, 106, 255, 0.2)' }}>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                    <ShieldIcon size={24} color="var(--primary-neon)" />
+                    <div>
+                        <h3 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 4px 0' }}>Совет по безопасности</h3>
+                        <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
+                            Если вы завершили сессию на другом устройстве, но оно снова появилось в списке — возможно, ваш пароль скомпрометирован. Мы рекомендуем немедленно <span style={{ color: 'var(--primary-neon)', cursor: 'pointer', fontWeight: 600 }}>сменить пароль</span>.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

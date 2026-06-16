@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDownIcon } from '../../components/Icons';
+import { ChevronDownIcon, BotIcon, LayoutGridIcon } from '../../components/Icons';
 import { getAvatarUrl } from '../../utils/avatar';
 
 /**
@@ -10,9 +10,10 @@ export const ChoiceGroup: React.FC<{
     options: { value: string; label: string; icon?: React.ReactNode; color?: string }[];
     value: string;
     onChange: (value: string) => void;
-}> = ({ options, value, onChange }) => {
+    className?: string;
+}> = ({ options, value, onChange, className = '' }) => {
     return (
-        <div className="settings-choice-group">
+        <div className={`settings-choice-group ${className}`}>
             {options.map((opt) => (
                 <div 
                     key={opt.value} 
@@ -31,7 +32,7 @@ export const ChoiceGroup: React.FC<{
  * CustomSelect: Dropdown with avatars/icons and text.
  */
 export const CustomSelect: React.FC<{
-    options: { id: string; name: string; icon?: string; iconComponent?: React.ReactNode }[];
+    options: { id: string; name: string; icon?: string; iconComponent?: React.ReactNode; type?: 'server' | 'user' | 'bot' | 'app' | 'default' }[];
     value: string;
     onChange: (id: string) => void;
     placeholder?: string;
@@ -50,20 +51,55 @@ export const CustomSelect: React.FC<{
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const renderIcon = (opt: typeof options[0]) => {
+        if (opt.iconComponent) return opt.iconComponent;
+        
+        const avatarUrl = getAvatarUrl(opt.icon);
+        if (avatarUrl) {
+            return <div className="custom-select-icon" style={{ backgroundImage: `url(${avatarUrl})` }} />;
+        }
+
+        if (opt.type === 'server') {
+            return (
+                <div className="custom-select-icon server-placeholder">
+                    {opt.name.charAt(0).toUpperCase()}
+                </div>
+            );
+        }
+
+        if (opt.type === 'bot') {
+            return (
+                <div className="custom-select-icon entity-placeholder">
+                    <BotIcon size={14} />
+                </div>
+            );
+        }
+
+        if (opt.type === 'app') {
+            return (
+                <div className="custom-select-icon entity-placeholder">
+                    <LayoutGridIcon size={14} />
+                </div>
+            );
+        }
+
+        return null;
+    };
+
     return (
         <div className="custom-select-container" ref={containerRef}>
             <div className="custom-select-trigger" onClick={() => setIsOpen(!isOpen)}>
                 <div className="custom-select-value">
                     {selectedOption ? (
                         <>
-                            {selectedOption.iconComponent ? selectedOption.iconComponent : (
-                                <div className="custom-select-icon" style={{ backgroundImage: `url(${getAvatarUrl(selectedOption.icon)})` }} />
-                            )}
+                            {renderIcon(selectedOption)}
                             <span>{selectedOption.name}</span>
                         </>
                     ) : <span style={{ color: 'var(--text-faint)' }}>{placeholder}</span>}
                 </div>
-                <ChevronDownIcon size={16} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                <div style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                    <ChevronDownIcon size={16} />
+                </div>
             </div>
             {isOpen && (
                 <div className="custom-select-dropdown">
@@ -76,9 +112,7 @@ export const CustomSelect: React.FC<{
                                 setIsOpen(false);
                             }}
                         >
-                            {opt.iconComponent ? opt.iconComponent : (
-                                <div className="custom-select-icon" style={{ backgroundImage: `url(${getAvatarUrl(opt.icon)})` }} />
-                            )}
+                            {renderIcon(opt)}
                             <span>{opt.name}</span>
                         </div>
                     ))}
@@ -129,4 +163,29 @@ export const SettingsToggle: React.FC<{
         <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
         <span className="toggle-slider" />
     </label>
+);
+
+/**
+ * RangeSlider: Stylized slider for numeric values.
+ */
+export const RangeSlider: React.FC<{
+    value: number;
+    min: number;
+    max: number;
+    step?: number;
+    onChange: (val: number) => void;
+    unit?: string;
+}> = ({ value, min, max, step = 1, onChange, unit = '' }) => (
+    <div className="settings-slider-container">
+        <input 
+            type="range" 
+            className="settings-range-input"
+            min={min} 
+            max={max} 
+            step={step} 
+            value={value} 
+            onChange={(e) => onChange(parseFloat(e.target.value))} 
+        />
+        <span className="settings-slider-value">{value}{unit}</span>
+    </div>
 );

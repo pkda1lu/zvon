@@ -109,6 +109,11 @@
     overflow: hidden;
 }
 
+/* Rounded rectangle for avatar crop */
+.cropper-target-avatar .react-easy-crop_Area {
+    border-radius: 20px;
+}
+
 .cropper-controls {
     display: flex;
     flex-direction: column;

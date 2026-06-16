@@ -56,6 +56,7 @@ router.get('/reports', [auth, isModerator], async (req, res) => {
       .populate('reporter', 'username avatar')
       .populate('reportedUser', 'username avatar')
       .populate('reportedMiniApp', 'name avatar')
+      .populate('reportedServer', 'name icon')
       .populate('resolvedBy', 'username')
       .populate('messageContext')
       .sort('-createdAt');
@@ -343,4 +344,5 @@ router.post('/marketplace/:type/:id/unblock', auth, isModerator, async (req, res
   }
 });
 
+module.exports = router;
 module.exports = router;

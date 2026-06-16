@@ -1,6 +1,6 @@
 .user-avatar-container {
     position: relative;
-    border-radius: 50%;
+    border-radius: 14px;
     overflow: hidden;
     display: flex;
     align-items: center;
