@@ -4,24 +4,6 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-    <!-- maxcord.fun is an icon-only co-brand: redirect to the shared zvonserver.ru
-         deployment, carrying a ?brand=maxcord marker so only the icons/favicon stay
-         MAXCORD while everything else (name, logo, data, emails) is common. Runs as
-         early as possible to avoid a flash of the wrong content. No-op everywhere else. -->
-    <script>
-        (function () {
-            try {
-                if (location.hostname.indexOf('maxcord.fun') !== -1) {
-                    var u = new URL(location.href);
-                    u.protocol = 'https:';
-                    u.hostname = 'zvonserver.ru';
-                    u.port = '';
-                    u.searchParams.set('brand', 'maxcord');
-                    location.replace(u.toString());
-                }
-            } catch (e) { }
-        })();
-    </script>
     <meta name="theme-color" content="#0f0f12" />
     <meta name="description" content="Zvon - Real-time communication platform" />
     <!-- PWA / установка как веб-приложение (Android + iOS) -->
