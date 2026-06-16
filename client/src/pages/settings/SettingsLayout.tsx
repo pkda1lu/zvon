@@ -17,7 +17,14 @@ import {
     SmartphoneIcon,
     MonitorIcon as AdminIcon,
     LogOutIcon,
-    LockIcon
+    LockIcon,
+    EyeIcon,
+    GlobeIcon,
+    MicIcon,
+    MaximizeIcon,
+    VideoIcon,
+    SettingsIcon,
+    DocumentIcon
 } from '../../components/Icons';
 import ProfileSettings from './ProfileSettings';
 import ServerProfilesSettings from './ServerProfilesSettings';
@@ -52,7 +59,7 @@ interface SettingsLayoutProps {
 
 const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initialTab = 'profile', initialData }) => {
     const [activeTab, setActiveTab] = React.useState(initialTab);
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
 
     React.useEffect(() => {
         if (isOpen) {
@@ -107,44 +114,44 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
         <div className="settings-overlay">
             <div className="settings-sidebar">
                 <div className="settings-sidebar-header">Мой профиль</div>
-                <NavItem id="profile" label="Общий профиль" icon={LayoutGridIcon} />
-                <NavItem id="server-profiles" label="Профили на серверах" icon={UsersIcon} />
+                <NavItem id="profile" label="Общий профиль" icon={UsersIcon} />
+                <NavItem id="server-profiles" label="Профили на серверах" icon={LayoutGridIcon} />
 
                 <div className="settings-sidebar-divider" />
                 <div className="settings-sidebar-header">Безопасность</div>
                 <NavItem id="account" label="Учётная запись" icon={ShieldIcon} />
                 <NavItem id="devices" label="Устройства" icon={SmartphoneIcon} />
-                <NavItem id="privacy" label="Приватность" icon={LockIcon} />
+                <NavItem id="privacy" label="Приватность" icon={EyeIcon} />
 
                 <div className="settings-sidebar-divider" />
                 <div className="settings-sidebar-header">Интерфейс</div>
                 <NavItem id="appearance" label="Внешний вид" icon={PaletteIcon} />
                 <NavItem id="chat" label="Чаты" icon={ChatIcon} />
-                <NavItem id="optimization" label="Оптимизация" icon={AdvancedIcon} />
-                <NavItem id="language" label="Язык и время" icon={LayoutGridIcon} />
+                <NavItem id="optimization" label="Оптимизация" icon={SettingsIcon} />
+                <NavItem id="language" label="Язык и время" icon={GlobeIcon} />
 
                 <div className="settings-sidebar-divider" />
                 <div className="settings-sidebar-header">Приложения</div>
                 <NavItem id="bots" label="Мои боты" icon={BotIcon} />
-                <NavItem id="miniapps" label="Мои мини-приложения" icon={PlusIcon} />
+                <NavItem id="miniapps" label="Мои мини-приложения" icon={LayoutGridIcon} />
 
                 <div className="settings-sidebar-divider" />
                 <div className="settings-sidebar-header">Взаимодействие</div>
-                <NavItem id="voice" label="Голос и видео" icon={SpeakerIcon} />
+                <NavItem id="voice" label="Голос и видео" icon={MicIcon} />
                 <NavItem id="keybinds" label="Горячие клавиши" icon={KeyboardIcon} />
 
                 <div className="settings-sidebar-divider" />
                 <div className="settings-sidebar-header">Специальные возможности</div>
                 <NavItem id="accessibility" label="Экранный диктор" icon={SpeakerIcon} />
-                <NavItem id="scaling" label="Масштабирование" icon={LayoutGridIcon} />
+                <NavItem id="scaling" label="Масштабирование" icon={MaximizeIcon} />
 
                 {isWindows && (
                     <>
                         <div className="settings-sidebar-divider" />
                         <div className="settings-sidebar-header">Настройки Windows</div>
                         <NavItem id="windows-actions" label="Действия" icon={MonitorIcon} />
-                        <NavItem id="streamer" label="Режим стримера" icon={MonitorIcon} />
-                        <NavItem id="advanced" label="Расширенные" icon={AdvancedIcon} />
+                        <NavItem id="streamer" label="Режим стримера" icon={VideoIcon} />
+                        <NavItem id="advanced" label="Расширенные" icon={SettingsIcon} />
                     </>
                 )}
 
@@ -155,15 +162,15 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <NavItem id="moderation" label="Модерация" icon={ShieldIcon} />
                         <NavItem id="admin-users" label="Пользователи и сервера" icon={UsersIcon} />
                         <NavItem id="admin-stats" label="Статистика" icon={LayoutGridIcon} />
-                        <NavItem id="admin-actions" label="Действия" icon={LayoutGridIcon} />
+                        <NavItem id="admin-actions" label="Действия" icon={DocumentIcon} />
                     </>
                 )}
                 
                 <div className="settings-sidebar-divider" />
-                <div className="settings-sidebar-item logout" onClick={onClose}>
+                <div className="settings-sidebar-item logout" onClick={logout}>
                     <div className="sidebar-item-content">
                         <LogOutIcon size={18} />
-                        <span>Выйти из настроек</span>
+                        <span>Выйти из аккаунта</span>
                     </div>
                 </div>
             </div>
