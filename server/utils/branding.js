@@ -4,13 +4,17 @@ const BRANDS = {
     id: 'zvon',
     name: 'Zvon',
     domain: 'zvonserver.ru',
-    supportEmail: 'support@zvonserver.ru'
+    supportEmail: 'support@zvonserver.ru',
+    logo: 'zvonlogonew.png',
+    favicon: 'icon.png'
   },
   maxcord: {
     id: 'maxcord',
     name: 'MAXCORD',
     domain: 'maxcord.fun',
-    supportEmail: 'support@zvonserver.ru'
+    supportEmail: 'support@zvonserver.ru',
+    logo: 'maxcord/logo.png',
+    favicon: 'maxcord/logo.png'
   }
 };
 

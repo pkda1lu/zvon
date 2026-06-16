@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getIconBrand } from '../utils/branding';
+import { getBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Landing3D from '../components/Landing3D';
@@ -17,10 +17,9 @@ const fadeUp = {
 const Landing: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const brand = getIconBrand();
+    const brand = getBrand();
     const isMax = brand.id === 'maxcord';
     const base = import.meta.env.BASE_URL;
-    const heroPremiumImg = `${base}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero_premium.png'}`;
     const heroImg = `${base}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero.png'}`;
     // Промо-видео в секции (опционально): client/public/promo.mp4
     const promoSrc = `${base}promo.mp4`;

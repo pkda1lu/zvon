@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import './Mobile.css';
 import App from './App';
+import { applyBranding } from './utils/branding';
+
+// Apply branding (title, favicon) immediately
+applyBranding();
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

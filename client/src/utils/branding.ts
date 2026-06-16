@@ -55,23 +55,20 @@ export const getBrand = (): BrandConfig => {
 };
 
 /**
- * Brand used ONLY for the app icon set + favicon. Normally follows getBrand(),
- * but a `?brand=maxcord` marker in the URL forces the MAXCORD icon set while the
- * rest of the app (name, logo, landing, emails) stays on the host brand.
- *
- * This powers the maxcord.fun → zvonserver.ru redirect (see index.html): users
- * land on the shared Zvon deployment but keep MAXCORD icons. Marker-only, not
- * sticky — drop `?brand=maxcord` and it reverts to the host brand.
+ * Updates document title and favicon based on the current brand.
+ * Should be called once at app initialization.
  */
-export const getIconBrand = (): BrandConfig => {
-    if ((window as any).electron) {
-        return BRANDS.zvon;
+export const applyBranding = () => {
+    const brand = getBrand();
+    document.title = brand.name;
+
+    const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+    if (favicon) {
+        favicon.href = `/${brand.favicon}`;
     }
-    try {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('brand') === 'maxcord') {
-            return BRANDS.maxcord;
-        }
-    } catch { /* malformed URL — fall through */ }
-    return getBrand();
+
+    const appleIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
+    if (appleIcon) {
+        appleIcon.href = `/${brand.favicon}`;
+    }
 };
