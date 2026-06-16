@@ -19,6 +19,7 @@ import TitleBar from './components/TitleBar';
 import Landing3D from './components/Landing3D';
 import Overlay from './pages/Overlay';
 import UpdateNotifier from './components/UpdateNotifier';
+import ScreenReaderHandler from './components/ScreenReaderHandler';
 
 const ElectronHandler: React.FC = () => {
   const navigate = useNavigate();
@@ -234,6 +235,7 @@ function App() {
                         <NotificationProvider>
                         <div className="App" style={{ position: 'relative' }}>
                           <AppBackground />
+                          <ScreenReaderHandler />
                           <TitleBar />
                           <ElectronHandler />
                           <UpdateNotifier />

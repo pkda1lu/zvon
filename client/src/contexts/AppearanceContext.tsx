@@ -33,6 +33,7 @@ interface AppearanceSettings {
     messageSpacing: number; // 0 to 24px
     groupSpacing: number; // 0 to 48px
     interfaceScale: number; // 0.8 to 1.5
+    screenReader: boolean;
     appIcon: AppIconType;
     performanceMode: boolean;
     reduceMotion: boolean;
@@ -55,6 +56,7 @@ interface AppearanceContextType extends AppearanceSettings {
     setCustomBackground: (url: string) => void;
     setBackgroundDim: (value: number) => void;
     setBackgroundBlur: (value: number) => void;
+    setScreenReader: (enabled: boolean) => void;
     resetCustomTheme: () => void;
     
     // New Theme management
@@ -86,6 +88,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 messageSpacing: parsed.messageSpacing ?? 2,
                 groupSpacing: parsed.groupSpacing ?? 16,
                 interfaceScale: parsed.interfaceScale ?? 1.0,
+                screenReader: parsed.screenReader ?? false,
                 appIcon: parsed.appIcon || 'default',
                 performanceMode: parsed.performanceMode ?? false,
                 reduceMotion: parsed.reduceMotion ?? false,
@@ -101,6 +104,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             messageSpacing: 2,
             groupSpacing: 16,
             interfaceScale: 1.0,
+            screenReader: false,
             appIcon: 'default',
             performanceMode: false,
             reduceMotion: false,
@@ -126,10 +130,12 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             
             if (res.data.settings && res.data.settings.appearance) {
                 const s = res.data.settings.appearance;
+                const acc = res.data.settings.accessibility || {};
                 setSettings(prev => ({
                     ...prev,
                     theme: s.theme || prev.theme,
-                    interfaceScale: s.interfaceScale || prev.interfaceScale,
+                    interfaceScale: acc.interfaceScale || s.interfaceScale || prev.interfaceScale,
+                    screenReader: acc.screenReader ?? prev.screenReader,
                     appIcon: s.appIcon || prev.appIcon,
                     reduceMotion: s.reduceMotion ?? prev.reduceMotion,
                     performanceMode: s.performanceMode ?? prev.performanceMode,
@@ -150,7 +156,25 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (!token) return;
 
             await axios.put('/api/users/settings', {
-                settings: { appearance: newSettings }
+                settings: { 
+                    appearance: {
+                        theme: newSettings.theme,
+                        density: newSettings.density,
+                        messageSpacing: newSettings.messageSpacing,
+                        groupSpacing: newSettings.groupSpacing,
+                        appIcon: newSettings.appIcon,
+                        reduceMotion: newSettings.reduceMotion,
+                        performanceMode: newSettings.performanceMode,
+                        customColors: newSettings.customColors,
+                        customBackground: newSettings.customBackground,
+                        backgroundDim: newSettings.backgroundDim,
+                        backgroundBlur: newSettings.backgroundBlur,
+                    },
+                    accessibility: {
+                        screenReader: newSettings.screenReader,
+                        interfaceScale: newSettings.interfaceScale
+                    }
+                }
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -326,6 +350,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const setAppIcon = (appIcon: AppIconType) => setSettings(prev => ({ ...prev, appIcon }));
     const setPerformanceMode = (performanceMode: boolean) => setSettings(prev => ({ ...prev, performanceMode }));
     const setReduceMotion = (reduceMotion: boolean) => setSettings(prev => ({ ...prev, reduceMotion }));
+    const setScreenReader = (screenReader: boolean) => setSettings(prev => ({ ...prev, screenReader }));
     
     const setCustomColors = (colors: Partial<CustomColors>) => {
         setSettings(prev => ({
@@ -431,6 +456,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setAppIcon,
             setPerformanceMode,
             setReduceMotion,
+            setScreenReader,
             setCustomColors,
             setCustomBackground,
             setBackgroundDim,

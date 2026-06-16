@@ -4,11 +4,13 @@ import axios from 'axios';
 import { SettingsToggle } from './SettingsUI';
 import { useDialog } from '../../contexts/DialogContext';
 import { MailIcon, LockIcon, TrashIcon, CheckIcon, CloseIcon } from '../../components/Icons';
+import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AccountSettings: React.FC = () => {
     const { user, refreshUser, logout } = useAuth();
     const { alert, confirm, prompt } = useDialog();
+    const { streamerModeEnabled, censorInfo } = useWindowSettings();
     
     const [username, setUsername] = useState(user?.username || '');
     const [isSavingUsername, setIsSavingUsername] = useState(false);
@@ -21,6 +23,8 @@ const AccountSettings: React.FC = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [deleteError, setDeleteError] = useState<string | null>(null);
+
+    const shouldCensor = streamerModeEnabled && censorInfo;
 
     // Check username availability as user types
     useEffect(() => {
@@ -148,10 +152,11 @@ const AccountSettings: React.FC = () => {
                     <div style={{ flex: 1, position: 'relative' }}>
                         <input 
                             className={`settings-input ${usernameError ? 'error' : ''}`} 
-                            value={username} 
+                            value={shouldCensor ? 'user_hidden' : username} 
                             onChange={e => setUsername(e.target.value)}
                             placeholder="Введите никнейм..."
                             style={{ borderColor: usernameError ? 'var(--danger)' : undefined }}
+                            disabled={shouldCensor}
                         />
                         {isCheckingUsername && (
                             <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '12px' }}>
@@ -174,9 +179,9 @@ const AccountSettings: React.FC = () => {
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Электронная почта</h3>
-                        <p>{user?.email}</p>
+                        <p>{shouldCensor ? 'email_hidden@hidden.com' : user?.email}</p>
                     </div>
-                    <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }} onClick={handleEmailChange} disabled={isEmailLoading}>
+                    <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }} onClick={handleEmailChange} disabled={isEmailLoading || shouldCensor}>
                         Изменить
                     </button>
                 </div>

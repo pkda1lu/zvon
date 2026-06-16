@@ -17,6 +17,8 @@ export class SoundManager {
     private audioContext: AudioContext | null = null;
     private soundBuffers: Map<string, AudioBuffer> = new Map();
     private isInitialized = false;
+    private streamerMode = false;
+    private disableSounds = false;
 
     private constructor() { }
 
@@ -38,7 +40,14 @@ export class SoundManager {
         this.isInitialized = true;
     }
 
+    setStreamerMode(enabled: boolean, disableSounds: boolean) {
+        this.streamerMode = enabled;
+        this.disableSounds = disableSounds;
+    }
+
     async playSound(soundPath: string, volume: number = 0.5) {
+        if (this.streamerMode && this.disableSounds) return;
+
         // Fallback to simple Audio element if Web Audio is not initialized
         if (!this.isInitialized || !this.audioContext) {
             try {
@@ -106,6 +115,12 @@ export class SoundManager {
         const audio = new Audio(url);
         audio.loop = true;
         audio.volume = volume;
+        
+        if (this.streamerMode && this.disableSounds) {
+            // Return dummy audio object if muted by streamer mode
+            return audio;
+        }
+
         audio.play().catch((err) => {
             console.warn('[SoundManager] playLoop failed:', err);
         });

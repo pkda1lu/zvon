@@ -213,6 +213,10 @@ const userSchema = new mongoose.Schema({
       language: { type: String, default: 'ru' },
       timeFormat: { type: String, default: '24h' }
     },
+    accessibility: {
+      screenReader: { type: Boolean, default: false },
+      interfaceScale: { type: Number, default: 1.0 }
+    },
     interaction: {
       voice: {
         noiseSuppression: { type: Boolean, default: true },

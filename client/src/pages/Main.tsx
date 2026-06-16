@@ -23,6 +23,7 @@ import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useInbox } from '../contexts/InboxContext';
+import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import JoinServerModal from '../components/JoinServerModal';
 import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
@@ -45,6 +46,7 @@ const Main: React.FC = () => {
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
   const { unreadCount: inboxUnreadCount } = useInbox();
+  const { streamerModeEnabled, changeStatusToStreaming } = useWindowSettings();
 
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
@@ -376,6 +378,19 @@ const Main: React.FC = () => {
   // Single source of truth: emit activity based on current game + open mini-apps.
   useEffect(() => {
     if (!socket) return;
+
+    if (streamerModeEnabled && changeStatusToStreaming) {
+      socket.emit('activity-update', {
+        name: 'Streaming',
+        type: 'streaming',
+        state: 'В эфире',
+        details: 'Трансляция через OBS',
+        assets: { largeImage: 'streaming', largeText: 'В эфире' },
+        timestamps: { start: Date.now() },
+      });
+      return;
+    }
+
     if (currentGameActivity) {
       socket.emit('activity-update', currentGameActivity);
       return;
