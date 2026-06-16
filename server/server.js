@@ -79,6 +79,7 @@ app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
 }));
 app.use('/api/moderation', require('./routes/moderation'));
 app.use('/api/version', require('./routes/version'));
+app.use('/api/themes', require('./routes/themes'));
 const { router: downloadRouter, latestRedirect: downloadLatestRedirect } = require('./routes/download');
 app.use('/api/download', downloadRouter);
 // Friendly public URLs (registered before the SPA catch-all below):

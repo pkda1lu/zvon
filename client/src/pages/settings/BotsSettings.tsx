@@ -109,7 +109,7 @@ const BotsSettings: React.FC = () => {
         if (!(await confirm('Вы уверены, что хотите удалить этого бота?'))) return;
         try {
             await axios.delete(`/api/bots/${id}`);
-            if (editingApp?._id === id) setEditingApp(null);
+            if (editingBot?._id === id) setEditingBot(null);
             fetchBots();
         } catch (e) { }
     };

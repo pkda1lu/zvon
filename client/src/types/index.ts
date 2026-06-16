@@ -40,6 +40,7 @@ export interface User {
   isBanned?: boolean;
   banExpires?: string;
   banReason?: string;
+  lastActiveAt?: string;
   settings?: {
     showActivityStatus: boolean;
     activityVisibility: 'everyone' | 'friends' | 'none';
@@ -47,6 +48,28 @@ export interface User {
     whoCanDM: 'everyone' | 'server_members' | 'friends' | 'nobody';
     whoCanFindInSearch: 'everyone' | 'friends_of_friends' | 'nobody';
     whoCanSeeFullProfile: 'everyone' | 'friends' | 'small_servers' | 'nobody';
+    smallServerLimit?: number;
+    appearance?: {
+      theme: string;
+      interfaceScale: number;
+      appIcon: string;
+      reduceMotion: boolean;
+      performanceMode: boolean;
+      customColors: { primary: string; secondary: string; accent: string };
+    };
+    chat?: {
+      displayMode: string;
+      showPreview: boolean;
+      autoPlayGif: boolean;
+      highlightMentions: boolean;
+      emojiAutocomplete: boolean;
+      showHoverBar: boolean;
+      textToSpeech: boolean;
+    };
+    language?: {
+      language: string;
+      timeFormat: string;
+    };
   };
   createdAt: string;
 }

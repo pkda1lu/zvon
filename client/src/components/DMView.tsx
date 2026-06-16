@@ -61,11 +61,11 @@ const DMView: React.FC<DMViewProps> = ({
     }
   };
   const {
-    displayEmbeds,
-    showHoverActions,
-    mentionHighlight,
-    autocompleteEmoji,
-    enableTTS
+    showPreview,
+    showHoverBar,
+    highlightMentions,
+    emojiAutocomplete,
+    textToSpeech
   } = useChatSettings();
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -381,7 +381,7 @@ const DMView: React.FC<DMViewProps> = ({
     const textBeforeCursor = value.substring(0, cursorPosition);
     const lastAtSignIndex = textBeforeCursor.lastIndexOf('@');
 
-    if (lastAtSignIndex !== -1 && autocompleteEmoji) {
+    if (lastAtSignIndex !== -1 && emojiAutocomplete) {
       const query = textBeforeCursor.substring(lastAtSignIndex + 1);
       if (!query.includes(' ')) {
         setShowMentions(true);
@@ -611,14 +611,14 @@ const DMView: React.FC<DMViewProps> = ({
 
   // TTS Effect
   useEffect(() => {
-    if (!enableTTS || messages.length === 0) return;
+    if (!textToSpeech || messages.length === 0) return;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.author._id !== user?._id && hasScrolledToNew) {
       const utterance = new SpeechSynthesisUtterance(`${lastMsg.author.username} сказал: ${lastMsg.content}`);
       utterance.lang = 'ru-RU';
       window.speechSynthesis.speak(utterance);
     }
-  }, [messages.length, enableTTS]);
+  }, [messages.length, textToSpeech]);
 
   const handleScroll = async () => {
     const container = scrollContainerRef.current;
@@ -863,7 +863,7 @@ const DMView: React.FC<DMViewProps> = ({
                   ) : (
                     <MessageBox
                       id={`msg-${msg._id}`}
-                      className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
+                      className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
                       {...messageMotionProps}
                     >
                       {msg.replyTo && (
@@ -894,7 +894,7 @@ const DMView: React.FC<DMViewProps> = ({
                             <UserBadges badges={msg.author.badges} size={14} />
                             {msg.author.isBot && <span className="bot-badge">БOТ</span>}
                             <span className="message-time">{formatDate(msg.createdAt)}</span>
-                            {showHoverActions && (
+                            {showHoverBar && (
                               <div className="message-actions-hover">
                                 <button
                                   className="msg-action-btn"
@@ -951,7 +951,7 @@ const DMView: React.FC<DMViewProps> = ({
                             )}
                           </div>
                         )}
-                        {grouped && showHoverActions && (
+                        {grouped && showHoverBar && (
                           <div className="message-actions-hover mini">
                             <button
                               className="msg-action-btn mini"
@@ -1024,7 +1024,7 @@ const DMView: React.FC<DMViewProps> = ({
                           onReact={(emoji) => handleReact(msg._id, emoji)}
                         />
 
-                        {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
+                        {showPreview && msg.attachments && msg.attachments.length > 0 && (
                           <div className="message-attachments">
                             {msg.attachments.map((att, i) => (
                               <div key={i} className="attachment-item">
@@ -1082,7 +1082,7 @@ const DMView: React.FC<DMViewProps> = ({
                           </div>
                         )}
 
-                        {displayEmbeds && msg.embeds && msg.embeds.length > 0 && (
+                        {showPreview && msg.embeds && msg.embeds.length > 0 && (
                           <div className="message-embeds">
                             {msg.embeds.map((emb, i) => renderEmbed(emb, i))}
                           </div>

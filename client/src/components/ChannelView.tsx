@@ -106,9 +106,9 @@ const MessageItem = React.memo<{
   prev: Message | undefined;
   user: User | null;
   server: Server;
-  displayEmbeds: boolean;
-  showHoverActions: boolean;
-  mentionHighlight: boolean;
+  showPreview: boolean;
+  showHoverBar: boolean;
+  highlightMentions: boolean;
   canPin: boolean;
   canReact: boolean;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
@@ -128,7 +128,7 @@ const MessageItem = React.memo<{
   onInteractiveButtonClick: (messageId: string, actionId: string) => void;
   isFresh?: boolean;
 }>(({
-  msg, prev, user, server, displayEmbeds, showHoverActions, mentionHighlight, canPin, canReact,
+  msg, prev, user, server, showPreview, showHoverBar, highlightMentions, canPin, canReact,
   onUserClick, onContextMenu, onTogglePin, onDelete, formatDate, renderMessageContent,
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
   onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh
@@ -351,7 +351,7 @@ const MessageItem = React.memo<{
       {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
       <MessageBox
         id={`msg-${msg._id}`}
-        className={`message ${grouped ? 'grouped' : 'with-author'} ${mentionHighlight && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
+        className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
         {...messageProps}
       >
         {msg.replyTo && (
@@ -405,7 +405,7 @@ const MessageItem = React.memo<{
               </div>
             )}
 
-            {showHoverActions && (
+            {showHoverBar && (
               <div className={`message-actions-hover ${grouped ? 'mini' : ''}`}>
                 {canPin && (
                   <button
@@ -461,7 +461,7 @@ const MessageItem = React.memo<{
 
           <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
 
-          {displayEmbeds && msg.attachments && msg.attachments.length > 0 && (
+          {showPreview && msg.attachments && msg.attachments.length > 0 && (
             <div className="message-attachments">
               {msg.attachments.map((att, i) => (
                 <div key={i} className="attachment-item">
@@ -513,7 +513,7 @@ const MessageItem = React.memo<{
             </div>
           )}
 
-          {displayEmbeds && msg.embeds && msg.embeds.length > 0 && (
+          {showPreview && msg.embeds && msg.embeds.length > 0 && (
             <div className="message-embeds">
               {msg.embeds.map((emb, i) => renderEmbed(emb, i))}
             </div>
@@ -576,11 +576,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     }
   };
   const {
-    displayEmbeds,
-    showHoverActions,
-    mentionHighlight,
-    autocompleteEmoji,
-    enableTTS
+    showPreview,
+    showHoverBar,
+    highlightMentions,
+    emojiAutocomplete,
+    textToSpeech
   } = useChatSettings();
   const [message, setMessage] = useState('');
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
@@ -735,14 +735,14 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
   // TTS Effect
   useEffect(() => {
-    if (!enableTTS || messages.length === 0) return;
+    if (!textToSpeech || messages.length === 0) return;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.author._id !== user?._id && hasScrolledToNew) {
       const utterance = new SpeechSynthesisUtterance(`${lastMsg.author.username} сказал: ${lastMsg.content}`);
       utterance.lang = 'ru-RU';
       window.speechSynthesis.speak(utterance);
     }
-  }, [messages.length, enableTTS]);
+  }, [messages.length, textToSpeech]);
 
   const handleScroll = async () => {
     const container = scrollContainerRef.current;
@@ -910,7 +910,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     const textBeforeCursor = value.substring(0, cursorPosition);
     const lastAtSignIndex = textBeforeCursor.lastIndexOf('@');
 
-    if (lastAtSignIndex !== -1 && autocompleteEmoji) {
+    if (lastAtSignIndex !== -1 && emojiAutocomplete) {
       const query = textBeforeCursor.substring(lastAtSignIndex + 1);
       // Valid query: no spaces between @ and cursor
       if (!query.includes(' ')) {
@@ -1312,9 +1312,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                   isFresh={hasBaseline && idx > lastSeenIdx}
                   user={user}
                   server={server}
-                  displayEmbeds={displayEmbeds}
-                  showHoverActions={showHoverActions}
-                  mentionHighlight={mentionHighlight}
+                  showPreview={showPreview}
+                  showHoverBar={showHoverBar}
+                  highlightMentions={highlightMentions}
                   canPin={canPin}
                   canReact={canReact}
                   onUserClick={onUserClick}

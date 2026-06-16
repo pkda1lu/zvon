@@ -183,6 +183,35 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['everyone', 'friends', 'small_servers', 'nobody'],
       default: 'everyone'
+    },
+    // New Interface Settings
+    appearance: {
+      theme: { type: String, default: 'dark' },
+      interfaceScale: { type: Number, default: 1.0 },
+      appIcon: { type: String, default: 'default' },
+      reduceMotion: { type: Boolean, default: false },
+      performanceMode: { type: Boolean, default: false },
+      customColors: {
+        primary: { type: String, default: '#006aff' },
+        secondary: { type: String, default: '#7000ff' },
+        accent: { type: String, default: '#ff00c8' }
+      },
+      customBackground: { type: String, default: '' },
+      backgroundDim: { type: Number, default: 40 },
+      backgroundBlur: { type: Number, default: 0 }
+    },
+    chat: {
+      displayMode: { type: String, default: 'cozy' },
+      showPreview: { type: Boolean, default: true },
+      autoPlayGif: { type: Boolean, default: true },
+      highlightMentions: { type: Boolean, default: true },
+      emojiAutocomplete: { type: Boolean, default: true },
+      showHoverBar: { type: Boolean, default: true },
+      textToSpeech: { type: Boolean, default: false }
+    },
+    language: {
+      language: { type: String, default: 'ru' },
+      timeFormat: { type: String, default: '24h' }
     }
   },
   createdAt: {

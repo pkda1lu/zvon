@@ -1,25 +1,27 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+export type ChatDisplayMode = 'cozy' | 'compact' | 'light';
+
 interface ChatSettings {
-    displayEmbeds: boolean;
-    previewLinks: boolean;
-    autoPlayGifs: boolean;
+    displayMode: ChatDisplayMode;
+    showPreview: boolean;
+    autoPlayGif: boolean;
+    highlightMentions: boolean;
+    emojiAutocomplete: boolean;
+    showHoverBar: boolean;
+    textToSpeech: boolean;
     showStickers: boolean;
-    enableTTS: boolean;
-    mentionHighlight: boolean;
-    autocompleteEmoji: boolean;
-    showHoverActions: boolean;
 }
 
 interface ChatSettingsContextType extends ChatSettings {
-    setDisplayEmbeds: (value: boolean) => void;
-    setPreviewLinks: (value: boolean) => void;
-    setAutoPlayGifs: (value: boolean) => void;
+    setDisplayMode: (value: ChatDisplayMode) => void;
+    setShowPreview: (value: boolean) => void;
+    setAutoPlayGif: (value: boolean) => void;
+    setHighlightMentions: (value: boolean) => void;
+    setEmojiAutocomplete: (value: boolean) => void;
+    setShowHoverBar: (value: boolean) => void;
+    setTextToSpeech: (value: boolean) => void;
     setShowStickers: (value: boolean) => void;
-    setEnableTTS: (value: boolean) => void;
-    setMentionHighlight: (value: boolean) => void;
-    setAutocompleteEmoji: (value: boolean) => void;
-    setShowHoverActions: (value: boolean) => void;
 }
 
 const ChatSettingsContext = createContext<ChatSettingsContextType | undefined>(undefined);
@@ -28,44 +30,57 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [settings, setSettings] = useState<ChatSettings>(() => {
         const saved = localStorage.getItem('chat-settings');
         if (saved) {
-            return JSON.parse(saved);
+            const parsed = JSON.parse(saved);
+            return {
+                displayMode: parsed.displayMode || parsed.density || 'cozy',
+                showPreview: parsed.showPreview ?? parsed.displayEmbeds ?? true,
+                autoPlayGif: parsed.autoPlayGif ?? parsed.autoPlayGifs ?? true,
+                highlightMentions: parsed.highlightMentions ?? parsed.mentionHighlight ?? true,
+                emojiAutocomplete: parsed.emojiAutocomplete ?? parsed.autocompleteEmoji ?? true,
+                showHoverBar: parsed.showHoverBar ?? parsed.showHoverActions ?? true,
+                textToSpeech: parsed.textToSpeech ?? parsed.enableTTS ?? false,
+                showStickers: parsed.showStickers ?? true,
+            };
         }
         return {
-            displayEmbeds: true,
-            previewLinks: true,
-            autoPlayGifs: true,
+            displayMode: 'cozy',
+            showPreview: true,
+            autoPlayGif: true,
+            highlightMentions: true,
+            emojiAutocomplete: true,
+            showHoverBar: true,
+            textToSpeech: false,
             showStickers: true,
-            enableTTS: false,
-            mentionHighlight: true,
-            autocompleteEmoji: true,
-            showHoverActions: true,
         };
     });
 
     useEffect(() => {
         localStorage.setItem('chat-settings', JSON.stringify(settings));
+        
+        // Apply display mode to root if needed (though AppearanceContext handles its own)
+        document.documentElement.dataset.chatLayout = settings.displayMode;
     }, [settings]);
 
-    const setDisplayEmbeds = (displayEmbeds: boolean) => setSettings(prev => ({ ...prev, displayEmbeds }));
-    const setPreviewLinks = (previewLinks: boolean) => setSettings(prev => ({ ...prev, previewLinks }));
-    const setAutoPlayGifs = (autoPlayGifs: boolean) => setSettings(prev => ({ ...prev, autoPlayGifs }));
+    const setDisplayMode = (displayMode: ChatDisplayMode) => setSettings(prev => ({ ...prev, displayMode }));
+    const setShowPreview = (showPreview: boolean) => setSettings(prev => ({ ...prev, showPreview }));
+    const setAutoPlayGif = (autoPlayGif: boolean) => setSettings(prev => ({ ...prev, autoPlayGif }));
+    const setHighlightMentions = (highlightMentions: boolean) => setSettings(prev => ({ ...prev, highlightMentions }));
+    const setEmojiAutocomplete = (emojiAutocomplete: boolean) => setSettings(prev => ({ ...prev, emojiAutocomplete }));
+    const setShowHoverBar = (showHoverBar: boolean) => setSettings(prev => ({ ...prev, showHoverBar }));
+    const setTextToSpeech = (textToSpeech: boolean) => setSettings(prev => ({ ...prev, textToSpeech }));
     const setShowStickers = (showStickers: boolean) => setSettings(prev => ({ ...prev, showStickers }));
-    const setEnableTTS = (enableTTS: boolean) => setSettings(prev => ({ ...prev, enableTTS }));
-    const setMentionHighlight = (mentionHighlight: boolean) => setSettings(prev => ({ ...prev, mentionHighlight }));
-    const setAutocompleteEmoji = (autocompleteEmoji: boolean) => setSettings(prev => ({ ...prev, autocompleteEmoji }));
-    const setShowHoverActions = (showHoverActions: boolean) => setSettings(prev => ({ ...prev, showHoverActions }));
 
     return (
         <ChatSettingsContext.Provider value={{
             ...settings,
-            setDisplayEmbeds,
-            setPreviewLinks,
-            setAutoPlayGifs,
-            setShowStickers,
-            setEnableTTS,
-            setMentionHighlight,
-            setAutocompleteEmoji,
-            setShowHoverActions
+            setDisplayMode,
+            setShowPreview,
+            setAutoPlayGif,
+            setHighlightMentions,
+            setEmojiAutocomplete,
+            setShowHoverBar,
+            setTextToSpeech,
+            setShowStickers
         }}>
             {children}
         </ChatSettingsContext.Provider>

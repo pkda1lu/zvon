@@ -33,6 +33,7 @@ import MiniAppsSettings from './MiniAppsSettings';
 import VoiceSettings from './VoiceSettings';
 import KeybindsSettings from './KeybindsSettings';
 import AccessibilitySettings from './AccessibilitySettings';
+import ScalingSettings from './ScalingSettings';
 import WindowsSettings from './WindowsSettings';
 import StreamerSettings from './StreamerSettings';
 import AdvancedSettings from './AdvancedSettings';
@@ -80,6 +81,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'voice': return <VoiceSettings />;
             case 'keybinds': return <KeybindsSettings />;
             case 'accessibility': return <AccessibilitySettings />;
+            case 'scaling': return <ScalingSettings />;
             case 'windows-actions': return <WindowsSettings />;
             case 'streamer': return <StreamerSettings />;
             case 'advanced': return <AdvancedSettings />;
@@ -134,6 +136,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <div className="settings-sidebar-divider" />
                 <div className="settings-sidebar-header">Специальные возможности</div>
                 <NavItem id="accessibility" label="Экранный диктор" icon={SpeakerIcon} />
+                <NavItem id="scaling" label="Масштабирование" icon={LayoutGridIcon} />
 
                 {isWindows && (
                     <>
