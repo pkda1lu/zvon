@@ -154,19 +154,17 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                         </section>
                     )}
 
-                    <section>
-                        <h4>ОСНОВНОЙ СЕРВЕР</h4>
-                        {user.primaryServer && typeof user.primaryServer === 'object' ? (
+                    {user.primaryServer && typeof user.primaryServer === 'object' && (
+                        <section>
+                            <h4>ОСНОВНОЙ СЕРВЕР</h4>
                             <div className="mutual-item" onClick={() => handleServerClick((user.primaryServer as any)._id)} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px' }}>
                                 <div className="mutual-avatar server">
                                     {user.primaryServer.icon ? <img src={getAvatarUrl(user.primaryServer.icon)!} alt="" /> : <span>{user.primaryServer.name.charAt(0).toUpperCase()}</span>}
                                 </div>
                                 <span>{user.primaryServer.name}</span>
                             </div>
-                        ) : (
-                            <div className="empty-mutual-mini">Сервер не выбран</div>
-                        )}
-                    </section>
+                        </section>
+                    )}
 
                     <section>
                         <h4>ДАТА РЕГИСТРАЦИИ</h4>
@@ -175,7 +173,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     
                     {isServerType && memberData && (
                         <section>
-                            <h4>ДАТА ЗАХОДА НА СЕРВЕР</h4>
+                            <h4>ДАТА ВСТУПЛЕНИЯ НА СЕРВЕР</h4>
                             <p>{new Date(memberData.joinedAt || user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         </section>
                     )}

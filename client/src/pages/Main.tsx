@@ -174,19 +174,44 @@ const Main: React.FC = () => {
     const handleOpenMiniAppEvent = (e: any) => {
       handleOpenMiniApp(e.detail.app);
     };
+    const handleOpenDM = async (e: any) => {
+      try {
+        const response = await axios.get(`/api/direct-messages/user/${e.detail.userId}`);
+        setSelectedDM(response.data);
+        setSelectedChannel(null);
+        setSelectedServer(null);
+        setShowFriends(false);
+        setMobileView('content');
+      } catch (err) { }
+    };
+    const handleSelectServerEvent = (e: any) => {
+      const srvId = e.detail.serverId;
+      const srv = servers.find(s => s._id === srvId);
+      if (srv) {
+        setSelectedServer(srv);
+        setSelectedChannel(null); // Will be handled by ServerSidebar's useEffect or we can pick first channel
+        setSelectedDM(null);
+        setShowFriends(false);
+        setMobileView('content');
+      }
+    };
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
     window.addEventListener('start-dm-by-id', handleStartDMById);
     window.addEventListener('open-mini-app', handleOpenMiniAppEvent);
+    window.addEventListener('open-dm', handleOpenDM);
+    window.addEventListener('select-server', handleSelectServerEvent);
     return () => {
       window.removeEventListener('start-dm', handleStartDMEvent);
       window.removeEventListener('start-call', handleStartCallEvent);
       window.removeEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
       window.removeEventListener('start-dm-by-id', handleStartDMById);
       window.removeEventListener('open-mini-app', handleOpenMiniAppEvent);
+      window.removeEventListener('open-dm', handleOpenDM);
+      window.removeEventListener('select-server', handleSelectServerEvent);
     };
-  }, []);
+  }, [servers]);
 
   // --- Activity orchestration ---
   // Game (from electron detection) has priority. If no game is running, fall
