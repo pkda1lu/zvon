@@ -10,9 +10,10 @@ export const ChoiceGroup: React.FC<{
     options: { value: string; label: string; icon?: React.ReactNode; color?: string }[];
     value: string;
     onChange: (value: string) => void;
-}> = ({ options, value, onChange }) => {
+    className?: string;
+}> = ({ options, value, onChange, className = '' }) => {
     return (
-        <div className="settings-choice-group">
+        <div className={`settings-choice-group ${className}`}>
             {options.map((opt) => (
                 <div 
                     key={opt.value} 

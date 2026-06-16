@@ -30,6 +30,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({ user, memberData, serve
     const bio = (isServerType && memberData?.bio) || user.bio;
     const avatar = (isServerType && memberData?.avatar) || user.avatar;
     const banner = (isServerType && memberData?.banner) || user.banner;
+    const bannerColor = (isServerType && memberData?.bannerColor) || user.bannerColor || '#5865f2';
     const roles = (isServerType && memberData?.roles) || [];
 
     const handleAvatarClick = () => {
@@ -53,7 +54,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({ user, memberData, serve
                 <div 
                     className="profile-banner" 
                     style={{ 
-                        backgroundColor: '#5865f2', 
+                        backgroundColor: bannerColor, 
                         backgroundImage: banner ? `url(${getFullUrl(banner)})` : 'none', 
                         backgroundSize: 'cover',
                         height: isCompact ? '120px' : '180px'

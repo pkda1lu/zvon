@@ -534,7 +534,7 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
     if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
 
-    const { nickname, bio, avatar, banner, roles } = req.body;
+    const { nickname, bio, avatar, banner, roles, bannerColor } = req.body;
     const isSelf = req.user._id.toString() === req.params.userId;
     const userPerms = computePermissions(req.user._id, server);
 
@@ -581,6 +581,7 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     if (bio !== undefined) server.members[memberIndex].bio = bio;
     if (avatar !== undefined) server.members[memberIndex].avatar = avatar;
     if (banner !== undefined) server.members[memberIndex].banner = banner;
+    if (bannerColor !== undefined) server.members[memberIndex].bannerColor = bannerColor;
 
     await server.save();
 
@@ -597,6 +598,46 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: updatedServer.members[memberIndex] });
     res.json(updatedServer.members[memberIndex]);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/:id/members/:userId/avatar', auth, async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
+    if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
+    
+    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
+    }
+
+    server.members[memberIndex].avatar = null;
+    await server.save();
+    
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: server.members[memberIndex] });
+    res.json({ message: 'Avatar deleted', avatar: null });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/:id/members/:userId/banner', auth, async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
+    if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
+    
+    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
+    }
+
+    server.members[memberIndex].banner = null;
+    await server.save();
+    
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: server.members[memberIndex] });
+    res.json({ message: 'Banner deleted', banner: null });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

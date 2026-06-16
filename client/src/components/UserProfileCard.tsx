@@ -271,6 +271,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
     const { user, mutualServers, mutualFriends, friendship } = profileData;
     const isMe = currentUser?._id === userId;
+    const bannerColor = memberData?.bannerColor || user.bannerColor || '#5865f2';
 
     return (
         <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
@@ -290,7 +291,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 animate={position ? (isVisible ? 'animate' : 'initial') : 'animate'}
                 transition={position ? popoverTransition : modalPopTransition}
             >
-                <div className="profile-banner" style={{ backgroundColor: '#5865f2', backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none', backgroundSize: 'cover' }}>
+                <div className="profile-banner" style={{ backgroundColor: bannerColor, backgroundImage: (memberData?.banner || user.banner) ? `url(${getFullUrl(memberData?.banner || user.banner)})` : 'none', backgroundSize: 'cover' }}>
                     <button className="profile-close-button" onClick={onClose}><CloseIcon /></button>
                 </div>
 
