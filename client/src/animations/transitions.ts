@@ -30,10 +30,13 @@ export const iosFade: Transition = {
 };
 
 // Horizontal push (used between auth pages and Home — like a UINavigationController push).
+// pointerEvents в exit отключаем: на iOS standalone (PWA) уходящая страница
+// (position:absolute, inset:0) может «зависнуть» поверх и перехватывать тапы —
+// тогда приложение визуально открыто, но не реагирует на нажатия.
 export const pagePushVariants: Variants = {
   initial: { opacity: 0, x: '6%', scale: 0.985 },
-  animate: { opacity: 1, x: 0, scale: 1 },
-  exit:    { opacity: 0, x: '-3%', scale: 0.985 },
+  animate: { opacity: 1, x: 0, scale: 1, pointerEvents: 'auto' },
+  exit:    { opacity: 0, x: '-3%', scale: 0.985, pointerEvents: 'none' },
 };
 
 // Cross-fade + subtle scale (used for sibling routes without clear push/pop semantic).
