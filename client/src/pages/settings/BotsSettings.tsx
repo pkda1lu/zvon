@@ -1,31 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import { getAvatarUrl, getFullUrl } from '../../utils/avatar';
+import { CustomSelect } from './SettingsUI';
+import ImageCropper from '../../components/ImageCropper';
+import { PlusIcon, BotIcon, ShieldIcon, CopyIcon, TrashIcon, CheckIcon, ExternalLinkIcon, CloseIcon } from '../../components/Icons';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const BotsSettings: React.FC = () => {
+    const { refreshUser } = useAuth();
     const [bots, setBots] = useState<any[]>([]);
     const [userServers, setUserServers] = useState<any[]>([]);
+    const [selectedBotId, setSelectedBotId] = useState('');
     const [loading, setLoading] = useState(false);
     
-    const [botName, setBotName] = useState('');
-    const [copiedToken, setCopiedToken] = useState<string | null>(null);
-    const [revealedTokenId, setRevealedTokenId] = useState<string | null>(null);
-    const [showServerSelect, setShowServerSelect] = useState<string | null>(null);
-
-    const [editingBot, setEditingBot] = useState<any | null>(null);
+    // Edit state
     const [editName, setEditName] = useState('');
     const [editBio, setEditBio] = useState('');
+    const [editPrimaryServer, setEditPrimaryServer] = useState('');
+    const [avatar, setAvatar] = useState<string | null>(null);
+    const [banner, setBanner] = useState<string | null>(null);
+    
+    const [copiedToken, setCopiedToken] = useState<string | null>(null);
+    const [revealedToken, setRevealedToken] = useState(false);
 
-    const [editAvatar, setEditAvatar] = useState<File | null>(null);
-    const [editBanner, setEditBanner] = useState<File | null>(null);
-    const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
-    const [previewBanner, setPreviewBanner] = useState<string | null>(null);
+    // Deletion modal state
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+
+    // Cropping State
+    const [cropModal, setCropModal] = useState<{ isOpen: boolean; image: string; target: 'avatar' | 'banner' }>({
+        isOpen: false,
+        image: '',
+        target: 'avatar'
+    });
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
-    const { confirm, alert } = useDialog();
+    const { confirm, alert, prompt } = useDialog();
 
     const fetchBots = async () => {
         try {
@@ -46,14 +61,75 @@ const BotsSettings: React.FC = () => {
         fetchUserServers();
     }, []);
 
-    const createBot = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!botName.trim()) return;
+    useEffect(() => {
+        const selectedBot = bots.find(b => b._id === selectedBotId);
+        if (selectedBot) {
+            setEditName(selectedBot.username || '');
+            setEditBio(selectedBot.bio || '');
+            setEditPrimaryServer(selectedBot.primaryServer || '');
+            setAvatar(selectedBot.avatar || null);
+            setBanner(selectedBot.banner || null);
+            setRevealedToken(false);
+        } else {
+            setEditName('');
+            setEditBio('');
+            setEditPrimaryServer('');
+            setAvatar(null);
+            setBanner(null);
+        }
+    }, [selectedBotId, bots]);
+
+    const saveField = useCallback(async (field: string, value: any) => {
+        if (!selectedBotId) return;
+        try {
+            await axios.patch(`/api/bots/${selectedBotId}`, {
+                [field]: value
+            });
+            // Update local state to avoid refetching everything
+            setBots(prev => prev.map(b => b._id === selectedBotId ? { ...b, [field]: value } : b));
+        } catch (e) {
+            console.error(`Failed to auto-save bot ${field}`, e);
+        }
+    }, [selectedBotId]);
+
+    // Auto-save logic
+    useEffect(() => {
+        if (!selectedBotId) return;
+        const bot = bots.find(b => b._id === selectedBotId);
+        if (!bot || bot.username === editName) return;
+        
+        const timer = setTimeout(() => {
+            saveField('username', editName);
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [editName, selectedBotId, saveField, bots]);
+
+    useEffect(() => {
+        if (!selectedBotId) return;
+        const bot = bots.find(b => b._id === selectedBotId);
+        if (!bot || bot.bio === editBio) return;
+
+        const timer = setTimeout(() => {
+            saveField('bio', editBio);
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [editBio, selectedBotId, saveField, bots]);
+
+    const handlePrimaryServerChange = (val: string) => {
+        setEditPrimaryServer(val);
+        saveField('primaryServer', val || null);
+    };
+
+    const createBot = async () => {
+        const name = await prompt('Введите имя нового бота:', '');
+        if (!name || !name.trim()) return;
+        
         setLoading(true);
         try {
-            await axios.post('/api/bots/create', { name: botName });
-            setBotName('');
-            fetchBots();
+            const res = await axios.post('/api/bots/create', { name });
+            await fetchBots();
+            setSelectedBotId(res.data.bot.id);
+            await alert('Бот успешно создан!');
         } catch (e) {
             await alert('Ошибка создания бота');
         } finally {
@@ -61,57 +137,38 @@ const BotsSettings: React.FC = () => {
         }
     };
 
-    const startEdit = (bot: any) => {
-        setEditingBot(bot);
-        setEditName(bot.username);
-        setEditBio(bot.bio || '');
-        setEditAvatar(null);
-        setEditBanner(null);
-        setPreviewAvatar(bot.avatar ? getFullUrl(bot.avatar) : null);
-        setPreviewBanner(bot.banner ? getFullUrl(bot.banner) : null);
-    };
+    const handleDeleteBotAction = async () => {
+        if (!selectedBotId) return;
+        const bot = bots.find(b => b._id === selectedBotId);
+        if (deleteConfirmText !== bot?.username) {
+            setDeleteError('Введенное имя не совпадает');
+            return;
+        }
 
-    const saveEdit = async () => {
-        if (!editingBot) return;
         setLoading(true);
         try {
-            await axios.patch(`/api/bots/${editingBot._id}`, { username: editName, bio: editBio });
-            if (editAvatar) {
-                const fd = new FormData();
-                fd.append('avatar', editAvatar);
-                await axios.post(`/api/bots/${editingBot._id}/avatar`, fd);
-            }
-            if (editBanner) {
-                const fd = new FormData();
-                fd.append('banner', editBanner);
-                await axios.post(`/api/bots/${editingBot._id}/banner`, fd);
-            }
-            setEditingBot(null);
-            fetchBots();
+            await axios.delete(`/api/bots/${selectedBotId}`);
+            setBots(prev => prev.filter(b => b._id !== selectedBotId));
+            setSelectedBotId('');
+            setShowDeleteModal(false);
+            setDeleteConfirmText('');
+            await alert('Бот успешно удален');
         } catch (e) {
-            await alert('Ошибка при сохранении профиля');
+            setDeleteError('Ошибка при удалении бота');
         } finally {
             setLoading(false);
         }
     };
 
-    const togglePublishBot = async (id: string) => {
+    const togglePublish = async () => {
+        if (!selectedBotId) return;
         try {
-            const res = await axios.patch(`/api/bots/${id}/publish`);
+            const res = await axios.patch(`/api/bots/${selectedBotId}/publish`);
             await alert(res.data.message);
-            fetchBots();
-        } catch (e) {
-            await alert('Ошибка публикации бота');
+            await fetchBots();
+        } catch (e: any) {
+            await alert(e.response?.data?.message || 'Ошибка публикации');
         }
-    };
-
-    const deleteBot = async (id: string) => {
-        if (!(await confirm('Вы уверены, что хотите удалить этого бота?'))) return;
-        try {
-            await axios.delete(`/api/bots/${id}`);
-            if (editingBot?._id === id) setEditingBot(null);
-            fetchBots();
-        } catch (e) { }
     };
 
     const copyToken = async (token: string) => {
@@ -127,169 +184,360 @@ const BotsSettings: React.FC = () => {
         }
     };
 
-    const addBotToServer = async (botId: string, serverId: string) => {
+    const regenerateToken = async () => {
+        if (!selectedBotId) return;
+        if (!(await confirm('Вы уверены? Старый токен перестанет работать.'))) return;
+        
         try {
-            await axios.post(`/api/bots/${botId}/add-to-server`, { serverId });
-            await alert('Бот успешно добавлен на сервер!');
-            setShowServerSelect(null);
-        } catch (e: any) {
-            await alert(e.response?.data?.message || 'Ошибка при добавлении бота');
+            const res = await axios.post(`/api/bots/${selectedBotId}/regenerate-token`);
+            setBots(prev => prev.map(b => b._id === selectedBotId ? { ...b, botToken: res.data.token } : b));
+            await alert('Токен успешно обновлен');
+        } catch (e) {
+            await alert('Ошибка при обновлении токена');
         }
     };
 
-    const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setEditAvatar(file);
-            setPreviewAvatar(URL.createObjectURL(file));
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'banner') => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropModal({ isOpen: true, image: reader.result as string, target });
+        };
+        reader.readAsDataURL(file);
+        event.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        const { target } = cropModal;
+        if (!selectedBotId) return;
+        
+        const formData = new FormData();
+        formData.append(target, croppedBlob, target === 'avatar' ? 'avatar.jpg' : 'banner.jpg');
+        
+        setLoading(true);
+        try {
+            const res = await axios.post(`/api/bots/${selectedBotId}/${target}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (target === 'avatar') setAvatar(res.data.avatar);
+            else setBanner(res.data.banner);
+            
+            setBots(prev => prev.map(b => b._id === selectedBotId ? { ...b, [target]: res.data[target] } : b));
+            setCropModal({ ...cropModal, isOpen: false });
+        } catch (e) {
+            console.error(`Failed to upload bot ${target}`, e);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setEditBanner(file);
-            setPreviewBanner(URL.createObjectURL(file));
+    const handleDeleteAsset = async (type: 'avatar' | 'banner') => {
+        if (!selectedBotId) return;
+        try {
+            await axios.delete(`/api/bots/${selectedBotId}/${type}`);
+            if (type === 'avatar') setAvatar(null);
+            else setBanner(null);
+            setBots(prev => prev.map(b => b._id === selectedBotId ? { ...b, [type]: null } : b));
+        } catch (e) {
+            console.error(`Failed to delete bot ${type}`, e);
         }
     };
+
+    const botOptions = bots.map(b => ({
+        id: b._id,
+        name: b.username,
+        icon: b.avatar
+    }));
+
+    const serverOptions = [
+        { id: '', name: 'Не выбран' },
+        ...userServers.map(s => ({
+            id: s._id,
+            name: s.name,
+            icon: s.icon
+        }))
+    ];
+
+    const selectedBot = bots.find(b => b._id === selectedBotId);
 
     return (
         <div className="settings-content-inner with-preview">
             <div className="settings-main-column">
                 <h2 className="settings-page-title">Мои боты</h2>
                 <p className="settings-description">
-                    Создавайте ботов для автоматизации или интеграций. Боты работают через WebSocket API.
+                    Создавайте и управляйте своими ботами для автоматизации.
                 </p>
 
                 <div className="settings-card">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>Создать нового бота</h3>
-                    <form onSubmit={createBot} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                        <input
-                            type="text"
-                            placeholder="Имя нового бота..."
-                            value={botName}
-                            onChange={e => setBotName(e.target.value)}
-                            className="settings-input"
-                            style={{ flex: '1 1 200px' }}
-                        />
-                        <button type="submit" className="settings-btn" disabled={loading}>
-                            Создать
+                    <h3 className="settings-section-title" style={{marginTop: 0}}>Выберите бота</h3>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                            <CustomSelect 
+                                options={botOptions} 
+                                value={selectedBotId} 
+                                onChange={setSelectedBotId}
+                                placeholder="Выберите бота для настройки..."
+                            />
+                        </div>
+                        <button className="settings-btn" onClick={createBot} title="Создать нового бота">
+                            <PlusIcon size={18} />
+                            <span>Создать</span>
                         </button>
-                    </form>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {bots.length === 0 && <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '20px' }}>У вас пока нет созданных ботов.</div>}
-                    
-                    {bots.map(bot => (
-                        <div key={bot._id} className="settings-card" style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
-                            <div style={{ 
-                                height: '100px', 
-                                backgroundColor: 'var(--primary-neon)',
-                                backgroundImage: bot.banner ? `url(${getFullUrl(bot.banner)})` : 'none',
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center'
-                            }} />
-                            <div style={{ padding: '0 24px 24px', position: 'relative' }}>
-                                <div style={{ 
-                                    width: '72px', height: '72px', borderRadius: '16px', 
-                                    backgroundColor: '#1e1f22', border: '4px solid var(--glass-bg)',
-                                    marginTop: '-36px',
-                                    backgroundImage: bot.avatar ? `url(${getFullUrl(bot.avatar)})` : 'none',
-                                    backgroundSize: 'cover',
-                                    backgroundPosition: 'center',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '24px', fontWeight: 'bold'
-                                }}>
-                                    {!bot.avatar && bot.username[0].toUpperCase()}
+                {selectedBotId && selectedBot && (
+                    <>
+                        {/* 1. Визуал бота */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Визуал бота</h3>
+                            
+                            {/* Аватар */}
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3>Аватар бота</h3>
+                                    <p>Отображается в списках пользователей и сообщениях.</p>
                                 </div>
-                                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                                    <div>
-                                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-main)' }}>{bot.username}</div>
-                                        <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>ID: {bot._id}</div>
-                                        
-                                        <div style={{ marginTop: '16px' }}>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '4px' }}>TOKEN</div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <input 
-                                                    className="settings-input" 
-                                                    type={revealedTokenId === bot._id ? 'text' : 'password'} 
-                                                    value={bot.botToken} 
-                                                    readOnly 
-                                                    style={{ width: '250px', padding: '8px 12px', fontSize: '13px' }}
-                                                />
-                                                <button className="settings-btn" style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => setRevealedTokenId(revealedTokenId === bot._id ? null : bot._id)}>
-                                                    {revealedTokenId === bot._id ? 'Скрыть' : 'Показать'}
-                                                </button>
-                                                <button className="settings-btn" style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => copyToken(bot.botToken)}>
-                                                    {copiedToken === bot.botToken ? 'Скопировано!' : 'Копировать'}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {showServerSelect === bot._id && (
-                                            <div style={{ marginTop: '16px', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px' }}>
-                                                <div style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '8px' }}>ВЫБЕРИТЕ СЕРВЕР</div>
-                                                <select className="settings-select" style={{ width: '100%', marginBottom: '8px' }} onChange={(e) => {
-                                                    if (e.target.value) addBotToServer(bot._id, e.target.value);
-                                                }}>
-                                                    <option value="">Выберите сервер...</option>
-                                                    {userServers.map(s => (
-                                                        <option key={s._id} value={s._id}>{s.name}</option>
-                                                    ))}
-                                                </select>
-                                                <button className="settings-btn settings-btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => setShowServerSelect(null)}>Отмена</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                        <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }} onClick={() => startEdit(bot)}>Настроить профиль</button>
-                                        <button className="settings-btn" style={{ background: 'rgba(0,106,255,0.2)', color: 'var(--primary-neon)' }} onClick={() => setShowServerSelect(bot._id)}>Добавить на сервер</button>
-                                        <button className="settings-btn" style={{ background: bot.isPublished ? 'rgba(255,59,48,0.1)' : 'rgba(35,165,89,0.1)', color: bot.isPublished ? 'var(--danger)' : 'var(--success)' }} onClick={() => togglePublishBot(bot._id)}>
-                                            {bot.isPublished ? 'Снять с публикации' : 'Опубликовать'}
+                                <div className="settings-btn-group">
+                                    <button className="settings-btn" onClick={() => avatarInputRef.current?.click()}>
+                                        {avatar ? 'Изменить' : 'Установить'}
+                                    </button>
+                                    {avatar && (
+                                        <button className="settings-btn secondary danger" onClick={() => handleDeleteAsset('avatar')}>
+                                            Удалить
                                         </button>
-                                        <button className="settings-btn settings-btn-danger" onClick={() => deleteBot(bot._id)}>Удалить</button>
+                                    )}
+                                </div>
+                            </div>
+                            <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={(e) => handleFileSelect(e, 'avatar')} />
+
+                            <div className="settings-sidebar-divider" style={{margin: '20px 0'}} />
+
+                            {/* Баннер */}
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3>Баннер бота</h3>
+                                    <p>Фоновое изображение в профиле бота.</p>
+                                </div>
+                                <div className="settings-btn-group">
+                                    <button className="settings-btn" onClick={() => bannerInputRef.current?.click()}>
+                                        {banner ? 'Изменить' : 'Установить'}
+                                    </button>
+                                    {banner && (
+                                        <button className="settings-btn secondary danger" onClick={() => handleDeleteAsset('banner')}>
+                                            Удалить
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            <input type="file" ref={bannerInputRef} style={{ display: 'none' }} accept="image/*" onChange={(e) => handleFileSelect(e, 'banner')} />
+                        </div>
+
+                        {/* 2. Название бота */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Название бота</h3>
+                            <input 
+                                className="settings-input" 
+                                value={editName} 
+                                onChange={(e) => setEditName(e.target.value)} 
+                                placeholder="Имя бота"
+                            />
+                        </div>
+
+                        {/* 3. Описание бота */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Описание (Bio)</h3>
+                            <textarea 
+                                className="settings-textarea"
+                                style={{ resize: 'none' }}
+                                value={editBio}
+                                onChange={(e) => {
+                                    setEditBio(e.target.value);
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                                placeholder="Расскажите о том, что делает этот бот..."
+                            />
+                        </div>
+
+                        {/* 4. Основной сервер */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Основной сервер</h3>
+                            <CustomSelect 
+                                options={serverOptions} 
+                                value={editPrimaryServer} 
+                                onChange={handlePrimaryServerChange}
+                                placeholder="Выберите основной сервер..."
+                            />
+                            <p className="settings-hint" style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-dim)' }}>
+                                Обычно это сервер разработчика или сервер тех-поддержки.
+                            </p>
+                        </div>
+
+                        {/* 5. Управление витриной */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Публикация на витрине</h3>
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3>Статус: {selectedBot.isPublished ? 'Опубликован' : 'Черновик'}</h3>
+                                    <p>Опубликованные боты доступны всем пользователям для добавления на свои сервера через «Витрину».</p>
+                                </div>
+                                <button className={`settings-btn ${selectedBot.isPublished ? 'danger-glass' : 'success-glass'}`} onClick={togglePublish}>
+                                    {selectedBot.isPublished ? 'Снять с витрины' : 'Опубликовать'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 6. Токен бота */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Токен бота</h3>
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3>API Access</h3>
+                                    <p style={{ color: 'var(--danger)', fontWeight: 600 }}>Никому не сообщайте этот токен!</p>
+                                </div>
+                                <button className="settings-btn secondary" onClick={regenerateToken}>
+                                    Обновить токен
+                                </button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                                <input 
+                                    className="settings-input" 
+                                    type={revealedToken ? 'text' : 'password'} 
+                                    value={selectedBot.botToken} 
+                                    readOnly 
+                                    style={{ flex: 1, fontFamily: 'monospace', fontSize: '13px' }}
+                                />
+                                <button className="settings-btn secondary" onClick={() => setRevealedToken(!revealedToken)}>
+                                    {revealedToken ? 'Скрыть' : 'Показать'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 7. Удаление бота */}
+                        <div className="settings-card" style={{ border: '1px solid rgba(255, 71, 87, 0.2)', background: 'rgba(255, 71, 87, 0.02)' }}>
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3 style={{ color: 'var(--danger)' }}>Удаление бота</h3>
+                                    <p>Это действие необратимо. Бот будет удален со всех серверов и его токен перестанет работать.</p>
+                                </div>
+                                <button className="settings-btn settings-btn-danger" onClick={() => setShowDeleteModal(true)}>
+                                    Удалить бота
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <div className="settings-preview-column">
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Предпросмотр на витрине</h3>
+                {selectedBotId && selectedBot && (
+                    <div className="showcase-profile-card" style={{ width: '100%', margin: 0 }}>
+                        <div 
+                            className="profile-card-banner" 
+                            style={{ backgroundImage: banner ? `url(${getFullUrl(banner)})` : 'none', backgroundColor: 'var(--primary-neon)' }}
+                        >
+                            <div className="profile-card-badge bot">Бот</div>
+                        </div>
+                        <div className="profile-card-content">
+                            <div className="profile-card-header">
+                                <div className="profile-card-avatar">
+                                    {avatar ? <img src={getFullUrl(avatar)!} alt="" /> : <BotIcon size={28} color="var(--primary-neon)" />}
+                                </div>
+                                <div className="profile-card-main-info">
+                                    <div className="profile-card-name">{editName || selectedBot.username}</div>
+                                    <div className="profile-card-bio" style={{ minHeight: '3em' }}>
+                                        {editBio || 'У этого бота пока нет описания.'}
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {editingBot && (
-                <div className="settings-preview-column">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>Редактирование {editingBot.username}</h3>
-                    
-                    <div className="settings-card">
-                        <div style={{ marginBottom: '16px' }}>
-                            <label style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Имя бота</label>
-                            <input className="settings-input" value={editName} onChange={e => setEditName(e.target.value)} style={{ marginTop: '8px' }} />
-                        </div>
-
-                        <div style={{ marginBottom: '16px' }}>
-                            <label style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>О себе</label>
-                            <textarea className="settings-textarea" value={editBio} onChange={e => setEditBio(e.target.value)} style={{ marginTop: '8px' }} />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                            <button className="settings-btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => avatarInputRef.current?.click()}>
-                                Выбрать аватар
-                            </button>
-                            <button className="settings-btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => bannerInputRef.current?.click()}>
-                                Выбрать баннер
-                            </button>
-                        </div>
-                        
-                        <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarSelect} />
-                        <input type="file" ref={bannerInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleBannerSelect} />
-
-                        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                            <button className="settings-btn settings-btn-danger" style={{ flex: 1 }} onClick={() => setEditingBot(null)}>Отмена</button>
-                            <button className="settings-btn" style={{ flex: 1 }} onClick={saveEdit} disabled={loading}>Сохранить</button>
+                            <div className="profile-card-actions">
+                                <div className="action-button-container" style={{ width: '100%' }}>
+                                    <button className="profile-action-btn primary" style={{ width: '100%' }}>
+                                        <PlusIcon size={18} />
+                                        <span>Добавить</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
+            </div>
+
+            {/* Bot Deletion Modal */}
+            <AnimatePresence>
+                {showDeleteModal && (
+                    <motion.div 
+                        className="custom-dialog-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ zIndex: 2000 }}
+                    >
+                        <motion.div 
+                            className="custom-dialog-container"
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            style={{ maxWidth: '440px' }}
+                        >
+                            <h3 className="custom-dialog-title" style={{ color: 'var(--danger)' }}>Удаление бота</h3>
+                            <div className="custom-dialog-message" style={{ textAlign: 'left' }}>
+                                <p style={{ fontWeight: 800, marginBottom: '12px' }}>Вы уверены, что хотите удалить этого бота?</p>
+                                <ul style={{ paddingLeft: '20px', marginBottom: '16px', color: 'var(--text-dim)' }}>
+                                    <li>Бот будет удален навсегда</li>
+                                    <li>Токен станет недействительным</li>
+                                    <li>Бот покинет все сервера</li>
+                                </ul>
+                                <p style={{ fontSize: '13px', marginBottom: '8px' }}>Для подтверждения введите имя бота <strong>{selectedBot?.username}</strong>:</p>
+                                <input 
+                                    className={`settings-input ${deleteError ? 'error' : ''}`}
+                                    value={deleteConfirmText}
+                                    onChange={e => {
+                                        setDeleteConfirmText(e.target.value);
+                                        setDeleteError(null);
+                                    }}
+                                    placeholder="Введите имя бота..."
+                                    autoFocus
+                                />
+                                {deleteError && (
+                                    <div style={{ color: 'var(--danger)', fontSize: '12px', marginTop: '6px', fontWeight: 600 }}>
+                                        {deleteError}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="custom-dialog-actions">
+                                <button className="custom-dialog-button cancel" onClick={() => setShowDeleteModal(false)}>
+                                    Отмена
+                                </button>
+                                <button 
+                                    className="custom-dialog-button confirm" 
+                                    style={{ background: 'var(--danger)' }}
+                                    onClick={handleDeleteBotAction}
+                                >
+                                    Удалить навсегда
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {cropModal.isOpen && (
+                <ImageCropper
+                    image={cropModal.image}
+                    cropShape="rect"
+                    aspect={cropModal.target === 'avatar' ? 1 : 1920 / 640}
+                    title={cropModal.target === 'avatar' ? 'Обрезка аватара' : 'Обрезка баннера'}
+                    onCropComplete={handleCropComplete}
+                    onCancel={() => setCropModal({ ...cropModal, isOpen: false })}
+                />
             )}
         </div>
     );
