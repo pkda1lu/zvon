@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfilePreview from '../../components/ProfilePreview';
+import { CustomSelect } from './SettingsUI';
 
 const ServerProfilesSettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
@@ -65,7 +66,6 @@ const ServerProfilesSettings: React.FC = () => {
         }
     }, [selectedServerId, user?._id]);
 
-    // Auto-save debouncing
     useEffect(() => {
         if (!selectedServerId) return;
         const timer = setTimeout(() => {
@@ -85,10 +85,8 @@ const ServerProfilesSettings: React.FC = () => {
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
         const file = event.target.files?.[0];
         if (!file || !selectedServerId) return;
-
         const formData = new FormData();
         formData.append(type, file);
-
         try {
             const res = await axios.post(`/api/servers/${selectedServerId}/members/${user?._id}/${type}`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -104,6 +102,12 @@ const ServerProfilesSettings: React.FC = () => {
     const selectedServer = userServers.find(s => s._id === selectedServerId);
     const currentMember = selectedServer?.members?.find((m: any) => (m.user?._id || m.user) === user?._id);
 
+    const serverOptions = userServers.map(s => ({
+        id: s._id,
+        name: s.name,
+        icon: s.icon
+    }));
+
     return (
         <div className="settings-content-inner with-preview">
             <div className="settings-main-column">
@@ -111,17 +115,12 @@ const ServerProfilesSettings: React.FC = () => {
                 
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Выберите сервер</h3>
-                    <select 
-                        className="settings-select" 
-                        style={{width: '100%'}}
-                        value={selectedServerId}
-                        onChange={(e) => setSelectedServerId(e.target.value)}
-                    >
-                        <option value="">Выберите сервер...</option>
-                        {userServers.map(server => (
-                            <option key={server._id} value={server._id}>{server.name}</option>
-                        ))}
-                    </select>
+                    <CustomSelect 
+                        options={serverOptions} 
+                        value={selectedServerId} 
+                        onChange={setSelectedServerId}
+                        placeholder="Выберите сервер для настройки..."
+                    />
                 </div>
 
                 {selectedServerId && (
@@ -181,7 +180,7 @@ const ServerProfilesSettings: React.FC = () => {
 
             <div className="settings-preview-column">
                 <h3 className="settings-section-title" style={{marginTop: 0}}>
-                    {selectedServer ? `Предпросмотр: ${selectedServer.name}` : 'Предпросмотр (Нажми на аватар)'}
+                    {selectedServer ? `Предпросмотр: ${selectedServer.name}` : 'Предпросмотр'}
                 </h3>
                 {user && selectedServerId && (
                     <ProfilePreview 
