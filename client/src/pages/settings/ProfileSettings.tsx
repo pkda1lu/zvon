@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfilePreview from '../../components/ProfilePreview';
+import { ChoiceGroup, CustomSelect } from './SettingsUI';
 
 const ProfileSettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
@@ -15,26 +16,23 @@ const ProfileSettings: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
-    // Sync state with user data if it changes externally
     useEffect(() => {
         if (user) {
             setDisplayName(user.displayName || '');
             setBio(user.bio || '');
-            setPrimaryServer(user.primaryServer || '');
+            const pId = typeof user.primaryServer === 'string' ? user.primaryServer : user.primaryServer?._id;
+            setPrimaryServer(pId || '');
         }
     }, [user]);
 
-    // Auto-save logic
     const saveField = useCallback(async (field: string, value: any) => {
         try {
             await axios.put('/api/users/profile', { [field]: value });
-            // refreshUser(); // Optional: might be too frequent if called on every keystroke
         } catch (e) {
             console.error(`Failed to auto-save ${field}`, e);
         }
     }, []);
 
-    // Debounce saves
     useEffect(() => {
         if (!user) return;
         const timer = setTimeout(() => {
@@ -51,10 +49,10 @@ const ProfileSettings: React.FC = () => {
         return () => clearTimeout(timer);
     }, [bio, user, saveField]);
 
-    useEffect(() => {
-        if (!user) return;
-        if (primaryServer !== (user.primaryServer || '')) saveField('primaryServer', primaryServer);
-    }, [primaryServer, user, saveField]);
+    const handlePrimaryServerChange = (sId: string) => {
+        setPrimaryServer(sId);
+        saveField('primaryServer', sId || null);
+    };
 
     const handleStatusChange = async (newStatus: string) => {
         if (isStreaming) return;
@@ -81,12 +79,24 @@ const ProfileSettings: React.FC = () => {
         }
     };
 
-    const userServers = user?.servers || [];
+    const userServers = (user?.servers || []) as any[];
+    const serverOptions = userServers.map(s => ({
+        id: typeof s === 'string' ? s : s._id,
+        name: typeof s === 'string' ? s : s.name,
+        icon: typeof s === 'string' ? undefined : s.icon
+    }));
+
+    const statusOptions = [
+        { value: 'online', label: 'В сети', color: '#23a559', icon: <div className="status-dot status-online" style={{margin:0}} /> },
+        { value: 'away', label: 'Отошёл', color: '#f0b232', icon: <div className="status-dot status-away" style={{margin:0}} /> },
+        { value: 'busy', label: 'Занят', color: '#f23f42', icon: <div className="status-dot status-busy" style={{margin:0}} /> },
+        { value: 'offline', label: 'Невидимый', color: '#80848e', icon: <div className="status-dot status-offline" style={{margin:0}} /> },
+    ];
 
     return (
         <div className="settings-content-inner with-preview">
             <div className="settings-main-column">
-                <h2 className="settings-page-title">Мой профиль</h2>
+                <h2 className="settings-page-title">Общий профиль</h2>
                 
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Отображаемое имя</h3>
@@ -114,21 +124,12 @@ const ProfileSettings: React.FC = () => {
 
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Основной сервер</h3>
-                    <select 
-                        className="settings-select" 
-                        style={{width: '100%'}}
-                        value={primaryServer}
-                        onChange={(e) => setPrimaryServer(e.target.value)}
-                    >
-                        <option value="">Не выбран</option>
-                        {userServers.map(server => {
-                            const sId = typeof server === 'string' ? server : (server as any)._id;
-                            const sName = typeof server === 'string' ? `ID: ${sId}` : (server as any).name;
-                            return (
-                                <option key={sId} value={sId}>{sName}</option>
-                            );
-                        })}
-                    </select>
+                    <CustomSelect 
+                        options={serverOptions} 
+                        value={primaryServer} 
+                        onChange={handlePrimaryServerChange}
+                        placeholder="Выберите основной сервер..."
+                    />
                 </div>
 
                 <div className="settings-card">
@@ -136,22 +137,15 @@ const ProfileSettings: React.FC = () => {
                     {isStreaming && (
                         <div className="streaming-status-row">
                             <span className="status-dot status-streaming" />
-                            <span style={{ color: '#fff' }}>В эфире</span>
+                            <span style={{ color: '#fff', fontWeight: 600 }}>В эфире</span>
                         </div>
                     )}
-                    <div className="status-selector" style={{ marginTop: isStreaming ? 16 : 0, opacity: isStreaming ? 0.5 : 1 }}>
-                        <div className={`status-option ${status === 'online' ? 'active' : ''} ${isStreaming ? 'disabled' : ''}`} onClick={() => handleStatusChange('online')}>
-                            <span className="status-dot status-online" /> В сети
-                        </div>
-                        <div className={`status-option ${status === 'away' ? 'active' : ''} ${isStreaming ? 'disabled' : ''}`} onClick={() => handleStatusChange('away')}>
-                            <span className="status-dot status-away" /> Отошёл
-                        </div>
-                        <div className={`status-option ${status === 'busy' ? 'active' : ''} ${isStreaming ? 'disabled' : ''}`} onClick={() => handleStatusChange('busy')}>
-                            <span className="status-dot status-busy" /> Занят
-                        </div>
-                        <div className={`status-option ${status === 'offline' ? 'active' : ''} ${isStreaming ? 'disabled' : ''}`} onClick={() => handleStatusChange('offline')}>
-                            <span className="status-dot status-offline" /> Невидимый
-                        </div>
+                    <div style={{ opacity: isStreaming ? 0.5 : 1, pointerEvents: isStreaming ? 'none' : 'auto' }}>
+                        <ChoiceGroup 
+                            options={statusOptions} 
+                            value={status} 
+                            onChange={handleStatusChange} 
+                        />
                     </div>
                 </div>
 
@@ -183,7 +177,7 @@ const ProfileSettings: React.FC = () => {
             </div>
 
             <div className="settings-preview-column">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Предпросмотр (Нажми на аватар)</h3>
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Предпросмотр</h3>
                 {user && <ProfilePreview user={{...user, displayName, bio}} type="compact" />}
             </div>
         </div>
