@@ -28,6 +28,7 @@ import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
 import CreateGroupDMModal from '../components/CreateGroupDMModal';
 import VerificationWarning from '../components/VerificationWarning';
+import { ChatIcon, UsersIcon, LayoutGridIcon, SettingsIcon } from '../components/Icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   sidebarSwapVariants,
@@ -735,7 +736,7 @@ const Main: React.FC = () => {
 
   return (
     <div
-      className={`main-container ${isMobile ? 'is-mobile' : ''} view-${mobileView}`}
+      className={`main-container ${isMobile ? 'is-mobile' : ''} view-${mobileView} ${(!!(selectedChannel || selectedDM) && mobileView === 'content') ? 'in-conversation' : ''}`}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -1021,6 +1022,52 @@ const Main: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* --- MOBILE BOTTOM NAVIGATION --- */}
+      {(() => {
+        if (!isMobile) return null;
+        // Hide while reading a conversation (composer needs the space) and on the
+        // full-screen members overlay.
+        const inConversation = !!(selectedChannel || selectedDM) && mobileView === 'content';
+        if (inConversation || mobileView === 'members') return null;
+
+        const active: 'chats' | 'friends' | 'showcase' | null =
+          showShowcase ? 'showcase'
+          : showFriends ? 'friends'
+          : (!selectedServer ? 'chats' : null);
+
+        const goChats = () => {
+          setShowFriends(false); setShowShowcase(false);
+          setSelectedServer(null); setSelectedChannel(null);
+          setMobileView('sidebar');
+        };
+        const goFriends = () => {
+          setShowFriends(true); setShowShowcase(false);
+          setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null);
+          setMobileView('content');
+        };
+
+        return (
+          <nav className="mobile-bottom-nav">
+            <button className={`mbn-item ${active === 'chats' ? 'active' : ''}`} onClick={goChats}>
+              <ChatIcon size={22} />
+              <span>Чаты</span>
+            </button>
+            <button className={`mbn-item ${active === 'friends' ? 'active' : ''}`} onClick={goFriends}>
+              <UsersIcon size={22} />
+              <span>Друзья</span>
+            </button>
+            <button className={`mbn-item ${active === 'showcase' ? 'active' : ''}`} onClick={handleShowShowcase}>
+              <LayoutGridIcon size={22} />
+              <span>Витрина</span>
+            </button>
+            <button className="mbn-item" onClick={() => setShowSettingsModal(true)}>
+              <SettingsIcon size={22} />
+              <span>Профиль</span>
+            </button>
+          </nav>
+        );
+      })()}
 
       <AnimatePresence>
         {activeCall && (

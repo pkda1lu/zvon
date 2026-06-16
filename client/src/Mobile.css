@@ -162,4 +162,68 @@
     scale: 0.9;
     bottom: 20px !important;
   }
+
+  /* Bottom navigation bar (mobile shell) */
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1500;
+    display: flex;
+    align-items: stretch;
+    height: calc(56px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(12, 12, 16, 0.92);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .mbn-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 0 4px;
+    transition: color 0.15s ease, transform 0.1s ease;
+  }
+
+  .mbn-item span {
+    line-height: 1;
+  }
+
+  .mbn-item:active {
+    transform: scale(0.92);
+  }
+
+  .mbn-item.active {
+    color: var(--primary-neon);
+  }
+
+  .mbn-item.active svg {
+    filter: drop-shadow(0 0 6px var(--primary-neon));
+  }
+
+  /* Reserve space so the bottom nav never covers list content.
+     The nav is hidden inside conversations, so the composer is unaffected. */
+  .is-mobile.view-sidebar .secondary-sidebar-container,
+  .is-mobile.view-sidebar .sidebar,
+  .is-mobile.view-content .main-content-area {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  /* When a conversation is open (channel/DM in content view) the nav is hidden,
+     so drop the reserved padding to give the composer the full height back. */
+  .is-mobile.view-content.in-conversation .main-content-area {
+    padding-bottom: 0;
+  }
 }
