@@ -9,6 +9,7 @@ import { useVoice } from '../contexts/VoiceContext';
 import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
+import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import './MemberContextMenu.css';
 import InputModal from './InputModal';
 import ReportModal from './ReportModal';
@@ -35,6 +36,8 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     if (!targetUser) return null;
 
     const { user: currentUser } = useAuth();
+    const { streamerModeEnabled, censorInfo } = useWindowSettings();
+    const shouldCensor = streamerModeEnabled && censorInfo;
     const { socket } = useSocket();
     const { userVolumes, setUserVolume, localMutes, toggleLocalMute } = useVoice();
     const { confirm, alert } = useDialog();
@@ -311,12 +314,16 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     </>
                 )}
             </div>
-            <div className="menu-separator" />
-            <div className="menu-group">
-                <div className="menu-item" onClick={() => handleAction('update-note')}>
-                    {note ? 'Изменить заметку' : 'Добавить заметку'}
-                </div>
-            </div>
+            {!shouldCensor && (
+                <>
+                    <div className="menu-separator" />
+                    <div className="menu-group">
+                        <div className="menu-item" onClick={() => handleAction('update-note')}>
+                            {note ? 'Изменить заметку' : 'Добавить заметку'}
+                        </div>
+                    </div>
+                </>
+            )}
             <div className="menu-separator" />
 
             {(isInVoice && !isSelf && (hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) || hasPermission(userPerms, Permissions.MOVE_MEMBERS))) && (

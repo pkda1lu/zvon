@@ -5,11 +5,14 @@ import { User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
 import AnimatedOverlay from '../animations/AnimatedOverlay';
+import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import './InviteModal.css';
 
 interface InviteModalProps { isOpen: boolean; onClose: () => void; serverId: string; serverName?: string; }
 
 const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, serverName }) => {
+    const { streamerModeEnabled, censorInfo } = useWindowSettings();
+    const shouldCensor = streamerModeEnabled && censorInfo;
     const [inviteLink, setInviteLink] = useState('');
     const [copied, setCopied] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -77,7 +80,27 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
                 </div>
                 <div className="invite-footer">
                     <p className="footer-label">ИЛИ ОТПРАВЬТЕ ССЫЛКУ-ПРИГЛАШЕНИЕ ДРУГУ</p>
-                    <div className="link-copy-container"><input type="text" value={inviteLink} readOnly /><button className={`copy-btn ${copied ? 'success' : ''}`} onClick={copyToClipboard}>{copied ? 'Скопировано' : 'Копировать'}</button></div>
+                    <div className="link-copy-container">
+                        <input 
+                            type="text" 
+                            value={shouldCensor ? 'https://zvon.cc/invite/hidden_for_streaming' : inviteLink} 
+                            readOnly 
+                        />
+                        <button 
+                            className={`copy-btn ${copied ? 'success' : ''}`} 
+                            onClick={() => {
+                                if (shouldCensor) {
+                                    if (window.confirm('Вы находитесь в режиме стримера. Вы уверены, что хотите скопировать реальную ссылку-приглашение в буфер обмена?')) {
+                                        copyToClipboard();
+                                    }
+                                } else {
+                                    copyToClipboard();
+                                }
+                            }}
+                        >
+                            {copied ? 'Скопировано' : 'Копировать'}
+                        </button>
+                    </div>
                     <p className="link-expiry">Срок действия вашей ссылки-приглашения истечет через 7 дней.</p>
                     {error && <div className="invite-error">{error}</div>}
                 </div>

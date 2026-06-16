@@ -66,7 +66,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
     return (
         <div className={`server-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
             <motion.div
-                className={`server-profile-card ${position ? 'popout' : ''}`}
+                className={`server-profile-card ${position ? 'popout' : ''} panel-hero`}
                 onClick={e => e.stopPropagation()}
                 style={position ? {
                     position: 'absolute',
@@ -81,6 +81,11 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                 animate={position ? (isVisible ? 'animate' : 'initial') : 'animate'}
                 transition={position ? popoverTransition : modalPopTransition}
             >
+                <div className="panel-hero-bg" aria-hidden="true">
+                    <div className="blob cyan" />
+                    <div className="blob purple" />
+                    <div className="blob pink" />
+                </div>
                 <div
                     className="server-profile-banner"
                     style={{
@@ -88,9 +93,6 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                         backgroundImage: server.banner ? `url(${getAvatarUrl(server.banner)})` : 'none'
                     }}
                 >
-                    <button className="server-profile-close" onClick={onClose}>
-                        <CloseIcon />
-                    </button>
                 </div>
 
                 <div className="server-profile-header">
