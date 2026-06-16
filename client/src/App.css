@@ -1,5 +1,6 @@
 .App {
   height: 100vh;
+  height: 100dvh; /* реальная высота вьюпорта на мобиле (без обрезки нижней панели) */
   width: 100vw;
   display: flex;
   flex-direction: column;

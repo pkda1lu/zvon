@@ -65,7 +65,7 @@
   }
 
   .message-input-container {
-    padding: 0 8px 8px !important;
+    padding: 0 8px max(8px, env(safe-area-inset-bottom)) !important;
   }
 
   .message-form {
