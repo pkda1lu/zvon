@@ -1,29 +1,42 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import { getAvatarUrl, getFullUrl } from '../../utils/avatar';
+import { CustomSelect } from './SettingsUI';
+import ImageCropper from '../../components/ImageCropper';
+import { PlusIcon, LayoutGridIcon, MonitorIcon, TrashIcon, CheckIcon, ExternalLinkIcon, CloseIcon } from '../../components/Icons';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const MiniAppsSettings: React.FC = () => {
+    const { refreshUser } = useAuth();
     const [miniapps, setMiniapps] = useState<any[]>([]);
+    const [selectedAppId, setSelectedAppId] = useState('');
     const [loading, setLoading] = useState(false);
     
-    const [appName, setAppName] = useState('');
-    const [appUrl, setAppUrl] = useState('');
-    
-    const [editingApp, setEditingApp] = useState<any | null>(null);
+    // Edit state
     const [editName, setEditName] = useState('');
     const [editUrl, setEditUrl] = useState('');
     const [editDesc, setEditDesc] = useState('');
+    const [avatar, setAvatar] = useState<string | null>(null);
+    const [banner, setBanner] = useState<string | null>(null);
 
-    const [editAvatar, setEditAvatar] = useState<File | null>(null);
-    const [editBanner, setEditBanner] = useState<File | null>(null);
-    const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
-    const [previewBanner, setPreviewBanner] = useState<string | null>(null);
+    // Deletion modal state
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+
+    // Cropping State
+    const [cropModal, setCropModal] = useState<{ isOpen: boolean; image: string; target: 'avatar' | 'banner' }>({
+        isOpen: false,
+        image: '',
+        target: 'avatar'
+    });
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
-    const { confirm, alert } = useDialog();
+    const { confirm, alert, prompt } = useDialog();
 
     const fetchApps = async () => {
         try {
@@ -36,15 +49,83 @@ const MiniAppsSettings: React.FC = () => {
         fetchApps();
     }, []);
 
-    const createApp = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!appName.trim() || !appUrl.trim()) return;
+    useEffect(() => {
+        const selectedApp = miniapps.find(a => a._id === selectedAppId);
+        if (selectedApp) {
+            setEditName(selectedApp.name || '');
+            setEditUrl(selectedApp.url || '');
+            setEditDesc(selectedApp.description || '');
+            setAvatar(selectedApp.avatar || null);
+            setBanner(selectedApp.banner || null);
+        } else {
+            setEditName('');
+            setEditUrl('');
+            setEditDesc('');
+            setAvatar(null);
+            setBanner(null);
+        }
+    }, [selectedAppId, miniapps]);
+
+    const saveField = useCallback(async (field: string, value: any) => {
+        if (!selectedAppId) return;
+        try {
+            await axios.patch(`/api/miniapps/${selectedAppId}`, {
+                [field]: value
+            });
+            // Update local state
+            setMiniapps(prev => prev.map(a => a._id === selectedAppId ? { ...a, [field]: value } : a));
+        } catch (e) {
+            console.error(`Failed to auto-save mini-app ${field}`, e);
+        }
+    }, [selectedAppId]);
+
+    // Auto-save logic
+    useEffect(() => {
+        if (!selectedAppId) return;
+        const app = miniapps.find(a => a._id === selectedAppId);
+        if (!app || app.name === editName) return;
+        
+        const timer = setTimeout(() => {
+            saveField('name', editName);
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [editName, selectedAppId, saveField, miniapps]);
+
+    useEffect(() => {
+        if (!selectedAppId) return;
+        const app = miniapps.find(a => a._id === selectedAppId);
+        if (!app || app.url === editUrl) return;
+
+        const timer = setTimeout(() => {
+            saveField('url', editUrl);
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [editUrl, selectedAppId, saveField, miniapps]);
+
+    useEffect(() => {
+        if (!selectedAppId) return;
+        const app = miniapps.find(a => a._id === selectedAppId);
+        if (!app || app.description === editDesc) return;
+
+        const timer = setTimeout(() => {
+            saveField('description', editDesc);
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [editDesc, selectedAppId, saveField, miniapps]);
+
+    const createApp = async () => {
+        const name = await prompt('Введите название мини-приложения:', '');
+        if (!name || !name.trim()) return;
+        
+        const url = await prompt('Введите URL мини-приложения (https://...):', 'https://');
+        if (!url || !url.trim() || url === 'https://') return;
+
         setLoading(true);
         try {
-            await axios.post('/api/miniapps/create', { name: appName, url: appUrl });
-            setAppName('');
-            setAppUrl('');
-            fetchApps();
+            const res = await axios.post('/api/miniapps/create', { name, url });
+            await fetchApps();
+            setSelectedAppId(res.data.miniApp._id);
+            await alert('Мини-приложение успешно создано!');
         } catch (e) {
             await alert('Ошибка создания мини-приложения');
         } finally {
@@ -52,88 +133,94 @@ const MiniAppsSettings: React.FC = () => {
         }
     };
 
-    const startEdit = (app: any) => {
-        setEditingApp(app);
-        setEditName(app.name);
-        setEditUrl(app.url);
-        setEditDesc(app.description || '');
-        setEditAvatar(null);
-        setEditBanner(null);
-        setPreviewAvatar(app.avatar ? getFullUrl(app.avatar) : null);
-        setPreviewBanner(app.banner ? getFullUrl(app.banner) : null);
-    };
+    const handleDeleteAppAction = async () => {
+        if (!selectedAppId) return;
+        const app = miniapps.find(a => a._id === selectedAppId);
+        if (deleteConfirmText !== app?.name) {
+            setDeleteError('Введенное название не совпадает');
+            return;
+        }
 
-    const saveEdit = async () => {
-        if (!editingApp) return;
         setLoading(true);
         try {
-            await axios.patch(`/api/miniapps/${editingApp._id}`, { name: editName, url: editUrl, description: editDesc });
-            if (editAvatar) {
-                const fd = new FormData();
-                fd.append('avatar', editAvatar);
-                await axios.post(`/api/miniapps/${editingApp._id}/avatar`, fd);
-            }
-            if (editBanner) {
-                const fd = new FormData();
-                fd.append('banner', editBanner);
-                await axios.post(`/api/miniapps/${editingApp._id}/banner`, fd);
-            }
-            setEditingApp(null);
-            fetchApps();
+            await axios.delete(`/api/miniapps/${selectedAppId}`);
+            setMiniapps(prev => prev.filter(a => a._id !== selectedAppId));
+            setSelectedAppId('');
+            setShowDeleteModal(false);
+            setDeleteConfirmText('');
+            await alert('Мини-приложение успешно удалено');
         } catch (e) {
-            await alert('Ошибка при сохранении');
+            setDeleteError('Ошибка при удалении мини-приложения');
         } finally {
             setLoading(false);
         }
     };
 
-    const resetBanner = async () => {
-        if (!editingApp || !editingApp.banner) return;
-        if (!(await confirm('Вы уверены, что хотите сбросить баннер?'))) return;
+    const togglePublish = async () => {
+        if (!selectedAppId) return;
         try {
-            await axios.delete(`/api/miniapps/${editingApp._id}/banner`);
-            setPreviewBanner(null);
-            setEditingApp({ ...editingApp, banner: null });
-            fetchApps();
-        } catch (e) {
-            await alert('Ошибка при сбросе баннера');
-        }
-    };
-
-    const togglePublish = async (id: string) => {
-        try {
-            const res = await axios.patch(`/api/miniapps/${id}/publish`);
+            const res = await axios.patch(`/api/miniapps/${selectedAppId}/publish`);
             await alert(res.data.message);
-            fetchApps();
+            await fetchApps();
         } catch (e) {
             await alert('Ошибка публикации');
         }
     };
 
-    const deleteApp = async (id: string) => {
-        if (!(await confirm('Вы уверены, что хотите удалить это приложение?'))) return;
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'banner') => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropModal({ isOpen: true, image: reader.result as string, target });
+        };
+        reader.readAsDataURL(file);
+        event.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        const { target } = cropModal;
+        if (!selectedAppId) return;
+        
+        const formData = new FormData();
+        formData.append(target, croppedBlob, target === 'avatar' ? 'avatar.jpg' : 'banner.jpg');
+        
+        setLoading(true);
         try {
-            await axios.delete(`/api/miniapps/${id}`);
-            if (editingApp?._id === id) setEditingApp(null);
-            fetchApps();
-        } catch (e) { }
-    };
-
-    const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setEditAvatar(file);
-            setPreviewAvatar(URL.createObjectURL(file));
+            const res = await axios.post(`/api/miniapps/${selectedAppId}/${target}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (target === 'avatar') setAvatar(res.data.avatar);
+            else setBanner(res.data.banner);
+            
+            setMiniapps(prev => prev.map(a => a._id === selectedAppId ? { ...a, [target]: res.data[target] } : a));
+            setCropModal({ ...cropModal, isOpen: false });
+        } catch (e) {
+            console.error(`Failed to upload mini-app ${target}`, e);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setEditBanner(file);
-            setPreviewBanner(URL.createObjectURL(file));
+    const handleDeleteAsset = async (type: 'avatar' | 'banner') => {
+        if (!selectedAppId) return;
+        try {
+            await axios.delete(`/api/miniapps/${selectedAppId}/${type}`);
+            if (type === 'avatar') setAvatar(null);
+            else setBanner(null);
+            setMiniapps(prev => prev.map(a => a._id === selectedAppId ? { ...a, [type]: null } : a));
+        } catch (e) {
+            console.error(`Failed to delete mini-app ${type}`, e);
         }
     };
+
+    const appOptions = miniapps.map(a => ({
+        id: a._id,
+        name: a.name,
+        icon: a.avatar
+    }));
+
+    const selectedApp = miniapps.find(a => a._id === selectedAppId);
 
     return (
         <div className="settings-content-inner with-preview">
@@ -144,113 +231,246 @@ const MiniAppsSettings: React.FC = () => {
                 </p>
 
                 <div className="settings-card">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>Создать новое приложение</h3>
-                    <form onSubmit={createApp} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                        <input
-                            type="text"
-                            placeholder="Название..."
-                            value={appName}
-                            onChange={e => setAppName(e.target.value)}
-                            className="settings-input"
-                            style={{ flex: '1 1 150px' }}
-                        />
-                        <input
-                            type="text"
-                            placeholder="URL (https://...)"
-                            value={appUrl}
-                            onChange={e => setAppUrl(e.target.value)}
-                            className="settings-input"
-                            style={{ flex: '1 1 200px' }}
-                        />
-                        <button type="submit" className="settings-btn" disabled={loading}>
-                            Создать
+                    <h3 className="settings-section-title" style={{marginTop: 0}}>Выберите мини-приложение</h3>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                            <CustomSelect 
+                                options={appOptions} 
+                                value={selectedAppId} 
+                                onChange={setSelectedAppId}
+                                placeholder="Выберите мини-приложение для настройки..."
+                            />
+                        </div>
+                        <button className="settings-btn" onClick={createApp} title="Создать новое мини-приложение">
+                            <PlusIcon size={18} />
+                            <span>Создать</span>
                         </button>
-                    </form>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {miniapps.length === 0 && <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '20px' }}>У вас пока нет мини-приложений.</div>}
-                    
-                    {miniapps.map(app => (
-                        <div key={app._id} className="settings-card" style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
-                            <div style={{ 
-                                height: '100px', 
-                                backgroundColor: 'var(--primary-neon)',
-                                backgroundImage: app.banner ? `url(${getFullUrl(app.banner)})` : 'none',
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center'
-                            }} />
-                            <div style={{ padding: '0 24px 24px', position: 'relative' }}>
-                                <div style={{ 
-                                    width: '72px', height: '72px', borderRadius: '16px', 
-                                    backgroundColor: '#1e1f22', border: '4px solid var(--glass-bg)',
-                                    marginTop: '-36px',
-                                    backgroundImage: app.avatar ? `url(${getFullUrl(app.avatar)})` : 'none',
-                                    backgroundSize: 'cover',
-                                    backgroundPosition: 'center',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '24px', fontWeight: 'bold'
-                                }}>
-                                    {!app.avatar && app.name[0].toUpperCase()}
+                {selectedAppId && selectedApp && (
+                    <>
+                        {/* 1. Визуал мини-приложения */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Визуал мини-приложения</h3>
+                            
+                            {/* Аватар */}
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3>Аватар мини-приложения</h3>
+                                    <p>Отображается на витрине и в меню мини-приложений.</p>
                                 </div>
-                                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div>
-                                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-main)' }}>{app.name}</div>
-                                        <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>ID: {app._id}</div>
-                                        {app.description && <div style={{ fontSize: '14px', color: 'var(--text-dim)', marginTop: '12px' }}>{app.description}</div>}
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }} onClick={() => startEdit(app)}>Настроить</button>
-                                        <button className="settings-btn" style={{ background: app.isPublished ? 'rgba(255,59,48,0.1)' : 'rgba(35,165,89,0.1)', color: app.isPublished ? 'var(--danger)' : 'var(--success)' }} onClick={() => togglePublish(app._id)}>
-                                            {app.isPublished ? 'Снять с публикации' : 'Опубликовать'}
+                                <div className="settings-btn-group">
+                                    <button className="settings-btn" onClick={() => avatarInputRef.current?.click()}>
+                                        {avatar ? 'Изменить' : 'Установить'}
+                                    </button>
+                                    {avatar && (
+                                        <button className="settings-btn secondary danger" onClick={() => handleDeleteAsset('avatar')}>
+                                            Удалить
                                         </button>
-                                        <button className="settings-btn settings-btn-danger" onClick={() => deleteApp(app._id)}>Удалить</button>
+                                    )}
+                                </div>
+                            </div>
+                            <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={(e) => handleFileSelect(e, 'avatar')} />
+
+                            <div className="settings-sidebar-divider" style={{margin: '20px 0'}} />
+
+                            {/* Баннер */}
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3>Баннер мини-приложения</h3>
+                                    <p>Фоновое изображение карточки мини-приложения на витрине.</p>
+                                </div>
+                                <div className="settings-btn-group">
+                                    <button className="settings-btn" onClick={() => bannerInputRef.current?.click()}>
+                                        {banner ? 'Изменить' : 'Установить'}
+                                    </button>
+                                    {banner && (
+                                        <button className="settings-btn secondary danger" onClick={() => handleDeleteAsset('banner')}>
+                                            Удалить
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            <input type="file" ref={bannerInputRef} style={{ display: 'none' }} accept="image/*" onChange={(e) => handleFileSelect(e, 'banner')} />
+                        </div>
+
+                        {/* 2. Название */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Название мини-приложения</h3>
+                            <input 
+                                className="settings-input" 
+                                value={editName} 
+                                onChange={(e) => setEditName(e.target.value)} 
+                                placeholder="Название"
+                            />
+                        </div>
+
+                        {/* 3. Описание */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Описание</h3>
+                            <textarea 
+                                className="settings-textarea"
+                                style={{ resize: 'none' }}
+                                value={editDesc}
+                                onChange={(e) => {
+                                    setEditDesc(e.target.value);
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                                placeholder="О чем ваше мини-приложение?"
+                            />
+                        </div>
+
+                        {/* 4. Публикация */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Публикация на витрине</h3>
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3>Статус: {selectedApp.isPublished ? 'Опубликовано' : 'Черновик'}</h3>
+                                    <p>Опубликованные мини-приложения доступны всем пользователям в меню «Витрина».</p>
+                                </div>
+                                <button className={`settings-btn ${selectedApp.isPublished ? 'danger-glass' : 'success-glass'}`} onClick={togglePublish}>
+                                    {selectedApp.isPublished ? 'Снять с витрины' : 'Опубликовать'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 5. URL мини-приложения */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>URL мини-приложения</h3>
+                            <input 
+                                className="settings-input" 
+                                value={editUrl} 
+                                onChange={(e) => setEditUrl(e.target.value)} 
+                                placeholder="https://..."
+                            />
+                            <p className="settings-hint" style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-dim)' }}>
+                                Ссылка на веб-сайт вашего мини-приложения. Именно этот URL будет загружаться во фрейме при запуске.
+                            </p>
+                        </div>
+
+                        {/* 6. Удаление */}
+                        <div className="settings-card" style={{ border: '1px solid rgba(255, 71, 87, 0.2)', background: 'rgba(255, 71, 87, 0.02)' }}>
+                            <div className="settings-row">
+                                <div className="settings-row-text">
+                                    <h3 style={{ color: 'var(--danger)' }}>Удаление мини-приложения</h3>
+                                    <p>Это действие необратимо. Мини-приложение будет удалено навсегда для всех пользователей.</p>
+                                </div>
+                                <button className="settings-btn settings-btn-danger" onClick={() => setShowDeleteModal(true)}>
+                                    Удалить мини-приложение
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <div className="settings-preview-column">
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Предпросмотр на витрине</h3>
+                {selectedAppId && selectedApp && (
+                    <div className="showcase-profile-card" style={{ width: '100%', margin: 0 }}>
+                        <div 
+                            className="profile-card-banner" 
+                            style={{ backgroundImage: banner ? `url(${getFullUrl(banner)})` : 'none', backgroundColor: 'var(--secondary-neon)' }}
+                        >
+                            <div className="profile-card-badge app">Мини-приложение</div>
+                        </div>
+                        <div className="profile-card-content">
+                            <div className="profile-card-header">
+                                <div className="profile-card-avatar">
+                                    {avatar ? <img src={getFullUrl(avatar)!} alt="" /> : <LayoutGridIcon size={28} color="var(--secondary-neon)" />}
+                                </div>
+                                <div className="profile-card-main-info">
+                                    <div className="profile-card-name">{editName || selectedApp.name}</div>
+                                    <div className="profile-card-bio" style={{ minHeight: '3em' }}>
+                                        {editDesc || 'У этого мини-приложения пока нет описания.'}
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {editingApp && (
-                <div className="settings-preview-column">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>Редактирование {editingApp.name}</h3>
-                    
-                    <div className="settings-card">
-                        <div style={{ marginBottom: '16px' }}>
-                            <label style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Название</label>
-                            <input className="settings-input" value={editName} onChange={e => setEditName(e.target.value)} style={{ marginTop: '8px' }} />
-                        </div>
-                        
-                        <div style={{ marginBottom: '16px' }}>
-                            <label style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>URL</label>
-                            <input className="settings-input" value={editUrl} onChange={e => setEditUrl(e.target.value)} style={{ marginTop: '8px' }} />
-                        </div>
-
-                        <div style={{ marginBottom: '16px' }}>
-                            <label style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Описание</label>
-                            <textarea className="settings-textarea" value={editDesc} onChange={e => setEditDesc(e.target.value)} style={{ marginTop: '8px' }} />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                            <button className="settings-btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => avatarInputRef.current?.click()}>
-                                Выбрать аватар
-                            </button>
-                            <button className="settings-btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => bannerInputRef.current?.click()}>
-                                Выбрать баннер
-                            </button>
-                        </div>
-                        
-                        <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarSelect} />
-                        <input type="file" ref={bannerInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleBannerSelect} />
-
-                        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                            <button className="settings-btn settings-btn-danger" style={{ flex: 1 }} onClick={() => setEditingApp(null)}>Отмена</button>
-                            <button className="settings-btn" style={{ flex: 1 }} onClick={saveEdit} disabled={loading}>Сохранить</button>
+                            <div className="profile-card-actions">
+                                <button className="profile-action-btn secondary" style={{ width: '100%' }}>
+                                    <MonitorIcon size={18} />
+                                    <span>Открыть</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
+            </div>
+
+            {/* App Deletion Modal */}
+            <AnimatePresence>
+                {showDeleteModal && (
+                    <motion.div 
+                        className="custom-dialog-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ zIndex: 2000 }}
+                    >
+                        <motion.div 
+                            className="custom-dialog-container"
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            style={{ maxWidth: '440px' }}
+                        >
+                            <h3 className="custom-dialog-title" style={{ color: 'var(--danger)' }}>Удаление мини-приложения</h3>
+                            <div className="custom-dialog-message" style={{ textAlign: 'left' }}>
+                                <p style={{ fontWeight: 800, marginBottom: '12px' }}>Вы уверены, что хотите удалить это мини-приложение?</p>
+                                <ul style={{ paddingLeft: '20px', marginBottom: '16px', color: 'var(--text-dim)' }}>
+                                    <li>Мини-приложение будет удалено навсегда</li>
+                                    <li>Все данные мини-приложения будут стерты</li>
+                                    <li>Пользователи больше не смогут его запустить</li>
+                                </ul>
+                                <p style={{ fontSize: '13px', marginBottom: '8px' }}>Для подтверждения введите название мини-приложения <strong>{selectedApp?.name}</strong>:</p>
+                                <input 
+                                    className={`settings-input ${deleteError ? 'error' : ''}`}
+                                    value={deleteConfirmText}
+                                    onChange={e => {
+                                        setDeleteConfirmText(e.target.value);
+                                        setDeleteError(null);
+                                    }}
+                                    placeholder="Введите название мини-приложения..."
+                                    autoFocus
+                                />
+                                {deleteError && (
+                                    <div style={{ color: 'var(--danger)', fontSize: '12px', marginTop: '6px', fontWeight: 600 }}>
+                                        {deleteError}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="custom-dialog-actions">
+                                <button className="custom-dialog-button cancel" onClick={() => setShowDeleteModal(false)}>
+                                    Отмена
+                                </button>
+                                <button 
+                                    className="custom-dialog-button confirm" 
+                                    style={{ background: 'var(--danger)' }}
+                                    onClick={handleDeleteAppAction}
+                                >
+                                    Удалить навсегда
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {cropModal.isOpen && (
+                <ImageCropper
+                    image={cropModal.image}
+                    cropShape="rect"
+                    aspect={cropModal.target === 'avatar' ? 1 : 1920 / 640}
+                    title={cropModal.target === 'avatar' ? 'Обрезка аватара' : 'Обрезка баннера'}
+                    onCropComplete={handleCropComplete}
+                    onCancel={() => setCropModal({ ...cropModal, isOpen: false })}
+                />
             )}
         </div>
     );
