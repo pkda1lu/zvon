@@ -212,6 +212,22 @@ const userSchema = new mongoose.Schema({
     language: {
       language: { type: String, default: 'ru' },
       timeFormat: { type: String, default: '24h' }
+    },
+    interaction: {
+      voice: {
+        noiseSuppression: { type: Boolean, default: true },
+        echoCancellation: { type: Boolean, default: true },
+        autoGainControl: { type: Boolean, default: true },
+        attenuation: { type: Number, default: 0 },
+        isAutomaticSensitivity: { type: Boolean, default: true },
+        inputSensitivity: { type: Number, default: -60 }
+      },
+      keybinds: [{
+        id: String,
+        action: String,
+        accelerator: String,
+        isEnabled: { type: Boolean, default: true }
+      }]
     }
   },
   createdAt: {

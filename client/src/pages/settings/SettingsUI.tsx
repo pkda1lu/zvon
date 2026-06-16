@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDownIcon } from '../../components/Icons';
+import { ChevronDownIcon, BotIcon, LayoutGridIcon } from '../../components/Icons';
 import { getAvatarUrl } from '../../utils/avatar';
 
 /**
@@ -32,7 +32,7 @@ export const ChoiceGroup: React.FC<{
  * CustomSelect: Dropdown with avatars/icons and text.
  */
 export const CustomSelect: React.FC<{
-    options: { id: string; name: string; icon?: string; iconComponent?: React.ReactNode }[];
+    options: { id: string; name: string; icon?: string; iconComponent?: React.ReactNode; type?: 'server' | 'user' | 'bot' | 'app' | 'default' }[];
     value: string;
     onChange: (id: string) => void;
     placeholder?: string;
@@ -51,15 +51,48 @@ export const CustomSelect: React.FC<{
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const renderIcon = (opt: typeof options[0]) => {
+        if (opt.iconComponent) return opt.iconComponent;
+        
+        const avatarUrl = getAvatarUrl(opt.icon);
+        if (avatarUrl) {
+            return <div className="custom-select-icon" style={{ backgroundImage: `url(${avatarUrl})` }} />;
+        }
+
+        if (opt.type === 'server') {
+            return (
+                <div className="custom-select-icon server-placeholder">
+                    {opt.name.charAt(0).toUpperCase()}
+                </div>
+            );
+        }
+
+        if (opt.type === 'bot') {
+            return (
+                <div className="custom-select-icon entity-placeholder">
+                    <BotIcon size={14} />
+                </div>
+            );
+        }
+
+        if (opt.type === 'app') {
+            return (
+                <div className="custom-select-icon entity-placeholder">
+                    <LayoutGridIcon size={14} />
+                </div>
+            );
+        }
+
+        return null;
+    };
+
     return (
         <div className="custom-select-container" ref={containerRef}>
             <div className="custom-select-trigger" onClick={() => setIsOpen(!isOpen)}>
                 <div className="custom-select-value">
                     {selectedOption ? (
                         <>
-                            {selectedOption.iconComponent ? selectedOption.iconComponent : (
-                                <div className="custom-select-icon" style={{ backgroundImage: `url(${getAvatarUrl(selectedOption.icon)})` }} />
-                            )}
+                            {renderIcon(selectedOption)}
                             <span>{selectedOption.name}</span>
                         </>
                     ) : <span style={{ color: 'var(--text-faint)' }}>{placeholder}</span>}
@@ -79,9 +112,7 @@ export const CustomSelect: React.FC<{
                                 setIsOpen(false);
                             }}
                         >
-                            {opt.iconComponent ? opt.iconComponent : (
-                                <div className="custom-select-icon" style={{ backgroundImage: `url(${getAvatarUrl(opt.icon)})` }} />
-                            )}
+                            {renderIcon(opt)}
                             <span>{opt.name}</span>
                         </div>
                     ))}

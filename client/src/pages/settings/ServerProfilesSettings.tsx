@@ -142,7 +142,8 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
     const serverOptions = userServers.map(s => ({
         id: s._id,
         name: s.name,
-        icon: s.icon
+        icon: s.icon,
+        type: 'server' as const
     }));
 
     const bannerColors = ['#5865f2', '#ed4245', '#3ba55d', '#faa61a', '#eb459e', '#7289da', '#23272a', '#000000'];

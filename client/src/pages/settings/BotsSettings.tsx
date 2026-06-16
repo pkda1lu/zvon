@@ -247,7 +247,8 @@ const BotsSettings: React.FC = () => {
     const botOptions = bots.map(b => ({
         id: b._id,
         name: b.username,
-        icon: b.avatar
+        icon: b.avatar,
+        type: 'bot' as const
     }));
 
     const serverOptions = [
@@ -255,7 +256,8 @@ const BotsSettings: React.FC = () => {
         ...userServers.map(s => ({
             id: s._id,
             name: s.name,
-            icon: s.icon
+            icon: s.icon,
+            type: 'server' as const
         }))
     ];
 

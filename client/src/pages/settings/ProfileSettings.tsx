@@ -137,7 +137,8 @@ const ProfileSettings: React.FC = () => {
         ...userServers.map(s => ({
             id: typeof s === 'string' ? s : s._id,
             name: typeof s === 'string' ? s : s.name,
-            icon: typeof s === 'string' ? undefined : s.icon
+            icon: typeof s === 'string' ? undefined : s.icon,
+            type: 'server' as const
         }))
     ];
 

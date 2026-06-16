@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useVoice, useVoiceLevels } from '../../contexts/VoiceContext';
-import { CustomSelect, SettingsToggle } from './SettingsUI';
-import { SpeakerIcon, MicIcon } from '../../components/Icons';
+import { CustomSelect, SettingsToggle, RangeSlider } from './SettingsUI';
+import { SpeakerIcon, MicIcon, CameraIcon, VideoIcon } from '../../components/Icons';
 
 // Separate component for the sensitivity visualizer to isolate high-frequency re-renders
 const SensitivityVisualizer: React.FC<{ 
@@ -11,8 +11,8 @@ const SensitivityVisualizer: React.FC<{
     const { currentInputLevel = -100 } = useVoiceLevels() || {};
 
     const barColor = (currentInputLevel > (isAutomaticSensitivity ? -60 : inputSensitivity)) 
-        ? 'var(--success)' 
-        : 'var(--danger)';
+        ? '#00ffa3' 
+        : '#ff3b30';
 
     return (
         <div className="sensitivity-visualizer">
@@ -26,19 +26,78 @@ const SensitivityVisualizer: React.FC<{
                 className="sensitivity-bar-fill"
                 style={{
                     width: `${Math.max(0, Math.min(100, currentInputLevel + 100))}%`,
-                    backgroundColor: barColor
+                    backgroundColor: barColor,
+                    boxShadow: `0 0 10px ${barColor}`
                 }}
             />
         </div>
     );
 };
 
+const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [error, setError] = useState<string | null>(null);
+  
+    useEffect(() => {
+      let stream: MediaStream | null = null;
+  
+      const startPreview = async () => {
+        try {
+          setError(null);
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: deviceId === 'default' ? true : { deviceId: { exact: deviceId } }
+          });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        } catch (err: any) {
+          console.error("Camera preview error:", err);
+          setError("Не удалось получить доступ к камере или устройство занято");
+        }
+      };
+  
+      startPreview();
+  
+      return () => {
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
+    }, [deviceId]);
+  
+    return (
+      <div className="camera-preview-container" style={{
+          marginTop: '16px',
+          width: '100%',
+          aspectRatio: '16/9',
+          background: 'rgba(0,0,0,0.3)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '1px solid var(--glass-border)'
+      }}>
+        {error ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: 'var(--text-dim)' }}>
+            <CameraIcon size={48} />
+            <span style={{ fontSize: '14px', textAlign: 'center', padding: '0 20px' }}>{error}</span>
+          </div>
+        ) : (
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
+      </div>
+    );
+  };
+
 const VoiceSettings: React.FC = () => {
     const { 
         inputDevices,
         outputDevices,
+        videoDevices,
         selectedInputDeviceId, setSelectedInputDeviceId,
         selectedOutputDeviceId, setSelectedOutputDeviceId,
+        selectedVideoDeviceId, setSelectedVideoDeviceId,
         inputVolume, setInputVolume,
         outputVolume, setOutputVolume,
         noiseSuppressionMode, setNoiseSuppressionMode,
@@ -59,7 +118,6 @@ const VoiceSettings: React.FC = () => {
         }
     }, [isConnected, startTestStream, stopTestStream]);
 
-    // Memoize options to prevent expensive recalculations during re-renders
     const inputOptions = useMemo(() => {
         const opts = inputDevices.map(d => ({
             id: d.deviceId,
@@ -80,45 +138,63 @@ const VoiceSettings: React.FC = () => {
         return opts;
     }, [outputDevices]);
 
+    const videoOptions = useMemo(() => {
+        const opts = videoDevices.map(d => ({
+            id: d.deviceId,
+            name: d.label || `Камера ${d.deviceId.slice(0, 5)}`,
+            iconComponent: <VideoIcon size={18} />
+        }));
+        if (opts.length === 0) opts.push({ id: 'default', name: 'По умолчанию', iconComponent: <VideoIcon size={18} /> });
+        return opts;
+    }, [videoDevices]);
+
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Голос и видео</h2>
             
             <div className="settings-card">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Устройство ввода</h3>
-                <CustomSelect options={inputOptions} value={selectedInputDeviceId} onChange={setSelectedInputDeviceId} />
-                <div style={{ marginTop: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Громкость микрофона</span>
-                        <span style={{ fontSize: '13px', color: 'var(--text-main)' }}>{Math.round(inputVolume * 100)}%</span>
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Настройки аудио</h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+                    <div>
+                        <label className="settings-label" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-dim)' }}>Устройство ввода</label>
+                        <CustomSelect options={inputOptions} value={selectedInputDeviceId} onChange={setSelectedInputDeviceId} />
                     </div>
-                    <input 
-                        type="range" style={{width:'100%'}} 
-                        min="0" max="2" step="0.01"
-                        value={inputVolume} 
-                        onChange={(e) => setInputVolume(parseFloat(e.target.value))} 
-                    />
+                    <div>
+                        <label className="settings-label" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-dim)' }}>Устройство вывода</label>
+                        <CustomSelect options={outputOptions} value={selectedOutputDeviceId} onChange={setSelectedOutputDeviceId} />
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Громкость микрофона</span>
+                        </div>
+                        <RangeSlider 
+                            min={0} max={2} step={0.01} 
+                            value={inputVolume} 
+                            onChange={setInputVolume} 
+                            unit="x"
+                        />
+                    </div>
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Громкость звука</span>
+                        </div>
+                        <RangeSlider 
+                            min={0} max={2} step={0.01} 
+                            value={outputVolume} 
+                            onChange={setOutputVolume} 
+                            unit="x"
+                        />
+                    </div>
                 </div>
             </div>
 
             <div className="settings-card">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Устройство вывода</h3>
-                <CustomSelect options={outputOptions} value={selectedOutputDeviceId} onChange={setSelectedOutputDeviceId} />
-                <div style={{ marginTop: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Громкость звука</span>
-                        <span style={{ fontSize: '13px', color: 'var(--text-main)' }}>{Math.round(outputVolume * 100)}%</span>
-                    </div>
-                    <input 
-                        type="range" style={{width:'100%'}} 
-                        min="0" max="2" step="0.01"
-                        value={outputVolume} 
-                        onChange={(e) => setOutputVolume(parseFloat(e.target.value))} 
-                    />
-                </div>
-            </div>
-
-            <div className="settings-card">
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Чувствительность и тест</h3>
+                
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Автоматически определять чувствительность</h3>
@@ -127,7 +203,7 @@ const VoiceSettings: React.FC = () => {
                     <SettingsToggle checked={isAutomaticSensitivity} onChange={setIsAutomaticSensitivity} />
                 </div>
 
-                <div className={`sensitivity-container ${isAutomaticSensitivity ? 'disabled' : ''}`}>
+                <div className={`sensitivity-container ${isAutomaticSensitivity ? 'disabled' : ''}`} style={{ marginTop: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Порог срабатывания</span>
                         <span style={{ fontSize: '13px', color: 'var(--primary-neon)', fontWeight: 'bold' }}>{Math.round(inputSensitivity)} dB</span>
@@ -158,16 +234,30 @@ const VoiceSettings: React.FC = () => {
             </div>
 
             <div className="settings-card">
-                <div className="settings-row">
-                    <div className="settings-row-text">
-                        <h3>Шумоподавление (ИИ)</h3>
-                        <p>Удаление фоновых шумов.</p>
-                    </div>
-                    <SettingsToggle checked={noiseSuppressionMode !== 'none'} onChange={(val) => setNoiseSuppressionMode(val ? 'rnnoise' : 'none')} />
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Настройки видео</h3>
+                <div style={{ marginBottom: '16px' }}>
+                    <label className="settings-label" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-dim)' }}>Видеокамера</label>
+                    <CustomSelect options={videoOptions} value={selectedVideoDeviceId} onChange={setSelectedVideoDeviceId} />
                 </div>
+                
+                {videoDevices.length > 0 && (
+                    <CameraPreview deviceId={selectedVideoDeviceId} />
+                )}
             </div>
 
             <div className="settings-card">
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Обработка голоса</h3>
+                
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h3>Шумоподавление (ИИ)</h3>
+                        <p>Использовать RNNoise для удаления фоновых шумов.</p>
+                    </div>
+                    <SettingsToggle checked={noiseSuppressionMode !== 'none'} onChange={(val) => setNoiseSuppressionMode(val ? 'rnnoise' : 'none')} />
+                </div>
+
+                <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
+
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Эхоподавление</h3>
@@ -175,21 +265,31 @@ const VoiceSettings: React.FC = () => {
                     </div>
                     <SettingsToggle checked={echoCancellation} onChange={setEchoCancellation} />
                 </div>
+
+                <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
+
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h3>Авто-регулировка усиления</h3>
+                        <p>Автоматически выравнивает громкость микрофона.</p>
+                    </div>
+                    <SettingsToggle checked={autoGainControl} onChange={setAutoGainControl} />
+                </div>
             </div>
 
             <div className="settings-card">
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Приглушение других</h3>
                 <div className="settings-row">
                     <div className="settings-row-text">
-                        <h3>Приглушение других</h3>
-                        <p>Снижает громкость других участников на указанный процент, когда вы говорите.</p>
+                        <h3>Приглушение участников</h3>
+                        <p>Снижает громкость других участников, когда вы говорите.</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{attenuation}%</span>
-                        <input 
-                            type="range" style={{width:'120px'}} 
-                            min="0" max="100" step="1"
+                    <div style={{ width: '200px' }}>
+                        <RangeSlider 
+                            min={0} max={100} step={1}
                             value={attenuation} 
-                            onChange={(e) => setAttenuation(parseInt(e.target.value))} 
+                            onChange={setAttenuation} 
+                            unit="%"
                         />
                     </div>
                 </div>
@@ -199,3 +299,4 @@ const VoiceSettings: React.FC = () => {
 };
 
 export default VoiceSettings;
+
