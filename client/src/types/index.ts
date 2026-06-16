@@ -19,13 +19,15 @@ export interface UserActivity {
 export interface User {
   _id: string;
   username: string;
+  displayName?: string | null;
   email: string;
   avatar: string | null;
   banner: string | null;
   bio: string;
   status: 'online' | 'offline' | 'away' | 'busy';
   activity?: UserActivity | null;
-  servers?: string[];
+  servers?: (string | any)[];
+  primaryServer?: string | any | null;
   blockedUsers?: string[];
   notes?: Record<string, string>;
   isBot?: boolean;
@@ -41,6 +43,9 @@ export interface User {
     showActivityStatus: boolean;
     activityVisibility: 'everyone' | 'friends' | 'none';
     hiddenActivities: string[];
+    whoCanDM: 'everyone' | 'server_members' | 'friends' | 'nobody';
+    whoCanFindInSearch: 'everyone' | 'friends_of_friends' | 'nobody';
+    whoCanSeeFullProfile: 'everyone' | 'friends' | 'small_servers' | 'nobody';
   };
   createdAt: string;
 }

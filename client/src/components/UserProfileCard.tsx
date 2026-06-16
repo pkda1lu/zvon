@@ -423,6 +423,27 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                             <div className="info-tab">
                                 <section><h4>О СЕБЕ</h4><p className="bio-text">{memberData?.bio || user.bio || 'Пользователь ничего не рассказал о себе.'}</p></section>
 
+                                {user.primaryServer && typeof user.primaryServer === 'object' && (
+                                    <section>
+                                        <h4>ОСНОВНОЙ СЕРВЕР</h4>
+                                        <div 
+                                            className="mutual-item" 
+                                            style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', padding: '8px' }}
+                                            onClick={() => {
+                                                window.dispatchEvent(new CustomEvent('join-server-by-id', { 
+                                                    detail: { serverId: user.primaryServer._id } 
+                                                }));
+                                                onClose();
+                                            }}
+                                        >
+                                            <div className="mutual-avatar server">
+                                                {user.primaryServer.icon ? <img src={getAvatarUrl(user.primaryServer.icon)!} alt="" /> : <span>{user.primaryServer.name.charAt(0).toUpperCase()}</span>}
+                                            </div>
+                                            <span>{user.primaryServer.name}</span>
+                                        </div>
+                                    </section>
+                                )}
+
                                 {serverId && server && (
                                     <section>
                                         <div className="roles-list-header">
