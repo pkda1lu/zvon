@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  bannerColor: {
+    type: String,
+    default: '#5865f2'
+  },
   bio: {
     type: String,
     maxlength: 300,

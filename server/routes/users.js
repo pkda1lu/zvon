@@ -53,7 +53,7 @@ router.get('/profile/:id', auth, async (req, res) => {
 
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { username, displayName, primaryServer, status, bio, badges } = req.body;
+    const { username, displayName, primaryServer, status, bio, badges, bannerColor } = req.body;
     if (username) {
       const existingUser = await User.findOne({ username });
       if (existingUser && existingUser._id.toString() !== req.user._id.toString()) return res.status(400).json({ message: 'Username already taken' });
@@ -69,12 +69,37 @@ router.put('/profile', auth, async (req, res) => {
     }
     if (bio !== undefined) req.user.bio = bio;
     if (badges !== undefined) req.user.badges = badges;
+    if (bannerColor !== undefined) req.user.bannerColor = bannerColor;
     await req.user.save();
     const io = req.app.get('io');
     if (io) {
-      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, badges: req.user.badges });
+      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, badges: req.user.badges });
     }
-    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bio: req.user.bio, status: req.user.status, badges: req.user.badges });
+    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, bio: req.user.bio, status: req.user.status, badges: req.user.badges });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/avatar', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.avatar = null;
+    await user.save();
+    const io = req.app.get('io');
+    if (io) io.emit('user-updated', { _id: user._id, avatar: null });
+    res.json({ message: 'Avatar deleted', avatar: null });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/banner', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.banner = null;
+    await user.save();
+    const io = req.app.get('io');
+    if (io) io.emit('user-updated', { _id: user._id, banner: null });
+    res.json({ message: 'Banner deleted', banner: null });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

@@ -23,6 +23,7 @@ export interface User {
   email: string;
   avatar: string | null;
   banner: string | null;
+  bannerColor?: string;
   bio: string;
   status: 'online' | 'offline' | 'away' | 'busy';
   activity?: UserActivity | null;
@@ -106,6 +107,7 @@ export interface Server {
     bio?: string;
     avatar?: string;
     banner?: string;
+    bannerColor?: string;
   }>;
   channels: Channel[];
   emojis?: Emoji[];
