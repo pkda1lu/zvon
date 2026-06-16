@@ -14,6 +14,10 @@ const reportSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'MiniApp'
   },
+  reportedServer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Server'
+  },
   reason: {
     type: String,
     required: true,

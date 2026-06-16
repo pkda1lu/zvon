@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Friendship = require('../models/Friendship');
 const Server = require('../models/Server');
 const upload = require('../middleware/upload');
+const { logGlobalAction } = require('../utils/globalAuditLogger');
 
 router.get('/check-username/:username', auth, async (req, res) => {
   try {
@@ -293,7 +294,13 @@ router.delete('/me', auth, async (req, res) => {
     
     // Delete messages? Usually we keep them as "Deleted User" or remove them. 
     // Requirement says "полностью удалить аккаунт без возможности восстановления".
-    // For now, let's delete the user record.
+    await logGlobalAction({
+      executorId: userId,
+      action: 'USER_DELETE',
+      targetId: userId,
+      targetModel: 'User',
+      details: { username: req.user.username, email: req.user.email }
+    });
     await User.findByIdAndDelete(userId);
     
     res.json({ message: 'Account successfully deleted' });

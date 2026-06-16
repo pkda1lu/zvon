@@ -1,12 +1,218 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
+import { useDialog } from '../../contexts/DialogContext';
+import UserAvatar from '../../components/UserAvatar';
+import { UsersIcon, LayoutGridIcon, ShieldIcon, PlusIcon } from '../../components/Icons';
 
 const AdminUsersSettings: React.FC = () => {
+    const { user: currentUser } = useAuth();
+    const { confirm, prompt, alert } = useDialog();
+    const [view, setView] = useState<'users' | 'servers'>('users');
+    const [data, setData] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const endpoint = view === 'users' ? '/api/admin/users' : '/api/admin/servers';
+            const res = await axios.get(`${endpoint}?search=${search}&page=${page}`);
+            if (view === 'users') {
+                setData(res.data.users);
+                setTotalPages(res.data.pages);
+            } else {
+                setData(res.data.servers);
+                setTotalPages(res.data.pages);
+            }
+        } catch (err) {
+            console.error('Fetch error:', err);
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, [view, page]);
+
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        setPage(1);
+        fetchData();
+    };
+
+    const deleteUser = async (id: string, username: string) => {
+        if (await confirm(`Вы уверены, что хотите УДАЛИТЬ аккаунт ${username}? Это действие необратимо.`)) {
+            try {
+                await axios.delete(`/api/admin/users/${id}`);
+                fetchData();
+                await alert('Пользователь удален.');
+            } catch (e) { }
+        }
+    };
+
+    const toggleBan = async (id: string, username: string, isCurrentlyBanned: boolean) => {
+        const action = isCurrentlyBanned ? 'разблокировать' : 'ЗАБЛОКИРОВАТЬ';
+        if (await confirm(`Вы уверены, что хотите ${action} пользователя ${username}?`)) {
+            try {
+                await axios.patch(`/api/admin/users/${id}`, { isBanned: !isCurrentlyBanned });
+                fetchData();
+                await alert(`Пользователь ${isCurrentlyBanned ? 'разблокирован' : 'заблокирован'}.`);
+            } catch (e) { }
+        }
+    };
+
+    const deleteServer = async (id: string, name: string) => {
+        if (await confirm(`Вы уверены, что хотите УДАЛИТЬ сервер "${name}"? Все каналы и сообщения будут стерты.`)) {
+            try {
+                await axios.delete(`/api/admin/servers/${id}`);
+                fetchData();
+                await alert('Сервер удален.');
+            } catch (e) { }
+        }
+    };
+
     return (
         <div className="settings-content-inner">
-            <h2 className="settings-page-title">Пользователи и сервера</h2>
-            <div className="settings-card">
-                <p className="settings-description">Все зарегистрированные пользователи и созданные сервера.</p>
+            <h2 className="settings-page-title">Управление сообществом</h2>
+            <p className="settings-description">Полный список пользователей и серверов с инструментами администрирования.</p>
+
+            <div style={{ marginBottom: '24px', display: 'flex', gap: '10px', borderBottom: '1px solid var(--glass-border)' }}>
+                <button
+                    onClick={() => { setView('users'); setPage(1); }}
+                    className={`settings-tab-btn ${view === 'users' ? 'active' : ''}`}
+                    style={{
+                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+                        color: view === 'users' ? 'var(--primary-neon)' : 'var(--text-dim)',
+                        fontWeight: 700, fontSize: '14px',
+                        borderBottom: `2px solid ${view === 'users' ? 'var(--primary-neon)' : 'transparent'}`,
+                        marginBottom: '-1px'
+                    }}
+                >
+                    Пользователи
+                </button>
+                <button
+                    onClick={() => { setView('servers'); setPage(1); }}
+                    className={`settings-tab-btn ${view === 'servers' ? 'active' : ''}`}
+                    style={{
+                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+                        color: view === 'servers' ? 'var(--primary-neon)' : 'var(--text-dim)',
+                        fontWeight: 700, fontSize: '14px',
+                        borderBottom: `2px solid ${view === 'servers' ? 'var(--primary-neon)' : 'transparent'}`,
+                        marginBottom: '-1px'
+                    }}
+                >
+                    Сервера
+                </button>
             </div>
+
+            <form onSubmit={handleSearch} style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+                <input 
+                    type="text" 
+                    className="auth-input-glass" 
+                    placeholder={`Поиск ${view === 'users' ? 'пользователей' : 'серверов'}...`}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    style={{ flex: 1 }}
+                />
+                <button type="submit" className="settings-btn" style={{ padding: '0 20px' }}>Поиск</button>
+            </form>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {loading ? (
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Загрузка...</div>
+                ) : data.length === 0 ? (
+                    <div className="settings-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Ничего не найдено.</div>
+                ) : (
+                    data.map(item => (
+                        <div key={item._id} className="settings-card" style={{ margin: 0, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                {view === 'users' ? (
+                                    <>
+                                        <UserAvatar user={item} size={48} />
+                                        <div>
+                                            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {item.username} 
+                                                {item.role === 'admin' && <span style={{ fontSize: '10px', background: 'var(--accent-pink)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>ADMIN</span>}
+                                                {item.role === 'moderator' && <span style={{ fontSize: '10px', background: 'var(--primary-neon)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>MOD</span>}
+                                                {item.isBanned && <span style={{ fontSize: '10px', background: 'var(--danger)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>BANNED</span>}
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{item.email}</div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {item.icon ? (
+                                            <img src={item.icon} style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
+                                        ) : (
+                                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--glass-bg-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '20px' }}>
+                                                {item.name[0]}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <div style={{ fontWeight: 700 }}>{item.name}</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Владелец: {item.owner?.username || 'System'} • {item.members?.length || 0} уч.</div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {view === 'users' ? (
+                                    <>
+                                        <button 
+                                            className="settings-btn" 
+                                            style={{ padding: '8px 12px', fontSize: '12px', background: item.isBanned ? 'var(--success)' : 'var(--warning)', color: 'black' }}
+                                            onClick={() => toggleBan(item._id, item.username, item.isBanned)}
+                                        >
+                                            {item.isBanned ? 'Разбанить' : 'Бан'}
+                                        </button>
+                                        <button 
+                                            className="settings-btn settings-btn-danger" 
+                                            style={{ padding: '8px 12px', fontSize: '12px' }}
+                                            onClick={() => deleteUser(item._id, item.username)}
+                                        >
+                                            Удалить
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button 
+                                        className="settings-btn settings-btn-danger" 
+                                        style={{ padding: '8px 12px', fontSize: '12px' }}
+                                        onClick={() => deleteServer(item._id, item.name)}
+                                    >
+                                        Удалить
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {totalPages > 1 && (
+                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'center', gap: '12px' }}>
+                    <button 
+                        className="settings-btn" 
+                        disabled={page === 1} 
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        style={{ padding: '8px 16px', opacity: page === 1 ? 0.5 : 1 }}
+                    >
+                        Назад
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', fontWeight: 700 }}>{page} / {totalPages}</div>
+                    <button 
+                        className="settings-btn" 
+                        disabled={page === totalPages} 
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        style={{ padding: '8px 16px', opacity: page === totalPages ? 0.5 : 1 }}
+                    >
+                        Вперёд
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
