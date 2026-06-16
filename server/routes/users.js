@@ -8,7 +8,7 @@ const upload = require('../middleware/upload');
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('username email avatar status banner badges customStatus theme activity');
+    const user = await User.findById(req.params.id).select('username displayName primaryServer email avatar status banner badges customStatus theme activity settings');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -18,7 +18,7 @@ router.get('/profile/:id', auth, async (req, res) => {
   try {
     const targetUserId = req.params.id;
     const currentUserId = req.user._id;
-    const user = await User.findById(targetUserId).select('-password');
+    const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon');
     if (!user) return res.status(404).json({ message: 'User not found' });
     
     const mutualServers = await Server.find({ 'members.user': { $all: [currentUserId, targetUserId] } }).select('name icon');
@@ -53,11 +53,15 @@ router.get('/profile/:id', auth, async (req, res) => {
 
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { username, status, bio, badges } = req.body;
+    const { username, displayName, primaryServer, status, bio, badges } = req.body;
     if (username) {
       const existingUser = await User.findOne({ username });
       if (existingUser && existingUser._id.toString() !== req.user._id.toString()) return res.status(400).json({ message: 'Username already taken' });
       req.user.username = username;
+    }
+    if (displayName !== undefined) req.user.displayName = displayName;
+    if (primaryServer !== undefined) {
+      req.user.primaryServer = primaryServer === '' ? null : primaryServer;
     }
     if (status) {
       req.user.status = status;

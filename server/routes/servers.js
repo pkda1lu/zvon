@@ -600,6 +600,62 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.post('/:id/members/:userId/avatar', auth, (req, res, next) => {
+  upload.single('avatar')(req, res, (err) => {
+    if (err) return res.status(400).json({ message: err.message || 'File upload failed' });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
+    if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
+
+    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    const avatarUrl = `/api/uploads/${req.file.filename}`;
+    server.members[memberIndex].avatar = avatarUrl;
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: server.members[memberIndex] });
+
+    res.json({ avatar: avatarUrl });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.post('/:id/members/:userId/banner', auth, (req, res, next) => {
+  upload.single('banner')(req, res, (err) => {
+    if (err) return res.status(400).json({ message: err.message || 'File upload failed' });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
+    if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
+
+    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    const bannerUrl = `/api/uploads/${req.file.filename}`;
+    server.members[memberIndex].banner = bannerUrl;
+    await server.save();
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: server.members[memberIndex] });
+
+    res.json({ banner: bannerUrl });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
