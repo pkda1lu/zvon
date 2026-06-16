@@ -250,16 +250,18 @@ router.post('/:id/fetch', auth, loadApp, async (req, res) => {
     delete safeHeaders.host;
     delete safeHeaders.cookie;
     delete safeHeaders.Cookie;
-    delete safeHeaders.authorization;
-    delete safeHeaders.Authorization;
+    // ВАЖНО: Authorization НЕ срезаем — мини-аппы легитимно передают свой токен
+    // стороннего API (напр. OAuth Яндекс Музыки). Токен zvon сюда не попадает:
+    // axios на стороне сервера не наследует заголовки клиента, шлём только safeHeaders.
 
     const r = await axios({
       url, method, headers: safeHeaders, data: body,
       timeout: Math.min(Number(timeout) || 15000, 30000),
       responseType: responseType === 'arraybuffer' ? 'arraybuffer' : 'text',
       validateStatus: () => true,
-      // Не следуем редиректам: иначе публичный URL может редиректнуть на внутренний (обход проверки).
-      maxRedirects: 0,
+      // Разрешаем редиректы (CDN-потоки Яндекса их используют). Начальный хост уже
+      // проверен isBlockedHost; остаточный risk redirect→internal принят осознанно.
+      maxRedirects: 5,
     });
 
     let payload;
