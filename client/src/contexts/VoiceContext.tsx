@@ -548,7 +548,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         
         setLocalStream(null);
         setRemoteStreams(new Map());
+        setRemoteScreenStreams(new Map());
         setConnectedUsers([]);
+        setUserStates(new Map());
+        setWatchedScreenIds(new Set());
         setIsConnected(false);
         setActiveChannelId(null);
         setRoomConnectionState(ConnectionState.Disconnected);
@@ -798,6 +801,49 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
         socket.on('voice-user-state-update', onUserState);
         return () => { socket.off('voice-user-state-update', onUserState); };
+    }, [socket]);
+
+    // Список участников канала и их НАЧАЛЬНЫЕ состояния. Сервер шлёт это при входе
+    // (voice-existing-users) и при появлении/уходе других — без этого зашедший в
+    // канал не видел ни участников, ни их мьют/деаф/трансляцию, пока те не переключат.
+    useEffect(() => {
+        if (!socket) return;
+        const toState = (u: any) => ({
+            isMuted: !!u?.isMuted, isDeafened: !!u?.isDeafened,
+            isScreenSharing: !!u?.isScreenSharing, isVideoOn: !!u?.isVideoOn,
+            isServerMuted: !!u?.isServerMuted, isServerDeafened: !!u?.isServerDeafened
+        });
+        const onExisting = (users: any[]) => {
+            if (!Array.isArray(users)) return;
+            setConnectedUsers(users as any);
+            setUserStates(prev => {
+                const next = new Map(prev);
+                users.forEach(u => { if (u?._id) next.set(String(u._id), toState(u)); });
+                return next;
+            });
+        };
+        const onJoined = (data: any) => {
+            const uid = data?.userId; const u = data?.user;
+            if (!uid) return;
+            if (u) setConnectedUsers(prev => prev.some((p: any) => String(p._id) === String(uid)) ? prev : [...prev, u]);
+            setUserStates(prev => new Map(prev).set(String(uid), toState(u || data)));
+        };
+        const onLeft = (data: any) => {
+            const uid = data?.userId;
+            if (!uid) return;
+            setConnectedUsers(prev => prev.filter((p: any) => String(p._id) !== String(uid)));
+            setUserStates(prev => { const n = new Map(prev); n.delete(String(uid)); return n; });
+            setRemoteStreams(prev => { const n = new Map(prev); n.delete(uid); return n; });
+            setRemoteScreenStreams(prev => { const n = new Map(prev); n.delete(uid); return n; });
+        };
+        socket.on('voice-existing-users', onExisting);
+        socket.on('voice-user-joined', onJoined);
+        socket.on('voice-user-left', onLeft);
+        return () => {
+            socket.off('voice-existing-users', onExisting);
+            socket.off('voice-user-joined', onJoined);
+            socket.off('voice-user-left', onLeft);
+        };
     }, [socket]);
 
     // Context Value (Memoized)
