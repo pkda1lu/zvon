@@ -127,7 +127,9 @@ const VoiceStreamCard: React.FC<{
     useEffect(() => {
       if (videoRef.current && stream && isWatching && videoRef.current.srcObject !== stream) {
         videoRef.current.srcObject = stream;
-        if (isMe) videoRef.current.muted = true;
+        // Своя трансляция — без локального звука (эхо). Чужая — звук стрима звучит
+        // всегда, когда смотрим; деаф/мьют микрофона на это не влияют.
+        videoRef.current.muted = isMe;
         videoRef.current.play().catch(() => { });
       }
     }, [stream, isMe, isExpanded, isWatching]);

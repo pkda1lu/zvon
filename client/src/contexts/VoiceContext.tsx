@@ -699,6 +699,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     const audioStream = await nativeAudioManager.startcapture(sourceId);
                     const screenAudioTrack = audioStream.getAudioTracks()[0];
                     if (screenAudioTrack) {
+                        // Звук стрима НЕ зависит от мьюта/деафа микрофона — держим трек
+                        // всегда включённым; кнопки микрофона трогают только livekitTrackRef.
+                        screenAudioTrack.enabled = true;
                         screenAudioTrackRef.current = screenAudioTrack;
                         await roomRef.current.localParticipant.publishTrack(screenAudioTrack, {
                             source: Track.Source.ScreenShareAudio,
