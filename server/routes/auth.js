@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCode, sendEmailChangeCode } = require('../utils/mail');
 const { getBrand } = require('../utils/branding');
 const { createSession } = require('../utils/session');
+const { logGlobalAction } = require('../utils/globalAuditLogger');
 
 // ===== Простой in-memory rate limit (защита от перебора паролей/кодов) =====
 const _rlStore = new Map();
