@@ -26,3 +26,6 @@ client/package-lock.json
 .claude/settings.local.json
 .claude/settings.local.json
 client/package-lock.json
+
+# git filter-branch temp dir
+.git-rewrite/
