@@ -198,7 +198,13 @@ const Main: React.FC = () => {
       const srv = servers.find(s => s._id === srvId);
       if (srv) {
         setSelectedServer(srv);
-        setSelectedChannel(null); // Will be handled by ServerSidebar's useEffect or we can pick first channel
+        // Сразу выбираем канал по умолчанию (как при клике по серверу в рейле).
+        // Иначе при выборе сервера из профиля канал обнулялся и контент-область
+        // оставалась пустой — «пропадала часть экрана».
+        const firstTextChannel = srv.channels.find((c: any) => c.type === 'text');
+        if (firstTextChannel) setSelectedChannel(firstTextChannel);
+        else if (srv.channels.length > 0) setSelectedChannel(srv.channels[0]);
+        else setSelectedChannel(null);
         setSelectedDM(null);
         setShowFriends(false);
         setMobileView('content');
