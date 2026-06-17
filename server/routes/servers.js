@@ -894,10 +894,3 @@ router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG),
 
 module.exports = router;
 
-le.error('Audit log fetch error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-module.exports = router;
-
