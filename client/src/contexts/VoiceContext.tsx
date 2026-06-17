@@ -381,6 +381,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
     const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
+    // Кого из стримеров мы сейчас смотрим, и громкость их трансляций.
+    const [watchedScreenIds, setWatchedScreenIds] = useState<Set<string>>(new Set());
+    const [screenVolumes, setScreenVolumes] = useState<Map<string, number>>(new Map());
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
     const [inputSensitivity, setInputSensitivity] = useState(() => user?.settings?.interaction?.voice?.inputSensitivity || Number(localStorage.getItem('inputSensitivity')) || -50);
@@ -743,6 +746,34 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const stopScreenShareRef = useRef(stopScreenShare);
     useEffect(() => { stopScreenShareRef.current = stopScreenShare; }, [stopScreenShare]);
 
+    // Смотрящая сторона: включить/выключить просмотр чужой трансляции.
+    // Поток уже приходит в remoteScreenStreams (авто-подписка), здесь только
+    // переключаем флаг отображения — раньше это была заглушка и кнопка «Смотреть» не работала.
+    const setWatchingScreen = useCallback((uId: string, watching: boolean) => {
+        setWatchedScreenIds(prev => {
+            const next = new Set(prev);
+            if (watching) next.add(uId); else next.delete(uId);
+            return next;
+        });
+    }, []);
+
+    const setScreenVolume = useCallback((uId: string, volume: number) => {
+        setScreenVolumes(prev => new Map(prev).set(uId, volume));
+    }, []);
+
+    // Если стример прекратил трансляцию — убираем его из «смотрим».
+    useEffect(() => {
+        setWatchedScreenIds(prev => {
+            if (prev.size === 0) return prev;
+            let changed = false;
+            const next = new Set(prev);
+            for (const id of prev) {
+                if (!remoteScreenStreams.has(id)) { next.delete(id); changed = true; }
+            }
+            return changed ? next : prev;
+        });
+    }, [remoteScreenStreams]);
+
     // Состояния других участников (мьют/деаф/демонстрация/видео) — чтобы у них
     // корректно отображались индикаторы и плитка трансляции.
     useEffect(() => {
@@ -776,8 +807,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         selectedInputDeviceId, setSelectedInputDeviceId, selectedOutputDeviceId, setSelectedOutputDeviceId,
         selectedVideoDeviceId, setSelectedVideoDeviceId, inputVolume, setInputVolume, outputVolume, setOutputVolume,
         refreshDevices, isScreenSharing, screenStream, startScreenShare, stopScreenShare,
-        remoteScreenStreams, isVideoOn, toggleVideo: async () => {}, localCameraStream, screenVolumes: new Map(), setScreenVolume: () => {},
-        watchedScreenIds: new Set<string>(), setWatchingScreen: () => {}, inputSensitivity, setInputSensitivity,
+        remoteScreenStreams, isVideoOn, toggleVideo: async () => {}, localCameraStream, screenVolumes, setScreenVolume,
+        watchedScreenIds, setWatchingScreen, inputSensitivity, setInputSensitivity,
         isAutomaticSensitivity, setIsAutomaticSensitivity, 
         echoCancellation, setEchoCancellation,
         autoGainControl, setAutoGainControl,
@@ -797,7 +828,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         remoteScreenStreams, isVideoOn, localCameraStream, inputSensitivity, isAutomaticSensitivity,
         echoCancellation, autoGainControl, attenuation,
         ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel,
-        startScreenShare, stopScreenShare
+        startScreenShare, stopScreenShare, watchedScreenIds, screenVolumes, setWatchingScreen, setScreenVolume
     ]);
 
     return (
