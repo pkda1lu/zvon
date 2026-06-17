@@ -489,8 +489,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             room.on(RoomEvent.LocalTrackPublished, pub => {
                 if (pub.source === Track.Source.Microphone) handleLocalMicPublication(pub);
             });
+            // Без этих подписок roomConnectionState навсегда оставался Disconnected,
+            // и панель всегда показывала «Связь потеряна», даже при рабочем звонке.
+            room.on(RoomEvent.ConnectionStateChanged, state => setRoomConnectionState(state));
+            room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+                if (participant?.identity === room.localParticipant.identity) setConnectionQuality(quality);
+            });
 
             await room.connect(data.serverUrl, data.token);
+            setRoomConnectionState(room.state);
             await room.localParticipant.setMicrophoneEnabled(true, { deviceId: selectedInputDeviceId !== 'default' ? selectedInputDeviceId : undefined });
             
             setIsConnected(true);
