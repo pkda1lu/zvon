@@ -274,7 +274,7 @@ router.put('/settings', auth, async (req, res) => {
     }
 
     // Handle other settings (privacy etc.)
-    const otherKeys = ['showActivityStatus', 'activityVisibility', 'hiddenActivities', 'whoCanDM', 'whoCanFindInSearch', 'whoCanSeeFullProfile'];
+    const otherKeys = ['showActivityStatus', 'activityVisibility', 'hiddenActivities', 'whoCanDM', 'whoCanFindInSearch', 'whoCanSeeFullProfile', 'smallServerLimit'];
     otherKeys.forEach(key => {
       if (settings[key] !== undefined) req.user.settings[key] = settings[key];
     });

@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import { formatClockTime } from '../utils/time';
 import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import './panel-hero.css';
@@ -375,7 +376,7 @@ const MessageItem = React.memo<{
             />
           </div>
         )}
-        {grouped && <div className="message-time-mini">{new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
+        {grouped && <div className="message-time-mini">{formatClockTime(msg.createdAt)}</div>}
 
         <div className="message-content">
           <div className="message-header">
@@ -1143,7 +1144,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    if (days === 0) return formatClockTime(date);
     if (days === 1) return 'Вчера';
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
   };

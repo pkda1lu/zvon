@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
+import { formatClockTime } from '../utils/time';
 import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import VoiceCall from './VoiceCall';
@@ -242,11 +243,11 @@ const DMView: React.FC<DMViewProps> = ({
     yesterday.setDate(now.getDate() - 1);
     const isYesterday = d.toDateString() === yesterday.toDateString();
 
-    const timeStr = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const timeStr = formatClockTime(d);
 
     if (isToday) return `Сегодня в ${timeStr}`;
     if (isYesterday) return `Вчера в ${timeStr}`;
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} в ${timeStr}`;
   };
 
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
@@ -920,7 +921,7 @@ const DMView: React.FC<DMViewProps> = ({
                           />
                         </div>
                       )}
-                      {grouped && <div className="message-time-mini">{new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
+                      {grouped && <div className="message-time-mini">{formatClockTime(msg.createdAt)}</div>}
                       <div className="message-content">
                         {!grouped && (
                           <div className="message-header message-author-info">

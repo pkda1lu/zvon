@@ -5,6 +5,7 @@ import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import { MonitorIcon, CloseIcon } from './Icons';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
+import { formatClockTime } from '../utils/time';
 import './UserProfileCard.css';
 
 interface ProfilePreviewProps {
@@ -83,7 +84,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
         const date = new Date(user.lastActiveAt);
         const now = new Date();
         const isToday = date.toDateString() === now.toDateString();
-        const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        const timeStr = formatClockTime(date);
         if (isToday) return `был(-а) в сети сегодня в ${timeStr}`;
         return `был(-а) в сети ${date.toLocaleDateString('ru-RU')} в ${timeStr}`;
     };

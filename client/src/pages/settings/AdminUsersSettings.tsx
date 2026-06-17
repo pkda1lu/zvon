@@ -21,11 +21,11 @@ const AdminUsersSettings: React.FC = () => {
             const endpoint = view === 'users' ? '/api/admin/users' : '/api/admin/servers';
             const res = await axios.get(`${endpoint}?search=${search}&page=${page}`);
             if (view === 'users') {
-                setData(res.data.users);
-                setTotalPages(res.data.pages);
+                setData(Array.isArray(res.data.users) ? res.data.users : []);
+                setTotalPages(res.data.pages || 1);
             } else {
-                setData(res.data.servers);
-                setTotalPages(res.data.pages);
+                setData(Array.isArray(res.data.servers) ? res.data.servers : []);
+                setTotalPages(res.data.pages || 1);
             }
         } catch (err) {
             console.error('Fetch error:', err);
@@ -148,7 +148,7 @@ const AdminUsersSettings: React.FC = () => {
                                             <img src={item.icon} style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
                                         ) : (
                                             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--glass-bg-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '20px' }}>
-                                                {item.name[0]}
+                                                {item.name?.[0]?.toUpperCase() || '#'}
                                             </div>
                                         )}
                                         <div>

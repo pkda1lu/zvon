@@ -41,6 +41,9 @@ const ProfileSettings: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
+    // Сбрасываем поля из user ТОЛЬКО при смене пользователя (логин/переключение
+    // аккаунта), а не на каждое обновление объекта user — иначе обновления
+    // (сокеты, фоновые сохранения) затирали то, что пользователь печатает прямо сейчас.
     useEffect(() => {
         if (user) {
             setDisplayName(user.displayName || '');
@@ -50,7 +53,7 @@ const ProfileSettings: React.FC = () => {
             const pId = typeof user.primaryServer === 'string' ? user.primaryServer : user.primaryServer?._id;
             setPrimaryServer(pId || '');
         }
-    }, [user]);
+    }, [user?._id]);
 
     const saveField = useCallback(async (field: string, value: any) => {
         try {
@@ -61,21 +64,32 @@ const ProfileSettings: React.FC = () => {
         }
     }, [refreshUser]);
 
+    // Держим актуальные user/saveField в ref, чтобы дебаунс-эффекты ниже не
+    // перезапускались (и не порождали лишние запросы) при обновлении user.
+    const userRef = useRef(user);
+    useEffect(() => { userRef.current = user; }, [user]);
+    const saveFieldRef = useRef(saveField);
+    useEffect(() => { saveFieldRef.current = saveField; }, [saveField]);
+
+    // Запрос только после паузы в наборе (1с), и только если значение реально
+    // отличается от сохранённого на сервере.
     useEffect(() => {
-        if (!user) return;
         const timer = setTimeout(() => {
-            if (displayName !== (user.displayName || '')) saveField('displayName', displayName);
+            if (userRef.current && displayName !== (userRef.current.displayName || '')) {
+                saveFieldRef.current('displayName', displayName);
+            }
         }, 1000);
         return () => clearTimeout(timer);
-    }, [displayName, user, saveField]);
+    }, [displayName]);
 
     useEffect(() => {
-        if (!user) return;
         const timer = setTimeout(() => {
-            if (bio !== (user.bio || '')) saveField('bio', bio);
+            if (userRef.current && bio !== (userRef.current.bio || '')) {
+                saveFieldRef.current('bio', bio);
+            }
         }, 1000);
         return () => clearTimeout(timer);
-    }, [bio, user, saveField]);
+    }, [bio]);
 
     const handlePrimaryServerChange = (sId: string) => {
         setPrimaryServer(sId);

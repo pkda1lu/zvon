@@ -169,10 +169,12 @@ const userSchema = new mongoose.Schema({
       type: [String],
       default: []
     },
+    // Multi-select (клиент шлёт массив категорий) — поэтому [String], а не String,
+    // иначе mongoose падает с CastError при сохранении настроек приватности.
     whoCanDM: {
-      type: String,
+      type: [String],
       enum: ['everyone', 'server_members', 'friends', 'nobody'],
-      default: 'everyone'
+      default: ['everyone']
     },
     whoCanFindInSearch: {
       type: String,
@@ -180,9 +182,13 @@ const userSchema = new mongoose.Schema({
       default: 'everyone'
     },
     whoCanSeeFullProfile: {
-      type: String,
+      type: [String],
       enum: ['everyone', 'friends', 'small_servers', 'nobody'],
-      default: 'everyone'
+      default: ['everyone']
+    },
+    smallServerLimit: {
+      type: Number,
+      default: 50
     },
     // New Interface Settings
     appearance: {

@@ -239,6 +239,26 @@ router.post('/:id/banner', auth, (req, res, next) => {
     }
 });
 
+// Reset bot avatar
+router.delete('/:id/avatar', auth, async (req, res) => {
+    try {
+        const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
+        if (!bot) return res.status(404).json({ message: 'Bot not found' });
+
+        bot.avatar = null;
+        await bot.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('user-updated', { _id: bot._id, avatar: null });
+        }
+
+        res.json({ message: 'Аватар сброшен', avatar: null });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // Reset bot banner
 router.delete('/:id/banner', auth, async (req, res) => {
     try {
