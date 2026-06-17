@@ -348,6 +348,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const audioContextRef = useRef<AudioContext | null>(null);
     const livekitTrackRef = useRef<MediaStreamTrack | null>(null);
     const screenStreamRef = useRef<MediaStream | null>(null);
+    // Аудио-трек демонстрации (звук приложения через нативный драйвер, только Electron).
+    const screenAudioTrackRef = useRef<MediaStreamTrack | null>(null);
 
     // States
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -678,6 +680,32 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 videoTrack.addEventListener('ended', () => { stopScreenShareRef.current(); });
             }
             screenStreamRef.current = stream;
+
+            // Звук приложения через нативный C++ драйвер (WASAPI process-loopback).
+            // Только для Electron-версии; в браузере драйвера нет.
+            const isElectron = !!(window as any).electron;
+            if (options?.withAudio && isElectron && roomRef.current) {
+                try {
+                    console.log('[Voice] Захват звука демонстрации через нативный драйвер…');
+                    const audioStream = await nativeAudioManager.startcapture(sourceId);
+                    const screenAudioTrack = audioStream.getAudioTracks()[0];
+                    if (screenAudioTrack) {
+                        screenAudioTrackRef.current = screenAudioTrack;
+                        await roomRef.current.localParticipant.publishTrack(screenAudioTrack, {
+                            source: Track.Source.ScreenShareAudio,
+                            dtx: false,
+                            red: false
+                        });
+                        console.log('[Voice] Звук демонстрации опубликован');
+                    } else {
+                        console.warn('[Voice] Нативный драйвер не вернул аудио-трек');
+                    }
+                } catch (audioErr) {
+                    console.error('[Voice] Не удалось захватить звук демонстрации:', audioErr);
+                    // Видео уже идёт — не валим всю трансляцию из-за звука.
+                }
+            }
+
             setScreenStream(stream);
             setIsScreenSharing(true);
             soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
@@ -690,6 +718,14 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [emitVoiceState]);
 
     const stopScreenShare = useCallback(async () => {
+        // Звук демонстрации: останавливаем нативный захват и снимаем трек с публикации.
+        if (screenAudioTrackRef.current) {
+            try { if (roomRef.current) await roomRef.current.localParticipant.unpublishTrack(screenAudioTrackRef.current); } catch (e) { console.warn('[Voice] unpublish screen audio failed:', e); }
+            try { screenAudioTrackRef.current.stop(); } catch {}
+            screenAudioTrackRef.current = null;
+        }
+        try { nativeAudioManager.stopCapture(); } catch (e) { console.warn('[Voice] nativeAudio stopCapture failed:', e); }
+
         try {
             if (roomRef.current) await roomRef.current.localParticipant.setScreenShareEnabled(false);
         } catch (e) { console.warn('[Voice] setScreenShareEnabled(false) failed:', e); }
