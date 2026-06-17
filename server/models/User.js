@@ -79,7 +79,7 @@ const userSchema = new mongoose.Schema({
     name: { type: String, default: null },
     type: {
       type: String,
-      enum: ['playing', 'streaming', 'listening', 'watching', 'competing', null],
+      enum: ['playing', 'streaming', 'listening', 'watching', 'competing', 'sitting', null],
       default: 'playing'
     },
     details: String,
@@ -233,11 +233,20 @@ const userSchema = new mongoose.Schema({
     streamerMode: {
       enabled: { type: Boolean, default: false },
       autoEnableWithOBS: { type: Boolean, default: true },
+      streamerLink: { type: String, default: '' },
       censorInfo: { type: Boolean, default: true },
       disableSounds: { type: Boolean, default: true },
       disableNotifications: { type: Boolean, default: true },
       changeStatusToStreaming: { type: Boolean, default: true },
       confirmSettingsAccess: { type: Boolean, default: true }
+    },
+    windows: {
+      activityDetectionEnabled: { type: Boolean, default: true },
+      overlayCategories: {
+        type: [String],
+        enum: ['game', 'music', 'video', 'other'],
+        default: ['game', 'music', 'video']
+      }
     },
     overlay: {
       enabled: { type: Boolean, default: true },

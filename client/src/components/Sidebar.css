@@ -330,6 +330,11 @@
   box-shadow: 0 0 10px #f04747;
 }
 
+.status-indicator.streaming {
+  background: var(--secondary-neon, #7000ff);
+  box-shadow: 0 0 10px var(--secondary-neon, #7000ff);
+}
+
 .status-indicator.offline {
   background: #747f8d;
 }

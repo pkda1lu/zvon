@@ -104,7 +104,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                             size={32}
                                                             className="member-avatar"
                                                         />
-                                                        <div className={`status-indicator ${member.user.status}`}></div>
+                                                        <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
                                                     </div>
                                                     <div className="member-info">
                                                         <div className="member-name-row">
@@ -155,7 +155,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                         size={32}
                                                         className="member-avatar"
                                                     />
-                                                    <div className={`status-indicator ${member.user.status}`}></div>
+                                                    <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
                                                 </div>
                                                 <div className="member-info">
                                                     <div className="member-name-row">
@@ -203,7 +203,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                         size={32}
                                                         className="member-avatar"
                                                     />
-                                                    <div className={`status-indicator ${member.user.status}`}></div>
+                                                    <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
                                                 </div>
                                                 <div className="member-name-row">
                                                     <span className="member-name" style={{ color: memberColor }}>

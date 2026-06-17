@@ -12,11 +12,12 @@ const WindowsSettings: React.FC = () => {
 
     return (
         <div className="settings-content-inner">
-            <h2 className="settings-page-title">Действия (Windows)</h2>
+            <h2 className="settings-page-title">Действия</h2>
             <p className="settings-description">
-                Эти настройки управляют поведением окна приложения в операционной системе Windows.
+                Управляйте поведением окна приложения ZVON в операционной системе.
             </p>
 
+            <div className="settings-section-title">Системные</div>
             <div className="settings-card">
                 <div className="settings-row">
                     <div className="settings-row-text">
@@ -25,13 +26,11 @@ const WindowsSettings: React.FC = () => {
                     </div>
                     <SettingsToggle checked={autoStart} onChange={setAutoStart} />
                 </div>
-            </div>
-
-            <div className="settings-card">
+                <div className="settings-sidebar-divider" style={{ margin: '16px 0' }} />
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Запуск свёрнутым</h3>
-                        <p>При автозапуске приложение не будет появляться на экране, а сразу свернется в трей.</p>
+                        <p>При автозапуске приложение сразу свернется в трей.</p>
                     </div>
                     <SettingsToggle checked={startMinimized} onChange={setStartMinimized} />
                 </div>
@@ -41,17 +40,15 @@ const WindowsSettings: React.FC = () => {
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Минимизация в трей</h3>
-                        <p>При нажатии кнопки «Свернуть» убирать приложение с панели задач.</p>
+                        <p>Убирать приложение с панели задач при сворачивании.</p>
                     </div>
                     <SettingsToggle checked={minimizeToTray} onChange={setMinimizeToTray} />
                 </div>
-            </div>
-
-            <div className="settings-card">
+                <div className="settings-sidebar-divider" style={{ margin: '16px 0' }} />
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Закрытие в трей</h3>
-                        <p>При нажатии крестика не закрывать приложение полностью, а оставлять работать в фоне.</p>
+                        <p>Оставлять приложение работать в фоне при закрытии окна.</p>
                     </div>
                     <SettingsToggle checked={closeToTray} onChange={setCloseToTray} />
                 </div>

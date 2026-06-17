@@ -203,7 +203,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             size={38}
             className="user-avatar"
           />
-          <div className={`status-indicator ${user.status}`}></div>
+          <div className={`status-indicator ${user.activity?.type === 'streaming' ? 'streaming' : user.status}`}></div>
         </motion.div>
         <motion.button
           className="logout-button"

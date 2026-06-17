@@ -6,6 +6,7 @@ const StreamerSettings: React.FC = () => {
     const {
         streamerModeEnabled, setStreamerModeEnabled,
         autoEnableWithOBS, setAutoEnableWithOBS,
+        streamerLink, setStreamerLink,
         censorInfo, setCensorInfo,
         disableSounds, setDisableSounds,
         disableNotifications, setDisableNotifications,
@@ -47,6 +48,22 @@ const StreamerSettings: React.FC = () => {
                     <SettingsToggle checked={streamerModeEnabled} onChange={setStreamerModeEnabled} />
                 </div>
             </div>
+
+            {streamerModeEnabled && (
+                <div className="settings-card" style={{ marginTop: '16px' }}>
+                    <div className="settings-row-text" style={{ marginBottom: '12px' }}>
+                        <h3>Ссылка на стрим</h3>
+                        <p>Если ссылка указана, в вашем профиле будет отображаться кнопка «Смотреть».</p>
+                    </div>
+                    <input 
+                        type="text" 
+                        className="settings-input" 
+                        placeholder="https://twitch.tv/yourname" 
+                        value={streamerLink}
+                        onChange={(e) => setStreamerLink(e.target.value)}
+                    />
+                </div>
+            )}
 
             <div className="settings-section-title">Автоматизация</div>
             <div className="settings-card">

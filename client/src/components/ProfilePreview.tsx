@@ -107,9 +107,25 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
         if (onClose) onClose();
     };
 
-    const handleServerClick = (serverId: string) => {
-        window.dispatchEvent(new CustomEvent('select-server', { detail: { serverId } }));
-        if (onClose) onClose();
+    const getActivityTitle = (type: string | null) => {
+        switch (type) {
+            case 'playing': return 'ИГРАЕТ В';
+            case 'listening': return 'СЛУШАЕТ';
+            case 'watching': return 'СМОТРИТ';
+            case 'streaming': return 'В ЭФИРЕ';
+            case 'competing': return 'СОРЕВНУЕТСЯ В';
+            case 'sitting': return 'СИДИТ В';
+            default: return 'ЗАНИМАЕТСЯ';
+        }
+    };
+
+    const handleWatchStream = () => {
+        const link = user.settings?.streamerMode?.streamerLink;
+        if (link) {
+            // @ts-ignore
+            if (window.electron) window.electron.ipc.send('open-external-url', link);
+            else window.open(link, '_blank');
+        }
     };
 
     const compactProfileContent = (
@@ -309,7 +325,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                         <div className="activity-tab">
                             {user.activity ? (
                                 <div className="profile-activity-section-full">
-                                    <h4 className="section-title">СЕЙЧАС: {user.activity.type === 'playing' ? 'ИГРАЕТ В' : 'ЗАНИМАЕТСЯ'}</h4>
+                                    <h4 className="section-title">СЕЙЧАС: {getActivityTitle(user.activity.type)}</h4>
                                     <div className="activity-content-full">
                                         {user.activity.assets?.largeImage && (
                                             <div className="activity-image-wrapper-full">
@@ -320,21 +336,35 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                             <div className="activity-name-full">{user.activity.name}</div>
                                             <div className="activity-state-full">{user.activity.state || `В приложении ${user.activity.name}`}</div>
                                             {user.activity.timestamps?.start && <ActivityTimer startTime={user.activity.timestamps.start} />}
-                                            {user.activity.miniAppData && (
-                                                <button 
-                                                    className="profile-action-btn primary" 
-                                                    style={{ marginTop: '20px', height: '40px', width: 'auto', padding: '0 20px' }}
-                                                    onClick={() => {
-                                                        window.dispatchEvent(new CustomEvent('open-mini-app', { 
-                                                            detail: { app: user.activity?.miniAppData } 
-                                                        }));
-                                                        if (onClose) onClose();
-                                                    }}
-                                                >
-                                                    <MonitorIcon size={16} />
-                                                    <span>Запустить приложение</span>
-                                                </button>
-                                            )}
+                                            
+                                            <div className="activity-actions-full" style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                                                {user.activity.miniAppData && (
+                                                    <button 
+                                                        className="profile-action-btn primary" 
+                                                        style={{ height: '40px', width: 'auto', padding: '0 20px' }}
+                                                        onClick={() => {
+                                                            window.dispatchEvent(new CustomEvent('open-mini-app', { 
+                                                                detail: { app: user.activity?.miniAppData } 
+                                                            }));
+                                                            if (onClose) onClose();
+                                                        }}
+                                                    >
+                                                        <MonitorIcon size={16} />
+                                                        <span>Запустить приложение</span>
+                                                    </button>
+                                                )}
+
+                                                {user.activity.type === 'streaming' && user.settings?.streamerMode?.streamerLink && (
+                                                    <button 
+                                                        className="profile-action-btn primary" 
+                                                        style={{ height: '40px', width: 'auto', padding: '0 20px', backgroundColor: 'var(--secondary-neon)' }}
+                                                        onClick={handleWatchStream}
+                                                    >
+                                                        <MonitorIcon size={16} />
+                                                        <span>Смотреть</span>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

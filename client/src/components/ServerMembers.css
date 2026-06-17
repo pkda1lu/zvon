@@ -89,6 +89,10 @@
     background: #f04747;
 }
 
+.status-indicator.streaming {
+    background: var(--secondary-neon, #7000ff);
+}
+
 .member-name-row {
     display: flex;
     align-items: center;

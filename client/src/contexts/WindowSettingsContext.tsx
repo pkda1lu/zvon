@@ -12,11 +12,15 @@ interface WindowSettings {
     // Streamer Mode
     streamerModeEnabled: boolean;
     autoEnableWithOBS: boolean;
+    streamerLink: string;
     censorInfo: boolean;
     disableSounds: boolean;
     disableNotifications: boolean;
     changeStatusToStreaming: boolean;
     confirmSettingsAccess: boolean;
+    // Windows Actions
+    activityDetectionEnabled: boolean;
+    overlayCategories: string[];
     // Overlay
     overlayEnabled: boolean;
     overlayPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -27,6 +31,8 @@ interface WindowSettings {
     overlayShowSpeakingRing: boolean;
     overlayIdleOpacity: number;
     overlayShowBackground: boolean;
+    // User Apps
+    userApps: Record<string, { name: string; type: string }>;
 }
 
 interface WindowSettingsContextType extends WindowSettings {
@@ -37,11 +43,14 @@ interface WindowSettingsContextType extends WindowSettings {
     setHardwareAcceleration: (value: boolean) => void;
     setStreamerModeEnabled: (value: boolean) => void;
     setAutoEnableWithOBS: (value: boolean) => void;
+    setStreamerLink: (value: string) => void;
     setCensorInfo: (value: boolean) => void;
     setDisableSounds: (value: boolean) => void;
     setDisableNotifications: (value: boolean) => void;
     setChangeStatusToStreaming: (value: boolean) => void;
     setConfirmSettingsAccess: (value: boolean) => void;
+    setActivityDetectionEnabled: (value: boolean) => void;
+    setOverlayCategories: (value: string[]) => void;
     setOverlayEnabled: (value: boolean) => void;
     setOverlayPosition: (value: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => void;
     setOverlayOpacity: (value: number) => void;
@@ -51,6 +60,7 @@ interface WindowSettingsContextType extends WindowSettings {
     setOverlayShowSpeakingRing: (value: boolean) => void;
     setOverlayIdleOpacity: (value: number) => void;
     setOverlayShowBackground: (value: boolean) => void;
+    setUserApps: (userApps: Record<string, { name: string; type: string }>) => void;
 }
 
 const WindowSettingsContext = createContext<WindowSettingsContextType | undefined>(undefined);
@@ -74,6 +84,9 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
                 disableNotifications: true,
                 changeStatusToStreaming: true,
                 confirmSettingsAccess: true,
+                activityDetectionEnabled: true,
+                streamerLink: '',
+                overlayCategories: ['game', 'music', 'video'],
                 overlayEnabled: true,
                 overlayPosition: 'top-left',
                 overlayOpacity: 1.0,
@@ -83,6 +96,7 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
                 overlayShowSpeakingRing: true,
                 overlayIdleOpacity: 0.5,
                 overlayShowBackground: true,
+                userApps: {},
                 ...parsed
             };
         }
@@ -94,11 +108,14 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             hardwareAcceleration: true,
             streamerModeEnabled: false,
             autoEnableWithOBS: true,
+            streamerLink: '',
             censorInfo: true,
             disableSounds: true,
             disableNotifications: true,
             changeStatusToStreaming: true,
             confirmSettingsAccess: true,
+            activityDetectionEnabled: true,
+            overlayCategories: ['game', 'music', 'video'],
             overlayEnabled: true,
             overlayPosition: 'top-left',
             overlayOpacity: 1.0,
@@ -108,6 +125,7 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             overlayShowSpeakingRing: true,
             overlayIdleOpacity: 0.5,
             overlayShowBackground: true,
+            userApps: {},
         };
     });
 
@@ -126,8 +144,11 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             electron.ipc.send('update-window-settings', {
                 minimizeToTray: settings.minimizeToTray,
                 closeToTray: settings.closeToTray,
-                startMinimized: settings.startMinimized
+                startMinimized: settings.startMinimized,
+                activityDetectionEnabled: settings.activityDetectionEnabled,
+                overlayCategories: settings.overlayCategories
             });
+            electron.ipc.send('update-user-apps', settings.userApps || {});
 
             // Set HW Acceleration
             electron.ipc.send('set-hardware-acceleration', settings.hardwareAcceleration);
@@ -135,8 +156,9 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             // OBS Detection
             if (settings.autoEnableWithOBS) {
                 const checkOBS = async () => {
-                    const isOBSRunning = await electron.ipc.invoke('check-process', 'obs64.exe');
-                    if (isOBSRunning && !settings.streamerModeEnabled) {
+                    const isOBSRunning64 = await electron.ipc.invoke('check-process', 'obs64.exe');
+                    const isOBSRunning32 = await electron.ipc.invoke('check-process', 'obs32.exe');
+                    if ((isOBSRunning64 || isOBSRunning32) && !settings.streamerModeEnabled) {
                         setSettings(prev => ({ ...prev, streamerModeEnabled: true }));
                     }
                 };
@@ -161,7 +183,9 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             electron.ipc.send('update-window-settings', {
                 minimizeToTray: settings.minimizeToTray,
                 closeToTray: settings.closeToTray,
-                startMinimized: settings.startMinimized
+                startMinimized: settings.startMinimized,
+                activityDetectionEnabled: settings.activityDetectionEnabled,
+                overlayCategories: settings.overlayCategories
             });
             electron.ipc.send('set-hardware-acceleration', settings.hardwareAcceleration);
             
@@ -188,11 +212,16 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
                         streamerMode: {
                             enabled: settings.streamerModeEnabled,
                             autoEnableWithOBS: settings.autoEnableWithOBS,
+                            streamerLink: settings.streamerLink,
                             censorInfo: settings.censorInfo,
                             disableSounds: settings.disableSounds,
                             disableNotifications: settings.disableNotifications,
                             changeStatusToStreaming: settings.changeStatusToStreaming,
                             confirmSettingsAccess: settings.confirmSettingsAccess
+                        },
+                        windows: {
+                            activityDetectionEnabled: settings.activityDetectionEnabled,
+                            overlayCategories: settings.overlayCategories
                         },
                         overlay: {
                             enabled: settings.overlayEnabled,
@@ -219,11 +248,14 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
     const setHardwareAcceleration = (hardwareAcceleration: boolean) => setSettings(prev => ({ ...prev, hardwareAcceleration }));
     const setStreamerModeEnabled = (streamerModeEnabled: boolean) => setSettings(prev => ({ ...prev, streamerModeEnabled }));
     const setAutoEnableWithOBS = (autoEnableWithOBS: boolean) => setSettings(prev => ({ ...prev, autoEnableWithOBS }));
+    const setStreamerLink = (streamerLink: string) => setSettings(prev => ({ ...prev, streamerLink }));
     const setCensorInfo = (censorInfo: boolean) => setSettings(prev => ({ ...prev, censorInfo }));
     const setDisableSounds = (disableSounds: boolean) => setSettings(prev => ({ ...prev, disableSounds }));
     const setDisableNotifications = (disableNotifications: boolean) => setSettings(prev => ({ ...prev, disableNotifications }));
     const setChangeStatusToStreaming = (changeStatusToStreaming: boolean) => setSettings(prev => ({ ...prev, changeStatusToStreaming }));
     const setConfirmSettingsAccess = (confirmSettingsAccess: boolean) => setSettings(prev => ({ ...prev, confirmSettingsAccess }));
+    const setActivityDetectionEnabled = (activityDetectionEnabled: boolean) => setSettings(prev => ({ ...prev, activityDetectionEnabled }));
+    const setOverlayCategories = (overlayCategories: string[]) => setSettings(prev => ({ ...prev, overlayCategories }));
     const setOverlayEnabled = (overlayEnabled: boolean) => setSettings(prev => ({ ...prev, overlayEnabled }));
     const setOverlayPosition = (overlayPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => setSettings(prev => ({ ...prev, overlayPosition }));
     const setOverlayOpacity = (overlayOpacity: number) => setSettings(prev => ({ ...prev, overlayOpacity }));
@@ -233,6 +265,14 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
     const setOverlayShowSpeakingRing = (overlayShowSpeakingRing: boolean) => setSettings(prev => ({ ...prev, overlayShowSpeakingRing }));
     const setOverlayIdleOpacity = (overlayIdleOpacity: number) => setSettings(prev => ({ ...prev, overlayIdleOpacity }));
     const setOverlayShowBackground = (overlayShowBackground: boolean) => setSettings(prev => ({ ...prev, overlayShowBackground }));
+    const setUserApps = (userApps: Record<string, { name: string; type: string }>) => {
+        setSettings(prev => ({ ...prev, userApps }));
+        // @ts-ignore
+        if (window.electron?.ipc) {
+            // @ts-ignore
+            window.electron.ipc.send('update-user-apps', userApps);
+        }
+    };
 
     return (
         <WindowSettingsContext.Provider value={{
@@ -244,11 +284,14 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             setHardwareAcceleration,
             setStreamerModeEnabled,
             setAutoEnableWithOBS,
+            setStreamerLink,
             setCensorInfo,
             setDisableSounds,
             setDisableNotifications,
             setChangeStatusToStreaming,
             setConfirmSettingsAccess,
+            setActivityDetectionEnabled,
+            setOverlayCategories,
             setOverlayEnabled,
             setOverlayPosition,
             setOverlayOpacity,
@@ -258,6 +301,7 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             setOverlayShowSpeakingRing,
             setOverlayIdleOpacity,
             setOverlayShowBackground,
+            setUserApps,
             appVersion
         }}>
             {children}

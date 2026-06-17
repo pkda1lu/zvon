@@ -412,6 +412,16 @@ export const GlobeIcon: React.FC<{ size?: number; color?: string; className?: st
     </svg>
 );
 
+export const GamepadIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="6" y1="12" x2="10" y2="12" />
+        <line x1="8" y1="10" x2="8" y2="14" />
+        <line x1="15" y1="13" x2="15.01" y2="13" />
+        <line x1="18" y1="11" x2="18.01" y2="11" />
+        <rect x="2" y="6" width="20" height="12" rx="2" />
+    </svg>
+);
+
 export const ExternalLinkIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />

@@ -28,8 +28,12 @@ const isOpenedHidden = process.argv.includes('--hidden') || app.getLoginItemSett
 let appSettings = {
     minimizeToTray: true,
     closeToTray: true,
-    startMinimized: false
+    startMinimized: false,
+    activityDetectionEnabled: true,
+    overlayCategories: ['game', 'music', 'video'],
+    userApps: {} // { 'process.exe': { name: '...', type: '...' } }
 };
+
 let isOverlayEnabled = true; // Default enabled
 
 // --- IPC Handlers (Registered early to prevent renderer errors) ---
@@ -39,6 +43,33 @@ ipcMain.handle('get-pending-deep-link', () => {
     const link = pendingDeepLink;
     pendingDeepLink = null;
     return link;
+});
+
+ipcMain.handle('get-running-processes', () => {
+    return new Promise((resolve) => {
+        exec('tasklist /NH /FO CSV', (err, stdout) => {
+            if (err) { resolve([]); return; }
+            const lines = stdout.split(/\r?\n/);
+            const processes = [];
+            for (const line of lines) {
+                const parts = line.split('","');
+                if (parts.length > 0) {
+                    const name = parts[0].replace(/"/g, '').trim();
+                    if (name && !processes.includes(name)) processes.push(name);
+                }
+            }
+            resolve(processes.sort());
+        });
+    });
+});
+
+ipcMain.handle('check-process', (event, processName) => {
+    return new Promise((resolve) => {
+        exec(`tasklist /FI "IMAGENAME eq ${processName}" /NH`, (err, stdout) => {
+            if (err) resolve(false);
+            resolve(stdout.toLowerCase().includes(processName.toLowerCase()));
+        });
+    });
 });
 
 ipcMain.handle('toggle-autostart', (event, enable) => {
@@ -58,6 +89,12 @@ ipcMain.handle('get-autostart-status', () => app.getLoginItemSettings().openAtLo
 
 ipcMain.on('update-window-settings', (event, settings) => {
     appSettings = { ...appSettings, ...settings };
+    scanActivities(); // Immediate scan with new settings
+});
+
+ipcMain.on('update-user-apps', (event, userApps) => {
+    appSettings.userApps = userApps;
+    scanActivities();
 });
 
 ipcMain.on('restart-app', () => {
@@ -535,7 +572,8 @@ let adaptiveInterval = 3000;
 const STEAMGRID_API_KEY = '84d5caff741db867dcb433b3e3a7fd37';
 const gameMetadataCache = new Map();
 
-const KNOWN_GAMES = {
+const KNOWN_APPS = {
+    // Games
     'VALORANT-Win64-Shipping.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575_IGDB-285x380.jpg', type: 'game' },
     'VALORANT.exe': { name: 'VALORANT', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/516575_IGDB-285x380.jpg', type: 'game' },
     'cs2.exe': { name: 'Counter-Strike 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32399_IGDB-285x380.jpg', type: 'game' },
@@ -550,32 +588,28 @@ const KNOWN_GAMES = {
     'aces.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/66366_IGDB-285x380.jpg', type: 'game' },
     'WarThunder.exe': { name: 'War Thunder', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/66366_IGDB-285x380.jpg', type: 'game' },
     'FortniteClient-Win64-Shipping.exe': { name: 'Fortnite', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33214_IGDB-285x380.jpg', type: 'game' },
-
-    // New games from Steam library
-    'witcher3.exe': { name: 'The Witcher 3', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/115977_IGDB-285x380.jpg', type: 'game' },
-    'r5apex.exe': { name: 'Apex Legends', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/511224_IGDB-285x380.jpg', type: 'game' },
-    'arma3.exe': { name: 'Arma 3', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/30028_IGDB-285x380.jpg', type: 'game' },
-    'arma3_x64.exe': { name: 'Arma 3', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/30028_IGDB-285x380.jpg', type: 'game' },
-    'Content Warning.exe': { name: 'Content Warning', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/394758168_IGDB-285x380.jpg', type: 'game' },
     'deadlock.exe': { name: 'Deadlock', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/1908684124_IGDB-285x380.jpg', type: 'game' },
-    'project8.exe': { name: 'Deadlock', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/1908684124_IGDB-285x380.jpg', type: 'game' },
-    'Phasmophobia.exe': { name: 'Phasmophobia', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/518064_IGDB-285x380.jpg', type: 'game' },
-    'TslGame.exe': { name: 'PUBG: BATTLEGROUNDS', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/493057_IGDB-285x380.jpg', type: 'game' },
-    'RustClient.exe': { name: 'Rust', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/26348_IGDB-285x380.jpg', type: 'game' },
-    'Squad.exe': { name: 'Squad', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/488632_IGDB-285x380.jpg', type: 'game' },
-    'SquadGame.exe': { name: 'Squad', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/488632_IGDB-285x380.jpg', type: 'game' },
-    'TheForest.exe': { name: 'The Forest', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33857_IGDB-285x380.jpg', type: 'game' },
-    'RainbowSix.exe': { name: 'Rainbow Six Siege', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/460630_IGDB-285x380.jpg', type: 'game' },
-    'RainbowSix_Vulkan.exe': { name: 'Rainbow Six Siege', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/460630_IGDB-285x380.jpg', type: 'game' },
-    '7DaysToDie.exe': { name: '7 Days to Die', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/27136_IGDB-285x380.jpg', type: 'game' },
-    'BeamNG.drive.x64.exe': { name: 'BeamNG.drive', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/70440_IGDB-285x380.jpg', type: 'game' },
-    'cms2018.exe': { name: 'Car Mechanic Simulator 2018', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/497424_IGDB-285x380.jpg', type: 'game' },
-    'RelicCoH2.exe': { name: 'Company of Heroes 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/33075_IGDB-285x380.jpg', type: 'game' },
-    'DCS.exe': { name: 'DCS World', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/21971_IGDB-285x380.jpg', type: 'game' },
-    'Deceit.exe': { name: 'Deceit', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/494519_IGDB-285x380.jpg', type: 'game' },
-    'destiny2.exe': { name: 'Destiny 2', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/497057_IGDB-285x380.jpg', type: 'game' },
-    'Devour.exe': { name: 'DEVOUR', icon: 'https://static-cdn.jtvnw.net/ttv-boxart/512942_IGDB-285x380.jpg', type: 'game' },
-    'dontstarve_steam.exe': { name: "Don't Starve Together", icon: 'https://static-cdn.jtvnw.net/ttv-boxart/32629_IGDB-285x380.jpg', type: 'game' }
+
+    // Music
+    'Spotify.exe': { name: 'Spotify', icon: 'https://www.scdn.co/i/_global/twitter_card-default.jpg', type: 'music' },
+    'Music.exe': { name: 'Apple Music', icon: 'https://is1-ssl.mzstatic.com/image/thumb/Purple122/v4/0d/1b/3c/0d1b3c1b-6b7b-6b7b-6b7b-6b7b6b7b6b7b/AppIcon-0-0-1x_U007emarketing-0-0-0-7-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/512x512bb.jpg', type: 'music' },
+    'YouTube Music.exe': { name: 'YouTube Music', icon: 'https://music.youtube.com/img/on_platform_logo_dark.png', type: 'music' },
+    'AIMP.exe': { name: 'AIMP', icon: 'https://www.aimp.ru/favicon.ico', type: 'music' },
+    'foobar2000.exe': { name: 'foobar2000', icon: 'https://www.foobar2000.org/favicon.ico', type: 'music' },
+
+    // Video
+    'vlc.exe': { name: 'VLC Media Player', icon: 'https://www.videolan.org/favicon.ico', type: 'video' },
+    'mpc-hc64.exe': { name: 'MPC-HC', icon: 'https://mpc-hc.org/favicon.ico', type: 'video' },
+    'Netflix.exe': { name: 'Netflix', icon: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico', type: 'video' },
+    'browser.exe': { name: 'YouTube', icon: 'https://www.youtube.com/favicon.ico', type: 'video' }, // Generic for browser-based video if we could detect URL
+    
+    // Other (Apps like ZVON itself, Code editors, etc.)
+    'Code.exe': { name: 'Visual Studio Code', type: 'other' },
+    'WebStorm.exe': { name: 'WebStorm', type: 'other' },
+    'Discord.exe': { name: 'Discord', type: 'other' },
+    'Telegram.exe': { name: 'Telegram', type: 'other' },
+    'obs64.exe': { name: 'OBS Studio', type: 'other' },
+    'obs32.exe': { name: 'OBS Studio', type: 'other' }
 };
 
 const SHARING_BLACKLIST = [
@@ -626,102 +660,88 @@ async function getGameMetadata(appId, exeName = null) {
     const cacheKey = appId || exeName;
     if (gameMetadataCache.has(cacheKey)) return gameMetadataCache.get(cacheKey);
 
-    let metadata = { name: 'Unknown Game', icon: null, type: 'game' };
+    let metadata = { name: 'Unknown App', icon: null, type: 'other' };
 
     try {
-        // If we don't have a key, we can't do much with SGDB
-        if (!STEAMGRID_API_KEY) {
-            if (appId) {
-                const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
-                if (steamRes.data[appId]?.success) {
-                    metadata.name = steamRes.data[appId].data.name;
-                    metadata.icon = `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`;
+        // Check User Apps first
+        if (exeName && appSettings.userApps && appSettings.userApps[exeName]) {
+            metadata = { ...appSettings.userApps[exeName], icon: null };
+        } else if (exeName && KNOWN_APPS[exeName]) {
+            metadata = { ...KNOWN_APPS[exeName] };
+        }
+
+        // If it's a game and we have appId, try Steam/SGDB
+        if (metadata.type === 'game' || appId) {
+            if (!STEAMGRID_API_KEY) {
+                if (appId) {
+                    const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
+                    if (steamRes.data[appId]?.success) {
+                        metadata.name = steamRes.data[appId].data.name;
+                        metadata.icon = `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`;
+                        metadata.type = 'game';
+                    }
                 }
-            } else if (exeName && KNOWN_GAMES[exeName]) {
-                metadata = { ...KNOWN_GAMES[exeName] };
-            }
-            gameMetadataCache.set(cacheKey, metadata);
-            return metadata;
-        }
-
-        const headers = { 'Authorization': `Bearer ${STEAMGRID_API_KEY}` };
-
-        // 1. Get Game Object and Name
-        let sgdbGameId = null;
-        if (appId) {
-            try {
-                const gameRes = await axios.get(`https://www.steamgriddb.com/api/v2/games/steam/${appId}`, { headers });
-                if (gameRes.data.success) {
-                    metadata.name = gameRes.data.data.name;
-                    sgdbGameId = gameRes.data.data.id;
+            } else {
+                const headers = { 'Authorization': `Bearer ${STEAMGRID_API_KEY}` };
+                let sgdbGameId = null;
+                if (appId) {
+                    try {
+                        const gameRes = await axios.get(`https://www.steamgriddb.com/api/v2/games/steam/${appId}`, { headers });
+                        if (gameRes.data.success) {
+                            metadata.name = gameRes.data.data.name;
+                            sgdbGameId = gameRes.data.data.id;
+                            metadata.type = 'game';
+                        }
+                    } catch (e) { }
                 }
-            } catch (e) { log.warn(`SGDB Game lookup failed for Steam ID ${appId}`); }
-        }
 
-        // Fallback for name if SGDB lookup failed but we have appId
-        if (appId && metadata.name === 'Unknown Game') {
-            const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
-            if (steamRes.data[appId]?.success) {
-                metadata.name = steamRes.data[appId].data.name;
-            }
-        } else if (!appId && exeName && KNOWN_GAMES[exeName]) {
-            metadata.name = KNOWN_GAMES[exeName].name;
-        }
+                if (!sgdbGameId && metadata.name !== 'Unknown App' && metadata.type === 'game') {
+                    const searchRes = await axios.get(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(metadata.name)}`, { headers });
+                    if (searchRes.data.success && searchRes.data.data.length > 0) {
+                        sgdbGameId = searchRes.data.data[0].id;
+                    }
+                }
 
-        // 2. Search by name if we still don't have a SGDB ID
-        if (!sgdbGameId && metadata.name !== 'Unknown Game') {
-            const searchRes = await axios.get(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(metadata.name)}`, { headers });
-            if (searchRes.data.success && searchRes.data.data.length > 0) {
-                sgdbGameId = searchRes.data.data[0].id;
-            }
-        }
-
-        // 3. Get Assets (Grids)
-        if (sgdbGameId) {
-            const assetsRes = await axios.get(`https://www.steamgriddb.com/api/v2/grids/game/${sgdbGameId}?dimensions=342x482,600x900`, { headers });
-            if (assetsRes.data.success && assetsRes.data.data.length > 0) {
-                metadata.icon = assetsRes.data.data[0].url;
-            }
-        }
-
-        // Final fallbacks for icons
-        if (!metadata.icon) {
-            if (appId) {
-                metadata.icon = `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`;
-            } else if (exeName && KNOWN_GAMES[exeName]) {
-                metadata.icon = KNOWN_GAMES[exeName].icon;
+                if (sgdbGameId) {
+                    const assetsRes = await axios.get(`https://www.steamgriddb.com/api/v2/grids/game/${sgdbGameId}?dimensions=342x482,600x900`, { headers });
+                    if (assetsRes.data.success && assetsRes.data.data.length > 0) {
+                        metadata.icon = assetsRes.data.data[0].url;
+                    }
+                }
             }
         }
 
         gameMetadataCache.set(cacheKey, metadata);
         return metadata;
     } catch (e) {
-        log.error("Failed to fetch game metadata", e);
-        return metadata.name !== 'Unknown Game' ? metadata : null;
+        log.error("Failed to fetch app metadata", e);
+        return metadata.name !== 'Unknown App' ? metadata : null;
     }
 }
 
 async function scanActivities() {
     if (process.platform !== 'win32' || scanInProgress) { scheduleNextScan(); return; }
+    if (!appSettings.activityDetectionEnabled) { 
+        updateActivity(null); 
+        scheduleNextScan(); 
+        return; 
+    }
     scanInProgress = true;
 
     try {
-        // Priority 0: Steam API detection (identifies what Steam thinks is running)
         const steamAppId = await getSteamAppId();
         let steamMetadata = null;
         if (steamAppId && steamAppId !== '0' && steamAppId !== 'null') {
             steamMetadata = await getGameMetadata(steamAppId);
         }
 
-        // Priority 1: Foreground Window EXE detection
         exec(`powershell -Command "${FG_SCRIPT}"`, async (fgErr, fgStdout) => {
             const fgExe = fgStdout?.trim().toLowerCase();
             
             if (!fgErr && fgExe) {
                 const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
 
-                // Match with KNOWN_GAMES, or the Steam game we just found, or meta lookup
-                let foundKey = Object.keys(KNOWN_GAMES).find(key => {
+                let foundKey = Object.keys(KNOWN_APPS).find(key => {
                     const kLower = key.toLowerCase();
                     return fgExe === kLower || fgBase === kLower || fgExe === kLower.replace('.exe', '');
                 });
@@ -735,7 +755,6 @@ async function scanActivities() {
                     return;
                 }
 
-                // If foreground matches Steam game name
                 if (steamMetadata && (fgExe.includes(steamMetadata.name.toLowerCase()) || steamMetadata.name.toLowerCase().includes(fgBase))) {
                     updateActivity(steamMetadata, true, fgExe);
                     scanInProgress = false;
@@ -745,7 +764,6 @@ async function scanActivities() {
                 }
             }
             
-            // Priority 2: Full Scan fallback (KNOWN_GAMES) or Steam fallback
             if (steamMetadata) {
                 updateActivity(steamMetadata, false, fgExe);
                 scanInProgress = false;
@@ -778,26 +796,23 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
         if (mainWindow && !mainWindow.webContents.isDestroyed()) {
             mainWindow.webContents.send('activity-changed', lastActivity ? { ...lastActivity, startTime: activityStartTime } : null);
         }
-        // Always notify overlay of activity data change
         if (overlayWindow && !overlayWindow.isDestroyed()) {
             overlayWindow.webContents.send('activity-changed', lastActivity ? { ...lastActivity, startTime: activityStartTime } : null);
         }
     }
 
-    // 2. Manage Overlay Visibility (Foreground sync)
+    // 2. Manage Overlay Visibility
     if (overlayWindow && !overlayWindow.isDestroyed()) {
         const isNeutral = NEUTRAL_PROCESSES.includes(currentForegroundExe?.trim().toLowerCase() || '');
+        const currentCategory = foundActivity ? foundActivity.type : 'other';
+        const isCategoryAllowed = appSettings.overlayCategories.includes(currentCategory);
         
-        // Final visibility decision
         let shouldShow;
         if (isNeutral && lastActivity) {
-            // Neutral process -> Keep showing if we have an active game activity
-            // BUT: If the game was detected via Steam AND it's not in Priority 1, 
-            // we should be careful about "phantom" games.
-            shouldShow = isOverlayEnabled;
+            const lastCategory = lastActivity.type;
+            shouldShow = isOverlayEnabled && appSettings.overlayCategories.includes(lastCategory);
         } else {
-            // Specific app check -> Only show if it's the game in foreground
-            shouldShow = foundActivity && isForeground && isOverlayEnabled;
+            shouldShow = foundActivity && isForeground && isOverlayEnabled && isCategoryAllowed;
         }
         
         if (shouldShow) {
@@ -815,8 +830,7 @@ function performFullScan(fgExe = '') {
         const lines = stdout.split(/\r?\n/);
         let bestMatch = null;
 
-        // Optimize search by normalizing targets once
-        const normalizedGames = Object.keys(KNOWN_GAMES).map(k => ({ key: k, lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', '') }));
+        const normalizedApps = Object.keys(KNOWN_APPS).map(k => ({ key: k, lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', '') }));
 
         for (const line of lines) {
             const parts = line.split('","');
@@ -824,14 +838,15 @@ function performFullScan(fgExe = '') {
                 const exeNameLower = parts[0].replace(/"/g, '').trim().toLowerCase();
                 const baseName = exeNameLower.endsWith('.exe') ? exeNameLower.slice(0, -4) : exeNameLower;
 
-                const match = normalizedGames.find(g => exeNameLower === g.lower || baseName === g.base);
+                const match = normalizedApps.find(g => exeNameLower === g.lower || baseName === g.base);
                 if (match) {
-                    bestMatch = KNOWN_GAMES[match.key];
-                    break;
+                    bestMatch = KNOWN_APPS[match.key];
+                    // If multiple apps running, prefer games for activity
+                    if (bestMatch.type === 'game') break;
                 }
             }
         }
-        updateActivity(bestMatch, false, fgExe); // false = game not confirmed in foreground
+        updateActivity(bestMatch, false, fgExe);
         adaptiveInterval = bestMatch ? 3000 : 5000;
         scheduleNextScan();
     });

@@ -11,6 +11,7 @@ import {
     UsersIcon,
     BotIcon,
     SpeakerIcon,
+    GamepadIcon,
     MonitorIcon as AdvancedIcon,
     CheckIcon,
     LayoutGridIcon,
@@ -41,6 +42,7 @@ import VoiceSettings from './VoiceSettings';
 import KeybindsSettings from './KeybindsSettings';
 import AccessibilitySettings from './AccessibilitySettings';
 import ScalingSettings from './ScalingSettings';
+import ActivitySettings from './ActivitySettings';
 import WindowsSettings from './WindowsSettings';
 import StreamerSettings from './StreamerSettings';
 import OverlaySettings from './OverlaySettings';
@@ -109,9 +111,10 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'keybinds': return <KeybindsSettings />;
             case 'accessibility': return <AccessibilitySettings />;
             case 'scaling': return <ScalingSettings />;
-            case 'windows-actions': return <WindowsSettings />;
+            case 'activity': return <ActivitySettings />;
             case 'streamer': return <StreamerSettings />;
             case 'overlay': return <OverlaySettings />;
+            case 'windows-actions': return <WindowsSettings />;
             case 'advanced': return <AdvancedSettings />;
             case 'moderation': return <ModerationSettings />;
             case 'admin-users': return <AdminUsersSettings />;
@@ -170,9 +173,10 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                     <>
                         <div className="settings-sidebar-divider" />
                         <div className="settings-sidebar-header">Настройки Windows</div>
-                        <NavItem id="windows-actions" label="Действия" icon={MonitorIcon} />
+                        <NavItem id="activity" label="Активность" icon={GamepadIcon} />
                         <NavItem id="streamer" label="Режим стримера" icon={VideoIcon} />
                         <NavItem id="overlay" label="Оверлей" icon={EyeIcon} />
+                        <NavItem id="windows-actions" label="Действия" icon={MonitorIcon} />
                         <NavItem id="advanced" label="Расширенные" icon={SettingsIcon} />
                     </>
                 )}

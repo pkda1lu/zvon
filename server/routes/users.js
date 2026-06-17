@@ -268,6 +268,9 @@ router.put('/settings', auth, async (req, res) => {
     if (settings.streamerMode) {
       req.user.settings.streamerMode = { ...req.user.settings.streamerMode, ...settings.streamerMode };
     }
+    if (settings.windows) {
+      req.user.settings.windows = { ...req.user.settings.windows, ...settings.windows };
+    }
     if (settings.overlay) {
       req.user.settings.overlay = { ...req.user.settings.overlay, ...settings.overlay };
     }

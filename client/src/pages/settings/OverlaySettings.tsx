@@ -1,6 +1,7 @@
 import React from 'react';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
-import { SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
+import { SettingsToggle, RangeSlider, ChoiceGroup, GridPicker } from './SettingsUI';
+import { GamepadIcon, MusicIcon, VideoIcon, LayoutGridIcon } from '../../components/Icons';
 
 const OverlaySettings: React.FC = () => {
     const {
@@ -12,7 +13,8 @@ const OverlaySettings: React.FC = () => {
         overlayShowAvatars, setOverlayShowAvatars,
         overlayShowSpeakingRing, setOverlayShowSpeakingRing,
         overlayIdleOpacity, setOverlayIdleOpacity,
-        overlayShowBackground, setOverlayShowBackground
+        overlayShowBackground, setOverlayShowBackground,
+        overlayCategories, setOverlayCategories
     } = useWindowSettings();
 
     const positionOptions = [
@@ -21,6 +23,21 @@ const OverlaySettings: React.FC = () => {
         { value: 'bottom-left', label: 'Слева внизу' },
         { value: 'bottom-right', label: 'Справа внизу' },
     ];
+
+    const categories = [
+        { id: 'game', label: 'Игры', icon: <GamepadIcon size={24} /> },
+        { id: 'music', label: 'Музыка', icon: <MusicIcon size={24} /> },
+        { id: 'video', label: 'Видео', icon: <VideoIcon size={24} /> },
+        { id: 'other', label: 'Другое', icon: <LayoutGridIcon size={24} /> }
+    ];
+
+    const toggleCategory = (id: string) => {
+        if (overlayCategories.includes(id)) {
+            setOverlayCategories(overlayCategories.filter(c => c !== id));
+        } else {
+            setOverlayCategories([...overlayCategories, id]);
+        }
+    };
 
     const previewScale = 420 / 1280;
 
@@ -43,6 +60,20 @@ const OverlaySettings: React.FC = () => {
                 </div>
 
                 <div className={`settings-group-fade ${!overlayEnabled ? 'disabled' : ''}`}>
+                    <div className="settings-section-title">Категории приложений</div>
+                    <div className="settings-card">
+                        <div className="settings-row-text" style={{ marginBottom: '16px' }}>
+                            <h3>Отображать в...</h3>
+                            <p>Выберите, в каких типах приложений должен отображаться оверлей.</p>
+                        </div>
+                        <GridPicker 
+                            items={categories} 
+                            selectedIds={overlayCategories} 
+                            onToggle={toggleCategory} 
+                            multi={true} 
+                        />
+                    </div>
+
                     <div className="settings-section-title">Расположение</div>
                     <div className="settings-card">
                         <ChoiceGroup 
