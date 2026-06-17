@@ -213,7 +213,8 @@ router.get('/actions', [auth, isModerator], async (req, res) => {
 
     const logs = await GlobalAuditLog.find(query)
       .populate('executor', 'username avatar')
-      .populate('target')
+      // refPath-populate: исключаем чувствительные поля (для User-целей это пароль/токены).
+      .populate({ path: 'target', select: '-password -botToken -verificationCode -verificationCodeExpires -resetPasswordCode -twoFactorSecret' })
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort('-createdAt');

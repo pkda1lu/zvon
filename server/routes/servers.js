@@ -52,6 +52,13 @@ router.post('/', auth, async (req, res) => {
       if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
     }
     const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+    await logGlobalAction({
+      executorId: req.user._id,
+      action: 'SERVER_CREATE',
+      targetId: server._id,
+      targetModel: 'Server',
+      details: { name: server.name }
+    });
     res.status(201).json(populatedServer);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -156,6 +163,13 @@ router.delete('/:id', auth, async (req, res) => {
     await Channel.deleteMany({ server: server._id });
     const io = req.app.get('io');
     if (io) io.to(`server-${req.params.id}`).emit('server-deleted', { serverId: req.params.id });
+    await logGlobalAction({
+      executorId: req.user._id,
+      action: 'SERVER_DELETE',
+      targetId: server._id,
+      targetModel: 'Server',
+      details: { name: server.name }
+    });
     await Server.findByIdAndDelete(req.params.id);
     res.json({ message: 'Server deleted' });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -802,6 +816,14 @@ router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (
       targetModel: 'User',
       action: 'MEMBER_BAN',
       reason
+    });
+
+    await logGlobalAction({
+      executorId: req.user._id,
+      action: 'SERVER_MEMBER_BAN',
+      targetId: userId,
+      targetModel: 'User',
+      details: { serverName: server.name, reason: reason || null }
     });
 
     const user = await User.findById(userId);

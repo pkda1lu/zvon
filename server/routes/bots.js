@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { logGlobalAction } = require('../utils/globalAuditLogger');
 
 // Create a new bot
 router.post('/create', auth, async (req, res) => {
@@ -26,6 +27,14 @@ router.post('/create', auth, async (req, res) => {
         });
 
         await botUser.save();
+
+        await logGlobalAction({
+            executorId: req.user._id,
+            action: 'BOT_CREATE',
+            targetId: botUser._id,
+            targetModel: 'User',
+            details: { username: botUser.username }
+        });
 
         res.status(201).json({
             message: 'Бот успешно создан',
@@ -106,8 +115,18 @@ router.post('/:id/regenerate-token', auth, async (req, res) => {
 // Delete bot
 router.delete('/:id', auth, async (req, res) => {
     try {
-        const result = await User.deleteOne({ _id: req.params.id, owner: req.user._id, isBot: true });
-        if (result.deletedCount === 0) return res.status(404).json({ message: 'Bot not found' });
+        const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
+        if (!bot) return res.status(404).json({ message: 'Bot not found' });
+        const botName = bot.username;
+        await User.deleteOne({ _id: bot._id });
+
+        await logGlobalAction({
+            executorId: req.user._id,
+            action: 'BOT_DELETE',
+            targetId: req.params.id,
+            targetModel: 'User',
+            details: { username: botName }
+        });
 
         res.json({ message: 'Бот успешно удален' });
     } catch (error) {

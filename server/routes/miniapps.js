@@ -5,6 +5,7 @@ const MiniApp = require('../models/MiniApp');
 const MiniAppStorage = require('../models/MiniAppStorage');
 const auth = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { logGlobalAction } = require('../utils/globalAuditLogger');
 
 // Create a new mini-app
 router.post('/create', auth, async (req, res) => {
@@ -19,6 +20,14 @@ router.post('/create', auth, async (req, res) => {
         });
 
         await miniApp.save();
+
+        await logGlobalAction({
+            executorId: req.user._id,
+            action: 'MINIAPP_CREATE',
+            targetId: miniApp._id,
+            targetModel: 'MiniApp',
+            details: { name: miniApp.name }
+        });
 
         res.status(201).json({
             message: 'Мини-приложение успешно создано',

@@ -19,6 +19,10 @@ const globalAuditLogSchema = new mongoose.Schema({
       'SERVER_CREATE',
       'SERVER_DELETE',
       'SERVER_UPDATE',
+      'SERVER_MEMBER_BAN',
+      'BOT_CREATE',
+      'BOT_DELETE',
+      'MINIAPP_CREATE',
       'MODERATION_REPORT_RESOLVE',
       'MODERATION_BAN'
     ]

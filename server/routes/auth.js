@@ -73,6 +73,14 @@ router.post('/register', registerLimiter, [
 
     await user.save();
 
+    await logGlobalAction({
+      executorId: user._id,
+      action: 'USER_REGISTER',
+      targetId: user._id,
+      targetModel: 'User',
+      details: { username: user.username }
+    });
+
     try {
       await sendRegistrationCode(user.email, verificationCode, getBrand(req).name);
     } catch (mailError) {

@@ -13,8 +13,8 @@ const AdminActionsSettings: React.FC = () => {
         setLoading(true);
         try {
             const res = await axios.get(`/api/admin/actions?hours=${hours}&page=${page}`);
-            setLogs(res.data.logs);
-            setTotalPages(res.data.pages);
+            setLogs(Array.isArray(res.data.logs) ? res.data.logs : []);
+            setTotalPages(res.data.pages || 1);
         } catch (err) {
             console.error('Fetch logs error:', err);
         }
@@ -36,6 +36,10 @@ const AdminActionsSettings: React.FC = () => {
             case 'SERVER_CREATE': return 'Создание сервера';
             case 'SERVER_DELETE': return 'Удаление сервера';
             case 'SERVER_UPDATE': return 'Обновление сервера';
+            case 'SERVER_MEMBER_BAN': return 'Бан на сервере';
+            case 'BOT_CREATE': return 'Создание бота';
+            case 'BOT_DELETE': return 'Удаление бота';
+            case 'MINIAPP_CREATE': return 'Создание мини-приложения';
             case 'MODERATION_REPORT_RESOLVE': return 'Решение жалобы';
             case 'MODERATION_BAN': return 'Бан модератором';
             default: return action;
@@ -119,11 +123,20 @@ const AdminActionsSettings: React.FC = () => {
                                 {log.targetModel === 'Server' && log.target && (
                                     <span>Сервер: <strong>{log.target.name}</strong></span>
                                 )}
-                                {log.details?.username && !log.target && (
-                                    <span>Объект: <strong>{log.details.username}</strong> (удален)</span>
+                                {log.targetModel === 'MiniApp' && log.target && (
+                                    <span>Мини-приложение: <strong>{log.target.name}</strong></span>
                                 )}
-                                {log.details?.name && !log.target && (
-                                    <span>Объект: <strong>{log.details.name}</strong> (удален)</span>
+                                {!log.target && log.details?.username && (
+                                    <span>Объект: <strong>{log.details.username}</strong> (удалён)</span>
+                                )}
+                                {!log.target && log.details?.name && (
+                                    <span>Объект: <strong>{log.details.name}</strong> (удалён)</span>
+                                )}
+                                {(log.details?.serverName || log.details?.reason) && (
+                                    <span style={{ color: 'var(--text-dim)', fontSize: '12px', marginLeft: '8px' }}>
+                                        {log.details.serverName && `· ${log.details.serverName}`}
+                                        {log.details.reason && ` · причина: ${log.details.reason}`}
+                                    </span>
                                 )}
                             </div>
                         </div>
