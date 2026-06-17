@@ -187,7 +187,9 @@ const KeybindsSettings: React.FC = () => {
                     ))
                 ) : (
                     <div style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '60px 0', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed var(--glass-border)' }}>
-                        <KeyboardIcon size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+                        <span style={{ display: 'inline-block', opacity: 0.2, marginBottom: '16px' }}>
+                            <KeyboardIcon size={48} />
+                        </span>
                         <p>У вас нет настроенных горячих клавиш.</p>
                     </div>
                 )}

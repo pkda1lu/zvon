@@ -32,7 +32,15 @@ export const useAuth = () => {
   return context;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zvonserver.ru';
+const getApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5000';
+  }
+  return window.location.origin;
+};
+
+const API_URL = getApiUrl();
 axios.defaults.baseURL = API_URL;
 
 // Помечаем запросы из десктоп-клиента Zvon, чтобы сервер корректно называл

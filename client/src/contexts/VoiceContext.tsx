@@ -294,7 +294,7 @@ registerProcessor('vad-processor', VADProcessor);
 
 export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { socket } = useSocket();
-    const { user, setUser } = useAuth();
+    const { user, updateUser } = useAuth();
     const { alert } = useDialog();
 
     // Refs
@@ -315,9 +315,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isDeafened, setIsDeafened] = useState(false);
     const [isServerMuted, setIsServerMuted] = useState(false);
     const [isServerDeafened, setIsServerDeafened] = useState(false);
-    const [noiseSuppressionMode, setNoiseSuppressionModeState] = useState<'none' | 'standard' | 'rnnoise' | 'deepfilter'>(
-        (user?.settings?.interaction?.voice?.noiseSuppression ? 'rnnoise' : 'none') || (localStorage.getItem('noiseSuppressionMode') as any) || 'rnnoise'
-    );
+    const [noiseSuppressionMode, setNoiseSuppressionModeState] = useState<'none' | 'standard' | 'rnnoise' | 'deepfilter'>(() => {
+        const stored = localStorage.getItem('noiseSuppressionMode') as 'none' | 'standard' | 'rnnoise' | 'deepfilter' | null;
+        if (stored) return stored;
+        if (user?.settings?.interaction?.voice?.noiseSuppression === false) return 'none';
+        return 'rnnoise';
+    });
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [testStream, setTestStream] = useState<MediaStream | null>(null);
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
@@ -338,17 +341,17 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
     const [inputSensitivity, setInputSensitivity] = useState(() => user?.settings?.interaction?.voice?.inputSensitivity || Number(localStorage.getItem('inputSensitivity')) || -50);
-    const [isAutomaticSensitivity, setIsAutomaticSensitivity] = useState(() => user?.settings?.interaction?.voice?.isAutomaticSensitivity !== undefined ? user.settings.interaction.voice.isAutomaticSensitivity : localStorage.getItem('isAutomaticSensitivity') !== 'false');
-    const [echoCancellation, setEchoCancellation] = useState(() => user?.settings?.interaction?.voice?.echoCancellation !== undefined ? user.settings.interaction.voice.echoCancellation : localStorage.getItem('echoCancellation') !== 'false');
-    const [autoGainControl, setAutoGainControl] = useState(() => user?.settings?.interaction?.voice?.autoGainControl !== undefined ? user.settings.interaction.voice.autoGainControl : localStorage.getItem('autoGainControl') !== 'false');
+    const [isAutomaticSensitivity, setIsAutomaticSensitivity] = useState(() => user?.settings?.interaction?.voice?.isAutomaticSensitivity ?? (localStorage.getItem('isAutomaticSensitivity') !== 'false'));
+    const [echoCancellation, setEchoCancellation] = useState(() => user?.settings?.interaction?.voice?.echoCancellation ?? (localStorage.getItem('echoCancellation') !== 'false'));
+    const [autoGainControl, setAutoGainControl] = useState(() => user?.settings?.interaction?.voice?.autoGainControl ?? (localStorage.getItem('autoGainControl') !== 'false'));
     const [attenuation, setAttenuation] = useState(() => user?.settings?.interaction?.voice?.attenuation || Number(localStorage.getItem('attenuation')) || 0);
 
     const isInitialMount = useRef(true);
 
     // Sync from server
     useEffect(() => {
-        if (user?.settings?.interaction?.voice) {
-            const v = user.settings.interaction.voice;
+        const v = user?.settings?.interaction?.voice;
+        if (v) {
             if (v.noiseSuppression !== undefined) setNoiseSuppressionModeState(v.noiseSuppression ? 'rnnoise' : 'none');
             if (v.echoCancellation !== undefined) setEchoCancellation(v.echoCancellation);
             if (v.autoGainControl !== undefined) setAutoGainControl(v.autoGainControl);
@@ -376,11 +379,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     }
                 }
             });
-            setUser({ ...user, settings: data.settings });
+            updateUser({ settings: data.settings });
         } catch (err) {
             console.error('Failed to save voice settings:', err);
         }
-    }, [user, setUser, noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity]);
+    }, [user, updateUser, noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity]);
 
     useEffect(() => {
         if (isInitialMount.current) {

@@ -75,3 +75,22 @@ export const getIconBrand = (): BrandConfig => {
     } catch { /* malformed URL — fall through */ }
     return getBrand();
 };
+
+/**
+ * Updates document title and favicon based on the current brand.
+ * Should be called once at app initialization.
+ */
+export const applyBranding = () => {
+    const brand = getBrand();
+    document.title = brand.name;
+
+    const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+    if (favicon) {
+        favicon.href = `/${brand.favicon}`;
+    }
+
+    const appleIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
+    if (appleIcon) {
+        appleIcon.href = `/${brand.favicon}`;
+    }
+};

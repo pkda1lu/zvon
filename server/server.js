@@ -13,6 +13,8 @@ const User = require('./models/User');
 const { computePermissions, hasPermission } = require('./utils/permissionCalculator');
 const { Permissions } = require('./utils/permissions');
 const { logAction } = require('./utils/auditLogger');
+const { getBrand } = require('./utils/branding');
+const fs = require('fs');
 
 const compression = require('compression');
 
@@ -35,7 +37,17 @@ const io = socketIo(server, {
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    const allowedOrigins = [process.env.CLIENT_URL || 'http://localhost:3000', 'http://localhost:3000', 'http://127.0.0.1:3000', 'https://zvon.duckdns.com', 'http://zvon.duckdns.com', 'https://zvonserver.ru', 'http://zvonserver.ru'];
+    const allowedOrigins = [
+      process.env.CLIENT_URL || 'http://localhost:3000',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://zvon.duckdns.com',
+      'http://zvon.duckdns.com',
+      'https://zvonserver.ru',
+      'http://zvonserver.ru',
+      'https://maxcord.fun',
+      'http://maxcord.fun'
+    ];
     if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) callback(null, true);
     else callback(null, true);
   },
@@ -115,8 +127,29 @@ app.use(express.static(path.join(__dirname, '../client/build')));
 // match one above, send back React's index.html file.
 app.get(/^(?!\/api).+/, (req, res) => {
   res.removeHeader('X-Frame-Options');
+  // Allow framing for miniapps and deep linking
   res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https: http: file: zvon:;");
-  res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  
+  const indexPath = path.join(__dirname, '../client/build/index.html');
+  if (fs.existsSync(indexPath)) {
+    try {
+      let html = fs.readFileSync(indexPath, 'utf8');
+      const brand = getBrand(req);
+      
+      // Dynamically replace title and favicon for better SEO/Initial load
+      html = html.replace(/<title>.*?<\/title>/g, `<title>${brand.name}</title>`);
+      // Update favicons and logos
+      html = html.replace(/href="\/icon\.png"/g, `href="/${brand.favicon}"`);
+      // Update OpenGraph / Meta tags if they exist
+      html = html.replace(/content="Zvon"/g, `content="${brand.name}"`);
+      
+      res.send(html);
+    } catch (e) {
+      res.sendFile(indexPath);
+    }
+  } else {
+    res.sendFile(indexPath);
+  }
 });
 
 const getVoiceChannelUsers = async (channelId) => {
