@@ -566,9 +566,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
                 const mst = track.mediaStreamTrack;
                 if (!mst) return;
-                // Демонстрация экрана — в отдельную карту; аудио и камера — в общий поток
-                // на участника (один MediaStream обслуживает и <audio>, и <video>).
-                const setter = pub.source === Track.Source.ScreenShare ? setRemoteScreenStreams : setRemoteStreams;
+                // Видео И ЗВУК демонстрации — в отдельную карту, чтобы звук стрима
+                // не играл сам по себе через общий аудио-рендерер, а только когда
+                // зритель смотрит трансляцию (через её <video>). Микрофон/камера — в общий поток.
+                const isScreen = pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio;
+                const setter = isScreen ? setRemoteScreenStreams : setRemoteStreams;
                 setter(prev => {
                     const next = new Map(prev);
                     const existing = next.get(part.identity);
@@ -580,7 +582,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
             room.on(RoomEvent.TrackUnsubscribed, (track, pub, part) => {
                 const mst = track.mediaStreamTrack;
-                const setter = pub.source === Track.Source.ScreenShare ? setRemoteScreenStreams : setRemoteStreams;
+                const isScreen = pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio;
+                const setter = isScreen ? setRemoteScreenStreams : setRemoteStreams;
                 setter(prev => {
                     const next = new Map(prev);
                     const existing = next.get(part.identity);

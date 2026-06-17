@@ -391,7 +391,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         }
 
         const state = userStates.get(u._id);
-        if (state?.isScreenSharing) {
+        // Плитку трансляции показываем и когда пришёл флаг isScreenSharing, и когда
+        // у нас уже есть её поток (важно для тех, кто зашёл в канал, где стрим УЖЕ идёт).
+        if (state?.isScreenSharing || remoteScreenStreams.has(u._id)) {
           items.push({ _id: `stream-${u._id}`, userId: u._id, type: 'stream', isMe: false });
         }
       });
@@ -433,7 +435,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           }
           seenIds.add(userId);
 
-          if (state.isScreenSharing) {
+          if (state.isScreenSharing || remoteScreenStreams.has(userId)) {
             items.push({ _id: `stream-${userId}`, userId: userId, type: 'stream', isMe: false });
           }
         }
