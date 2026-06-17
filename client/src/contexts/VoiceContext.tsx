@@ -290,6 +290,46 @@ registerProcessor('vad-processor', VADProcessor);
     return <VoiceLevelContext.Provider value={value}>{children}</VoiceLevelContext.Provider>;
 };
 
+// --- Remote audio playback ---
+// В серверных каналах remoteStreams наполнялся в TrackSubscribed, но нигде не
+// воспроизводился (в отличие от DM-звонков в VoiceCall) — поэтому собеседников
+// было не слышно, хотя обводка говорящего (ActiveSpeakers) работала. Этот
+// рендерер монтирует по <audio> на каждый удалённый поток и проигрывает звук.
+const RemoteAudioElement: React.FC<{
+    stream: MediaStream; muted: boolean; volume: number; sinkId?: string;
+}> = ({ stream, muted, volume, sinkId }) => {
+    const ref = useRef<HTMLAudioElement>(null);
+    useEffect(() => {
+        const el = ref.current;
+        if (!el || !stream) return;
+        if (el.srcObject !== stream) el.srcObject = stream;
+        const tryPlay = () => el.play().catch(() => {
+            // Автоплей мог быть заблокирован — повторим по первому клику пользователя.
+            const retry = () => { el.play().catch(() => {}); document.removeEventListener('click', retry); };
+            document.addEventListener('click', retry, { once: true });
+        });
+        tryPlay();
+    }, [stream]);
+    useEffect(() => {
+        if (ref.current) ref.current.volume = Math.min(Math.max(muted ? 0 : volume, 0), 1);
+    }, [muted, volume]);
+    useEffect(() => {
+        const el = ref.current as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+        if (el && sinkId && typeof el.setSinkId === 'function') el.setSinkId(sinkId).catch(() => {});
+    }, [sinkId]);
+    return <audio ref={ref} autoPlay playsInline />;
+};
+
+const RemoteAudioRenderer: React.FC<{
+    streams: Map<string, MediaStream>; muted: boolean; volume: number; sinkId?: string;
+}> = ({ streams, muted, volume, sinkId }) => (
+    <>
+        {Array.from(streams.entries()).map(([uid, stream]) => (
+            <RemoteAudioElement key={uid} stream={stream} muted={muted} volume={volume} sinkId={sinkId} />
+        ))}
+    </>
+);
+
 // --- Main Provider ---
 
 export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -569,6 +609,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return (
         <VoiceContext.Provider value={voiceContextValue}>
+            <RemoteAudioRenderer
+                streams={remoteStreams}
+                muted={isDeafened || isServerDeafened}
+                volume={outputVolume ?? 1}
+                sinkId={selectedOutputDeviceId !== 'default' ? selectedOutputDeviceId : undefined}
+            />
             <VoiceLevelProvider
                 testStream={testStream}
                 vadStream={vadStreamRef.current}
