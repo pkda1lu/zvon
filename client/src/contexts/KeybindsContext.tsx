@@ -54,18 +54,26 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     const isInitialMount = useRef(true);
+    // Сериализованный снимок кейбиндов, который уже синхронизирован с сервером.
+    // Защищает от петли: сохранили → updateUser → новая ссылка user.keybinds →
+    // setKeybinds → снова сохранение. Если значение не изменилось — не дёргаем сеть.
+    const lastSyncedRef = useRef<string>(JSON.stringify(keybinds));
 
     // Load from user object when it changes (e.g. after login)
     useEffect(() => {
         const savedKeybinds = user?.settings?.interaction?.keybinds;
         if (savedKeybinds && savedKeybinds.length > 0) {
-            setKeybinds(savedKeybinds);
+            const serialized = JSON.stringify(savedKeybinds);
+            if (serialized !== lastSyncedRef.current) {
+                lastSyncedRef.current = serialized;
+                setKeybinds(savedKeybinds);
+            }
         }
     }, [user?.settings?.interaction?.keybinds]);
 
     const saveKeybinds = useCallback(async (newKeybinds: Keybind[]) => {
         localStorage.setItem('keybinds', JSON.stringify(newKeybinds));
-        
+
         // Sync with Electron
         // @ts-ignore
         if (window.electron && window.electron.ipc) {
@@ -78,6 +86,8 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 const { data } = await axios.put('/api/users/settings', {
                     settings: { interaction: { keybinds: newKeybinds } }
                 });
+                const savedKb = data?.settings?.interaction?.keybinds;
+                lastSyncedRef.current = JSON.stringify(savedKb ?? newKeybinds);
                 updateUser({ settings: data.settings });
             } catch (err) {
                 console.error('Failed to save keybinds to server:', err);
@@ -85,16 +95,24 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
     }, [user, updateUser]);
 
+    // Держим актуальную ссылку на saveKeybinds в ref, чтобы её пересоздание
+    // (при смене user/updateUser) не перезапускало эффект-дебаунсер ниже.
+    const saveKeybindsRef = useRef(saveKeybinds);
+    useEffect(() => { saveKeybindsRef.current = saveKeybinds; }, [saveKeybinds]);
+
     useEffect(() => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
             return;
         }
+        // Это значение уже синхронизировано (пришло с сервера/при гидратации) — не сохраняем.
+        if (JSON.stringify(keybinds) === lastSyncedRef.current) return;
         const timer = setTimeout(() => {
-            saveKeybinds(keybinds);
+            lastSyncedRef.current = JSON.stringify(keybinds);
+            saveKeybindsRef.current(keybinds);
         }, 1000); // Debounce saves
         return () => clearTimeout(timer);
-    }, [keybinds, saveKeybinds]);
+    }, [keybinds]);
 
     const [isRecording, setIsRecording] = useState(false);
     const [recordingId, setRecordingId] = useState<string | null>(null);

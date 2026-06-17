@@ -387,18 +387,41 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [attenuation, setAttenuation] = useState(() => user?.settings?.interaction?.voice?.attenuation || Number(localStorage.getItem('attenuation')) || 0);
 
     const isInitialMount = useRef(true);
+    // Стабильная сериализация голосовых настроек (фиксированный порядок ключей)
+    // для сравнения «что уже синхронизировано с сервером».
+    const serializeVoice = (v: any): string => JSON.stringify({
+        noiseSuppression: v?.noiseSuppression,
+        echoCancellation: v?.echoCancellation,
+        autoGainControl: v?.autoGainControl,
+        attenuation: v?.attenuation,
+        inputSensitivity: v?.inputSensitivity,
+        isAutomaticSensitivity: v?.isAutomaticSensitivity,
+    });
+    // Снимок настроек, уже синхронизированных с сервером. Разрывает петлю
+    // save → updateUser → sync-эффект → setState → save → …
+    const lastSyncedRef = useRef<string>(serializeVoice({
+        noiseSuppression: noiseSuppressionMode !== 'none',
+        echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity,
+    }));
 
     // Sync from server
     useEffect(() => {
         const v = user?.settings?.interaction?.voice;
-        if (v) {
-            if (v.noiseSuppression !== undefined) setNoiseSuppressionModeState(v.noiseSuppression ? 'rnnoise' : 'none');
-            if (v.echoCancellation !== undefined) setEchoCancellation(v.echoCancellation);
-            if (v.autoGainControl !== undefined) setAutoGainControl(v.autoGainControl);
-            if (v.attenuation !== undefined) setAttenuation(v.attenuation);
-            if (v.inputSensitivity !== undefined) setInputSensitivity(v.inputSensitivity);
-            if (v.isAutomaticSensitivity !== undefined) setIsAutomaticSensitivity(v.isAutomaticSensitivity);
+        if (!v) return;
+        const serialized = serializeVoice(v);
+        if (serialized === lastSyncedRef.current) return; // ничего нового — не трогаем state
+        lastSyncedRef.current = serialized;
+        // noiseSuppression на сервере — это boolean (вкл/выкл); конкретный режим
+        // ('standard'/'rnnoise'/'deepfilter') хранится локально, поэтому НЕ затираем его,
+        // а только переключаем on/off — иначе режим скачет и провоцирует пересохранение.
+        if (v.noiseSuppression !== undefined) {
+            setNoiseSuppressionModeState(prev => v.noiseSuppression ? (prev === 'none' ? 'rnnoise' : prev) : 'none');
         }
+        if (v.echoCancellation !== undefined) setEchoCancellation(v.echoCancellation);
+        if (v.autoGainControl !== undefined) setAutoGainControl(v.autoGainControl);
+        if (v.attenuation !== undefined) setAttenuation(v.attenuation);
+        if (v.inputSensitivity !== undefined) setInputSensitivity(v.inputSensitivity);
+        if (v.isAutomaticSensitivity !== undefined) setIsAutomaticSensitivity(v.isAutomaticSensitivity);
     }, [user?.settings?.interaction?.voice]);
 
     // Save to server
@@ -419,20 +442,34 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     }
                 }
             });
+            lastSyncedRef.current = serializeVoice(data?.settings?.interaction?.voice);
             updateUser({ settings: data.settings });
         } catch (err) {
             console.error('Failed to save voice settings:', err);
         }
     }, [user, updateUser, noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity]);
 
+    // Держим актуальную ссылку на saveVoiceSettings в ref, чтобы её пересоздание
+    // (после updateUser) не перезапускало эффект-дебаунсер.
+    const saveVoiceSettingsRef = useRef(saveVoiceSettings);
+    useEffect(() => { saveVoiceSettingsRef.current = saveVoiceSettings; }, [saveVoiceSettings]);
+
     useEffect(() => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
             return;
         }
-        const timer = setTimeout(saveVoiceSettings, 2000);
+        const current = serializeVoice({
+            noiseSuppression: noiseSuppressionMode !== 'none',
+            echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity,
+        });
+        if (current === lastSyncedRef.current) return; // уже синхронизировано — не шлём
+        const timer = setTimeout(() => {
+            lastSyncedRef.current = current;
+            saveVoiceSettingsRef.current();
+        }, 2000);
         return () => clearTimeout(timer);
-    }, [noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity, saveVoiceSettings]);
+    }, [noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity]);
     const [ping, setPing] = useState(0);
     const [connectionQuality, setConnectionQuality] = useState(ConnectionQuality.Unknown);
     const [roomConnectionState, setRoomConnectionState] = useState(ConnectionState.Disconnected);

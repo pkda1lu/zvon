@@ -81,7 +81,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                 if (!membersInRole || membersInRole.length === 0 || !role.hoist) return null;
 
                                 return (
-                                    <div key={role._id} className="member-group">
+                                    <div key={role._id || role.name} className="member-group">
                                         <div className="group-header">{role.name.toUpperCase()} — {membersInRole.length}</div>
                                         {membersInRole.map(member => {
                                             const memberRoleIds = member.roles || [];
