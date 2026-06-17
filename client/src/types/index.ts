@@ -70,6 +70,22 @@ export interface User {
       language: string;
       timeFormat: string;
     };
+    interaction?: {
+      voice?: {
+        noiseSuppression: boolean;
+        echoCancellation: boolean;
+        autoGainControl: boolean;
+        attenuation: number;
+        isAutomaticSensitivity: boolean;
+        inputSensitivity: number;
+      };
+      keybinds?: Array<{
+        id: string;
+        action: string;
+        accelerator: string;
+        isEnabled: boolean;
+      }>;
+    };
   };
   createdAt: string;
 }

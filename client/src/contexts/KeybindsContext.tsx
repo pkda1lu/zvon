@@ -44,9 +44,10 @@ const DEFAULT_KEYBINDS: Keybind[] = [
 
 export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { toggleMute, toggleDeafen, toggleOverlay } = useVoice();
-    const { user, setUser } = useAuth();
+    const { user, updateUser } = useAuth();
     const [keybinds, setKeybinds] = useState<Keybind[]>(() => {
-        if (user?.settings?.interaction?.keybinds?.length > 0) return user.settings.interaction.keybinds;
+        const savedKeybinds = user?.settings?.interaction?.keybinds;
+        if (savedKeybinds && savedKeybinds.length > 0) return savedKeybinds;
         const saved = localStorage.getItem('keybinds');
         if (saved) return JSON.parse(saved);
         return DEFAULT_KEYBINDS;
@@ -56,8 +57,9 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Load from user object when it changes (e.g. after login)
     useEffect(() => {
-        if (user?.settings?.interaction?.keybinds?.length > 0) {
-            setKeybinds(user.settings.interaction.keybinds);
+        const savedKeybinds = user?.settings?.interaction?.keybinds;
+        if (savedKeybinds && savedKeybinds.length > 0) {
+            setKeybinds(savedKeybinds);
         }
     }, [user?.settings?.interaction?.keybinds]);
 
@@ -76,12 +78,12 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 const { data } = await axios.put('/api/users/settings', {
                     settings: { interaction: { keybinds: newKeybinds } }
                 });
-                setUser({ ...user, settings: data.settings });
+                updateUser({ settings: data.settings });
             } catch (err) {
                 console.error('Failed to save keybinds to server:', err);
             }
         }
-    }, [user, setUser]);
+    }, [user, updateUser]);
 
     useEffect(() => {
         if (isInitialMount.current) {
