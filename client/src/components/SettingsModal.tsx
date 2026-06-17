@@ -5,6 +5,7 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: string;
+  initialData?: any;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {

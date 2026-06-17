@@ -44,7 +44,7 @@ router.post('/create', auth, async (req, res) => {
 // Get user's bots
 router.get('/my', auth, async (req, res) => {
     try {
-        const bots = await User.find({ owner: req.user._id, isBot: true }).select('username botToken createdAt bio avatar banner isPublished botModerationStatus botModerationReason botIsBlocked botBlockReason');
+        const bots = await User.find({ owner: req.user._id, isBot: true }).select('username botToken createdAt bio avatar banner isPublished botModerationStatus botModerationReason botIsBlocked botBlockReason primaryServer');
         res.json(bots);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -159,21 +159,22 @@ router.post('/:id/add-to-server', auth, async (req, res) => {
     }
 });
 
-// Update bot profile (name, bio)
+// Update bot profile (name, bio, primaryServer)
 router.patch('/:id', auth, async (req, res) => {
     try {
-        const { username, bio } = req.body;
+        const { username, bio, primaryServer } = req.body;
         const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
         if (!bot) return res.status(404).json({ message: 'Bot not found' });
 
         if (username) bot.username = username;
         if (bio !== undefined) bot.bio = bio;
+        if (primaryServer !== undefined) bot.primaryServer = primaryServer || null;
 
         await bot.save();
 
         const io = req.app.get('io');
         if (io) {
-            io.emit('user-updated', { _id: bot._id, username: bot.username, bio: bot.bio });
+            io.emit('user-updated', { _id: bot._id, username: bot.username, bio: bot.bio, primaryServer: bot.primaryServer });
         }
 
         res.json({ message: 'Бот обновлен', bot });

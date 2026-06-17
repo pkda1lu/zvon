@@ -91,6 +91,10 @@ const serverSchema = new mongoose.Schema({
     banner: {
       type: String,
       default: null
+    },
+    bannerColor: {
+      type: String,
+      default: null
     }
   }],
   channels: [{

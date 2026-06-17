@@ -23,6 +23,7 @@ import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useInbox } from '../contexts/InboxContext';
+import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import JoinServerModal from '../components/JoinServerModal';
 import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
@@ -45,6 +46,7 @@ const Main: React.FC = () => {
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
   const { unreadCount: inboxUnreadCount } = useInbox();
+  const { streamerModeEnabled, changeStatusToStreaming } = useWindowSettings();
 
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
@@ -84,9 +86,17 @@ const Main: React.FC = () => {
   const [showServerProfile, setShowServerProfile] = useState(false);
   const [serverProfilePosition, setServerProfilePosition] = useState<{ x: number, y: number } | null>(null);
   const [showUserServerProfile, setShowUserServerProfile] = useState(false);
+  const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<string>('profile');
+  const [settingsInitialData, setSettingsInitialData] = useState<any>(null);
+
+  const handleOpenSettings = (tab: string = 'profile', data: any = null) => {
+    setSettingsInitialTab(tab);
+    setSettingsInitialData(data);
+    setShowSettingsModal(true);
+  };
   const SIDEBAR_WIDTH = 280;
   const hasViewInitializedRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
@@ -158,8 +168,7 @@ const Main: React.FC = () => {
     };
     const handleStartCallEvent = (e: any) => { handleStartDirectCall(e.detail.user, e.detail.dmId); };
     const handleOpenServerProfileSettings = (e: any) => {
-      setServerProfileServerId(e.detail.serverId);
-      setShowUserServerProfile(true);
+      handleOpenSettings('server-profiles', { serverId: e.detail.serverId });
     };
     const handleStartDMById = async (e: any) => {
       try {
@@ -174,19 +183,165 @@ const Main: React.FC = () => {
     const handleOpenMiniAppEvent = (e: any) => {
       handleOpenMiniApp(e.detail.app);
     };
+    const handleOpenDM = async (e: any) => {
+      try {
+        const response = await axios.get(`/api/direct-messages/user/${e.detail.userId}`);
+        setSelectedDM(response.data);
+        setSelectedChannel(null);
+        setSelectedServer(null);
+        setShowFriends(false);
+        setMobileView('content');
+      } catch (err) { }
+    };
+    const handleSelectServerEvent = (e: any) => {
+      const srvId = e.detail.serverId;
+      const srv = servers.find(s => s._id === srvId);
+      if (srv) {
+        setSelectedServer(srv);
+        setSelectedChannel(null); // Will be handled by ServerSidebar's useEffect or we can pick first channel
+        setSelectedDM(null);
+        setShowFriends(false);
+        setMobileView('content');
+      }
+    };
+
+    const handleKeybindAction = (e: any) => {
+      const { action } = e.detail;
+      
+      switch (action) {
+        case 'server-next': {
+          if (servers.length <= 1) return;
+          const currentIndex = selectedServer ? servers.findIndex(s => s._id === selectedServer._id) : -1;
+          const nextIndex = (currentIndex + 1) % servers.length;
+          const nextServer = servers[nextIndex];
+          setSelectedServer(nextServer);
+          setShowFriends(false);
+          setShowShowcase(false);
+          setSelectedDM(null);
+          break;
+        }
+        case 'server-prev': {
+          if (servers.length <= 1) return;
+          const currentIndex = selectedServer ? servers.findIndex(s => s._id === selectedServer._id) : -1;
+          const prevIndex = (currentIndex - 1 + servers.length) % servers.length;
+          const prevServer = servers[prevIndex];
+          setSelectedServer(prevServer);
+          setShowFriends(false);
+          setShowShowcase(false);
+          setSelectedDM(null);
+          break;
+        }
+        case 'channel-next': {
+          if (!selectedServer) return;
+          const channels = selectedServer.channels;
+          if (channels.length <= 1) return;
+          const currentIndex = selectedChannel ? channels.findIndex(c => c._id === selectedChannel._id) : -1;
+          const nextIndex = (currentIndex + 1) % channels.length;
+          setSelectedChannel(channels[nextIndex]);
+          break;
+        }
+        case 'channel-prev': {
+          if (!selectedServer) return;
+          const channels = selectedServer.channels;
+          if (channels.length <= 1) return;
+          const currentIndex = selectedChannel ? channels.findIndex(c => c._id === selectedChannel._id) : -1;
+          const prevIndex = (currentIndex - 1 + channels.length) % channels.length;
+          setSelectedChannel(channels[prevIndex]);
+          break;
+        }
+        case 'mark-chat-read': {
+          if (selectedChannel) {
+            setUnreadCounts(prev => {
+              const next = { ...prev };
+              delete next[selectedChannel._id];
+              return next;
+            });
+          } else if (selectedDM) {
+            setUnreadCounts(prev => {
+              const next = { ...prev };
+              delete next[selectedDM._id];
+              return next;
+            });
+          }
+          break;
+        }
+        case 'mark-server-read': {
+          if (selectedServer) {
+            setUnreadCounts(prev => {
+              const next = { ...prev };
+              selectedServer.channels.forEach(c => delete next[c._id]);
+              return next;
+            });
+          }
+          break;
+        }
+        case 'open-notifications': {
+          setShowInbox(prev => !prev);
+          break;
+        }
+        case 'scroll-up': {
+          window.dispatchEvent(new CustomEvent('zvon-scroll-chat', { detail: { direction: 'up' } }));
+          break;
+        }
+        case 'scroll-down': {
+          window.dispatchEvent(new CustomEvent('zvon-scroll-chat', { detail: { direction: 'down' } }));
+          break;
+        }
+        case 'edit-last': {
+          window.dispatchEvent(new CustomEvent('zvon-edit-last-message'));
+          break;
+        }
+        case 'delete-last': {
+          window.dispatchEvent(new CustomEvent('zvon-delete-last-message'));
+          break;
+        }
+        case 'close-window': {
+          if (showSettingsModal) setShowSettingsModal(false);
+          else if (showServerSettings) setShowServerSettings(false);
+          else if (showJoinModal) setShowJoinModal(false);
+          else if (showCreateGroupModal) setShowCreateGroupModal(false);
+          else if (showInbox) setShowInbox(false);
+          else if (showProfileUserId) setShowProfileUserId(null);
+          else {
+              // @ts-ignore
+              if (window.electron && window.electron.ipc) {
+                  // @ts-ignore
+                  window.electron.ipc.send('close-window');
+              }
+          }
+          break;
+        }
+        case 'minimize-to-tray': {
+            // @ts-ignore
+            if (window.electron && window.electron.ipc) {
+                // @ts-ignore
+                window.electron.ipc.send('minimize-to-tray');
+            }
+            break;
+        }
+      }
+    };
+
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
     window.addEventListener('start-dm-by-id', handleStartDMById);
     window.addEventListener('open-mini-app', handleOpenMiniAppEvent);
+    window.addEventListener('open-dm', handleOpenDM);
+    window.addEventListener('select-server', handleSelectServerEvent);
+    window.addEventListener('zvon-keybind-action', handleKeybindAction);
     return () => {
       window.removeEventListener('start-dm', handleStartDMEvent);
       window.removeEventListener('start-call', handleStartCallEvent);
       window.removeEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
       window.removeEventListener('start-dm-by-id', handleStartDMById);
       window.removeEventListener('open-mini-app', handleOpenMiniAppEvent);
+      window.removeEventListener('open-dm', handleOpenDM);
+      window.removeEventListener('select-server', handleSelectServerEvent);
+      window.removeEventListener('zvon-keybind-action', handleKeybindAction);
     };
-  }, []);
+  }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId]);
+
 
   // --- Activity orchestration ---
   // Game (from electron detection) has priority. If no game is running, fall
@@ -223,6 +378,19 @@ const Main: React.FC = () => {
   // Single source of truth: emit activity based on current game + open mini-apps.
   useEffect(() => {
     if (!socket) return;
+
+    if (streamerModeEnabled && changeStatusToStreaming) {
+      socket.emit('activity-update', {
+        name: 'Streaming',
+        type: 'streaming',
+        state: 'В эфире',
+        details: 'Трансляция через OBS',
+        assets: { largeImage: 'streaming', largeText: 'В эфире' },
+        timestamps: { start: Date.now() },
+      });
+      return;
+    }
+
     if (currentGameActivity) {
       socket.emit('activity-update', currentGameActivity);
       return;
@@ -1126,6 +1294,8 @@ const Main: React.FC = () => {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+        initialTab={settingsInitialTab}
+        initialData={settingsInitialData}
       />
 
       {showCreateGroupModal && (
