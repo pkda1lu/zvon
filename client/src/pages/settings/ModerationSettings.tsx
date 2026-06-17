@@ -2,6 +2,82 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
+import { getFullUrl } from '../../utils/avatar';
+
+// Рендер «на что пожаловались»: текст/фото сообщения, карточка мини-приложения
+// или профиль. Берёт сохранённый снимок (contentSnapshot), с фолбэком на старое
+// поле messageContext для жалоб, поданных до появления снимков.
+const ReportedContent: React.FC<{ report: any }> = ({ report }) => {
+    const snap = report.contentSnapshot;
+    const box: React.CSSProperties = { fontSize: '13px', background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', borderLeft: '3px solid var(--primary-neon)', marginTop: '4px' };
+    const label: React.CSSProperties = { fontSize: '11px', color: 'var(--text-dim)', marginBottom: '6px', fontWeight: 600 };
+
+    if (!snap) {
+        if (report.messageContext) {
+            return (
+                <div style={box}>
+                    <div style={label}>Цитата из сообщения:</div>
+                    {report.messageContext.content || <span style={{ color: 'var(--text-dim)' }}>(без текста)</span>}
+                </div>
+            );
+        }
+        return null;
+    }
+
+    if (snap.kind === 'message') {
+        const atts = snap.attachments || [];
+        const isImg = (a: any) => (a.type || '').startsWith('image') || /\.(png|jpe?g|gif|webp|avif)$/i.test(a.url || '');
+        const imgs = atts.filter(isImg);
+        const files = atts.filter((a: any) => !isImg(a));
+        return (
+            <div style={box}>
+                <div style={label}>Сообщение{snap.authorName ? ` от ${snap.authorName}` : ''}:</div>
+                {snap.text && <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-main)' }}>{snap.text}</div>}
+                {imgs.length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: snap.text ? '8px' : 0 }}>
+                        {imgs.map((a: any, i: number) => (
+                            <a key={i} href={getFullUrl(a.url)!} target="_blank" rel="noreferrer">
+                                <img src={getFullUrl(a.url)!} alt="" style={{ maxWidth: '160px', maxHeight: '160px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--glass-border)' }} />
+                            </a>
+                        ))}
+                    </div>
+                )}
+                {files.map((a: any, i: number) => (
+                    <a key={i} href={getFullUrl(a.url)!} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: '6px', color: 'var(--primary-neon)', fontSize: '13px' }}>📎 {a.filename || 'файл'}</a>
+                ))}
+                {!snap.text && imgs.length === 0 && files.length === 0 && <div style={{ color: 'var(--text-dim)' }}>(пустое сообщение)</div>}
+            </div>
+        );
+    }
+
+    if (snap.kind === 'miniapp') {
+        return (
+            <div style={box}>
+                <div style={label}>Мини-приложение:</div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    {snap.appAvatar && <img src={getFullUrl(snap.appAvatar)!} alt="" style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />}
+                    <div>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{snap.appName}</div>
+                        {snap.appUrl && <a href={snap.appUrl} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--secondary-neon)', wordBreak: 'break-all' }}>{snap.appUrl}</a>}
+                    </div>
+                </div>
+                {snap.appDescription && <div style={{ marginTop: '8px', color: 'var(--text-dim)', whiteSpace: 'pre-wrap' }}>{snap.appDescription}</div>}
+            </div>
+        );
+    }
+
+    // profile / bot
+    return (
+        <div style={box}>
+            <div style={label}>{snap.kind === 'bot' ? 'Бот:' : 'Профиль:'}</div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                {snap.avatar && <img src={getFullUrl(snap.avatar)!} alt="" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }} />}
+                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{snap.username}</div>
+            </div>
+            {snap.bio && <div style={{ marginTop: '8px', color: 'var(--text-dim)', whiteSpace: 'pre-wrap' }}>{snap.bio}</div>}
+        </div>
+    );
+};
 
 const ModerationSettings: React.FC = () => {
     const { user } = useAuth();
@@ -115,14 +191,9 @@ const ModerationSettings: React.FC = () => {
                                             report.reason === 'inappropriate_content' ? 'Контент' :
                                             report.reason === 'scam' ? 'Мошенничество' : 'Другое'}
                                         </div>
-                                        {report.description && <div style={{ fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: report.messageContext ? '12px' : 0 }}>{report.description}</div>}
-                                        
-                                        {report.messageContext && (
-                                            <div style={{ fontSize: '13px', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px', borderLeft: '3px solid var(--primary-neon)' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>Цитата из сообщения:</div>
-                                                {report.messageContext.content}
-                                            </div>
-                                        )}
+                                        {report.description && <div style={{ fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: (report.contentSnapshot || report.messageContext) ? '12px' : 0 }}>{report.description}</div>}
+
+                                        <ReportedContent report={report} />
                                     </div>
 
                                     {report.status !== 'pending' && (

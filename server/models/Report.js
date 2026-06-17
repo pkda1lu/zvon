@@ -31,6 +31,14 @@ const reportSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Message'
   },
+  // Снимок того, НА ЧТО пожаловались, на момент подачи жалобы — чтобы контент
+  // оставался виден модератору, даже если сообщение/объект потом удалили.
+  // { kind: 'message'|'miniapp'|'profile', text, attachments:[{url,type,filename}],
+  //   authorName, appName, appUrl, appDescription, appAvatar, username, avatar, bio }
+  contentSnapshot: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   status: {
     type: String,
     enum: ['pending', 'resolved', 'dismissed'],

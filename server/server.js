@@ -659,7 +659,15 @@ io.on('connection', (socket) => {
         }
       }
 
-      await User.findByIdAndUpdate(user._id, { activity });
+      // Засчитываем завершившуюся игровую сессию в gameStats (для «Любимых игр»).
+      try {
+        const { recordGameSession } = require('./utils/gamePlaytime');
+        const prevActivity = user.activity && user.activity.toObject ? user.activity.toObject() : user.activity;
+        recordGameSession(user, prevActivity, activity);
+      } catch (e) { console.error('Playtime accumulation error:', e); }
+
+      user.activity = activity;
+      await user.save();
       io.emit('user-updated', { _id: user._id, activity });
     } catch (err) { }
   });
@@ -1107,6 +1115,12 @@ io.on('connection', (socket) => {
       try {
         const user = await User.findById(socket.userId);
         if (user) {
+          // Флашим время текущей игровой сессии перед сбросом активности.
+          try {
+            const { recordGameSession } = require('./utils/gamePlaytime');
+            const prevActivity = user.activity && user.activity.toObject ? user.activity.toObject() : user.activity;
+            recordGameSession(user, prevActivity, null);
+          } catch (e) { console.error('Playtime flush error:', e); }
           user.status = 'offline'; user.activity = null; await user.save();
           io.emit('user-updated', { _id: user._id, status: 'offline', activity: null });
         }

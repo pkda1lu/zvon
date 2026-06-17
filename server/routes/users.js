@@ -83,6 +83,10 @@ router.get('/profile/:id', auth, async (req, res) => {
 
     // Redact user object if not full
     const userObj = user.toObject();
+    // Любимые игры (топ по времени) — часть активности, показываем только при полном профиле.
+    const { getTopGames } = require('../utils/gamePlaytime');
+    userObj.topGames = canSeeFull ? getTopGames(user, 3) : [];
+    delete userObj.gameStats;
     if (!canSeeFull) {
       delete userObj.activity;
       delete userObj.developments;

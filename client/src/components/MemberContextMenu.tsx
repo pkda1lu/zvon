@@ -22,6 +22,8 @@ interface MemberContextMenuProps {
     onClose: () => void;
     onMention?: (username: string) => void;
     onOpenProfile?: (userId: string, event?: React.MouseEvent) => void;
+    /** Если меню открыто с конкретного сообщения — жалоба будет привязана к нему. */
+    reportMessageId?: string;
 }
 
 const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
@@ -31,7 +33,8 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     y,
     onClose,
     onMention,
-    onOpenProfile
+    onOpenProfile,
+    reportMessageId
 }) => {
     if (!targetUser) return null;
 
@@ -276,7 +279,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     setShowReportModal(false);
                     onClose();
                     try {
-                        await axios.post('/api/moderation/report', { ...data, userId: targetUser._id });
+                        await axios.post('/api/moderation/report', { ...data, userId: targetUser._id, ...(reportMessageId ? { messageId: reportMessageId } : {}) });
                         await alert('Жалоба отправлена. Модераторы проверят её в ближайшее время.');
                     } catch (err) { await alert('Не удалось отправить жалобу.'); }
                 }}

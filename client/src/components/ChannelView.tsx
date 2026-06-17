@@ -113,7 +113,7 @@ const MessageItem = React.memo<{
   canPin: boolean;
   canReact: boolean;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
-  onContextMenu: (e: React.MouseEvent, user: User) => void;
+  onContextMenu: (e: React.MouseEvent, user: User, messageId?: string) => void;
   onTogglePin: (id: string) => void;
   onDelete: (id: string) => void;
   formatDate: (d: string) => string;
@@ -353,6 +353,7 @@ const MessageItem = React.memo<{
       <MessageBox
         id={`msg-${msg._id}`}
         className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
+        onContextMenu={(e: React.MouseEvent) => onContextMenu(e, msg.author, msg._id)}
         {...messageProps}
       >
         {msg.replyTo && (
@@ -611,7 +612,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const canReact = hasPermission(userPermissions, Permissions.ADD_REACTIONS);
   const canMentionEveryone = hasPermission(userPermissions, Permissions.MENTION_EVERYONE);
 
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User, messageId?: string } | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxMedia, setLightboxMedia] = useState<any[]>([]);
@@ -665,9 +666,10 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     setShowScrollBottom(!atBottom);
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent, user: User) => {
+  const handleContextMenu = (e: React.MouseEvent, user: User, messageId?: string) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, user });
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, user, messageId });
   };
 
   const handleMention = (username: string) => {
@@ -1451,7 +1453,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         </form>
       </div>
       {contextMenu && (
-        <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onMention={handleMention} onOpenProfile={onUserClick} />
+        <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onMention={handleMention} onOpenProfile={onUserClick} reportMessageId={contextMenu.messageId} />
       )}
       {showGifPicker && createPortal(
         <div

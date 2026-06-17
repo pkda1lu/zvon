@@ -31,13 +31,55 @@ router.post('/report', auth, [
   try {
     const { userId, miniAppId, reason, description, messageId } = req.body;
     if (!userId && !miniAppId) return res.status(400).json({ message: 'Нужно указать userId или miniAppId' });
+
+    // Снимок контента, на который жалуются (переживает удаление оригинала).
+    let contentSnapshot = null;
+    if (messageId) {
+      const Message = require('../models/Message');
+      const msg = await Message.findById(messageId).populate('author', 'username avatar');
+      if (msg) {
+        contentSnapshot = {
+          kind: 'message',
+          text: msg.content || '',
+          attachments: (msg.attachments || []).map(a => ({ url: a.url, type: a.type, filename: a.filename })),
+          authorName: msg.author ? msg.author.username : null,
+          createdAt: msg.createdAt
+        };
+      }
+    }
+    if (!contentSnapshot && miniAppId) {
+      const MiniApp = require('../models/MiniApp');
+      const app = await MiniApp.findById(miniAppId);
+      if (app) {
+        contentSnapshot = {
+          kind: 'miniapp',
+          appName: app.name,
+          appUrl: app.url,
+          appDescription: app.description || '',
+          appAvatar: app.avatar || null
+        };
+      }
+    }
+    if (!contentSnapshot && userId) {
+      const target = await User.findById(userId).select('username avatar bio isBot');
+      if (target) {
+        contentSnapshot = {
+          kind: target.isBot ? 'bot' : 'profile',
+          username: target.username,
+          avatar: target.avatar || null,
+          bio: target.bio || ''
+        };
+      }
+    }
+
     const report = new Report({
       reporter: req.user._id,
       reportedUser: userId || null,
       reportedMiniApp: miniAppId || null,
       reason,
       description,
-      messageContext: messageId || null
+      messageContext: messageId || null,
+      contentSnapshot
     });
     await report.save();
     res.status(201).json({ message: 'Жалоба успешно отправлена' });

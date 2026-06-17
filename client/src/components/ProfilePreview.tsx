@@ -8,6 +8,16 @@ import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { formatClockTime } from '../utils/time';
 import './UserProfileCard.css';
 
+// Секунды → «5 ч 30 мин» / «45 мин» / «меньше минуты».
+const formatPlaytime = (seconds: number): string => {
+    const total = Math.max(0, Math.floor(seconds || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    if (h > 0) return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
+    if (m > 0) return `${m} мин`;
+    return 'меньше минуты';
+};
+
 interface ProfilePreviewProps {
     user: User;
     memberData?: {
@@ -327,6 +337,28 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                 </div>
                             ) : (
                                 <div className="empty-mutual">Нет текущей активности.</div>
+                            )}
+
+                            {Array.isArray((user as any).topGames) && (user as any).topGames.length > 0 && (
+                                <div className="profile-favorite-games" style={{ marginTop: '24px' }}>
+                                    <h4 className="section-title">ЛЮБИМЫЕ ИГРЫ</h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
+                                        {(user as any).topGames.map((g: any, i: number) => (
+                                            <div key={`${g.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '10px 12px', border: '1px solid var(--glass-border)' }}>
+                                                {g.image ? (
+                                                    <img src={getFullUrl(g.image)!} alt="" style={{ width: '44px', height: '44px', borderRadius: '10px', objectFit: 'cover' }} />
+                                                ) : (
+                                                    <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'var(--glass-bg-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{g.name?.[0]?.toUpperCase() || '🎮'}</div>
+                                                )}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+                                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{formatPlaytime(g.totalSeconds)}</div>
+                                                </div>
+                                                {i === 0 && <span style={{ fontSize: '16px' }} title="Любимая игра">⭐</span>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
                         </div>
                     )}

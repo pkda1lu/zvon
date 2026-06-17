@@ -96,6 +96,13 @@ const userSchema = new mongoose.Schema({
     },
     miniAppData: { type: mongoose.Schema.Types.Mixed, default: null }
   },
+  // Накопленное время в играх — для блока «Любимые игры» в развёрнутом профиле.
+  gameStats: [{
+    name: { type: String, required: true },
+    image: { type: String, default: null },
+    totalSeconds: { type: Number, default: 0 },
+    lastPlayedAt: { type: Date, default: Date.now }
+  }],
   isBot: {
     type: Boolean,
     default: false
