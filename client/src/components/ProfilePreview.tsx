@@ -107,6 +107,11 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
         if (onClose) onClose();
     };
 
+    const handleServerClick = (serverId: string) => {
+        window.dispatchEvent(new CustomEvent('select-server', { detail: { serverId } }));
+        if (onClose) onClose();
+    };
+
     const getActivityTitle = (type: string | null) => {
         switch (type) {
             case 'playing': return 'ИГРАЕТ В';
@@ -327,7 +332,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                 <div className="profile-activity-section-full">
                                     <h4 className="section-title">СЕЙЧАС: {getActivityTitle(user.activity.type)}</h4>
                                     <div className="activity-content-full">
-                                        {user.activity.assets?.largeImage && (
+                                        {user.activity.assets?.largeImage && /[./]|^https?:/.test(user.activity.assets.largeImage) && (
                                             <div className="activity-image-wrapper-full">
                                                 <img src={getFullUrl(user.activity.assets.largeImage)!} alt="" className="activity-large-image" />
                                             </div>

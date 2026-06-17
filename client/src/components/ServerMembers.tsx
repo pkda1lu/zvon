@@ -229,6 +229,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                     y={contextMenu.y}
                     onClose={() => setContextMenu(null)}
                     onOpenProfile={onUserClick}
+                    onMention={(username) => window.dispatchEvent(new CustomEvent('zvon-mention-user', { detail: { username } }))}
                 />
             )}
         </div>

@@ -38,7 +38,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 }) => {
     if (!targetUser) return null;
 
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, refreshUser } = useAuth();
     const { streamerModeEnabled, censorInfo } = useWindowSettings();
     const shouldCensor = streamerModeEnabled && censorInfo;
     const { socket } = useSocket();
@@ -196,6 +196,9 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                             try {
                                 await axios.post('/api/users/note', { userId: targetUser._id, note: val });
                                 setNote(val);
+                                // Обновляем currentUser, иначе заметка «теряется» при
+                                // повторном открытии меню (currentUser.notes был устаревшим).
+                                await refreshUser();
                             } catch (err) { }
                         }
                     });

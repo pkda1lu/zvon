@@ -676,6 +676,17 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     setMessage((prev) => `${prev}@${username} `);
   };
 
+  // Упоминание из списка участников (ServerMembers диспатчит событие, т.к. не имеет
+  // доступа к полю ввода) — добавляем @ник в текущее сообщение.
+  useEffect(() => {
+    const onMentionUser = (e: any) => {
+      const username = e?.detail?.username;
+      if (username) setMessage((prev) => `${prev}@${username} `);
+    };
+    window.addEventListener('zvon-mention-user', onMentionUser);
+    return () => window.removeEventListener('zvon-mention-user', onMentionUser);
+  }, []);
+
   const jumpToMessage = async (messageId: string, createdAt: string) => {
     setShowSearch(false);
     const alreadyLoaded = messages.some(m => m._id === messageId);

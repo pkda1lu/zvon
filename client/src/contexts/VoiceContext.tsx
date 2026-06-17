@@ -143,6 +143,52 @@ export const useVoiceLevels = () => {
     return context;
 };
 
+// Шлёт состав голосового канала и кто говорит в окно оверлея (Electron).
+// Без этого оверлей получал пустой список участников и показывал только заставку
+// «Zvon Оверлей запущен». Монтируется внутри обоих провайдеров (см. VoiceProvider).
+const OverlaySync: React.FC = () => {
+    const { isConnected, connectedUsers, userStates, isMuted, isDeafened } = useVoice();
+    const { speakingUsers } = useVoiceLevels();
+    const { user } = useAuth();
+
+    useEffect(() => {
+        const electron = (window as any).electron;
+        if (!electron?.ipc) return;
+        if (!isConnected) {
+            electron.ipc.send('update-overlay-data', { users: [] });
+            return;
+        }
+        const users: any[] = [];
+        // Себя добавляем всегда: сервер в voice-existing-users присылает только тех,
+        // кто был в канале ДО нас, поэтому в connectedUsers нас нет.
+        if (user) {
+            users.push({
+                id: user._id,
+                username: user.displayName || user.username,
+                avatar: getAvatarUrl(user.avatar),
+                isSpeaking: speakingUsers.has(String(user._id)),
+                isMuted,
+                isDeafened,
+            });
+        }
+        (connectedUsers || []).forEach((u: any) => {
+            if (String(u._id) === String(user?._id)) return; // не дублируем себя
+            const st = userStates.get(String(u._id));
+            users.push({
+                id: u._id,
+                username: u.nickname || u.username,
+                avatar: getAvatarUrl(u.avatar),
+                isSpeaking: speakingUsers.has(String(u._id)),
+                isMuted: !!(st?.isMuted || st?.isServerMuted),
+                isDeafened: !!(st?.isDeafened || st?.isServerDeafened),
+            });
+        });
+        electron.ipc.send('update-overlay-data', { users });
+    }, [isConnected, connectedUsers, userStates, speakingUsers, isMuted, isDeafened, user?._id]);
+
+    return null;
+};
+
 // --- Sub-Providers ---
 
 /**
@@ -295,37 +341,86 @@ registerProcessor('vad-processor', VADProcessor);
 // воспроизводился (в отличие от DM-звонков в VoiceCall) — поэтому собеседников
 // было не слышно, хотя обводка говорящего (ActiveSpeakers) работала. Этот
 // рендерер монтирует по <audio> на каждый удалённый поток и проигрывает звук.
+// Проигрывание удалённого аудио через WebAudio GainNode — это позволяет усиление
+// выше 100% (до 200%+), чего нельзя сделать через <audio>.volume (он ограничен 1.0).
+// Граф: stream → GainNode → MediaStreamDestination → <audio> (для выбора устройства
+// вывода через setSinkId). Плюс скрытый muted <audio> с исходным потоком —
+// обходим баг Chromium, когда createMediaStreamSource от удалённого WebRTC молчит.
 const RemoteAudioElement: React.FC<{
     stream: MediaStream; muted: boolean; volume: number; sinkId?: string;
 }> = ({ stream, muted, volume, sinkId }) => {
     const ref = useRef<HTMLAudioElement>(null);
+    const ctxRef = useRef<AudioContext | null>(null);
+    const gainRef = useRef<GainNode | null>(null);
+    const keepAliveRef = useRef<HTMLAudioElement | null>(null);
+
     useEffect(() => {
         const el = ref.current;
         if (!el || !stream) return;
-        if (el.srcObject !== stream) el.srcObject = stream;
+        const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+        const ctx: AudioContext = new Ctx();
+        ctxRef.current = ctx;
+
+        // keep-alive: держит WebRTC-поток «живым» для createMediaStreamSource.
+        const keepAlive = new Audio();
+        keepAlive.srcObject = stream;
+        keepAlive.muted = true;
+        keepAlive.play().catch(() => {});
+        keepAliveRef.current = keepAlive;
+
+        const source = ctx.createMediaStreamSource(stream);
+        const gain = ctx.createGain();
+        const dest = ctx.createMediaStreamDestination();
+        source.connect(gain);
+        gain.connect(dest);
+        gainRef.current = gain;
+
+        el.srcObject = dest.stream;
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
         const tryPlay = () => el.play().catch(() => {
-            // Автоплей мог быть заблокирован — повторим по первому клику пользователя.
-            const retry = () => { el.play().catch(() => {}); document.removeEventListener('click', retry); };
+            const retry = () => { ctx.resume().catch(() => {}); el.play().catch(() => {}); document.removeEventListener('click', retry); };
             document.addEventListener('click', retry, { once: true });
         });
         tryPlay();
+
+        return () => {
+            try { source.disconnect(); gain.disconnect(); } catch {}
+            try { keepAlive.pause(); keepAlive.srcObject = null; } catch {}
+            gainRef.current = null;
+            ctx.close().catch(() => {});
+        };
     }, [stream]);
+
+    // Усиление: gain 0..2+ (muted → 0). Верхний предел с запасом, чтобы не «резать» 200%.
     useEffect(() => {
-        if (ref.current) ref.current.volume = Math.min(Math.max(muted ? 0 : volume, 0), 1);
+        if (gainRef.current) gainRef.current.gain.value = muted ? 0 : Math.min(Math.max(volume, 0), 5);
     }, [muted, volume]);
+
     useEffect(() => {
         const el = ref.current as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
         if (el && sinkId && typeof el.setSinkId === 'function') el.setSinkId(sinkId).catch(() => {});
     }, [sinkId]);
+
     return <audio ref={ref} autoPlay playsInline />;
 };
 
 const RemoteAudioRenderer: React.FC<{
-    streams: Map<string, MediaStream>; muted: boolean; volume: number; sinkId?: string;
-}> = ({ streams, muted, volume, sinkId }) => (
+    streams: Map<string, MediaStream>;
+    deafened: boolean;
+    outputVolume: number;
+    userVolumes: Map<string, number>;
+    localMutes: Set<string>;
+    sinkId?: string;
+}> = ({ streams, deafened, outputVolume, userVolumes, localMutes, sinkId }) => (
     <>
         {Array.from(streams.entries()).map(([uid, stream]) => (
-            <RemoteAudioElement key={uid} stream={stream} muted={muted} volume={volume} sinkId={sinkId} />
+            <RemoteAudioElement
+                key={uid}
+                stream={stream}
+                muted={deafened || localMutes.has(uid)}
+                volume={outputVolume * (userVolumes.get(uid) ?? 1)}
+                sinkId={sinkId}
+            />
         ))}
     </>
 );
@@ -378,6 +473,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [userStates, setUserStates] = useState<Map<string, any>>(new Map());
     const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
+    // Персональная громкость участников (0..2, 1 = 100%), сохраняется между сессиями.
+    const [userVolumes, setUserVolumesState] = useState<Map<string, number>>(() => {
+        try { const s = localStorage.getItem('userVolumes'); if (s) return new Map(Object.entries(JSON.parse(s)) as [string, number][]); } catch { /* ignore */ }
+        return new Map();
+    });
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
     const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
@@ -770,6 +870,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setScreenVolumes(prev => new Map(prev).set(uId, volume));
     }, []);
 
+    // Персональная громкость участника (применяется в RemoteAudioRenderer).
+    const setUserVolume = useCallback((uId: string, volume: number) => {
+        setUserVolumesState(prev => {
+            const next = new Map(prev).set(uId, volume);
+            try { localStorage.setItem('userVolumes', JSON.stringify(Object.fromEntries(next))); } catch { /* ignore */ }
+            return next;
+        });
+    }, []);
+
+    // Локальный мьют участника (только для себя) — RemoteAudioRenderer глушит его поток.
+    const toggleLocalMute = useCallback((uId: string) => {
+        setLocalMutes(prev => {
+            const next = new Set(prev);
+            if (next.has(uId)) next.delete(uId); else next.add(uId);
+            return next;
+        });
+    }, []);
+
     // Если стример прекратил трансляцию — убираем его из «смотрим».
     useEffect(() => {
         setWatchedScreenIds(prev => {
@@ -853,8 +971,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const voiceContextValue = useMemo(() => ({
         isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened,
         isServerMuted, isServerDeafened, toggleMute, toggleDeafen,
-        connectedUsers, localStream, remoteStreams, userVolumes: new Map(), setUserVolume: () => {},
-        userStates, localMutes, toggleLocalMute: () => {}, noiseSuppressionMode, setNoiseSuppressionMode: setNoiseSuppressionModeState,
+        connectedUsers, localStream, remoteStreams, userVolumes, setUserVolume,
+        userStates, localMutes, toggleLocalMute, noiseSuppressionMode, setNoiseSuppressionMode: setNoiseSuppressionModeState,
         audioContext: audioContextRef.current, inputDevices, outputDevices, videoDevices,
         selectedInputDeviceId, setSelectedInputDeviceId, selectedOutputDeviceId, setSelectedOutputDeviceId,
         selectedVideoDeviceId, setSelectedVideoDeviceId, inputVolume, setInputVolume, outputVolume, setOutputVolume,
@@ -880,15 +998,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         remoteScreenStreams, isVideoOn, localCameraStream, inputSensitivity, isAutomaticSensitivity,
         echoCancellation, autoGainControl, attenuation,
         ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel,
-        startScreenShare, stopScreenShare, watchedScreenIds, screenVolumes, setWatchingScreen, setScreenVolume
+        startScreenShare, stopScreenShare, watchedScreenIds, screenVolumes, setWatchingScreen, setScreenVolume,
+        userVolumes, setUserVolume, toggleLocalMute
     ]);
 
     return (
         <VoiceContext.Provider value={voiceContextValue}>
             <RemoteAudioRenderer
                 streams={remoteStreams}
-                muted={isDeafened || isServerDeafened}
-                volume={outputVolume ?? 1}
+                deafened={isDeafened || isServerDeafened}
+                outputVolume={outputVolume ?? 1}
+                userVolumes={userVolumes}
+                localMutes={localMutes}
                 sinkId={selectedOutputDeviceId !== 'default' ? selectedOutputDeviceId : undefined}
             />
             <VoiceLevelProvider
@@ -905,6 +1026,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 getAudioContext={getAudioContext}
                 roomRef={roomRef}
             >
+                <OverlaySync />
                 {children}
             </VoiceLevelProvider>
         </VoiceContext.Provider>

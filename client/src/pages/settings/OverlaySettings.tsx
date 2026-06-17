@@ -20,6 +20,8 @@ const OverlaySettings: React.FC = () => {
     const positionOptions = [
         { value: 'top-left', label: 'Слева вверху' },
         { value: 'top-right', label: 'Справа вверху' },
+        { value: 'middle-left', label: 'Посередине слева' },
+        { value: 'middle-right', label: 'Посередине справа' },
         { value: 'bottom-left', label: 'Слева внизу' },
         { value: 'bottom-right', label: 'Справа внизу' },
     ];
@@ -188,12 +190,15 @@ const OverlaySettings: React.FC = () => {
                                     className={`overlay-mock ${overlayPosition} ${overlayShowBackground ? 'with-bg' : ''}`}
                                     style={{ 
                                         opacity: overlayOpacity,
-                                        transform: `scale(${overlaySize})`, 
-                                        transformOrigin: overlayPosition.replace('-', ' '),
+                                        // middle → центрируем по вертикали (top:50% + сдвиг внутри transform).
+                                        transform: overlayPosition.includes('middle')
+                                            ? `translateY(-50%) scale(${overlaySize})`
+                                            : `scale(${overlaySize})`,
+                                        transformOrigin: `${overlayPosition.includes('top') ? 'top' : overlayPosition.includes('middle') ? 'center' : 'bottom'} ${overlayPosition.includes('left') ? 'left' : 'right'}`,
                                         position: 'absolute',
                                         zIndex: 10,
-                                        margin: '40px',
-                                        top: overlayPosition.includes('top') ? '0' : 'auto',
+                                        margin: overlayPosition.includes('middle') ? '0 40px' : '40px',
+                                        top: overlayPosition.includes('top') ? '0' : overlayPosition.includes('middle') ? '50%' : 'auto',
                                         bottom: overlayPosition.includes('bottom') ? '0' : 'auto',
                                         left: overlayPosition.includes('left') ? '0' : 'auto',
                                         right: overlayPosition.includes('right') ? '0' : 'auto'

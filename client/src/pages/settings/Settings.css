@@ -414,11 +414,13 @@
 /* Choice Group (Horizontal selection on single dark background) */
 .settings-choice-group {
     display: flex;
+    flex-wrap: wrap;
     background: rgba(0, 0, 0, 0.4);
     padding: 4px;
     border-radius: 14px;
     gap: 4px;
     width: fit-content;
+    max-width: 100%;
     border: 1px solid var(--glass-border);
 }
 

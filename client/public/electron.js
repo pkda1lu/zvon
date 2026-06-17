@@ -638,6 +638,23 @@ const NEUTRAL_PROCESSES = [
     'taskmgr.exe'
 ];
 
+// Окна переднего плана, которые ТОЧНО не игры — при них не показываем оверлей и не
+// считаем активностью. Всё, что НЕ в этом списке (и не нейтральное), на переднем
+// плане трактуем как игру (детект по процессу для не-Steam игр).
+const NON_GAME_FG = new Set([
+    ...NEUTRAL_PROCESSES,
+    'explorer.exe', 'dwm.exe', 'shellexperiencehost.exe', 'applicationframehost.exe',
+    'textinputhost.exe', 'sihost.exe', 'systemsettings.exe', 'lockapp.exe',
+    // браузеры
+    'chrome.exe', 'msedge.exe', 'firefox.exe', 'opera.exe', 'opera_gx.exe', 'brave.exe', 'browser.exe', 'yandex.exe',
+    // мессенджеры/медиа/прочее ПО
+    'discord.exe', 'telegram.exe', 'spotify.exe', 'whatsapp.exe', 'slack.exe',
+    'obs64.exe', 'obs32.exe', 'steam.exe', 'steamwebhelper.exe', 'epicgameslauncher.exe', 'battle.net.exe',
+    // редакторы/офис
+    'code.exe', 'webstorm.exe', 'devenv.exe', 'rider64.exe', 'pycharm64.exe', 'notepad.exe', 'notepad++.exe',
+    'winword.exe', 'excel.exe', 'powerpnt.exe', 'acrobat.exe', 'acrord32.exe'
+]);
+
 function scheduleNextScan() {
     if (currentScanTimeout) clearTimeout(currentScanTimeout);
     currentScanTimeout = setTimeout(scanActivities, adaptiveInterval);
@@ -750,20 +767,42 @@ async function scanActivities() {
                     const metadata = await getGameMetadata(null, foundKey);
                     updateActivity(metadata, true, fgExe);
                     scanInProgress = false;
-                    adaptiveInterval = 2000;
+                    // Пока игра на переднем плане (оверлей показан) — чаще опрашиваем,
+                    // чтобы оверлей скрывался почти сразу при сворачивании/закрытии игры.
+                    adaptiveInterval = 800;
                     scheduleNextScan();
                     return;
                 }
 
-                if (steamMetadata && (fgExe.includes(steamMetadata.name.toLowerCase()) || steamMetadata.name.toLowerCase().includes(fgBase))) {
+                // Steam-игры: имя процесса (isaac-ng.exe) почти никогда не совпадает с
+                // названием игры, поэтому считаем игру активной, если запущена steam-игра
+                // и на переднем плане НЕ системное/нейтральное окно (т.е. само окно игры).
+                // Это даёт показ во время игры и скрытие при сворачивании (фокус → explorer/Zvon).
+                const fgIsSystemOrNeutral = NEUTRAL_PROCESSES.includes(fgExe) || fgExe === 'explorer.exe' || fgExe === 'dwm.exe';
+                const fgNameMatch = steamMetadata && (fgExe.includes(steamMetadata.name.toLowerCase()) || steamMetadata.name.toLowerCase().includes(fgBase));
+                if (steamMetadata && (fgNameMatch || !fgIsSystemOrNeutral)) {
                     updateActivity(steamMetadata, true, fgExe);
                     scanInProgress = false;
-                    adaptiveInterval = 2000;
+                    adaptiveInterval = 800;
+                    scheduleNextScan();
+                    return;
+                }
+
+                // Не-Steam игра не из KNOWN_APPS: если переднее окно — не системное и не
+                // известное «не-игровое» ПО, считаем это игрой (детект по процессу) и
+                // показываем оверлей. Имя берём из имени процесса.
+                if (!NON_GAME_FG.has(fgExe)) {
+                    const prettyName = fgBase
+                        ? fgBase.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                        : 'Игра';
+                    updateActivity({ name: prettyName, type: 'game' }, true, fgExe);
+                    scanInProgress = false;
+                    adaptiveInterval = 800;
                     scheduleNextScan();
                     return;
                 }
             }
-            
+
             if (steamMetadata) {
                 updateActivity(steamMetadata, false, fgExe);
                 scanInProgress = false;
@@ -803,20 +842,25 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
 
     // 2. Manage Overlay Visibility
     if (overlayWindow && !overlayWindow.isDestroyed()) {
-        const isNeutral = NEUTRAL_PROCESSES.includes(currentForegroundExe?.trim().toLowerCase() || '');
         const currentCategory = foundActivity ? foundActivity.type : 'other';
         const isCategoryAllowed = appSettings.overlayCategories.includes(currentCategory);
-        
-        let shouldShow;
-        if (isNeutral && lastActivity) {
-            const lastCategory = lastActivity.type;
-            shouldShow = isOverlayEnabled && appSettings.overlayCategories.includes(lastCategory);
-        } else {
-            shouldShow = foundActivity && isForeground && isOverlayEnabled && isCategoryAllowed;
-        }
-        
+
+        // Оверлей виден ТОЛЬКО пока игра реально на переднем плане. При сворачивании
+        // (фокус уходит на другое окно, в т.ч. на сам Zvon) — сразу прячем.
+        // Раньше «нейтральные» процессы (включая electron.exe/zvon.exe) держали
+        // оверлей показанным, из-за чего при сворачивании он не скрывался.
+        const shouldShow = foundActivity && isForeground && isOverlayEnabled && isCategoryAllowed;
+
         if (shouldShow) {
             overlayWindow.showInactive();
+            // Игры (borderless/полноэкранные оконные) периодически перехватывают
+            // верхний z-порядок и заслоняют оверлей — поэтому каждый тик скана
+            // заново поднимаем окно на самый верх.
+            try {
+                overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+                overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+                overlayWindow.moveTop();
+            } catch (e) { /* ignore */ }
         } else {
             overlayWindow.hide();
         }

@@ -70,6 +70,16 @@ export interface User {
       language: string;
       timeFormat: string;
     };
+    streamerMode?: {
+      enabled?: boolean;
+      autoEnableWithOBS?: boolean;
+      streamerLink?: string;
+      censorInfo?: boolean;
+      disableSounds?: boolean;
+      disableNotifications?: boolean;
+      changeStatusToStreaming?: boolean;
+      confirmSettingsAccess?: boolean;
+    };
     interaction?: {
       voice?: {
         noiseSuppression: boolean;

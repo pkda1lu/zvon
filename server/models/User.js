@@ -252,8 +252,8 @@ const userSchema = new mongoose.Schema({
       enabled: { type: Boolean, default: true },
       position: { 
         type: String, 
-        enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
-        default: 'top-left' 
+        enum: ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right'],
+        default: 'top-left'
       },
       opacity: { type: Number, default: 1.0 },
       size: { type: Number, default: 1.0 },

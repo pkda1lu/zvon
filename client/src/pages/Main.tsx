@@ -415,7 +415,10 @@ const Main: React.FC = () => {
       return;
     }
     socket.emit('activity-update', null);
-  }, [socket, currentGameActivity, openMiniApps]);
+    // ВАЖНО: streamerModeEnabled/changeStatusToStreaming тоже в зависимостях —
+    // иначе при выключении режима стримера эффект не перезапускался и активность
+    // «streaming» зависала (и тянула битую картинку /api/uploads/streaming → 404).
+  }, [socket, currentGameActivity, openMiniApps, streamerModeEnabled, changeStatusToStreaming]);
 
   // Auto-open a collaborative mini-app (e.g. watch-together) when another member
   // of our voice channel starts a session, or when we join a channel that already

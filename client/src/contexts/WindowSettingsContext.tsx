@@ -153,14 +153,18 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             // Set HW Acceleration
             electron.ipc.send('set-hardware-acceleration', settings.hardwareAcceleration);
 
-            // OBS Detection
+            // OBS Detection. Режим стримера ЗЕРКАЛИТ наличие OBS: включается при
+            // запущенном OBS и ВЫКЛЮЧАЕТСЯ при закрытии. Раньше он только включался и
+            // никогда не выключался — из-за чего активность «streaming» зависала навсегда.
+            // (Используем функциональный setSettings, чтобы не читать устаревший settings.)
             if (settings.autoEnableWithOBS) {
                 const checkOBS = async () => {
-                    const isOBSRunning64 = await electron.ipc.invoke('check-process', 'obs64.exe');
-                    const isOBSRunning32 = await electron.ipc.invoke('check-process', 'obs32.exe');
-                    if ((isOBSRunning64 || isOBSRunning32) && !settings.streamerModeEnabled) {
-                        setSettings(prev => ({ ...prev, streamerModeEnabled: true }));
-                    }
+                    try {
+                        const isOBSRunning64 = await electron.ipc.invoke('check-process', 'obs64.exe');
+                        const isOBSRunning32 = await electron.ipc.invoke('check-process', 'obs32.exe');
+                        const obsRunning = !!(isOBSRunning64 || isOBSRunning32);
+                        setSettings(prev => prev.streamerModeEnabled === obsRunning ? prev : { ...prev, streamerModeEnabled: obsRunning });
+                    } catch { /* ignore */ }
                 };
                 checkOBS();
                 const interval = setInterval(checkOBS, 10000);
