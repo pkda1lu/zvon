@@ -347,6 +347,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const remoteSpeakingUsersRef = useRef<Set<string>>(new Set());
     const audioContextRef = useRef<AudioContext | null>(null);
     const livekitTrackRef = useRef<MediaStreamTrack | null>(null);
+    const screenStreamRef = useRef<MediaStream | null>(null);
 
     // States
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -558,10 +559,33 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             roomRef.current = room;
             room.on(RoomEvent.ActiveSpeakersChanged, s => remoteSpeakingUsersRef.current = new Set(s.map(p => p.identity)));
             room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
-                if (track.kind === Track.Kind.Audio) setRemoteStreams(prev => new Map(prev).set(part.identity, new MediaStream([track.mediaStreamTrack!])));
+                const mst = track.mediaStreamTrack;
+                if (!mst) return;
+                // Демонстрация экрана — в отдельную карту; аудио и камера — в общий поток
+                // на участника (один MediaStream обслуживает и <audio>, и <video>).
+                const setter = pub.source === Track.Source.ScreenShare ? setRemoteScreenStreams : setRemoteStreams;
+                setter(prev => {
+                    const next = new Map(prev);
+                    const existing = next.get(part.identity);
+                    const tracks = existing ? existing.getTracks().filter(t => t.id !== mst.id) : [];
+                    tracks.push(mst);
+                    next.set(part.identity, new MediaStream(tracks));
+                    return next;
+                });
             });
             room.on(RoomEvent.TrackUnsubscribed, (track, pub, part) => {
-                setRemoteStreams(prev => { const n = new Map(prev); n.delete(part.identity); return n; });
+                const mst = track.mediaStreamTrack;
+                const setter = pub.source === Track.Source.ScreenShare ? setRemoteScreenStreams : setRemoteStreams;
+                setter(prev => {
+                    const next = new Map(prev);
+                    const existing = next.get(part.identity);
+                    if (existing) {
+                        const remaining = existing.getTracks().filter(t => t.id !== mst?.id);
+                        if (remaining.length === 0) next.delete(part.identity);
+                        else next.set(part.identity, new MediaStream(remaining));
+                    }
+                    return next;
+                });
             });
             room.on(RoomEvent.LocalTrackPublished, pub => {
                 if (pub.source === Track.Source.Microphone) handleLocalMicPublication(pub);
@@ -611,6 +635,101 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const toggleDeafen = () => setIsDeafened(prev => !prev);
 
+    // Сообщаем серверу/другим участникам своё состояние (мьют/деаф/экран/видео).
+    const emitVoiceState = useCallback((overrides: Partial<{ isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isVideoOn: boolean }> = {}) => {
+        if (socket && activeChannelIdRef.current) {
+            socket.emit('voice-state-update', {
+                channelId: activeChannelIdRef.current,
+                isMuted, isDeafened, isScreenSharing, isVideoOn,
+                ...overrides
+            });
+        }
+    }, [socket, isMuted, isDeafened, isScreenSharing, isVideoOn]);
+
+    const startScreenShare = useCallback(async (sourceId: string, options?: any) => {
+        if (!roomRef.current) { console.warn('[Voice] startScreenShare: нет активного подключения'); return; }
+        if (!sourceId) { console.warn('[Voice] startScreenShare: не выбран источник'); return; }
+        try {
+            console.log('[Voice] Запуск трансляции экрана, источник:', sourceId);
+            const frameRate = parseInt(options?.frameRate || '30', 10);
+            const resolution = options?.resolution || '1080';
+            let bitrate = 10_000_000;
+            if (resolution === '2160') bitrate = frameRate >= 60 ? 60_000_000 : 40_000_000;
+            else if (resolution === '1440') bitrate = frameRate >= 60 ? 25_000_000 : 18_000_000;
+            else if (resolution === '1080') bitrate = frameRate >= 60 ? 15_000_000 : 10_000_000;
+            else if (resolution === '720') bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
+
+            const constraints = {
+                audio: false,
+                video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints as any);
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack && roomRef.current) {
+                (videoTrack as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
+                await roomRef.current.localParticipant.publishTrack(videoTrack, {
+                    source: Track.Source.ScreenShare,
+                    videoCodec: options?.videoCodec || 'vp9',
+                    simulcast: false,
+                    degradationPreference: 'maintain-resolution',
+                    videoEncoding: { maxBitrate: bitrate, maxFramerate: frameRate }
+                });
+                // Когда пользователь жмёт системную «Stop sharing» — корректно завершаем.
+                videoTrack.addEventListener('ended', () => { stopScreenShareRef.current(); });
+            }
+            screenStreamRef.current = stream;
+            setScreenStream(stream);
+            setIsScreenSharing(true);
+            soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
+            emitVoiceState({ isScreenSharing: true });
+            console.log('[Voice] Трансляция экрана запущена');
+        } catch (e) {
+            console.error('[Voice] Ошибка запуска трансляции экрана:', e);
+            await alert('Не удалось начать трансляцию: ' + (e as Error).message);
+        }
+    }, [emitVoiceState]);
+
+    const stopScreenShare = useCallback(async () => {
+        try {
+            if (roomRef.current) await roomRef.current.localParticipant.setScreenShareEnabled(false);
+        } catch (e) { console.warn('[Voice] setScreenShareEnabled(false) failed:', e); }
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(t => t.stop());
+            screenStreamRef.current = null;
+        }
+        setScreenStream(null);
+        setIsScreenSharing(false);
+        soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
+        emitVoiceState({ isScreenSharing: false });
+    }, [emitVoiceState]);
+
+    // Стабильная ссылка на stopScreenShare для обработчика 'ended' внутри start.
+    const stopScreenShareRef = useRef(stopScreenShare);
+    useEffect(() => { stopScreenShareRef.current = stopScreenShare; }, [stopScreenShare]);
+
+    // Состояния других участников (мьют/деаф/демонстрация/видео) — чтобы у них
+    // корректно отображались индикаторы и плитка трансляции.
+    useEffect(() => {
+        if (!socket) return;
+        const onUserState = (data: any) => {
+            if (!data?.userId) return;
+            setUserStates(prev => {
+                const next = new Map(prev);
+                next.set(String(data.userId), {
+                    isMuted: !!data.isMuted,
+                    isDeafened: !!data.isDeafened,
+                    isScreenSharing: !!data.isScreenSharing,
+                    isVideoOn: !!data.isVideoOn,
+                    isServerMuted: !!data.isServerMuted,
+                    isServerDeafened: !!data.isServerDeafened
+                });
+                return next;
+            });
+        };
+        socket.on('voice-user-state-update', onUserState);
+        return () => { socket.off('voice-user-state-update', onUserState); };
+    }, [socket]);
+
     // Context Value (Memoized)
     const voiceContextValue = useMemo(() => ({
         isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened,
@@ -620,7 +739,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         audioContext: audioContextRef.current, inputDevices, outputDevices, videoDevices,
         selectedInputDeviceId, setSelectedInputDeviceId, selectedOutputDeviceId, setSelectedOutputDeviceId,
         selectedVideoDeviceId, setSelectedVideoDeviceId, inputVolume, setInputVolume, outputVolume, setOutputVolume,
-        refreshDevices, isScreenSharing, screenStream, startScreenShare: async () => {}, stopScreenShare: () => {},
+        refreshDevices, isScreenSharing, screenStream, startScreenShare, stopScreenShare,
         remoteScreenStreams, isVideoOn, toggleVideo: async () => {}, localCameraStream, screenVolumes: new Map(), setScreenVolume: () => {},
         watchedScreenIds: new Set<string>(), setWatchingScreen: () => {}, inputSensitivity, setInputSensitivity,
         isAutomaticSensitivity, setIsAutomaticSensitivity, 
@@ -641,7 +760,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         selectedVideoDeviceId, inputVolume, outputVolume, isScreenSharing, screenStream,
         remoteScreenStreams, isVideoOn, localCameraStream, inputSensitivity, isAutomaticSensitivity,
         echoCancellation, autoGainControl, attenuation,
-        ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel
+        ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel,
+        startScreenShare, stopScreenShare
     ]);
 
     return (
