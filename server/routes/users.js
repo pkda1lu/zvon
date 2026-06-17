@@ -265,6 +265,12 @@ router.put('/settings', auth, async (req, res) => {
     if (settings.accessibility) {
       req.user.settings.accessibility = { ...req.user.settings.accessibility, ...settings.accessibility };
     }
+    if (settings.streamerMode) {
+      req.user.settings.streamerMode = { ...req.user.settings.streamerMode, ...settings.streamerMode };
+    }
+    if (settings.overlay) {
+      req.user.settings.overlay = { ...req.user.settings.overlay, ...settings.overlay };
+    }
     if (settings.interaction) {
       const currentInteraction = req.user.settings.interaction?.toObject
         ? req.user.settings.interaction.toObject()

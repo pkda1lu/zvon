@@ -9,7 +9,8 @@ const StreamerSettings: React.FC = () => {
         censorInfo, setCensorInfo,
         disableSounds, setDisableSounds,
         disableNotifications, setDisableNotifications,
-        changeStatusToStreaming, setChangeStatusToStreaming
+        changeStatusToStreaming, setChangeStatusToStreaming,
+        confirmSettingsAccess, setConfirmSettingsAccess
     } = useWindowSettings();
 
     return (
@@ -66,6 +67,14 @@ const StreamerSettings: React.FC = () => {
                         <p>Скрывать уникальный никнейм, почту, заметки и основной сервер.</p>
                     </div>
                     <SettingsToggle checked={censorInfo} onChange={setCensorInfo} />
+                </div>
+                <div className="settings-sidebar-divider" style={{ margin: '16px 0' }} />
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h3>Подтверждение открытия настроек</h3>
+                        <p>Дополнительное подтверждение при переходе в разделы «Учётная запись», «Устройства», «Мои боты» и «Мини-приложения».</p>
+                    </div>
+                    <SettingsToggle checked={confirmSettingsAccess} onChange={setConfirmSettingsAccess} />
                 </div>
             </div>
 

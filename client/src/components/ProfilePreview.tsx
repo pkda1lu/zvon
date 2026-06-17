@@ -6,6 +6,7 @@ import UserBadges from './UserBadges';
 import { MonitorIcon, CloseIcon } from './Icons';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { formatClockTime } from '../utils/time';
+import StreamerBlur from './StreamerBlur';
 import './UserProfileCard.css';
 
 // Секунды → «5 ч 30 мин» / «45 мин» / «меньше минуты».
@@ -72,17 +73,13 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     const isServerType = type.startsWith('server-');
     const isCompact = type.endsWith('compact');
 
-    const shouldCensor = streamerModeEnabled && censorInfo;
-
     const rawDisplayName = (isServerType && memberData?.nickname) || user.displayName || user.username;
-    const displayName = rawDisplayName; // Keep display name visible
-    const bio = shouldCensor ? 'Информация скрыта в режиме стримера.' : ((isServerType && memberData?.bio) || user.bio);
+    const displayName = rawDisplayName; 
+    const bio = (isServerType && memberData?.bio) || user.bio;
     const avatar = (isServerType && memberData?.avatar) || user.avatar;
     const banner = (isServerType && memberData?.banner) || user.banner;
     const bannerColor = (isServerType && memberData?.bannerColor) || user.bannerColor || '#5865f2';
     const roles = (isServerType && memberData?.roles) || [];
-
-    const username = shouldCensor ? 'user_hidden' : user.username;
 
     const statusColor = user.status === 'online' ? '#23a559' : 
                         user.status === 'away' ? '#f0b232' : 
@@ -148,7 +145,9 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                         {user.isBot && <span className="bot-badge-mini">BOT</span>}
                         <UserBadges badges={user.badges} size={18} className="profile-badges" />
                     </div>
-                    <span className="profile-username sub">@{user.username}</span>
+                    <span className="profile-username sub">
+                        <StreamerBlur>@{user.username}</StreamerBlur>
+                    </span>
                 </div>
 
                 <div className="profile-divider"></div>
@@ -157,7 +156,9 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     {bio && (
                         <section>
                             <h4>О СЕБЕ</h4>
-                            <p className="bio-text">{bio}</p>
+                            <StreamerBlur>
+                                <p className="bio-text">{bio}</p>
+                            </StreamerBlur>
                         </section>
                     )}
 
@@ -186,12 +187,14 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     {user.primaryServer && typeof user.primaryServer === 'object' && (
                         <section>
                             <h4>ОСНОВНОЙ СЕРВЕР</h4>
-                            <div className="mutual-item" onClick={() => handleServerClick((user.primaryServer as any)._id)} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px' }}>
-                                <div className="mutual-avatar server">
-                                    {user.primaryServer.icon ? <img src={getAvatarUrl(user.primaryServer.icon)!} alt="" /> : <span>{user.primaryServer.name.charAt(0).toUpperCase()}</span>}
+                            <StreamerBlur>
+                                <div className="mutual-item" onClick={() => handleServerClick((user.primaryServer as any)._id)} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px' }}>
+                                    <div className="mutual-avatar server">
+                                        {user.primaryServer.icon ? <img src={getAvatarUrl(user.primaryServer.icon)!} alt="" /> : <span>{user.primaryServer.name.charAt(0).toUpperCase()}</span>}
+                                    </div>
+                                    <span>{user.primaryServer.name}</span>
                                 </div>
-                                <span>{user.primaryServer.name}</span>
-                            </div>
+                            </StreamerBlur>
                         </section>
                     )}
 
@@ -271,7 +274,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                             </div>
                                             <div className="member-info">
                                                 <div className="member-name-row">
-                                                    <span className="member-name">{friend.username}</span>
+                                                    <span className="member-name"><StreamerBlur>{friend.username}</StreamerBlur></span>
                                                     <UserBadges badges={friend.badges} size={14} />
                                                 </div>
                                             </div>
@@ -376,7 +379,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                             </div>
                                             <div className="member-info">
                                                 <div className="member-name-row">
-                                                    <span className="member-name">{bot.username}</span>
+                                                    <span className="member-name"><StreamerBlur>{bot.username}</StreamerBlur></span>
                                                 </div>
                                             </div>
                                         </div>

@@ -230,6 +230,30 @@ const userSchema = new mongoose.Schema({
       screenReader: { type: Boolean, default: false },
       interfaceScale: { type: Number, default: 1.0 }
     },
+    streamerMode: {
+      enabled: { type: Boolean, default: false },
+      autoEnableWithOBS: { type: Boolean, default: true },
+      censorInfo: { type: Boolean, default: true },
+      disableSounds: { type: Boolean, default: true },
+      disableNotifications: { type: Boolean, default: true },
+      changeStatusToStreaming: { type: Boolean, default: true },
+      confirmSettingsAccess: { type: Boolean, default: true }
+    },
+    overlay: {
+      enabled: { type: Boolean, default: true },
+      position: { 
+        type: String, 
+        enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        default: 'top-left' 
+      },
+      opacity: { type: Number, default: 1.0 },
+      size: { type: Number, default: 1.0 },
+      showNames: { type: Boolean, default: true },
+      showAvatars: { type: Boolean, default: true },
+      showSpeakingRing: { type: Boolean, default: true },
+      idleOpacity: { type: Number, default: 0.5 },
+      showBackground: { type: Boolean, default: true }
+    },
     interaction: {
       voice: {
         noiseSuppression: { type: Boolean, default: true },

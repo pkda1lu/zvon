@@ -5,6 +5,7 @@ import ProfilePreview from '../../components/ProfilePreview';
 import { ChoiceGroup, CustomSelect, GridPicker } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
+import StreamerBlur from '../../components/StreamerBlur';
 
 const AVAILABLE_BADGES = [
     { id: 'dev', label: 'Разработчик', image: './badges/developer.png' },
@@ -19,7 +20,7 @@ const AVAILABLE_BADGES = [
 
 const ProfileSettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
-    const { streamerModeEnabled, censorInfo } = useWindowSettings();
+    const { streamerModeEnabled, censorInfo, changeStatusToStreaming } = useWindowSettings();
     const shouldCensor = streamerModeEnabled && censorInfo;
 
     const [displayName, setDisplayName] = useState(user?.displayName || '');
@@ -36,7 +37,7 @@ const ProfileSettings: React.FC = () => {
     });
     
     const status = user?.status || 'offline';
-    const isStreaming = user?.activity?.type === 'streaming';
+    const isStreaming = user?.activity?.type === 'streaming' || (streamerModeEnabled && changeStatusToStreaming);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -251,34 +252,36 @@ const ProfileSettings: React.FC = () => {
                 {/* 2. Отображаемый никнейм */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Отображаемый никнейм</h3>
-                    <input 
-                        className="settings-input" 
-                        value={displayName} 
-                        onChange={(e) => setDisplayName(e.target.value)} 
-                        placeholder="Как вас будут видеть другие"
-                    />
+                    <StreamerBlur>
+                        <input 
+                            className="settings-input" 
+                            value={displayName} 
+                            onChange={(e) => setDisplayName(e.target.value)} 
+                            placeholder="Как вас будут видеть другие"
+                        />
+                    </StreamerBlur>
                 </div>
 
                 {/* 3. О себе */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>О себе</h3>
-                    <textarea 
-                        className="settings-textarea"
-                        style={{ resize: 'none' }}
-                        value={shouldCensor ? 'Скрыто в режиме стримера' : bio}
-                        onChange={(e) => {
-                            if (shouldCensor) return;
-                            setBio(e.target.value);
-                            e.target.style.height = 'auto';
-                            e.target.style.height = e.target.scrollHeight + 'px';
-                        }}
-                        onFocus={(e) => {
-                            e.target.style.height = 'auto';
-                            e.target.style.height = e.target.scrollHeight + 'px';
-                        }}
-                        placeholder="Расскажите о себе..."
-                        disabled={shouldCensor}
-                    />
+                    <StreamerBlur>
+                        <textarea 
+                            className="settings-textarea"
+                            style={{ resize: 'none' }}
+                            value={bio}
+                            onChange={(e) => {
+                                setBio(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                            placeholder="Расскажите о себе..."
+                        />
+                    </StreamerBlur>
                 </div>
 
                 {/* 4. Статус */}
@@ -321,14 +324,14 @@ const ProfileSettings: React.FC = () => {
                 {/* 6. Основной сервер */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Основной сервер</h3>
-                    <div style={{ opacity: shouldCensor ? 0.5 : 1, pointerEvents: shouldCensor ? 'none' : 'auto' }}>
+                    <StreamerBlur>
                         <CustomSelect 
                             options={serverOptions} 
                             value={primaryServer} 
                             onChange={handlePrimaryServerChange}
-                            placeholder={shouldCensor ? 'Скрыто в режиме стримера' : "Выберите основной сервер..."}
+                            placeholder="Выберите основной сервер..."
                         />
-                    </div>
+                    </StreamerBlur>
                 </div>
             </div>
 
