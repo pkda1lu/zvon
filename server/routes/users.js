@@ -262,7 +262,15 @@ router.put('/settings', auth, async (req, res) => {
       req.user.settings.accessibility = { ...req.user.settings.accessibility, ...settings.accessibility };
     }
     if (settings.interaction) {
-      req.user.settings.interaction = { ...req.user.settings.interaction, ...settings.interaction };
+      const currentInteraction = req.user.settings.interaction?.toObject
+        ? req.user.settings.interaction.toObject()
+        : (req.user.settings.interaction || {});
+      const incomingInteraction = settings.interaction;
+      const merged = { ...currentInteraction, ...incomingInteraction };
+      // voice — вложенный объект в схеме: никогда не присваиваем undefined,
+      // глубоко мержим, иначе mongoose падает с CastError "Cast to Object failed".
+      merged.voice = { ...(currentInteraction.voice || {}), ...(incomingInteraction.voice || {}) };
+      req.user.settings.interaction = merged;
     }
 
     // Handle other settings (privacy etc.)
