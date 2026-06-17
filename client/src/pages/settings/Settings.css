@@ -601,6 +601,239 @@
     color: var(--text-main);
 }
 
+.settings-flex-layout {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+}
+
+.settings-main-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.settings-preview-col {
+    width: 280px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+}
+
+.settings-group-fade {
+    transition: all 0.3s ease;
+}
+
+.settings-group-fade.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+    filter: grayscale(1);
+}
+
+.overlay-preview-container {
+    background: #0a0a0f;
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+    overflow: hidden;
+    aspect-ratio: 4/5;
+    position: relative;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+}
+
+.game-bg-mock {
+    width: 100%;
+    height: 100%;
+    background-image: url('../../../public/landing_hero.png');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    padding: 15px;
+}
+
+.game-bg-mock::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+}
+
+.overlay-mock {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: max-content;
+}
+
+.overlay-mock.top-left { top: 15px; left: 15px; }
+.overlay-mock.top-right { top: 15px; right: 15px; }
+.overlay-mock.bottom-left { bottom: 15px; left: 15px; }
+.overlay-mock.bottom-right { bottom: 15px; right: 15px; }
+
+.overlay-mock .overlay-user-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.overlay-mock .overlay-avatar-wrapper {
+    position: relative;
+    width: 32px;
+    height: 32px;
+}
+
+.overlay-mock .overlay-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #5865f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    color: white;
+}
+
+.overlay-mock .overlay-speaking-ring {
+    position: absolute;
+    inset: -3px;
+    border: 2px solid #23a559;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #23a559;
+}
+
+.overlay-mock .overlay-username {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 1);
+}
+
+.overlay-preview-container.game-mockup-container {
+    aspect-ratio: 16/9;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+}
+
+.game-mock-screen {
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #1a1a2e 0%, #0a0a1a 100%);
+    position: relative;
+}
+
+/* Simulated Game HUD */
+.game-hud-top-center {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    padding: 6px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    z-index: 1;
+}
+
+.game-score {
+    font-size: 14px;
+    font-weight: 800;
+    color: #fff;
+}
+
+.game-timer {
+    font-size: 10px;
+    color: #aaa;
+}
+
+.game-hud-bottom-left {
+    position: absolute;
+    bottom: 15px;
+    left: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 1;
+}
+
+.game-health-bar, .game-armor-bar {
+    width: 120px;
+    height: 16px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.health-fill { background: #ff4757; height: 100%; }
+.armor-fill { background: #1e90ff; height: 100%; }
+
+.health-value, .armor-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.game-hud-bottom-right {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    text-align: right;
+    z-index: 1;
+}
+
+.game-weapon-info {
+    color: #fff;
+}
+
+.weapon-name {
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.ammo-count {
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--primary-neon);
+}
+
+.game-hud-mini-map {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 60px;
+    height: 60px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    z-index: 1;
+}
+
+/* Overlay Mock Enhancements */
+.overlay-mock.with-bg {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 10px;
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+}
+
+.overlay-mock .overlay-username {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 1);
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -618,6 +851,7 @@
     display: inline-block;
     width: 44px;
     height: 24px;
+    flex-shrink: 0;
 }
 
 .settings-toggle input {
@@ -636,6 +870,7 @@
     background-color: rgba(255, 255, 255, 0.1);
     transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .toggle-slider:before {
@@ -643,16 +878,17 @@
     content: "";
     height: 18px;
     width: 18px;
-    left: 3px;
-    bottom: 3px;
+    left: 2px;
+    top: 2px;
     background-color: #fff;
     transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 input:checked + .toggle-slider {
     background-color: var(--success);
+    border-color: rgba(35, 165, 89, 0.2);
 }
 
 input:checked + .toggle-slider:before {

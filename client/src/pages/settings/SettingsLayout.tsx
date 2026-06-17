@@ -43,12 +43,14 @@ import AccessibilitySettings from './AccessibilitySettings';
 import ScalingSettings from './ScalingSettings';
 import WindowsSettings from './WindowsSettings';
 import StreamerSettings from './StreamerSettings';
+import OverlaySettings from './OverlaySettings';
 import AdvancedSettings from './AdvancedSettings';
 import ModerationSettings from './ModerationSettings';
 import AdminUsersSettings from './AdminUsersSettings';
 import AdminStatsSettings from './AdminStatsSettings';
 import AdminActionsSettings from './AdminActionsSettings';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 
 interface SettingsLayoutProps {
     isOpen: boolean;
@@ -59,7 +61,9 @@ interface SettingsLayoutProps {
 
 const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initialTab = 'profile', initialData }) => {
     const [activeTab, setActiveTab] = React.useState(initialTab);
+    const [pendingTab, setPendingTab] = React.useState<string | null>(null);
     const { user, logout } = useAuth();
+    const { streamerModeEnabled, confirmSettingsAccess } = useWindowSettings();
 
     React.useEffect(() => {
         if (isOpen) {
@@ -71,6 +75,22 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     const isModerator = user?.role === 'admin' || user?.role === 'moderator';
 
     if (!isOpen) return null;
+
+    const handleTabChange = (id: string) => {
+        const sensitiveTabs = ['account', 'devices', 'bots', 'miniapps'];
+        if (streamerModeEnabled && confirmSettingsAccess && sensitiveTabs.includes(id)) {
+            setPendingTab(id);
+        } else {
+            setActiveTab(id);
+        }
+    };
+
+    const confirmTabChange = () => {
+        if (pendingTab) {
+            setActiveTab(pendingTab);
+            setPendingTab(null);
+        }
+    };
 
     const renderContent = () => {
         switch (activeTab) {
@@ -91,6 +111,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'scaling': return <ScalingSettings />;
             case 'windows-actions': return <WindowsSettings />;
             case 'streamer': return <StreamerSettings />;
+            case 'overlay': return <OverlaySettings />;
             case 'advanced': return <AdvancedSettings />;
             case 'moderation': return <ModerationSettings />;
             case 'admin-users': return <AdminUsersSettings />;
@@ -101,7 +122,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     };
 
     const NavItem = ({ id, label, icon: Icon }: any) => (
-        <div className={`settings-sidebar-item ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
+        <div className={`settings-sidebar-item ${activeTab === id ? 'active' : ''}`} onClick={() => handleTabChange(id)}>
             <div className="sidebar-item-content">
                 <Icon size={18} />
                 <span>{label}</span>
@@ -151,6 +172,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <div className="settings-sidebar-header">Настройки Windows</div>
                         <NavItem id="windows-actions" label="Действия" icon={MonitorIcon} />
                         <NavItem id="streamer" label="Режим стримера" icon={VideoIcon} />
+                        <NavItem id="overlay" label="Оверлей" icon={EyeIcon} />
                         <NavItem id="advanced" label="Расширенные" icon={SettingsIcon} />
                     </>
                 )}
@@ -181,6 +203,37 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 </button>
                 {renderContent()}
             </div>
+
+            {pendingTab && (
+                <div className="settings-modal-overlay">
+                    <div className="settings-modal-glass">
+                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                            <div style={{ 
+                                width: '60px', 
+                                height: '60px', 
+                                borderRadius: '50%', 
+                                background: 'rgba(255, 71, 87, 0.1)', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                margin: '0 auto 16px',
+                                border: '1px solid var(--danger)'
+                            }}>
+                                <LockIcon size={30} color="var(--danger)" />
+                            </div>
+                            <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>Режим стримера включен</h3>
+                            <p className="settings-description" style={{ marginTop: '10px' }}>
+                                Вы пытаетесь открыть раздел настроек, который может содержать личную информацию (почту, токены, список устройств). 
+                                Вы уверены, что хотите продолжить?
+                            </p>
+                        </div>
+                        <div className="modal-actions" style={{ justifyContent: 'stretch' }}>
+                            <button className="settings-btn secondary" style={{ flex: 1 }} onClick={() => setPendingTab(null)}>Отмена</button>
+                            <button className="settings-btn danger" style={{ flex: 1.2 }} onClick={confirmTabChange}>Показать настройки</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
