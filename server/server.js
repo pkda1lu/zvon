@@ -171,7 +171,7 @@ const getVoiceChannelUsers = async (channelId) => {
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.userId) {
-      const user = await User.findById(socket.userId).select('username avatar status banner badges activity');
+      const user = await User.findById(socket.userId).select('username displayName avatar status banner badges activity');
       if (user) {
         const userData = user.toObject();
         userData.isMuted = socket.isMuted || false;
@@ -866,6 +866,7 @@ io.on('connection', (socket) => {
         user: {
           _id: user._id,
           username: user.username,
+          displayName: user.displayName || null,
           nickname: serverNickname,
           avatar: user.avatar,
           banner: user.banner,

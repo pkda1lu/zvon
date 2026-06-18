@@ -106,6 +106,7 @@ interface VoiceContextType {
     sendPresenceControl: (channelId: string, sessionId: string, controlId: string, value?: any) => void;
     presenceVolumes: Map<string, number>;
     setPresenceVolume: (sessionId: string, volume: number) => void;
+    ownNickname: string | null;
 }
 
 export interface VoicePresenceInfo {
@@ -147,7 +148,7 @@ export const useVoiceLevels = () => {
 // Без этого оверлей получал пустой список участников и показывал только заставку
 // «Zvon Оверлей запущен». Монтируется внутри обоих провайдеров (см. VoiceProvider).
 const OverlaySync: React.FC = () => {
-    const { isConnected, connectedUsers, userStates, isMuted, isDeafened } = useVoice();
+    const { isConnected, connectedUsers, userStates, isMuted, isDeafened, ownNickname } = useVoice();
     const { speakingUsers } = useVoiceLevels();
     const { user } = useAuth();
 
@@ -164,7 +165,8 @@ const OverlaySync: React.FC = () => {
         if (user) {
             users.push({
                 id: user._id,
-                username: user.displayName || user.username,
+                // На сервере — никнейм участника сервера, иначе отображаемый ник.
+                username: ownNickname || user.displayName || user.username,
                 avatar: getAvatarUrl(user.avatar),
                 isSpeaking: speakingUsers.has(String(user._id)),
                 isMuted,
@@ -176,7 +178,7 @@ const OverlaySync: React.FC = () => {
             const st = userStates.get(String(u._id));
             users.push({
                 id: u._id,
-                username: u.nickname || u.username,
+                username: u.nickname || u.displayName || u.username,
                 avatar: getAvatarUrl(u.avatar),
                 isSpeaking: speakingUsers.has(String(u._id)),
                 isMuted: !!(st?.isMuted || st?.isServerMuted),
@@ -184,7 +186,7 @@ const OverlaySync: React.FC = () => {
             });
         });
         electron.ipc.send('update-overlay-data', { users });
-    }, [isConnected, connectedUsers, userStates, speakingUsers, isMuted, isDeafened, user?._id]);
+    }, [isConnected, connectedUsers, userStates, speakingUsers, isMuted, isDeafened, ownNickname, user?._id]);
 
     return null;
 };
@@ -470,6 +472,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [inputVolume, setInputVolume] = useState(() => Number(localStorage.getItem('inputVolume')) || 1.0);
     const [outputVolume, setOutputVolume] = useState(() => Number(localStorage.getItem('outputVolume')) || 1.0);
     const [connectedUsers, setConnectedUsers] = useState<User[]>([]);
+    // Никнейм текущего пользователя на сервере активного голосового канала.
+    // Сервер присылает его в voice-server-state-update (myNickname). Для личных
+    // и групповых звонков сервера нет — остаётся null, и оверлей берёт displayName.
+    const [ownNickname, setOwnNickname] = useState<string | null>(null);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [userStates, setUserStates] = useState<Map<string, any>>(new Map());
     const [localMutes, setLocalMutes] = useState<Set<string>>(new Set());
@@ -650,6 +656,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setRemoteStreams(new Map());
         setRemoteScreenStreams(new Map());
         setConnectedUsers([]);
+        setOwnNickname(null);
         setUserStates(new Map());
         setWatchedScreenIds(new Set());
         setIsConnected(false);
@@ -974,8 +981,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 return next;
             });
         };
+        // Своё серверное состояние, включая никнейм на сервере активного канала.
+        const onServerState = (data: any) => {
+            if (data && 'myNickname' in data) setOwnNickname(data.myNickname || null);
+        };
         socket.on('voice-user-state-update', onUserState);
-        return () => { socket.off('voice-user-state-update', onUserState); };
+        socket.on('voice-server-state-update', onServerState);
+        return () => {
+            socket.off('voice-user-state-update', onUserState);
+            socket.off('voice-server-state-update', onServerState);
+        };
     }, [socket]);
 
     // Список участников канала и их НАЧАЛЬНЫЕ состояния. Сервер шлёт это при входе
@@ -1043,8 +1058,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         overlaySize: 1, setOverlaySize: () => {}, publishExternalAudioTrack: async () => null,
         publishExternalVideoTrack: async () => null, unpublishExternalAudioTrack: async () => {},
         replaceExternalTrack: async () => false, voicePresences: new Map(), presenceAudioStreams: new Map(),
-        presenceVideoStreams: new Map(), sendPresenceControl: () => {}, presenceVolumes: new Map(), setPresenceVolume: () => {}
+        presenceVideoStreams: new Map(), sendPresenceControl: () => {}, presenceVolumes: new Map(), setPresenceVolume: () => {},
+        ownNickname
     }), [
+        ownNickname,
         isConnected, activeChannelId, isMuted, isDeafened, isServerMuted, isServerDeafened,
         connectedUsers, localStream, remoteStreams, userStates, localMutes, noiseSuppressionMode,
         inputDevices, outputDevices, videoDevices, selectedInputDeviceId, selectedOutputDeviceId,
