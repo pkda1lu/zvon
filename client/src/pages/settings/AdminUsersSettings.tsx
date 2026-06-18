@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import UserAvatar from '../../components/UserAvatar';
+import { getFullUrl } from '../../utils/avatar';
 import { UsersIcon, LayoutGridIcon, ShieldIcon, PlusIcon } from '../../components/Icons';
 
 const AdminUsersSettings: React.FC = () => {
@@ -61,6 +62,21 @@ const AdminUsersSettings: React.FC = () => {
                 fetchData();
                 await alert(`Пользователь ${isCurrentlyBanned ? 'разблокирован' : 'заблокирован'}.`);
             } catch (e) { }
+        }
+    };
+
+    const notifyOwner = async (userId: string | undefined, targetLabel: string) => {
+        if (!userId) {
+            await alert('У этого объекта нет владельца, которому можно отправить уведомление.');
+            return;
+        }
+        const message = await prompt(`Сообщение от модерации для ${targetLabel}:`, '');
+        if (!message || !message.trim()) return;
+        try {
+            await axios.post('/api/admin/notify', { userId, message: message.trim() });
+            await alert('Уведомление отправлено.');
+        } catch (e) {
+            await alert('Не удалось отправить уведомление.');
         }
     };
 
@@ -145,7 +161,7 @@ const AdminUsersSettings: React.FC = () => {
                                 ) : (
                                     <>
                                         {item.icon ? (
-                                            <img src={item.icon} style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
+                                            <img src={getFullUrl(item.icon)!} style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
                                         ) : (
                                             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--glass-bg-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '20px' }}>
                                                 {item.name?.[0]?.toUpperCase() || '#'}
@@ -162,15 +178,22 @@ const AdminUsersSettings: React.FC = () => {
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 {view === 'users' ? (
                                     <>
-                                        <button 
-                                            className="settings-btn" 
+                                        <button
+                                            className="settings-btn"
+                                            style={{ padding: '8px 12px', fontSize: '12px' }}
+                                            onClick={() => notifyOwner(item._id, item.username)}
+                                        >
+                                            Уведомить
+                                        </button>
+                                        <button
+                                            className="settings-btn"
                                             style={{ padding: '8px 12px', fontSize: '12px', background: item.isBanned ? 'var(--success)' : 'var(--warning)', color: 'black' }}
                                             onClick={() => toggleBan(item._id, item.username, item.isBanned)}
                                         >
                                             {item.isBanned ? 'Разбанить' : 'Бан'}
                                         </button>
-                                        <button 
-                                            className="settings-btn settings-btn-danger" 
+                                        <button
+                                            className="settings-btn settings-btn-danger"
                                             style={{ padding: '8px 12px', fontSize: '12px' }}
                                             onClick={() => deleteUser(item._id, item.username)}
                                         >
@@ -178,13 +201,22 @@ const AdminUsersSettings: React.FC = () => {
                                         </button>
                                     </>
                                 ) : (
-                                    <button 
-                                        className="settings-btn settings-btn-danger" 
-                                        style={{ padding: '8px 12px', fontSize: '12px' }}
-                                        onClick={() => deleteServer(item._id, item.name)}
-                                    >
-                                        Удалить
-                                    </button>
+                                    <>
+                                        <button
+                                            className="settings-btn"
+                                            style={{ padding: '8px 12px', fontSize: '12px' }}
+                                            onClick={() => notifyOwner(item.owner?._id, `владельца «${item.name}»`)}
+                                        >
+                                            Уведомить владельца
+                                        </button>
+                                        <button
+                                            className="settings-btn settings-btn-danger"
+                                            style={{ padding: '8px 12px', fontSize: '12px' }}
+                                            onClick={() => deleteServer(item._id, item.name)}
+                                        >
+                                            Удалить
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>

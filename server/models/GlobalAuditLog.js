@@ -24,7 +24,8 @@ const globalAuditLogSchema = new mongoose.Schema({
       'BOT_DELETE',
       'MINIAPP_CREATE',
       'MODERATION_REPORT_RESOLVE',
-      'MODERATION_BAN'
+      'MODERATION_BAN',
+      'MODERATION_NOTIFY'
     ]
   },
   target: {

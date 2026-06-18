@@ -200,6 +200,42 @@ router.delete('/servers/:id', [auth, isAdmin], async (req, res) => {
   }
 });
 
+// --- Send moderation notification ---
+// Доставляем сообщение «от модерации» в уведомления пользователю (или владельцу
+// сервера) через socket-событие 'notification', которое клиент уже умеет показывать.
+router.post('/notify', [auth, isModerator], async (req, res) => {
+  try {
+    const { userId, message } = req.body;
+    if (!userId || !message || !String(message).trim()) {
+      return res.status(400).json({ message: 'Нужны userId и текст сообщения' });
+    }
+    const target = await User.findById(userId).select('_id username');
+    if (!target) return res.status(404).json({ message: 'Пользователь не найден' });
+
+    const text = String(message).trim();
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${target._id}`).emit('notification', {
+        type: 'moderation_message',
+        message: text,
+        timestamp: new Date()
+      });
+    }
+
+    await logGlobalAction({
+      executorId: req.user._id,
+      action: 'MODERATION_NOTIFY',
+      targetId: target._id,
+      targetModel: 'User',
+      details: { message: text }
+    });
+
+    res.json({ message: 'Уведомление отправлено' });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 // --- Actions (Audit Log) ---
 router.get('/actions', [auth, isModerator], async (req, res) => {
   try {
