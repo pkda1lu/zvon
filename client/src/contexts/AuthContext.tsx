@@ -34,10 +34,17 @@ export const useAuth = () => {
 
 const getApiUrl = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:5000';
+  // Веб-версия, открытая с реального домена, ходит на тот же origin.
+  if (
+    typeof window !== 'undefined' &&
+    /^https?:$/.test(window.location.protocol) &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return window.location.origin;
   }
-  return window.location.origin;
+  // Десктоп-клиент (file://) и локальный запуск — рабочий сервер Zvon.
+  return 'https://zvonserver.ru';
 };
 
 const API_URL = getApiUrl();
