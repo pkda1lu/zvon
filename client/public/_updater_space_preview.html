@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Zvon Updater — Космос (превью)</title>
+<style>
+  :root {
+    --neon-cyan: #00f2ff;
+    --neon-purple: #7000ff;
+    --neon-pink: #ff00c8;
+    --text-main: #ffffff;
+    --text-dim: rgba(255, 255, 255, 0.6);
+    --text-faint: rgba(255, 255, 255, 0.38);
+    --accent-green: #4ade80;
+    --accent-red: #ff5570;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 40px 24px;
+    background: radial-gradient(circle at 50% 30%, #0a0a18 0%, #04040a 70%);
+    color: var(--text-main);
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    text-align: center;
+  }
+  .page-title { font-size: 16px; font-weight: 700; letter-spacing: 0.6px; color: rgba(255,255,255,0.7); margin: 0 0 6px; }
+  .page-sub { font-size: 12px; color: var(--text-faint); margin: 0 0 28px; }
+
+  /* симулируем окно автообновления 480x600 */
+  .window-frame {
+    position: relative;
+    width: 480px;
+    height: 600px;
+    margin: 0 auto;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #04040a;
+    box-shadow: 0 30px 90px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* затемнение к низу — чтобы Земля «вырастала» из темноты кадра */
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(120% 80% at 50% -10%, transparent 40%, rgba(4,4,10,0.55) 100%),
+      linear-gradient(to bottom, rgba(4,4,10,0.0) 55%, rgba(4,4,10,0.35) 100%);
+  }
+
+  /* контент поверх сцены */
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 54px 36px 0;
+    pointer-events: none;
+  }
+  .logo {
+    font-size: 30px; font-weight: 800; letter-spacing: 1px;
+    background: linear-gradient(120deg, #fff 0%, var(--neon-cyan) 50%, var(--neon-purple) 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 18px rgba(0,242,255,0.35));
+    margin: 0;
+  }
+  .badge {
+    margin-top: 14px;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 11px; color: var(--text-dim);
+    backdrop-filter: blur(8px);
+  }
+  .badge .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--neon-cyan);
+    box-shadow: 0 0 8px var(--neon-cyan);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.4;transform:scale(.7);} }
+
+  .status-block {
+    position: absolute;
+    left: 36px; right: 36px;
+    bottom: 150px;
+    pointer-events: none;
+  }
+  .status-text {
+    font-size: 16px; font-weight: 600; color: var(--text-main);
+    margin: 0 0 14px; min-height: 22px;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.6);
+    transition: opacity 0.3s ease;
+  }
+  .progress-track {
+    width: 100%; height: 6px; border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .progress-fill {
+    height: 100%; width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple), var(--neon-pink));
+    box-shadow: 0 0 14px rgba(0,242,255,0.5);
+    transition: width 0.4s ease;
+  }
+  .progress-meta {
+    display: flex; justify-content: space-between;
+    margin-top: 10px;
+    font-size: 11px; color: var(--text-faint);
+  }
+  .version {
+    position: absolute; bottom: 18px; left: 0; right: 0;
+    text-align: center; font-size: 10px; color: var(--text-faint);
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <p class="page-title">Экран автообновления — космос</p>
+  <p class="page-sub">Превью (окно 480×600). Земля внизу, спутник сверху шлёт сигнал. Состояния меняются автоматически.</p>
+
+  <div class="window-frame">
+    <canvas id="scene"></canvas>
+    <div class="vignette"></div>
+
+    <div class="overlay">
+      <h1 class="logo">Zvon</h1>
+    </div>
+
+    <div class="status-block">
+      <p class="status-text" id="status">Проверка обновлений…</p>
+      <div class="progress-track"><div class="progress-fill" id="fill"></div></div>
+      <div class="progress-meta">
+        <span id="meta-left">Подготовка</span>
+        <span id="meta-right">0%</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="importmap">
+  { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const canvas = document.getElementById('scene');
+    const W = 480, H = 600;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(W, H);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+    camera.position.set(0, 0, 6);
+
+    // ----- звёзды -----
+    const starGeo = new THREE.BufferGeometry();
+    const starCount = 1400;
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const r = 30 + Math.random() * 30;
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(2 * Math.random() - 1);
+      starPos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+      starPos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+      starPos[i*3+2] = r * Math.cos(ph);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, sizeAttenuation: true, transparent: true, opacity: 0.85 }));
+    scene.add(stars);
+
+    // ----- освещение -----
+    scene.add(new THREE.AmbientLight(0x88aacc, 1.05));
+    // фронтальный свет — освещаем видимую «шапку» Земли, обращённую к зрителю
+    const sun = new THREE.DirectionalLight(0xffffff, 3.4);
+    sun.position.set(-1.5, 3, 5);
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xbfd8ff, 1.2);
+    fill.position.set(2, 1, 4);
+    scene.add(fill);
+
+    // ----- Земля (внизу кадра, видно одно полушарие) -----
+    const loader = new THREE.TextureLoader();
+    const base = './textures/';
+    const dayTex = loader.load(base + 'earth_day.jpg');
+    const normalTex = loader.load(base + 'earth_normal.jpg');
+    const specTex = loader.load(base + 'earth_specular.jpg');
+    const cloudTex = loader.load(base + 'earth_clouds.png');
+    dayTex.colorSpace = THREE.SRGBColorSpace;
+
+    const earthGroup = new THREE.Group();
+    // опускаем Землю вниз — видно верхнее полушарие, обращённое к зрителю
+    earthGroup.position.set(0, -3.1, 0.6);
+    earthGroup.rotation.z = 0.18; // лёгкий наклон оси
+    scene.add(earthGroup);
+
+    const R = 3.0;
+    const earth = new THREE.Mesh(
+      new THREE.SphereGeometry(R, 72, 72),
+      new THREE.MeshPhongMaterial({ map: dayTex, normalMap: normalTex, specularMap: specTex, specular: 0x223344, shininess: 14, emissive: 0x223a55, emissiveMap: dayTex, emissiveIntensity: 0.35 })
+    );
+    earthGroup.add(earth);
+
+    const clouds = new THREE.Mesh(
+      new THREE.SphereGeometry(R + 0.03, 72, 72),
+      new THREE.MeshPhongMaterial({ map: cloudTex, transparent: true, opacity: 0.5, depthWrite: false })
+    );
+    earthGroup.add(clouds);
+
+    // атмосферный ореол (Fresnel)
+    const atmo = new THREE.Mesh(
+      new THREE.SphereGeometry(R + 0.10, 72, 72),
+      new THREE.ShaderMaterial({
+        side: THREE.BackSide, transparent: true, depthWrite: false,
+        uniforms: { c: { value: new THREE.Color(0x3aa0ff) } },
+        vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix*normal); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+        fragmentShader: `varying vec3 vN; uniform vec3 c; void main(){ float i = pow(0.78 - dot(vN, vec3(0.0,0.0,1.0)), 3.4); gl_FragColor = vec4(c, clamp(i,0.0,1.0)*0.35);} `
+      })
+    );
+    earthGroup.add(atmo);
+
+    // ----- солнце на дальнем фоне -----
+    const sunGroup = new THREE.Group();
+    sunGroup.position.set(5.5, 3.6, -38); // ещё дальше, в верхнем углу
+    scene.add(sunGroup);
+
+    // --- процедурное солнце на шейдерах: кипящая поверхность + протуберанцы ---
+    const GLSL_NOISE = `
+      vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+      vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+      vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+      vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+      float snoise(vec3 v){
+        const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+        vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+        vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+        vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+        i=mod289(i);
+        vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+        float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+        vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+        vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+        vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+        vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+        vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+        vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+        vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+        p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+        vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+        return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+      }
+      float fbm(vec3 p){ float f=0.0,a=0.5; for(int i=0;i<5;i++){ f+=a*snoise(p); p*=2.0; a*=0.5; } return f*0.5+0.5; }
+    `;
+
+    const sunUniforms = { uTime: { value: 0 } };
+
+    // поверхность: кипящие гранулы, тёмные пятна, оранжево-жёлтая гамма
+    const sunSurfMat = new THREE.ShaderMaterial({
+      uniforms: sunUniforms,
+      vertexShader: `varying vec3 vPos; void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader: GLSL_NOISE + `
+        uniform float uTime; varying vec3 vPos;
+        void main(){
+          vec3 p = normalize(vPos);
+          float n  = fbm(p*2.6 + vec3(0.0, uTime*0.06, uTime*0.03));
+          float n2 = fbm(p*6.0 - vec3(uTime*0.10));
+          float h = n*0.6 + n2*0.4;
+          vec3 c1 = vec3(0.30,0.05,0.0);   // тёмные пятна
+          vec3 c2 = vec3(0.82,0.30,0.03);  // оранжевый
+          vec3 c3 = vec3(0.92,0.64,0.22);  // жёлтые гранулы
+          vec3 col = mix(c1,c2, smoothstep(0.18,0.55,h));
+          col = mix(col,c3, smoothstep(0.55,0.85,h));
+          col += pow(max(h-0.72,0.0),2.0)*2.0; // вспышки-блики (мягче)
+          gl_FragColor = vec4(col,1.0);
+        }`
+    });
+    const sunBall = new THREE.Mesh(new THREE.SphereGeometry(1.6, 64, 64), sunSurfMat);
+    sunGroup.add(sunBall);
+
+    // протуберанцы/выплески: «языки» по краю диска (fresnel-rim + шум), аддитивно
+    const promMat = new THREE.ShaderMaterial({
+      uniforms: sunUniforms, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: `varying vec3 vPos; varying vec3 vN; void main(){ vPos=position; vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader: GLSL_NOISE + `
+        uniform float uTime; varying vec3 vPos; varying vec3 vN;
+        void main(){
+          float rim = pow(1.0 - max(dot(vN, vec3(0.0,0.0,1.0)), 0.0), 2.0);
+          vec3 dir = normalize(vPos);
+          // низкочастотная маска зон активности — выплески только из нескольких участков
+          float region = fbm(dir*1.05 + vec3(0.0, uTime*0.04, 0.0));
+          region = pow(smoothstep(0.52, 0.82, region), 1.6); // большая часть края = 0
+          // высокочастотные «языки» внутри активных зон
+          float tongue = fbm(dir*4.8 + vec3(uTime*0.22, 0.0, uTime*0.1));
+          float e = rim * region * smoothstep(0.30, 0.9, tongue);
+          vec3 col = mix(vec3(1.0,0.38,0.03), vec3(1.0,0.80,0.30), tongue) * e * 3.0;
+          gl_FragColor = vec4(col, e);
+        }`
+    });
+    const prominences = new THREE.Mesh(new THREE.SphereGeometry(1.82, 64, 64), promMat);
+    sunGroup.add(prominences);
+
+    // корона/гало — шейдерное, с неровным краем и лучами (аддитивно)
+    const coronaMat = new THREE.ShaderMaterial({
+      uniforms: sunUniforms, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true,
+      vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader: GLSL_NOISE + `
+        uniform float uTime; varying vec2 vUv;
+        void main(){
+          vec2 p = vUv*2.0-1.0;
+          float r = length(p);
+          // чистое мягкое гало без лучей и угловой структуры
+          float glow = smoothstep(0.85, 0.0, r);
+          glow = pow(glow, 2.2);
+          vec3 col = mix(vec3(1.0,0.42,0.05), vec3(1.0,0.70,0.22), glow);
+          gl_FragColor = vec4(col, clamp(glow,0.0,1.0)*0.55);
+        }`
+    });
+    const corona = new THREE.Mesh(new THREE.PlaneGeometry(14.4, 14.4), coronaMat);
+    sunGroup.add(corona);
+
+    // ----- анимация -----
+    let t = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      t += 0.016;
+
+      earth.rotation.x += 0.00053;   // катится сверху вниз «на зрителя», медленно
+      clouds.rotation.x += 0.00037;
+      stars.rotation.y += 0.00007;
+
+      sunUniforms.uTime.value = t;
+      sunBall.rotation.y += 0.0006;
+      prominences.rotation.y = sunBall.rotation.y;
+      corona.scale.setScalar(1.0 + Math.sin(t * 0.8) * 0.04); // мягкая пульсация
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ----- симуляция состояний обновления -----
+    const statusEl = document.getElementById('status');
+    const fillEl = document.getElementById('fill');
+    const metaL = document.getElementById('meta-left');
+    const metaR = document.getElementById('meta-right');
+
+    const states = [
+      { text: 'Проверка обновлений…', from: 0, to: 0, meta: 'Подготовка', dur: 2200 },
+      { text: 'Скачивание обновления…', from: 0, to: 100, meta: 'Загрузка', dur: 4200 },
+      { text: 'Установка обновления…', from: 100, to: 100, meta: 'Установка', dur: 2200 },
+      { text: 'Запуск Zvon…', from: 100, to: 100, meta: 'Готово', dur: 1800 },
+    ];
+    let si = 0;
+    function runState() {
+      const s = states[si];
+      statusEl.style.opacity = 0;
+      setTimeout(() => {
+        statusEl.textContent = s.text;
+        metaL.textContent = s.meta;
+        statusEl.style.opacity = 1;
+        const start = performance.now();
+        function step(now) {
+          const k = Math.min(1, (now - start) / s.dur);
+          const pct = Math.round(s.from + (s.to - s.from) * k);
+          fillEl.style.width = pct + '%';
+          metaR.textContent = pct + '%';
+          if (k < 1) requestAnimationFrame(step);
+          else { si = (si + 1) % states.length; setTimeout(runState, 500); }
+        }
+        requestAnimationFrame(step);
+      }, 300);
+    }
+    runState();
+  </script>
+</body>
+</html>

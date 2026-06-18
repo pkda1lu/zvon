@@ -5,425 +5,349 @@
     <title>Zvon</title>
     <style>
         :root {
-            --bg-base: #06060a;
-            --bg-card: rgba(18, 18, 26, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.07);
-            --text-main: #ffffff;
-            --text-dim: rgba(255, 255, 255, 0.55);
-            --text-faint: rgba(255, 255, 255, 0.35);
+            --bg-base: #04040a;
             --neon-cyan: #00f2ff;
             --neon-purple: #7000ff;
             --neon-pink: #ff00c8;
+            --text-main: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.6);
+            --text-faint: rgba(255, 255, 255, 0.38);
             --accent-green: #4ade80;
             --accent-red: #ff5570;
         }
-
         * { box-sizing: border-box; }
-
         html, body {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
+            width: 100vw; height: 100vh;
             background: var(--bg-base);
             color: var(--text-main);
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            height: 100vh;
             overflow: hidden;
-            -webkit-user-select: none;
-            user-select: none;
+            -webkit-user-select: none; user-select: none;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* фиксированный кадр окна апдейтера (совпадает с размером окна Electron) */
+        .window-frame {
+            position: relative;
+            width: 480px; height: 600px;
+            background: var(--bg-base);
+            overflow: hidden;
             -webkit-app-region: drag;
         }
 
-        /* Animated mesh background — soft gradient blobs that drift */
-        .bg-mesh {
-            position: fixed;
-            inset: -10%;
+        #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+
+        /* затемнение к низу — Земля «вырастает» из темноты кадра */
+        .vignette {
+            position: absolute; inset: 0; pointer-events: none; z-index: 1;
+            background:
+                radial-gradient(120% 80% at 50% -10%, transparent 40%, rgba(4,4,10,0.55) 100%),
+                linear-gradient(to bottom, rgba(4,4,10,0.0) 55%, rgba(4,4,10,0.4) 100%);
+        }
+
+        /* логотип сверху */
+        .overlay {
+            position: fixed; inset: 0; z-index: 2;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 46px 32px 0;
             pointer-events: none;
-            z-index: 0;
         }
-        .blob {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(80px);
-            opacity: 0.55;
-            animation: float 18s ease-in-out infinite;
-            will-change: transform;
-        }
-        .blob.cyan   { width: 380px; height: 380px; top: -10%; left: -10%; background: radial-gradient(circle, rgba(0,242,255,0.5), transparent 65%); }
-        .blob.purple { width: 420px; height: 420px; bottom: -15%; right: -10%; background: radial-gradient(circle, rgba(112,0,255,0.5), transparent 65%); animation-delay: -6s; animation-duration: 22s; }
-        .blob.pink   { width: 280px; height: 280px; top: 30%; right: 30%; background: radial-gradient(circle, rgba(255,0,200,0.3), transparent 65%); animation-delay: -12s; animation-duration: 26s; }
-
-        @keyframes float {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33%      { transform: translate(40px, -30px) scale(1.08); }
-            66%      { transform: translate(-30px, 40px) scale(0.95); }
+        .logo {
+            font-size: 30px; font-weight: 800; letter-spacing: 1px; margin: 0;
+            background: linear-gradient(120deg, #fff 0%, var(--neon-cyan) 50%, var(--neon-purple) 100%);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 18px rgba(0,242,255,0.35));
         }
 
-        /* Main glass card */
-        main {
-            position: relative;
-            z-index: 1;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 32px;
+        /* статус + прогресс снизу */
+        .status-block {
+            position: fixed; left: 32px; right: 32px; bottom: 38px; z-index: 2;
+            pointer-events: none;
         }
-
-        .card {
-            width: 100%;
-            max-width: 380px;
-            background: var(--bg-card);
-            backdrop-filter: blur(40px) saturate(170%);
-            -webkit-backdrop-filter: blur(40px) saturate(170%);
-            border: 1px solid var(--glass-border);
-            border-radius: 28px;
-            padding: 40px 36px 32px;
-            text-align: center;
-            box-shadow:
-                0 30px 60px rgba(0, 0, 0, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-        }
-        @keyframes cardIn {
-            from { opacity: 0; transform: translateY(8px) scale(0.98); }
-            to   { opacity: 1; transform: translateY(0)    scale(1); }
-        }
-
-        /* Logo with glow that responds to state */
-        .logo-wrap {
-            position: relative;
-            width: 96px;
-            height: 96px;
-            margin: 0 auto 24px;
-        }
-        /* Outer glow (the colour halo) */
-        .logo-wrap::before {
-            content: '';
-            position: absolute;
-            inset: -16px;
-            border-radius: 38px;
-            background: radial-gradient(circle, rgba(0,242,255,0.35), transparent 60%);
-            filter: blur(20px);
-            opacity: 0.9;
-            transition: background 0.6s ease, opacity 0.4s ease;
-            z-index: 0;
-            animation: pulse 2.4s ease-in-out infinite;
-        }
-        /* Light backplate so the dark-glass squircle reads against the dark UI */
-        .logo-wrap::after {
-            content: '';
-            position: absolute;
-            inset: 4px;
-            border-radius: 24px;
-            background: linear-gradient(160deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04));
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
-            z-index: 1;
-        }
-        .logo-wrap img {
-            position: relative;
-            z-index: 2;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6));
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1);   opacity: 0.7; }
-            50%      { transform: scale(1.08); opacity: 1; }
-        }
-
-        .card[data-state="downloaded"] .logo-wrap::before,
-        .card[data-state="installing"] .logo-wrap::before {
-            background: radial-gradient(circle, rgba(74,222,128,0.4), transparent 60%);
-        }
-        .card[data-state="up-to-date"] .logo-wrap::before {
-            background: radial-gradient(circle, rgba(74,222,128,0.35), transparent 60%);
-            animation: none;
-        }
-        .card[data-state="error"] .logo-wrap::before {
-            background: radial-gradient(circle, rgba(255,85,112,0.4), transparent 60%);
-            animation: none;
-        }
-
-        /* Status badge above title */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: 999px;
-            background: rgba(0, 242, 255, 0.08);
-            border: 1px solid rgba(0, 242, 255, 0.18);
-            color: var(--neon-cyan);
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            margin-bottom: 14px;
-        }
-        .badge .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--neon-cyan);
-            box-shadow: 0 0 8px var(--neon-cyan);
-            animation: dotPulse 1.6s ease-in-out infinite;
-        }
-        @keyframes dotPulse {
-            0%, 100% { opacity: 1; }
-            50%      { opacity: 0.3; }
-        }
-
-        .card[data-state="up-to-date"] .badge {
-            background: rgba(74, 222, 128, 0.1);
-            border-color: rgba(74, 222, 128, 0.25);
-            color: var(--accent-green);
-        }
-        .card[data-state="up-to-date"] .badge .dot {
-            background: var(--accent-green);
-            box-shadow: 0 0 8px var(--accent-green);
-            animation: none;
-        }
-        .card[data-state="error"] .badge {
-            background: rgba(255, 85, 112, 0.1);
-            border-color: rgba(255, 85, 112, 0.25);
-            color: var(--accent-red);
-        }
-        .card[data-state="error"] .badge .dot {
-            background: var(--accent-red);
-            box-shadow: 0 0 8px var(--accent-red);
-            animation: none;
-        }
-
-        h1.title {
-            font-size: 24px;
-            font-weight: 800;
-            letter-spacing: -0.6px;
-            margin: 0 0 6px;
-            background: linear-gradient(135deg, #fff 0%, #b8b8c8 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
         .status {
-            font-size: 13px;
-            color: var(--text-dim);
-            margin: 0 0 28px;
-            line-height: 1.5;
-            min-height: 38px;
+            font-size: 15px; font-weight: 600; color: var(--text-main);
+            margin: 0 0 14px; min-height: 22px;
+            text-shadow: 0 2px 14px rgba(0,0,0,0.7);
             transition: color 0.3s ease;
         }
+        .card[data-state="up-to-date"] .status { color: var(--accent-green); }
+        .card[data-state="error"] .status { color: var(--accent-red); }
 
-        /* Progress bar */
-        .progress {
-            width: 100%;
-            display: none;
-            margin: 0 0 24px;
-        }
+        .progress { width: 100%; display: none; }
         .progress.visible { display: block; }
         .progress-track {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 999px;
-            overflow: hidden;
-            position: relative;
+            width: 100%; height: 5px; border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.06);
+            overflow: hidden; position: relative;
         }
         .progress-fill {
-            width: 0%;
-            height: 100%;
+            width: 0%; height: 100%; border-radius: 999px;
             background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple), var(--neon-pink));
             background-size: 200% 100%;
-            border-radius: 999px;
-            box-shadow: 0 0 12px rgba(0, 242, 255, 0.5);
+            box-shadow: 0 0 14px rgba(0,242,255,0.5);
             transition: width 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-            position: relative;
             animation: gradientShift 3s linear infinite;
+            position: relative;
         }
-        /* Slide gradient LEFT→RIGHT (matches download direction).
-           CSS quirk: positive background-position moves the image to the LEFT,
-           so going from 200% → 0% makes the colours appear to travel rightward. */
-        @keyframes gradientShift {
-            0%   { background-position: 200% 0; }
-            100% { background-position: 0% 0; }
-        }
+        @keyframes gradientShift { 0% { background-position: 200% 0; } 100% { background-position: 0% 0; } }
         .progress-fill::after {
-            content: '';
-            position: absolute;
-            inset: 0;
+            content: ''; position: absolute; inset: 0;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
             animation: shimmer 1.8s linear infinite;
         }
-        @keyframes shimmer {
-            0%   { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         .progress-meta {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 8px;
-            font-size: 11px;
-            color: var(--text-faint);
-            font-variant-numeric: tabular-nums;
-            font-weight: 500;
+            display: flex; justify-content: space-between; margin-top: 9px;
+            font-size: 11px; color: var(--text-faint);
+            font-variant-numeric: tabular-nums; font-weight: 500;
         }
 
-        /* Loading dots */
+        /* анимированные точки в статусе */
         .dots::after {
-            content: '...';
-            display: inline-block;
-            width: 18px;
-            text-align: left;
+            content: '...'; display: inline-block; width: 18px; text-align: left;
             animation: dotsAnim 1.4s steps(4, end) infinite;
         }
         @keyframes dotsAnim {
-            0%   { content: '';     }
-            25%  { content: '.';    }
-            50%  { content: '..';   }
-            75%  { content: '...';  }
-            100% { content: '';     }
-        }
-
-        /* Did-you-know tips */
-        .tip {
-            margin-top: 20px;
-            padding: 14px 16px;
-            background: rgba(255, 255, 255, 0.025);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 14px;
-            font-size: 12px;
-            color: var(--text-dim);
-            line-height: 1.5;
-            text-align: left;
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-            animation: tipIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .tip-label {
-            display: block;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: var(--text-faint);
-            margin-bottom: 4px;
-        }
-        .tip-icon {
-            flex-shrink: 0;
-            width: 18px;
-            height: 18px;
-            color: var(--neon-cyan);
-            margin-top: 1px;
-        }
-        @keyframes tipIn {
-            from { opacity: 0; transform: translateY(4px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Footer */
-        footer {
-            position: fixed;
-            bottom: 14px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 10px;
-            color: var(--text-faint);
-            letter-spacing: 0.5px;
-            z-index: 2;
+            0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; }
+            75% { content: '...'; } 100% { content: ''; }
         }
     </style>
 </head>
 <body>
-    <div class="bg-mesh">
-        <div class="blob cyan"></div>
-        <div class="blob purple"></div>
-        <div class="blob pink"></div>
+    <canvas id="scene"></canvas>
+    <div class="vignette"></div>
+
+    <div id="card" class="card overlay" data-state="checking">
+        <h1 class="logo">Zvon</h1>
     </div>
 
-    <main>
-        <div id="card" class="card" data-state="checking">
-            <div class="logo-wrap">
-                <img src="icon.png" alt="Zvon">
-            </div>
-            <div id="badge" class="badge">
-                <span class="dot"></span>
-                <span id="badge-text">Обновление</span>
-            </div>
-            <h1 class="title">Zvon</h1>
-            <p id="status" class="status">Проверка обновлений<span class="dots"></span></p>
-
-            <div id="progress" class="progress">
-                <div class="progress-track">
-                    <div id="progress-fill" class="progress-fill"></div>
-                </div>
-                <div class="progress-meta">
-                    <span id="progress-pct">0%</span>
-                    <span id="progress-eta">подготовка…</span>
-                </div>
-            </div>
-
-            <div id="tip" class="tip">
-                <svg class="tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 16v-4M12 8h.01"/>
-                </svg>
-                <div>
-                    <span class="tip-label">Знаете ли вы?</span>
-                    <span id="tip-text">Zvon поддерживает совместный просмотр YouTube в голосовых каналах.</span>
-                </div>
+    <div class="status-block">
+        <p id="status" class="status">Проверка обновлений<span class="dots"></span></p>
+        <div id="progress" class="progress">
+            <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+            <div class="progress-meta">
+                <span id="progress-pct">0%</span>
+                <span id="progress-eta">подготовка…</span>
             </div>
         </div>
-    </main>
+    </div>
 
-    <footer>© Zvon · Подключаемся к будущему</footer>
+    <!-- 3D-сцена: космос, Земля внизу, процедурное солнце на фоне -->
+    <script type="module">
+        import * as THREE from './vendor/three.module.min.js';
 
+        const canvas = document.getElementById('scene');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+        camera.position.set(0, 0, 6);
+        const resize = () => {
+            const w = window.innerWidth, h = window.innerHeight;
+            renderer.setSize(w, h);
+            camera.aspect = w / h; camera.updateProjectionMatrix();
+        };
+        resize();
+        window.addEventListener('resize', resize);
+
+        // звёзды
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 1400;
+        const starPos = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            const r = 30 + Math.random() * 30;
+            const th = Math.random() * Math.PI * 2;
+            const ph = Math.acos(2 * Math.random() - 1);
+            starPos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+            starPos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+            starPos[i*3+2] = r * Math.cos(ph);
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, sizeAttenuation: true, transparent: true, opacity: 0.85 }));
+        scene.add(stars);
+
+        // освещение
+        scene.add(new THREE.AmbientLight(0x88aacc, 1.05));
+        const sunLight = new THREE.DirectionalLight(0xffffff, 3.4);
+        sunLight.position.set(-1.5, 3, 5);
+        scene.add(sunLight);
+        const fill = new THREE.DirectionalLight(0xbfd8ff, 1.2);
+        fill.position.set(2, 1, 4);
+        scene.add(fill);
+
+        // Земля внизу кадра
+        const loader = new THREE.TextureLoader();
+        const base = './textures/';
+        const dayTex = loader.load(base + 'earth_day.jpg');
+        const normalTex = loader.load(base + 'earth_normal.jpg');
+        const specTex = loader.load(base + 'earth_specular.jpg');
+        const cloudTex = loader.load(base + 'earth_clouds.png');
+        dayTex.colorSpace = THREE.SRGBColorSpace;
+
+        const earthGroup = new THREE.Group();
+        earthGroup.position.set(0, -3.1, 0.6);
+        earthGroup.rotation.z = 0.18;
+        scene.add(earthGroup);
+
+        const R = 3.0;
+        const earth = new THREE.Mesh(
+            new THREE.SphereGeometry(R, 72, 72),
+            new THREE.MeshPhongMaterial({ map: dayTex, normalMap: normalTex, specularMap: specTex, specular: 0x223344, shininess: 14, emissive: 0x223a55, emissiveMap: dayTex, emissiveIntensity: 0.35 })
+        );
+        earthGroup.add(earth);
+
+        const clouds = new THREE.Mesh(
+            new THREE.SphereGeometry(R + 0.03, 72, 72),
+            new THREE.MeshPhongMaterial({ map: cloudTex, transparent: true, opacity: 0.5, depthWrite: false })
+        );
+        earthGroup.add(clouds);
+
+        const atmo = new THREE.Mesh(
+            new THREE.SphereGeometry(R + 0.10, 72, 72),
+            new THREE.ShaderMaterial({
+                side: THREE.BackSide, transparent: true, depthWrite: false,
+                uniforms: { c: { value: new THREE.Color(0x3aa0ff) } },
+                vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix*normal); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+                fragmentShader: `varying vec3 vN; uniform vec3 c; void main(){ float i = pow(0.78 - dot(vN, vec3(0.0,0.0,1.0)), 3.4); gl_FragColor = vec4(c, clamp(i,0.0,1.0)*0.35);} `
+            })
+        );
+        earthGroup.add(atmo);
+
+        // процедурное солнце на дальнем фоне
+        const sunGroup = new THREE.Group();
+        sunGroup.position.set(5.5, 3.6, -38);
+        scene.add(sunGroup);
+
+        const GLSL_NOISE = `
+          vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+          vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+          vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+          vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+          float snoise(vec3 v){
+            const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+            vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+            vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+            vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+            i=mod289(i);
+            vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+            float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+            vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+            vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+            vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+            vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+            vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+            vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+            vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+            p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+            vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+            return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+          }
+          float fbm(vec3 p){ float f=0.0,a=0.5; for(int i=0;i<5;i++){ f+=a*snoise(p); p*=2.0; a*=0.5; } return f*0.5+0.5; }
+        `;
+        const sunUniforms = { uTime: { value: 0 } };
+
+        const sunSurfMat = new THREE.ShaderMaterial({
+            uniforms: sunUniforms,
+            vertexShader: `varying vec3 vPos; void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+            fragmentShader: GLSL_NOISE + `
+                uniform float uTime; varying vec3 vPos;
+                void main(){
+                  vec3 p = normalize(vPos);
+                  float n  = fbm(p*2.6 + vec3(0.0, uTime*0.06, uTime*0.03));
+                  float n2 = fbm(p*6.0 - vec3(uTime*0.10));
+                  float h = n*0.6 + n2*0.4;
+                  vec3 c1 = vec3(0.62,0.18,0.02);
+                  vec3 c2 = vec3(0.95,0.42,0.06);
+                  vec3 c3 = vec3(1.0,0.78,0.32);
+                  vec3 col = mix(c1,c2, smoothstep(0.10,0.52,h));
+                  col = mix(col,c3, smoothstep(0.52,0.85,h));
+                  col += pow(max(h-0.72,0.0),2.0)*2.0;
+                  gl_FragColor = vec4(col,1.0);
+                }`
+        });
+        const sunBall = new THREE.Mesh(new THREE.SphereGeometry(1.6, 64, 64), sunSurfMat);
+        sunGroup.add(sunBall);
+
+        const promMat = new THREE.ShaderMaterial({
+            uniforms: sunUniforms, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+            vertexShader: `varying vec3 vPos; varying vec3 vN; void main(){ vPos=position; vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+            fragmentShader: GLSL_NOISE + `
+                uniform float uTime; varying vec3 vPos; varying vec3 vN;
+                void main(){
+                  float rim = pow(1.0 - max(dot(vN, vec3(0.0,0.0,1.0)), 0.0), 2.0);
+                  vec3 dir = normalize(vPos);
+                  float region = fbm(dir*1.05 + vec3(0.0, uTime*0.04, 0.0));
+                  region = pow(smoothstep(0.52, 0.82, region), 1.6);
+                  float tongue = fbm(dir*4.8 + vec3(uTime*0.22, 0.0, uTime*0.1));
+                  float e = rim * region * smoothstep(0.30, 0.9, tongue);
+                  vec3 col = mix(vec3(1.0,0.38,0.03), vec3(1.0,0.80,0.30), tongue) * e * 3.0;
+                  gl_FragColor = vec4(col, e);
+                }`
+        });
+        const prominences = new THREE.Mesh(new THREE.SphereGeometry(1.82, 64, 64), promMat);
+        sunGroup.add(prominences);
+
+        const coronaMat = new THREE.ShaderMaterial({
+            uniforms: sunUniforms, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true,
+            vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+            fragmentShader: GLSL_NOISE + `
+                uniform float uTime; varying vec2 vUv;
+                void main(){
+                  vec2 p = vUv*2.0-1.0;
+                  float r = length(p);
+                  float glow = smoothstep(0.85, 0.0, r);
+                  glow = pow(glow, 2.2);
+                  vec3 col = mix(vec3(1.0,0.42,0.05), vec3(1.0,0.70,0.22), glow);
+                  gl_FragColor = vec4(col, clamp(glow,0.0,1.0)*0.55);
+                }`
+        });
+        const corona = new THREE.Mesh(new THREE.PlaneGeometry(14.4, 14.4), coronaMat);
+        sunGroup.add(corona);
+
+        let t = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            t += 0.016;
+            earth.rotation.x += 0.00053;
+            clouds.rotation.x += 0.00037;
+            stars.rotation.y += 0.00007;
+            sunUniforms.uTime.value = t;
+            sunBall.rotation.y += 0.0006;
+            prominences.rotation.y = sunBall.rotation.y;
+            corona.scale.setScalar(1.0 + Math.sin(t * 0.8) * 0.04);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+
+    <!-- ipc-логика автообновления (классический скрипт: require доступен в Electron) -->
     <script>
         const { ipcRenderer } = require('electron');
         const card        = document.getElementById('card');
-        const badgeText   = document.getElementById('badge-text');
         const statusEl    = document.getElementById('status');
         const progress    = document.getElementById('progress');
-        const progressFill= document.getElementById('progress-fill');
+        const progressFill = document.getElementById('progress-fill');
         const progressPct = document.getElementById('progress-pct');
         const progressEta = document.getElementById('progress-eta');
-        const tipText     = document.getElementById('tip-text');
 
-        const TIPS = [
-            'Zvon поддерживает совместный просмотр YouTube в голосовых каналах.',
-            'Используйте ПКМ по серверу, чтобы быстро его покинуть или открыть настройки.',
-            'Голосовые каналы поддерживают демонстрацию экрана с системным звуком.',
-            'Включите Performance Mode в настройках, чтобы отключить эффекты на слабом железе.',
-            'Реакции и закреплённые сообщения работают и в личных чатах.',
-            'Перетащите изображение прямо в чат, чтобы быстро его отправить.',
-        ];
-        let tipIdx = Math.floor(Math.random() * TIPS.length);
-        setInterval(() => {
-            tipIdx = (tipIdx + 1) % TIPS.length;
-            const tipBox = document.getElementById('tip');
-            tipBox.style.animation = 'none';
-            void tipBox.offsetWidth; // restart animation
-            tipBox.style.animation = '';
-            tipText.textContent = TIPS[tipIdx];
-        }, 6500);
-
-        // Map status text → visual state without changing the ipc contract.
+        // Текст статуса → визуальное состояние (контракт ipc не меняем).
         function detectState(msg) {
             const m = msg.toLowerCase();
-            if (m.includes('ошибк'))                              return { state: 'error',      badge: 'Ошибка' };
-            if (m.includes('последняя версия'))                   return { state: 'up-to-date', badge: 'Актуальная версия' };
-            if (m.includes('скачано') || m.includes('установк'))  return { state: 'installing', badge: 'Установка' };
-            if (m.includes('загрузка') || m.includes('найдено'))  return { state: 'downloading',badge: 'Загрузка' };
-            return { state: 'checking', badge: 'Обновление' };
+            if (m.includes('ошибк'))                              return 'error';
+            if (m.includes('последняя версия'))                   return 'up-to-date';
+            if (m.includes('скачано') || m.includes('установк'))  return 'installing';
+            if (m.includes('загрузка') || m.includes('найдено'))  return 'downloading';
+            return 'checking';
         }
 
         let lastSize = 0;
         let lastTime = Date.now();
         function formatEta(percent) {
             if (percent <= 0 || percent >= 100) return '';
-            // Rough ETA from last call rate.
             const now = Date.now();
             const dT = (now - lastTime) / 1000;
             if (dT < 0.1) return '';
@@ -439,18 +363,14 @@
 
         ipcRenderer.on('updater-message', (_evt, text) => {
             statusEl.innerHTML = text;
-            const { state, badge } = detectState(text);
+            const state = detectState(text);
             card.dataset.state = state;
-            badgeText.textContent = badge;
-            if (state !== 'downloading') {
-                progress.classList.remove('visible');
-            }
+            if (state !== 'downloading') progress.classList.remove('visible');
         });
 
         ipcRenderer.on('updater-progress', (_evt, percent) => {
             progress.classList.add('visible');
             card.dataset.state = 'downloading';
-            badgeText.textContent = 'Загрузка';
             progressFill.style.width = percent + '%';
             progressPct.textContent = Math.round(percent) + '%';
             const eta = formatEta(percent);

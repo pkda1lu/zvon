@@ -74,8 +74,6 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             const specMap = load('earth_specular.jpg');
             const moonMap = load('moon_2k.jpg');
             moonMap.colorSpace = THREE.SRGBColorSpace;
-            const sunMap = load('sun_2k.jpg');
-            sunMap.colorSpace = THREE.SRGBColorSpace;
             const satelliteMap = load('satellite_goesr.png');
             satelliteMap.colorSpace = THREE.SRGBColorSpace;
             const earthMat = new THREE.MeshStandardMaterial({
@@ -139,59 +137,99 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(R * 1.13, 64, 64), atmoMat);
             planet.add(atmosphere);
 
-            // ===== Далёкое Солнце =====
-            const coronaTexture = (() => {
-                const S = 512;
-                const cv = document.createElement('canvas');
-                cv.width = cv.height = S;
-                const ctx = cv.getContext('2d')!;
-                const g = ctx.createRadialGradient(S / 2, S / 2, S * 0.12, S / 2, S / 2, S / 2);
-                g.addColorStop(0, 'rgba(255,245,190,0.95)');
-                g.addColorStop(0.2, 'rgba(255,176,64,0.55)');
-                g.addColorStop(0.46, 'rgba(255,92,22,0.18)');
-                g.addColorStop(1, 'rgba(255,92,22,0)');
-                ctx.fillStyle = g;
-                ctx.fillRect(0, 0, S, S);
-                const tex = new THREE.CanvasTexture(cv);
-                tex.colorSpace = THREE.SRGBColorSpace;
-                return tex;
-            })();
+            // ===== Далёкое Солнце (процедурное, на шейдерах) =====
+            // Кипящая поверхность (FBM-шум), асимметричные протуберанцы по краю
+            // и мягкое гало — без текстур, всё считается в реальном времени.
+            const GLSL_NOISE = `
+              vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+              vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+              vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+              vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+              float snoise(vec3 v){
+                const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+                vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+                vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+                vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+                i=mod289(i);
+                vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+                float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+                vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+                vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+                vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+                vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+                vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+                vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+                vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+                p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+                vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+                return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+              }
+              float fbm(vec3 p){ float f=0.0,a=0.5; for(int i=0;i<5;i++){ f+=a*snoise(p); p*=2.0; a*=0.5; } return f*0.5+0.5; }
+            `;
+            const sunUniforms = { uTime: { value: 0 } };
 
             const sunGroup = new THREE.Group();
             sunGroup.position.set(-5.7, 3.2, -8.5);
             scene.add(sunGroup);
 
-            const sunSurface = new THREE.Mesh(
-                new THREE.SphereGeometry(0.78, 64, 64),
-                new THREE.MeshBasicMaterial({
-                    map: sunMap,
-                    color: 0xfff0c0,
-                    toneMapped: false,
-                })
-            );
+            const SUN_R = 0.78;
+            const sunSurfMat = new THREE.ShaderMaterial({
+                uniforms: sunUniforms,
+                vertexShader: `varying vec3 vPos; void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+                fragmentShader: GLSL_NOISE + `
+                    uniform float uTime; varying vec3 vPos;
+                    void main(){
+                      vec3 p = normalize(vPos);
+                      float n  = fbm(p*2.6 + vec3(0.0, uTime*0.06, uTime*0.03));
+                      float n2 = fbm(p*6.0 - vec3(uTime*0.10));
+                      float h = n*0.6 + n2*0.4;
+                      vec3 c1 = vec3(0.62,0.18,0.02);
+                      vec3 c2 = vec3(0.95,0.42,0.06);
+                      vec3 c3 = vec3(1.0,0.78,0.32);
+                      vec3 col = mix(c1,c2, smoothstep(0.10,0.52,h));
+                      col = mix(col,c3, smoothstep(0.52,0.85,h));
+                      col += pow(max(h-0.72,0.0),2.0)*2.0;
+                      gl_FragColor = vec4(col,1.0);
+                    }`,
+            });
+            const sunSurface = new THREE.Mesh(new THREE.SphereGeometry(SUN_R, 64, 64), sunSurfMat);
             sunGroup.add(sunSurface);
 
-            const sunCorona = new THREE.Sprite(new THREE.SpriteMaterial({
-                map: coronaTexture,
-                color: 0xffb25a,
-                transparent: true,
-                opacity: 0.58,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending,
-            }));
-            sunCorona.scale.set(4.8, 4.8, 1);
-            sunGroup.add(sunCorona);
+            const promMat = new THREE.ShaderMaterial({
+                uniforms: sunUniforms, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+                vertexShader: `varying vec3 vPos; varying vec3 vN; void main(){ vPos=position; vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+                fragmentShader: GLSL_NOISE + `
+                    uniform float uTime; varying vec3 vPos; varying vec3 vN;
+                    void main(){
+                      float rim = pow(1.0 - max(dot(vN, vec3(0.0,0.0,1.0)), 0.0), 2.0);
+                      vec3 dir = normalize(vPos);
+                      float region = fbm(dir*1.05 + vec3(0.0, uTime*0.04, 0.0));
+                      region = pow(smoothstep(0.52, 0.82, region), 1.6);
+                      float tongue = fbm(dir*4.8 + vec3(uTime*0.22, 0.0, uTime*0.1));
+                      float e = rim * region * smoothstep(0.30, 0.9, tongue);
+                      vec3 col = mix(vec3(1.0,0.38,0.03), vec3(1.0,0.80,0.30), tongue) * e * 3.0;
+                      gl_FragColor = vec4(col, e);
+                    }`,
+            });
+            const prominences = new THREE.Mesh(new THREE.SphereGeometry(SUN_R * 1.14, 64, 64), promMat);
+            sunGroup.add(prominences);
 
-            const sunCoreGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-                map: coronaTexture,
-                color: 0xfff1a8,
-                transparent: true,
-                opacity: 0.35,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending,
-            }));
-            sunCoreGlow.scale.set(2.1, 2.1, 1);
-            sunGroup.add(sunCoreGlow);
+            const coronaMat = new THREE.ShaderMaterial({
+                uniforms: sunUniforms, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true,
+                vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+                fragmentShader: GLSL_NOISE + `
+                    uniform float uTime; varying vec2 vUv;
+                    void main(){
+                      vec2 p = vUv*2.0-1.0;
+                      float r = length(p);
+                      float glow = smoothstep(0.85, 0.0, r);
+                      glow = pow(glow, 2.2);
+                      vec3 col = mix(vec3(1.0,0.42,0.05), vec3(1.0,0.70,0.22), glow);
+                      gl_FragColor = vec4(col, clamp(glow,0.0,1.0)*0.55);
+                    }`,
+            });
+            const sunCorona = new THREE.Mesh(new THREE.PlaneGeometry(SUN_R * 9, SUN_R * 9), coronaMat);
+            sunGroup.add(sunCorona);
 
             const sunLight = new THREE.PointLight(0xffc875, 2.0, 80);
             sunLight.position.copy(sunGroup.position);
@@ -360,9 +398,9 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                 earth.rotation.y = t * 0.06;
                 clouds.rotation.y = t * 0.085;
                 stars.rotation.y = t * 0.01;
-                sunSurface.rotation.y = t * 0.018;
-                sunCorona.material.rotation = t * 0.012;
-                sunCoreGlow.material.rotation = -t * 0.018;
+                sunUniforms.uTime.value = t;
+                sunSurface.rotation.y = t * 0.02;
+                prominences.rotation.y = sunSurface.rotation.y;
                 moonOrbit.rotation.y = t * 0.18;
                 moon.rotation.y = t * 0.045;
 
@@ -408,7 +446,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             cleanup = () => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('resize', onResize);
-                [dayMap, normalMap, specMap, moonMap, sunMap, satelliteMap, cloudsMap, coronaTexture, starSprite].forEach((tx: any) => tx.dispose?.());
+                [dayMap, normalMap, specMap, moonMap, satelliteMap, cloudsMap, starSprite].forEach((tx: any) => tx.dispose?.());
                 scene.traverse((obj: any) => {
                     if (obj.geometry) obj.geometry.dispose?.();
                     if (obj.material) {
