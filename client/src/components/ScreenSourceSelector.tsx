@@ -64,7 +64,9 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
 
         const fetchSources = async () => {
             const electron = (window as any).electron;
-            if (!electron || !electron.getDesktopSources) return;
+            // В вебе нативного списка источников нет — снимаем загрузку, чтобы не висел
+            // бесконечный спиннер (выбор источника там делает сам браузер через getDisplayMedia).
+            if (!electron || !electron.getDesktopSources) { if (isMounted) setLoading(false); return; }
 
             try {
                 const types = selectedTab === 'screen' ? ['screen'] : ['window'];

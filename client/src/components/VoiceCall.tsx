@@ -442,26 +442,29 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   };
 
   const toggleScreenShare = async (sourceId?: string, options?: { resolution: string, frameRate: string, videoCodec: 'av1' | 'vp9' | 'h264' }) => {
+    const isElectron = !!(window as any).electron;
     if (isScreenSharing) {
       setIsScreenSharing(false);
       soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
       if (roomRef.current) await roomRef.current.localParticipant.setScreenShareEnabled(false);
-    } else if (sourceId && roomRef.current) {
+    } else if (roomRef.current && (sourceId || !isElectron)) {
       try {
         const frameRate = parseInt(options?.frameRate || '30', 10);
         const resolution = options?.resolution || '1080';
-        
+
         let bitrate = 10_000_000;
         if (resolution === '2160') bitrate = frameRate >= 60 ? 60_000_000 : 40_000_000;
         else if (resolution === '1440') bitrate = frameRate >= 60 ? 25_000_000 : 18_000_000;
         else if (resolution === '1080') bitrate = frameRate >= 60 ? 15_000_000 : 10_000_000;
         else if (resolution === '720') bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
 
-        const constraints = {
-          audio: false,
-          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
-        };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Electron: конкретный источник по sourceId; веб: нативный пикер браузера.
+        const stream = (isElectron && sourceId)
+          ? await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
+            } as any)
+          : await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: frameRate } }, audio: true });
         if (roomRef.current) {
           const videoTrack = stream.getVideoTracks()[0];
           if (videoTrack) {
@@ -664,7 +667,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         <motion.button className={`control-circle ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo} title="Камера" whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>
           <CameraIcon />
         </motion.button>
-        <motion.button className={`control-circle ${isScreenSharing ? 'active' : ''}`} onClick={() => isScreenSharing ? toggleScreenShare() : setShowScreenSelector(true)} title="Экран" whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>
+        <motion.button className={`control-circle ${isScreenSharing ? 'active' : ''}`} onClick={() => { if (isScreenSharing) { toggleScreenShare(); } else if ((window as any).electron) { setShowScreenSelector(true); } else { toggleScreenShare(undefined, { resolution: '1080', frameRate: '30', videoCodec: 'vp9' }); } }} title="Экран" whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>
           {isScreenSharing ? <StopScreenShareIcon size={24} /> : <ScreenShareIcon size={24} />}
         </motion.button>
         <motion.button className="control-circle end-call-circle" onClick={endCall} title="Завершить" whileTap={{ scale: 0.88, rotate: -8 }} whileHover={{ scale: 1.06 }} transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}>

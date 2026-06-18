@@ -757,11 +757,38 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [socket, isMuted, isDeafened, isScreenSharing, isVideoOn]);
 
+    // Камера в голосовом канале: публикуем/снимаем видеотрек через LiveKit и
+    // отдаём локальный поток для собственной плитки. Раньше было заглушкой.
+    const toggleVideo = useCallback(async () => {
+        if (!roomRef.current) { console.warn('[Voice] toggleVideo: нет активного подключения'); return; }
+        const next = !isVideoOn;
+        try {
+            await roomRef.current.localParticipant.setCameraEnabled(
+                next,
+                selectedVideoDeviceId && selectedVideoDeviceId !== 'default' ? { deviceId: selectedVideoDeviceId } : undefined
+            );
+            if (next) {
+                const pub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Camera);
+                const mst = pub?.track?.mediaStreamTrack;
+                setLocalCameraStream(mst ? new MediaStream([mst]) : null);
+            } else {
+                setLocalCameraStream(null);
+            }
+            setIsVideoOn(next);
+            emitVoiceState({ isVideoOn: next });
+        } catch (e) {
+            console.error('[Voice] toggleVideo failed:', e);
+            await alert('Не удалось переключить камеру: ' + (e as Error).message);
+        }
+    }, [isVideoOn, selectedVideoDeviceId, emitVoiceState]);
+
     const startScreenShare = useCallback(async (sourceId: string, options?: any) => {
         if (!roomRef.current) { console.warn('[Voice] startScreenShare: нет активного подключения'); return; }
-        if (!sourceId) { console.warn('[Voice] startScreenShare: не выбран источник'); return; }
+        const isElectron = !!(window as any).electron;
+        // В Electron нужен выбранный источник; в вебе источник выбирается нативным пикером.
+        if (isElectron && !sourceId) { console.warn('[Voice] startScreenShare: не выбран источник'); return; }
         try {
-            console.log('[Voice] Запуск трансляции экрана, источник:', sourceId);
+            console.log('[Voice] Запуск трансляции экрана, источник:', sourceId || '(web picker)');
             const frameRate = parseInt(options?.frameRate || '30', 10);
             const resolution = options?.resolution || '1080';
             let bitrate = 10_000_000;
@@ -770,11 +797,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             else if (resolution === '1080') bitrate = frameRate >= 60 ? 15_000_000 : 10_000_000;
             else if (resolution === '720') bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
 
-            const constraints = {
-                audio: false,
-                video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
-            };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints as any);
+            let stream: MediaStream;
+            if (isElectron && sourceId) {
+                // Electron: захват конкретного источника через desktopCapturer sourceId.
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
+                } as any);
+            } else {
+                // Веб: нативный системный пикер браузера. Звук экрана/вкладки — через getDisplayMedia.
+                stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { frameRate: { ideal: frameRate } },
+                    audio: !!options?.withAudio
+                });
+            }
             const videoTrack = stream.getVideoTracks()[0];
             if (videoTrack && roomRef.current) {
                 (videoTrack as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
@@ -790,31 +826,49 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
             screenStreamRef.current = stream;
 
-            // Звук приложения через нативный C++ драйвер (WASAPI process-loopback).
-            // Только для Electron-версии; в браузере драйвера нет.
-            const isElectron = !!(window as any).electron;
-            if (options?.withAudio && isElectron && roomRef.current) {
-                try {
-                    console.log('[Voice] Захват звука демонстрации через нативный драйвер…');
-                    const audioStream = await nativeAudioManager.startcapture(sourceId);
-                    const screenAudioTrack = audioStream.getAudioTracks()[0];
-                    if (screenAudioTrack) {
-                        // Звук стрима НЕ зависит от мьюта/деафа микрофона — держим трек
-                        // всегда включённым; кнопки микрофона трогают только livekitTrackRef.
-                        screenAudioTrack.enabled = true;
-                        screenAudioTrackRef.current = screenAudioTrack;
-                        await roomRef.current.localParticipant.publishTrack(screenAudioTrack, {
+            // Звук демонстрации.
+            if (isElectron) {
+                // Electron: звук приложения через нативный C++ драйвер (WASAPI process-loopback).
+                if (options?.withAudio && roomRef.current) {
+                    try {
+                        console.log('[Voice] Захват звука демонстрации через нативный драйвер…');
+                        const audioStream = await nativeAudioManager.startcapture(sourceId);
+                        const screenAudioTrack = audioStream.getAudioTracks()[0];
+                        if (screenAudioTrack) {
+                            // Звук стрима НЕ зависит от мьюта/деафа микрофона — держим трек
+                            // всегда включённым; кнопки микрофона трогают только livekitTrackRef.
+                            screenAudioTrack.enabled = true;
+                            screenAudioTrackRef.current = screenAudioTrack;
+                            await roomRef.current.localParticipant.publishTrack(screenAudioTrack, {
+                                source: Track.Source.ScreenShareAudio,
+                                dtx: false,
+                                red: false
+                            });
+                            console.log('[Voice] Звук демонстрации опубликован');
+                        } else {
+                            console.warn('[Voice] Нативный драйвер не вернул аудио-трек');
+                        }
+                    } catch (audioErr) {
+                        console.error('[Voice] Не удалось захватить звук демонстрации:', audioErr);
+                        // Видео уже идёт — не валим всю трансляцию из-за звука.
+                    }
+                }
+            } else {
+                // Веб: звук экрана/вкладки уже в потоке getDisplayMedia (если пользователь его дал).
+                const webAudioTrack = stream.getAudioTracks()[0];
+                if (webAudioTrack && roomRef.current) {
+                    try {
+                        webAudioTrack.enabled = true;
+                        screenAudioTrackRef.current = webAudioTrack;
+                        await roomRef.current.localParticipant.publishTrack(webAudioTrack, {
                             source: Track.Source.ScreenShareAudio,
                             dtx: false,
                             red: false
                         });
-                        console.log('[Voice] Звук демонстрации опубликован');
-                    } else {
-                        console.warn('[Voice] Нативный драйвер не вернул аудио-трек');
+                        console.log('[Voice] Звук демонстрации (web) опубликован');
+                    } catch (audioErr) {
+                        console.error('[Voice] Не удалось опубликовать звук демонстрации (web):', audioErr);
                     }
-                } catch (audioErr) {
-                    console.error('[Voice] Не удалось захватить звук демонстрации:', audioErr);
-                    // Видео уже идёт — не валим всю трансляцию из-за звука.
                 }
             }
 
@@ -977,7 +1031,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         selectedInputDeviceId, setSelectedInputDeviceId, selectedOutputDeviceId, setSelectedOutputDeviceId,
         selectedVideoDeviceId, setSelectedVideoDeviceId, inputVolume, setInputVolume, outputVolume, setOutputVolume,
         refreshDevices, isScreenSharing, screenStream, startScreenShare, stopScreenShare,
-        remoteScreenStreams, isVideoOn, toggleVideo: async () => {}, localCameraStream, screenVolumes, setScreenVolume,
+        remoteScreenStreams, isVideoOn, toggleVideo, localCameraStream, screenVolumes, setScreenVolume,
         watchedScreenIds, setWatchingScreen, inputSensitivity, setInputSensitivity,
         isAutomaticSensitivity, setIsAutomaticSensitivity, 
         echoCancellation, setEchoCancellation,
@@ -999,7 +1053,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         echoCancellation, autoGainControl, attenuation,
         ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel,
         startScreenShare, stopScreenShare, watchedScreenIds, screenVolumes, setWatchingScreen, setScreenVolume,
-        userVolumes, setUserVolume, toggleLocalMute
+        userVolumes, setUserVolume, toggleLocalMute, toggleVideo, localCameraStream
     ]);
 
     return (

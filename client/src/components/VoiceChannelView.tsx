@@ -658,7 +658,12 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
               </button>
               <button
                 className={`ctrl-btn ${isScreenSharing ? 'streaming' : ''}`}
-                onClick={() => isScreenSharing ? stopScreenShare() : setShowScreenSelector(true)}
+                onClick={() => {
+                    if (isScreenSharing) { stopScreenShare(); return; }
+                    // В Electron — кастомный выбор источника; в вебе — нативный пикер браузера.
+                    if ((window as any).electron) setShowScreenSelector(true);
+                    else startScreenShare('', { resolution: '1080', frameRate: '30', videoCodec: 'vp9', withAudio: true });
+                }}
                 title={isScreenSharing ? 'Прекратить трансляцию' : 'Трансляция экрана'}
               >
                 <MonitorIcon size={20} />

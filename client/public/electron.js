@@ -842,14 +842,20 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
 
     // 2. Manage Overlay Visibility
     if (overlayWindow && !overlayWindow.isDestroyed()) {
+        const isNeutral = NEUTRAL_PROCESSES.includes(currentForegroundExe?.trim().toLowerCase() || '');
         const currentCategory = foundActivity ? foundActivity.type : 'other';
         const isCategoryAllowed = appSettings.overlayCategories.includes(currentCategory);
 
-        // Оверлей виден ТОЛЬКО пока игра реально на переднем плане. При сворачивании
-        // (фокус уходит на другое окно, в т.ч. на сам Zvon) — сразу прячем.
-        // Раньше «нейтральные» процессы (включая electron.exe/zvon.exe) держали
-        // оверлей показанным, из-за чего при сворачивании он не скрывался.
-        const shouldShow = foundActivity && isForeground && isOverlayEnabled && isCategoryAllowed;
+        // Исходная логика (когда оверлей отображался): держим оверлей показанным, пока
+        // фокус на нейтральном окне (Zvon и т.п.) и есть активность, иначе — пока игра
+        // на переднем плане.
+        let shouldShow;
+        if (isNeutral && lastActivity) {
+            const lastCategory = lastActivity.type;
+            shouldShow = isOverlayEnabled && appSettings.overlayCategories.includes(lastCategory);
+        } else {
+            shouldShow = foundActivity && isForeground && isOverlayEnabled && isCategoryAllowed;
+        }
 
         if (shouldShow) {
             overlayWindow.showInactive();
