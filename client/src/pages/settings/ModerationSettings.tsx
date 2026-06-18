@@ -87,6 +87,12 @@ const ModerationSettings: React.FC = () => {
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
     const [mainTab, setMainTab] = useState<'reports' | 'marketplace'>('reports');
 
+    // --- Витрина (модерация мини-приложений) ---
+    const [mpTab, setMpTab] = useState<'pending' | 'reports' | 'approved' | 'blocked'>('pending');
+    const [mpApps, setMpApps] = useState<any[]>([]);
+    const [mpReports, setMpReports] = useState<any[]>([]);
+    const [mpLoading, setMpLoading] = useState(false);
+
     const fetchReports = async (status: string) => {
         setLoading(true);
         try {
@@ -96,9 +102,50 @@ const ModerationSettings: React.FC = () => {
         setLoading(false);
     };
 
+    const fetchMarketplace = async (tab: typeof mpTab) => {
+        setMpLoading(true);
+        try {
+            if (tab === 'reports') {
+                const res = await axios.get('/api/moderation/marketplace/reports?status=pending');
+                setMpReports(res.data);
+                setMpApps([]);
+            } else {
+                const res = await axios.get(`/api/moderation/marketplace?status=${tab}`);
+                setMpApps(res.data.miniApps || []);
+                setMpReports([]);
+            }
+        } catch (err) { }
+        setMpLoading(false);
+    };
+
     useEffect(() => {
         fetchReports(filter);
     }, [filter]);
+
+    useEffect(() => {
+        if (mainTab === 'marketplace') fetchMarketplace(mpTab);
+    }, [mainTab, mpTab]);
+
+    const approveApp = async (id: string) => {
+        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/approve`); fetchMarketplace(mpTab); } catch { }
+    };
+    const rejectApp = async (id: string) => {
+        const reason = await prompt('Причина отклонения:', 'Не соответствует правилам витрины');
+        if (reason === null) return;
+        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/reject`, { reason }); fetchMarketplace(mpTab); } catch { }
+    };
+    const blockApp = async (id: string) => {
+        const reason = await prompt('Причина блокировки приложения:', 'Нарушение правил витрины');
+        if (reason === null) return;
+        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/block`, { reason }); fetchMarketplace(mpTab); } catch { }
+    };
+    const unblockApp = async (id: string) => {
+        if (!(await confirm('Разблокировать приложение? Оно вернётся в черновики, владелец сможет подать его повторно.'))) return;
+        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/unblock`); fetchMarketplace(mpTab); } catch { }
+    };
+    const resolveMpReport = async (id: string, status: 'resolved' | 'dismissed', note: string) => {
+        try { await axios.post(`/api/moderation/reports/${id}/resolve`, { status, note }); fetchMarketplace(mpTab); } catch { }
+    };
 
     return (
         <div className="settings-content-inner">
@@ -133,9 +180,101 @@ const ModerationSettings: React.FC = () => {
             </div>
 
             {mainTab === 'marketplace' ? (
-                <div className="settings-card">
-                    <div style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '40px 0' }}>Модерация витрины находится в разработке.</div>
-                </div>
+                <>
+                    <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        {([
+                            ['pending', 'На модерации'],
+                            ['reports', 'Жалобы'],
+                            ['approved', 'Опубликовано'],
+                            ['blocked', 'Заблокировано'],
+                        ] as [typeof mpTab, string][]).map(([key, label]) => (
+                            <div
+                                key={key}
+                                onClick={() => setMpTab(key)}
+                                style={{ cursor: 'pointer', padding: '10px 20px', background: mpTab === key ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: mpTab === key ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
+                            >
+                                {label}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {mpLoading ? (
+                            <div style={{ color: 'var(--text-dim)', padding: '20px' }}>Загрузка...</div>
+                        ) : mpTab === 'reports' ? (
+                            mpReports.length === 0 ? (
+                                <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>Жалоб на мини-приложения нет. 🛡️</div>
+                            ) : mpReports.map(report => (
+                                <div key={report._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                        <div style={{ fontSize: '14px' }}>
+                                            <strong style={{ color: 'var(--text-dim)' }}>От:</strong> {report.reporter?.username}
+                                            <div style={{ marginTop: '6px' }}>
+                                                <strong style={{ color: 'var(--text-dim)' }}>Приложение:</strong> {report.reportedMiniApp?.name || '—'}
+                                                {report.reportedMiniApp?.owner?.username && <span style={{ fontSize: '12px', color: 'var(--text-dim)', marginLeft: '6px' }}>(владелец: {report.reportedMiniApp.owner.username})</span>}
+                                            </div>
+                                        </div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'right' }}>{new Date(report.createdAt).toLocaleString('ru-RU')}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                                        <div style={{ fontWeight: 700, color: 'var(--primary-neon)', marginBottom: '8px', fontSize: '14px' }}>
+                                            {report.reason === 'harassment' ? 'Домогательства' :
+                                            report.reason === 'spam' ? 'Спам' :
+                                            report.reason === 'inappropriate_content' ? 'Контент' :
+                                            report.reason === 'scam' ? 'Мошенничество' : 'Другое'}
+                                        </div>
+                                        {report.description && <div style={{ fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: '12px' }}>{report.description}</div>}
+                                        <ReportedContent report={report} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                        <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => resolveMpReport(report._id, 'dismissed', 'Отклонено модератором')}>Отклонить жалобу</button>
+                                        {report.reportedMiniApp?._id && !report.reportedMiniApp?.isBlocked && (
+                                            <button className="settings-btn settings-btn-danger" onClick={async () => {
+                                                await blockApp(report.reportedMiniApp._id);
+                                                await resolveMpReport(report._id, 'resolved', 'Приложение заблокировано');
+                                            }}>Заблокировать приложение</button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            mpApps.length === 0 ? (
+                                <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>
+                                    {mpTab === 'pending' ? 'Нет приложений на рассмотрении.' : mpTab === 'approved' ? 'Нет опубликованных приложений.' : 'Нет заблокированных приложений.'}
+                                </div>
+                            ) : mpApps.map(app => (
+                                <div key={app._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
+                                    <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginBottom: '16px' }}>
+                                        {app.avatar
+                                            ? <img src={getFullUrl(app.avatar)!} alt="" style={{ width: '52px', height: '52px', borderRadius: '14px', objectFit: 'cover' }} />
+                                            : <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(255,255,255,0.05)' }} />}
+                                        <div style={{ minWidth: 0 }}>
+                                            <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '15px' }}>{app.name}</div>
+                                            {app.url && <a href={app.url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--secondary-neon)', wordBreak: 'break-all' }}>{app.url}</a>}
+                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>Владелец: {app.owner?.username || '—'}</div>
+                                        </div>
+                                    </div>
+                                    {app.description && <div style={{ marginBottom: '16px', color: 'var(--text-dim)', fontSize: '14px', whiteSpace: 'pre-wrap' }}>{app.description}</div>}
+                                    {app.blockReason && mpTab === 'blocked' && <div style={{ marginBottom: '16px', color: 'var(--danger)', fontSize: '13px' }}>Причина блокировки: {app.blockReason}</div>}
+                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                        {mpTab === 'pending' && (
+                                            <>
+                                                <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => rejectApp(app._id)}>Отклонить</button>
+                                                <button className="settings-btn success-glass" onClick={() => approveApp(app._id)}>Одобрить</button>
+                                            </>
+                                        )}
+                                        {mpTab === 'approved' && (
+                                            <button className="settings-btn settings-btn-danger" onClick={() => blockApp(app._id)}>Заблокировать</button>
+                                        )}
+                                        {mpTab === 'blocked' && (
+                                            <button className="settings-btn success-glass" onClick={() => unblockApp(app._id)}>Разблокировать</button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </>
             ) : (
                 <>
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>

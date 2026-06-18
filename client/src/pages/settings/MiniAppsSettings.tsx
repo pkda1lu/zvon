@@ -69,11 +69,15 @@ const MiniAppsSettings: React.FC = () => {
     const saveField = useCallback(async (field: string, value: any) => {
         if (!selectedAppId) return;
         try {
-            await axios.patch(`/api/miniapps/${selectedAppId}`, {
+            const res = await axios.patch(`/api/miniapps/${selectedAppId}`, {
                 [field]: value
             });
-            // Update local state
-            setMiniapps(prev => prev.map(a => a._id === selectedAppId ? { ...a, [field]: value } : a));
+            // Сервер возвращает актуальный объект (включая moderationStatus, который мог
+            // смениться на pending при правке названия/домена) — мерджим его целиком.
+            const updated = res.data?.miniApp;
+            setMiniapps(prev => prev.map(a => a._id === selectedAppId
+                ? (updated ? { ...a, ...updated } : { ...a, [field]: value })
+                : a));
         } catch (e) {
             console.error(`Failed to auto-save mini-app ${field}`, e);
         }
@@ -330,15 +334,46 @@ const MiniAppsSettings: React.FC = () => {
                         {/* 4. Публикация */}
                         <div className="settings-card">
                             <h3 className="settings-section-title" style={{marginTop: 0}}>Публикация на витрине</h3>
-                            <div className="settings-row">
-                                <div className="settings-row-text">
-                                    <h3>Статус: {selectedApp.isPublished ? 'Опубликовано' : 'Черновик'}</h3>
-                                    <p>Опубликованные мини-приложения доступны всем пользователям в меню «Витрина».</p>
-                                </div>
-                                <button className={`settings-btn ${selectedApp.isPublished ? 'danger-glass' : 'success-glass'}`} onClick={togglePublish}>
-                                    {selectedApp.isPublished ? 'Снять с витрины' : 'Опубликовать'}
-                                </button>
-                            </div>
+                            {(() => {
+                                const isPending = !selectedApp.isPublished && selectedApp.moderationStatus === 'pending';
+                                const isRejected = !selectedApp.isPublished && selectedApp.moderationStatus === 'rejected';
+                                const isBlocked = !!selectedApp.isBlocked;
+                                const statusLabel = isBlocked ? 'Заблокировано модерацией'
+                                    : selectedApp.isPublished ? 'Опубликовано'
+                                    : isPending ? 'На рассмотрении'
+                                    : isRejected ? 'Отклонено модерацией'
+                                    : 'Черновик';
+                                const statusColor = isBlocked || isRejected ? 'var(--danger)'
+                                    : selectedApp.isPublished ? 'var(--success, #2ecc71)'
+                                    : isPending ? '#f0b232'
+                                    : undefined;
+                                return (
+                                    <div className="settings-row">
+                                        <div className="settings-row-text">
+                                            <h3>Статус: <span style={{ color: statusColor }}>{statusLabel}</span></h3>
+                                            {isPending ? (
+                                                <p>Приложение проверяется модератором. После одобрения оно появится на витрине.</p>
+                                            ) : isRejected ? (
+                                                <p>Заявка отклонена{selectedApp.moderationReason ? `: ${selectedApp.moderationReason}` : ''}. Вы можете отправить её повторно.</p>
+                                            ) : isBlocked ? (
+                                                <p>Приложение снято с витрины модерацией{selectedApp.blockReason ? `: ${selectedApp.blockReason}` : ''}.</p>
+                                            ) : (
+                                                <p>Опубликованные мини-приложения доступны всем пользователям в меню «Витрина».</p>
+                                            )}
+                                        </div>
+                                        {!isBlocked && (
+                                            <button
+                                                className={`settings-btn ${selectedApp.isPublished || isPending ? 'danger-glass' : 'success-glass'}`}
+                                                onClick={togglePublish}
+                                            >
+                                                {selectedApp.isPublished ? 'Снять с витрины'
+                                                    : isPending ? 'Отозвать заявку'
+                                                    : 'Отправить на модерацию'}
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         {/* 5. URL мини-приложения */}

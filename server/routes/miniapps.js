@@ -71,12 +71,29 @@ router.patch('/:id', auth, async (req, res) => {
         const miniApp = await MiniApp.findOne({ _id: req.params.id, owner: req.user._id });
         if (!miniApp) return res.status(404).json({ message: 'MiniApp not found' });
 
+        const nameChanged = name && name.trim() !== miniApp.name;
+        const urlChanged = url && url.trim() !== miniApp.url;
+
         if (name) miniApp.name = name;
         if (url) miniApp.url = url;
         if (description !== undefined) miniApp.description = description;
 
+        let message = 'Мини-приложение обновлено';
+        // Смена названия или домена опубликованного/одобренного приложения → повторная
+        // модерация (защита от «подмены» одобренной апки на вредоносную). Системные и
+        // черновики не трогаем — черновик и так не на витрине.
+        if ((nameChanged || urlChanged) && !miniApp.isSystem &&
+            (miniApp.isPublished || miniApp.moderationStatus === 'approved' || miniApp.moderationStatus === 'pending')) {
+            miniApp.isPublished = false;
+            miniApp.moderationStatus = 'pending';
+            miniApp.moderationReason = null;
+            miniApp.moderatedAt = null;
+            miniApp.moderatedBy = null;
+            message = 'Изменения сохранены. Приложение отправлено на повторную модерацию';
+        }
+
         await miniApp.save();
-        res.json({ message: 'Мини-приложение обновлено', miniApp });
+        res.json({ message, miniApp });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }

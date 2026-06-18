@@ -93,11 +93,13 @@ router.get('/reports', [auth, isModerator], async (req, res) => {
   try {
     const { status } = req.query;
     const query = status ? { status } : { status: 'pending' };
-    
+    // Жалобы на мини-приложения сюда НЕ попадают — они живут во вкладке «Витрина»
+    // (см. GET /marketplace/reports). reportedMiniApp: null матчит и отсутствие поля.
+    query.reportedMiniApp = null;
+
     const reports = await Report.find(query)
       .populate('reporter', 'username avatar')
       .populate('reportedUser', 'username avatar')
-      .populate('reportedMiniApp', 'name avatar')
       .populate('reportedServer', 'name icon')
       .populate('resolvedBy', 'username')
       .populate('messageContext')
@@ -258,6 +260,21 @@ router.get('/marketplace', auth, isModerator, async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error('marketplace list error:', e);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Жалобы на мини-приложения (живут во вкладке «Витрина» модерации).
+router.get('/marketplace/reports', auth, isModerator, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const reports = await Report.find({ reportedMiniApp: { $ne: null }, status })
+      .populate('reporter', 'username avatar')
+      .populate({ path: 'reportedMiniApp', select: 'name avatar url owner isPublished isBlocked moderationStatus', populate: { path: 'owner', select: 'username avatar' } })
+      .populate('resolvedBy', 'username')
+      .sort('-createdAt');
+    res.json(reports);
+  } catch (e) {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });

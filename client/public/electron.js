@@ -660,7 +660,14 @@ function scheduleNextScan() {
     currentScanTimeout = setTimeout(scanActivities, adaptiveInterval);
 }
 
-const FG_SCRIPT = `$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);'; $t = Add-Type -MemberDefinition $code -Name 'W32' -Namespace 'W32' -PassThru; $hwnd = $t::GetForegroundWindow(); if($hwnd -ne 0){ $pidOut=0; $t::GetWindowThreadProcessId($hwnd, [ref]$pidOut); if ($pidOut -ne $pid) { (Get-Process -Id $pidOut).ProcessName + '.exe' } }`;
+// ВАЖНО: скрипт содержит двойные кавычки ("user32.dll"), поэтому его НЕЛЬЗЯ
+// передавать как `powershell -Command "<script>"` — внешние кавычки рвутся, Add-Type
+// не компилируется, GetForegroundWindow падает и powershell молча возвращает
+// «Idle.exe» (PID 0). Из-за этого определение переднего окна не работало вообще.
+// Передаём скрипт через -EncodedCommand (Base64 UTF-16LE) — это полностью убирает
+// проблемы экранирования. `$null =` гасит лишний вывод GetWindowThreadProcessId.
+const FG_SCRIPT = `$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);'; $t = Add-Type -MemberDefinition $code -Name 'W32' -Namespace 'W32' -PassThru; $hwnd = $t::GetForegroundWindow(); if($hwnd -ne 0){ $pidOut=0; $null = $t::GetWindowThreadProcessId($hwnd, [ref]$pidOut); if ($pidOut -ne $pid) { (Get-Process -Id $pidOut -ErrorAction SilentlyContinue).ProcessName + '.exe' } }`;
+const FG_SCRIPT_B64 = Buffer.from(FG_SCRIPT, 'utf16le').toString('base64');
 
 const STEAM_ID_SCRIPT = `Get-ItemProperty -Path 'HKCU:\\Software\\Valve\\Steam' -Name 'RunningAppID' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty RunningAppID`;
 
@@ -752,9 +759,9 @@ async function scanActivities() {
             steamMetadata = await getGameMetadata(steamAppId);
         }
 
-        exec(`powershell -Command "${FG_SCRIPT}"`, async (fgErr, fgStdout) => {
+        exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${FG_SCRIPT_B64}`, async (fgErr, fgStdout) => {
             const fgExe = fgStdout?.trim().toLowerCase();
-            
+
             if (!fgErr && fgExe) {
                 const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
 
@@ -806,7 +813,9 @@ async function scanActivities() {
             if (steamMetadata) {
                 updateActivity(steamMetadata, false, fgExe);
                 scanInProgress = false;
-                adaptiveInterval = 3000;
+                // Steam-игра запущена, но свёрнута/не в фокусе — опрашиваем чаще,
+                // чтобы оверлей быстро вернулся, когда игра снова на переднем плане.
+                adaptiveInterval = 1200;
                 scheduleNextScan();
             } else {
                 performFullScan(fgExe);
@@ -842,20 +851,28 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
 
     // 2. Manage Overlay Visibility
     if (overlayWindow && !overlayWindow.isDestroyed()) {
-        const isNeutral = NEUTRAL_PROCESSES.includes(currentForegroundExe?.trim().toLowerCase() || '');
+        const fg = (currentForegroundExe || '').trim().toLowerCase();
         const currentCategory = foundActivity ? foundActivity.type : 'other';
         const isCategoryAllowed = appSettings.overlayCategories.includes(currentCategory);
 
-        // Исходная логика (когда оверлей отображался): держим оверлей показанным, пока
-        // фокус на нейтральном окне (Zvon и т.п.) и есть активность, иначе — пока игра
-        // на переднем плане.
-        let shouldShow;
-        if (isNeutral && lastActivity) {
-            const lastCategory = lastActivity.type;
-            shouldShow = isOverlayEnabled && appSettings.overlayCategories.includes(lastCategory);
-        } else {
-            shouldShow = foundActivity && isForeground && isOverlayEnabled && isCategoryAllowed;
-        }
+        // 1) Игра реально на переднем плане — показываем.
+        const gameInForeground = !!foundActivity && isForeground && isCategoryAllowed;
+
+        // 2) Фокус явно ушёл на ИЗВЕСТНОЕ не-игровое окно (сам Zvon, браузер, рабочий
+        //    стол/проводник, поиск в таскбаре, мессенджеры, dwm) — это «свернул игру /
+        //    переключился на другую вкладку», оверлей надо скрыть.
+        const fgIsKnownNonGame = !!fg && NON_GAME_FG.has(fg);
+
+        // 3) Активное окно НЕ читается (fg пуст): у многих игр с античитом или
+        //    запущенных от администратора PowerShell не может прочитать процесс
+        //    переднего окна. Если игра при этом запущена (есть lastActivity) и её
+        //    категория разрешена — считаем, что игра по-прежнему на переднем плане,
+        //    иначе оверлей не показывался бы вовсе. Когда фокус уходит на обычное
+        //    окно (см. п.2), fg читается и оверлей корректно скрывается.
+        const lastAllowed = !!lastActivity && appSettings.overlayCategories.includes(lastActivity.type);
+        const unreadableButGameRunning = !fg && lastAllowed;
+
+        const shouldShow = isOverlayEnabled && !fgIsKnownNonGame && (gameInForeground || unreadableButGameRunning);
 
         if (shouldShow) {
             overlayWindow.showInactive();
@@ -897,7 +914,9 @@ function performFullScan(fgExe = '') {
             }
         }
         updateActivity(bestMatch, false, fgExe);
-        adaptiveInterval = bestMatch ? 3000 : 5000;
+        // Игра запущена, но не на переднем плане — держим частый опрос, чтобы оверлей
+        // быстро появился при возврате в игру; иначе можно опрашивать реже.
+        adaptiveInterval = bestMatch ? 1200 : 5000;
         scheduleNextScan();
     });
 }
@@ -1103,7 +1122,7 @@ function createOverlayWindow() {
 ipcMain.on('toggle-overlay', (event, enabled) => {
     console.log('[Electron] Toggling overlay:', enabled);
     isOverlayEnabled = enabled;
-    
+
     if (enabled) {
         if (!overlayWindow) {
             createOverlayWindow();
