@@ -50,6 +50,7 @@ import AdvancedSettings from './AdvancedSettings';
 import ModerationSettings from './ModerationSettings';
 import AdminUsersSettings from './AdminUsersSettings';
 import AdminStatsSettings from './AdminStatsSettings';
+import AdminInfraSettings from './AdminInfraSettings';
 import AdminActionsSettings from './AdminActionsSettings';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
@@ -119,6 +120,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'moderation': return <ModerationSettings />;
             case 'admin-users': return <AdminUsersSettings />;
             case 'admin-stats': return <AdminStatsSettings />;
+            case 'admin-infra': return <AdminInfraSettings />;
             case 'admin-actions': return <AdminActionsSettings />;
             default: return <ProfileSettings />;
         }
@@ -188,6 +190,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <NavItem id="moderation" label="Модерация" icon={ShieldIcon} />
                         <NavItem id="admin-users" label="Пользователи и сервера" icon={UsersIcon} />
                         <NavItem id="admin-stats" label="Статистика" icon={LayoutGridIcon} />
+                        <NavItem id="admin-infra" label="Инфраструктура" icon={GlobeIcon} />
                         <NavItem id="admin-actions" label="Действия" icon={DocumentIcon} />
                     </>
                 )}

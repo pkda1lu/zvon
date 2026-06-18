@@ -72,13 +72,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
 
-      newSocket.on('notification', (data: any) => {
-        addNotification({
-          title: 'Модерация',
-          content: data.message,
-          type: data.type === 'moderation_violation' ? 'warning' : 'info'
-        });
-      });
+      // 'notification' (сообщения модерации) обрабатываются в InboxContext —
+      // там они сохраняются во «Входящих» и показывают тост. Здесь не дублируем.
 
       newSocket.on('account-banned', (data: any) => {
         addNotification({

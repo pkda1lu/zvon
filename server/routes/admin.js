@@ -1,4 +1,7 @@
 const express = require('express');
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const User = require('../models/User');
@@ -25,6 +28,89 @@ const isModerator = async (req, res, next) => {
     res.status(403).json({ message: 'Доступ разрешен только модераторам' });
   }
 };
+
+// --- Infrastructure (live system metrics) ---
+// Состояние храним между запросами, чтобы считать дельты (CPU idle/total, сеть rx/tx).
+let _prevCpu = null;
+let _prevNet = null;
+
+function cpuUsagePercent() {
+  const cpus = os.cpus() || [];
+  let idle = 0, total = 0;
+  for (const c of cpus) {
+    for (const k in c.times) total += c.times[k];
+    idle += c.times.idle;
+  }
+  if (!_prevCpu) { _prevCpu = { idle, total }; return 0; }
+  const idleDiff = idle - _prevCpu.idle;
+  const totalDiff = total - _prevCpu.total;
+  _prevCpu = { idle, total };
+  if (totalDiff <= 0) return 0;
+  return Math.max(0, Math.min(100, (1 - idleDiff / totalDiff) * 100));
+}
+
+// Скорость сети (байт/сек) суммарно по всем интерфейсам кроме loopback.
+// Читаем /proc/net/dev (Linux — продакшен). На других ОС вернём unavailable.
+function networkRates() {
+  try {
+    const raw = fs.readFileSync('/proc/net/dev', 'utf8');
+    let rx = 0, tx = 0;
+    for (const line of raw.split('\n')) {
+      const m = line.match(/^\s*([^:]+):\s*(.*)$/);
+      if (!m) continue;
+      const iface = m[1].trim();
+      if (iface === 'lo') continue;
+      const cols = m[2].trim().split(/\s+/).map(Number);
+      rx += cols[0] || 0;   // receive bytes
+      tx += cols[8] || 0;   // transmit bytes
+    }
+    const now = Date.now();
+    if (!_prevNet) { _prevNet = { rx, tx, t: now }; return { rxRate: 0, txRate: 0 }; }
+    const dt = (now - _prevNet.t) / 1000 || 1;
+    const rxRate = Math.max(0, (rx - _prevNet.rx) / dt);
+    const txRate = Math.max(0, (tx - _prevNet.tx) / dt);
+    _prevNet = { rx, tx, t: now };
+    return { rxRate, txRate };
+  } catch {
+    return { rxRate: 0, txRate: 0, unavailable: true };
+  }
+}
+
+router.get('/infrastructure', [auth, isModerator], async (req, res) => {
+  try {
+    const cpuPct = cpuUsagePercent();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+
+    // Хранилище: раздел, где лежит сервер. fs.statfs есть в Node 18.15+.
+    let storage = { total: 0, used: 0, free: 0, usage: 0, unavailable: true };
+    try {
+      const root = process.platform === 'win32' ? path.parse(process.cwd()).root : '/';
+      const st = await fs.promises.statfs(root);
+      const total = st.blocks * st.bsize;
+      const free = st.bavail * st.bsize;
+      const used = total - free;
+      storage = { total, used, free, usage: total ? (used / total) * 100 : 0 };
+    } catch (e) { /* statfs недоступен */ }
+
+    const net = networkRates();
+    const NET_CAP = 100 * 1024 * 1024; // 100 МБ/с принимаем за 100% шкалы
+    const netUsage = Math.min(100, ((net.rxRate + net.txRate) / NET_CAP) * 100);
+
+    res.json({
+      cpu: { usage: cpuPct, cores: (os.cpus() || []).length, model: ((os.cpus() || [])[0] || {}).model || '', loadavg: os.loadavg() },
+      memory: { total: totalMem, used: usedMem, free: freeMem, usage: totalMem ? (usedMem / totalMem) * 100 : 0 },
+      storage,
+      network: { rxRate: net.rxRate, txRate: net.txRate, usage: netUsage, unavailable: !!net.unavailable },
+      uptime: os.uptime(),
+      hostname: os.hostname(),
+      platform: os.platform()
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
 
 // --- Statistics ---
 router.get('/stats', [auth, isModerator], async (req, res) => {

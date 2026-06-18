@@ -8,7 +8,7 @@ import { getAvatarUrl } from '../utils/avatar';
 
 export interface InboxItem {
     id: string;
-    type: 'mention' | 'dm' | 'friend_request';
+    type: 'mention' | 'dm' | 'friend_request' | 'moderation';
     title: string;
     content: string;
     timestamp: Date;
@@ -187,14 +187,28 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
         };
 
+        // Сообщения от модерации — сохраняем во «Входящих» (левый сайдбар),
+        // а не только во всплывающем тосте. addItem сам покажет тост и сыграет звук.
+        const handleModeration = (data: any) => {
+            if (!data?.message) return;
+            addItem({
+                type: 'moderation',
+                title: data.type === 'moderation_violation' ? 'Предупреждение модерации' : 'Сообщение от модерации',
+                content: data.message,
+                author: { _id: 'moderation', username: 'Модерация', avatar: null }
+            });
+        };
+
         socket.on('mention', handleMention);
         socket.on('friend-request', handleFriendRequest);
         socket.on('friend-request-accepted', handleFriendRequestAccepted);
+        socket.on('notification', handleModeration);
 
         return () => {
             socket.off('mention', handleMention);
             socket.off('friend-request', handleFriendRequest);
             socket.off('friend-request-accepted', handleFriendRequestAccepted);
+            socket.off('notification', handleModeration);
         };
     }, [socket, user, addItem]);
 
