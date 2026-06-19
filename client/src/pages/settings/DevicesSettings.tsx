@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { MonitorIcon, SmartphoneIcon, LogOutIcon, ShieldIcon, CheckIcon } from '../../components/Icons';
+import { MonitorIcon, SmartphoneIcon, LogOutIcon, ShieldIcon } from '../../components/Icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 
@@ -10,6 +10,7 @@ interface DeviceSession {
     os: string;
     deviceType: 'desktop' | 'mobile' | 'tablet' | 'app' | 'unknown';
     deviceName: string;
+    deviceId: string;
     ip: string;
     country: string;
     countryCode: string;
@@ -19,12 +20,71 @@ interface DeviceSession {
     current: boolean;
 }
 
+interface DeviceLocation {
+    ip: string;
+    city: string;
+    country: string;
+    countryCode: string;
+    lastActiveAt: string;
+}
+
+interface DeviceGroup {
+    key: string;
+    deviceType: DeviceSession['deviceType'];
+    deviceName: string;
+    os: string;
+    browser: string;
+    current: boolean;
+    sessionIds: string[];
+    lastActiveAt: string;
+    locations: DeviceLocation[];
+}
+
+// Ключ группировки: стабильный deviceId, а если его нет (старая сессия) —
+// сигнатура устройства, чтобы входы с одного устройства не дробились по IP.
+const groupKey = (s: DeviceSession) =>
+    s.deviceId ? `id:${s.deviceId}` : `sig:${s.deviceType}|${s.os}|${s.browser}|${s.deviceName}`;
+
+const groupSessions = (sessions: DeviceSession[]): DeviceGroup[] => {
+    const map = new Map<string, DeviceGroup>();
+    for (const s of sessions) {
+        const key = groupKey(s);
+        let g = map.get(key);
+        if (!g) {
+            g = {
+                key,
+                deviceType: s.deviceType,
+                deviceName: s.deviceName,
+                os: s.os,
+                browser: s.browser,
+                current: false,
+                sessionIds: [],
+                lastActiveAt: s.lastActiveAt,
+                locations: []
+            };
+            map.set(key, g);
+        }
+        g.sessionIds.push(s.id);
+        if (s.current) g.current = true;
+        if (new Date(s.lastActiveAt) > new Date(g.lastActiveAt)) g.lastActiveAt = s.lastActiveAt;
+        // Уникальные локации по IP — показываем, откуда были входы.
+        if (!g.locations.some(l => l.ip === s.ip)) {
+            g.locations.push({ ip: s.ip, city: s.city, country: s.country, countryCode: s.countryCode, lastActiveAt: s.lastActiveAt });
+        }
+    }
+    // Текущее устройство — первым, остальные по свежести.
+    return Array.from(map.values()).sort((a, b) => {
+        if (a.current !== b.current) return a.current ? -1 : 1;
+        return new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime();
+    });
+};
+
 const DevicesSettings: React.FC = () => {
     const { logout } = useAuth();
     const { confirm, alert } = useDialog();
     const [sessions, setSessions] = useState<DeviceSession[]>([]);
     const [loading, setLoading] = useState(false);
-    const [revokingId, setRevokingId] = useState<string | null>(null);
+    const [revokingKey, setRevokingKey] = useState<string | null>(null);
 
     useEffect(() => {
         fetchSessions();
@@ -42,28 +102,28 @@ const DevicesSettings: React.FC = () => {
         }
     };
 
-    const revokeSession = async (session: DeviceSession) => {
+    const revokeGroup = async (group: DeviceGroup) => {
         const confirmed = await confirm(
-            session.current
-                ? 'Завершить текущую сессию? Вы выйдете из аккаунта на этом устройстве.'
-                : `Завершить сессию «${session.deviceName || session.os}»? Это устройство выйдет из аккаунта.`
+            group.current
+                ? 'Завершить сессии текущего устройства? Вы выйдете из аккаунта на этом устройстве.'
+                : `Завершить все сессии устройства «${group.deviceName || group.os}»? Это устройство выйдет из аккаунта.`
         );
         if (!confirmed) return;
-        
-        setRevokingId(session.id);
+
+        setRevokingKey(group.key);
         try {
-            const res = await axios.delete(`/api/sessions/${session.id}`);
+            const res = await axios.post('/api/sessions/revoke-group', { ids: group.sessionIds });
             if (res.data?.current) {
                 logout();
                 window.location.href = '/login';
                 return;
             }
-            setSessions(prev => prev.filter(s => s.id !== session.id));
+            setSessions(prev => prev.filter(s => !group.sessionIds.includes(s.id)));
         } catch (err) {
-            console.error("Failed to revoke session", err);
-            alert('Ошибка при завершении сессии');
+            console.error("Failed to revoke device", err);
+            alert('Ошибка при завершении сессий устройства');
         } finally {
-            setRevokingId(null);
+            setRevokingKey(null);
         }
     };
 
@@ -71,7 +131,7 @@ const DevicesSettings: React.FC = () => {
         const confirmed = await confirm('Вы уверены, что хотите завершить все сессии, кроме текущей?');
         if (!confirmed) return;
 
-        setRevokingId('others');
+        setRevokingKey('others');
         try {
             await axios.delete('/api/sessions/others');
             setSessions(prev => prev.filter(s => s.current));
@@ -79,7 +139,7 @@ const DevicesSettings: React.FC = () => {
         } catch (err) {
             alert('Ошибка при завершении сессий');
         } finally {
-            setRevokingId(null);
+            setRevokingKey(null);
         }
     };
 
@@ -90,81 +150,102 @@ const DevicesSettings: React.FC = () => {
 
     const getTime = (isoString: string) => {
         if (!isoString) return 'Неизвестно';
-        return new Date(isoString).toLocaleString('ru-RU', { 
-            day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' 
+        return new Date(isoString).toLocaleString('ru-RU', {
+            day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
         });
+    };
+
+    const locationLabel = (l: DeviceLocation) =>
+        `${getFlag(l.countryCode)} ${[l.city, l.country].filter(Boolean).join(', ') || 'Локация неизвестна'} • ${l.ip}`;
+
+    const groups = groupSessions(sessions);
+    const currentGroup = groups.find(g => g.current);
+    const otherGroups = groups.filter(g => !g.current);
+
+    const renderLocations = (group: DeviceGroup) => (
+        <div style={{ fontSize: '14px', color: 'var(--text-dim)', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {group.locations.slice(0, 4).map((l, i) => (
+                <div key={i}>{locationLabel(l)}</div>
+            ))}
+            {group.locations.length > 4 && (
+                <div style={{ color: 'var(--text-faint)' }}>и ещё {group.locations.length - 4} локаций</div>
+            )}
+        </div>
+    );
+
+    const deviceMeta = (group: DeviceGroup, current: boolean) => {
+        const ipCount = group.locations.length;
+        const ipNote = ipCount > 1 ? ` • ${ipCount} IP` : '';
+        return `${group.browser}${ipNote} • ${current ? 'Активно сейчас' : `Активность: ${getTime(group.lastActiveAt)}`}`;
     };
 
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Устройства</h2>
             <p className="settings-description">
-                Список устройств, на которых вы вошли в свой аккаунт. Если вы заметили подозрительную активность, завершите сессию и смените пароль.
+                Список устройств, на которых вы вошли в свой аккаунт. Входы с одного устройства сгруппированы вместе, даже если IP-адрес менялся. Если вы заметили подозрительную активность, завершите сессию и смените пароль.
             </p>
-            
+
             {loading && sessions.length === 0 ? (
                 <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px' }}>Загрузка сессий...</div>
             ) : (
                 <>
                     <h3 className="settings-section-title">Текущее устройство</h3>
-                    {sessions.filter(s => s.current).map(session => (
-                        <div key={session.id} className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', background: 'rgba(35, 165, 89, 0.05)', borderColor: 'rgba(35, 165, 89, 0.2)' }}>
+                    {currentGroup && (
+                        <div className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', background: 'rgba(35, 165, 89, 0.05)', borderColor: 'rgba(35, 165, 89, 0.2)' }}>
                             <div style={{ padding: '16px', background: 'rgba(35, 165, 89, 0.1)', borderRadius: '16px', color: 'var(--success)' }}>
-                                {session.deviceType === 'mobile' || session.deviceType === 'tablet' 
-                                    ? <SmartphoneIcon size={32} /> 
+                                {currentGroup.deviceType === 'mobile' || currentGroup.deviceType === 'tablet'
+                                    ? <SmartphoneIcon size={32} />
                                     : <MonitorIcon size={32} />}
                             </div>
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {session.deviceName || session.os}
+                                    {currentGroup.deviceName || currentGroup.os}
                                     <span style={{ fontSize: '10px', background: 'var(--success)', color: '#fff', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>Текущее</span>
                                 </div>
-                                <div style={{ fontSize: '14px', color: 'var(--text-dim)', marginTop: '4px' }}>
-                                    {getFlag(session.countryCode)} {[session.city, session.country].filter(Boolean).join(', ') || 'Локация неизвестна'} • {session.ip}
-                                </div>
+                                {renderLocations(currentGroup)}
                                 <div style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px' }}>
-                                    {session.browser} • Активно сейчас
+                                    {deviceMeta(currentGroup, true)}
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )}
 
-                    {sessions.filter(s => !s.current).length > 0 && (
+                    {otherGroups.length > 0 && (
                         <>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '40px', marginBottom: '12px' }}>
                                 <h3 className="settings-section-title" style={{ margin: 0 }}>Другие устройства</h3>
-                                <button 
-                                    className="settings-btn settings-btn-danger" 
+                                <button
+                                    className="settings-btn settings-btn-danger"
                                     style={{ fontSize: '12px', padding: '6px 12px' }}
                                     onClick={revokeOtherSessions}
-                                    disabled={revokingId === 'others'}
+                                    disabled={revokingKey === 'others'}
                                 >
                                     Завершить все
                                 </button>
                             </div>
-                            {sessions.filter(s => !s.current).map(session => (
-                                <div key={session.id} className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                            {otherGroups.map(group => (
+                                <div key={group.key} className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                                     <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', color: 'var(--text-dim)' }}>
-                                        {session.deviceType === 'mobile' || session.deviceType === 'tablet' 
-                                            ? <SmartphoneIcon size={32} /> 
+                                        {group.deviceType === 'mobile' || group.deviceType === 'tablet'
+                                            ? <SmartphoneIcon size={32} />
                                             : <MonitorIcon size={32} />}
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
-                                            {session.deviceName || session.os}
+                                            {group.deviceName || group.os}
                                         </div>
-                                        <div style={{ fontSize: '14px', color: 'var(--text-dim)', marginTop: '4px' }}>
-                                            {getFlag(session.countryCode)} {[session.city, session.country].filter(Boolean).join(', ') || 'Локация неизвестна'}
-                                        </div>
+                                        {renderLocations(group)}
                                         <div style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px' }}>
-                                            {session.browser} • Активность: {getTime(session.lastActiveAt)}
+                                            {deviceMeta(group, false)}
                                         </div>
                                     </div>
-                                    <button 
-                                        className="settings-btn" 
+                                    <button
+                                        className="settings-btn"
                                         style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', padding: '10px' }}
-                                        onClick={() => revokeSession(session)}
-                                        disabled={revokingId === session.id}
+                                        onClick={() => revokeGroup(group)}
+                                        disabled={revokingKey === group.key}
+                                        title="Завершить все сессии устройства"
                                     >
                                         <LogOutIcon size={18} />
                                     </button>

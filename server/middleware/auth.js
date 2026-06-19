@@ -55,6 +55,16 @@ const auth = async (req, res, next) => {
           { _id: req.sessionId, lastActiveAt: { $lt: new Date(Date.now() - 60 * 1000) } },
           { $set: { lastActiveAt: new Date() } }
         ).catch(() => {});
+
+        // Дозаполняем deviceId для старых сессий без него — чтобы группировка
+        // по устройству работала и для входов, сделанных до этого изменения.
+        const deviceId = req.header('x-device-id') || '';
+        if (deviceId) {
+          Session.updateOne(
+            { _id: req.sessionId, $or: [{ deviceId: '' }, { deviceId: { $exists: false } }] },
+            { $set: { deviceId } }
+          ).catch(() => {});
+        }
       }
     }
 

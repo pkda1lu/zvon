@@ -36,6 +36,7 @@ async function createSession(user, req, { days = 7 } = {}) {
   const ua = req.header?.('user-agent') || req.headers?.['user-agent'] || '';
   const ip = getClientIp(req);
   const info = getClientInfo(req);
+  const deviceId = req.header?.('x-device-id') || req.headers?.['x-device-id'] || '';
 
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
@@ -46,6 +47,7 @@ async function createSession(user, req, { days = 7 } = {}) {
     os: info.os,
     deviceType: info.deviceType,
     deviceName: info.deviceName,
+    deviceId,
     ip,
     expiresAt
   });
@@ -79,6 +81,7 @@ async function findOrCreateSessionForToken(user, req, token, expSeconds) {
   const ua = req.header?.('user-agent') || req.headers?.['user-agent'] || '';
   const ip = getClientIp(req);
   const info = getClientInfo(req);
+  const deviceId = req.header?.('x-device-id') || req.headers?.['x-device-id'] || '';
   const expiresAt = expSeconds
     ? new Date(expSeconds * 1000)
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -95,6 +98,7 @@ async function findOrCreateSessionForToken(user, req, token, expSeconds) {
         os: info.os,
         deviceType: info.deviceType,
         deviceName: info.deviceName,
+        deviceId,
         ip,
         createdAt: new Date(),
         lastActiveAt: new Date(),

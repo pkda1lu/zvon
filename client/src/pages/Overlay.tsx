@@ -64,7 +64,12 @@ const Overlay: React.FC = () => {
     const [config, setConfig] = useState(() => ({
         opacity: Number(localStorage.getItem('overlayOpacity')) || 1.0,
         size: Number(localStorage.getItem('overlaySize')) || 1.0,
-        position: localStorage.getItem('overlayPosition') || 'top-left'
+        position: localStorage.getItem('overlayPosition') || 'top-left',
+        idleOpacity: 0.5,
+        showNames: true,
+        showAvatars: true,
+        showSpeakingRing: true,
+        showBackground: true,
     }));
 
     useEffect(() => {
@@ -79,7 +84,7 @@ const Overlay: React.FC = () => {
         });
 
         const removeConfigListener = electron.ipc.on('overlay-config', (_event: any, newConfig: any) => {
-            setConfig(newConfig);
+            setConfig(prev => ({ ...prev, ...newConfig }));
         });
 
         const removeActivityListener = electron.ipc.on('activity-changed', (_event: any, activity: any) => {
@@ -144,25 +149,31 @@ const Overlay: React.FC = () => {
                 </div>
             )}
             {users.length > 0 && (
-                <div className="overlay-user-list">
+                <div className={`overlay-user-list ${config.showBackground ? 'with-bg' : ''}`}>
                     {users.map(user => (
 
-                    <div key={user.id} className={`overlay-user-item ${user.isSpeaking ? 'speaking' : ''}`}>
-                        <div className="overlay-avatar-wrapper">
-                            {user.avatar ? (
-                                <StaticAvatar 
-                                    src={user.avatar} 
-                                    isSpeaking={user.isSpeaking} 
-                                    className="overlay-avatar" 
-                                />
-                            ) : (
-                                <div className="overlay-avatar-placeholder">
-                                    {user.username.charAt(0).toUpperCase()}
-                                </div>
-                            )}
-                            {user.isSpeaking && <div className="overlay-speaking-ring" />}
-                        </div>
-                        <span className="overlay-username">{user.username}</span>
+                    <div
+                        key={user.id}
+                        className={`overlay-user-item ${user.isSpeaking ? 'speaking' : ''}`}
+                        style={{ opacity: user.isSpeaking ? 1 : config.idleOpacity }}
+                    >
+                        {config.showAvatars && (
+                            <div className="overlay-avatar-wrapper">
+                                {user.avatar ? (
+                                    <StaticAvatar
+                                        src={user.avatar}
+                                        isSpeaking={user.isSpeaking}
+                                        className="overlay-avatar"
+                                    />
+                                ) : (
+                                    <div className="overlay-avatar-placeholder">
+                                        {user.username.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                {config.showSpeakingRing && user.isSpeaking && <div className="overlay-speaking-ring" />}
+                            </div>
+                        )}
+                        {config.showNames && <span className="overlay-username">{user.username}</span>}
                         <div className="overlay-user-status">
                             {user.isDeafened ? (
                                 <div className="status-icon deafened" />

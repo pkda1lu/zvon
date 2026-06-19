@@ -12,6 +12,7 @@ function publicSession(s, currentId) {
     os: s.os,
     deviceType: s.deviceType,
     deviceName: s.deviceName,
+    deviceId: s.deviceId || '',
     ip: s.ip,
     country: s.country,
     countryCode: s.countryCode,
@@ -44,6 +45,22 @@ router.delete('/others', auth, async (req, res) => {
     res.json({ message: 'Остальные сессии завершены', revoked: result.deletedCount });
   } catch (error) {
     console.error('Revoke other sessions error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/sessions/revoke-group — завершить все сессии устройства (по списку id).
+router.post('/revoke-group', auth, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (ids.length === 0) {
+      return res.status(400).json({ message: 'Список сессий пуст' });
+    }
+    const current = req.sessionId && ids.map(String).includes(String(req.sessionId));
+    const result = await Session.deleteMany({ _id: { $in: ids }, user: req.user._id });
+    res.json({ message: 'Сессии устройства завершены', revoked: result.deletedCount, current: !!current });
+  } catch (error) {
+    console.error('Revoke device group error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

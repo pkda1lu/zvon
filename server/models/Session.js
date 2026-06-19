@@ -16,6 +16,9 @@ const sessionSchema = new mongoose.Schema({
   os: { type: String, default: 'Неизвестно' },
   deviceType: { type: String, enum: ['desktop', 'mobile', 'tablet', 'app', 'unknown'], default: 'unknown' },
   deviceName: { type: String, default: '' }, // человекочитаемое: "Chrome на Windows"
+  // Стабильный идентификатор устройства от клиента (заголовок X-Device-Id).
+  // Позволяет группировать входы с одного устройства даже при смене IP.
+  deviceId: { type: String, default: '', index: true },
 
   // Геолокация по IP (best-effort, может быть пустой).
   ip: { type: String, default: '' },

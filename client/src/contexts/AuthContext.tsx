@@ -67,6 +67,21 @@ axios.defaults.baseURL = API_URL;
   }
 })();
 
+// Стабильный идентификатор устройства: переживает смену IP и перевыпуск токена,
+// поэтому все входы с одного компьютера группируются в одно устройство, даже
+// если IP разный. Хранится локально (для десктопа localStorage постоянен per-install).
+(() => {
+  try {
+    let deviceId = localStorage.getItem('zvon_device_id') || '';
+    if (!deviceId) {
+      const c = (window as any).crypto;
+      deviceId = c?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem('zvon_device_id', deviceId);
+    }
+    if (deviceId) axios.defaults.headers.common['X-Device-Id'] = deviceId;
+  } catch { /* localStorage недоступен — группировка откатится на сигнатуру устройства */ }
+})();
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));

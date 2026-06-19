@@ -48,9 +48,9 @@
 
         /* логотип сверху */
         .overlay {
-            position: fixed; inset: 0; z-index: 2;
+            position: absolute; inset: 0; z-index: 2;
             display: flex; flex-direction: column; align-items: center;
-            padding: 46px 32px 0;
+            padding: 54px 36px 0;
             pointer-events: none;
         }
         .logo {
@@ -60,16 +60,17 @@
             filter: drop-shadow(0 0 18px rgba(0,242,255,0.35));
         }
 
-        /* статус + прогресс снизу */
+        /* статус + прогресс — приподняты над Землёй, как в превью */
         .status-block {
-            position: fixed; left: 32px; right: 32px; bottom: 38px; z-index: 2;
+            position: absolute; left: 36px; right: 36px; bottom: 150px; z-index: 2;
             pointer-events: none;
         }
         .status {
-            font-size: 15px; font-weight: 600; color: var(--text-main);
+            font-size: 16px; font-weight: 600; color: var(--text-main);
             margin: 0 0 14px; min-height: 22px;
-            text-shadow: 0 2px 14px rgba(0,0,0,0.7);
-            transition: color 0.3s ease;
+            letter-spacing: 0.2px;
+            text-shadow: 0 2px 14px rgba(0,0,0,0.6);
+            transition: color 0.3s ease, opacity 0.3s ease;
         }
         .card[data-state="up-to-date"] .status { color: var(--accent-green); }
         .card[data-state="error"] .status { color: var(--accent-red); }

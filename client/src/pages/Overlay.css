@@ -36,6 +36,13 @@
     gap: 12px;
 }
 
+.overlay-user-list.with-bg {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 10px;
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+}
+
 .overlay-user-item {
     display: flex;
     align-items: center;
