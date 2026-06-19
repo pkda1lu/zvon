@@ -43,7 +43,7 @@ const LineChart: React.FC<{ data: any[]; color: string }> = ({ data, color }) =>
     // Горизонтальные линии сетки + подписи по оси Y (0, середина, максимум).
     const yTicks = [0, Math.round(max / 2), max];
     const fmtDate = (s: string) => { const [, m, day] = (s || '').split('-'); return day && m ? `${day}.${m}` : s; };
-    const labelIdx = n <= 1 ? [0] : [0, Math.floor((n - 1) / 2), n - 1];
+    const labelIdx = n <= 1 ? [0] : [...new Set([0, Math.floor((n - 1) / 2), n - 1])];
 
     return (
         <div ref={containerRef} style={{ width: '100%' }}>

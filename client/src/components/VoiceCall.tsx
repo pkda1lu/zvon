@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import axios from 'axios';
@@ -26,6 +27,7 @@ import {
   LocalAudioTrack
 } from 'livekit-client';
 import './VoiceCall.css';
+import './MemberContextMenu.css';
 
 interface VoiceCallProps {
   socket: Socket | null;
@@ -36,6 +38,7 @@ interface VoiceCallProps {
   onEndCall: () => void;
   initialIncomingCall?: boolean;
   initialOffer?: any;
+  onOpenProfile?: (userId: string, event?: React.MouseEvent) => void;
 }
 
 const RemoteAudioPlayer: React.FC<{
@@ -69,12 +72,73 @@ const RemoteAudioPlayer: React.FC<{
   return <audio ref={audioRef} autoPlay playsInline />;
 };
 
+// Контекстное меню участника личного звонка (ПКМ) — повторяет поведение меню
+// в голосовых каналах сервера: профиль, громкость для себя, локальный мут.
+const DmCallContextMenu: React.FC<{
+  x: number; y: number; username: string; isSelf: boolean;
+  volume: number; isLocalMuted: boolean;
+  onVolume: (v: number) => void; onToggleMute: () => void;
+  onProfile: () => void; onClose: () => void;
+}> = ({ x, y, username, isSelf, volume, isLocalMuted, onVolume, onToggleMute, onProfile, onClose }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: y, left: x });
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    let fx = x, fy = y;
+    if (fx + r.width > window.innerWidth) fx = window.innerWidth - r.width - 12;
+    if (fy + r.height > window.innerHeight) fy = window.innerHeight - r.height - 12;
+    setPos({ top: Math.max(10, fy), left: Math.max(10, fx) });
+    setVisible(true);
+  }, [x, y]);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [onClose]);
+
+  return ReactDOM.createPortal(
+    <div
+      ref={ref}
+      className="member-context-menu"
+      style={{ top: pos.top, left: pos.left, visibility: visible ? 'visible' : 'hidden' }}
+    >
+      <div className="menu-group">
+        <div className="menu-item" onClick={() => { onProfile(); onClose(); }}>Профиль</div>
+      </div>
+      {!isSelf && (
+        <>
+          <div className="menu-separator" />
+          <div className="menu-group">
+            <div className="menu-label">
+              <span>Громкость пользователя</span>
+              <span className="volume-percent">{Math.round(volume * 100)}%</span>
+            </div>
+            <div className="volume-slider-container">
+              <input type="range" min="0" max="2" step="0.01" value={volume} onChange={(e) => onVolume(parseFloat(e.target.value))} className="menu-volume-slider" onClick={(e) => e.stopPropagation()} />
+            </div>
+            <div className="menu-item check-item" onClick={(e) => { e.stopPropagation(); onToggleMute(); }}>
+              <span>Заглушить (для себя)</span>
+              <div className={`checkbox ${isLocalMuted ? 'checked' : ''}`}>{isLocalMuted && '✓'}</div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>,
+    document.body
+  );
+};
+
 const VoiceCall: React.FC<VoiceCallProps> = ({
-  socket, otherUser, dmId, isGroup = false, dmName, onEndCall, initialIncomingCall = false
+  socket, otherUser, dmId, isGroup = false, dmName, onEndCall, initialIncomingCall = false, onOpenProfile
 }) => {
   const { user } = useAuth();
   const { alert } = useDialog();
-  const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, isDeafened: isGlobalDeafened } = useVoice();
+  const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, setUserVolume, localMutes, toggleLocalMute, isDeafened: isGlobalDeafened } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -96,6 +160,16 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
   const [localSpeaking, setLocalSpeaking] = useState(false);
   const [remoteSpeaking, setRemoteSpeaking] = useState(false);
+
+  // Свёрнутый режим: звонок остаётся подключённым, показываем компактный
+  // перетаскиваемый виджет поверх интерфейса вместо полноэкранного вида.
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [widgetPos, setWidgetPos] = useState({ x: window.innerWidth - 320, y: window.innerHeight - 180 });
+  const [isDraggingWidget, setIsDraggingWidget] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+
+  // Контекстное меню участника (ПКМ): профиль, громкость, локальный мут.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; userId: string } | null>(null);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -171,10 +245,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       }
     };
 
-    socket.on('call-offer', handleIncomingOffer);
-    socket.on('call-end', () => {
+    // call-end: для 1:1 завершаем; для группы выход одного НЕ завершает звонок у
+    // остальных — это обрабатывается через dm-call-user-left.
+    const handleCallEnd = () => {
       if (!isGroup) endCall();
-    });
+    };
+
+    socket.on('call-offer', handleIncomingOffer);
+    socket.on('call-end', handleCallEnd);
     socket.on('dm-call-user-joined', handleOtherUserJoined);
     socket.on('dm-call-existing-users', handleExistingUsers);
     socket.on('dm-call-user-left', handleUserLeft);
@@ -186,8 +264,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         axios.post(`/api/direct-messages/${dmId}/messages`, { content: 'Пропущенный звонок', type: 'missed-call' }).catch(() => { });
       }
       if (dmId && hasJoinedRoomRef.current) socket.emit('leave-dm-call', { dmId });
-      socket.off('call-offer'); socket.off('call-end'); socket.off('dm-call-user-joined'); socket.off('dm-call-existing-users');
-      socket.off('dm-call-user-left');
+      // ВАЖНО: снимаем ТОЛЬКО свои обработчики (по ссылке). Безымянный socket.off('call-offer')
+      // удалял глобальный слушатель входящих звонков в Main.tsx — из-за чего после первого
+      // звонка входящие (в т.ч. групповые) переставали приходить.
+      socket.off('call-offer', handleIncomingOffer);
+      socket.off('call-end', handleCallEnd);
+      socket.off('dm-call-user-joined', handleOtherUserJoined);
+      socket.off('dm-call-existing-users', handleExistingUsers);
+      socket.off('dm-call-user-left', handleUserLeft);
       if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       cleanupStreams();
     };
@@ -397,6 +481,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       await room.connect(serverUrl, token);
       const existingParticipants = Array.from(room.remoteParticipants.values());
       setRemoteParticipants(existingParticipants);
+      if (isGroup) existingParticipants.forEach(p => fetchMetadata(p.identity));
       const alreadySharing = new Set<string>();
       existingParticipants.forEach(p => {
         p.trackPublications.forEach(pub => {
@@ -544,6 +629,25 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     if (localStream && localVideoRef.current) localVideoRef.current.srcObject = localStream;
   }, [localStream]);
 
+  const handleWidgetMouseDown = (e: React.MouseEvent) => {
+    setIsDraggingWidget(true);
+    dragStartRef.current = { x: e.clientX - widgetPos.x, y: e.clientY - widgetPos.y };
+  };
+
+  useEffect(() => {
+    if (!isDraggingWidget) return;
+    const onMove = (e: MouseEvent) => {
+      setWidgetPos({ x: e.clientX - dragStartRef.current.x, y: e.clientY - dragStartRef.current.y });
+    };
+    const onUp = () => setIsDraggingWidget(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [isDraggingWidget]);
+
   const allParticipants = [
     { identity: user?._id || 'me', isMe: true, isLocal: true, participant: roomRef.current?.localParticipant },
     ...remoteParticipants.map(p => ({ identity: p.identity, isMe: false, isLocal: false, participant: p }))
@@ -585,6 +689,79 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const hasLiveVideo = (s: MediaStream | null | undefined): boolean =>
     !!s && s.getVideoTracks().some(t => t.readyState === 'live' && !mutedVideoIds.has(t.id));
 
+  // ВАЖНО: аудиоплееры должны быть смонтированы и в полном, и в свёрнутом виде,
+  // иначе при сворачивании звонка пропадает звук собеседников.
+  const audioPlayers = Array.from(remoteStreams.entries()).map(([uid, stream]) => (
+    <RemoteAudioPlayer
+      key={uid} stream={stream}
+      volume={userVolumes.get(uid) ?? 1}
+      muted={isGlobalDeafened || localMutes.has(uid)}
+    />
+  ));
+
+  const openCtxMenu = (e: React.MouseEvent, userId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, userId });
+  };
+
+  const renderCtxMenu = () => {
+    if (!ctxMenu) return null;
+    const isSelf = String(ctxMenu.userId) === String(user?._id);
+    const meta = isSelf ? user : (isGroup ? participantsMetadata.get(ctxMenu.userId) : otherUser);
+    return (
+      <DmCallContextMenu
+        x={ctxMenu.x} y={ctxMenu.y}
+        username={meta?.username || ''}
+        isSelf={isSelf}
+        volume={userVolumes.get(ctxMenu.userId) ?? 1}
+        isLocalMuted={localMutes.has(ctxMenu.userId)}
+        onVolume={(v) => setUserVolume(ctxMenu.userId, v)}
+        onToggleMute={() => toggleLocalMute(ctxMenu.userId)}
+        onProfile={() => onOpenProfile?.(ctxMenu.userId)}
+        onClose={() => setCtxMenu(null)}
+      />
+    );
+  };
+
+  // Свёрнутый вид: компактный перетаскиваемый виджет. Звонок остаётся подключённым.
+  if (isCallActive && isMinimized) {
+    const speakingNow = remoteParticipants.some(p => speakingUsers.has(p.identity)) || localSpeaking;
+    const title = isGroup ? (dmName || 'Групповой звонок') : otherUser.username;
+    return (
+      <>
+        <motion.div
+          className={`voice-call-container dm-call-widget ${speakingNow ? 'speaking' : ''}`}
+          style={{ position: 'fixed', left: widgetPos.x, top: widgetPos.y, zIndex: 9999, cursor: isDraggingWidget ? 'grabbing' : 'default' }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+        >
+          <div className="voice-call-header" onMouseDown={handleWidgetMouseDown} style={{ cursor: 'grab' }}>
+            <div className="dm-call-widget-info">
+              <UserAvatar user={isGroup ? null : otherUser} size={28} />
+              <span className="dm-call-widget-title">{title}</span>
+            </div>
+            <button className="dm-call-widget-expand" onClick={() => setIsMinimized(false)} title="Развернуть">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+          <div className="call-controls dm-call-widget-controls">
+            <button className={`control-button ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title="Микрофон">
+              {isMuted ? <MicMutedIcon size={18} /> : <MicIcon size={18} />}
+            </button>
+            <button className="control-button end-call" onClick={endCall} title="Завершить">
+              <span style={{ display: 'flex', transform: 'rotate(135deg)' }}><PhoneIcon size={18} /></span>
+            </button>
+          </div>
+        </motion.div>
+        {audioPlayers}
+        {renderCtxMenu()}
+      </>
+    );
+  }
+
   return (
     <motion.div
       className={`voice-call-full-view ${isGroup ? 'group-mode' : ''}`}
@@ -595,7 +772,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     >
       <header className="call-topbar">
         <div className="call-topbar-left">
-          <button className="back-to-app-btn" onClick={onEndCall} title="Свернуть">
+          <button className="back-to-app-btn" onClick={() => setIsMinimized(true)} title="Свернуть звонок">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </button>
           <div className="call-title">
@@ -620,6 +797,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
               <motion.div
                 key={p.identity}
                 layout
+                onContextMenu={(e) => openCtxMenu(e, String(p.identity))}
                 className={`participant-slot ${isSpeaking ? 'speaking' : ''} ${screenShare ? 'sharing-screen' : ''}`}
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -705,13 +883,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         </motion.button>
       </div>
 
-      {Array.from(remoteStreams.entries()).map(([uid, stream]) => (
-        <RemoteAudioPlayer
-          key={uid} stream={stream}
-          volume={userVolumes.get(uid) ?? 1}
-          muted={isGlobalDeafened}
-        />
-      ))}
+      {audioPlayers}
+      {renderCtxMenu()}
 
       {showScreenSelector && (
         <ScreenSourceSelector

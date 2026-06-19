@@ -21,6 +21,10 @@ let mainWindow;
 let updaterWindow;
 let tray = null;
 let overlayWindow = null;
+// Последняя конфигурация оверлея, присланная из рендера. Кэшируем, чтобы заново
+// созданное окно оверлея сразу получило актуальные настройки (фон, прозрачность и
+// т.п.), а не показывало значения по умолчанию из Overlay.tsx до первой смены настроек.
+let lastOverlayConfig = null;
 let isQuitting = false;
 let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false };
 const isOpenedHidden = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
@@ -612,6 +616,11 @@ const KNOWN_APPS = {
     'obs32.exe': { name: 'OBS Studio', type: 'other' }
 };
 
+// Активностью (Rich Presence) считаем только приложения этих типов — игры, видео,
+// музыка. Всё остальное ('other', неизвестные процессы) активностью НЕ показываем.
+// Мини-приложения внутри Zvon ставят активность отдельно из рендера и здесь не участвуют.
+const ACTIVITY_TYPES = new Set(['game', 'music', 'video']);
+
 const SHARING_BLACKLIST = [
     'NVIDIA GeForce Experience',
     'NVIDIA Share',
@@ -765,14 +774,19 @@ async function scanActivities() {
             if (!fgErr && fgExe) {
                 const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
 
-                let foundKey = Object.keys(KNOWN_APPS).find(key => {
+                // Ищем переднее окно сначала среди пользовательских приложений
+                // (настроенных в Активности), затем среди встроенного списка.
+                const userKeys = appSettings.userApps ? Object.keys(appSettings.userApps) : [];
+                let foundKey = [...userKeys, ...Object.keys(KNOWN_APPS)].find(key => {
                     const kLower = key.toLowerCase();
                     return fgExe === kLower || fgBase === kLower || fgExe === kLower.replace('.exe', '');
                 });
 
                 if (foundKey) {
                     const metadata = await getGameMetadata(null, foundKey);
-                    updateActivity(metadata, true, fgExe);
+                    // Показываем активностью только разрешённые типы (игры/видео/музыка);
+                    // приложения типа 'other' активностью не считаем.
+                    updateActivity(metadata && ACTIVITY_TYPES.has(metadata.type) ? metadata : null, true, fgExe);
                     scanInProgress = false;
                     // Пока игра на переднем плане (оверлей показан) — чаще опрашиваем,
                     // чтобы оверлей скрывался почти сразу при сворачивании/закрытии игры.
@@ -795,19 +809,9 @@ async function scanActivities() {
                     return;
                 }
 
-                // Не-Steam игра не из KNOWN_APPS: если переднее окно — не системное и не
-                // известное «не-игровое» ПО, считаем это игрой (детект по процессу) и
-                // показываем оверлей. Имя берём из имени процесса.
-                if (!NON_GAME_FG.has(fgExe)) {
-                    const prettyName = fgBase
-                        ? fgBase.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-                        : 'Игра';
-                    updateActivity({ name: prettyName, type: 'game' }, true, fgExe);
-                    scanInProgress = false;
-                    adaptiveInterval = 800;
-                    scheduleNextScan();
-                    return;
-                }
+                // Неизвестное приложение на переднем плане больше НЕ считаем игрой:
+                // активность показываем только для приложений, явно подходящих под
+                // настроенные типы (см. ветку foundKey выше) или Steam-игр (ниже).
             }
 
             if (steamMetadata) {
@@ -853,7 +857,8 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
     if (overlayWindow && !overlayWindow.isDestroyed()) {
         const fg = (currentForegroundExe || '').trim().toLowerCase();
         const currentCategory = foundActivity ? foundActivity.type : 'other';
-        const isCategoryAllowed = appSettings.overlayCategories.includes(currentCategory);
+        // Оверлей показываем ТОЛЬКО для игр (видео/музыка активность ставят, но оверлея не дают).
+        const isCategoryAllowed = currentCategory === 'game';
 
         // 1) Игра реально на переднем плане — показываем.
         const gameInForeground = !!foundActivity && isForeground && isCategoryAllowed;
@@ -869,7 +874,7 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
         //    категория разрешена — считаем, что игра по-прежнему на переднем плане,
         //    иначе оверлей не показывался бы вовсе. Когда фокус уходит на обычное
         //    окно (см. п.2), fg читается и оверлей корректно скрывается.
-        const lastAllowed = !!lastActivity && appSettings.overlayCategories.includes(lastActivity.type);
+        const lastAllowed = !!lastActivity && lastActivity.type === 'game';
         const unreadableButGameRunning = !fg && lastAllowed;
 
         const shouldShow = isOverlayEnabled && !fgIsKnownNonGame && (gameInForeground || unreadableButGameRunning);
@@ -897,7 +902,11 @@ function performFullScan(fgExe = '') {
         const lines = stdout.split(/\r?\n/);
         let bestMatch = null;
 
-        const normalizedApps = Object.keys(KNOWN_APPS).map(k => ({ key: k, lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', '') }));
+        const userApps = appSettings.userApps || {};
+        const normalizedApps = [
+            ...Object.keys(userApps).map(k => ({ lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', ''), meta: { ...userApps[k], icon: null } })),
+            ...Object.keys(KNOWN_APPS).map(k => ({ lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', ''), meta: KNOWN_APPS[k] })),
+        ];
 
         for (const line of lines) {
             const parts = line.split('","');
@@ -906,8 +915,9 @@ function performFullScan(fgExe = '') {
                 const baseName = exeNameLower.endsWith('.exe') ? exeNameLower.slice(0, -4) : exeNameLower;
 
                 const match = normalizedApps.find(g => exeNameLower === g.lower || baseName === g.base);
-                if (match) {
-                    bestMatch = KNOWN_APPS[match.key];
+                // Учитываем только разрешённые типы (игры/видео/музыка), 'other' пропускаем.
+                if (match && ACTIVITY_TYPES.has(match.meta.type)) {
+                    bestMatch = match.meta;
                     // If multiple apps running, prefer games for activity
                     if (bestMatch.type === 'game') break;
                 }
@@ -1107,6 +1117,14 @@ function createOverlayWindow() {
         console.error('Overlay failed to load:', errorCode, errorDescription);
     });
 
+    // Как только окно загрузилось — отдаём ему последнюю конфигурацию, иначе оно
+    // останется на дефолтах Overlay.tsx (в т.ч. тёмный фон включён) до первой смены настроек.
+    overlayWindow.webContents.on('did-finish-load', () => {
+        if (lastOverlayConfig && overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.webContents.send('overlay-config', lastOverlayConfig);
+        }
+    });
+
     let isShown = false;
     overlayWindow.once('ready-to-show', () => {
         if (!isShown && overlayWindow && lastActivity) {
@@ -1145,6 +1163,7 @@ ipcMain.on('update-overlay-data', (event, data) => {
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 ipcMain.on('update-overlay-config', (event, config) => {
+    lastOverlayConfig = config;
     if (overlayWindow && !overlayWindow.isDestroyed() && config.position) {
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.workAreaSize;

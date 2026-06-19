@@ -1258,6 +1258,7 @@ const Main: React.FC = () => {
             initialIncomingCall={activeCall.isIncoming}
             initialOffer={activeCall.offer}
             onEndCall={() => setActiveCall(null)}
+            onOpenProfile={handleUserClick}
           />
         )}
       </AnimatePresence>
