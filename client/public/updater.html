@@ -116,20 +116,22 @@
     </style>
 </head>
 <body>
-    <canvas id="scene"></canvas>
-    <div class="vignette"></div>
+    <div class="window-frame">
+        <canvas id="scene"></canvas>
+        <div class="vignette"></div>
 
-    <div id="card" class="card overlay" data-state="checking">
-        <h1 class="logo">Zvon</h1>
-    </div>
+        <div id="card" class="card overlay" data-state="checking">
+            <h1 class="logo">Zvon</h1>
+        </div>
 
-    <div class="status-block">
-        <p id="status" class="status">Проверка обновлений<span class="dots"></span></p>
-        <div id="progress" class="progress">
-            <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
-            <div class="progress-meta">
-                <span id="progress-pct">0%</span>
-                <span id="progress-eta">подготовка…</span>
+        <div class="status-block">
+            <p id="status" class="status">Проверка обновлений<span class="dots"></span></p>
+            <div id="progress" class="progress">
+                <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+                <div class="progress-meta">
+                    <span id="progress-pct">0%</span>
+                    <span id="progress-eta">подготовка…</span>
+                </div>
             </div>
         </div>
     </div>
@@ -146,8 +148,9 @@
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
         camera.position.set(0, 0, 6);
+        const frame = document.querySelector('.window-frame');
         const resize = () => {
-            const w = window.innerWidth, h = window.innerHeight;
+            const w = frame.clientWidth, h = frame.clientHeight;
             renderer.setSize(w, h);
             camera.aspect = w / h; camera.updateProjectionMatrix();
         };
@@ -260,11 +263,11 @@
                   float n  = fbm(p*2.6 + vec3(0.0, uTime*0.06, uTime*0.03));
                   float n2 = fbm(p*6.0 - vec3(uTime*0.10));
                   float h = n*0.6 + n2*0.4;
-                  vec3 c1 = vec3(0.62,0.18,0.02);
-                  vec3 c2 = vec3(0.95,0.42,0.06);
-                  vec3 c3 = vec3(1.0,0.78,0.32);
-                  vec3 col = mix(c1,c2, smoothstep(0.10,0.52,h));
-                  col = mix(col,c3, smoothstep(0.52,0.85,h));
+                  vec3 c1 = vec3(0.30,0.05,0.0);
+                  vec3 c2 = vec3(0.82,0.30,0.03);
+                  vec3 c3 = vec3(0.92,0.64,0.22);
+                  vec3 col = mix(c1,c2, smoothstep(0.18,0.55,h));
+                  col = mix(col,c3, smoothstep(0.55,0.85,h));
                   col += pow(max(h-0.72,0.0),2.0)*2.0;
                   gl_FragColor = vec4(col,1.0);
                 }`

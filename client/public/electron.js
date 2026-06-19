@@ -280,7 +280,7 @@ function unregisterGlobalShortcuts() {
 }
 
 function createUpdaterWindow() {
-    updaterWindow = new BrowserWindow({ width: 400, height: 500, frame: false, backgroundColor: '#1e1f22', show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+    updaterWindow = new BrowserWindow({ width: 480, height: 600, resizable: false, frame: false, backgroundColor: '#04040a', show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
     updaterWindow.loadFile(path.join(__dirname, 'updater.html'));
     updaterWindow.once('ready-to-show', () => {
         if (!isOpenedHidden) updaterWindow.show();

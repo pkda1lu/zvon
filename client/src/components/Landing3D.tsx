@@ -169,10 +169,13 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             const sunUniforms = { uTime: { value: 0 } };
 
             const sunGroup = new THREE.Group();
-            sunGroup.position.set(-5.7, 3.2, -8.5);
+            // Размещаем солнце вдоль того же луча камеры, но ближе звёздной
+            // оболочки (r=7..16) — экранно так же (верхний левый угол),
+            // но звёзды всегда остаются позади солнца.
+            sunGroup.position.set(-3.94, 2.21, -3.95);
             scene.add(sunGroup);
 
-            const SUN_R = 0.78;
+            const SUN_R = 0.54;
             const sunSurfMat = new THREE.ShaderMaterial({
                 uniforms: sunUniforms,
                 vertexShader: `varying vec3 vPos; void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
@@ -183,11 +186,11 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
                       float n  = fbm(p*2.6 + vec3(0.0, uTime*0.06, uTime*0.03));
                       float n2 = fbm(p*6.0 - vec3(uTime*0.10));
                       float h = n*0.6 + n2*0.4;
-                      vec3 c1 = vec3(0.62,0.18,0.02);
-                      vec3 c2 = vec3(0.95,0.42,0.06);
-                      vec3 c3 = vec3(1.0,0.78,0.32);
-                      vec3 col = mix(c1,c2, smoothstep(0.10,0.52,h));
-                      col = mix(col,c3, smoothstep(0.52,0.85,h));
+                      vec3 c1 = vec3(0.30,0.05,0.0);
+                      vec3 c2 = vec3(0.82,0.30,0.03);
+                      vec3 c3 = vec3(0.92,0.64,0.22);
+                      vec3 col = mix(c1,c2, smoothstep(0.18,0.55,h));
+                      col = mix(col,c3, smoothstep(0.55,0.85,h));
                       col += pow(max(h-0.72,0.0),2.0)*2.0;
                       gl_FragColor = vec4(col,1.0);
                     }`,
