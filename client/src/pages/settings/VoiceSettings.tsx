@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useVoice, useVoiceLevels } from '../../contexts/VoiceContext';
-import { CustomSelect, SettingsToggle, RangeSlider } from './SettingsUI';
+import { CustomSelect, SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
 import { SpeakerIcon, MicIcon, CameraIcon, VideoIcon } from '../../components/Icons';
 
 // Separate component for the sensitivity visualizer to isolate high-frequency re-renders
@@ -248,13 +248,21 @@ const VoiceSettings: React.FC = () => {
             <div className="settings-card">
                 <h3 className="settings-section-title" style={{marginTop: 0}}>Обработка голоса</h3>
                 
-                <div className="settings-row">
-                    <div className="settings-row-text">
-                        <h3>Шумоподавление (ИИ)</h3>
-                        <p>Использовать RNNoise для удаления фоновых шумов.</p>
-                    </div>
-                    <SettingsToggle checked={noiseSuppressionMode !== 'none'} onChange={(val) => setNoiseSuppressionMode(val ? 'rnnoise' : 'none')} />
+                <div className="settings-row-text" style={{ marginBottom: '12px' }}>
+                    <h3>Шумоподавление</h3>
+                    <p>Алгоритм удаления фоновых шумов с микрофона. RNNoise и DeepFilter используют ИИ.</p>
                 </div>
+                <ChoiceGroup
+                    className="full-width"
+                    options={[
+                        { value: 'none', label: 'Отключено' },
+                        { value: 'standard', label: 'Стандартное' },
+                        { value: 'rnnoise', label: 'RNNoise' },
+                        { value: 'deepfilter', label: 'DeepFilter' },
+                    ]}
+                    value={noiseSuppressionMode}
+                    onChange={(v) => setNoiseSuppressionMode(v as 'none' | 'standard' | 'rnnoise' | 'deepfilter')}
+                />
 
                 <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
 

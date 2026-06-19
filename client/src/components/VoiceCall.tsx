@@ -6,7 +6,7 @@ import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { getAvatarUrl } from '../utils/avatar';
-import { setupNoiseSuppression } from '../utils/audioProcessing';
+import { createNoiseProcessor } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useDialog } from '../contexts/DialogContext';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon } from './Icons';
@@ -22,7 +22,8 @@ import {
   RemoteParticipant,
   Track,
   VideoPresets,
-  VideoQuality
+  VideoQuality,
+  LocalAudioTrack
 } from 'livekit-client';
 import './VoiceCall.css';
 
@@ -207,6 +208,29 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     setLocalStream(tracks.length ? new MediaStream(tracks) : null);
   };
 
+  // Подключает выбранный режим шумоподавления к локальному микрофону:
+  // 'rnnoise'/'deepfilter' — свой процессор поверх трека, 'standard' — нативное
+  // подавление браузера (из audioCaptureDefaults), 'none' — снимаем процессор.
+  const applyMicNoiseProcessor = async () => {
+    const track = roomRef.current?.localParticipant
+      .getTrackPublication(Track.Source.Microphone)?.track;
+    if (!(track instanceof LocalAudioTrack)) return;
+    try {
+      const processor = createNoiseProcessor(noiseSuppressionMode);
+      if (processor) await track.setProcessor(processor);
+      else if (track.getProcessor()) await track.stopProcessor();
+      syncLocalStream();
+    } catch (e) {
+      console.warn('[DM Voice] не удалось применить шумоподавление:', e);
+    }
+  };
+
+  // Смена режима шумоподавления во время звонка — переустанавливаем процессор.
+  useEffect(() => {
+    if (isCallActive) applyMicNoiseProcessor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noiseSuppressionMode]);
+
   const joinLiveKitRoom = async () => {
     if (roomRef.current || joiningRoomRef.current) return;
     joiningRoomRef.current = true;
@@ -223,6 +247,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       const room = new Room({
         adaptiveStream: { pixelDensity: 'screen' },
         dynacast: true,
+        // Нативное подавление — только для 'standard'; для AI-режимов выключаем,
+        // чтобы не было двойной обработки (её сделает наш процессор поверх трека).
+        audioCaptureDefaults: {
+          noiseSuppression: noiseSuppressionMode === 'standard',
+        },
         publishDefaults: {
           dtx: true, simulcast: true, red: true,
           screenShareEncoding: { maxBitrate: 10_000_000, maxFramerate: 30 },
@@ -380,6 +409,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       if (alreadySharing.size) setRemoteSharingScreen(prev => new Set([...prev, ...alreadySharing]));
 
       await room.localParticipant.setMicrophoneEnabled(true);
+      await applyMicNoiseProcessor();
       if (isVideoEnabled) await room.localParticipant.setCameraEnabled(true);
 
       syncLocalStream();

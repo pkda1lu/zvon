@@ -2,8 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { User } from '../types';
-import { setupNoiseSuppression } from '../utils/audioProcessing';
-import { createDeepFilterProcessor } from '../utils/deepFilter';
+import { createNoiseProcessor } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { nativeAudioManager } from '../utils/nativeAudio';
 import axios from 'axios';
@@ -20,7 +19,8 @@ import {
     VideoPresets,
     VideoQuality,
     TrackPublication,
-    ConnectionQuality
+    ConnectionQuality,
+    LocalAudioTrack
 } from 'livekit-client';
 
 // --- Types ---
@@ -601,7 +601,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('echoCancellation', String(echoCancellation));
         localStorage.setItem('autoGainControl', String(autoGainControl));
         localStorage.setItem('attenuation', String(attenuation));
-    }, [selectedInputDeviceId, selectedOutputDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity, echoCancellation, autoGainControl, attenuation]);
+        localStorage.setItem('noiseSuppressionMode', noiseSuppressionMode);
+    }, [selectedInputDeviceId, selectedOutputDeviceId, inputVolume, outputVolume, inputSensitivity, isAutomaticSensitivity, echoCancellation, autoGainControl, attenuation, noiseSuppressionMode]);
 
     const getAudioContext = useCallback(() => {
         if (!audioContextRef.current) {
@@ -630,7 +631,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const handleLocalMicPublication = useCallback(async (publication: TrackPublication) => {
         const track = publication.track;
         if (!track || !track.mediaStreamTrack) return;
-        
+
+        // Подключаем выбранный обработчик шумоподавления к локальному микрофону.
+        // 'rnnoise'/'deepfilter' — свой AI-граф через LiveKit-процессор;
+        // 'standard' — нативное подавление браузера (через audioCaptureDefaults), процессор не нужен;
+        // 'none' — снимаем любой ранее установленный процессор.
+        if (track instanceof LocalAudioTrack) {
+            try {
+                const processor = createNoiseProcessor(noiseSuppressionMode);
+                if (processor) {
+                    await track.setProcessor(processor);
+                } else if (track.getProcessor()) {
+                    await track.stopProcessor();
+                }
+            } catch (e) {
+                console.warn('[Voice] не удалось применить шумоподавление:', e);
+            }
+        }
+
         const finalTrack = track.mediaStreamTrack;
         livekitTrackRef.current = finalTrack;
         finalTrack.enabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened;
@@ -642,7 +660,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const vadClone = finalTrack.clone();
         vadClone.enabled = true;
         vadStreamRef.current = new MediaStream([vadClone]);
-    }, [isMuted, isServerMuted, isDeafened, isServerDeafened]);
+    }, [isMuted, isServerMuted, isDeafened, isServerDeafened, noiseSuppressionMode]);
+
+    // Стабильная ссылка на последний обработчик публикации мика — чтобы
+    // переключение режима шумоподавления на лету не зависело от смены mute и т.п.
+    const handleLocalMicPublicationRef = useRef(handleLocalMicPublication);
+    useEffect(() => { handleLocalMicPublicationRef.current = handleLocalMicPublication; }, [handleLocalMicPublication]);
+
+    // Переключение режима шумоподавления во время звонка: переустанавливаем
+    // процессор на уже опубликованном микрофонном треке.
+    useEffect(() => {
+        if (!isConnectedRef.current) return;
+        const room = roomRef.current;
+        if (!room) return;
+        const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+        if (pub?.track) handleLocalMicPublicationRef.current(pub);
+    }, [noiseSuppressionMode]);
 
     const leaveChannel = useCallback(async () => {
         if (roomRef.current) await roomRef.current.disconnect();
@@ -670,7 +703,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (isConnectedRef.current || roomRef.current) await leaveChannel();
         try {
             const { data } = await axios.get('/api/livekit/token', { params: { roomName: `channel-${channelId}`, identity: user?._id } });
-            const room = new Room();
+            // Нативное подавление браузера включаем только для режима 'standard'.
+            // Для 'rnnoise'/'deepfilter' выключаем, чтобы не было двойной обработки —
+            // подавлением займётся наш процессор поверх трека.
+            const room = new Room({
+                audioCaptureDefaults: {
+                    echoCancellation,
+                    autoGainControl,
+                    noiseSuppression: noiseSuppressionMode === 'standard',
+                },
+            });
             roomRef.current = room;
             room.on(RoomEvent.ActiveSpeakersChanged, s => remoteSpeakingUsersRef.current = new Set(s.map(p => p.identity)));
             room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
@@ -726,7 +768,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } catch (e) {
             await alert('Ошибка подключения');
         }
-    }, [user?._id, selectedInputDeviceId, socket, handleLocalMicPublication, leaveChannel]);
+    }, [user?._id, selectedInputDeviceId, socket, handleLocalMicPublication, leaveChannel, echoCancellation, autoGainControl, noiseSuppressionMode]);
 
     const startTestStream = useCallback(async () => {
         if (testStreamRef.current) return;

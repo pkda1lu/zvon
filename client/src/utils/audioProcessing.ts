@@ -6,6 +6,8 @@ import {
 import rnnoiseWorkletPath from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url';
 import rnnoiseWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import rnnoiseSimdWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
+import type { AudioProcessorOptions, Track, TrackProcessor } from 'livekit-client';
+import { createDeepFilterProcessor } from './deepFilter';
 
 // The rnnoise and noiseGate worklets share the same source basename
 // ("workletProcessor.js"), which makes Vite's `?url` import collapse them into a
@@ -120,4 +122,59 @@ export const setupNoiseSuppression = async (
         console.warn('[NS] RNNoise setup failed, passing through raw audio:', error);
         return sourceStream;
     }
+};
+
+/**
+ * LiveKit TrackProcessor wrapper around the RNNoise (+ noise gate) chain so the
+ * mode can be applied to a published mic track via `track.setProcessor(...)`,
+ * the same way DeepFilterNet plugs in.
+ */
+export class RnnoiseTrackProcessor
+    implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> {
+    name = 'rnnoise-noise-suppression';
+    processedTrack?: MediaStreamTrack;
+    private cleanup?: () => void;
+
+    constructor(private options: NoiseSuppressionOptions = {}) {}
+
+    async init(opts: AudioProcessorOptions): Promise<void> {
+        await this.build(opts);
+    }
+
+    async restart(opts: AudioProcessorOptions): Promise<void> {
+        await this.destroy();
+        await this.build(opts);
+    }
+
+    private async build(opts: AudioProcessorOptions): Promise<void> {
+        const source = new MediaStream([opts.track]);
+        const out = await setupNoiseSuppression(opts.audioContext, source, this.options);
+        const track = out.getAudioTracks()[0];
+        this.processedTrack = track;
+        this.cleanup = (track as any)?.__nsCleanup;
+    }
+
+    async destroy(): Promise<void> {
+        try { this.cleanup?.(); } catch { /* */ }
+        this.cleanup = undefined;
+        this.processedTrack = undefined;
+    }
+}
+
+export type NoiseSuppressionMode = 'none' | 'standard' | 'rnnoise' | 'deepfilter';
+
+/**
+ * Returns the LiveKit audio processor for the chosen mode, or `undefined` when
+ * no custom processing graph is needed:
+ *   - 'deepfilter' → DeepFilterNet3 (AI)
+ *   - 'rnnoise'    → RNNoise + noise gate (AI)
+ *   - 'standard'   → browser-native suppression (handled by capture constraints)
+ *   - 'none'       → no suppression
+ */
+export const createNoiseProcessor = (
+    mode: NoiseSuppressionMode
+): TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined => {
+    if (mode === 'deepfilter') return createDeepFilterProcessor();
+    if (mode === 'rnnoise') return new RnnoiseTrackProcessor();
+    return undefined;
 };

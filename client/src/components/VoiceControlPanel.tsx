@@ -123,7 +123,7 @@ const VoiceControlPanel: React.FC = () => {
     return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
   };
   const noiseLabel: Record<string, string> = {
-    none: 'Выкл.', standard: 'Стандарт', rnnoise: 'RNNoise',
+    none: 'Выкл.', standard: 'Стандарт', rnnoise: 'RNNoise', deepfilter: 'DeepFilter',
   };
 
   // Counts derived from voice context — surfaced in the rich tooltip.
