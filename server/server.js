@@ -857,7 +857,9 @@ io.on('connection', (socket) => {
       }
       const existingUsers = await getVoiceChannelUsers(channelId);
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
-      socket.emit('voice-presences-snapshot', { channelId, presences: getPresencesSnapshot(channelId) });
+      // Presence хранятся под ключом LiveKit-комнаты ('channel-<id>'), а не под сырым id —
+      // иначе зашедший позже не получал снапшот presence (нет плитки мини-аппа).
+      socket.emit('voice-presences-snapshot', { channelId, presences: getPresencesSnapshot('channel-' + channelId) });
       // user is already declared above
       const memberRec = (fullServer.members || []).find(m => String(m.user) === String(socket.userId));
       const serverNickname = memberRec?.nickname || null;
