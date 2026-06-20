@@ -490,6 +490,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Кого из стримеров мы сейчас смотрим, и громкость их трансляций.
     const [watchedScreenIds, setWatchedScreenIds] = useState<Set<string>>(new Set());
     const [screenVolumes, setScreenVolumes] = useState<Map<string, number>>(new Map());
+    // Presence мини-аппов (виртуальные участники): метаданные + их медиа-потоки + громкость.
+    const [voicePresences, setVoicePresences] = useState<Map<string, VoicePresenceInfo>>(new Map());
+    const [presenceAudioStreams, setPresenceAudioStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [presenceVideoStreams, setPresenceVideoStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [presenceVolumes, setPresenceVolumesState] = useState<Map<string, number>>(new Map());
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
     const [inputSensitivity, setInputSensitivity] = useState(() => user?.settings?.interaction?.voice?.inputSensitivity || Number(localStorage.getItem('inputSensitivity')) || -50);
@@ -718,6 +723,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
                 const mst = track.mediaStreamTrack;
                 if (!mst) return;
+                // Presence-медиа мини-аппа: трек назван "zvon-presence:<sessionId>" —
+                // кладём в отдельные карты по sessionId (плитка виртуального участника).
+                const tname = pub.trackName || '';
+                if (tname.startsWith('zvon-presence:')) {
+                    const sessionId = tname.slice('zvon-presence:'.length);
+                    const psetter = track.kind === Track.Kind.Video ? setPresenceVideoStreams : setPresenceAudioStreams;
+                    psetter(prev => new Map(prev).set(sessionId, new MediaStream([mst])));
+                    return;
+                }
                 // Видео И ЗВУК демонстрации — в отдельную карту, чтобы звук стрима
                 // не играл сам по себе через общий аудио-рендерер, а только когда
                 // зритель смотрит трансляцию (через её <video>). Микрофон/камера — в общий поток.
@@ -734,6 +748,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
             room.on(RoomEvent.TrackUnsubscribed, (track, pub, part) => {
                 const mst = track.mediaStreamTrack;
+                const tname = pub.trackName || '';
+                if (tname.startsWith('zvon-presence:')) {
+                    const sessionId = tname.slice('zvon-presence:'.length);
+                    const psetter = track.kind === Track.Kind.Video ? setPresenceVideoStreams : setPresenceAudioStreams;
+                    psetter(prev => { const n = new Map(prev); n.delete(sessionId); return n; });
+                    return;
+                }
                 const isScreen = pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio;
                 const setter = isScreen ? setRemoteScreenStreams : setRemoteStreams;
                 setter(prev => {
@@ -787,13 +808,21 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, []);
 
-    const toggleMute = () => setIsMuted(prev => {
-        const next = !prev;
+    const toggleMute = () => {
+        const next = !isMuted;
+        setIsMuted(next);
         if (livekitTrackRef.current) livekitTrackRef.current.enabled = !next && !isServerMuted && !isDeafened && !isServerDeafened;
-        return next;
-    });
+        // Сразу шлём новое состояние — чтобы все участники моментально увидели мьют/анмьют.
+        emitVoiceState({ isMuted: next });
+    };
 
-    const toggleDeafen = () => setIsDeafened(prev => !prev);
+    const toggleDeafen = () => {
+        const next = !isDeafened;
+        setIsDeafened(next);
+        // Деаф также глушит собственный микрофон.
+        if (livekitTrackRef.current) livekitTrackRef.current.enabled = !isMuted && !isServerMuted && !next && !isServerDeafened;
+        emitVoiceState({ isDeafened: next });
+    };
 
     // Сообщаем серверу/другим участникам своё состояние (мьют/деаф/экран/видео).
     const emitVoiceState = useCallback((overrides: Partial<{ isMuted: boolean; isDeafened: boolean; isScreenSharing: boolean; isVideoOn: boolean }> = {}) => {
@@ -1078,6 +1107,97 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
     }, [socket]);
 
+    // Публикация внешних треков (звук/видео мини-аппов, presence-медиа) в LiveKit-комнату.
+    // Раньше были заглушками → SDK мини-аппа падал с «publishAudio failed».
+    const publishExternalAudioTrack = useCallback(async (track: MediaStreamTrack, name?: string): Promise<string | null> => {
+        if (!roomRef.current || !track) return null;
+        try {
+            const pub = await roomRef.current.localParticipant.publishTrack(track, {
+                name: name || 'external-audio',
+                source: Track.Source.Unknown,
+                dtx: false,
+                red: false,
+            });
+            return pub?.trackSid || null;
+        } catch (e) { console.error('[Voice] publishExternalAudioTrack failed:', e); return null; }
+    }, []);
+
+    const publishExternalVideoTrack = useCallback(async (track: MediaStreamTrack, name?: string): Promise<string | null> => {
+        if (!roomRef.current || !track) return null;
+        try {
+            const pub = await roomRef.current.localParticipant.publishTrack(track, {
+                name: name || 'external-video',
+                source: Track.Source.Unknown,
+                simulcast: false,
+            });
+            return pub?.trackSid || null;
+        } catch (e) { console.error('[Voice] publishExternalVideoTrack failed:', e); return null; }
+    }, []);
+
+    const unpublishExternalAudioTrack = useCallback(async (publicationSid: string): Promise<void> => {
+        if (!roomRef.current || !publicationSid) return;
+        try {
+            for (const pub of roomRef.current.localParticipant.trackPublications.values()) {
+                if (pub.trackSid === publicationSid && pub.track) {
+                    await roomRef.current.localParticipant.unpublishTrack(pub.track);
+                    break;
+                }
+            }
+        } catch (e) { console.error('[Voice] unpublishExternalAudioTrack failed:', e); }
+    }, []);
+
+    const replaceExternalTrack = useCallback(async (publicationSid: string, newTrack: MediaStreamTrack): Promise<boolean> => {
+        if (!roomRef.current || !publicationSid || !newTrack) return false;
+        try {
+            for (const pub of roomRef.current.localParticipant.trackPublications.values()) {
+                if (pub.trackSid === publicationSid && pub.track) {
+                    await (pub.track as any).replaceTrack?.(newTrack);
+                    return true;
+                }
+            }
+            return false;
+        } catch (e) { console.error('[Voice] replaceExternalTrack failed:', e); return false; }
+    }, []);
+
+    // Presence-жизненный цикл от сервера (snapshot при входе + add/update/remove).
+    useEffect(() => {
+        if (!socket) return;
+        const onSnapshot = (data: any) => {
+            const next = new Map<string, VoicePresenceInfo>();
+            (data?.presences || []).forEach((p: VoicePresenceInfo) => { if (p?.sessionId) next.set(p.sessionId, p); });
+            setVoicePresences(next);
+        };
+        const onAddedOrUpdated = (p: VoicePresenceInfo) => {
+            if (p?.sessionId) setVoicePresences(prev => new Map(prev).set(p.sessionId, p));
+        };
+        const onRemoved = (data: any) => {
+            const sid = data?.sessionId;
+            if (!sid) return;
+            setVoicePresences(prev => { const n = new Map(prev); n.delete(sid); return n; });
+            setPresenceAudioStreams(prev => { const n = new Map(prev); n.delete(sid); return n; });
+            setPresenceVideoStreams(prev => { const n = new Map(prev); n.delete(sid); return n; });
+        };
+        socket.on('voice-presences-snapshot', onSnapshot);
+        socket.on('voice-presence-added', onAddedOrUpdated);
+        socket.on('voice-presence-updated', onAddedOrUpdated);
+        socket.on('voice-presence-removed', onRemoved);
+        return () => {
+            socket.off('voice-presences-snapshot', onSnapshot);
+            socket.off('voice-presence-added', onAddedOrUpdated);
+            socket.off('voice-presence-updated', onAddedOrUpdated);
+            socket.off('voice-presence-removed', onRemoved);
+        };
+    }, [socket]);
+
+    // Зритель отправляет управляющий сигнал presence-мини-аппу (кнопки/контролы).
+    const sendPresenceControl = useCallback((channelId: string, sessionId: string, controlId: string, value?: any) => {
+        if (socket) socket.emit('voice-presence-control', { channelId, sessionId, controlId, value });
+    }, [socket]);
+
+    const setPresenceVolume = useCallback((sessionId: string, volume: number) => {
+        setPresenceVolumesState(prev => new Map(prev).set(sessionId, volume));
+    }, []);
+
     // Context Value (Memoized)
     const voiceContextValue = useMemo(() => ({
         isConnected, activeChannelId, joinChannel, leaveChannel, isMuted, isDeafened,
@@ -1097,10 +1217,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         startTestStream, stopTestStream,
         ping, connectionQuality, roomConnectionState, isOverlayEnabled: false, toggleOverlay: () => {},
         overlayPosition: 'top-left', setOverlayPosition: () => {}, overlayOpacity: 1, setOverlayOpacity: () => {},
-        overlaySize: 1, setOverlaySize: () => {}, publishExternalAudioTrack: async () => null,
-        publishExternalVideoTrack: async () => null, unpublishExternalAudioTrack: async () => {},
-        replaceExternalTrack: async () => false, voicePresences: new Map(), presenceAudioStreams: new Map(),
-        presenceVideoStreams: new Map(), sendPresenceControl: () => {}, presenceVolumes: new Map(), setPresenceVolume: () => {},
+        overlaySize: 1, setOverlaySize: () => {}, publishExternalAudioTrack,
+        publishExternalVideoTrack, unpublishExternalAudioTrack,
+        replaceExternalTrack, voicePresences, presenceAudioStreams,
+        presenceVideoStreams, sendPresenceControl, presenceVolumes, setPresenceVolume,
         ownNickname
     }), [
         ownNickname,
@@ -1112,7 +1232,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         echoCancellation, autoGainControl, attenuation,
         ping, connectionQuality, roomConnectionState, startTestStream, stopTestStream, joinChannel, leaveChannel,
         startScreenShare, stopScreenShare, watchedScreenIds, screenVolumes, setWatchingScreen, setScreenVolume,
-        userVolumes, setUserVolume, toggleLocalMute, toggleVideo, localCameraStream
+        userVolumes, setUserVolume, toggleLocalMute, toggleVideo, localCameraStream,
+        publishExternalAudioTrack, publishExternalVideoTrack, unpublishExternalAudioTrack, replaceExternalTrack,
+        voicePresences, presenceAudioStreams, presenceVideoStreams, presenceVolumes, sendPresenceControl, setPresenceVolume
     ]);
 
     return (
@@ -1123,6 +1245,15 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 outputVolume={outputVolume ?? 1}
                 userVolumes={userVolumes}
                 localMutes={localMutes}
+                sinkId={selectedOutputDeviceId !== 'default' ? selectedOutputDeviceId : undefined}
+            />
+            {/* Звук presence-мини-аппов (виртуальных участников), громкость — по sessionId. */}
+            <RemoteAudioRenderer
+                streams={presenceAudioStreams}
+                deafened={isDeafened || isServerDeafened}
+                outputVolume={outputVolume ?? 1}
+                userVolumes={presenceVolumes}
+                localMutes={new Set()}
                 sinkId={selectedOutputDeviceId !== 'default' ? selectedOutputDeviceId : undefined}
             />
             <VoiceLevelProvider

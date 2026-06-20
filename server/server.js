@@ -952,40 +952,47 @@ io.on('connection', (socket) => {
     } catch (e) { console.error('Voice kick error', e); }
   });
 
-  socket.on('voice-state-update', async (data) => {
+  socket.on('voice-state-update', (data) => {
     if (!socket.voiceChannelId || socket.voiceChannelId !== data.channelId) return;
 
-    // Audit self mute/deaf if changed
-    if (socket.isMuted !== data.isMuted || socket.isDeafened !== data.isDeafened) {
-      try {
-        const channel = await Channel.findById(data.channelId);
-        if (channel) {
-          await logAction({
-            serverId: channel.server,
-            executorId: socket.userId,
-            targetId: socket.userId,
-            targetModel: 'User',
-            action: 'MEMBER_VOICE_SELF_STATE',
-            changes: [
-              { key: 'isMuted', oldValue: socket.isMuted, newValue: data.isMuted },
-              { key: 'isDeafened', oldValue: socket.isDeafened, newValue: data.isDeafened }
-            ].filter(c => c.oldValue !== c.newValue)
-          });
-        }
-      } catch (err) { }
-    }
+    const wasMuted = socket.isMuted;
+    const wasDeafened = socket.isDeafened;
 
-    socket.isMuted = data.isMuted; socket.isDeafened = data.isDeafened;
-    socket.isScreenSharing = data.isScreenSharing || false;
+    socket.isMuted = !!data.isMuted;
+    socket.isDeafened = !!data.isDeafened;
+    socket.isScreenSharing = !!data.isScreenSharing;
+    socket.isVideoOn = !!data.isVideoOn;
+
+    // МОМЕНТАЛЬНО транслируем состояние остальным — без ожидания записи в аудит/БД,
+    // иначе мьют-бар «подвисал» (бродкаст ждал завершения logAction).
     socket.to(`voice-channel-${data.channelId}`).emit('voice-user-state-update', {
       userId: socket.userId,
       isMuted: socket.isMuted,
       isDeafened: socket.isDeafened,
       isScreenSharing: socket.isScreenSharing,
+      isVideoOn: socket.isVideoOn,
       isServerMuted: socket.isServerMuted || false,
       isServerDeafened: socket.isServerDeafened || false
     });
-    await notifyVoiceChannelUpdate(data.channelId);
+    notifyVoiceChannelUpdate(data.channelId).catch(() => {});
+
+    // Аудит self mute/deaf — асинхронно, не блокируя трансляцию.
+    if (wasMuted !== socket.isMuted || wasDeafened !== socket.isDeafened) {
+      Channel.findById(data.channelId).then(channel => {
+        if (!channel) return;
+        return logAction({
+          serverId: channel.server,
+          executorId: socket.userId,
+          targetId: socket.userId,
+          targetModel: 'User',
+          action: 'MEMBER_VOICE_SELF_STATE',
+          changes: [
+            { key: 'isMuted', oldValue: wasMuted, newValue: socket.isMuted },
+            { key: 'isDeafened', oldValue: wasDeafened, newValue: socket.isDeafened }
+          ].filter(c => c.oldValue !== c.newValue)
+        });
+      }).catch(() => {});
+    }
   });
 
   socket.on('leave-voice-channel', async (data) => {

@@ -66,14 +66,19 @@
             pointer-events: none;
         }
         .status {
-            font-size: 16px; font-weight: 600; color: var(--text-main);
-            margin: 0 0 14px; min-height: 22px;
-            letter-spacing: 0.2px;
-            text-shadow: 0 2px 14px rgba(0,0,0,0.6);
-            transition: color 0.3s ease, opacity 0.3s ease;
+            font-size: 18px; font-weight: 700; color: var(--text-main);
+            margin: 0 0 16px; min-height: 24px;
+            letter-spacing: 0.3px;
+            text-shadow: 0 0 22px rgba(0,242,255,0.40), 0 2px 14px rgba(0,0,0,0.6);
+            transition: color 0.35s ease, text-shadow 0.35s ease;
         }
-        .card[data-state="up-to-date"] .status { color: var(--accent-green); }
-        .card[data-state="error"] .status { color: var(--accent-red); }
+        /* .status находится в соседнем .status-block (не внутри .card), поэтому
+           таргетим состояние через ~, иначе цвета состояний не применялись вовсе. */
+        .card[data-state="checking"]    ~ .status-block .status { color: #dff7ff; }
+        .card[data-state="downloading"] ~ .status-block .status { color: #ffffff; text-shadow: 0 0 22px rgba(112,0,255,0.5), 0 0 34px rgba(255,0,200,0.22), 0 2px 14px rgba(0,0,0,0.6); }
+        .card[data-state="installing"]  ~ .status-block .status { color: #eafff6; }
+        .card[data-state="up-to-date"]  ~ .status-block .status { color: var(--accent-green); text-shadow: 0 0 24px rgba(74,222,128,0.5); }
+        .card[data-state="error"]       ~ .status-block .status { color: var(--accent-red); text-shadow: 0 0 24px rgba(255,85,112,0.5); }
 
         .progress { width: 100%; display: none; }
         .progress.visible { display: block; }

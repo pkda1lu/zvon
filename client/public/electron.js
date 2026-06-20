@@ -605,7 +605,6 @@ const KNOWN_APPS = {
     'vlc.exe': { name: 'VLC Media Player', icon: 'https://www.videolan.org/favicon.ico', type: 'video' },
     'mpc-hc64.exe': { name: 'MPC-HC', icon: 'https://mpc-hc.org/favicon.ico', type: 'video' },
     'Netflix.exe': { name: 'Netflix', icon: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico', type: 'video' },
-    'browser.exe': { name: 'YouTube', icon: 'https://www.youtube.com/favicon.ico', type: 'video' }, // Generic for browser-based video if we could detect URL
     
     // Other (Apps like ZVON itself, Code editors, etc.)
     'Code.exe': { name: 'Visual Studio Code', type: 'other' },
@@ -655,13 +654,18 @@ const NON_GAME_FG = new Set([
     'explorer.exe', 'dwm.exe', 'shellexperiencehost.exe', 'applicationframehost.exe',
     'textinputhost.exe', 'sihost.exe', 'systemsettings.exe', 'lockapp.exe',
     // браузеры
-    'chrome.exe', 'msedge.exe', 'firefox.exe', 'opera.exe', 'opera_gx.exe', 'brave.exe', 'browser.exe', 'yandex.exe',
+    'chrome.exe', 'msedge.exe', 'firefox.exe', 'opera.exe', 'opera_gx.exe', 'brave.exe', 'browser.exe', 'yandex.exe', 'vivaldi.exe',
     // мессенджеры/медиа/прочее ПО
     'discord.exe', 'telegram.exe', 'spotify.exe', 'whatsapp.exe', 'slack.exe',
     'obs64.exe', 'obs32.exe', 'steam.exe', 'steamwebhelper.exe', 'epicgameslauncher.exe', 'battle.net.exe',
     // редакторы/офис
     'code.exe', 'webstorm.exe', 'devenv.exe', 'rider64.exe', 'pycharm64.exe', 'notepad.exe', 'notepad++.exe',
     'winword.exe', 'excel.exe', 'powerpnt.exe', 'acrobat.exe', 'acrord32.exe'
+]);
+
+// Браузеры — для них активность (YouTube) определяется по заголовку окна.
+const BROWSERS = new Set([
+    'chrome.exe', 'msedge.exe', 'firefox.exe', 'opera.exe', 'opera_gx.exe', 'brave.exe', 'browser.exe', 'yandex.exe', 'vivaldi.exe'
 ]);
 
 function scheduleNextScan() {
@@ -675,7 +679,9 @@ function scheduleNextScan() {
 // «Idle.exe» (PID 0). Из-за этого определение переднего окна не работало вообще.
 // Передаём скрипт через -EncodedCommand (Base64 UTF-16LE) — это полностью убирает
 // проблемы экранирования. `$null =` гасит лишний вывод GetWindowThreadProcessId.
-const FG_SCRIPT = `$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);'; $t = Add-Type -MemberDefinition $code -Name 'W32' -Namespace 'W32' -PassThru; $hwnd = $t::GetForegroundWindow(); if($hwnd -ne 0){ $pidOut=0; $null = $t::GetWindowThreadProcessId($hwnd, [ref]$pidOut); if ($pidOut -ne $pid) { (Get-Process -Id $pidOut -ErrorAction SilentlyContinue).ProcessName + '.exe' } }`;
+// Возвращаем «процесс.exe|заголовок окна» — заголовок нужен, чтобы определять
+// YouTube в браузере по тайтлу (а не считать любой браузер «ютубом» бесконечно).
+const FG_SCRIPT = `$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId); [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);'; $t = Add-Type -MemberDefinition $code -Name 'W32' -Namespace 'W32' -PassThru; $hwnd = $t::GetForegroundWindow(); if($hwnd -ne 0){ $pidOut=0; $null = $t::GetWindowThreadProcessId($hwnd, [ref]$pidOut); if ($pidOut -ne $pid) { $name = (Get-Process -Id $pidOut -ErrorAction SilentlyContinue).ProcessName + '.exe'; $sb = New-Object System.Text.StringBuilder 512; $null = $t::GetWindowText($hwnd, $sb, 512); $name + '|' + $sb.ToString() } }`;
 const FG_SCRIPT_B64 = Buffer.from(FG_SCRIPT, 'utf16le').toString('base64');
 
 const STEAM_ID_SCRIPT = `Get-ItemProperty -Path 'HKCU:\\Software\\Valve\\Steam' -Name 'RunningAppID' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty RunningAppID`;
@@ -769,10 +775,30 @@ async function scanActivities() {
         }
 
         exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${FG_SCRIPT_B64}`, async (fgErr, fgStdout) => {
-            const fgExe = fgStdout?.trim().toLowerCase();
+            // Формат вывода: "процесс.exe|заголовок окна".
+            const fgRaw = (fgStdout || '').trim();
+            const sepIdx = fgRaw.indexOf('|');
+            const fgExe = (sepIdx >= 0 ? fgRaw.slice(0, sepIdx) : fgRaw).toLowerCase();
+            const fgTitle = sepIdx >= 0 ? fgRaw.slice(sepIdx + 1) : '';
 
             if (!fgErr && fgExe) {
                 const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
+
+                // Браузер на переднем плане: YouTube определяем ПО ЗАГОЛОВКУ ОКНА.
+                // Так активность «YouTube» появляется только когда реально открыт YouTube
+                // и сбрасывается при переходе на другую страницу — раньше она «висела»,
+                // т.к. любой браузер маппился в YouTube навсегда.
+                if (BROWSERS.has(fgExe)) {
+                    if (/youtube/i.test(fgTitle)) {
+                        updateActivity({ name: 'YouTube', icon: 'https://www.youtube.com/favicon.ico', type: 'video' }, true, fgExe);
+                    } else {
+                        updateActivity(null, false, fgExe);
+                    }
+                    scanInProgress = false;
+                    adaptiveInterval = 3000;
+                    scheduleNextScan();
+                    return;
+                }
 
                 // Ищем переднее окно сначала среди пользовательских приложений
                 // (настроенных в Активности), затем среди встроенного списка.
