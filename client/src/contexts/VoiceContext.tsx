@@ -725,9 +725,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 if (!mst) return;
                 // Presence-медиа мини-аппа: трек назван "zvon-presence:<sessionId>" —
                 // кладём в отдельные карты по sessionId (плитка виртуального участника).
-                const tname = pub.trackName || '';
+                const tname = pub.trackName || (pub as any).name || (track as any).name || '';
                 if (tname.startsWith('zvon-presence:')) {
                     const sessionId = tname.slice('zvon-presence:'.length);
+                    console.log('[Voice] presence media received:', track.kind, sessionId);
                     const psetter = track.kind === Track.Kind.Video ? setPresenceVideoStreams : setPresenceAudioStreams;
                     psetter(prev => new Map(prev).set(sessionId, new MediaStream([mst])));
                     return;
@@ -1112,12 +1113,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const publishExternalAudioTrack = useCallback(async (track: MediaStreamTrack, name?: string): Promise<string | null> => {
         if (!roomRef.current || !track) return null;
         try {
+            track.enabled = true; // иначе собеседники не слышат (трек мог прийти выключенным)
             const pub = await roomRef.current.localParticipant.publishTrack(track, {
                 name: name || 'external-audio',
-                source: Track.Source.Unknown,
                 dtx: false,
                 red: false,
             });
+            console.log('[Voice] external audio published:', name, '→ sid', pub?.trackSid);
             return pub?.trackSid || null;
         } catch (e) { console.error('[Voice] publishExternalAudioTrack failed:', e); return null; }
     }, []);
@@ -1125,9 +1127,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const publishExternalVideoTrack = useCallback(async (track: MediaStreamTrack, name?: string): Promise<string | null> => {
         if (!roomRef.current || !track) return null;
         try {
+            track.enabled = true;
             const pub = await roomRef.current.localParticipant.publishTrack(track, {
                 name: name || 'external-video',
-                source: Track.Source.Unknown,
                 simulcast: false,
             });
             return pub?.trackSid || null;
