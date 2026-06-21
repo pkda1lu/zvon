@@ -32,19 +32,24 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
 
     const bg = presence.background;
     const videoUrl = !videoStream && bg?.type === 'video' && bg.url ? bg.url : null;
+    // YouTube-клипы (поле videos у Я.Музыки) нельзя проиграть через <video> —
+    // встраиваем iframe. Прямые видео/нативные клипы идут как обычное <video>.
+    const ytMatch = videoUrl ? videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/) : null;
+    const ytId = ytMatch ? ytMatch[1] : null;
+    const directVideoUrl = videoUrl && !ytId ? videoUrl : null;
     const cover = !videoStream && !videoUrl && bg?.type === 'image' && bg.url ? bg.url : null;
     const solidBg = !videoStream && !videoUrl && bg?.type === 'color' && bg.color ? bg.color : null;
     const accent = presence.accentColor || 'var(--accent-pink, #ff00c8)';
 
     useEffect(() => {
         const el = bgVideoRef.current;
-        if (!el || !videoUrl) return;
-        if (el.src !== videoUrl) el.src = videoUrl;
+        if (!el || !directVideoUrl) return;
+        if (el.src !== directVideoUrl) el.src = directVideoUrl;
         el.muted = true;
         el.loop = true;
         el.playsInline = true;
         el.play().catch(() => {});
-    }, [videoUrl]);
+    }, [directVideoUrl]);
 
     const tileStyle: React.CSSProperties = {
         ['--presence-accent' as any]: accent,
@@ -72,8 +77,20 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
             {/* Live video (from publishVideo) — fills the tile */}
             {videoStream && <video ref={remoteVideoRef} className="presence-media" autoPlay playsInline muted />}
 
-            {/* URL-based looping video background */}
-            {videoUrl && <video ref={bgVideoRef} className="presence-media presence-bg-video" autoPlay loop muted playsInline />}
+            {/* URL-based looping video background (прямой файл/нативный клип) */}
+            {directVideoUrl && <video ref={bgVideoRef} className="presence-media presence-bg-video" autoPlay loop muted playsInline />}
+
+            {/* YouTube-клип — встраиваем iframe (через <video> не играется) */}
+            {ytId && (
+                <iframe
+                    className="presence-media presence-bg-video"
+                    src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&playsinline=1`}
+                    allow="autoplay; encrypted-media"
+                    frameBorder={0}
+                    title="video"
+                    style={{ pointerEvents: 'none', border: 0 }}
+                />
+            )}
 
             {/* Hero cover artwork (foreground square) — for static-image presences only */}
             {cover && !videoStream && !videoUrl && (
