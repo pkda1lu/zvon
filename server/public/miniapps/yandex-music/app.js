@@ -957,6 +957,16 @@
       const pickUrl = (c) => {
         if (!c) return null;
         if (typeof c === 'string') return c;
+        // Я.Музыка videos: { provider:'youtube', providerVideoId, embed, ... } — без готового url.
+        if (c.providerVideoId) {
+          return String(c.provider || '').toLowerCase().includes('youtube')
+            ? `https://www.youtube.com/watch?v=${c.providerVideoId}`
+            : c.providerVideoId;
+        }
+        if (c.embed) {
+          const m = String(c.embed).match(/(?:youtube\.com\/embed\/|youtu\.be\/|watch\?v=)([\w-]{11})/);
+          if (m) return `https://www.youtube.com/watch?v=${m[1]}`;
+        }
         return c.uri || c.url || c.streamUri || c.streamUrl || c.embedUrl || c.previewUrl || c.player?.url || null;
       };
       const candidates = [
