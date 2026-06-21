@@ -133,11 +133,17 @@
   width: 70px;
   -webkit-appearance: none;
   appearance: none;
+  height: 11px; /* высота = высоте бегунка, чтобы он центрировался по вертикали */
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+}
+/* Дорожка (3px) рисуется отдельно, бегунок центрируется на ней через margin-top. */
+.presence-volume input[type=range]::-webkit-slider-runnable-track {
   height: 3px;
   background: rgba(255, 255, 255, 0.18);
   border-radius: 2px;
-  outline: none;
-  cursor: pointer;
 }
 .presence-volume input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -146,6 +152,12 @@
   background: white;
   border: none;
   cursor: pointer;
+  margin-top: -4px; /* (3 - 11) / 2 — центрируем бегунок на дорожке */
+}
+.presence-volume input[type=range]::-moz-range-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
 }
 .presence-volume input[type=range]::-moz-range-thumb {
   width: 11px; height: 11px;
