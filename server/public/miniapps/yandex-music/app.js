@@ -945,35 +945,64 @@
     presence.updateControl('seek', { value: pct }).catch(() => {});
   }
 
+  // Достаёт URL видео-клипа трека из Yandex supplement (кэш по trackId).
+  const _videoShotCache = new Map();
+  async function getVideoShot(track) {
+    if (!track?.id) return null;
+    if (_videoShotCache.has(track.id)) return _videoShotCache.get(track.id);
+    let url = null;
+    try {
+      const sup = await yaCall(`/tracks/${track.id}/supplement`);
+      const r = sup.result || {};
+      const candidates = [
+        r.videoShot, r.video, r.musicVideo, r.videoSupplement,
+        ...(Array.isArray(r.videoShots) ? r.videoShots : []),
+        ...(Array.isArray(r.videoSupplement?.videoShots) ? r.videoSupplement.videoShots : []),
+      ];
+      for (const c of candidates) {
+        if (!c) continue;
+        const u = (typeof c === 'string') ? c : (c.uri || c.url || c.streamUri || c.player?.url || c.previewUrl);
+        if (u) { url = u.startsWith('http') ? u : ('https://' + u); break; }
+      }
+      if (!url) console.log('[YM] no video shot for', track.id, '— supplement keys:', Object.keys(r));
+      else console.log('[YM] video shot:', url);
+    } catch (e) { console.warn('[YM] supplement failed for', track.id, e.message); }
+    _videoShotCache.set(track.id, url);
+    return url;
+  }
+
+  // Показ видео-клипа в самом окне плеера (поверх обложки).
+  async function applyPlayerVideo(track) {
+    const coverEl = $('#player-cover');
+    if (!coverEl) return;
+    const url = await getVideoShot(track);
+    // трек мог смениться, пока шёл запрос
+    if (queue[currentIndex]?.id !== track?.id) return;
+    let vid = coverEl.querySelector('video.np-video');
+    if (url) {
+      if (!vid) {
+        vid = document.createElement('video');
+        vid.className = 'np-video';
+        vid.muted = true; vid.loop = true; vid.playsInline = true; vid.autoplay = true;
+        vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+        coverEl.style.position = 'relative';
+        coverEl.appendChild(vid);
+      }
+      if (vid.getAttribute('src') !== url) vid.src = url;
+      vid.style.display = '';
+      vid.play().catch(() => {});
+    } else if (vid) {
+      vid.removeAttribute('src');
+      vid.style.display = 'none';
+    }
+  }
+
   async function reattachPresenceMedia() {
     if (!presence) return;
     const track = queue[currentIndex];
 
-    // Try to fetch a "video shot" (Yandex's short music-video clip for the track).
-    // If found — use it as live video background. Otherwise fall back to cover.
-    let videoUrl = null;
-    if (track?.id) {
-      try {
-        const sup = await yaCall(`/tracks/${track.id}/supplement`);
-        console.log('[YM] supplement response for', track.id, ':', sup);
-        const candidates = [
-          sup.result?.videoShot,
-          ...(Array.isArray(sup.result?.videoShots) ? sup.result.videoShots : []),
-          sup.result?.video,
-          sup.result?.musicVideo,
-        ];
-        for (const c of candidates) {
-          if (!c) continue;
-          const u = c.uri || c.url || c.streamUri || c.player?.url;
-          if (u) {
-            videoUrl = u.startsWith('http') ? u : ('https://' + u);
-            console.log('[YM] videoShot found:', videoUrl, 'from candidate:', c);
-            break;
-          }
-        }
-        if (!videoUrl) console.log('[YM] no video field in supplement. Available keys:', Object.keys(sup.result || {}));
-      } catch (e) { console.warn('[YM] supplement failed for', track.id, e.message); }
-    }
+    // Видео-клип трека (Yandex "video shot"): фон presence-плитки.
+    const videoUrl = await getVideoShot(track);
 
     if (videoUrl) {
       await presence.setBackground({ type: 'video', url: videoUrl });
@@ -1380,6 +1409,8 @@
     player.classList.remove('hidden');
     const cover = track.coverUri ? `https://${track.coverUri.replace('%%', '200x200')}` : '';
     $('#player-cover').style.backgroundImage = `url('${cover}')`;
+    // Видео-клип трека (если есть на Я.Музыке) — показываем поверх обложки в плеере.
+    applyPlayerVideo(track);
     $('#player-title').innerHTML = (loading ? '<span class="spinner"></span> ' : '') + escape(track.title);
     $('#player-artist').textContent = errorMsg || track.artists.join(', ');
     $('#player-duration').textContent = fmtMs(track.durationMs);
