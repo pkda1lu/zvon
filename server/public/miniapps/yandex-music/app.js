@@ -162,6 +162,70 @@
     updatePresenceControls();
   }
 
+  // ---------- Лайки (синхронизация с реальной Я.Музыкой) ----------
+  let likedTrackIds = new Set();
+
+  async function loadLikedTrackIds() {
+    if (!ymAccount?.uid || !token) return;
+    try {
+      const likes = await yaCall(`/users/${encodeURIComponent(ymAccount.uid)}/likes/tracks`);
+      likedTrackIds = new Set((likes.result?.library?.tracks || []).map(t => String(t.id)));
+      updateLikeButton();
+    } catch (e) { console.warn('[YM] load likes failed:', e.message); }
+  }
+
+  async function yaPostForm(path, params) {
+    const r = await sdk.fetch(YA_API + path, {
+      method: 'POST',
+      headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(params).toString(),
+      responseType: 'json',
+    });
+    if (r.status >= 400) throw new Error('Yandex API ' + r.status);
+    return r.data;
+  }
+
+  function updateLikeButton() {
+    const btn = $('#btn-like');
+    if (!btn) return;
+    const track = queue[currentIndex];
+    const liked = !!(track?.id && likedTrackIds.has(String(track.id)));
+    btn.classList.toggle('liked', liked);
+    btn.title = liked ? 'Убрать из «Мне нравится»' : 'Добавить в «Мне нравится»';
+    // Закрашенное сердце для активного состояния.
+    const svg = btn.querySelector('svg');
+    if (svg) svg.setAttribute('fill', liked ? 'currentColor' : 'none');
+  }
+
+  async function toggleLike() {
+    const track = queue[currentIndex];
+    if (!track?.id) return;
+    if (!ymAccount?.uid || !token) { console.warn('[YM] like: не авторизован'); return; }
+    const id = String(track.id);
+    const wasLiked = likedTrackIds.has(id);
+    // Оптимистично обновляем UI.
+    if (wasLiked) likedTrackIds.delete(id); else likedTrackIds.add(id);
+    updateLikeButton();
+    try {
+      const action = wasLiked ? 'remove' : 'add-multiple';
+      await yaPostForm(`/users/${encodeURIComponent(ymAccount.uid)}/likes/tracks/${action}`, { 'track-ids': id });
+    } catch (e) {
+      // Откат при ошибке.
+      if (wasLiked) likedTrackIds.add(id); else likedTrackIds.delete(id);
+      updateLikeButton();
+      console.warn('[YM] like toggle failed:', e.message);
+    }
+  }
+
+  $('#btn-like')?.addEventListener('click', toggleLike);
+
+  // ---------- Полноэкранный режим плеера ----------
+  function toggleFullscreen() {
+    const expanded = player.classList.toggle('expanded');
+    document.body.classList.toggle('player-fs', expanded);
+  }
+  $('#btn-fullscreen')?.addEventListener('click', toggleFullscreen);
+
   // Click on player progress bar to seek.
   $('#player-bar')?.addEventListener('click', (e) => {
     if (!audio || !isFinite(audio.duration) || audio.duration === 0) return;
@@ -307,6 +371,7 @@
           <div class="vibe-hero-inner">
             <div class="vibe-eyebrow">Моя волна</div>
             <div class="vibe-title" id="vibe-title">My Vibe</div>
+            <div class="vibe-cover" id="vibe-cover"></div>
             <div class="vibe-track" id="vibe-track" style="display:none"></div>
             <div class="vibe-controls">
               <button id="vibe-prev" class="vibe-ctrl" title="Предыдущий"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
@@ -342,18 +407,26 @@
     if (ymAccount?.uid) {
       if (_libraryCache) renderSidebarPlaylists();
       else loadLibrary(ymAccount.uid).then(c => { _libraryCache = c; renderSidebarPlaylists(); }).catch(() => {});
+      loadLikedTrackIds();
     }
   }
 
   function updateVibeNowPlaying(track) {
     const t = $('#vibe-title'); const pill = $('#vibe-track');
+    const coverEl = $('#vibe-cover'); const bgEl = document.querySelector('.vibe-bg');
     if (!t) return;
     if (track) {
       t.textContent = (track.artists && track.artists.length) ? track.artists.join(', ') : (track.title || 'My Vibe');
       if (pill) { pill.textContent = track.title || ''; pill.style.display = track.title ? '' : 'none'; }
+      const cover = track.coverUri ? `https://${track.coverUri.replace('%%', '400x400')}` : '';
+      if (coverEl) { coverEl.style.backgroundImage = cover ? `url('${cover}')` : ''; coverEl.style.display = cover ? '' : 'none'; }
+      // «Аура» позади — размытая обложка трека (как в оригинале My Vibe).
+      if (bgEl) bgEl.style.backgroundImage = cover ? `url('${cover}')` : '';
     } else {
       t.textContent = 'My Vibe';
       if (pill) pill.style.display = 'none';
+      if (coverEl) { coverEl.style.backgroundImage = ''; coverEl.style.display = 'none'; }
+      if (bgEl) bgEl.style.backgroundImage = '';
     }
   }
 
@@ -402,6 +475,7 @@
       await sdk.storage.set('access_token', token);
       await sdk.storage.set('account', accInfo);
       ymAccount = accInfo;
+      loadLikedTrackIds();
       renderAccount();
       renderVibeScreen();
     } catch (e) {
@@ -445,6 +519,7 @@
       };
       await sdk.storage.set('account', accInfo);
       ymAccount = accInfo;
+      loadLikedTrackIds();
       renderAccount();
       renderVibeScreen();
     } catch (e) {
@@ -1445,6 +1520,7 @@
     $('#player-cover').style.backgroundImage = `url('${cover}')`;
     // Видео-клип трека (если есть на Я.Музыке) — показываем поверх обложки в плеере.
     applyPlayerVideo(track);
+    updateLikeButton();
     $('#player-title').innerHTML = (loading ? '<span class="spinner"></span> ' : '') + escape(track.title);
     $('#player-artist').textContent = errorMsg || track.artists.join(', ');
     $('#player-duration').textContent = fmtMs(track.durationMs);
