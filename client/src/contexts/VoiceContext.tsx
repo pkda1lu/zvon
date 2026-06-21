@@ -20,7 +20,8 @@ import {
     VideoQuality,
     TrackPublication,
     ConnectionQuality,
-    LocalAudioTrack
+    LocalAudioTrack,
+    LocalVideoTrack
 } from 'livekit-client';
 
 // --- Types ---
@@ -1114,7 +1115,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!roomRef.current || !track) return null;
         try {
             track.enabled = true; // иначе собеседники не слышат (трек мог прийти выключенным)
-            const pub = await roomRef.current.localParticipant.publishTrack(track, {
+            // publishTrack ждёт LocalTrack, а не сырой MediaStreamTrack — иначе
+            // TypeError: track.updateLoggerOptions is not a function.
+            const localTrack = new LocalAudioTrack(track);
+            const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
                 name: name || 'external-audio',
                 dtx: false,
                 red: false,
@@ -1128,7 +1132,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!roomRef.current || !track) return null;
         try {
             track.enabled = true;
-            const pub = await roomRef.current.localParticipant.publishTrack(track, {
+            const localTrack = new LocalVideoTrack(track);
+            const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
                 name: name || 'external-video',
                 simulcast: false,
             });
