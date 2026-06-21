@@ -954,21 +954,38 @@
     try {
       const sup = await yaCall(`/tracks/${track.id}/supplement`);
       const r = sup.result || {};
+      const pickUrl = (c) => {
+        if (!c) return null;
+        if (typeof c === 'string') return c;
+        return c.uri || c.url || c.streamUri || c.streamUrl || c.embedUrl || c.previewUrl || c.player?.url || null;
+      };
       const candidates = [
         r.videoShot, r.video, r.musicVideo, r.videoSupplement,
         ...(Array.isArray(r.videoShots) ? r.videoShots : []),
         ...(Array.isArray(r.videoSupplement?.videoShots) ? r.videoSupplement.videoShots : []),
+        ...(Array.isArray(r.clips) ? r.clips : []),   // нативные клипы Я.Музыки (стримятся)
+        ...(Array.isArray(r.videos) ? r.videos : []), // обычно ссылки на YouTube
       ];
       for (const c of candidates) {
-        if (!c) continue;
-        const u = (typeof c === 'string') ? c : (c.uri || c.url || c.streamUri || c.player?.url || c.previewUrl);
+        const u = pickUrl(c);
         if (u) { url = u.startsWith('http') ? u : ('https://' + u); break; }
       }
-      if (!url) console.log('[YM] no video shot for', track.id, '— supplement keys:', Object.keys(r));
-      else console.log('[YM] video shot:', url);
+      if (!url) {
+        // Логируем реальную структуру videos/clips — по ней доработаем извлечение URL.
+        console.log('[YM] no playable video url for', track.id,
+          '| clips:', JSON.stringify(r.clips), '| videos:', JSON.stringify(r.videos));
+      } else {
+        console.log('[YM] video url:', url);
+      }
     } catch (e) { console.warn('[YM] supplement failed for', track.id, e.message); }
     _videoShotCache.set(track.id, url);
     return url;
+  }
+
+  function parseYouTubeId(u) {
+    if (!u) return null;
+    const m = String(u).match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
+    return m ? m[1] : null;
   }
 
   // Показ видео-клипа в самом окне плеера (поверх обложки).
@@ -978,22 +995,29 @@
     const url = await getVideoShot(track);
     // трек мог смениться, пока шёл запрос
     if (queue[currentIndex]?.id !== track?.id) return;
-    let vid = coverEl.querySelector('video.np-video');
-    if (url) {
-      if (!vid) {
-        vid = document.createElement('video');
-        vid.className = 'np-video';
-        vid.muted = true; vid.loop = true; vid.playsInline = true; vid.autoplay = true;
-        vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;';
-        coverEl.style.position = 'relative';
-        coverEl.appendChild(vid);
-      }
-      if (vid.getAttribute('src') !== url) vid.src = url;
-      vid.style.display = '';
+    // сбрасываем предыдущее медиа
+    coverEl.querySelectorAll('.np-video, .np-frame').forEach(el => el.remove());
+    if (!url) return;
+    coverEl.style.position = 'relative';
+    const ytId = parseYouTubeId(url);
+    if (ytId) {
+      // YouTube-клип (поле videos) — встраиваем iframe.
+      const f = document.createElement('iframe');
+      f.className = 'np-frame';
+      f.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&playsinline=1`;
+      f.allow = 'autoplay; encrypted-media';
+      f.setAttribute('frameborder', '0');
+      f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:inherit;';
+      coverEl.appendChild(f);
+    } else {
+      // Прямой видео-файл/клип (например нативный clip Я.Музыки).
+      const vid = document.createElement('video');
+      vid.className = 'np-video';
+      vid.muted = true; vid.loop = true; vid.playsInline = true; vid.autoplay = true;
+      vid.src = url;
+      vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+      coverEl.appendChild(vid);
       vid.play().catch(() => {});
-    } else if (vid) {
-      vid.removeAttribute('src');
-      vid.style.display = 'none';
     }
   }
 
