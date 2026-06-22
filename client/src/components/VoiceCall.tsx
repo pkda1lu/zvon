@@ -23,7 +23,6 @@ import {
   RemoteParticipant,
   Track,
   VideoPresets,
-  VideoQuality,
   LocalAudioTrack
 } from 'livekit-client';
 import './VoiceCall.css';
@@ -409,13 +408,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             console.log('[DM Voice] audio subscribed from', participant.identity);
           }
           if (publication.source === Track.Source.ScreenShare) {
-            // Force highest quality for screen share
-            if (track.kind === Track.Kind.Video) {
-              try {
-                publication.setVideoQuality(VideoQuality.HIGH);
-                publication.setVideoDimensions({ width: 3840, height: 2160 });
-              } catch (e) { console.warn('[DM Call] Failed to set screen quality:', e); }
-            }
+            // Качество/размер подписки выбирает adaptiveStream по реальному <video>.
+            // Раньше тут принудительно запрашивали 4K (setVideoDimensions 3840×2160 +
+            // VideoQuality.HIGH) — это конфликтовало с adaptiveStream и порождало шторм
+            // UpdateSubscription, из-за чего у зрителей переговоры подписчика отваливались
+            // в бесконечный reconnect при старте демонстрации.
             soundManager.play(SOUNDS.SCREENSHARE_ON, 0.4);
             setRemoteScreenStreams(prev => {
               const next = new Map(prev);
@@ -567,11 +564,15 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         const frameRate = parseInt(options?.frameRate || '30', 10);
         const resolution = options?.resolution || '1080';
 
-        let bitrate = 10_000_000;
-        if (resolution === '2160') bitrate = frameRate >= 60 ? 60_000_000 : 40_000_000;
-        else if (resolution === '1440') bitrate = frameRate >= 60 ? 25_000_000 : 18_000_000;
-        else if (resolution === '1080') bitrate = frameRate >= 60 ? 15_000_000 : 10_000_000;
-        else if (resolution === '720') bitrate = frameRate >= 60 ? 8_000_000 : 5_000_000;
+        // Битрейты демонстрации в групповом звонке. Прежние значения (до 60 Мбит/с,
+        // simulcast выключен) насыщали нисходящий канал зрителей: поток один на всех,
+        // медленный зритель его не вытягивал — оценка пропускной способности рушилась,
+        // и подписчик уходил в вечный reconnect. Ставим разумные потолки.
+        let bitrate = 8_000_000;
+        if (resolution === '2160') bitrate = frameRate >= 60 ? 24_000_000 : 16_000_000;
+        else if (resolution === '1440') bitrate = frameRate >= 60 ? 14_000_000 : 10_000_000;
+        else if (resolution === '1080') bitrate = frameRate >= 60 ? 8_000_000 : 6_000_000;
+        else if (resolution === '720') bitrate = frameRate >= 60 ? 4_000_000 : 3_000_000;
 
         // Electron: конкретный источник по sourceId; веб: нативный пикер браузера.
         const stream = (isElectron && sourceId)
@@ -596,26 +597,6 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                 maxFramerate: frameRate
               }
             });
-            // Force RTP sender params for maximum stability
-            setTimeout(async () => {
-              try {
-                const pub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-                const sender = (pub?.track as any)?.sender as RTCRtpSender | undefined;
-                if (sender) {
-                  const params = sender.getParameters();
-                  if (params.encodings?.length) {
-                    params.encodings.forEach((enc: any) => {
-                      enc.maxBitrate = bitrate;
-                      enc.scaleResolutionDownBy = 1.0;
-                      enc.networkPriority = 'high';
-                      enc.priority = 'high';
-                    });
-                    (params as any).degradationPreference = 'maintain-resolution';
-                    await sender.setParameters(params);
-                  }
-                }
-              } catch (e) { console.warn('[DM Call] RTP param override failed:', e); }
-            }, 1000);
           }
         }
         setScreenStream(stream);

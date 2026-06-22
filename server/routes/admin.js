@@ -11,15 +11,6 @@ const Report = require('../models/Report');
 const GlobalAuditLog = require('../models/GlobalAuditLog');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 
-// Middleware to check if user is admin
-const isAdmin = async (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    next();
-  } else {
-    res.status(403).json({ message: 'Доступ разрешен только администраторам' });
-  }
-};
-
 // Middleware to check if user is moderator or admin
 const isModerator = async (req, res, next) => {
   if (req.user && (req.user.role === 'moderator' || req.user.role === 'admin')) {
@@ -191,11 +182,21 @@ router.get('/users', [auth, isModerator], async (req, res) => {
   }
 });
 
-router.patch('/users/:id', [auth, isAdmin], async (req, res) => {
+router.patch('/users/:id', [auth, isModerator], async (req, res) => {
   try {
     const { username, displayName, email, role, isBanned } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+
+    // Модератор не может действовать против админа и не может менять роли —
+    // иначе появляется эскалация привилегий (мод повышает себя/банит админа).
+    const isExecutorAdmin = req.user.role === 'admin';
+    if (!isExecutorAdmin && user.role === 'admin') {
+      return res.status(403).json({ message: 'Нельзя изменять администратора' });
+    }
+    if (role && !isExecutorAdmin) {
+      return res.status(403).json({ message: 'Менять роли может только администратор' });
+    }
 
     const oldData = user.toObject();
     if (username) user.username = username;
@@ -226,10 +227,15 @@ router.patch('/users/:id', [auth, isAdmin], async (req, res) => {
   }
 });
 
-router.delete('/users/:id', [auth, isAdmin], async (req, res) => {
+router.delete('/users/:id', [auth, isModerator], async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+
+    // Модератор не может удалить администратора.
+    if (req.user.role !== 'admin' && user.role === 'admin') {
+      return res.status(403).json({ message: 'Нельзя удалить администратора' });
+    }
 
     await logGlobalAction({
       executorId: req.user._id,
@@ -266,7 +272,7 @@ router.get('/servers', [auth, isModerator], async (req, res) => {
   }
 });
 
-router.delete('/servers/:id', [auth, isAdmin], async (req, res) => {
+router.delete('/servers/:id', [auth, isModerator], async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Сервер не найден' });

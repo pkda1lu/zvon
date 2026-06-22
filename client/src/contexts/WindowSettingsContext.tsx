@@ -129,6 +129,51 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
         };
     });
 
+    // localStorage переживает не каждое обновление клиента: после переустановки он
+    // может оказаться пустым, и контекст откатывается на дефолты (все тумблеры = true).
+    // Чтобы тумблеры отражали реальное состояние, гидрируем настройки с сервера —
+    // он остаётся источником правды между обновлениями/устройствами.
+    const [hydrated, setHydrated] = useState(false);
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) { setHydrated(true); return; }
+        let cancelled = false;
+        axios.get('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+            .then(res => {
+                if (cancelled) return;
+                const s = res.data?.settings || {};
+                const o = s.overlay || {};
+                const w = s.windows || {};
+                const sm = s.streamerMode || {};
+                setSettings(prev => ({
+                    ...prev,
+                    overlayEnabled: o.enabled ?? prev.overlayEnabled,
+                    overlayPosition: o.position ?? prev.overlayPosition,
+                    overlayOpacity: o.opacity ?? prev.overlayOpacity,
+                    overlaySize: o.size ?? prev.overlaySize,
+                    overlayShowNames: o.showNames ?? prev.overlayShowNames,
+                    overlayShowAvatars: o.showAvatars ?? prev.overlayShowAvatars,
+                    overlayShowSpeakingRing: o.showSpeakingRing ?? prev.overlayShowSpeakingRing,
+                    overlayIdleOpacity: o.idleOpacity ?? prev.overlayIdleOpacity,
+                    overlayShowBackground: o.showBackground ?? prev.overlayShowBackground,
+                    activityDetectionEnabled: w.activityDetectionEnabled ?? prev.activityDetectionEnabled,
+                    overlayCategories: w.overlayCategories ?? prev.overlayCategories,
+                    streamerModeEnabled: sm.enabled ?? prev.streamerModeEnabled,
+                    autoEnableWithOBS: sm.autoEnableWithOBS ?? prev.autoEnableWithOBS,
+                    streamerLink: sm.streamerLink ?? prev.streamerLink,
+                    censorInfo: sm.censorInfo ?? prev.censorInfo,
+                    disableSounds: sm.disableSounds ?? prev.disableSounds,
+                    disableNotifications: sm.disableNotifications ?? prev.disableNotifications,
+                    changeStatusToStreaming: sm.changeStatusToStreaming ?? prev.changeStatusToStreaming,
+                    confirmSettingsAccess: sm.confirmSettingsAccess ?? prev.confirmSettingsAccess,
+                }));
+            })
+            .catch(() => { /* офлайн — остаёмся на значениях из localStorage */ })
+            .finally(() => { if (!cancelled) setHydrated(true); });
+        return () => { cancelled = true; };
+    }, []);
+
     useEffect(() => {
         // Initial setup on mount
         // @ts-ignore
@@ -207,9 +252,11 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             });
         }
 
-        // Sync with Server (only relevant settings)
+        // Sync with Server (only relevant settings).
+        // Не пишем на сервер, пока не подтянули с него реальные значения — иначе
+        // дефолты, загруженные до гидрации, затрут настоящие настройки пользователя.
         const token = localStorage.getItem('token');
-        if (token) {
+        if (token && hydrated) {
             const syncTimeout = setTimeout(() => {
                 axios.put('/api/users/settings', {
                     settings: {
@@ -243,7 +290,7 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             }, 1500); // 1.5s debounce to be safe
             return () => clearTimeout(syncTimeout);
         }
-    }, [settings]);
+    }, [settings, hydrated]);
 
     const setAutoStart = (autoStart: boolean) => setSettings(prev => ({ ...prev, autoStart }));
     const setMinimizeToTray = (minimizeToTray: boolean) => setSettings(prev => ({ ...prev, minimizeToTray }));
