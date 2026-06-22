@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const User = require('../models/User');
 const Report = require('../models/Report');
+const ProblemReport = require('../models/ProblemReport');
 const { body, validationResult } = require('express-validator');
 
 // Middleware to check for moderator/admin roles
@@ -403,5 +404,88 @@ router.post('/marketplace/:type/:id/unblock', auth, isModerator, async (req, res
   }
 });
 
-module.exports = router;
+// === Problem reports (кнопка «Репорт» в левом сайдбаре) ===================
+
+// Отправить жалобу на проблему в приложении. Уведомляет всех модераторов и админов.
+router.post('/problem-report', auth, [
+  body('subject').trim().notEmpty().withMessage('Нужен заголовок'),
+  body('description').trim().notEmpty().withMessage('Нужно описание'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: errors.array()[0].msg });
+  }
+  try {
+    const { subject, category, description, steps, attachments } = req.body;
+
+    const cleanAttachments = Array.isArray(attachments)
+      ? attachments
+          .filter(a => a && a.url)
+          .slice(0, 10)
+          .map(a => ({ url: a.url, type: a.type, filename: a.filename, size: a.size }))
+      : [];
+
+    const report = new ProblemReport({
+      reporter: req.user._id,
+      subject,
+      category: category || 'other',
+      description,
+      steps: steps || '',
+      attachments: cleanAttachments
+    });
+    await report.save();
+
+    // Уведомляем всех модераторов и админов.
+    const staff = await User.find({ role: { $in: ['moderator', 'admin'] } }).select('_id');
+    const io = req.app.get('io');
+    if (io) {
+      const reporter = await User.findById(req.user._id).select('username');
+      const reporterName = reporter ? reporter.username : 'Пользователь';
+      for (const member of staff) {
+        if (String(member._id) === String(req.user._id)) continue;
+        io.to(`user-${member._id}`).emit('notification', {
+          type: 'problem_report',
+          message: `${reporterName}: ${subject}`,
+          reportId: report._id,
+          timestamp: new Date()
+        });
+      }
+    }
+
+    res.status(201).json({ message: 'Жалоба отправлена. Спасибо!' });
+  } catch (err) {
+    console.error('problem-report error:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Список жалоб на проблемы (модераторы/админы).
+router.get('/problem-reports', [auth, isModerator], async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const reports = await ProblemReport.find({ status })
+      .populate('reporter', 'username avatar')
+      .populate('resolvedBy', 'username')
+      .sort('-createdAt');
+    res.json(reports);
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Изменить статус жалобы на проблему (модераторы/админы).
+router.post('/problem-reports/:id/resolve', [auth, isModerator], async (req, res) => {
+  try {
+    const { status, note } = req.body;
+    const report = await ProblemReport.findByIdAndUpdate(req.params.id, {
+      status: status || 'resolved',
+      resolvedBy: req.user._id,
+      resolutionNote: note || ''
+    }, { new: true });
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 module.exports = router;

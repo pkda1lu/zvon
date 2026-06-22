@@ -191,11 +191,16 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // а не только во всплывающем тосте. addItem сам покажет тост и сыграет звук.
         const handleModeration = (data: any) => {
             if (!data?.message) return;
+            const title = data.type === 'moderation_violation'
+                ? 'Предупреждение модерации'
+                : data.type === 'problem_report'
+                ? 'Новая жалоба на проблему'
+                : 'Сообщение от модерации';
             addItem({
                 type: 'moderation',
-                title: data.type === 'moderation_violation' ? 'Предупреждение модерации' : 'Сообщение от модерации',
+                title,
                 content: data.message,
-                author: { _id: 'moderation', username: 'Модерация', avatar: null }
+                author: { _id: 'moderation', username: data.type === 'problem_report' ? 'Репорт' : 'Модерация', avatar: null }
             });
         };
 

@@ -344,6 +344,13 @@ export const BellIcon: React.FC<{ size?: number; color?: string; className?: str
     </svg>
 );
 
+export const FlagIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+        <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+);
+
 export const PinIcon: React.FC<{ size?: number; color?: string; fill?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', fill = 'none', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <line x1="12" y1="17" x2="12" y2="22" />

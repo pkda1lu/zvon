@@ -5,8 +5,9 @@ import SettingsModal from './SettingsModal';
 import JoinServerModal from './JoinServerModal';
 import { getAvatarUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
-import { UsersIcon, PlusIcon, SettingsIcon, BellIcon, LayoutGridIcon } from './Icons';
+import { UsersIcon, PlusIcon, SettingsIcon, BellIcon, LayoutGridIcon, FlagIcon } from './Icons';
 import ServerContextMenu from './ServerContextMenu';
+import ProblemReportModal from './ProblemReportModal';
 import { iosSpringSnappy } from '../animations/transitions';
 import './panel-hero.css';
 import './Sidebar.css';
@@ -66,6 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCloseMiniApp,
 }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
+  const [showReport, setShowReport] = useState(false);
 
   const handleContextMenu = (e: React.MouseEvent, server: Server) => {
     e.preventDefault();
@@ -156,6 +158,18 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="server-item">
           <div className="pill"><span /></div>
           <motion.div
+            className="server-icon report-sidebar-icon"
+            onClick={() => setShowReport(true)}
+            title="Сообщить о проблеме"
+            {...pressFeedback}
+          >
+            <FlagIcon size={26} color="var(--accent-pink)" />
+          </motion.div>
+        </div>
+
+        <div className="server-item">
+          <div className="pill"><span /></div>
+          <motion.div
             className="server-icon home-icon"
             onClick={onOpenJoinModal}
             title="Добавить сервер"
@@ -227,6 +241,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           onLeave={onServerLeave}
         />
       )}
+
+      <ProblemReportModal isOpen={showReport} onClose={() => setShowReport(false)} />
     </div>
   );
 };
