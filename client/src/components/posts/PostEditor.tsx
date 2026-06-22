@@ -163,6 +163,9 @@ const PostEditor: React.FC<PostEditorProps> = ({ post, onSaved, onCancel }) => {
           <label className="post-checkbox">
             <input type="checkbox" checked={block.multiple} onChange={e => updateBlock(block.id, { multiple: e.target.checked } as any)} /> Можно выбрать несколько
           </label>
+          <label className="post-checkbox">
+            <input type="checkbox" checked={!!block.allowCustom} onChange={e => updateBlock(block.id, { allowCustom: e.target.checked } as any)} /> Разрешить свой вариант ответа
+          </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {block.options.map((opt, i) => (
               <div key={opt.id} style={{ display: 'flex', gap: 8 }}>

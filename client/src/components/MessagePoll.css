@@ -1,0 +1,95 @@
+.msg-poll {
+  margin-top: 6px;
+  max-width: 460px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.msg-poll__question {
+  font-weight: 700;
+  color: var(--text-main, #fff);
+  margin-bottom: 12px;
+  word-break: break-word;
+}
+
+.msg-poll__options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msg-poll__option {
+  position: relative;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-main, #fff);
+  cursor: pointer;
+  overflow: hidden;
+  width: 100%;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.msg-poll__option:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.msg-poll__option:disabled { cursor: default; }
+.msg-poll__option--mine { border-color: var(--primary-neon, #00e5ff); }
+
+.msg-poll__bar {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+.msg-poll__option--mine .msg-poll__bar { background: rgba(0, 229, 255, 0.18); }
+
+.msg-poll__row {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.msg-poll__text { word-break: break-word; }
+
+.msg-poll__pct {
+  color: var(--text-dim, rgba(255, 255, 255, 0.5));
+  font-variant-numeric: tabular-nums;
+}
+
+.msg-poll__custom {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.msg-poll__custom input {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-main, #fff);
+  font-size: 14px;
+  outline: none;
+}
+.msg-poll__custom input:focus { border-color: rgba(0, 229, 255, 0.4); }
+
+.msg-poll__custom button {
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--primary-neon, #00e5ff);
+  font-weight: 600;
+  cursor: pointer;
+}
+.msg-poll__custom button:disabled { opacity: 0.4; cursor: default; }
+
+.msg-poll__meta {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-dim, rgba(255, 255, 255, 0.5));
+}

@@ -246,6 +246,61 @@ router.post('/:id/reactions', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+// Голосование в опросе-сообщении (каналы и личные сообщения).
+router.post('/:id/poll-vote', auth, async (req, res) => {
+  try {
+    const { optionIds, customText } = req.body;
+    const message = await Message.findById(req.params.id);
+    if (!message || !message.poll) return res.status(404).json({ message: 'Опрос не найден' });
+
+    const poll = message.poll;
+    const uid = String(req.user._id);
+    let chosen = Array.isArray(optionIds) ? optionIds.map(String) : (optionIds ? [String(optionIds)] : []);
+
+    // Свой вариант ответа.
+    const clean = String(customText || '').trim().slice(0, 120);
+    if (clean) {
+      if (!poll.allowCustom) return res.status(403).json({ message: 'Свои варианты запрещены' });
+      if ((poll.options || []).length >= 30) return res.status(400).json({ message: 'Слишком много вариантов' });
+      let opt = poll.options.find(o => String(o.text).toLowerCase() === clean.toLowerCase());
+      if (!opt) {
+        opt = { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, text: clean, custom: true, voters: [] };
+        poll.options.push(opt);
+      }
+      chosen = [opt.id];
+    }
+
+    const validIds = new Set((poll.options || []).map(o => o.id));
+    chosen = chosen.filter(id => validIds.has(id));
+    const toApply = poll.multiple ? chosen : chosen.slice(0, 1);
+
+    // Снимаем прежние голоса пользователя, затем ставим выбранные.
+    poll.options.forEach(o => { o.voters = (o.voters || []).filter(u => String(u) !== uid); });
+    poll.options.forEach(o => { if (toApply.includes(o.id)) o.voters.push(req.user._id); });
+
+    message.markModified('poll');
+    await message.save();
+    await message.populate('poll.options.voters', 'username');
+
+    const io = req.app.get('io');
+    if (io) {
+      const payload = { messageId: message._id, poll: message.poll };
+      if (message.channel) {
+        io.to(`channel-${message.channel}`).emit('message-poll-update', payload);
+      } else if (message.directMessage) {
+        const DirectMessage = require('../models/DirectMessage');
+        const dm = await DirectMessage.findById(message.directMessage);
+        if (dm) dm.participants.forEach(p => io.to(`user-${p}`).emit('message-poll-update', payload));
+      }
+    }
+
+    res.json(message.poll);
+  } catch (error) {
+    console.error('poll-vote error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.get('/channel/:channelId/attachments', auth, async (req, res) => {
   try {
     const messages = await Message.find({ 

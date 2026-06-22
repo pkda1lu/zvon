@@ -517,9 +517,10 @@ function sanitizeBlocks(blocks) {
     if (b.type === 'poll') {
       const options = Array.isArray(b.options) ? b.options.slice(0, 20).map(o => ({
         id: String(o.id || Math.random().toString(36).slice(2, 10)),
-        text: String(o.text || '')
+        text: String(o.text || ''),
+        ...(o.custom ? { custom: true } : {})
       })) : [];
-      return { ...b, options, votes: {} };
+      return { ...b, allowCustom: !!b.allowCustom, options, votes: {} };
     }
     return b;
   }).filter(Boolean);
@@ -641,6 +642,49 @@ router.post('/posts/:id/vote', auth, async (req, res) => {
     res.json({ blockId, votes: block.votes });
   } catch (err) {
     console.error('post vote error:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Добавить свой вариант ответа в опрос поста (если разрешено) и сразу проголосовать за него.
+router.post('/posts/:id/poll-option', auth, async (req, res) => {
+  try {
+    const { blockId, text } = req.body;
+    const clean = String(text || '').trim().slice(0, 120);
+    if (!clean) return res.status(400).json({ message: 'Пустой вариант' });
+
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Пост не найден' });
+
+    const block = (post.blocks || []).find(b => b && b.id === blockId && b.type === 'poll');
+    if (!block) return res.status(404).json({ message: 'Опрос не найден' });
+    if (!block.allowCustom) return res.status(403).json({ message: 'Свои варианты запрещены' });
+
+    block.options = Array.isArray(block.options) ? block.options : [];
+    if (block.options.length >= 30) return res.status(400).json({ message: 'Слишком много вариантов' });
+
+    const uid = String(req.user._id);
+    const votes = block.votes && typeof block.votes === 'object' ? block.votes : {};
+
+    // Не плодим дубликаты — если такой вариант уже есть, просто голосуем за него.
+    let option = block.options.find(o => String(o.text).toLowerCase() === clean.toLowerCase());
+    if (!option) {
+      option = { id: Math.random().toString(36).slice(2, 10), text: clean, custom: true };
+      block.options.push(option);
+    }
+
+    if (!block.multiple) {
+      for (const optId of Object.keys(votes)) votes[optId] = (votes[optId] || []).filter(u => String(u) !== uid);
+    }
+    if (!votes[option.id]) votes[option.id] = [];
+    if (!votes[option.id].some(u => String(u) === uid)) votes[option.id].push(uid);
+
+    block.votes = votes;
+    post.markModified('blocks');
+    await post.save();
+    res.json({ blockId, options: block.options, votes: block.votes });
+  } catch (err) {
+    console.error('post poll-option error:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });

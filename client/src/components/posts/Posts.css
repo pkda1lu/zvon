@@ -162,22 +162,68 @@
   border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
 }
 
-/* === Всплывающий просмотр поста у пользователя === */
-.post-viewer-body { padding: 4px 0; }
-
-.post-viewer-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--text-main, #fff);
-  margin-bottom: 18px;
+/* === Всплывающий просмотр поста у пользователя (лёгкий, воздушный) === */
+.post-viewer-modal {
+  background: rgba(26, 26, 36, 0.62);
+  backdrop-filter: blur(48px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
 }
 
+.post-viewer-modal .zv-modal__header {
+  padding: 30px 34px 6px;
+  border: none;
+}
+
+.post-viewer-modal .zv-modal__title {
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.post-viewer-modal .zv-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim, rgba(255, 255, 255, 0.45));
+}
+.post-viewer-modal .zv-modal__close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main, #fff);
+}
+
+.post-viewer-modal .zv-modal__body {
+  padding: 14px 34px 8px;
+}
+
+/* Лёгкий футер без подложки и линии — только кнопка во всю ширину. */
+.post-viewer-modal .zv-modal__footer {
+  background: transparent;
+  border-top: none;
+  padding: 10px 34px 30px;
+}
+
+.post-viewer-btn {
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main, #fff);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.18s ease, transform 0.12s ease;
+}
+.post-viewer-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.post-viewer-btn:active { transform: scale(0.99); }
+
+.post-viewer-body { padding: 2px 0; }
+
 .post-viewer-meta {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  margin-top: 22px;
   font-size: 12px;
-  color: var(--text-dim, rgba(255, 255, 255, 0.5));
-  display: flex;
-  justify-content: space-between;
+  color: var(--text-dim, rgba(255, 255, 255, 0.4));
+  text-align: right;
 }

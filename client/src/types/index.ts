@@ -229,6 +229,17 @@ export interface Message {
     emoji: string;
     users: string[];
   }>;
+  poll?: {
+    question: string;
+    multiple?: boolean;
+    allowCustom?: boolean;
+    options: Array<{
+      id: string;
+      text: string;
+      custom?: boolean;
+      voters?: Array<string | { _id: string; username?: string }>;
+    }>;
+  } | null;
   mentions?: User[];
   replyTo?: Message;
   type?: 'default' | 'missed-call' | 'call-ended';

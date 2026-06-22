@@ -7,6 +7,23 @@ const attachmentSchema = new mongoose.Schema({
   type: String
 }, { _id: false });
 
+const pollOptionSchema = new mongoose.Schema({
+  id: String,
+  text: String,
+  custom: { type: Boolean, default: false },
+  voters: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
+}, { _id: false });
+
+const pollSchema = new mongoose.Schema({
+  question: String,
+  multiple: { type: Boolean, default: false },
+  allowCustom: { type: Boolean, default: false },
+  options: [pollOptionSchema]
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   content: {
     type: String,
@@ -87,6 +104,10 @@ const messageSchema = new mongoose.Schema({
     enum: ['default', 'missed-call', 'call-ended'],
     default: 'default'
   },
+  poll: {
+    type: pollSchema,
+    default: null
+  },
   mentions: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -108,7 +129,7 @@ messageSchema.index({ channel: 1, createdAt: -1 });
 messageSchema.index({ directMessage: 1, createdAt: -1 });
 
 messageSchema.pre('save', function (next) {
-  if (this.type === 'default' && !this.content && (!this.attachments || this.attachments.length === 0) && (!this.embeds || this.embeds.length === 0)) {
+  if (this.type === 'default' && !this.content && (!this.attachments || this.attachments.length === 0) && (!this.embeds || this.embeds.length === 0) && !this.poll) {
     return next(new Error('Сообщение не может быть пустым (нужен текст, вложение или эмбед)'));
   }
   next();

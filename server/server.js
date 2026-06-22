@@ -396,6 +396,22 @@ io.on('connection', (socket) => {
         if (!Array.isArray(raw)) raw = [raw];
         messageData.attachments = raw.filter(a => a && typeof a === 'object' && a.url).map(a => ({ url: String(a.url), filename: String(a.filename || ''), size: Number(a.size || 0), type: String(a.type || '') }));
       }
+      if (data.poll && typeof data.poll === 'object' && data.poll.question) {
+        const opts = Array.isArray(data.poll.options) ? data.poll.options : [];
+        const cleanOptions = opts
+          .map(o => ({ text: String((o && o.text) || '').trim() }))
+          .filter(o => o.text)
+          .slice(0, 20)
+          .map((o, i) => ({ id: `${Date.now().toString(36)}-${i}-${Math.random().toString(36).slice(2, 6)}`, text: o.text.slice(0, 120), custom: false, voters: [] }));
+        if (cleanOptions.length >= 2) {
+          messageData.poll = {
+            question: String(data.poll.question).trim().slice(0, 300),
+            multiple: !!data.poll.multiple,
+            allowCustom: !!data.poll.allowCustom,
+            options: cleanOptions
+          };
+        }
+      }
       if (data.channelId) {
         const channel = await Channel.findById(data.channelId);
         if (!channel) return socket.emit('error', { message: 'Channel not found' });

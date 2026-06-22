@@ -25,6 +25,9 @@ import { useChatSettings } from '../contexts/ChatSettingsContext';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import Reactions from './Reactions';
+import MessagePoll from './MessagePoll';
+import CreatePollModal from './CreatePollModal';
+import type { ChatPoll } from './MessagePoll';
 import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
 import StickyPins from './StickyPins';
@@ -523,6 +526,8 @@ const MessageItem = React.memo<{
 
           {renderButtons()}
 
+          {msg.poll && <MessagePoll messageId={msg._id} poll={msg.poll as any} currentUserId={user?._id} />}
+
           {msg.edited && <span className="message-edited">(изменено)</span>}
 
           <Reactions
@@ -588,6 +593,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
+  const [showPollModal, setShowPollModal] = useState(false);
 
   // Track which message id was last in the list at the previous render. Anything
   // appearing AFTER that index this render counts as a fresh incoming message and
@@ -836,6 +842,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     };
     socket.on('message-reactions-update', handleReactionsUpdate);
 
+    const handlePollUpdate = (data: { messageId: string, poll: any }) => {
+      if (setMessages) {
+        setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, poll: data.poll } : m));
+      }
+    };
+    socket.on('message-poll-update', handlePollUpdate);
+
     const handleScrollChat = (e: any) => {
       const { direction } = e.detail;
       if (virtuosoRef.current) {
@@ -872,6 +885,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       socket.off('user-stopped-typing', handleStoppedTyping);
       socket.off('message-updated', handleMessageUpdated);
       socket.off('message-reactions-update', handleReactionsUpdate);
+      socket.off('message-poll-update', handlePollUpdate);
       window.removeEventListener('zvon-scroll-chat', handleScrollChat);
       window.removeEventListener('zvon-edit-last-message', handleEditLast);
       window.removeEventListener('zvon-delete-last-message', handleDeleteLast);
@@ -900,6 +914,18 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     setReplyToMessage(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { channelId: channel._id });
+  };
+
+  const handleCreatePoll = (poll: ChatPoll) => {
+    if (!socket) return;
+    socket.emit('send-message', {
+      content: '',
+      channelId: channel._id,
+      poll,
+      replyToId: replyToMessage?._id
+    });
+    setShowPollModal(false);
+    setReplyToMessage(null);
   };
 
   const handleGifSelect = (url: string) => {
@@ -1426,6 +1452,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           <button type="button" className="attachment-button" onClick={(e) => setShowGifPicker(showGifPicker ? null : { x: e.clientX, y: e.clientY - 400 })} title="Отправить GIF">
             <div style={{ fontWeight: 800, fontSize: '10px', border: '2px solid currentColor', borderRadius: '4px', padding: '1px 3px', display: 'flex' }}>GIF</div>
           </button>
+          <button type="button" className="attachment-button" onClick={() => setShowPollModal(true)} title="Создать опрос">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" /></svg>
+          </button>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
           <div style={{ flex: 1, position: 'relative' }}>
             {showScrollBottom && (
@@ -1463,6 +1492,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>Отправить</button>
         </form>
       </div>
+      <CreatePollModal isOpen={showPollModal} onClose={() => setShowPollModal(false)} onCreate={handleCreatePoll} />
       {contextMenu && (
         <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onMention={handleMention} onOpenProfile={onUserClick} reportMessageId={contextMenu.messageId} />
       )}

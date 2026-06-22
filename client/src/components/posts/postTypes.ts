@@ -44,12 +44,14 @@ export interface DividerBlock extends BaseBlock {
 export interface PollOption {
   id: string;
   text: string;
+  custom?: boolean; // вариант, добавленный пользователем
 }
 
 export interface PollBlock extends BaseBlock {
   type: 'poll';
   question: string;
   multiple: boolean;
+  allowCustom?: boolean; // разрешить пользователям добавлять свой вариант
   options: PollOption[];
   votes?: Record<string, string[]>; // optionId -> массив userId
 }
@@ -94,6 +96,6 @@ export const createBlock = (type: BlockType): PostBlock => {
     case 'divider':
       return { ...base, type: 'divider', marginTop: 8, marginBottom: 8 };
     case 'poll':
-      return { ...base, type: 'poll', question: 'Ваш вопрос?', multiple: false, options: [{ id: genId(), text: 'Вариант 1' }, { id: genId(), text: 'Вариант 2' }], votes: {} };
+      return { ...base, type: 'poll', question: 'Ваш вопрос?', multiple: false, allowCustom: false, options: [{ id: genId(), text: 'Вариант 1' }, { id: genId(), text: 'Вариант 2' }], votes: {} };
   }
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import Modal from '../Modal';
 import PostBlockRenderer from './PostBlockRenderer';
 import { Post } from './postTypes';
@@ -43,6 +44,18 @@ const PostAnnouncements: React.FC = () => {
     } catch {}
   }, [current]);
 
+  const handleAddOption = useCallback(async (blockId: string, text: string) => {
+    if (!current) return;
+    try {
+      const res = await axios.post(`/api/moderation/posts/${current._id}/poll-option`, { blockId, text });
+      const { options, votes } = res.data || {};
+      setQueue(prev => prev.map(p => p._id !== current._id ? p : {
+        ...p,
+        blocks: p.blocks.map(b => (b.id === blockId && b.type === 'poll') ? { ...b, options, votes } : b),
+      }));
+    } catch {}
+  }, [current]);
+
   if (!current) return null;
 
   return (
@@ -50,23 +63,38 @@ const PostAnnouncements: React.FC = () => {
       open={true}
       onClose={dismiss}
       title={current.title || undefined}
+      subtitle={queue.length > 1 ? `${index + 1} из ${queue.length}` : undefined}
       size="lg"
       closeOnBackdrop={false}
+      className="post-viewer-modal"
       footer={
-        <button className="zv-btn zv-btn--primary" onClick={dismiss}>
+        <button className="zv-btn post-viewer-btn" onClick={dismiss}>
           {queue.length - index > 1 ? 'Далее' : 'Прочитано'}
         </button>
       }
     >
-      <div className="post-viewer-body">
+      <motion.div
+        className="post-viewer-body"
+        key={current._id}
+        initial="hidden"
+        animate="show"
+        variants={{ show: { transition: { staggerChildren: 0.05, delayChildren: 0.05 } } }}
+      >
         {current.blocks.map(b => (
-          <PostBlockRenderer key={b.id} block={b} currentUserId={user?._id} interactive onVote={handleVote} />
+          <motion.div
+            key={b.id}
+            variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+          >
+            <PostBlockRenderer block={b} currentUserId={user?._id} interactive onVote={handleVote} onAddOption={handleAddOption} />
+          </motion.div>
         ))}
-        <div className="post-viewer-meta">
-          <span>{current.author?.username ? `Опубликовал: ${current.author.username}` : ''}</span>
-          {queue.length > 1 && <span>{index + 1} / {queue.length}</span>}
-        </div>
-      </div>
+        {current.author?.username && (
+          <motion.div className="post-viewer-meta" variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}>
+            {current.author.username}
+          </motion.div>
+        )}
+      </motion.div>
     </Modal>
   );
 };

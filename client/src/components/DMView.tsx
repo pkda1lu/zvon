@@ -21,6 +21,9 @@ import UserAvatar from './UserAvatar';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import Reactions from './Reactions';
+import MessagePoll from './MessagePoll';
+import CreatePollModal from './CreatePollModal';
+import type { ChatPoll } from './MessagePoll';
 import StickyPins from './StickyPins';
 import UserBadges from './UserBadges';
 import AttachmentsModal from './AttachmentsModal';
@@ -122,6 +125,7 @@ const DMView: React.FC<DMViewProps> = ({
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
+  const [showPollModal, setShowPollModal] = useState(false);
 
   // Same baseline trick as ChannelView: only animate truly new (incoming) messages.
   const lastSeenIdRef = useRef<string | null>(null);
@@ -142,6 +146,13 @@ const DMView: React.FC<DMViewProps> = ({
       }
     };
     socket.on('message-reactions-update', handleReactionsUpdate);
+
+    const handlePollUpdate = (data: { messageId: string, poll: any }) => {
+      if (setMessages) {
+        setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, poll: data.poll } : m));
+      }
+    };
+    socket.on('message-poll-update', handlePollUpdate);
 
     const handleScrollChat = (e: any) => {
       const { direction } = e.detail;
@@ -174,6 +185,7 @@ const DMView: React.FC<DMViewProps> = ({
 
     return () => {
       socket.off('message-reactions-update', handleReactionsUpdate);
+      socket.off('message-poll-update', handlePollUpdate);
       window.removeEventListener('zvon-scroll-chat', handleScrollChat);
       window.removeEventListener('zvon-edit-last-message', handleEditLast);
       window.removeEventListener('zvon-delete-last-message', handleDeleteLast);
@@ -280,6 +292,18 @@ const DMView: React.FC<DMViewProps> = ({
     // ...
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { dmId: dm._id });
+  };
+
+  const handleCreatePoll = (poll: ChatPoll) => {
+    if (!socket) return;
+    socket.emit('send-message', {
+      content: '',
+      dmId: dm._id,
+      poll,
+      replyToId: replyToMessage?._id
+    });
+    setShowPollModal(false);
+    setReplyToMessage(null);
   };
 
   const handleGifSelect = (url: string) => {
@@ -1053,6 +1077,8 @@ const DMView: React.FC<DMViewProps> = ({
                           </div>
                         )}
 
+                        {msg.poll && <MessagePoll messageId={msg._id} poll={msg.poll as any} currentUserId={user?._id} />}
+
                         <Reactions
                           reactions={msg.reactions || []}
                           currentUserId={user?._id || ''}
@@ -1169,6 +1195,9 @@ const DMView: React.FC<DMViewProps> = ({
             <button type="button" className="attachment-button" onClick={(e) => setShowGifPicker(showGifPicker ? null : { x: e.clientX, y: e.clientY - 400 })} title="Отправить GIF">
               <div style={{ fontWeight: 800, fontSize: '10px', border: '2px solid currentColor', borderRadius: '4px', padding: '1px 3px', display: 'flex' }}>GIF</div>
             </button>
+            <button type="button" className="attachment-button" onClick={() => setShowPollModal(true)} title="Создать опрос">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" /></svg>
+            </button>
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
             <div style={{ flex: 1, position: 'relative' }}>
               {showScrollBottom && (
@@ -1227,6 +1256,7 @@ const DMView: React.FC<DMViewProps> = ({
         </div>,
         document.body
       )}
+      <CreatePollModal isOpen={showPollModal} onClose={() => setShowPollModal(false)} onCreate={handleCreatePoll} />
       {showGifPicker && createPortal(
         <div
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
