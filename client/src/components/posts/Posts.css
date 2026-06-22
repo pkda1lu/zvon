@@ -1,0 +1,183 @@
+.post-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .post-editor-grid { grid-template-columns: 1fr; }
+}
+
+.post-editor-pane { min-width: 0; }
+
+.post-field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.post-block-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.post-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.post-block-type {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--secondary-neon);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.post-block-actions { display: flex; gap: 6px; }
+
+.post-block-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.post-ctrl-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.post-ctrl-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.post-num-input,
+.post-select,
+.post-text-area {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  color: var(--text-main, #fff);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.post-num-input { width: 70px; }
+.post-select { cursor: pointer; }
+
+.post-text-area {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.post-num-input:focus,
+.post-select:focus,
+.post-text-area:focus {
+  outline: none;
+  border-color: rgba(0, 229, 255, 0.4);
+}
+
+.post-color {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.post-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.post-mini-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  color: var(--text-main, #fff);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.post-mini-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+.post-mini-btn:disabled { opacity: 0.3; cursor: default; }
+.post-mini-btn.danger { color: #ff6b6b; }
+
+.post-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.post-preview {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  border-radius: 16px;
+  padding: 24px;
+  position: sticky;
+  top: 0;
+}
+
+.post-preview-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-main, #fff);
+  margin-bottom: 16px;
+}
+
+.post-editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+}
+
+/* === Всплывающий просмотр поста у пользователя === */
+.post-viewer-body { padding: 4px 0; }
+
+.post-viewer-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-main, #fff);
+  margin-bottom: 18px;
+}
+
+.post-viewer-meta {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  font-size: 12px;
+  color: var(--text-dim, rgba(255, 255, 255, 0.5));
+  display: flex;
+  justify-content: space-between;
+}

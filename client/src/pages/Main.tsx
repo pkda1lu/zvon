@@ -29,6 +29,7 @@ import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
 import CreateGroupDMModal from '../components/CreateGroupDMModal';
 import VerificationWarning from '../components/VerificationWarning';
+import PostAnnouncements from '../components/posts/PostAnnouncements';
 import { ChatIcon, UsersIcon, LayoutGridIcon, SettingsIcon } from '../components/Icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -1307,6 +1308,8 @@ const Main: React.FC = () => {
         initialTab={settingsInitialTab}
         initialData={settingsInitialData}
       />
+
+      <PostAnnouncements />
 
       {showCreateGroupModal && (
         <CreateGroupDMModal

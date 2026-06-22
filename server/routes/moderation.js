@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const User = require('../models/User');
 const Report = require('../models/Report');
 const ProblemReport = require('../models/ProblemReport');
+const Post = require('../models/Post');
 const { body, validationResult } = require('express-validator');
 
 // Middleware to check for moderator/admin roles
@@ -502,6 +503,144 @@ router.post('/problem-reports/:id/resolve', [auth, isModerator], async (req, res
 
     res.json(report);
   } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// === Посты-объявления ======================================================
+
+// Нормализуем опросы: гарантируем структуру votes и id у опций.
+function sanitizeBlocks(blocks) {
+  if (!Array.isArray(blocks)) return [];
+  return blocks.slice(0, 100).map(b => {
+    if (!b || typeof b !== 'object') return null;
+    if (b.type === 'poll') {
+      const options = Array.isArray(b.options) ? b.options.slice(0, 20).map(o => ({
+        id: String(o.id || Math.random().toString(36).slice(2, 10)),
+        text: String(o.text || '')
+      })) : [];
+      return { ...b, options, votes: {} };
+    }
+    return b;
+  }).filter(Boolean);
+}
+
+// Создать пост (модераторы/админы).
+router.post('/posts', [auth, isModerator], async (req, res) => {
+  try {
+    const { title, blocks, active } = req.body;
+    const post = new Post({
+      author: req.user._id,
+      title: title || '',
+      blocks: sanitizeBlocks(blocks),
+      active: active !== false
+    });
+    await post.save();
+    res.status(201).json(post);
+  } catch (err) {
+    console.error('create post error:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Список всех постов (модераторы/админы).
+router.get('/posts', [auth, isModerator], async (req, res) => {
+  try {
+    const posts = await Post.find()
+      .populate('author', 'username avatar')
+      .sort('-createdAt');
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Редактировать пост. Сброс seenBy при включении/изменении показывает его заново.
+router.put('/posts/:id', [auth, isModerator], async (req, res) => {
+  try {
+    const { title, blocks, active, resetSeen } = req.body;
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Пост не найден' });
+
+    if (title !== undefined) post.title = title;
+    if (blocks !== undefined) post.blocks = sanitizeBlocks(blocks);
+    if (active !== undefined) post.active = active;
+    if (resetSeen) post.seenBy = [];
+    post.updatedAt = new Date();
+
+    await post.save();
+    res.json(post);
+  } catch (err) {
+    console.error('update post error:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Удалить пост (модераторы/админы).
+router.delete('/posts/:id', [auth, isModerator], async (req, res) => {
+  try {
+    await Post.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Активные посты, которые текущий пользователь ещё не видел (для всплытия).
+router.get('/posts/pending', auth, async (req, res) => {
+  try {
+    const posts = await Post.find({ active: true, seenBy: { $ne: req.user._id } })
+      .populate('author', 'username avatar')
+      .sort('createdAt');
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Пометить пост просмотренным (показываем один раз).
+router.post('/posts/:id/seen', auth, async (req, res) => {
+  try {
+    await Post.findByIdAndUpdate(req.params.id, { $addToSet: { seenBy: req.user._id } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Проголосовать в опросе внутри поста.
+router.post('/posts/:id/vote', auth, async (req, res) => {
+  try {
+    const { blockId, optionIds } = req.body;
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Пост не найден' });
+
+    const block = (post.blocks || []).find(b => b && b.id === blockId && b.type === 'poll');
+    if (!block) return res.status(404).json({ message: 'Опрос не найден' });
+
+    const votes = block.votes && typeof block.votes === 'object' ? block.votes : {};
+    const uid = String(req.user._id);
+    const validIds = new Set((block.options || []).map(o => o.id));
+
+    // Снимаем прежние голоса пользователя.
+    for (const optId of Object.keys(votes)) {
+      votes[optId] = (votes[optId] || []).filter(u => String(u) !== uid);
+    }
+    // Добавляем новые (для одиночного опроса берём только первый).
+    const chosen = Array.isArray(optionIds) ? optionIds : [optionIds];
+    const toApply = block.multiple ? chosen : chosen.slice(0, 1);
+    for (const optId of toApply) {
+      if (!validIds.has(optId)) continue;
+      if (!votes[optId]) votes[optId] = [];
+      votes[optId].push(uid);
+    }
+
+    block.votes = votes;
+    post.markModified('blocks');
+    await post.save();
+    res.json({ blockId, votes: block.votes });
+  } catch (err) {
+    console.error('post vote error:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });

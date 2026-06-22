@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import { getFullUrl } from '../../utils/avatar';
+import PostsModeration from '../../components/posts/PostsModeration';
 
 const PROBLEM_CATEGORIES: Record<string, string> = {
     bug: 'Ошибка / Баг',
@@ -94,7 +95,7 @@ const ModerationSettings: React.FC = () => {
     const [reports, setReports] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
-    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems'>('reports');
+    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts'>('reports');
 
     // --- Жалобы на проблемы приложения (кнопка «Репорт» в сайдбаре) ---
     const [problems, setProblems] = useState<any[]>([]);
@@ -223,9 +224,23 @@ const ModerationSettings: React.FC = () => {
                 >
                     Проблемы
                 </button>
+                <button
+                    onClick={() => setMainTab('posts')}
+                    style={{
+                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+                        color: mainTab === 'posts' ? 'var(--primary-neon)' : 'var(--text-dim)',
+                        fontWeight: 700, fontSize: '14px',
+                        borderBottom: `2px solid ${mainTab === 'posts' ? 'var(--primary-neon)' : 'transparent'}`,
+                        marginBottom: '-1px'
+                    }}
+                >
+                    Посты
+                </button>
             </div>
 
-            {mainTab === 'marketplace' ? (
+            {mainTab === 'posts' ? (
+                <PostsModeration />
+            ) : mainTab === 'marketplace' ? (
                 <>
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         {([
