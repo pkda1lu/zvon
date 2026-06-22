@@ -29,7 +29,9 @@ const problemReportSchema = new mongoose.Schema({
   },
   attachments: [{
     url: String,
-    type: String,
+    // `type` — зарезервированное слово Mongoose, поэтому оборачиваем явно,
+    // иначе подобъект трактуется как [String] и save() падает с CastError.
+    type: { type: String },
     filename: String,
     size: Number
   }],
