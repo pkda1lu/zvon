@@ -477,11 +477,29 @@ router.get('/problem-reports', [auth, isModerator], async (req, res) => {
 router.post('/problem-reports/:id/resolve', [auth, isModerator], async (req, res) => {
   try {
     const { status, note } = req.body;
+    const newStatus = status || 'resolved';
     const report = await ProblemReport.findByIdAndUpdate(req.params.id, {
-      status: status || 'resolved',
+      status: newStatus,
       resolvedBy: req.user._id,
       resolutionNote: note || ''
     }, { new: true });
+
+    // Уведомляем автора жалобы о решении (но не при возврате в «ожидание»).
+    if (report && report.reporter && (newStatus === 'resolved' || newStatus === 'dismissed')) {
+      const io = req.app.get('io');
+      if (io) {
+        const verdict = newStatus === 'resolved' ? 'решена' : 'отклонена';
+        const tail = note ? ` Комментарий: ${note}` : '';
+        io.to(`user-${report.reporter}`).emit('notification', {
+          type: 'problem_resolved',
+          message: `Ваша жалоба «${report.subject}» ${verdict}.${tail}`,
+          reportId: report._id,
+          status: newStatus,
+          timestamp: new Date()
+        });
+      }
+    }
+
     res.json(report);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера' });

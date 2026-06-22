@@ -195,12 +195,15 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 ? 'Предупреждение модерации'
                 : data.type === 'problem_report'
                 ? 'Новая жалоба на проблему'
+                : data.type === 'problem_resolved'
+                ? 'Ваша жалоба обработана'
                 : 'Сообщение от модерации';
+            const authorName = data.type === 'problem_report' || data.type === 'problem_resolved' ? 'Репорт' : 'Модерация';
             addItem({
                 type: 'moderation',
                 title,
                 content: data.message,
-                author: { _id: 'moderation', username: data.type === 'problem_report' ? 'Репорт' : 'Модерация', avatar: null }
+                author: { _id: 'moderation', username: authorName, avatar: null }
             });
         };
 

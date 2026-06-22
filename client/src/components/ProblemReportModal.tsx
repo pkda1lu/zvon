@@ -17,12 +17,14 @@ interface UploadedAttachment {
   size: number;
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 МБ
+
 const CATEGORIES = [
   { id: 'bug', title: 'Ошибка / Баг' },
   { id: 'voice', title: 'Голос / Звонки' },
   { id: 'performance', title: 'Производительность' },
   { id: 'ui', title: 'Интерфейс' },
-  { id: 'payment', title: 'Оплата' },
+  { id: 'payment', title: 'Демонстрация Экрана' },
   { id: 'other', title: 'Другое' },
 ];
 
@@ -54,6 +56,12 @@ const ProblemReportModal: React.FC<ProblemReportModalProps> = ({ isOpen, onClose
     if (!files || files.length === 0) return;
     if (attachments.length + files.length > 10) {
       addNotification({ title: 'Слишком много файлов', content: 'Можно прикрепить не более 10 файлов.', type: 'warning' });
+      return;
+    }
+    const tooBig = Array.from(files).find(f => f.size > MAX_FILE_SIZE);
+    if (tooBig) {
+      addNotification({ title: 'Файл слишком большой', content: 'Максимальный размер медиафайла — 50 МБ.', type: 'warning' });
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     const formData = new FormData();
@@ -173,6 +181,7 @@ const ProblemReportModal: React.FC<ProblemReportModalProps> = ({ isOpen, onClose
 
         <div className="form-group">
           <label>Скриншоты и видео (необязательно)</label>
+          <div className="problem-attach-hint">Принимаются медиафайлы размером до 50 МБ.</div>
           <input
             ref={fileInputRef}
             type="file"

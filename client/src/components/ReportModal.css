@@ -258,6 +258,12 @@
   transform: none;
 }
 
+.problem-attach-hint {
+  margin: -4px 0 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
 .problem-attach-btn {
   width: 100%;
 }

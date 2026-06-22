@@ -4,6 +4,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import { getFullUrl } from '../../utils/avatar';
 
+const PROBLEM_CATEGORIES: Record<string, string> = {
+    bug: 'Ошибка / Баг',
+    voice: 'Голос / Звонки',
+    performance: 'Производительность',
+    ui: 'Интерфейс',
+    payment: 'Демонстрация Экрана',
+    other: 'Другое',
+};
+
 // Рендер «на что пожаловались»: текст/фото сообщения, карточка мини-приложения
 // или профиль. Берёт сохранённый снимок (contentSnapshot), с фолбэком на старое
 // поле messageContext для жалоб, поданных до появления снимков.
@@ -85,7 +94,12 @@ const ModerationSettings: React.FC = () => {
     const [reports, setReports] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
-    const [mainTab, setMainTab] = useState<'reports' | 'marketplace'>('reports');
+    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems'>('reports');
+
+    // --- Жалобы на проблемы приложения (кнопка «Репорт» в сайдбаре) ---
+    const [problems, setProblems] = useState<any[]>([]);
+    const [problemFilter, setProblemFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
+    const [problemLoading, setProblemLoading] = useState(false);
 
     // --- Витрина (модерация мини-приложений) ---
     const [mpTab, setMpTab] = useState<'pending' | 'reports' | 'approved' | 'blocked'>('pending');
@@ -125,6 +139,26 @@ const ModerationSettings: React.FC = () => {
     useEffect(() => {
         if (mainTab === 'marketplace') fetchMarketplace(mpTab);
     }, [mainTab, mpTab]);
+
+    const fetchProblems = async (status: string) => {
+        setProblemLoading(true);
+        try {
+            const res = await axios.get(`/api/moderation/problem-reports?status=${status}`);
+            setProblems(res.data);
+        } catch (err) { }
+        setProblemLoading(false);
+    };
+
+    useEffect(() => {
+        if (mainTab === 'problems') fetchProblems(problemFilter);
+    }, [mainTab, problemFilter]);
+
+    const resolveProblem = async (id: string, status: 'resolved' | 'dismissed', note: string) => {
+        try {
+            await axios.post(`/api/moderation/problem-reports/${id}/resolve`, { status, note });
+            fetchProblems(problemFilter);
+        } catch { }
+    };
 
     const approveApp = async (id: string) => {
         try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/approve`); fetchMarketplace(mpTab); } catch { }
@@ -176,6 +210,18 @@ const ModerationSettings: React.FC = () => {
                     }}
                 >
                     Витрина
+                </button>
+                <button
+                    onClick={() => setMainTab('problems')}
+                    style={{
+                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+                        color: mainTab === 'problems' ? 'var(--primary-neon)' : 'var(--text-dim)',
+                        fontWeight: 700, fontSize: '14px',
+                        borderBottom: `2px solid ${mainTab === 'problems' ? 'var(--primary-neon)' : 'transparent'}`,
+                        marginBottom: '-1px'
+                    }}
+                >
+                    Проблемы
                 </button>
             </div>
 
@@ -275,11 +321,100 @@ const ModerationSettings: React.FC = () => {
                         )}
                     </div>
                 </>
+            ) : mainTab === 'problems' ? (
+                <>
+                    <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
+                        {([
+                            ['pending', 'Ожидают'],
+                            ['resolved', 'Решено'],
+                            ['dismissed', 'Отклонено'],
+                        ] as ['pending' | 'resolved' | 'dismissed', string][]).map(([key, label]) => (
+                            <div
+                                key={key}
+                                onClick={() => setProblemFilter(key)}
+                                style={{ cursor: 'pointer', padding: '10px 20px', background: problemFilter === key ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: problemFilter === key ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
+                            >
+                                {label}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {problemLoading ? (
+                            <div style={{ color: 'var(--text-dim)', padding: '20px' }}>Загрузка...</div>
+                        ) : problems.length === 0 ? (
+                            <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>{problemFilter === 'pending' ? 'Жалоб на проблемы нет. 🛡️' : 'Список пока пуст.'}</div>
+                        ) : problems.map(p => (
+                            <div key={p._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '16px' }}>{p.subject}</div>
+                                        <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                                            <span style={{ color: 'var(--secondary-neon)', fontWeight: 600 }}>{PROBLEM_CATEGORIES[p.category] || 'Другое'}</span>
+                                            {' · '}От: {p.reporter?.username || '—'}
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        <div>{new Date(p.createdAt).toLocaleString('ru-RU')}</div>
+                                        {p.status !== 'pending' && <div style={{ color: 'var(--primary-neon)', fontWeight: 600, marginTop: '6px' }}>{p.status === 'resolved' ? 'РЕШЕНО' : 'ОТКЛОНЕНО'}</div>}
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                                    <div style={{ fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{p.description}</div>
+                                    {p.steps && (
+                                        <div style={{ marginTop: '12px' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, marginBottom: '4px' }}>ШАГИ ВОСПРОИЗВЕДЕНИЯ:</div>
+                                            <div style={{ fontSize: '13px', color: 'var(--text-dim)', whiteSpace: 'pre-wrap' }}>{p.steps}</div>
+                                        </div>
+                                    )}
+                                    {Array.isArray(p.attachments) && p.attachments.length > 0 && (
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+                                            {p.attachments.map((a: any, i: number) => (
+                                                (a.type || '').startsWith('image') ? (
+                                                    <a key={i} href={getFullUrl(a.url)!} target="_blank" rel="noreferrer">
+                                                        <img src={getFullUrl(a.url)!} alt="" style={{ maxWidth: '140px', maxHeight: '140px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--glass-border)' }} />
+                                                    </a>
+                                                ) : (a.type || '').startsWith('video') ? (
+                                                    <video key={i} src={getFullUrl(a.url)!} controls style={{ maxWidth: '220px', maxHeight: '160px', borderRadius: '8px', border: '1px solid var(--glass-border)' }} />
+                                                ) : (
+                                                    <a key={i} href={getFullUrl(a.url)!} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-neon)', fontSize: '13px' }}>📎 {a.filename || 'файл'}</a>
+                                                )
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {p.status !== 'pending' ? (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--glass-border)' }}>
+                                        <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
+                                            <strong>Обработал ({p.resolvedBy?.username || '—'}):</strong> {p.resolutionNote || 'Без комментария'}
+                                        </div>
+                                        <button className="settings-btn" style={{ fontSize: '12px', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => resolveProblem(p._id, 'resolved' as any, '')}>Вернуть в ожидание</button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                        <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={async () => {
+                                            const note = await prompt('Комментарий (необязательно):', 'Не является проблемой');
+                                            if (note === null) return;
+                                            resolveProblem(p._id, 'dismissed', note);
+                                        }}>Отклонить</button>
+                                        <button className="settings-btn success-glass" onClick={async () => {
+                                            const note = await prompt('Комментарий к решению (необязательно):', 'Исправлено');
+                                            if (note === null) return;
+                                            resolveProblem(p._id, 'resolved', note);
+                                        }}>Решено</button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </>
             ) : (
                 <>
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
-                        <div 
-                            onClick={() => setFilter('pending')} 
+                        <div
+                            onClick={() => setFilter('pending')}
                             style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'pending' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'pending' ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
                         >
                             Ожидают ({filter === 'pending' ? reports.length : '...'})
