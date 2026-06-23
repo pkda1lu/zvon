@@ -496,6 +496,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [presenceAudioStreams, setPresenceAudioStreams] = useState<Map<string, MediaStream>>(new Map());
     const [presenceVideoStreams, setPresenceVideoStreams] = useState<Map<string, MediaStream>>(new Map());
     const [presenceVolumes, setPresenceVolumesState] = useState<Map<string, number>>(new Map());
+    // Зеркало voicePresences в ref — нужно в setPresenceVolume, чтобы по sessionId
+    // найти appId и сохранить громкость per-app в localStorage.
+    const voicePresencesRef = useRef<Map<string, VoicePresenceInfo>>(new Map());
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
     const [inputSensitivity, setInputSensitivity] = useState(() => user?.settings?.interaction?.voice?.inputSensitivity || Number(localStorage.getItem('inputSensitivity')) || -50);
@@ -1166,21 +1169,47 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } catch (e) { console.error('[Voice] replaceExternalTrack failed:', e); return false; }
     }, []);
 
+    // Громкость presence-мини-аппа сохраняется per-app (а не per-session), чтобы
+    // выбор слушателя в карточке восстанавливался при новом сеансе вещателя.
+    const presenceVolKey = (appId?: string | null) => appId ? `zvon:presence-vol:${appId}` : null;
+    const loadStoredPresenceVolume = (appId?: string | null): number | null => {
+        const k = presenceVolKey(appId);
+        if (!k) return null;
+        try {
+            const raw = localStorage.getItem(k);
+            if (raw == null) return null;
+            const n = Number(raw);
+            return isFinite(n) ? Math.max(0, Math.min(2, n)) : null;
+        } catch { return null; }
+    };
+    // Подставляет сохранённую громкость для новой presence-сессии (если она есть).
+    const initPresenceVolume = (p: VoicePresenceInfo) => {
+        if (!p?.sessionId) return;
+        const stored = loadStoredPresenceVolume(p.appId);
+        if (stored == null) return;
+        setPresenceVolumesState(prev => prev.has(p.sessionId) ? prev : new Map(prev).set(p.sessionId, stored));
+    };
+
     // Presence-жизненный цикл от сервера (snapshot при входе + add/update/remove).
     useEffect(() => {
         if (!socket) return;
         const onSnapshot = (data: any) => {
             const next = new Map<string, VoicePresenceInfo>();
             (data?.presences || []).forEach((p: VoicePresenceInfo) => { if (p?.sessionId) next.set(p.sessionId, p); });
+            voicePresencesRef.current = next;
             setVoicePresences(next);
+            next.forEach(p => initPresenceVolume(p));
         };
         const onAddedOrUpdated = (p: VoicePresenceInfo) => {
-            if (p?.sessionId) setVoicePresences(prev => new Map(prev).set(p.sessionId, p));
+            if (p?.sessionId) {
+                setVoicePresences(prev => { const n = new Map(prev).set(p.sessionId, p); voicePresencesRef.current = n; return n; });
+                initPresenceVolume(p);
+            }
         };
         const onRemoved = (data: any) => {
             const sid = data?.sessionId;
             if (!sid) return;
-            setVoicePresences(prev => { const n = new Map(prev); n.delete(sid); return n; });
+            setVoicePresences(prev => { const n = new Map(prev); n.delete(sid); voicePresencesRef.current = n; return n; });
             setPresenceAudioStreams(prev => { const n = new Map(prev); n.delete(sid); return n; });
             setPresenceVideoStreams(prev => { const n = new Map(prev); n.delete(sid); return n; });
         };
@@ -1203,6 +1232,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const setPresenceVolume = useCallback((sessionId: string, volume: number) => {
         setPresenceVolumesState(prev => new Map(prev).set(sessionId, volume));
+        // Сохраняем выбор слушателя per-app, чтобы он пережил смену сессии вещателя.
+        const appId = voicePresencesRef.current.get(sessionId)?.appId;
+        const k = appId ? `zvon:presence-vol:${appId}` : null;
+        if (k) { try { localStorage.setItem(k, String(volume)); } catch {} }
     }, []);
 
     // Context Value (Memoized)

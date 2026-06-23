@@ -110,7 +110,7 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
                 <div className="presence-volume" title={`Громкость: ${Math.round(volume * 100)}%`}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                         {volume === 0 ? (
-                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.59 3L19 14.41 17.59 13 16 14.59 14.41 13 13 14.41 14.59 16 13 17.59 14.41 19 16 17.41 17.59 19 19 17.59z" />
+                            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 15.91 21 14 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
                         ) : volume < 0.5 ? (
                             <path d="M7 9v6h4l5 5V4l-5 5H7z" />
                         ) : (
@@ -157,6 +157,34 @@ const EqBars: React.FC = () => (
     </div>
 );
 
+/**
+ * Известные иконки управления плеером — рисуем SVG вместо unicode-глифов
+ * (⏮ ▶ ⏸ ⏭), у которых асимметричные метрики и они «съезжают» в кнопке.
+ * Подбор идёт по id контрола, для play/pause — по текущему лейблу.
+ */
+const controlIcon = (ctrl: VoicePresenceInfo['controls'][number]): React.ReactNode | null => {
+    const svg = (d: string) => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d={d} />
+        </svg>
+    );
+    const label = (ctrl.label || '').trim();
+    switch (ctrl.id) {
+        case 'prev': return svg('M6 6h2v12H6zm3.5 6l8.5 6V6z');
+        case 'next': return svg('M16 6h2v12h-2zM6 18l8.5-6L6 6z');
+        case 'play-pause':
+            return label === '▶'
+                ? svg('M8 5v14l11-7z')
+                : svg('M6 5h4v14H6zm8 0h4v14h-4z');
+    }
+    // Фолбэк: распознаём по самому глифу, если id нестандартный.
+    if (label === '▶') return svg('M8 5v14l11-7z');
+    if (label === '⏸') return svg('M6 5h4v14H6zm8 0h4v14h-4z');
+    if (label === '⏮') return svg('M6 6h2v12H6zm3.5 6l8.5 6V6z');
+    if (label === '⏭') return svg('M16 6h2v12h-2zM6 18l8.5-6L6 6z');
+    return null;
+};
+
 const PresenceControl: React.FC<{
     ctrl: VoicePresenceInfo['controls'][number];
     onControl: Props['onControl'];
@@ -185,13 +213,14 @@ const PresenceControl: React.FC<{
         );
     }
     const styleClass = ctrl.style ? ` presence-btn-${ctrl.style}` : '';
+    const icon = controlIcon(ctrl);
     return (
         <button
             className={`presence-btn${styleClass}`}
             title={ctrl.tooltip || ctrl.label}
             onClick={(e) => { e.stopPropagation(); onControl(ctrl.id); }}
         >
-            {ctrl.label || ctrl.id}
+            {icon || ctrl.label || ctrl.id}
         </button>
     );
 };
