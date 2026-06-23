@@ -1225,6 +1225,34 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
     }, [socket]);
 
+    // Реальный пинг (RTT) голосового соединения. Читаем WebRTC-статистику
+    // ICE-транспорта LiveKit, пока мы в канале. Раньше setPing нигде не вызывался,
+    // поэтому ping всегда был 0, а панель вечно показывала «измерение…».
+    useEffect(() => {
+        if (!isConnected) { setPing(0); return; }
+        let stopped = false;
+        const measure = async () => {
+            try {
+                const room: any = roomRef.current;
+                const pcm = room?.engine?.pcManager;
+                const transport = pcm?.publisher ?? pcm?.subscriber;
+                if (!transport?.getStats) return;
+                const stats: RTCStatsReport = await transport.getStats();
+                let rtt: number | null = null;
+                stats.forEach((r: any) => {
+                    if (r.type === 'candidate-pair' && typeof r.currentRoundTripTime === 'number'
+                        && (r.nominated || r.state === 'succeeded')) {
+                        rtt = r.currentRoundTripTime;
+                    }
+                });
+                if (!stopped && rtt != null) setPing(Math.max(1, Math.round(rtt * 1000)));
+            } catch { /* статистика недоступна — оставляем прежнее значение */ }
+        };
+        measure();
+        const id = setInterval(measure, 3000);
+        return () => { stopped = true; clearInterval(id); };
+    }, [isConnected]);
+
     // Зритель отправляет управляющий сигнал presence-мини-аппу (кнопки/контролы).
     const sendPresenceControl = useCallback((channelId: string, sessionId: string, controlId: string, value?: any) => {
         if (socket) socket.emit('voice-presence-control', { channelId, sessionId, controlId, value });

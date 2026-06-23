@@ -163,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             title="Сообщить о проблеме"
             {...pressFeedback}
           >
-            <FlagIcon size={26} color="var(--accent-pink)" />
+            <FlagIcon size={26} color="#ff3b30" />
           </motion.div>
         </div>
 
