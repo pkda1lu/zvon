@@ -25,6 +25,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useInbox } from '../contexts/InboxContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import JoinServerModal from '../components/JoinServerModal';
+import ServerInviteModal from '../components/ServerInviteModal';
 import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
 import CreateGroupDMModal from '../components/CreateGroupDMModal';
@@ -89,6 +90,7 @@ const Main: React.FC = () => {
   const [showUserServerProfile, setShowUserServerProfile] = useState(false);
   const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [inviteServerId, setInviteServerId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('profile');
   const [settingsInitialData, setSettingsInitialData] = useState<any>(null);
@@ -209,6 +211,10 @@ const Main: React.FC = () => {
         setSelectedDM(null);
         setShowFriends(false);
         setMobileView('content');
+      } else {
+        // Пользователь не состоит в этом сервере (например, кликнул по основному
+        // серверу в карточке профиля) — показываем приглашение присоединиться.
+        setInviteServerId(srvId);
       }
     };
 
@@ -1299,6 +1305,25 @@ const Main: React.FC = () => {
             if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
           }}
           onCreate={handleCreateServer}
+        />
+      )}
+
+      {inviteServerId && (
+        <ServerInviteModal
+          isOpen={!!inviteServerId}
+          serverId={inviteServerId}
+          onClose={() => setInviteServerId(null)}
+          onJoined={(server) => {
+            setServers((prev: Server[]) => prev.some(s => s._id === server._id) ? prev : [...prev, server]);
+            setSelectedServer(server);
+            if (socket) socket.emit('join-server', server._id);
+            const firstTextChannel = server.channels?.find((c: any) => c.type === 'text');
+            if (firstTextChannel) setSelectedChannel(firstTextChannel);
+            else if (server.channels?.length > 0) setSelectedChannel(server.channels[0]);
+            setSelectedDM(null);
+            setShowFriends(false);
+            setMobileView('content');
+          }}
         />
       )}
 
