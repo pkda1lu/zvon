@@ -39,8 +39,9 @@ const PostsModeration: React.FC = () => {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <button className="settings-btn success-glass" onClick={() => setEditing(null)}>+ Новый пост</button>
+        <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>Активным может быть только один пост — он покажется всем при следующем входе.</span>
       </div>
 
       {loading ? (

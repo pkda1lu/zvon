@@ -23,6 +23,7 @@ import GifPicker from './GifPicker';
 import Reactions from './Reactions';
 import MessagePoll from './MessagePoll';
 import CreatePollModal from './CreatePollModal';
+import ComposerAddMenu from './ComposerAddMenu';
 import type { ChatPoll } from './MessagePoll';
 import StickyPins from './StickyPins';
 import UserBadges from './UserBadges';
@@ -245,7 +246,18 @@ const DMView: React.FC<DMViewProps> = ({
   const otherUser = dm.participants.find(p => p._id !== user?._id);
   const isGroup = dm.participants.length > 2 || !!dm.name;
   const otherParticipants = dm.participants.filter(p => p._id !== user?._id);
-  const displayName = dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username);
+  // Чат «от имени модерации»: пользователь (не модератор) видит собеседника и
+  // авторов его сообщений как «Модерация», реальный аккаунт модератора скрыт.
+  const moderatorId = dm.isModeration ? (typeof dm.moderator === 'object' ? dm.moderator?._id : dm.moderator) : null;
+  const maskModeration = !!moderatorId && moderatorId !== user?._id;
+  const isModerationChat = !!dm.isModeration;
+  // Подменяет автора сообщения на «Модерация», если нужно скрыть личность модератора.
+  const dispAuthor = (a: any) => (maskModeration && a && a._id === moderatorId)
+    ? { ...a, username: 'Модерация', avatar: null, badges: [], isBot: false, _masked: true }
+    : a;
+  const displayName = maskModeration ? 'Модерация'
+    : (dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username));
+  const headerUser = maskModeration ? { username: 'Модерация', avatar: null } : otherUser;
 
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
@@ -673,7 +685,7 @@ const DMView: React.FC<DMViewProps> = ({
     if (!textToSpeech || messages.length === 0) return;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.author._id !== user?._id && hasScrolledToNew) {
-      const utterance = new SpeechSynthesisUtterance(`${lastMsg.author.username} сказал: ${lastMsg.content}`);
+      const utterance = new SpeechSynthesisUtterance(`${dispAuthor(lastMsg.author).username} сказал: ${lastMsg.content}`);
       utterance.lang = 'ru-RU';
       window.speechSynthesis.speak(utterance);
     }
@@ -751,13 +763,13 @@ const DMView: React.FC<DMViewProps> = ({
             </svg>
           </button>
 
-          <div className="dm-header-info" onClick={(e) => !isGroup && otherUser && onUserClick(otherUser._id)} style={{ cursor: isGroup ? 'default' : 'pointer' }}>
+          <div className="dm-header-info" onClick={(e) => !isGroup && !maskModeration && otherUser && onUserClick(otherUser._id)} style={{ cursor: (isGroup || maskModeration) ? 'default' : 'pointer' }}>
             <UserAvatar
-              user={isGroup ? null : otherUser}
+              user={maskModeration ? headerUser : (isGroup ? null : otherUser)}
               size={40}
               className="dm-avatar"
               onClick={(e) => {
-                if (isGroup) return;
+                if (isGroup || maskModeration) return;
                 e.stopPropagation();
                 otherUser && onUserClick(otherUser._id);
               }}
@@ -765,9 +777,17 @@ const DMView: React.FC<DMViewProps> = ({
             <div className="dm-header-text-info">
               <div className="dm-display-name-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3 className="dm-display-name" style={{ margin: 0, cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setShowAttachments(true); }}>{displayName}</h3>
-                {!isGroup && otherUser && <UserBadges badges={otherUser.badges} size={16} />}
+                {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} size={16} />}
               </div>
-              {!isGroup && (
+              {maskModeration ? (
+                <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
+                  Официальное обращение
+                </div>
+              ) : isModerationChat ? (
+                <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
+                  Чат от имени модерации
+                </div>
+              ) : !isGroup && (
                 <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
                   {otherUser?.status === 'online' ? 'В сети' : otherUser?.status === 'away' ? 'Нет на месте' : otherUser?.status === 'busy' ? 'Занят' : 'Не в сети'}
                 </div>
@@ -809,9 +829,9 @@ const DMView: React.FC<DMViewProps> = ({
                   pinnedMessages.map(msg => (
                     <div key={msg._id} className="pin-item">
                       <div className="pin-author" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <UserAvatar user={msg.author} size={24} className="pin-avatar-comp" />
-                        <span className="pin-name" style={{ fontWeight: 600 }}>{msg.author.username}</span>
-                        <UserBadges badges={msg.author.badges} size={12} />
+                        <UserAvatar user={dispAuthor(msg.author)} size={24} className="pin-avatar-comp" />
+                        <span className="pin-name" style={{ fontWeight: 600 }}>{dispAuthor(msg.author).username}</span>
+                        {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} size={12} />}
                         <span className="pin-date" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatDate(msg.createdAt)}</span>
                       </div>
                     <div className="pin-content">
@@ -912,8 +932,12 @@ const DMView: React.FC<DMViewProps> = ({
                       </div>
                       <div className="system-message-content" style={{ marginLeft: '15px' }}>
                         <div className="system-message-header message-author-info">
-                          <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
-                          <UserBadges badges={msg.author.badges} size={14} />
+                          {dispAuthor(msg.author)._masked ? (
+                            <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
+                          ) : (
+                            <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                          )}
+                          {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} size={14} />}
                           <span className="message-time">{formatDate(msg.createdAt)}</span>
                         </div>
                         <div className="system-message-text">Пропущенный звонок</div>
@@ -929,19 +953,19 @@ const DMView: React.FC<DMViewProps> = ({
                         <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <div className="reply-line" />
                           <ReplyIcon size={12} className="reply-icon-mini" />
-                          <UserAvatar user={msg.replyTo.author} size={16} className="reply-avatar" />
-                           <span className="reply-author" style={{ fontWeight: 600 }}>{msg.replyTo.author.username}</span>
-                           <UserBadges badges={msg.replyTo.author.badges} size={10} />
+                          <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16} className="reply-avatar" />
+                           <span className="reply-author" style={{ fontWeight: 600 }}>{dispAuthor(msg.replyTo.author).username}</span>
+                           {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={msg.replyTo.author.badges} size={10} />}
                           <span className="reply-content" style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
                         </div>
                       )}
                       {!grouped && (
                         <div className="message-author-avatar-wrap">
                           <UserAvatar
-                            user={msg.author}
+                            user={dispAuthor(msg.author)}
                             size={40}
                             className="message-author-avatar"
-                            onClick={(e) => onUserClick(msg.author._id, e)}
+                            onClick={(e) => { if (!dispAuthor(msg.author)._masked) onUserClick(msg.author._id, e); }}
                           />
                         </div>
                       )}
@@ -949,9 +973,13 @@ const DMView: React.FC<DMViewProps> = ({
                       <div className="message-content">
                         {!grouped && (
                           <div className="message-header message-author-info">
-                            <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
-                            <UserBadges badges={msg.author.badges} size={14} />
-                            {msg.author.isBot && <span className="bot-badge">БOТ</span>}
+                            {dispAuthor(msg.author)._masked ? (
+                              <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
+                            ) : (
+                              <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                            )}
+                            {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} size={14} />}
+                            {!dispAuthor(msg.author)._masked && msg.author.isBot && <span className="bot-badge">БOТ</span>}
                             <span className="message-time">{formatDate(msg.createdAt)}</span>
                             {showHoverBar && (
                               <div className="message-actions-hover">
@@ -1164,8 +1192,8 @@ const DMView: React.FC<DMViewProps> = ({
               <div className="reply-input-content">
                 <ReplyIcon size={16} color="var(--primary-neon)" />
                 <div className="reply-input-text">
-                   <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
-                   <UserBadges badges={replyToMessage.author.badges} size={12} />
+                   <span>Ответ пользователю <strong>{dispAuthor(replyToMessage.author).username}</strong></span>
+                   {!dispAuthor(replyToMessage.author)._masked && <UserBadges badges={replyToMessage.author.badges} size={12} />}
                   <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
                 </div>
               </div>
@@ -1189,15 +1217,11 @@ const DMView: React.FC<DMViewProps> = ({
             </div>
           )}
           <form onSubmit={handleSendMessage} className="message-form">
-            <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">
-              <PlusIcon />
-            </button>
-            <button type="button" className="attachment-button" onClick={(e) => setShowGifPicker(showGifPicker ? null : { x: e.clientX, y: e.clientY - 400 })} title="Отправить GIF">
-              <div style={{ fontWeight: 800, fontSize: '10px', border: '2px solid currentColor', borderRadius: '4px', padding: '1px 3px', display: 'flex' }}>GIF</div>
-            </button>
-            <button type="button" className="attachment-button" onClick={() => setShowPollModal(true)} title="Создать опрос">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" /></svg>
-            </button>
+            <ComposerAddMenu
+              onAttach={() => fileInputRef.current?.click()}
+              onGif={(pos) => setShowGifPicker(pos)}
+              onPoll={() => setShowPollModal(true)}
+            />
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
             <div style={{ flex: 1, position: 'relative' }}>
               {showScrollBottom && (
@@ -1217,7 +1241,7 @@ const DMView: React.FC<DMViewProps> = ({
               <input
                 ref={inputRef}
                 type="text"
-                placeholder={`Написать ${otherUser?.username}...`}
+                placeholder={maskModeration ? 'Написать модерации...' : `Написать ${otherUser?.username}...`}
                 value={message}
                 onChange={handleTyping}
                 onPaste={handlePaste}

@@ -176,6 +176,10 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     const dmCallRes = await axios.get(`/api/direct-messages/user/${targetUser._id}`);
                     window.dispatchEvent(new CustomEvent('start-call', { detail: { user: targetUser, dmId: dmCallRes.data._id } }));
                     break;
+                case 'moderation-message':
+                    const modDmRes = await axios.post(`/api/direct-messages/moderation/${targetUser._id}`);
+                    window.dispatchEvent(new CustomEvent('start-dm', { detail: { dm: modDmRes.data } }));
+                    break;
                 case 'add-friend':
                     await axios.post('/api/friends/request', { userId: targetUser._id });
                     break;
@@ -408,6 +412,15 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('block')}>Заблокировать</div>}
                 {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>}
             </div>
+            {(currentUser?.role === 'moderator' || currentUser?.role === 'admin') && !isSelf && (
+                <>
+                    <div className="menu-separator" />
+                    <div className="menu-group">
+                        <div className="menu-label">МОДЕРАЦИЯ</div>
+                        <div className="menu-item" onClick={() => handleAction('moderation-message')}>Написать от имени модерации</div>
+                    </div>
+                </>
+            )}
             {currentUser?.role === 'admin' && !isSelf && (
                 <>
                     <div className="menu-separator" />

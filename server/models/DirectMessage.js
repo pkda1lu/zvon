@@ -15,6 +15,17 @@ const directMessageSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // Чат «от имени модерации»: пользователь видит собеседника как «Модерация»,
+  // а не реальный аккаунт модератора. moderator — кто из участников модератор.
+  isModeration: {
+    type: Boolean,
+    default: false
+  },
+  moderator: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   messages: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Message'

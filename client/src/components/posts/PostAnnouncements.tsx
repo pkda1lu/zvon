@@ -67,11 +67,6 @@ const PostAnnouncements: React.FC = () => {
       size="lg"
       closeOnBackdrop={false}
       className="post-viewer-modal"
-      footer={
-        <button className="zv-btn post-viewer-btn" onClick={dismiss}>
-          {queue.length - index > 1 ? 'Далее' : 'Прочитано'}
-        </button>
-      }
     >
       <motion.div
         className="post-viewer-body"

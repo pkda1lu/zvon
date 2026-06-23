@@ -27,6 +27,7 @@ import GifPicker from './GifPicker';
 import Reactions from './Reactions';
 import MessagePoll from './MessagePoll';
 import CreatePollModal from './CreatePollModal';
+import ComposerAddMenu from './ComposerAddMenu';
 import type { ChatPoll } from './MessagePoll';
 import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
@@ -1446,15 +1447,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           </div>
         )}
         <form onSubmit={handleSendMessage} className="message-form">
-          <button type="button" className="attachment-button" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">
-            <PlusIcon />
-          </button>
-          <button type="button" className="attachment-button" onClick={(e) => setShowGifPicker(showGifPicker ? null : { x: e.clientX, y: e.clientY - 400 })} title="Отправить GIF">
-            <div style={{ fontWeight: 800, fontSize: '10px', border: '2px solid currentColor', borderRadius: '4px', padding: '1px 3px', display: 'flex' }}>GIF</div>
-          </button>
-          <button type="button" className="attachment-button" onClick={() => setShowPollModal(true)} title="Создать опрос">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" /></svg>
-          </button>
+          <ComposerAddMenu
+            onAttach={() => fileInputRef.current?.click()}
+            onGif={(pos) => setShowGifPicker(pos)}
+            onPoll={() => setShowPollModal(true)}
+          />
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
           <div style={{ flex: 1, position: 'relative' }}>
             {showScrollBottom && (

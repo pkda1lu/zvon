@@ -71,7 +71,12 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
 
                         const isSelected = selectedDM?._id === dm._id;
                         const unreadCount = unreadCounts[dm._id] || 0;
-                        const displayName = dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username);
+                        // Чат «от имени модерации»: для пользователя (не модератора)
+                        // собеседник отображается как «Модерация».
+                        const moderatorId = dm.isModeration ? (typeof dm.moderator === 'object' ? dm.moderator?._id : dm.moderator) : null;
+                        const maskModeration = !!moderatorId && moderatorId !== currentUser._id;
+                        const displayName = maskModeration ? 'Модерация' : (dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username));
+                        const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? null : otherUser);
 
                         return (
                             <div
@@ -81,18 +86,18 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                             >
                                 <div className="dm-avatar-wrap">
                                     <UserAvatar
-                                        user={isGroup ? null : otherUser}
+                                        user={avatarUser}
                                         size={32}
                                         className="dm-avatar"
                                     />
-                                    {!isGroup && otherUser && <div className={`status-indicator ${otherUser.status}`}></div>}
+                                    {!isGroup && !maskModeration && otherUser && <div className={`status-indicator ${otherUser.status}`}></div>}
                                 </div>
                                 <div className="dm-info">
                                     <div className="dm-name-row">
                                         <span className="dm-name">{displayName}</span>
-                                        {!isGroup && otherUser && <UserBadges badges={otherUser.badges} size={12} />}
+                                        {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} size={12} />}
                                     </div>
-                                    {!isGroup && otherUser?.activity && (
+                                    {!isGroup && !maskModeration && otherUser?.activity && (
                                         <span className="dm-activity">Играет в {otherUser.activity.name}</span>
                                     )}
                                     {isGroup && (

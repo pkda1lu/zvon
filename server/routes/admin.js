@@ -329,15 +329,41 @@ router.post('/notify', [auth, isModerator], async (req, res) => {
 });
 
 // --- Actions (Audit Log) ---
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 router.get('/actions', [auth, isModerator], async (req, res) => {
   try {
-    const { action, hours = 24, page = 1, limit = 50 } = req.query;
+    const { action, hours = 24, page = 1, limit = 50, search } = req.query;
     const query = {};
     if (action) query.action = action;
-    
+
     const timeLimit = new Date();
     timeLimit.setHours(timeLimit.getHours() - parseInt(hours));
     query.createdAt = { $gte: timeLimit };
+
+    // Поиск по исполнителю/цели (имя пользователя или сервера), а также по
+    // текстовым полям details и коду действия.
+    const term = (search || '').toString().trim();
+    if (term) {
+      const rx = new RegExp(escapeRegex(term), 'i');
+      const [matchedUsers, matchedServers] = await Promise.all([
+        User.find({ username: rx }).select('_id').lean(),
+        Server.find({ name: rx }).select('_id').lean(),
+      ]);
+      const refIds = [...matchedUsers.map(u => u._id), ...matchedServers.map(s => s._id)];
+      const or = [
+        { action: rx },
+        { 'details.username': rx },
+        { 'details.name': rx },
+        { 'details.serverName': rx },
+        { 'details.reason': rx },
+      ];
+      if (refIds.length) {
+        or.push({ executor: { $in: refIds } });
+        or.push({ target: { $in: refIds } });
+      }
+      query.$or = or;
+    }
 
     const logs = await GlobalAuditLog.find(query)
       .populate('executor', 'username avatar')

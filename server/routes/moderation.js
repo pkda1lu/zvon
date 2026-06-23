@@ -537,6 +537,10 @@ router.post('/posts', [auth, isModerator], async (req, res) => {
       active: active !== false
     });
     await post.save();
+    // Только один активный пост одновременно — выключаем остальные.
+    if (post.active) {
+      await Post.updateMany({ _id: { $ne: post._id }, active: true }, { active: false });
+    }
     res.status(201).json(post);
   } catch (err) {
     console.error('create post error:', err);
@@ -570,6 +574,10 @@ router.put('/posts/:id', [auth, isModerator], async (req, res) => {
     post.updatedAt = new Date();
 
     await post.save();
+    // Только один активный пост одновременно — выключаем остальные.
+    if (post.active) {
+      await Post.updateMany({ _id: { $ne: post._id }, active: true }, { active: false });
+    }
     res.json(post);
   } catch (err) {
     console.error('update post error:', err);

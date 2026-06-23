@@ -219,6 +219,25 @@
   box-shadow: 0 0 20px rgba(255, 0, 200, 0.3);
 }
 
+.report-sidebar-icon {
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+}
+
+.report-sidebar-icon:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+}
+
+.report-sidebar-icon:hover svg {
+  color: #ff6b6b;
+  stroke: #ff6b6b;
+}
+
 .miniapp-minimized-icon {
   background: var(--glass-bg-subtle);
   border: 1px solid var(--accent-pink, #ff00c8);

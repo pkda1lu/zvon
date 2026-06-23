@@ -262,6 +262,8 @@ export interface DirectMessage {
   name?: string | null;
   icon?: string | null;
   messages?: Message[];
+  isModeration?: boolean;
+  moderator?: string | { _id: string } | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -8,11 +8,21 @@ const AdminActionsSettings: React.FC = () => {
     const [hours, setHours] = useState('24');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [search, setSearch] = useState('');
+    // Отложенное значение поиска — запрос уходит после паузы в наборе.
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    useEffect(() => {
+        const t = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 350);
+        return () => clearTimeout(t);
+    }, [search]);
 
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const res = await axios.get(`/api/admin/actions?hours=${hours}&page=${page}`);
+            const params = new URLSearchParams({ hours, page: String(page) });
+            if (debouncedSearch) params.set('search', debouncedSearch);
+            const res = await axios.get(`/api/admin/actions?${params.toString()}`);
             setLogs(Array.isArray(res.data.logs) ? res.data.logs : []);
             setTotalPages(res.data.pages || 1);
         } catch (err) {
@@ -23,7 +33,7 @@ const AdminActionsSettings: React.FC = () => {
 
     useEffect(() => {
         fetchLogs();
-    }, [hours, page]);
+    }, [hours, page, debouncedSearch]);
 
     const getActionLabel = (action: string) => {
         switch (action) {
@@ -57,6 +67,26 @@ const AdminActionsSettings: React.FC = () => {
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Журнал действий</h2>
             <p className="settings-description">Глобальный аудит событий платформы с фильтрацией по времени.</p>
+
+            <div style={{ marginBottom: '16px' }}>
+                <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Поиск по пользователю, серверу, действию или причине..."
+                    style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: '1px solid var(--glass-border)',
+                        background: 'rgba(255,255,255,0.04)',
+                        color: 'var(--text-main)',
+                        fontSize: '14px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                    }}
+                />
+            </div>
 
             <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
                 {['1', '12', '24', '168'].map(h => (

@@ -45,6 +45,7 @@ const CreatePollModal: React.FC<CreatePollModalProps> = ({ isOpen, onClose, onCr
       onClose={close}
       title="Создать опрос"
       size="md"
+      className="create-poll-modal"
       footer={
         <>
           <button className="zv-btn zv-btn--ghost" onClick={close}>Отмена</button>

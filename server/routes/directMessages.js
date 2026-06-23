@@ -36,6 +36,35 @@ router.get('/user/:userId', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+// Начать (или открыть существующий) чат «от имени модерации» с пользователем.
+// Доступно только модераторам и админам. Такой чат отдельный от обычного 1:1.
+router.post('/moderation/:userId', auth, async (req, res) => {
+  try {
+    if (!req.user || (req.user.role !== 'moderator' && req.user.role !== 'admin')) {
+      return res.status(403).json({ message: 'Доступ разрешён только модераторам' });
+    }
+    const { userId } = req.params;
+    if (!mongoose.isValidObjectId(userId)) return res.status(400).json({ message: 'Invalid user ID' });
+    if (userId === req.user._id.toString()) return res.status(400).json({ message: 'Cannot create DM with yourself' });
+
+    let dm = await DirectMessage.findOne({
+      isModeration: true,
+      participants: { $size: 2, $all: [req.user._id, userId] },
+    }).populate('participants', 'username avatar status badges activity');
+
+    if (!dm) {
+      dm = new DirectMessage({
+        participants: [req.user._id, userId],
+        isModeration: true,
+        moderator: req.user._id,
+      });
+      await dm.save();
+      await dm.populate('participants', 'username avatar status badges activity');
+    }
+    res.json(dm);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.post('/group', auth, async (req, res) => {
   try {
     const { userIds, name } = req.body;
