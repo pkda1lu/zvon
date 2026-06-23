@@ -62,7 +62,66 @@ const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
     return <div className="activity-time">{elapsed}</div>;
 };
 
-const ProfilePreview: React.FC<ProfilePreviewProps> = ({ 
+// Секция ролей: показывает самую важную роль по иерархии, остальные — под «+N».
+// По клику на «+N» раскрывается выпадающий список со всеми ролями участника.
+const RolesSection: React.FC<{ roleIds: string[]; serverRoles: any[] }> = ({ roleIds, serverRoles }) => {
+    const [open, setOpen] = useState(false);
+    const wrapRef = React.useRef<HTMLElement>(null);
+
+    const resolved = roleIds
+        .map((rid) => serverRoles?.find((r: any) => r._id === rid))
+        .filter(Boolean)
+        .sort((a: any, b: any) => (b.position || 0) - (a.position || 0));
+    const topRole = resolved[0];
+    const hiddenRoles = resolved.slice(1);
+
+    React.useEffect(() => {
+        if (!open) return;
+        const onDown = (e: MouseEvent) => {
+            if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        return () => document.removeEventListener('mousedown', onDown);
+    }, [open]);
+
+    return (
+        <section ref={wrapRef}>
+            <h4>РОЛИ</h4>
+            <div className="roles-list">
+                {topRole ? (
+                    <>
+                        <div className="role-chip" style={{ borderColor: topRole.color + '44' }}>
+                            <div className="role-dot" style={{ backgroundColor: topRole.color }} />
+                            <span style={{ color: topRole.color || '#fff' }}>{topRole.name}</span>
+                        </div>
+                        {hiddenRoles.length > 0 && (
+                            <div
+                                className={`role-chip role-chip-more ${open ? 'active' : ''}`}
+                                onClick={() => setOpen(o => !o)}
+                            >
+                                <span>+{hiddenRoles.length}</span>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <span className="no-roles">Нет ролей</span>
+                )}
+            </div>
+            {open && hiddenRoles.length > 0 && (
+                <div className="role-dropdown">
+                    {hiddenRoles.map((r: any) => (
+                        <div key={r._id} className="role-dropdown-item">
+                            <div className="role-dot" style={{ backgroundColor: r.color }} />
+                            <span style={{ color: r.color || '#fff' }}>{r.name}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+};
+
+const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     user, memberData, server, type, onClose, onAvatarClick, 
     mutualFriends = [], mutualServers = [], developments = { bots: [], miniApps: [] },
     actionButtons
@@ -184,25 +243,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     )}
 
                     {isServerType && server && (
-                        <section>
-                            <h4>РОЛИ</h4>
-                            <div className="roles-list">
-                                {roles.length > 0 ? (
-                                    roles.map((rid: string) => {
-                                        const role = server.roles?.find((r: any) => r._id === rid);
-                                        if (!role) return null;
-                                        return (
-                                            <div key={rid} className="role-chip" style={{ borderColor: role.color + '44' }}>
-                                                <div className="role-dot" style={{ backgroundColor: role.color }} />
-                                                <span style={{ color: role.color || '#fff' }}>{role.name}</span>
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <span className="no-roles">Нет ролей</span>
-                                )}
-                            </div>
-                        </section>
+                        <RolesSection roleIds={roles as string[]} serverRoles={server.roles || []} />
                     )}
 
                     {user.primaryServer && typeof user.primaryServer === 'object' && (

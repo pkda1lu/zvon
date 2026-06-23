@@ -582,6 +582,57 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.role-chip-more {
+    color: var(--text-dim, #b5bac1);
+    cursor: pointer;
+}
+
+.role-chip-more span {
+    font-variant-numeric: tabular-nums;
+}
+
+.role-chip-more.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.role-dropdown {
+    margin-top: 8px;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    animation: role-dropdown-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes role-dropdown-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.role-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+}
+
+.role-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
 .roles-list {
     display: flex;
     flex-wrap: wrap;
