@@ -35,6 +35,8 @@ import StickyPins from './StickyPins';
 import UserBadges from './UserBadges';
 import AttachmentsModal from './AttachmentsModal';
 import { SmileIcon } from './Icons';
+import ServerInviteCard from './ServerInviteCard';
+import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
 
 // Helper for inline markdown shared across components
 const renderInlineMarkdown = (
@@ -63,6 +65,25 @@ const renderInlineMarkdown = (
       return <code key={i} className="inline-code">{part.slice(1, -1)}</code>;
     }
     if (part.match(/^https?:\/\//)) {
+      const inviteCode = matchInviteCode(part);
+      // Ссылка-приглашение: внутри приложения открываем модалку-приглашение,
+      // снаружи (в браузере) та же ссылка ведёт на страницу /invite/<code>.
+      if (inviteCode) {
+        return (
+          <a
+            key={i}
+            href={part}
+            className="message-link"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openInviteInApp(inviteCode);
+            }}
+          >
+            {part}
+          </a>
+        );
+      }
       return (
         <a
           key={i}
@@ -466,6 +487,10 @@ const MessageItem = React.memo<{
           {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
 
           <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
+
+          {extractInviteCodes(msg.content).map((code) => (
+            <ServerInviteCard key={code} code={code} />
+          ))}
 
           {showPreview && msg.attachments && msg.attachments.length > 0 && (
             <div className="message-attachments">

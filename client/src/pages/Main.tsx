@@ -70,9 +70,23 @@ const Main: React.FC = () => {
 
   const userRef = useRef(user);
   const selectedServerRef = useRef(selectedServer);
+  const serversRef = useRef(servers);
+  const activeChannelIdRef = useRef(activeChannelId);
 
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { selectedServerRef.current = selectedServer; }, [selectedServer]);
+  useEffect(() => { serversRef.current = servers; }, [servers]);
+  useEffect(() => { activeChannelIdRef.current = activeChannelId; }, [activeChannelId]);
+
+  // Покидаем голосовой канал только если он принадлежит указанному серверу
+  const leaveVoiceIfInServer = (serverId: string) => {
+    const channelId = activeChannelIdRef.current;
+    if (!channelId) return;
+    const server = serversRef.current.find((s: Server) => s._id === serverId);
+    if (server && server.channels.some((c: Channel) => c._id === channelId)) {
+      leaveChannel();
+    }
+  };
 
   const [activeCall, setActiveCall] = useState<{
     user: User;
@@ -335,6 +349,24 @@ const Main: React.FC = () => {
       }
     };
 
+    // Открытие приглашения внутри приложения (клик по ссылке/карточке приглашения
+    // в сообщении). Резолвим код в сервер: если пользователь уже состоит в сервере —
+    // просто выбираем его, иначе показываем модалку-приглашение.
+    const handleOpenInviteEvent = async (e: any) => {
+      const code = e.detail?.code;
+      if (!code) return;
+      try {
+        const { data } = await axios.get(`/api/invites/${code}`);
+        const srvId = data?.server?._id;
+        if (!srvId) return;
+        if (servers.some(s => s._id === srvId)) {
+          window.dispatchEvent(new CustomEvent('select-server', { detail: { serverId: srvId } }));
+        } else {
+          setInviteServerId(srvId);
+        }
+      } catch (err) { /* приглашение недействительно — тихо игнорируем */ }
+    };
+
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
@@ -342,6 +374,7 @@ const Main: React.FC = () => {
     window.addEventListener('open-mini-app', handleOpenMiniAppEvent);
     window.addEventListener('open-dm', handleOpenDM);
     window.addEventListener('select-server', handleSelectServerEvent);
+    window.addEventListener('open-invite', handleOpenInviteEvent);
     window.addEventListener('zvon-keybind-action', handleKeybindAction);
     return () => {
       window.removeEventListener('start-dm', handleStartDMEvent);
@@ -351,6 +384,7 @@ const Main: React.FC = () => {
       window.removeEventListener('open-mini-app', handleOpenMiniAppEvent);
       window.removeEventListener('open-dm', handleOpenDM);
       window.removeEventListener('select-server', handleSelectServerEvent);
+      window.removeEventListener('open-invite', handleOpenInviteEvent);
       window.removeEventListener('zvon-keybind-action', handleKeybindAction);
     };
   }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId]);
@@ -682,14 +716,14 @@ const Main: React.FC = () => {
       setServers((prev: Server[]) => prev.map((s: Server) => s._id === data.serverId ? { ...s, members: s.members.filter((m: any) => String(m.user?._id || m.user) !== targetUserId) } : s));
       setSelectedServer((prev: Server | null) => (prev && prev._id === data.serverId) ? { ...prev, members: prev.members.filter((m: any) => String(m.user?._id || m.user) !== targetUserId) } : prev);
       if (userRef.current?._id && targetUserId === String(userRef.current._id)) {
-        leaveChannel();
+        leaveVoiceIfInServer(data.serverId);
         setServers((prev: Server[]) => prev.filter((s: Server) => s._id !== data.serverId));
         setSelectedServer((prev: Server | null) => prev && prev._id === data.serverId ? null : prev);
         setSelectedChannel((prev: Channel | null) => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);
       }
     };
     const handleServerKicked = (data: { serverId: string }) => {
-      leaveChannel();
+      leaveVoiceIfInServer(data.serverId);
       setServers((prev: Server[]) => prev.filter((s: Server) => s._id !== data.serverId));
       setSelectedServer((prev: Server | null) => prev && prev._id === data.serverId ? null : prev);
       setSelectedChannel((prev: Channel | null) => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);

@@ -28,6 +28,8 @@ import type { ChatPoll } from './MessagePoll';
 import StickyPins from './StickyPins';
 import UserBadges from './UserBadges';
 import AttachmentsModal from './AttachmentsModal';
+import ServerInviteCard from './ServerInviteCard';
+import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
 import './panel-hero.css';
 import './DMView.css';
 import './Attachments.css';
@@ -550,6 +552,25 @@ const DMView: React.FC<DMViewProps> = ({
             <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>
               {part.split(/(https?:\/\/[^\s]+)/g).map((subPart, si) => {
                 if (subPart.match(/^https?:\/\//)) {
+                  const inviteCode = matchInviteCode(subPart);
+                  // Ссылка-приглашение: внутри приложения открываем модалку-приглашение,
+                  // снаружи (в браузере) та же ссылка ведёт на страницу /invite/<code>.
+                  if (inviteCode) {
+                    return (
+                      <a
+                        key={`link-${si}`}
+                        href={subPart}
+                        className="message-link"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openInviteInApp(inviteCode);
+                        }}
+                      >
+                        {subPart}
+                      </a>
+                    );
+                  }
                   return (
                     <a
                       key={`link-${si}`}
@@ -1094,6 +1115,10 @@ const DMView: React.FC<DMViewProps> = ({
                         {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
 
                         <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
+
+                        {extractInviteCodes(msg.content).map((code) => (
+                          <ServerInviteCard key={code} code={code} />
+                        ))}
 
                         {msg.buttons && msg.buttons.length > 0 && (
                           <div className="message-interactive-buttons">
