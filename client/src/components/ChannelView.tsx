@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import './panel-hero.css';
 import './ChannelView.css';
@@ -475,6 +475,13 @@ const MessageItem = React.memo<{
                 >
                   <CopyIcon size={grouped ? 14 : 16} />
                 </button>
+                <button
+                  className={`msg-action-btn ${grouped ? 'mini' : ''}`}
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
+                  title="Переслать"
+                >
+                  <ForwardIcon size={grouped ? 14 : 16} />
+                </button>
                 {(msg.author._id === user?._id || (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === user?._id) && (
                   <button className={`msg-action-btn danger ${grouped ? 'mini' : ''}`} onClick={() => onDelete(msg._id)}>
                     <TrashIcon size={grouped ? 14 : 16} />
@@ -485,6 +492,13 @@ const MessageItem = React.memo<{
           </div>
 
           {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
+
+          {msg.forwardedFrom && (
+            <div className="forwarded-label">
+              <ForwardIcon size={13} />
+              <span>Переслано от <b>{msg.forwardedFrom.authorUsername || 'пользователя'}</b></span>
+            </div>
+          )}
 
           <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
 

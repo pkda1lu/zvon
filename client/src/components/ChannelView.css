@@ -1476,4 +1476,14 @@
   font-family: monospace;
   font-size: 0.9em;
 }
-
+
+.forwarded-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-dim, rgba(255, 255, 255, 0.5));
+  margin-bottom: 3px;
+}
+.forwarded-label b { font-style: normal; font-weight: 600; color: rgba(255,255,255,0.75); }

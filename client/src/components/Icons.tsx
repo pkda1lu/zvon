@@ -390,6 +390,13 @@ export const ReplyIcon: React.FC<{ size?: number; color?: string; className?: st
     </svg>
 );
 
+export const ForwardIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="15 17 20 12 15 7" />
+        <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+    </svg>
+);
+
 export const CopyIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />

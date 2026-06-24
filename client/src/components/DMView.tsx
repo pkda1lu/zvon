@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon } from './Icons';
+import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
@@ -777,12 +777,14 @@ const DMView: React.FC<DMViewProps> = ({
       )}
       <div className="dm-container">
         <div className="dm-header">
-          <button className="back-button" onClick={onBack || onClose} title="Назад">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-          </button>
+          {isMobile && (
+            <button className="back-button" onClick={onBack || onClose} title="Назад">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+            </button>
+          )}
 
           <div className="dm-header-info" onClick={(e) => !isGroup && !maskModeration && otherUser && onUserClick(otherUser._id)} style={{ cursor: (isGroup || maskModeration) ? 'default' : 'pointer' }}>
             <UserAvatar
@@ -1044,6 +1046,13 @@ const DMView: React.FC<DMViewProps> = ({
                                 >
                                   <CopyIcon size={16} />
                                 </button>
+                                <button
+                                  className="msg-action-btn"
+                                  onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
+                                  title="Переслать"
+                                >
+                                  <ForwardIcon size={16} />
+                                </button>
                                 {msg.author._id === user?._id && (
                                   <button
                                     className="msg-action-btn danger"
@@ -1099,6 +1108,13 @@ const DMView: React.FC<DMViewProps> = ({
                               >
                                 <CopyIcon size={14} />
                               </button>
+                              <button
+                                className="msg-action-btn mini"
+                                onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
+                                title="Переслать"
+                              >
+                                <ForwardIcon size={14} />
+                              </button>
                               {msg.author._id === user?._id && (
                                 <button
                                   className="msg-action-btn mini danger"
@@ -1113,6 +1129,13 @@ const DMView: React.FC<DMViewProps> = ({
                           </div>
                         )}
                         {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
+
+                        {msg.forwardedFrom && (
+                          <div className="forwarded-label">
+                            <ForwardIcon size={13} />
+                            <span>Переслано от <b>{msg.forwardedFrom.authorUsername || 'пользователя'}</b></span>
+                          </div>
+                        )}
 
                         <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
 

@@ -22,10 +22,12 @@ import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useDialog } from '../contexts/DialogContext';
 import { useInbox } from '../contexts/InboxContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import JoinServerModal from '../components/JoinServerModal';
 import ServerInviteModal from '../components/ServerInviteModal';
+import ForwardMessageModal from '../components/ForwardMessageModal';
 import SettingsModal from '../components/SettingsModal';
 import Inbox from '../components/Inbox';
 import CreateGroupDMModal from '../components/CreateGroupDMModal';
@@ -47,6 +49,7 @@ const Main: React.FC = () => {
   const { socket } = useSocket();
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
+  const { confirm: customConfirm } = useDialog();
   const { unreadCount: inboxUnreadCount } = useInbox();
   const { streamerModeEnabled, changeStatusToStreaming } = useWindowSettings();
 
@@ -105,6 +108,7 @@ const Main: React.FC = () => {
   const [serverProfileServerId, setServerProfileServerId] = useState<string | null>(null);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [inviteServerId, setInviteServerId] = useState<string | null>(null);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('profile');
   const [settingsInitialData, setSettingsInitialData] = useState<any>(null);
@@ -367,6 +371,11 @@ const Main: React.FC = () => {
       } catch (err) { /* приглашение недействительно — тихо игнорируем */ }
     };
 
+    // Открытие окна пересылки сообщения (клик по «Переслать» в действиях сообщения).
+    const handleOpenForwardEvent = (e: any) => {
+      if (e.detail?.message) setForwardMessage(e.detail.message);
+    };
+
     window.addEventListener('start-dm', handleStartDMEvent);
     window.addEventListener('start-call', handleStartCallEvent);
     window.addEventListener('open-server-profile-settings', handleOpenServerProfileSettings);
@@ -375,6 +384,7 @@ const Main: React.FC = () => {
     window.addEventListener('open-dm', handleOpenDM);
     window.addEventListener('select-server', handleSelectServerEvent);
     window.addEventListener('open-invite', handleOpenInviteEvent);
+    window.addEventListener('open-forward', handleOpenForwardEvent);
     window.addEventListener('zvon-keybind-action', handleKeybindAction);
     return () => {
       window.removeEventListener('start-dm', handleStartDMEvent);
@@ -385,6 +395,7 @@ const Main: React.FC = () => {
       window.removeEventListener('open-dm', handleOpenDM);
       window.removeEventListener('select-server', handleSelectServerEvent);
       window.removeEventListener('open-invite', handleOpenInviteEvent);
+      window.removeEventListener('open-forward', handleOpenForwardEvent);
       window.removeEventListener('zvon-keybind-action', handleKeybindAction);
     };
   }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId]);
@@ -729,6 +740,11 @@ const Main: React.FC = () => {
       setSelectedChannel((prev: Channel | null) => (prev && String((prev.server as any)?._id || prev.server) === data.serverId) ? null : prev);
     };
     const handleServerDeletedSocket = (data: { serverId: string }) => { handleServerDelete(data.serverId); };
+    const handleDmDeleted = (data: { dmId: string }) => {
+      setDms((prev: DirectMessage[]) => prev.filter((d: DirectMessage) => d._id !== data.dmId));
+      setSelectedDM((prev: DirectMessage | null) => (prev && prev._id === data.dmId) ? null : prev);
+      setForwardMessage((prev: Message | null) => (prev && prev.directMessage === data.dmId) ? null : prev);
+    };
     const handleUserVerified = (data: { isVerified: boolean }) => {
       if (userRef.current) {
         updateUser({ ...userRef.current, isVerified: data.isVerified });
@@ -743,6 +759,7 @@ const Main: React.FC = () => {
     socket.on('server-member-left', handleServerMemberLeft);
     socket.on('server-kicked', handleServerKicked);
     socket.on('server-deleted', handleServerDeletedSocket);
+    socket.on('dm-deleted', handleDmDeleted);
     socket.on('user-verified', handleUserVerified);
     return () => {
       socket.off('call-offer', handleCallOffer);
@@ -753,6 +770,7 @@ const Main: React.FC = () => {
       socket.off('server-member-left', handleServerMemberLeft);
       socket.off('server-kicked', handleServerKicked);
       socket.off('server-deleted', handleServerDeletedSocket);
+      socket.off('dm-deleted', handleDmDeleted);
       socket.off('user-verified', handleUserVerified);
     };
   }, [socket, activeCall, user, updateUser, handleServerUpdate]);
@@ -892,6 +910,26 @@ const Main: React.FC = () => {
     setServers(prev => prev.filter(s => s._id !== serverId));
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
   };
+  const handleDeleteDM = async (dm: DirectMessage) => {
+    const isGroup = dm.participants.length > 2 || !!dm.name;
+    const ok = await customConfirm(
+      isGroup
+        ? 'Удалить эту беседу у всех участников вместе со всей перепиской? Действие необратимо.'
+        : 'Удалить этот чат у обоих собеседников вместе со всей перепиской? Действие необратимо.',
+      'Удалить чат',
+      'Удалить',
+      'Отмена'
+    );
+    if (!ok) return;
+    try {
+      await axios.delete(`/api/direct-messages/${dm._id}`);
+      // Локальное состояние обновится по сокет-событию dm-deleted, но на случай
+      // его потери чистим список и здесь.
+      setDms((prev: DirectMessage[]) => prev.filter(d => d._id !== dm._id));
+      setSelectedDM((prev: DirectMessage | null) => (prev && prev._id === dm._id) ? null : prev);
+    } catch (err) { /* ошибку покажет общий обработчик */ }
+  };
+
   const handleServerLeave = (serverId: string) => {
     setServers(prev => prev.filter(s => s._id !== serverId));
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
@@ -1057,6 +1095,7 @@ const Main: React.FC = () => {
                     setMobileView(isMobile ? 'content' : 'sidebar');
                   }}
                   onAddDM={() => setShowCreateGroupModal(true)}
+                  onDeleteDM={handleDeleteDM}
                   showFriends={showFriends}
                   currentUser={user!}
                   unreadCounts={unreadCounts}
@@ -1207,6 +1246,7 @@ const Main: React.FC = () => {
                         pinnedMessages={pinnedMessages.filter(m => m.directMessage === selectedDM._id)}
                         setMessages={setDmMessages}
                         onBack={() => setMobileView('sidebar')}
+                        isMobile={isMobile}
                       />
                     </div>
                   </motion.div>
@@ -1358,6 +1398,17 @@ const Main: React.FC = () => {
             setShowFriends(false);
             setMobileView('content');
           }}
+        />
+      )}
+
+      {forwardMessage && user && (
+        <ForwardMessageModal
+          isOpen={!!forwardMessage}
+          onClose={() => setForwardMessage(null)}
+          message={forwardMessage}
+          servers={servers}
+          currentUser={user}
+          socket={socket}
         />
       )}
 

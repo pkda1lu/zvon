@@ -440,6 +440,35 @@ io.on('connection', (socket) => {
           }
         }
       }
+      // Личный чат: отправлять может только участник.
+      if (data.dmId) {
+        const DirectMessage = require('./models/DirectMessage');
+        const dm = await DirectMessage.findById(data.dmId);
+        if (!dm) return socket.emit('error', { message: 'DM not found' });
+        if (!dm.participants.some(p => String(p) === String(socket.userId))) {
+          return socket.emit('error', { message: 'Нет доступа к этому чату' });
+        }
+      }
+
+      // Пересылка сообщения: подтягиваем оригинал и копируем его содержимое,
+      // сохраняя снимок об авторе исходника.
+      if (data.forwardOf) {
+        const original = await Message.findById(data.forwardOf).populate('author', 'username avatar');
+        if (!original) return socket.emit('error', { message: 'Исходное сообщение не найдено' });
+        messageData.content = original.content || '';
+        messageData.attachments = (original.attachments || []).map(a => ({ url: a.url, filename: a.filename, size: a.size, type: a.type }));
+        messageData.embeds = Array.isArray(original.embeds) ? original.embeds.map(e => (e.toObject ? e.toObject() : e)) : [];
+        messageData.poll = null;
+        messageData.replyTo = null;
+        messageData.forwardedFrom = {
+          authorId: original.author?._id || original.author || null,
+          authorUsername: original.author?.username || 'Пользователь',
+          authorAvatar: original.author?.avatar || null,
+          content: original.content || '',
+          createdAt: original.createdAt,
+        };
+      }
+
       const message = new Message(messageData);
 
       // Parse mentions
