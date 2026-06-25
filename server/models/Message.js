@@ -99,6 +99,18 @@ const messageSchema = new mongoose.Schema({
     ref: 'Message',
     default: null
   },
+  // Пересланное сообщение: денормализованный снимок оригинала, чтобы не
+  // тянуть populate по всем местам и не зависеть от удаления исходника.
+  forwardedFrom: {
+    type: new mongoose.Schema({
+      authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      authorUsername: String,
+      authorAvatar: String,
+      content: String,
+      createdAt: Date,
+    }, { _id: false }),
+    default: null
+  },
   type: {
     type: String,
     enum: ['default', 'missed-call', 'call-ended'],
@@ -129,7 +141,7 @@ messageSchema.index({ channel: 1, createdAt: -1 });
 messageSchema.index({ directMessage: 1, createdAt: -1 });
 
 messageSchema.pre('save', function (next) {
-  if (this.type === 'default' && !this.content && (!this.attachments || this.attachments.length === 0) && (!this.embeds || this.embeds.length === 0) && !this.poll) {
+  if (this.type === 'default' && !this.content && (!this.attachments || this.attachments.length === 0) && (!this.embeds || this.embeds.length === 0) && !this.poll && !this.forwardedFrom) {
     return next(new Error('Сообщение не может быть пустым (нужен текст, вложение или эмбед)'));
   }
   next();

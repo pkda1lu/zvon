@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DirectMessage, User } from '../types';
-import { UsersIcon, PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon } from './Icons';
+import { UsersIcon, PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges from './UserBadges';
@@ -16,6 +16,7 @@ interface DMSidebarProps {
     currentUser: User;
     unreadCounts: Record<string, number>;
     onAddDM?: () => void;
+    onDeleteDM?: (dm: DirectMessage) => void;
     style?: React.CSSProperties;
 }
 
@@ -32,6 +33,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     currentUser,
     unreadCounts,
     onAddDM,
+    onDeleteDM,
     style
 }) => {
     // Чаты «от имени модерации», где текущий пользователь — модератор.
@@ -95,6 +97,15 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 </div>
                 {unreadCount > 0 && (
                     <div className="dm-unread-badge">{unreadCount}</div>
+                )}
+                {onDeleteDM && (
+                    <button
+                        className="dm-delete-button"
+                        title="Удалить чат"
+                        onClick={(e) => { e.stopPropagation(); onDeleteDM(dm); }}
+                    >
+                        <TrashIcon size={15} />
+                    </button>
                 )}
             </div>
         );

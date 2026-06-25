@@ -242,6 +242,13 @@ export interface Message {
   } | null;
   mentions?: User[];
   replyTo?: Message;
+  forwardedFrom?: {
+    authorId?: string;
+    authorUsername?: string;
+    authorAvatar?: string | null;
+    content?: string;
+    createdAt?: string;
+  } | null;
   type?: 'default' | 'missed-call' | 'call-ended';
   pinned?: boolean;
   pinnedAt?: string;

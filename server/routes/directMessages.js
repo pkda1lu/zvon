@@ -179,6 +179,25 @@ router.post('/:id/messages', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+// Полное удаление личного чата у всех участников вместе с историей сообщений.
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const dm = await DirectMessage.findById(req.params.id);
+    if (!dm) return res.status(404).json({ message: 'DM not found' });
+    if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
+
+    const participants = dm.participants.map(p => p.toString());
+
+    await Message.deleteMany({ directMessage: dm._id });
+    await DirectMessage.findByIdAndDelete(dm._id);
+
+    const io = req.app.get('io');
+    if (io) participants.forEach(pid => io.to(`user-${pid}`).emit('dm-deleted', { dmId: dm._id.toString() }));
+
+    res.json({ message: 'DM deleted' });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
 router.get('/:id/pins', auth, async (req, res) => {
   try {
     const dmId = req.params.id;

@@ -1,0 +1,118 @@
+.server-invite-card {
+    margin: 6px 0 2px;
+    max-width: 420px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+}
+
+.server-invite-card__label {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--primary-neon, #00e5ff);
+    margin-bottom: 10px;
+}
+
+.server-invite-card--loading,
+.server-invite-card--error {
+    padding: 12px 14px;
+}
+
+.server-invite-card--error .server-invite-card__label {
+    color: var(--accent-pink, #ff3b6b);
+    margin-bottom: 0;
+}
+
+.server-invite-card--loading .server-invite-card__label {
+    color: var(--text-dim, rgba(255, 255, 255, 0.5));
+    margin-bottom: 0;
+}
+
+.server-invite-card__body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.server-invite-card__icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--bg-dark, #0a0a12);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.server-invite-card__icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.server-invite-card__icon span {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--primary-neon, #00e5ff);
+}
+
+.server-invite-card__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.server-invite-card__name {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.server-invite-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    color: var(--text-dim, rgba(255, 255, 255, 0.5));
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.server-invite-card__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary-neon, #00e5ff);
+    box-shadow: 0 0 8px var(--primary-neon, #00e5ff);
+}
+
+.server-invite-card__join {
+    flex-shrink: 0;
+    padding: 9px 18px;
+    border: none;
+    border-radius: 10px;
+    background: var(--primary-neon, #00e5ff);
+    color: #03121a;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.server-invite-card__join:hover {
+    filter: brightness(1.1);
+}
+
+.server-invite-card__join:active {
+    transform: scale(0.97);
+}

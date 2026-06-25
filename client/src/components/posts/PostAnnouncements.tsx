@@ -84,11 +84,6 @@ const PostAnnouncements: React.FC = () => {
             <PostBlockRenderer block={b} currentUserId={user?._id} interactive onVote={handleVote} onAddOption={handleAddOption} />
           </motion.div>
         ))}
-        {current.author?.username && (
-          <motion.div className="post-viewer-meta" variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}>
-            {current.author.username}
-          </motion.div>
-        )}
       </motion.div>
     </Modal>
   );
