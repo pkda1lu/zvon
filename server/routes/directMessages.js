@@ -4,6 +4,8 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const DirectMessage = require('../models/DirectMessage');
 const Message = require('../models/Message');
+const User = require('../models/User');
+const { canDirectMessage } = require('../utils/privacy');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -28,6 +30,13 @@ router.get('/user/:userId', auth, async (req, res) => {
     if (userId === req.user._id.toString()) return res.status(400).json({ message: 'Cannot create DM with yourself' });
     let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: [req.user._id, userId] } }).populate('participants', 'username avatar status badges activity');
     if (!dm) {
+      // Приватность: проверяем настройки получателя только при создании НОВОГО диалога
+      // (существующую переписку никогда не блокируем).
+      const target = await User.findById(userId).select('settings blockedUsers');
+      if (!target) return res.status(404).json({ message: 'User not found' });
+      if (!(await canDirectMessage(req.user._id, target))) {
+        return res.status(403).json({ message: 'Этот пользователь ограничил круг тех, кто может писать ему первым' });
+      }
       dm = new DirectMessage({ participants: [req.user._id, userId] });
       await dm.save();
       await dm.populate('participants', 'username avatar status badges activity');
@@ -79,6 +88,14 @@ router.post('/group', auth, async (req, res) => {
     if (participants.length === 2) {
       let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate('participants', 'username avatar status badges activity');
       if (dm) return res.json(dm);
+      // Создание 1:1 через групповой эндпоинт — применяем те же правила приватности,
+      // что и для обычного ЛС, чтобы их нельзя было обойти.
+      const otherId = participants.find(id => id !== req.user._id.toString());
+      const target = otherId ? await User.findById(otherId).select('settings blockedUsers') : null;
+      if (!target) return res.status(404).json({ message: 'User not found' });
+      if (!(await canDirectMessage(req.user._id, target))) {
+        return res.status(403).json({ message: 'Этот пользователь ограничил круг тех, кто может писать ему первым' });
+      }
     }
 
     const dm = new DirectMessage({

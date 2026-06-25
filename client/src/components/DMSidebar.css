@@ -194,6 +194,74 @@
     z-index: 10;
 }
 
+/* ── Хаб «Модерация» ───────────────────────────────────────────── */
+.dm-item.moderation-hub {
+    background: linear-gradient(135deg, rgba(0, 242, 255, 0.06), rgba(112, 0, 255, 0.04));
+    border-color: rgba(0, 242, 255, 0.12);
+}
+
+.dm-item.moderation-hub:hover {
+    background: linear-gradient(135deg, rgba(0, 242, 255, 0.12), rgba(112, 0, 255, 0.07));
+}
+
+.dm-item.moderation-hub.active {
+    border-color: rgba(0, 242, 255, 0.25);
+}
+
+.moderation-hub-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 12px;
+    background: rgba(0, 242, 255, 0.1);
+    border: 1px solid rgba(0, 242, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.moderation-hub .dm-name {
+    color: white;
+    font-weight: 700;
+}
+
+.moderation-hub-chevron {
+    display: flex;
+    align-items: center;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.moderation-hub:hover .moderation-hub-chevron {
+    color: white;
+}
+
+/* Вложенный список переписок модерации */
+.moderation-subchats {
+    margin: 0 0 6px 14px;
+    padding-left: 8px;
+    border-left: 1px solid rgba(0, 242, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+    animation: mod-subchats-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes mod-subchats-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.dm-item.dm-subitem {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 7px 10px;
+}
+
+.dm-item.dm-subitem:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
 /* Scrollbar styling */
 .custom-scrollbar::-webkit-scrollbar {
     width: 4px;

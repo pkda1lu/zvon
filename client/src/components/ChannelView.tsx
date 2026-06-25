@@ -627,7 +627,6 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const unreadRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [hasScrolledToNew, setHasScrolledToNew] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
@@ -642,6 +641,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const lastScrollTopRef = useRef(0);
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerElRef = useRef<HTMLElement | null>(null);
+  const atBottomRef = useRef(true);
+  const justSentRef = useRef(false);
+  const prevMsgCountRef = useRef(messages.length);
+  const prevLastMsgIdRef = useRef<string | null>(messages[messages.length - 1]?._id ?? null);
   const FIRST_ITEM_INDEX_START = 1_000_000;
   const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_INDEX_START);
   const prevFirstMsgIdRef = useRef<string | null>(null);
@@ -670,8 +674,52 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   }, [hasMore, isLoadingMore, onLoadMore]);
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+    atBottomRef.current = atBottom;
     setShowScrollBottom(!atBottom);
   }, []);
+
+  // Надёжная прокрутка к самому последнему сообщению.
+  // Плавный скролл при динамической высоте сообщений может «не доезжать» до
+  // самого низа, поэтому после анимации точечно дотягиваем позицию до конца и
+  // повторяем, пока не упрёмся в дно (на случай поздней догрузки картинок/эмбедов).
+  const scrollToBottom = useCallback((smooth = true) => {
+    const v = virtuosoRef.current;
+    if (!v) return;
+    setShowScrollBottom(false);
+    v.scrollToIndex({ index: 'LAST', align: 'end', behavior: smooth ? 'smooth' : 'auto' });
+    let tries = 0;
+    const settle = () => {
+      const el = scrollerElRef.current;
+      if (!el) return;
+      const offset = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (offset > 2 && tries < 12) {
+        tries++;
+        virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' });
+        window.setTimeout(settle, 90);
+      }
+    };
+    window.setTimeout(settle, smooth ? 320 : 30);
+  }, []);
+
+  // Авто-прокрутка вниз при добавлении НОВОГО сообщения в конец списка.
+  // Скроллим, если это наше только что отправленное сообщение либо пользователь
+  // уже находился внизу. Догрузку истории и удаление сообщений не трогаем.
+  useEffect(() => {
+    const prevCount = prevMsgCountRef.current;
+    const prevLastId = prevLastMsgIdRef.current;
+    prevMsgCountRef.current = messages.length;
+    const lastId = messages[messages.length - 1]?._id ?? null;
+    prevLastMsgIdRef.current = lastId;
+
+    const isAppend = messages.length > prevCount && !!lastId && lastId !== prevLastId;
+    if (!isAppend) return;
+
+    const sentByMe = justSentRef.current;
+    justSentRef.current = false;
+    if (sentByMe || atBottomRef.current) {
+      scrollToBottom(true);
+    }
+  }, [messages.length, scrollToBottom]);
 
   const handleContextMenu = (e: React.MouseEvent, user: User, messageId?: string) => {
     e.preventDefault();
@@ -764,30 +812,6 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       window.speechSynthesis.speak(utterance);
     }
   }, [messages.length, textToSpeech]);
-
-  const handleScroll = async () => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    // Check for "scroll to bottom" button visibility
-    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    setShowScrollBottom(!isAtBottom);
-
-    // Load more when reaching top
-    if (container.scrollTop < 50 && hasMore && !isLoadingMore && onLoadMore) {
-      const oldScrollHeight = container.scrollHeight;
-      await onLoadMore();
-      // Restore scroll position after loading
-      if (container) {
-        container.scrollTop = container.scrollHeight - oldScrollHeight;
-      }
-    }
-  };
-
-  const scrollToBottom = () => {
-    virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth', align: 'end' });
-    setShowScrollBottom(false);
-  };
 
   const handleTogglePin = (messageId: string) => {
     axios.patch(`/api/messages/${messageId}/pin`);
@@ -904,6 +928,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
+    justSentRef.current = true;
     socket.emit('send-message', {
       content: message.trim(),
       channelId: channel._id,
@@ -919,6 +944,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
   const handleCreatePoll = (poll: ChatPoll) => {
     if (!socket) return;
+    justSentRef.current = true;
     socket.emit('send-message', {
       content: '',
       channelId: channel._id,
@@ -932,6 +958,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const handleGifSelect = (url: string) => {
     if (!socket) return;
     const attachment = { url, filename: 'tenor.gif', type: 'image/gif', size: 0 };
+    justSentRef.current = true;
     socket.emit('send-message', {
       content: '',
       channelId: channel._id,
@@ -1324,13 +1351,14 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         <Virtuoso
           key={channel._id}
           ref={virtuosoRef}
+          scrollerRef={(el) => { scrollerElRef.current = el as HTMLElement | null; }}
           className="messages-list"
           style={{ height: '100%', width: '100%' }}
           data={messages}
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
           startReached={handleStartReached}
-          followOutput={(isAtBottom) => (isAtBottom ? 'auto' : false)}
+          followOutput={false}
           atBottomThreshold={120}
           atBottomStateChange={handleAtBottomStateChange}
           increaseViewportBy={{ top: 600, bottom: 300 }}
@@ -1455,7 +1483,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
           <div style={{ flex: 1, position: 'relative' }}>
             {showScrollBottom && (
-              <button className="scroll-bottom-btn" onClick={scrollToBottom}>
+              <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)}>
                 <ArrowDownIcon size={20} />
                 <span>Новые сообщения</span>
               </button>

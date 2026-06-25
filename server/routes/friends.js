@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Friendship = require('../models/Friendship');
 const User = require('../models/User');
+const { friendIdSet } = require('../utils/privacy');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -90,14 +91,64 @@ router.get('/search', auth, async (req, res) => {
   try {
     const { query } = req.query;
     if (!query || typeof query !== 'string' || query.length < 2) return res.json([]);
+    const viewerId = req.user._id;
     // Экранируем спецсимволы regex (защита от ReDoS / regex-инъекции).
     const safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Поиск только по нику; почту не ищем и не отдаём (приватность).
-    const users = await User.find({
+    // Берём с запасом (40), т.к. часть кандидатов отсеется по настройкам приватности.
+    const candidates = await User.find({
       username: { $regex: safe, $options: 'i' },
-      _id: { $ne: req.user._id }
-    }).select('username avatar status badges activity').limit(20);
-    res.json(users);
+      _id: { $ne: viewerId }
+    }).select('username avatar status badges activity settings blockedUsers').limit(40);
+
+    // Друзья текущего пользователя — нужны для правила «друзья друзей».
+    const viewerFr = await Friendship.find({
+      status: 'accepted',
+      $or: [{ requester: viewerId }, { recipient: viewerId }]
+    }).select('requester recipient');
+    const viewerFriendIds = friendIdSet(viewerFr, viewerId);
+
+    // Для кандидатов с правилом «друзья друзей» одним запросом достаём их друзей.
+    const fofIds = candidates
+      .filter(u => (u.settings?.whoCanFindInSearch || 'everyone') === 'friends_of_friends')
+      .map(u => u._id);
+    const friendsByUser = new Map();
+    if (fofIds.length) {
+      const fr = await Friendship.find({
+        status: 'accepted',
+        $or: [{ requester: { $in: fofIds } }, { recipient: { $in: fofIds } }]
+      }).select('requester recipient');
+      for (const f of fr) {
+        const r = f.requester.toString();
+        const rc = f.recipient.toString();
+        if (!friendsByUser.has(r)) friendsByUser.set(r, new Set());
+        if (!friendsByUser.has(rc)) friendsByUser.set(rc, new Set());
+        friendsByUser.get(r).add(rc);
+        friendsByUser.get(rc).add(r);
+      }
+    }
+
+    const visible = candidates.filter(u => {
+      // Заблокировавший текущего пользователя не показывается.
+      if ((u.blockedUsers || []).some(id => id.toString() === viewerId.toString())) return false;
+      const rule = u.settings?.whoCanFindInSearch || 'everyone';
+      if (rule === 'everyone') return true;
+      if (rule === 'nobody') return false;
+      if (rule === 'friends_of_friends') {
+        // Прямой друг тоже проходит.
+        if (viewerFriendIds.has(u._id.toString())) return true;
+        const theirFriends = friendsByUser.get(u._id.toString());
+        if (!theirFriends) return false;
+        for (const fid of theirFriends) if (viewerFriendIds.has(fid)) return true;
+        return false;
+      }
+      return true;
+    }).slice(0, 20).map(u => ({
+      _id: u._id, username: u.username, avatar: u.avatar,
+      status: u.status, badges: u.badges, activity: u.activity
+    }));
+
+    res.json(visible);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

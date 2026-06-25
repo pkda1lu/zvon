@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DirectMessage, User } from '../types';
-import { getAvatarUrl } from '../utils/avatar';
-import { UsersIcon, PlusIcon } from './Icons';
+import { UsersIcon, PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges from './UserBadges';
@@ -20,6 +19,10 @@ interface DMSidebarProps {
     style?: React.CSSProperties;
 }
 
+// ID модератора у чата «от имени модерации» (или null, если это обычный чат).
+const getModeratorId = (dm: DirectMessage): string | null =>
+    dm.isModeration ? (typeof dm.moderator === 'object' ? dm.moderator?._id ?? null : dm.moderator ?? null) : null;
+
 const DMSidebar: React.FC<DMSidebarProps> = ({
     dms,
     selectedDM,
@@ -31,6 +34,72 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     onAddDM,
     style
 }) => {
+    // Чаты «от имени модерации», где текущий пользователь — модератор.
+    // Их прячем из общего списка и собираем в один хаб «Модерация».
+    const myModerationDMs = dms.filter(dm => {
+        const mid = getModeratorId(dm);
+        return !!mid && mid === currentUser._id;
+    });
+    const regularDMs = dms.filter(dm => {
+        const mid = getModeratorId(dm);
+        return !(mid && mid === currentUser._id);
+    });
+
+    const moderationUnread = myModerationDMs.reduce((acc, dm) => acc + (unreadCounts[dm._id] || 0), 0);
+    const isModerationSelected = !!selectedDM && myModerationDMs.some(d => d._id === selectedDM._id);
+
+    const [modExpanded, setModExpanded] = useState(false);
+    // Авто-разворачиваем хаб, когда выбран один из чатов модерации.
+    useEffect(() => { if (isModerationSelected) setModExpanded(true); }, [isModerationSelected]);
+
+    const renderDMItem = (dm: DirectMessage, sub = false) => {
+        const isGroup = dm.participants.length > 2 || !!dm.name;
+        const otherParticipants = dm.participants.filter(p => p._id !== currentUser._id);
+        const otherUser = otherParticipants[0];
+        if (!otherUser && !isGroup) return null;
+
+        const isSelected = selectedDM?._id === dm._id;
+        const unreadCount = unreadCounts[dm._id] || 0;
+        // Чат «от имени модерации»: для пользователя (не модератора)
+        // собеседник отображается как «Модерация».
+        const moderatorId = getModeratorId(dm);
+        const maskModeration = !!moderatorId && moderatorId !== currentUser._id;
+        const displayName = maskModeration ? 'Модерация' : (dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username));
+        const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? null : otherUser);
+
+        return (
+            <div
+                key={dm._id}
+                className={`dm-item ${sub ? 'dm-subitem' : ''} ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''} ${isGroup ? 'group-dm' : ''}`}
+                onClick={() => onDMSelect(dm)}
+            >
+                <div className="dm-avatar-wrap">
+                    <UserAvatar
+                        user={avatarUser}
+                        size={32}
+                        className="dm-avatar"
+                    />
+                    {!isGroup && !maskModeration && otherUser && <div className={`status-indicator ${otherUser.status}`}></div>}
+                </div>
+                <div className="dm-info">
+                    <div className="dm-name-row">
+                        <span className="dm-name">{displayName}</span>
+                        {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} size={12} />}
+                    </div>
+                    {!isGroup && !maskModeration && otherUser?.activity && (
+                        <span className="dm-activity">Играет в {otherUser.activity.name}</span>
+                    )}
+                    {isGroup && (
+                        <span className="dm-activity">{dm.participants.length} участников</span>
+                    )}
+                </div>
+                {unreadCount > 0 && (
+                    <div className="dm-unread-badge">{unreadCount}</div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="dm-sidebar panel-hero" style={style}>
             <div className="panel-hero-bg" aria-hidden="true">
@@ -63,53 +132,41 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 </div>
 
                 <div className="dm-list">
-                    {dms.map(dm => {
-                        const isGroup = dm.participants.length > 2 || !!dm.name;
-                        const otherParticipants = dm.participants.filter(p => p._id !== currentUser._id);
-                        const otherUser = otherParticipants[0];
-                        if (!otherUser && !isGroup) return null;
-
-                        const isSelected = selectedDM?._id === dm._id;
-                        const unreadCount = unreadCounts[dm._id] || 0;
-                        // Чат «от имени модерации»: для пользователя (не модератора)
-                        // собеседник отображается как «Модерация».
-                        const moderatorId = dm.isModeration ? (typeof dm.moderator === 'object' ? dm.moderator?._id : dm.moderator) : null;
-                        const maskModeration = !!moderatorId && moderatorId !== currentUser._id;
-                        const displayName = maskModeration ? 'Модерация' : (dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username));
-                        const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? null : otherUser);
-
-                        return (
+                    {/* Хаб «Модерация»: единый чат, внутри которого все переписки,
+                        начатые модератором от имени модерации. */}
+                    {myModerationDMs.length > 0 && (
+                        <>
                             <div
-                                key={dm._id}
-                                className={`dm-item ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''} ${isGroup ? 'group-dm' : ''}`}
-                                onClick={() => onDMSelect(dm)}
+                                className={`dm-item moderation-hub ${isModerationSelected ? 'active' : ''} ${moderationUnread > 0 ? 'unread' : ''}`}
+                                onClick={() => setModExpanded(e => !e)}
                             >
                                 <div className="dm-avatar-wrap">
-                                    <UserAvatar
-                                        user={avatarUser}
-                                        size={32}
-                                        className="dm-avatar"
-                                    />
-                                    {!isGroup && !maskModeration && otherUser && <div className={`status-indicator ${otherUser.status}`}></div>}
+                                    <div className="moderation-hub-icon">
+                                        <ShieldIcon size={18} color="var(--primary-neon)" />
+                                    </div>
                                 </div>
                                 <div className="dm-info">
                                     <div className="dm-name-row">
-                                        <span className="dm-name">{displayName}</span>
-                                        {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} size={12} />}
+                                        <span className="dm-name">Модерация</span>
                                     </div>
-                                    {!isGroup && !maskModeration && otherUser?.activity && (
-                                        <span className="dm-activity">Играет в {otherUser.activity.name}</span>
-                                    )}
-                                    {isGroup && (
-                                        <span className="dm-activity">{dm.participants.length} участников</span>
-                                    )}
+                                    <span className="dm-activity">{myModerationDMs.length} переписок</span>
                                 </div>
-                                {unreadCount > 0 && (
-                                    <div className="dm-unread-badge">{unreadCount}</div>
+                                {moderationUnread > 0 && (
+                                    <div className="dm-unread-badge">{moderationUnread}</div>
                                 )}
+                                <div className="moderation-hub-chevron">
+                                    {modExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+                                </div>
                             </div>
-                        );
-                    })}
+                            {modExpanded && (
+                                <div className="moderation-subchats">
+                                    {myModerationDMs.map(dm => renderDMItem(dm, true))}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {regularDMs.map(dm => renderDMItem(dm))}
                 </div>
             </div>
             <VoiceControlPanel />

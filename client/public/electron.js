@@ -624,14 +624,26 @@ const SHARING_BLACKLIST = [
     'NVIDIA GeForce Experience',
     'NVIDIA Share',
     'NVIDIA Overlay',
+    // Оверлей GeForce и его служебные окна (NVIDIA GeForce Overlay, GeForce Overlay DT и т.п.).
+    'GeForce Overlay',
+    'NVIDIA GeForce Overlay',
+    // Прочие игровые/служебные оверлеи.
+    'Steam Overlay',
+    'Discord Overlay',
+    'RTSS Overlay',
+    'MSI Afterburner',
+    'Game Bar',
+    'Xbox Game Bar',
     'Microsoft Text Input Application',
+    'Windows Input Experience',
+    'Windows Default Lock Screen',
+    'Windows Shell Experience Host',
     'Settings',
     'Task Manager',
     'Program Manager',
     'Search',
     'Start',
     'Shell Experience Host',
-    'Settings',
     'Action Center'
 ];
 

@@ -22,6 +22,7 @@ import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useDialog } from '../contexts/DialogContext';
 import { useInbox } from '../contexts/InboxContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import JoinServerModal from '../components/JoinServerModal';
@@ -47,7 +48,17 @@ const Main: React.FC = () => {
   const { socket } = useSocket();
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
+  const { alert: showAlert } = useDialog();
   const { unreadCount: inboxUnreadCount } = useInbox();
+
+  // Достаём текст ошибки старта ЛС (например, ограничение приватности получателя)
+  // и показываем его пользователю.
+  const reportDMError = (error: any) => {
+    const msg = error?.response?.data?.message;
+    if (error?.response?.status === 403 && msg) {
+      showAlert(msg, 'Не удалось начать переписку');
+    }
+  };
   const { streamerModeEnabled, changeStatusToStreaming } = useWindowSettings();
 
   const [servers, setServers] = useState<Server[]>([]);
@@ -163,7 +174,11 @@ const Main: React.FC = () => {
 
   useEffect(() => {
     const handleStartDMEvent = (e: any) => {
-      setSelectedDM(e.detail.dm);
+      const dm = e.detail.dm;
+      // Добавляем чат в список, если его там ещё нет (например, новая переписка
+      // от имени модерации) — чтобы он сразу появился в сайдбаре / хабе «Модерация».
+      if (dm?._id) setDms((prev: DirectMessage[]) => prev.some(d => d._id === dm._id) ? prev : [dm, ...prev]);
+      setSelectedDM(dm);
       setSelectedChannel(null);
       setSelectedServer(null);
       setShowFriends(false);
@@ -194,7 +209,7 @@ const Main: React.FC = () => {
         setSelectedServer(null);
         setShowFriends(false);
         setMobileView('content');
-      } catch (err) { }
+      } catch (err) { reportDMError(err); }
     };
     const handleSelectServerEvent = (e: any) => {
       const srvId = e.detail.serverId;
@@ -840,7 +855,7 @@ const Main: React.FC = () => {
       setSelectedServer(null);
       setShowFriends(false);
       setMobileView('content');
-    } catch (error) { }
+    } catch (error) { reportDMError(error); }
   };
   const handleStartDirectCall = (user: User, dmId: string) => { setActiveCall({ user, isIncoming: false, dmId, isGroup: false }); };
   const handleStartGroupCall = () => {
@@ -1140,7 +1155,7 @@ const Main: React.FC = () => {
                             const response = await axios.get(`/api/direct-messages/user/${userId}`);
                             const other = response.data.participants.find((p: User) => p._id !== user?._id);
                             if (other) handleStartDirectCall(other, response.data._id);
-                          } catch (e) { }
+                          } catch (e) { reportDMError(e); }
                         }}
                         onBack={() => setMobileView('sidebar')}
                         isMobile={isMobile}
