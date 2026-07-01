@@ -306,6 +306,7 @@ const Login: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your@email.com или username"
+                    autoComplete="username"
                     required
                   />
                 </div>
@@ -318,6 +319,7 @@ const Login: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
+                    autoComplete="current-password"
                     required
                   />
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
@@ -341,6 +343,7 @@ const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
+                  autoComplete="email"
                   required
                 />
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
@@ -363,6 +366,7 @@ const Login: React.FC = () => {
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="123456"
+                  autoComplete="one-time-code"
                   required
                   style={{ letterSpacing: '4px', textAlign: 'center', fontSize: '24px' }}
                 />
@@ -375,6 +379,7 @@ const Login: React.FC = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
+                      autoComplete="new-password"
                       required
                     />
                   </div>

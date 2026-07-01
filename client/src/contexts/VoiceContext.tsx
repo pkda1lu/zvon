@@ -1091,12 +1091,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const onJoined = (data: any) => {
             const uid = data?.userId; const u = data?.user;
             if (!uid) return;
+            // Звук входа другого пользователя — только когда мы сами в голосовом
+            // канале и это не мы сами.
+            if (isConnectedRef.current && String(uid) !== String(user?._id)) {
+                soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
+            }
             if (u) setConnectedUsers(prev => prev.some((p: any) => String(p._id) === String(uid)) ? prev : [...prev, u]);
             setUserStates(prev => new Map(prev).set(String(uid), toState(u || data)));
         };
         const onLeft = (data: any) => {
             const uid = data?.userId;
             if (!uid) return;
+            // Звук выхода другого пользователя — только когда мы сами в голосовом
+            // канале и это не мы сами.
+            if (isConnectedRef.current && String(uid) !== String(user?._id)) {
+                soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
+            }
             setConnectedUsers(prev => prev.filter((p: any) => String(p._id) !== String(uid)));
             setUserStates(prev => { const n = new Map(prev); n.delete(String(uid)); return n; });
             setRemoteStreams(prev => { const n = new Map(prev); n.delete(uid); return n; });
@@ -1110,7 +1120,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             socket.off('voice-user-joined', onJoined);
             socket.off('voice-user-left', onLeft);
         };
-    }, [socket]);
+    }, [socket, user?._id]);
+
+    // Сервер просит это устройство покинуть голосовой канал: либо кик модератором,
+    // либо мы зашли в голосовой с другого устройства (reason: 'other-device').
+    useEffect(() => {
+        if (!socket) return;
+        const onForceDisconnect = (data: any) => {
+            if (!isConnectedRef.current && !roomRef.current) return;
+            leaveChannel();
+            if (data?.reason === 'other-device') {
+                alert('Вы подключились к голосовому каналу с другого устройства.');
+            }
+        };
+        socket.on('force-disconnect-voice', onForceDisconnect);
+        return () => { socket.off('force-disconnect-voice', onForceDisconnect); };
+    }, [socket, leaveChannel, alert]);
 
     // Публикация внешних треков (звук/видео мини-аппов, presence-медиа) в LiveKit-комнату.
     // Раньше были заглушками → SDK мини-аппа падал с «publishAudio failed».

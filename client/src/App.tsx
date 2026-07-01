@@ -46,6 +46,42 @@ const ElectronHandler: React.FC = () => {
 
 import { useLocation } from 'react-router-dom';
 import { useAppearance } from './contexts/AppearanceContext';
+import { useAuth } from './contexts/AuthContext';
+
+// Блокируем боковые кнопки мыши 4/5 (назад/вперёд), когда пользователь
+// авторизован и находится в самом приложении — чтобы случайно не «выйти»
+// историей на страницу авторизации. На публичных страницах (лендинг, логин,
+// докс и т.п.) навигация кнопками мыши работает как обычно.
+const PUBLIC_ROUTE_PREFIXES = ['/login', '/register', '/docs', '/policy', '/security', '/servers', '/about', '/download', '/invite'];
+
+const MouseNavGuard: React.FC = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    const isApp = !PUBLIC_ROUTE_PREFIXES.some(p => location.pathname.startsWith(p));
+    if (!user || !isApp) return;
+
+    const block = (e: MouseEvent) => {
+      // button 3 — «назад» (физическая кнопка 4), button 4 — «вперёд» (кнопка 5)
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    window.addEventListener('mousedown', block, true);
+    window.addEventListener('mouseup', block, true);
+    window.addEventListener('auxclick', block, true);
+    return () => {
+      window.removeEventListener('mousedown', block, true);
+      window.removeEventListener('mouseup', block, true);
+      window.removeEventListener('auxclick', block, true);
+    };
+  }, [user, location.pathname]);
+
+  return null;
+};
 
 const AppBackground: React.FC = () => {
   const location = useLocation();
@@ -238,6 +274,7 @@ function App() {
                           <ScreenReaderHandler />
                           <TitleBar />
                           <ElectronHandler />
+                          <MouseNavGuard />
                           <UpdateNotifier />
                           <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
                             <AnimatedRoutes />

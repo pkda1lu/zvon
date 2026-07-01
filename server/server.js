@@ -266,6 +266,28 @@ function cleanupUserPresencesEverywhere(userId, io) {
   }
 }
 
+// Как в Discord: когда пользователь заходит в голосовой канал с нового устройства,
+// все его прочие сессии, находящиеся в голосовом канале, принудительно отключаются.
+// Иначе на LiveKit возникает конфликт identity (одинаковый userId) — старое
+// соединение рвётся, а в списке участников появляется дубликат.
+const disconnectOtherVoiceSessions = async (userId, exceptSocketId) => {
+  const connections = io.sockets.adapter.rooms.get(`user-${String(userId)}`);
+  if (!connections) return;
+  for (const sid of Array.from(connections)) {
+    if (sid === exceptSocketId) continue;
+    const s = io.sockets.sockets.get(sid);
+    if (!s || !s.voiceChannelId) continue;
+    const oldChannelId = s.voiceChannelId;
+    cleanupUserPresencesInChannel('channel-' + oldChannelId, userId, io);
+    endWatchIfHost(oldChannelId, userId, io);
+    s.emit('force-disconnect-voice', { reason: 'other-device' });
+    s.leave(`voice-channel-${oldChannelId}`);
+    s.voiceChannelId = null;
+    io.to(`voice-channel-${oldChannelId}`).emit('voice-user-left', { userId: String(userId) });
+    await notifyVoiceChannelUpdate(oldChannelId);
+  }
+};
+
 app.set('io', io);
 app.set('voiceManager', { getVoiceChannelUsers, notifyVoiceChannelUpdate });
 
@@ -901,6 +923,11 @@ io.on('connection', (socket) => {
         io.to(`voice-channel-${socket.voiceChannelId}`).emit('voice-user-left', { userId: socket.userId });
         await notifyVoiceChannelUpdate(socket.voiceChannelId);
       }
+
+      // Отключаем прочие устройства этого пользователя из голосовых каналов,
+      // чтобы активной осталась только новая сессия (поведение как в Discord).
+      await disconnectOtherVoiceSessions(socket.userId, socket.id);
+
       const existingUsers = await getVoiceChannelUsers(channelId);
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
       // Presence хранятся под ключом LiveKit-комнаты ('channel-<id>'), а не под сырым id —
@@ -1045,6 +1072,10 @@ io.on('connection', (socket) => {
 
   socket.on('leave-voice-channel', async (data) => {
     const channelId = data.channelId;
+    // Игнорируем, если этот сокет уже не числится в данном канале — иначе при
+    // переезде на другое устройство запоздалый leave со старого устройства
+    // прислал бы лишний voice-user-left и убрал участника с нового устройства.
+    if (String(socket.voiceChannelId || '') !== String(channelId)) return;
     cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
     endWatchIfHost(channelId, socket.userId, io);
     socket.leave(`voice-channel-${channelId}`);
