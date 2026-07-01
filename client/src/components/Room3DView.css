@@ -7,38 +7,26 @@
     background: #0a0a12;
 }
 
-.room3d-header {
-    height: var(--topbar-height, 80px);
-    padding: 0 30px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
-    background: rgba(255, 255, 255, 0.02);
-    flex-shrink: 0;
+/* Шапка комнаты переиспользует .voice-hdr/.hdr-left/.hdr-right/.channel-status-badge
+   из VoiceChannelView.css — тот же внешний вид, что и у обычных голосовых каналов.
+   Здесь только точечные добавки под контент, специфичный для 3D-комнаты. */
+.room3d-title-icon {
+    margin-right: 12px;
+    vertical-align: -3px;
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
 }
 
-.room3d-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-primary, #fff);
-    font-size: 16px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.room3d-title svg {
-    color: var(--text-muted, rgba(255, 255, 255, 0.5));
-}
-
-.room3d-hint {
-    font-size: 13px;
-    color: var(--text-muted, rgba(255, 255, 255, 0.5));
+.channel-topic-tag {
+    font-size: 12px;
+    color: var(--text-dim, rgba(255, 255, 255, 0.5));
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 12px;
+    border-radius: 8px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 420px;
 }
 
 .room3d-canvas {

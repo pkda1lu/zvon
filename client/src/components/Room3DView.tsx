@@ -4,6 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Channel, Server, User } from '../types';
 import { CubeIcon } from './Icons';
+import './VoiceChannelView.css';
 import './Room3DView.css';
 
 interface Room3DViewProps {
@@ -380,10 +381,19 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
 
     return (
         <div className="room3d-view">
-            <div className="room3d-header">
-                <span className="room3d-title"><CubeIcon size={18} /> {channel.name}</span>
-                <span className="room3d-hint">Перетаскивайте свою аватарку мышью · вращение камеры — зажать и потянуть фон</span>
-            </div>
+            <header className="voice-hdr">
+                <div className="hdr-left">
+                    <div className="voice-status-indicator inline">
+                        <div className="pulse-ring"></div>
+                        <div className="status-dot"></div>
+                    </div>
+                    <h1><CubeIcon size={20} className="room3d-title-icon" /> {channel.name}</h1>
+                </div>
+                <div className="hdr-right">
+                    <div className="channel-topic-tag">Перетаскивайте свою аватарку мышью · вращение камеры — зажать и потянуть фон</div>
+                    <div className="channel-status-badge">Подключено</div>
+                </div>
+            </header>
             <div className="room3d-canvas" ref={mountRef} />
         </div>
     );
