@@ -5,11 +5,13 @@ import { useVoice } from '../contexts/VoiceContext';
 import {
   MicIcon, MicMutedIcon, DeafenedIcon, SpeakerIcon,
   PhoneIcon, ScreenShareIcon, StopScreenShareIcon,
-  VideoIcon, CameraIcon,
+  VideoIcon, CameraIcon, LayoutGridIcon,
 } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import { ConnectionState } from 'livekit-client';
 import { iosSpringSnappy } from '../animations/transitions';
+import { getRecentMiniApps, RecentMiniApp } from '../utils/recentMiniApps';
+import { getFullUrl } from '../utils/avatar';
 import './VoiceControlPanel.css';
 
 const VoiceControlPanel: React.FC = () => {
@@ -28,6 +30,50 @@ const VoiceControlPanel: React.FC = () => {
 
   const [showSourceSelector, setShowSourceSelector] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+
+  // Пикер мини-аппок: список недавно запускавшихся + позиция всплывашки.
+  const [showMiniApps, setShowMiniApps] = useState(false);
+  const [recentApps, setRecentApps] = useState<RecentMiniApp[]>([]);
+  const [miniPopPos, setMiniPopPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
+  const miniBtnRef = useRef<HTMLButtonElement>(null);
+
+  const openMiniAppPicker = () => {
+    if (showMiniApps) { setShowMiniApps(false); return; }
+    setRecentApps(getRecentMiniApps());
+    const rect = miniBtnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMiniPopPos({
+        left: rect.left,
+        bottom: window.innerHeight - rect.top + 8,
+        width: Math.max(rect.width, 240),
+      });
+    }
+    setShowMiniApps(true);
+  };
+
+  const launchMiniApp = (app: RecentMiniApp) => {
+    // Хост открывает саму мини-аппку; остальным участникам голосового канала
+    // приложение само транслирует «карточку» через voice-presence.
+    window.dispatchEvent(new CustomEvent('open-mini-app', { detail: { app } }));
+    setShowMiniApps(false);
+  };
+
+  useEffect(() => {
+    if (!showMiniApps) return;
+    const close = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (miniBtnRef.current?.contains(t)) return;
+      if ((t as HTMLElement).closest?.('.vcp__apps-pop')) return;
+      setShowMiniApps(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowMiniApps(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [showMiniApps]);
 
   // Track elapsed time in the current call. Reset whenever the connection
   // re-establishes (Connected → Disconnected → Connected counts as a new call).
@@ -309,7 +355,47 @@ const VoiceControlPanel: React.FC = () => {
         >
           {isScreenSharing ? <StopScreenShareIcon size={18} /> : <ScreenShareIcon size={18} />}
         </ActionButton>
+
+        <motion.button
+          ref={miniBtnRef}
+          type="button"
+          className={`vcp__btn vcp__btn--accent ${showMiniApps ? 'is-active' : ''}`}
+          onClick={openMiniAppPicker}
+          title="Мини-аппы"
+          aria-label="Мини-аппы"
+          aria-pressed={showMiniApps}
+          {...actionPress}
+        >
+          <LayoutGridIcon size={18} />
+        </motion.button>
       </div>
+
+      {showMiniApps && miniPopPos && createPortal(
+        <div
+          className="vcp__apps-pop"
+          style={{ left: miniPopPos.left, bottom: miniPopPos.bottom, width: miniPopPos.width }}
+        >
+          <div className="vcp__apps-pop-title">Мини-аппы</div>
+          {recentApps.length === 0 ? (
+            <div className="vcp__apps-empty">Вы ещё не запускали мини-аппы</div>
+          ) : (
+            <div className="vcp__apps-list">
+              {recentApps.map(app => {
+                const icon = app.avatar ? getFullUrl(app.avatar) : null;
+                return (
+                  <button key={app._id} className="vcp__apps-item" onClick={() => launchMiniApp(app)}>
+                    <span className="vcp__apps-item-icon">
+                      {icon ? <img src={icon} alt="" /> : <LayoutGridIcon size={16} />}
+                    </span>
+                    <span className="vcp__apps-item-name">{app.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>,
+        document.body,
+      )}
 
       {showSourceSelector && createPortal(
         <ScreenSourceSelector

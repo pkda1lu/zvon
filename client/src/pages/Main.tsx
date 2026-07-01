@@ -21,6 +21,7 @@ import ServerProfileCard from '../components/ServerProfileCard';
 import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
+import { addRecentMiniApp } from '../utils/recentMiniApps';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useDialog } from '../contexts/DialogContext';
 import { useInbox } from '../contexts/InboxContext';
@@ -958,6 +959,9 @@ const Main: React.FC = () => {
     };
 
     const handleOpenMiniApp = (app: MiniApp) => {
+        // Запоминаем запуск, чтобы предлагать приложение для быстрого повторного
+        // вызова (например, из панели голосового чата).
+        addRecentMiniApp(app);
         // If app already open but minimized — just restore it.
         setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(app._id); return n; });
         if (!openMiniApps.find(a => a._id === app._id)) {
