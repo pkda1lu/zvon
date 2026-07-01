@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { HashtagIcon, SpeakerIcon } from './Icons';
+import { HashtagIcon, SpeakerIcon, CubeIcon } from './Icons';
 import Modal from './Modal';
 import './CreateChannelModal.css';
 
@@ -18,7 +18,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   onChannelCreated
 }) => {
   const [channelName, setChannelName] = useState('');
-  const [channelType, setChannelType] = useState<'text' | 'voice'>('text');
+  const [channelType, setChannelType] = useState<'text' | 'voice' | 'room'>('text');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -49,6 +49,14 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       setLoading(false);
     }
   };
+
+  const namePlaceholder = channelType === 'text' ? 'например: общий' : channelType === 'voice' ? 'например: общий голосовой' : 'например: 3D-холл';
+  const nameLabel = channelType === 'text' ? 'Название текстового канала' : channelType === 'voice' ? 'Название голосового канала' : 'Название 3D-комнаты';
+  const hint = channelType === 'text'
+    ? 'Текстовые каналы используются для обмена сообщениями, файлами и изображениями.'
+    : channelType === 'voice'
+    ? 'Голосовые каналы используются для общения в реальном времени.'
+    : '3D-комната — голосовой канал с 3D-сценой: аватарки участников можно перетаскивать по пространству.';
 
   return (
     <Modal
@@ -94,32 +102,35 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               <span className="type-icon"><SpeakerIcon size={24} /></span>
               <span>Голосовой</span>
             </button>
+            <button
+              type="button"
+              className={`type-button ${channelType === 'room' ? 'active' : ''}`}
+              onClick={() => setChannelType('room')}
+            >
+              <span className="type-icon"><CubeIcon size={24} /></span>
+              <span>3D-комната</span>
+            </button>
           </div>
         </div>
 
         <div className="form-section">
-          <label htmlFor="channel-name">
-            {channelType === 'text' ? 'Название текстового канала' : 'Название голосового канала'}
-          </label>
+          <label htmlFor="channel-name">{nameLabel}</label>
           <div className="input-wrapper">
             {channelType === 'text' && <span className="input-prefix"><HashtagIcon size={20} /></span>}
             {channelType === 'voice' && <span className="input-prefix"><SpeakerIcon size={20} /></span>}
+            {channelType === 'room' && <span className="input-prefix"><CubeIcon size={20} /></span>}
             <input
               type="text"
               id="channel-name"
               value={channelName}
               onChange={(e) => setChannelName(e.target.value)}
-              placeholder={channelType === 'text' ? 'например: общий' : 'например: общий голосовой'}
+              placeholder={namePlaceholder}
               maxLength={32}
               required
               autoFocus
             />
           </div>
-          <p className="input-hint">
-            {channelType === 'text'
-              ? 'Текстовые каналы используются для обмена сообщениями, файлами и изображениями.'
-              : 'Голосовые каналы используются для общения в реальном времени.'}
-          </p>
+          <p className="input-hint">{hint}</p>
         </div>
       </form>
     </Modal>
@@ -127,13 +138,3 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
 };
 
 export default CreateChannelModal;
-
-
-
-
-
-
-
-
-
-

@@ -4,7 +4,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import CreateChannelModal from './CreateChannelModal';
 import ChannelSettingsModal from './ChannelSettingsModal';
-import { HashtagIcon, SpeakerIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon } from './Icons';
+import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
@@ -128,6 +128,105 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 
   const textChannels = server.channels.filter(ch => ch.type === 'text');
   const voiceChannels = server.channels.filter(ch => ch.type === 'voice');
+  const roomChannels = server.channels.filter(ch => ch.type === 'room');
+
+  // Голосовые каналы и 3D-комнаты используют один и тот же голосовой стек
+  // (join-voice-channel/LiveKit) и одинаковую разметку в сайдбаре — различается
+  // только иконка и заголовок категории.
+  const renderVoiceLikeChannels = (channels: Channel[], categoryLabel: string, ChannelIcon: React.FC<{ size?: number }>) => (
+    <div className="channel-category">
+      <div className="category-header">
+        <span>{categoryLabel}</span>
+        {canCreateChannels && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
+      </div>
+      {channels.map((channel) => {
+        const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
+        if (!hasPermission(channelPerms, Permissions.VIEW_CHANNEL)) return null;
+
+        const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS);
+
+        const isDropTarget = canMoveMembers && dropTargetId === channel._id;
+        return (
+          <div key={channel._id}>
+            <div
+              className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+              onClick={() => {
+                onChannelSelect(channel);
+                if (activeChannelId !== channel._id) {
+                  joinChannel(channel._id);
+                }
+              }}
+              onDragOver={(e) => handleChannelDragOver(e, channel._id)}
+              onDragLeave={(e) => handleChannelDragLeave(e, channel._id)}
+              onDrop={(e) => handleChannelDrop(e, channel._id)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                <span className="channel-icon">
+                  {activeChannelId === channel._id ? (
+                    <div className={`voice-status-indicator sidebar-inline ${
+                      roomConnectionState === ConnectionState.Connecting ||
+                      roomConnectionState === ConnectionState.Reconnecting ? 'connecting' : ''
+                    }`}>
+                      <div className="pulse-ring"></div>
+                      <div className="status-dot"></div>
+                    </div>
+                  ) : (
+                    <ChannelIcon size={18} />
+                  )}
+                </span>
+                <span className="channel-name">{channel.name}</span>
+              </div>
+              <div className="channel-actions">
+                {canEditThisChannel && (
+                  <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
+                    <SettingsIcon size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+            {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
+              <div className="voice-channel-users">
+                {voiceStates[channel._id].map(u => (
+                  <div
+                    key={u._id}
+                    className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''} ${draggingId === u._id ? 'is-dragging' : ''} ${canMoveMembers ? 'is-draggable' : ''}`}
+                    draggable={canMoveMembers}
+                    onDragStart={(e) => handleUserDragStart(e, u._id, channel._id)}
+                    onDragEnd={handleUserDragEnd}
+                    onClick={(e) => { e.stopPropagation(); onUserClick(u._id, e); }}
+                    onContextMenu={(e) => handleContextMenu(e, u)}
+                    title={canMoveMembers ? 'Перетащите для перемещения в другой канал' : undefined}
+                  >
+                    <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
+                      {/* draggable={false} on the <img> — otherwise the browser's default
+                          image-drag intercepts the parent's drag and our dragstart never fires. */}
+                      {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" draggable={false} /> : <span>{u.username.charAt(0).toUpperCase()}</span>}
+                    </div>
+                    <div className="voice-user-name-row">
+                      <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
+                        {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
+                      </span>
+                      <UserBadges badges={u.badges} size={12} />
+                    </div>
+                    <div className="voice-user-icons">
+                      {userStates.get(u._id)?.isScreenSharing && (
+                        <div className="live-badge nano">ЭФИР</div>
+                      )}
+                      {((u as any).isDeafened || (u as any).isServerDeafened) ? (
+                        <DeafenedIcon size={14} color="#f23f42" />
+                      ) : ((u as any).isMuted || (u as any).isServerMuted) ? (
+                        <MicMutedIcon size={14} color="#f23f42" />
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   useEffect(() => {
     if (socket) {
@@ -204,100 +303,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           </div>
         )}
 
-        {voiceChannels.length > 0 && (
-          <div className="channel-category">
-            <div className="category-header">
-              <span>ГОЛОСОВЫЕ КАНАЛЫ</span>
-              {canCreateChannels && <button className="add-channel-button" onClick={() => setShowCreateModal(true)} title="Создать канал"><PlusIcon size={18} /></button>}
-            </div>
-            {voiceChannels.map((channel) => {
-              const channelPerms = currentUser ? computePermissions(currentUser._id, server, channel) : 0n;
-              if (!hasPermission(channelPerms, Permissions.VIEW_CHANNEL)) return null;
-
-              const canEditThisChannel = hasPermission(channelPerms, Permissions.MANAGE_CHANNELS);
-
-              const isDropTarget = canMoveMembers && dropTargetId === channel._id;
-              return (
-                <div key={channel._id}>
-                  <div
-                    className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
-                    onClick={() => {
-                      onChannelSelect(channel);
-                      if (activeChannelId !== channel._id) {
-                        joinChannel(channel._id);
-                      }
-                    }}
-                    onDragOver={(e) => handleChannelDragOver(e, channel._id)}
-                    onDragLeave={(e) => handleChannelDragLeave(e, channel._id)}
-                    onDrop={(e) => handleChannelDrop(e, channel._id)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                      <span className="channel-icon">
-                        {activeChannelId === channel._id ? (
-                          <div className={`voice-status-indicator sidebar-inline ${
-                            roomConnectionState === ConnectionState.Connecting || 
-                            roomConnectionState === ConnectionState.Reconnecting ? 'connecting' : ''
-                          }`}>
-                            <div className="pulse-ring"></div>
-                            <div className="status-dot"></div>
-                          </div>
-                        ) : (
-                          <SpeakerIcon size={18} />
-                        )}
-                      </span>
-                      <span className="channel-name">{channel.name}</span>
-                    </div>
-                    <div className="channel-actions">
-                      {canEditThisChannel && (
-                        <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
-                          <SettingsIcon size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
-                    <div className="voice-channel-users">
-                      {voiceStates[channel._id].map(u => (
-                        <div
-                          key={u._id}
-                          className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''} ${draggingId === u._id ? 'is-dragging' : ''} ${canMoveMembers ? 'is-draggable' : ''}`}
-                          draggable={canMoveMembers}
-                          onDragStart={(e) => handleUserDragStart(e, u._id, channel._id)}
-                          onDragEnd={handleUserDragEnd}
-                          onClick={(e) => { e.stopPropagation(); onUserClick(u._id, e); }}
-                          onContextMenu={(e) => handleContextMenu(e, u)}
-                          title={canMoveMembers ? 'Перетащите для перемещения в другой канал' : undefined}
-                        >
-                          <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                            {/* draggable={false} on the <img> — otherwise the browser's default
-                                image-drag intercepts the parent's drag and our dragstart never fires. */}
-                            {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" draggable={false} /> : <span>{u.username.charAt(0).toUpperCase()}</span>}
-                          </div>
-                          <div className="voice-user-name-row">
-                            <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                              {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
-                            </span>
-                            <UserBadges badges={u.badges} size={12} />
-                          </div>
-                          <div className="voice-user-icons">
-                            {userStates.get(u._id)?.isScreenSharing && (
-                              <div className="live-badge nano">ЭФИР</div>
-                            )}
-                            {((u as any).isDeafened || (u as any).isServerDeafened) ? (
-                              <DeafenedIcon size={14} color="#f23f42" />
-                            ) : ((u as any).isMuted || (u as any).isServerMuted) ? (
-                              <MicMutedIcon size={14} color="#f23f42" />
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {voiceChannels.length > 0 && renderVoiceLikeChannels(voiceChannels, 'ГОЛОСОВЫЕ КАНАЛЫ', SpeakerIcon)}
+        {roomChannels.length > 0 && renderVoiceLikeChannels(roomChannels, '3D-КОМНАТЫ', CubeIcon)}
       </div>
 
       {showCreateModal && <CreateChannelModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} serverId={server._id} onChannelCreated={handleChannelCreated} />}

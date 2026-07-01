@@ -8,6 +8,7 @@ import Sidebar from '../components/Sidebar';
 import ServerSidebar from '../components/ServerSidebar';
 import ChannelView from '../components/ChannelView';
 import VoiceChannelView from '../components/VoiceChannelView';
+import Room3DView from '../components/Room3DView';
 import ActiveVoiceOverlay from '../components/ActiveVoiceOverlay';
 import FriendsPanel from '../components/FriendsPanel';
 import ShowcaseView from '../components/ShowcaseView';
@@ -1233,6 +1234,25 @@ const Main: React.FC = () => {
                           } catch (e) { reportDMError(e); }
                         }}
                         onBack={() => setMobileView('sidebar')}
+                        isMobile={isMobile}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+                {contentKey === 'channel-room' && selectedChannel && (
+                  <motion.div
+                    key="channel-room"
+                    className="content-swap-layer"
+                    variants={contentSwapVariants}
+                    initial="initial" animate="animate" exit="exit"
+                    transition={iosSpring}
+                  >
+                    <div key={selectedChannel._id} className="content-inner-layer">
+                      <Room3DView
+                        channel={selectedChannel}
+                        server={selectedServer!}
+                        onUserClick={handleUserClick}
                         isMobile={isMobile}
                       />
                     </div>
