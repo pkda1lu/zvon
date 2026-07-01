@@ -124,21 +124,44 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
 
             const makeNameSprite = (text: string) => {
                 const canvas = document.createElement('canvas');
-                canvas.width = 256; canvas.height = 64;
+                const W = 384, H = 80;
+                canvas.width = W; canvas.height = H;
                 const ctx = canvas.getContext('2d')!;
-                ctx.font = '600 32px sans-serif';
+                const maxTextWidth = W - 32; // отступы по 16px с каждой стороны
+
+                // Подбираем размер шрифта так, чтобы длинный ник не вылезал
+                // за пределы холста (раньше он просто обрезался краем canvas).
+                let fontSize = 34;
+                const minFontSize = 16;
+                let displayText = text;
+                while (fontSize > minFontSize) {
+                    ctx.font = `600 ${fontSize}px sans-serif`;
+                    if (ctx.measureText(displayText).width <= maxTextWidth) break;
+                    fontSize -= 2;
+                }
+                ctx.font = `600 ${fontSize}px sans-serif`;
+                // Если даже на минимальном шрифте не влезает — обрезаем с многоточием.
+                if (ctx.measureText(displayText).width > maxTextWidth) {
+                    while (displayText.length > 1 && ctx.measureText(displayText + '…').width > maxTextWidth) {
+                        displayText = displayText.slice(0, -1);
+                    }
+                    displayText += '…';
+                }
+
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                const bgWidth = Math.min(W - 8, ctx.measureText(displayText).width + 32);
                 ctx.beginPath();
-                (ctx as any).roundRect ? (ctx as any).roundRect(4, 12, 248, 40, 16) : ctx.rect(4, 12, 248, 40);
+                const bgX = (W - bgWidth) / 2;
+                (ctx as any).roundRect ? (ctx as any).roundRect(bgX, H / 2 - 24, bgWidth, 48, 16) : ctx.rect(bgX, H / 2 - 24, bgWidth, 48);
                 ctx.fill();
                 ctx.fillStyle = '#ffffff';
-                ctx.fillText(text.slice(0, 20), 128, 32);
+                ctx.fillText(displayText, W / 2, H / 2);
                 const tex = new THREE.CanvasTexture(canvas);
                 const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
                 const sprite = new THREE.Sprite(mat);
-                sprite.scale.set(1.6, 0.4, 1);
+                sprite.scale.set(1.6 * (W / 256), 0.4 * (H / 64), 1);
                 sprite.position.set(0, 1.35, 0);
                 return sprite;
             };
