@@ -71,6 +71,7 @@ app.use('/api/friends', require('./routes/friends'));
 app.use('/api/direct-messages', require('./routes/directMessages'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/invites', require('./routes/invites'));
+app.use('/api/gifs', require('./routes/gifs'));
 app.use('/api/bots', require('./routes/bots'));
 app.use('/api/miniapps', require('./routes/miniapps'));
 app.use('/api/store', require('./routes/store'));

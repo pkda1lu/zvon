@@ -9,25 +9,30 @@ interface GifPickerProps {
     onClose: () => void;
 }
 
-const TENOR_API_KEY = 'LIVDSRZULELA'; // Public test key
+interface Gif {
+    id: string;
+    preview: string;
+    url: string;
+    title?: string;
+}
 
 const GifPicker: React.FC<GifPickerProps> = ({ onSelect, onClose }) => {
     const [query, setQuery] = useState('');
-    const [gifs, setGifs] = useState<any[]>([]);
+    const [gifs, setGifs] = useState<Gif[]>([]);
     const [loading, setLoading] = useState(false);
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const fetchGifs = async (searchQuery: string) => {
         setLoading(true);
         try {
-            let url = `https://g.tenor.com/v1/trending?key=${TENOR_API_KEY}&limit=20`;
-            if (searchQuery.trim()) {
-                url = `https://g.tenor.com/v1/search?q=${encodeURIComponent(searchQuery)}&key=${TENOR_API_KEY}&limit=20`;
-            }
-            const response = await axios.get(url);
+            const endpoint = searchQuery.trim()
+                ? `/api/gifs/search?q=${encodeURIComponent(searchQuery)}&limit=24`
+                : `/api/gifs/trending?limit=24`;
+            const response = await axios.get(endpoint);
             setGifs(response.data.results || []);
         } catch (e) {
             console.error('Failed to fetch GIFs:', e);
+            setGifs([]);
         } finally {
             setLoading(false);
         }
@@ -71,20 +76,17 @@ const GifPicker: React.FC<GifPickerProps> = ({ onSelect, onClose }) => {
             <div className="gif-picker-content">
                 {loading && gifs.length === 0 ? (
                     <div className="gif-loading">Загрузка...</div>
+                ) : !loading && gifs.length === 0 ? (
+                    <div className="gif-loading">{query.trim() ? 'Ничего не найдено' : 'GIF недоступны'}</div>
                 ) : (
                     <div className="gif-grid">
                         {gifs.map((gif) => (
                             <div
                                 key={gif.id}
                                 className="gif-item"
-                                onClick={() => {
-                                    const url = gif.media[0]?.gif?.url;
-                                    if (url) {
-                                        onSelect(url);
-                                    }
-                                }}
+                                onClick={() => { if (gif.url) onSelect(gif.url); }}
                             >
-                                <img src={gif.media[0]?.nanogif?.url || gif.media[0]?.gif?.url} alt="gif" loading="lazy" />
+                                <img src={gif.preview || gif.url} alt={gif.title || 'gif'} loading="lazy" />
                             </div>
                         ))}
                     </div>
