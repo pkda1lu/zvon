@@ -1,10 +1,9 @@
+/* .room3d-view сидит на классах .voice-channel-view.panel-hero (см. VoiceChannelView.css/
+   panel-hero.css) — те же скруглённые углы, рамка и градиентный фон с «блобами»,
+   что и у обычного голосового канала. Здесь только высота на всю область контента. */
 .room3d-view {
-    position: relative;
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: #0a0a12;
 }
 
 /* Шапка комнаты переиспользует .voice-hdr/.hdr-left/.hdr-right/.channel-status-badge
@@ -40,8 +39,8 @@
 }
 
 .room3d-join-screen {
-    width: 100%;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -50,7 +49,9 @@
     text-align: center;
     padding: 40px;
     color: #fff;
-    background: radial-gradient(ellipse at center, rgba(0, 229, 255, 0.06), transparent 70%), #0a0a12;
+    /* Прозрачный фон — сквозь него видны блобы .panel-hero-bg родителя,
+       как и у обычного голосового канала в состоянии до подключения. */
+    background: radial-gradient(ellipse at center, rgba(0, 229, 255, 0.06), transparent 70%);
 }
 
 .room3d-join-icon {

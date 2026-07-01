@@ -4,6 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Channel, Server, User } from '../types';
 import { CubeIcon } from './Icons';
+import './panel-hero.css';
 import './VoiceChannelView.css';
 import './Room3DView.css';
 
@@ -370,17 +371,29 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
 
     if (!isConnectedToThisRoom) {
         return (
-            <div className="room3d-join-screen">
-                <div className="room3d-join-icon"><CubeIcon size={48} /></div>
-                <h2>{channel.name}</h2>
-                <p>3D-комната — голосовой канал с пространством, где аватарки участников можно перетаскивать мышью.</p>
-                <button className="room3d-join-btn" onClick={() => joinChannel(channel._id)}>Войти в комнату</button>
+            <div className="voice-channel-view panel-hero room3d-view">
+                <div className="panel-hero-bg" aria-hidden="true">
+                    <div className="blob cyan" />
+                    <div className="blob purple" />
+                    <div className="blob pink" />
+                </div>
+                <div className="room3d-join-screen">
+                    <div className="room3d-join-icon"><CubeIcon size={48} /></div>
+                    <h2>{channel.name}</h2>
+                    <p>3D-комната — голосовой канал с пространством, где аватарки участников можно перетаскивать мышью.</p>
+                    <button className="room3d-join-btn" onClick={() => joinChannel(channel._id)}>Войти в комнату</button>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="room3d-view">
+        <div className="voice-channel-view panel-hero room3d-view">
+            <div className="panel-hero-bg" aria-hidden="true">
+                <div className="blob cyan" />
+                <div className="blob purple" />
+                <div className="blob pink" />
+            </div>
             <header className="voice-hdr">
                 <div className="hdr-left">
                     <div className="voice-status-indicator inline">
