@@ -39,6 +39,12 @@ const colorForUser = (userId: string): number => {
     return (r << 16) | (g << 8) | b;
 };
 
+// Модель аватарки участника комнаты (нейтральная человеческая фигура —
+// единая для всех, различие между пользователями даёт цветное кольцо у ног
+// и подпись с именем, см. addAvatar).
+const AVATAR_MODEL_URL = `${import.meta.env.BASE_URL}models/low_poly_female_base_character.glb`;
+const AVATAR_TARGET_HEIGHT = 1.7;
+
 const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick }) => {
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
@@ -76,6 +82,8 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             const THREE: any = await import('three');
             // @ts-ignore — тот же повод: подмодули three/examples не типизированы
             const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js');
+            // @ts-ignore — тот же повод: подмодули three/examples не типизированы
+            const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
             const el = mountRef.current;
             if (disposed || !el) return;
 
@@ -121,10 +129,35 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             (grid.material as any).transparent = true;
             scene.add(grid);
 
-            // --- Аватарки: примитивная капсула + подпись с именем над ней ---
-            const avatarGroups = new Map<string, { group: any; body: any; target: { x: number; z: number } }>();
+            // --- Модель аватарки: грузим один раз, нормализуем масштаб/высоту,
+            // дальше только клонируем для каждого участника. При ошибке загрузки
+            // (например, файл не задеплоен) откатываемся на примитивную капсулу. ---
+            let avatarTemplate: any = null;
+            try {
+                const gltf = await new GLTFLoader().loadAsync(AVATAR_MODEL_URL);
+                const root = gltf.scene;
+                root.traverse((obj: any) => {
+                    if (obj.isMesh) { obj.castShadow = false; obj.receiveShadow = false; }
+                });
+                const box = new THREE.Box3().setFromObject(root);
+                const size = box.getSize(new THREE.Vector3());
+                if (size.y > 0) {
+                    const scale = AVATAR_TARGET_HEIGHT / size.y;
+                    root.scale.setScalar(scale);
+                    const scaledBox = new THREE.Box3().setFromObject(root);
+                    root.position.y -= scaledBox.min.y; // ставим модель ногами на пол (y=0)
+                }
+                avatarTemplate = root;
+            } catch (e) {
+                console.warn('[Room3D] Не удалось загрузить модель аватарки, использую капсулу-заглушку:', e);
+            }
+            if (disposed) return;
 
-            const makeNameSprite = (text: string) => {
+            // --- Аватарки: 3D-модель (или капсула-заглушка) + цветное кольцо-идентификатор
+            // у ног + подпись с именем над головой ---
+            const avatarGroups = new Map<string, { group: any; hitBox: any; ring: any; target: { x: number; z: number } }>();
+
+            const makeNameSprite = (text: string, yPos: number) => {
                 const canvas = document.createElement('canvas');
                 const W = 384, H = 80;
                 canvas.width = W; canvas.height = H;
@@ -164,28 +197,55 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
                 const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
                 const sprite = new THREE.Sprite(mat);
                 sprite.scale.set(1.6 * (W / 256), 0.4 * (H / 64), 1);
-                sprite.position.set(0, 1.35, 0);
+                sprite.position.set(0, yPos, 0);
                 return sprite;
             };
 
             const addAvatar = (userId: string, name: string, isMe: boolean, startX: number, startZ: number) => {
                 if (avatarGroups.has(userId)) return;
                 const group = new THREE.Group();
-                const bodyGeo = new THREE.CapsuleGeometry(0.4, 0.7, 4, 12);
-                const bodyMat = new THREE.MeshStandardMaterial({
+
+                // Видимая модель — общая для всех, различие даёт цветное кольцо у ног.
+                if (avatarTemplate) {
+                    const model = avatarTemplate.clone(true);
+                    group.add(model);
+                } else {
+                    // Фолбэк, если модель не загрузилась — старая капсула-заглушка.
+                    const bodyGeo = new THREE.CapsuleGeometry(0.4, 0.7, 4, 12);
+                    const bodyMat = new THREE.MeshStandardMaterial({ color: colorForUser(userId), roughness: 0.45, metalness: 0.15 });
+                    const body = new THREE.Mesh(bodyGeo, bodyMat);
+                    body.position.y = 0.75;
+                    group.add(body);
+                }
+
+                // Невидимый хитбокс на весь рост — по нему кликаем/тащим, вместо
+                // раскастинга по сложной геометрии модели (быстрее и надёжнее).
+                const hitGeo = new THREE.CylinderGeometry(0.45, 0.45, AVATAR_TARGET_HEIGHT, 8);
+                const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+                const hitBox = new THREE.Mesh(hitGeo, hitMat);
+                hitBox.position.y = AVATAR_TARGET_HEIGHT / 2;
+                hitBox.userData.userId = userId;
+                group.add(hitBox);
+
+                // Цветное кольцо у ног — единственный «идентификатор» пользователя,
+                // раз визуально модель у всех одна и та же; заодно светится при разговоре.
+                const ringGeo = new THREE.RingGeometry(0.42, 0.55, 32);
+                const ringMat = new THREE.MeshStandardMaterial({
                     color: colorForUser(userId),
-                    roughness: 0.45,
-                    metalness: 0.15,
                     emissive: 0x000000,
+                    transparent: true,
+                    opacity: 0.9,
+                    side: THREE.DoubleSide,
                 });
-                const body = new THREE.Mesh(bodyGeo, bodyMat);
-                body.position.y = 0.75;
-                body.userData.userId = userId;
-                group.add(body);
-                group.add(makeNameSprite(name + (isMe ? ' (вы)' : '')));
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = -Math.PI / 2;
+                ring.position.y = 0.02;
+                group.add(ring);
+
+                group.add(makeNameSprite(name + (isMe ? ' (вы)' : ''), AVATAR_TARGET_HEIGHT + 0.25));
                 group.position.set(startX, 0, startZ);
                 scene.add(group);
-                avatarGroups.set(userId, { group, body, target: { x: startX, z: startZ } });
+                avatarGroups.set(userId, { group, hitBox, ring, target: { x: startX, z: startZ } });
             };
             const removeAvatar = (userId: string) => {
                 const a = avatarGroups.get(userId);
@@ -226,7 +286,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
                 raycaster.setFromCamera(pointerNdc, camera);
                 const mine = avatarGroups.get(String(currentUser._id));
                 if (!mine) return;
-                const hits = raycaster.intersectObject(mine.body, false);
+                const hits = raycaster.intersectObject(mine.hitBox, false);
                 if (hits.length > 0) {
                     dragging = true;
                     controls.enabled = false;
@@ -258,8 +318,8 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             const onDblClick = (e: MouseEvent) => {
                 toNdc(e.clientX, e.clientY);
                 raycaster.setFromCamera(pointerNdc, camera);
-                const bodies = Array.from(avatarGroups.values()).map(a => a.body);
-                const hits = raycaster.intersectObjects(bodies, false);
+                const hitBoxes = Array.from(avatarGroups.values()).map(a => a.hitBox);
+                const hits = raycaster.intersectObjects(hitBoxes, false);
                 if (hits.length === 0) return;
                 const userId = hits[0].object.userData.userId;
                 if (userId && userId !== String(currentUser._id)) onUserClickRef.current(userId);
@@ -364,8 +424,8 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
         if (!s) return;
         s.avatarGroups.forEach((a: any, userId: string) => {
             const talking = speakingUsers.has(userId);
-            a.body.material.emissive.setHex(talking ? 0x00e5ff : 0x000000);
-            a.body.material.emissiveIntensity = talking ? 0.6 : 0;
+            a.ring.material.emissive.setHex(talking ? 0x00e5ff : 0x000000);
+            a.ring.material.emissiveIntensity = talking ? 1.2 : 0;
         });
     }, [speakingUsers, connectedUsers]);
 
