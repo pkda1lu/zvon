@@ -1136,6 +1136,16 @@ io.on('connection', (socket) => {
     socket.to(`voice-channel-${channelId}`).emit('room-position-update', { channelId, userId: String(socket.userId), ...pos });
   });
 
+  // 3D-комната: клиент просит актуальный снапшот позиций. Нужен потому, что
+  // three.js-сцена инициализируется асинхронно и обычно НЕ успевает подписаться
+  // на 'room-positions-snapshot' к моменту его отправки при входе в voice-канал.
+  // Клиент повторно запрашивает снапшот, когда сцена готова.
+  socket.on('room-request-snapshot', (data) => {
+    const { channelId } = data || {};
+    if (!channelId || String(socket.voiceChannelId || '') !== String(channelId)) return;
+    socket.emit('room-positions-snapshot', { channelId, positions: getRoomPositionsSnapshot(channelId) });
+  });
+
   socket.on('admin-voice-move', async (data) => {
     try {
       const { userId, channelId } = data;

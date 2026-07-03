@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,6 +57,12 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
     // Всё изменяемое трёхмерное состояние держим в рефах — сцена живёт вне
     // React-рендеров, обновляется через requestAnimationFrame.
     const sceneRef = useRef<any>(null);
+    // three.js (и GLB-модель) грузится и инициализируется асинхронно. Пока флаг
+    // не взведён, sceneRef.current === null, и эффект синхронизации участников
+    // не может ничего добавить. Флаг заставляет этот эффект перезапуститься ровно
+    // тогда, когда сцена готова, — иначе уже присутствующие в комнате участники
+    // (загруженные в connectedUsers ДО инициализации сцены) не отрисуются.
+    const [sceneReady, setSceneReady] = useState(false);
 
     // onUserClick меняет identity почти на каждый рендер Main — держим актуальную
     // ссылку в рефе, чтобы не пересоздавать всю 3D-сцену из-за этого.
@@ -110,24 +116,173 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             controls.maxDistance = 20;
             controls.target.set(0, 0.5, 0);
 
-            scene.add(new THREE.AmbientLight(0x445566, 1.1));
-            const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+            // Приглушённый общий свет — основную работу делают неоновые акценты
+            // и три «люстры»-точечника ниже, подсветка мягче и атмосферней.
+            scene.add(new THREE.AmbientLight(0x2a2a45, 0.75));
+            const sun = new THREE.DirectionalLight(0xbfd6ff, 0.5);
             sun.position.set(5, 10, 5);
             scene.add(sun);
-            const rim = new THREE.PointLight(0x00e5ff, 0.6, 30);
-            rim.position.set(-5, 3, -5);
-            scene.add(rim);
 
-            // Пол комнаты — сетка + плоскость, по которой ходят/двигаются аватарки.
+            // Глянцевый пол — не матовый бетон, а тёмное отражающее покрытие
+            // киберпанк-лаунжа (даёт блики от точечных «люстр» ниже).
             const floorGeo = new THREE.PlaneGeometry(20, 20);
-            const floorMat = new THREE.MeshStandardMaterial({ color: 0x14141f, roughness: 0.9, metalness: 0.05 });
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b0b14, roughness: 0.32, metalness: 0.4 });
             const floor = new THREE.Mesh(floorGeo, floorMat);
             floor.rotation.x = -Math.PI / 2;
             scene.add(floor);
             const grid = new THREE.GridHelper(20, 20, 0x00e5ff, 0x22222e);
-            (grid.material as any).opacity = 0.35;
+            (grid.material as any).opacity = 0.22;
             (grid.material as any).transparent = true;
             scene.add(grid);
+
+            // ===== Каркас комнаты: закрытый неоновый киберпанк-лаунж =====
+            // Раньше комната была голой плоскостью в пустоте — теперь пол окружён
+            // стенами и потолком, по периметру идёт неоновая окантовка в цветах
+            // бренда (циан/фиолетовый/розовый — те же, что у блобов panel-hero),
+            // а под потолком висят три цветные «люстры», подсвечивающие зал.
+            const ROOM_HALF = 10; // половина стороны — совпадает с полом и сеткой 20×20
+            const WALL_HEIGHT = 7;
+            const NEON = { cyan: 0x00e5ff, purple: 0x7000ff, pink: 0xff2fd0 };
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x0c0c18, roughness: 0.8, metalness: 0.1 });
+            const wallGeo = new THREE.PlaneGeometry(ROOM_HALF * 2, WALL_HEIGHT);
+
+            const wallNorth = new THREE.Mesh(wallGeo, wallMat); // нормаль смотрит на +Z, в центр комнаты
+            wallNorth.position.set(0, WALL_HEIGHT / 2, -ROOM_HALF);
+            scene.add(wallNorth);
+
+            const wallSouth = new THREE.Mesh(wallGeo, wallMat);
+            wallSouth.position.set(0, WALL_HEIGHT / 2, ROOM_HALF);
+            wallSouth.rotation.y = Math.PI; // разворачиваем нормаль на -Z, к центру
+            scene.add(wallSouth);
+
+            const wallEast = new THREE.Mesh(wallGeo, wallMat);
+            wallEast.position.set(ROOM_HALF, WALL_HEIGHT / 2, 0);
+            wallEast.rotation.y = -Math.PI / 2; // нормаль на -X, к центру
+            scene.add(wallEast);
+
+            const wallWest = new THREE.Mesh(wallGeo, wallMat);
+            wallWest.position.set(-ROOM_HALF, WALL_HEIGHT / 2, 0);
+            wallWest.rotation.y = Math.PI / 2; // нормаль на +X, к центру
+            scene.add(wallWest);
+
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_HALF * 2, ROOM_HALF * 2), wallMat);
+            ceiling.position.set(0, WALL_HEIGHT, 0);
+            ceiling.rotation.x = Math.PI / 2; // нормаль вниз, в комнату
+            scene.add(ceiling);
+
+            // Неоновая окантовка у основания стен — тонкие самосветящиеся полосы
+            // (MeshBasicMaterial игнорирует освещение, поэтому выглядят как настоящий неон).
+            const trimHeight = 0.14;
+            const trimThickness = 0.06;
+            const trimInset = 0.04;
+            const makeTrim = (length: number, color: number) =>
+                new THREE.Mesh(new THREE.BoxGeometry(length, trimHeight, trimThickness), new THREE.MeshBasicMaterial({ color }));
+
+            const trimNorth = makeTrim(ROOM_HALF * 2 - 0.4, NEON.cyan);
+            trimNorth.position.set(0, trimHeight / 2, -ROOM_HALF + trimInset);
+            scene.add(trimNorth);
+            const trimSouth = makeTrim(ROOM_HALF * 2 - 0.4, NEON.pink);
+            trimSouth.position.set(0, trimHeight / 2, ROOM_HALF - trimInset);
+            scene.add(trimSouth);
+            const trimEast = makeTrim(ROOM_HALF * 2 - 0.4, NEON.purple);
+            trimEast.rotation.y = Math.PI / 2;
+            trimEast.position.set(ROOM_HALF - trimInset, trimHeight / 2, 0);
+            scene.add(trimEast);
+            const trimWest = makeTrim(ROOM_HALF * 2 - 0.4, NEON.purple);
+            trimWest.rotation.y = Math.PI / 2;
+            trimWest.position.set(-ROOM_HALF + trimInset, trimHeight / 2, 0);
+            scene.add(trimWest);
+
+            // Светящиеся угловые колонны — задают вертикальный ритм и глубину зала.
+            const cornerColors = [NEON.cyan, NEON.pink, NEON.purple, NEON.cyan];
+            const cornerPositions: Array<[number, number]> = [
+                [ROOM_HALF - 0.14, ROOM_HALF - 0.14],
+                [ROOM_HALF - 0.14, -ROOM_HALF + 0.14],
+                [-ROOM_HALF + 0.14, ROOM_HALF - 0.14],
+                [-ROOM_HALF + 0.14, -ROOM_HALF + 0.14],
+            ];
+            cornerPositions.forEach(([x, z], i) => {
+                const pillar = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.12, WALL_HEIGHT, 0.12),
+                    new THREE.MeshBasicMaterial({ color: cornerColors[i], transparent: true, opacity: 0.85 })
+                );
+                pillar.position.set(x, WALL_HEIGHT / 2, z);
+                scene.add(pillar);
+            });
+
+            // Мягкое цветное «облако» на потолке и лужа отражения на полу — тот же
+            // приём с радиальными градиентами, что и .panel-hero-bg .blob в 2D-интерфейсе,
+            // только нарисованный на canvas-текстуре, чтобы пол/потолок не были однотонными.
+            const makeGlowTexture = () => {
+                const size = 512;
+                const canvas = document.createElement('canvas');
+                canvas.width = size; canvas.height = size;
+                const ctx = canvas.getContext('2d')!;
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, size, size);
+                const blobs = [
+                    { x: size * 0.22, y: size * 0.28, r: size * 0.32, color: 'rgba(0,229,255,0.55)' },
+                    { x: size * 0.78, y: size * 0.7, r: size * 0.36, color: 'rgba(112,0,255,0.5)' },
+                    { x: size * 0.6, y: size * 0.22, r: size * 0.22, color: 'rgba(255,47,208,0.4)' },
+                ];
+                blobs.forEach(b => {
+                    const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+                    grad.addColorStop(0, b.color);
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                return new THREE.CanvasTexture(canvas);
+            };
+            const glowTex = makeGlowTexture();
+
+            const ceilingGlow = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_HALF * 2 - 0.2, ROOM_HALF * 2 - 0.2),
+                new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            ceilingGlow.position.set(0, WALL_HEIGHT - 0.02, 0);
+            ceilingGlow.rotation.x = Math.PI / 2;
+            scene.add(ceilingGlow);
+
+            const floorGlow = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_HALF * 2 - 1, ROOM_HALF * 2 - 1),
+                new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            floorGlow.rotation.x = -Math.PI / 2;
+            floorGlow.position.y = 0.015;
+            scene.add(floorGlow);
+
+            // Три подвесные «люстры» — видимый источник каждого цветного акцента:
+            // цоколь на потолке, шнур, светящаяся лампа-сфера и настоящий PointLight в ней.
+            const lampSpecs: Array<{ pos: [number, number]; color: number }> = [
+                { pos: [-4.5, -3.5], color: NEON.cyan },
+                { pos: [4.5, 2.5], color: NEON.purple },
+                { pos: [0.5, 5], color: NEON.pink },
+            ];
+            lampSpecs.forEach(({ pos: [x, z], color }) => {
+                const bulbY = 4.3;
+                const cordLength = WALL_HEIGHT - bulbY;
+                const cord = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.02, 0.02, cordLength, 6),
+                    new THREE.MeshBasicMaterial({ color: 0x15151f })
+                );
+                cord.position.set(x, bulbY + cordLength / 2, z);
+                scene.add(cord);
+
+                const bulb = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.22, 16, 16),
+                    new THREE.MeshBasicMaterial({ color })
+                );
+                bulb.position.set(x, bulbY, z);
+                scene.add(bulb);
+
+                const lamp = new THREE.PointLight(color, 1.1, 15, 2);
+                lamp.position.set(x, bulbY, z);
+                scene.add(lamp);
+            });
 
             // --- Модель аватарки: грузим один раз, нормализуем масштаб/высоту,
             // дальше только клонируем для каждого участника. При ошибке загрузки
@@ -156,6 +311,10 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             // --- Аватарки: 3D-модель (или капсула-заглушка) + цветное кольцо-идентификатор
             // у ног + подпись с именем над головой ---
             const avatarGroups = new Map<string, { group: any; hitBox: any; ring: any; target: { x: number; z: number } }>();
+            // Позиции, пришедшие с сервера для ещё не созданных аватарок
+            // (снапшот может прийти раньше, чем эффект добавит участника). Применяем
+            // их в момент создания аватарки, чтобы участник появился сразу на своём месте.
+            const pendingPositions = new Map<string, { x: number; z: number }>();
 
             const makeNameSprite = (text: string, yPos: number) => {
                 const canvas = document.createElement('canvas');
@@ -246,6 +405,14 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
                 group.position.set(startX, 0, startZ);
                 scene.add(group);
                 avatarGroups.set(userId, { group, hitBox, ring, target: { x: startX, z: startZ } });
+                // Если для этого пользователя уже пришла позиция с сервера — ставим его туда.
+                const pend = pendingPositions.get(String(userId));
+                if (pend) {
+                    const a = avatarGroups.get(userId)!;
+                    a.target.x = pend.x; a.target.z = pend.z;
+                    a.group.position.set(pend.x, 0, pend.z);
+                    pendingPositions.delete(String(userId));
+                }
             };
             const removeAvatar = (userId: string) => {
                 const a = avatarGroups.get(userId);
@@ -256,6 +423,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             const setAvatarTarget = (userId: string, x: number, z: number) => {
                 const a = avatarGroups.get(userId);
                 if (a) { a.target.x = x; a.target.z = z; }
+                else pendingPositions.set(String(userId), { x, z }); // применится при создании аватарки
             };
 
             // Своя аватарка — сразу в центре (реальную позицию подтвердит сервер
@@ -333,11 +501,8 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             // --- Сокет-синхронизация позиций и состава участников ---
             const onSnapshot = (data: { channelId: string; positions: Array<{ userId: string; x: number; z: number }> }) => {
                 if (data.channelId !== channel._id) return;
-                data.positions.forEach(p => {
-                    if (String(p.userId) === String(currentUser._id)) { setAvatarTarget(p.userId, p.x, p.z); return; }
-                    if (!avatarGroups.has(p.userId)) return; // добавится когда придёт voice-user-joined/connectedUsers sync
-                    setAvatarTarget(p.userId, p.x, p.z);
-                });
+                // setAvatarTarget сам буферизует позицию, если аватарка ещё не создана.
+                data.positions.forEach(p => setAvatarTarget(p.userId, p.x, p.z));
             };
             const onPosUpdate = (data: { channelId: string; userId: string; x: number; z: number }) => {
                 if (data.channelId !== channel._id) return;
@@ -350,7 +515,10 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             socket?.on('room-positions-snapshot', onSnapshot);
             socket?.on('room-position-update', onPosUpdate);
             socket?.on('room-position-removed', onPosRemoved);
-            socket?.emit('room-position-update', { channelId: channel._id, x: 0, z: 0 });
+            // Запрашиваем снапшот СЕЙЧАС: снапшот при входе в voice-канал почти всегда
+            // приходит раньше, чем эта сцена (three.js + GLB грузятся асинхронно) успевает
+            // подписаться на событие. Без этого запроса мы не видим уже присутствующих.
+            socket?.emit('room-request-snapshot', { channelId: channel._id });
 
             // --- Ресайз под контейнер ---
             const onResize = () => {
@@ -376,6 +544,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             animate();
 
             sceneRef.current = { avatarGroups, addAvatar, removeAvatar, getDisplayName };
+            setSceneReady(true);
 
             cleanupFn = () => {
                 cancelAnimationFrame(raf);
@@ -391,6 +560,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
                 renderer.dispose();
                 if (renderer.domElement.parentElement === el) el.removeChild(renderer.domElement);
                 sceneRef.current = null;
+                setSceneReady(false);
             };
         })();
 
@@ -416,7 +586,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
         (Array.from(s.avatarGroups.keys()) as string[]).forEach((id) => {
             if (!liveIds.has(id)) s.removeAvatar(id);
         });
-    }, [connectedUsers, currentUser]);
+    }, [connectedUsers, currentUser, sceneReady]);
 
     // --- Подсветка говорящих ---
     useEffect(() => {
