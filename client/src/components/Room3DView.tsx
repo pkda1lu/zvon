@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,12 +49,6 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
     // Всё изменяемое трёхмерное состояние держим в рефах — сцена живёт вне
     // React-рендеров, обновляется через requestAnimationFrame.
     const sceneRef = useRef<any>(null);
-    // three.js грузится и инициализируется асинхронно. Пока флаг не взведён,
-    // sceneRef.current === null, и эффект синхронизации участников не может
-    // ничего добавить. Флаг заставляет этот эффект перезапуститься ровно тогда,
-    // когда сцена готова, — иначе уже присутствующие в комнате участники
-    // (загруженные в connectedUsers ДО инициализации сцены) не отрисуются.
-    const [sceneReady, setSceneReady] = useState(false);
 
     // onUserClick меняет identity почти на каждый рендер Main — держим актуальную
     // ссылку в рефе, чтобы не пересоздавать всю 3D-сцену из-за этого.
@@ -127,10 +121,6 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
 
             // --- Аватарки: примитивная капсула + подпись с именем над ней ---
             const avatarGroups = new Map<string, { group: any; body: any; target: { x: number; z: number } }>();
-            // Позиции, пришедшие с сервера для ещё не созданных аватарок
-            // (снапшот может прийти раньше, чем эффект добавит участника). Применяем
-            // их в момент создания аватарки, чтобы участник появился сразу на своём месте.
-            const pendingPositions = new Map<string, { x: number; z: number }>();
 
             const makeNameSprite = (text: string) => {
                 const canvas = document.createElement('canvas');
@@ -171,14 +161,6 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
                 group.position.set(startX, 0, startZ);
                 scene.add(group);
                 avatarGroups.set(userId, { group, body, target: { x: startX, z: startZ } });
-                // Если для этого пользователя уже пришла позиция с сервера — ставим его туда.
-                const pend = pendingPositions.get(String(userId));
-                if (pend) {
-                    const a = avatarGroups.get(userId)!;
-                    a.target.x = pend.x; a.target.z = pend.z;
-                    a.group.position.set(pend.x, 0, pend.z);
-                    pendingPositions.delete(String(userId));
-                }
             };
             const removeAvatar = (userId: string) => {
                 const a = avatarGroups.get(userId);
@@ -189,7 +171,6 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             const setAvatarTarget = (userId: string, x: number, z: number) => {
                 const a = avatarGroups.get(userId);
                 if (a) { a.target.x = x; a.target.z = z; }
-                else pendingPositions.set(String(userId), { x, z }); // применится при создании аватарки
             };
 
             // Своя аватарка — сразу в центре (реальную позицию подтвердит сервер
@@ -267,8 +248,11 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             // --- Сокет-синхронизация позиций и состава участников ---
             const onSnapshot = (data: { channelId: string; positions: Array<{ userId: string; x: number; z: number }> }) => {
                 if (data.channelId !== channel._id) return;
-                // setAvatarTarget сам буферизует позицию, если аватарка ещё не создана.
-                data.positions.forEach(p => setAvatarTarget(p.userId, p.x, p.z));
+                data.positions.forEach(p => {
+                    if (String(p.userId) === String(currentUser._id)) { setAvatarTarget(p.userId, p.x, p.z); return; }
+                    if (!avatarGroups.has(p.userId)) return; // добавится когда придёт voice-user-joined/connectedUsers sync
+                    setAvatarTarget(p.userId, p.x, p.z);
+                });
             };
             const onPosUpdate = (data: { channelId: string; userId: string; x: number; z: number }) => {
                 if (data.channelId !== channel._id) return;
@@ -281,10 +265,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             socket?.on('room-positions-snapshot', onSnapshot);
             socket?.on('room-position-update', onPosUpdate);
             socket?.on('room-position-removed', onPosRemoved);
-            // Запрашиваем снапшот СЕЙЧАС: снапшот при входе в voice-канал почти всегда
-            // приходит раньше, чем эта сцена (three.js грузится асинхронно) успевает
-            // подписаться на событие. Без этого запроса мы не видим уже присутствующих.
-            socket?.emit('room-request-snapshot', { channelId: channel._id });
+            socket?.emit('room-position-update', { channelId: channel._id, x: 0, z: 0 });
 
             // --- Ресайз под контейнер ---
             const onResize = () => {
@@ -310,7 +291,6 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
             animate();
 
             sceneRef.current = { avatarGroups, addAvatar, removeAvatar, getDisplayName };
-            setSceneReady(true);
 
             cleanupFn = () => {
                 cancelAnimationFrame(raf);
@@ -326,7 +306,6 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
                 renderer.dispose();
                 if (renderer.domElement.parentElement === el) el.removeChild(renderer.domElement);
                 sceneRef.current = null;
-                setSceneReady(false);
             };
         })();
 
@@ -352,7 +331,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
         (Array.from(s.avatarGroups.keys()) as string[]).forEach((id) => {
             if (!liveIds.has(id)) s.removeAvatar(id);
         });
-    }, [connectedUsers, currentUser, sceneReady]);
+    }, [connectedUsers, currentUser]);
 
     // --- Подсветка говорящих ---
     useEffect(() => {
