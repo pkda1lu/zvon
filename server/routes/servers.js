@@ -12,6 +12,7 @@ const { Permissions, DEFAULT_PERMISSIONS } = require('../utils/permissions');
 const { computePermissions, getHighestRolePosition } = require('../utils/permissionCalculator');
 const { logAction } = require('../utils/auditLogger');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
+const { handleMemberJoin, logMemberLeave } = require('../utils/serverJoin');
 
 
 router.post('/', auth, async (req, res) => {
@@ -38,20 +39,26 @@ router.post('/', auth, async (req, res) => {
       members: [{
         user: req.user._id,
         roles: [] // Owner doesn't strictly need roles, but @everyone is implicit
-      }]
+      }],
+      welcomeMessages: [
+        'Добро пожаловать, {user}! Рады видеть тебя здесь.',
+        '{user} присоединился к серверу. Поздоровайтесь!',
+        'Встречайте {user} — новый участник сервера!'
+      ]
     });
 
     await server.save();
     const generalChannel = new Channel({ name: 'general', type: 'text', server: server._id, position: 0 });
     await generalChannel.save();
     server.channels.push(generalChannel._id);
+    server.welcomeChannel = generalChannel._id;
     await server.save();
     const user = await User.findById(req.user._id);
     if (user) {
       if (!user.servers) user.servers = [];
       if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
     }
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
     await logGlobalAction({
       executorId: req.user._id,
       action: 'SERVER_CREATE',
@@ -80,14 +87,14 @@ router.get('/me', auth, async (req, res) => {
       }
     }
 
-    const allServers = await Server.find({ _id: { $in: userServerIds } }).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity').sort({ createdAt: -1 });
+    const allServers = await Server.find({ _id: { $in: userServerIds } }).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag').sort({ createdAt: -1 });
     res.json(allServers);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const server = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+    const server = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
     if (!server) return res.status(404).json({ message: 'Server not found' });
     res.json(server);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -99,20 +106,19 @@ router.post('/:id/join', auth, async (req, res) => {
     if (!server) return res.status(404).json({ message: 'Server not found' });
     const isMember = server.members.some(member => member.user.toString() === req.user._id.toString());
     if (isMember) return res.status(400).json({ message: 'Already a member' });
-    server.members.push({ user: req.user._id });
-    await server.save();
-    const user = await User.findById(req.user._id);
-    if (!user.servers) user.servers = [];
-    if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
     const io = req.app.get('io');
+    await handleMemberJoin(server, req.user._id, io);
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
     if (io) {
       const newMember = populatedServer.members.find(m => m.user._id.toString() === req.user._id.toString());
       io.to(`server-${server._id}`).emit('server-member-joined', { serverId: server._id, member: newMember, server: populatedServer });
       io.to(`server-${server._id}`).emit('server-updated', populatedServer);
     }
     res.json(populatedServer);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // Update server settings
@@ -120,12 +126,36 @@ router.put('/:id', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, 
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
-    const { name, description, icon, banner, bannerColor } = req.body;
+    const {
+      name, description, icon, banner, bannerColor,
+      features, featuredActivities, tag, welcomeEnabled, welcomeMessages, welcomeChannel,
+      showMemberActivity, showMembersList, newcomerCooldownSeconds
+    } = req.body;
     if (name) server.name = name;
     if (description !== undefined) server.description = description;
     if (icon !== undefined) server.icon = icon;
     if (banner !== undefined) server.banner = banner;
     if (bannerColor !== undefined) server.bannerColor = bannerColor;
+    if (features !== undefined) server.features = (features || []).filter(f => f && f.trim()).slice(0, 5);
+    if (featuredActivities !== undefined) {
+      server.featuredActivities = (featuredActivities || [])
+        .filter(a => a && a.name)
+        .slice(0, 5)
+        .map(a => ({ name: a.name, image: a.image || null }));
+    }
+    if (tag !== undefined) {
+      server.tag = {
+        text: tag.text ? String(tag.text).slice(0, 5) : null,
+        icon: tag.icon !== undefined ? tag.icon : (server.tag && server.tag.icon) || null,
+        color: tag.color || (server.tag && server.tag.color) || '#5865f2'
+      };
+    }
+    if (welcomeEnabled !== undefined) server.welcomeEnabled = !!welcomeEnabled;
+    if (welcomeMessages !== undefined) server.welcomeMessages = (welcomeMessages || []).filter(m => m && m.trim()).slice(0, 10);
+    if (welcomeChannel !== undefined) server.welcomeChannel = welcomeChannel || null;
+    if (showMemberActivity !== undefined) server.showMemberActivity = !!showMemberActivity;
+    if (showMembersList !== undefined) server.showMembersList = !!showMembersList;
+    if (newcomerCooldownSeconds !== undefined) server.newcomerCooldownSeconds = Math.max(0, parseInt(newcomerCooldownSeconds) || 0);
     await server.save();
 
     await logAction({
@@ -142,7 +172,7 @@ router.put('/:id', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, 
       ].filter(c => c.newValue !== undefined)
     });
 
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', populatedServer);
     res.json(populatedServer);
@@ -185,7 +215,7 @@ router.post('/:id/icon', auth, checkPermission(Permissions.MANAGE_GUILD), upload
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ icon: iconUrl });
@@ -202,10 +232,61 @@ router.post('/:id/banner', auth, checkPermission(Permissions.MANAGE_GUILD), uplo
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ banner: bannerUrl });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+// Top activities among server members (by total playtime) — for the "featured activities" picker
+router.get('/:id/top-activities', auth, async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const memberIds = server.members.map(m => m.user);
+    const users = await User.find({ _id: { $in: memberIds } }, 'gameStats activity');
+
+    const totals = new Map();
+    users.forEach(u => {
+      (u.gameStats || []).forEach(g => {
+        if (!g.name) return;
+        const prev = totals.get(g.name) || { name: g.name, image: g.image || null, totalSeconds: 0 };
+        prev.totalSeconds += g.totalSeconds || 0;
+        if (!prev.image && g.image) prev.image = g.image;
+        totals.set(g.name, prev);
+      });
+      // Include currently-active activities even if not yet accumulated in gameStats
+      if (u.activity && u.activity.name && !totals.has(u.activity.name)) {
+        totals.set(u.activity.name, { name: u.activity.name, image: u.activity.assets?.largeImage || null, totalSeconds: 0 });
+      }
+    });
+
+    const sorted = Array.from(totals.values()).sort((a, b) => b.totalSeconds - a.totalSeconds);
+    res.json(sorted.slice(0, 50));
+  } catch (error) {
+    console.error('Top activities error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Server tag icon upload
+router.post('/:id/tag/icon', auth, checkPermission(Permissions.MANAGE_GUILD), upload.single('icon'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const iconUrl = `/api/uploads/${req.file.filename}`;
+    if (!server.tag) server.tag = {};
+    server.tag.icon = iconUrl;
+    await server.save();
+    const io = req.app.get('io');
+    if (io) {
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+      io.to(`server-${server._id}`).emit('server-updated', updatedServer);
+    }
+    res.json({ icon: iconUrl });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
@@ -286,7 +367,7 @@ router.patch('/:id/roles/positions', auth, checkPermission(Permissions.MANAGE_RO
     await server.save();
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
 
     res.json(server.roles);
   } catch (error) {
@@ -332,7 +413,7 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
 
     res.status(201).json(server.roles[server.roles.length - 1]);
   } catch (error) {
@@ -406,7 +487,7 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
 
     res.json(role);
   } catch (error) {
@@ -452,7 +533,7 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
 
       if (server.roles.length < initialLength) {
         await server.save();
-        const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+        const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
         const io = req.app.get('io');
         if (io) io.to(`server-${server._id}`).emit('server-updated', updatedServer);
         return res.json({ message: 'Role forcibly removed' });
@@ -491,7 +572,7 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
 
     res.json({ message: 'Role deleted' });
   } catch (error) {
@@ -521,7 +602,7 @@ router.patch('/:id/update-member-roles', auth, checkPermission(Permissions.MANAG
       changes: [{ key: 'roles', newValue: roles }]
     });
 
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
     const updatedMember = populatedServer.members.find(m => m.user._id.toString() === userId);
 
     const io = req.app.get('io');
@@ -549,7 +630,7 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
     if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
 
-    const { nickname, bio, avatar, banner, roles, bannerColor } = req.body;
+    const { nickname, bio, avatar, banner, roles, bannerColor, communicationDisabledUntil } = req.body;
     const isSelf = req.user._id.toString() === req.params.userId;
     const userPerms = computePermissions(req.user._id, server);
 
@@ -598,7 +679,25 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     if (banner !== undefined) server.members[memberIndex].banner = banner;
     if (bannerColor !== undefined) server.members[memberIndex].bannerColor = bannerColor;
 
+    if (communicationDisabledUntil !== undefined) {
+      if (!isSelf && !(userPerms & Permissions.MODERATE_MEMBERS) && String(server.owner) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Insufficient permissions to timeout this member' });
+      }
+      server.members[memberIndex].communicationDisabledUntil = communicationDisabledUntil ? new Date(communicationDisabledUntil) : null;
+    }
+
     await server.save();
+
+    if (communicationDisabledUntil !== undefined) {
+      await logAction({
+        serverId: server._id,
+        executorId: req.user._id,
+        targetId: req.params.userId,
+        targetModel: 'User',
+        action: 'MEMBER_TIMEOUT',
+        changes: [{ key: 'communicationDisabledUntil', newValue: communicationDisabledUntil }]
+      });
+    }
 
     await logAction({
       serverId: server._id,
@@ -609,7 +708,7 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
       changes: Object.keys(req.body).map(k => ({ key: k, newValue: req.body[k] }))
     });
 
-    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: updatedServer.members[memberIndex] });
     res.json(updatedServer.members[memberIndex]);
@@ -741,7 +840,7 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.params.userId });
-      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
     }
     res.json({ message: 'Member removed' });
@@ -761,6 +860,7 @@ router.post('/:id/leave', auth, async (req, res) => {
     // Remove from server members
     server.members = server.members.filter(m => m.user.toString() !== req.user._id.toString());
     await server.save();
+    await logMemberLeave(server, req.user._id);
 
     // Remove from user's servers list
     const user = await User.findById(req.user._id);
@@ -772,7 +872,7 @@ router.post('/:id/leave', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.user._id });
-      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
     }
 
@@ -783,9 +883,100 @@ router.post('/:id/leave', auth, async (req, res) => {
   }
 });
 
+router.get('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id)
+      .populate('bans.user', 'username avatar badges')
+      .populate('bans.bannedBy', 'username avatar');
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    res.json(server.bans || []);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.patch('/:id/bans/:userId', auth, checkPermission(Permissions.BAN_MEMBERS), async (req, res) => {
+  try {
+    const { reason, expiresAt } = req.body;
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const ban = server.bans.find(b => String(b.user) === String(req.params.userId));
+    if (!ban) return res.status(404).json({ message: 'Ban not found' });
+    if (reason !== undefined) ban.reason = reason;
+    if (expiresAt !== undefined) ban.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: req.params.userId,
+      targetModel: 'User',
+      action: 'MEMBER_BAN',
+      reason: reason,
+      changes: [{ key: 'expiresAt', newValue: expiresAt }]
+    });
+
+    res.json(ban);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.delete('/:id/bans/:userId', auth, checkPermission(Permissions.BAN_MEMBERS), async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    const wasBanned = server.bans.some(b => String(b.user) === String(req.params.userId));
+    if (!wasBanned) return res.status(404).json({ message: 'Ban not found' });
+    server.bans = server.bans.filter(b => String(b.user) !== String(req.params.userId));
+    await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: req.params.userId,
+      targetModel: 'User',
+      action: 'MEMBER_UNBAN'
+    });
+
+    res.json({ message: 'User unbanned' });
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+// Transfer server ownership
+router.patch('/:id/owner', auth, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+    if (String(server.owner) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Only the owner can transfer the server' });
+    }
+    const isMember = server.members.some(m => String(m.user) === String(userId));
+    if (!isMember) return res.status(400).json({ message: 'Target user is not a member of this server' });
+
+    const previousOwner = server.owner;
+    server.owner = userId;
+    await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: userId,
+      targetModel: 'User',
+      action: 'SERVER_TRANSFER',
+      changes: [{ key: 'owner', oldValue: previousOwner, newValue: userId }]
+    });
+
+    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-updated', updatedServer);
+    res.json(updatedServer);
+  } catch (error) {
+    console.error('Server transfer error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (req, res) => {
   try {
-    const { userId, reason } = req.body;
+    const { userId, reason, expiresAt } = req.body;
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
@@ -805,7 +996,7 @@ router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (
     const isBanned = server.bans.some(b => String(b.user) === String(userId));
     if (isBanned) return res.status(400).json({ message: 'User is already banned' });
 
-    server.bans.push({ user: userId, reason });
+    server.bans.push({ user: userId, reason, expiresAt: expiresAt ? new Date(expiresAt) : null, bannedAt: new Date(), bannedBy: req.user._id });
     server.members = server.members.filter(m => String(m.user) !== String(userId));
     await server.save();
 
@@ -835,7 +1026,7 @@ router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${server._id}`).emit('server-member-left', { serverId: server._id, userId: userId });
-      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
 
@@ -867,10 +1058,47 @@ router.post('/:id/emojis', auth, checkPermission(Permissions.MANAGE_GUILD), uplo
     server.emojis.push(newEmoji);
     await server.save();
 
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: server._id,
+      targetModel: 'Server',
+      action: 'EMOJI_CREATE',
+      changes: [{ key: 'name', newValue: newEmoji.name }]
+    });
+
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-emojis-updated', { serverId: server._id, emojis: server.emojis });
 
     res.status(201).json(newEmoji);
+  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+router.patch('/:id/emojis/:emojiId', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ message: 'Name required' });
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const emoji = (server.emojis || []).find(e => e.id === req.params.emojiId);
+    if (!emoji) return res.status(404).json({ message: 'Emoji not found' });
+    emoji.name = name.trim();
+    await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: server._id,
+      targetModel: 'Server',
+      action: 'EMOJI_UPDATE',
+      changes: [{ key: 'name', newValue: emoji.name }]
+    });
+
+    const io = req.app.get('io');
+    if (io) io.to(`server-${server._id}`).emit('server-emojis-updated', { serverId: server._id, emojis: server.emojis });
+
+    res.json(emoji);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
@@ -879,8 +1107,18 @@ router.delete('/:id/emojis/:emojiId', auth, checkPermission(Permissions.MANAGE_G
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
+    const deletedEmoji = (server.emojis || []).find(e => e.id === req.params.emojiId);
     server.emojis = server.emojis.filter(e => e.id !== req.params.emojiId);
     await server.save();
+
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      targetId: server._id,
+      targetModel: 'Server',
+      action: 'EMOJI_DELETE',
+      reason: deletedEmoji ? `Deleted emoji ${deletedEmoji.name}` : undefined
+    });
 
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-emojis-updated', { serverId: server._id, emojis: server.emojis });
@@ -891,12 +1129,14 @@ router.delete('/:id/emojis/:emojiId', auth, checkPermission(Permissions.MANAGE_G
 
 router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), async (req, res) => {
   try {
-    const { limit = 50, before } = req.query;
+    const { limit = 50, before, user, action, reason, after } = req.query;
     const query = { server: req.params.id };
-    
-    if (before) {
-      query.createdAt = { $lt: new Date(before) };
-    }
+
+    if (before) query.createdAt = { ...(query.createdAt || {}), $lt: new Date(before) };
+    if (after) query.createdAt = { ...(query.createdAt || {}), $gt: new Date(after) };
+    if (user) query.$or = [{ executor: user }, { target: user }];
+    if (action) query.action = action;
+    if (reason) query.reason = { $regex: reason.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
 
     const logs = await AuditLog.find(query)
       .sort({ createdAt: -1 })
@@ -910,6 +1150,62 @@ router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG),
     res.json(logs);
   } catch (error) {
     console.error('Audit log fetch error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Per-server statistics: message activity (accurate history) + member growth (best-effort, tracked via audit log going forward)
+router.get('/:id/stats', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), async (req, res) => {
+  try {
+    const server = await Server.findById(req.params.id);
+    if (!server) return res.status(404).json({ message: 'Server not found' });
+
+    const range = req.query.range || '30d';
+    const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const Message = require('../models/Message');
+
+    const messagesChart = await Message.aggregate([
+      { $match: { channel: { $in: server.channels }, createdAt: { $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+    const totalMessages = await Message.countDocuments({ channel: { $in: server.channels } });
+
+    const joinEvents = await AuditLog.aggregate([
+      { $match: { server: server._id, action: 'MEMBER_JOIN', createdAt: { $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
+    ]);
+    const leaveEvents = await AuditLog.aggregate([
+      { $match: { server: server._id, action: { $in: ['MEMBER_LEAVE', 'MEMBER_KICK', 'MEMBER_BAN'] }, createdAt: { $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
+    ]);
+    const deltaByDay = new Map();
+    joinEvents.forEach(e => deltaByDay.set(e._id, (deltaByDay.get(e._id) || 0) + e.count));
+    leaveEvents.forEach(e => deltaByDay.set(e._id, (deltaByDay.get(e._id) || 0) - e.count));
+    const sortedDays = Array.from(deltaByDay.keys()).sort();
+    let running = server.members.length;
+    // Работаем от текущего количества назад, чтобы получить приблизительный тренд за период
+    const dayDeltas = sortedDays.map(day => ({ day, delta: deltaByDay.get(day) }));
+    for (let i = dayDeltas.length - 1; i >= 0; i--) running -= dayDeltas[i].delta;
+    const membersChart = [];
+    let cursor = running;
+    for (const { day, delta } of dayDeltas) {
+      cursor += delta;
+      membersChart.push({ _id: day, count: cursor });
+    }
+
+    res.json({
+      totals: { members: server.members.length, messages: totalMessages },
+      charts: {
+        messages: messagesChart.map(m => ({ _id: m._id, count: m.count })),
+        members: membersChart
+      },
+      trackingSince: null
+    });
+  } catch (error) {
+    console.error('Server stats error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

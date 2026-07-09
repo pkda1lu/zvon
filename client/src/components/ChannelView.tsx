@@ -397,7 +397,7 @@ const MessageItem = React.memo<{
               user={msg.author}
               size={42}
               className="message-author-avatar"
-              onClick={(e) => onUserClick(msg.author._id, e)}
+              onClick={(e) => { if (server.showMembersList !== false) onUserClick(msg.author._id, e); }}
               onContextMenu={(e) => onContextMenu(e, msg.author)}
             />
           </div>
@@ -410,10 +410,10 @@ const MessageItem = React.memo<{
               <div className="message-author-info">
                 <span
                   className="message-author"
-                  onClick={(e) => onUserClick(msg.author._id, e)}
+                  onClick={(e) => { if (server.showMembersList !== false) onUserClick(msg.author._id, e); }}
                   onContextMenu={(e) => onContextMenu(e, msg.author)}
                   style={{
-                    cursor: 'pointer',
+                    cursor: server.showMembersList !== false ? 'pointer' : 'default',
                     color: (() => {
                       if (!member) return 'inherit';
                       const roleIds = member.roles || [];

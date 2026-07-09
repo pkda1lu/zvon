@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Server, User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import { useVoice } from '../contexts/VoiceContext';
+import { useSocket } from '../contexts/SocketContext';
 import './panel-hero.css';
 import './ServerMembers.css';
+
+const ACTIVITY_VERBS: Record<string, string> = {
+    playing: 'Играет в', streaming: 'В эфире:', listening: 'Слушает', watching: 'Смотрит', competing: 'Соревнуется в', sitting: 'Сидит в'
+};
 
 const LiveBadge: React.FC = () => (
     <span className="live-badge nano" style={{ marginLeft: 6 }}>ЭФИР</span>
@@ -22,11 +27,55 @@ interface ServerMembersProps {
 const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBack, isMobile }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
     const { userStates } = useVoice();
+    const { socket } = useSocket();
     const isLive = (userId: string) => !!userStates.get(userId)?.isScreenSharing;
+
+    // Живой ростер голосовых каналов сервера — для "событий сервера" (кто с кем общается в войсе).
+    const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
+    useEffect(() => {
+        if (!socket) return;
+        const onSnapshot = (states: Record<string, User[]>) => setVoiceStates(states);
+        const onUpdate = (data: { channelId: string; users: User[] }) => setVoiceStates(prev => ({ ...prev, [data.channelId]: data.users }));
+        socket.on('server-voice-states', onSnapshot);
+        socket.on('voice-channel-users-update', onUpdate);
+        return () => {
+            socket.off('server-voice-states', onSnapshot);
+            socket.off('voice-channel-users-update', onUpdate);
+        };
+    }, [socket]);
+
+    const showActivity = server.showMemberActivity !== false;
+
+    // До 3 строк "событий" пользователя: текущая активность + голосовой канал (с кем).
+    const getActivityLines = (u: User): string[] => {
+        if (!showActivity) return [];
+        const lines: string[] = [];
+        if (u.activity?.name) {
+            const verb = ACTIVITY_VERBS[u.activity.type as string] || 'Занимается:';
+            lines.push(`${verb} ${u.activity.name}`);
+        }
+        const voiceChannelId = Object.keys(voiceStates).find(cid => (voiceStates[cid] || []).some(vu => vu._id === u._id));
+        if (voiceChannelId) {
+            const channel = (server.channels || []).find(c => c._id === voiceChannelId);
+            const others = (voiceStates[voiceChannelId] || []).filter(vu => vu._id !== u._id).map(vu => vu.username);
+            const suffix = others.length > 0 ? ` с ${others.slice(0, 2).join(' и ')}` : '';
+            lines.push(`Общается в #${channel?.name || 'войсе'}${suffix}`);
+        }
+        return lines.slice(0, 3);
+    };
 
     const handleContextMenu = (e: React.MouseEvent, user: User) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY, user });
+    };
+
+    // Значок сервера показываем, только если пользователь выбрал показывать именно значок ЭТОГО сервера —
+    // его данные (текст/иконка/цвет) у нас уже есть локально, не нужно резолвить другие сервера.
+    const getServerTag = (u: User) => {
+        if (u.displayedTag?.type !== 'serverTag') return undefined;
+        const tagServerId = typeof u.displayedTag.server === 'string' ? u.displayedTag.server : (u.displayedTag.server as any)?._id;
+        if (String(tagServerId) !== String(server._id)) return undefined;
+        return server.tag?.text ? server.tag : undefined;
     };
 
     return (
@@ -111,19 +160,17 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                             <span className="member-name" style={{ color: memberColor }}>
                                                                 {member.nickname || member.user.username}
                                                             </span>
-                                                            <UserBadges badges={member.user.badges} size={14} />
+                                                            <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
                                                             {isLive(member.user._id) && <LiveBadge />}
                                                         </div>
-                                                        {member.user.activity && (
-                                                            <div className="member-activity">
-                                                                {member.user.activity.assets?.largeImage && (
+                                                        {getActivityLines(member.user).map((line, i) => (
+                                                            <div className="member-activity" key={i}>
+                                                                {i === 0 && member.user.activity?.assets?.largeImage && (
                                                                     <img src={getFullUrl(member.user.activity.assets.largeImage)!} alt="" className="member-activity-icon" />
                                                                 )}
-                                                                <span className="activity-text">
-                                                                    {member.user.activity.name}
-                                                                </span>
+                                                                <span className="activity-text">{line}</span>
                                                             </div>
-                                                        )}
+                                                        ))}
                                                     </div>
                                                 </div>
                                             );
@@ -160,19 +207,17 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                 <div className="member-info">
                                                     <div className="member-name-row">
                                                         <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.username}</span>
-                                                        <UserBadges badges={member.user.badges} size={14} />
+                                                        <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
                                                         {isLive(member.user._id) && <LiveBadge />}
                                                     </div>
-                                                    {member.user.activity && (
-                                                        <div className="member-activity">
-                                                            {member.user.activity.assets?.largeImage && (
+                                                    {getActivityLines(member.user).map((line, i) => (
+                                                        <div className="member-activity" key={i}>
+                                                            {i === 0 && member.user.activity?.assets?.largeImage && (
                                                                 <img src={getFullUrl(member.user.activity.assets.largeImage)!} alt="" className="member-activity-icon" />
                                                             )}
-                                                            <span className="activity-text">
-                                                                {member.user.activity.name}
-                                                            </span>
+                                                            <span className="activity-text">{line}</span>
                                                         </div>
-                                                    )}
+                                                    ))}
                                                 </div>
                                             </div>
                                         );
@@ -209,7 +254,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                     <span className="member-name" style={{ color: memberColor }}>
                                                         {member.nickname || member.user.username}
                                                     </span>
-                                                    <UserBadges badges={member.user.badges} size={14} />
+                                                    <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
                                                     {isLive(member.user._id) && <LiveBadge />}
                                                 </div>
                                             </div>

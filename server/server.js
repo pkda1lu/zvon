@@ -444,6 +444,21 @@ io.on('connection', (socket) => {
         if (!hasPermission(perms, Permissions.SEND_MESSAGES)) {
           return socket.emit('error', { message: 'У вас нет прав для отправки сообщений в этот канал' });
         }
+        // Мут / кулдаун новичков (не действуют на владельца)
+        if (String(server.owner) !== String(socket.userId)) {
+          const member = server.members.find(m => String(m.user) === String(socket.userId));
+          if (member) {
+            if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
+              return socket.emit('error', { message: 'Вы временно не можете отправлять сообщения на этом сервере (мут)' });
+            }
+            if (server.newcomerCooldownSeconds > 0) {
+              const remainingMs = new Date(member.joinedAt).getTime() + server.newcomerCooldownSeconds * 1000 - Date.now();
+              if (remainingMs > 0) {
+                return socket.emit('error', { message: `Подождите ещё ${Math.ceil(remainingMs / 1000)} с. после присоединения к серверу` });
+              }
+            }
+          }
+        }
         // Медленный режим
         const slow = channel.slowMode || 0;
         if (slow > 0) {

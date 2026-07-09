@@ -169,11 +169,11 @@
 }
 
 /* --- INPUTS --- */
-.settings-input-group {
+.channel-settings-input-group {
     margin-bottom: 40px;
 }
 
-.settings-input-group label {
+.channel-settings-input-group label {
     display: block;
     color: rgba(255, 255, 255, 0.4);
     font-size: 12px;
@@ -199,7 +199,7 @@
     transform: translateY(-2px);
 }
 
-.settings-input {
+.channel-settings-input {
     width: 100%;
     background: transparent;
     border: none;
@@ -272,7 +272,7 @@
     transform: translateY(-1px);
 }
 
-.settings-textarea {
+.channel-settings-textarea {
     background: transparent;
     border: none;
     color: white;
@@ -566,7 +566,7 @@
 }
 
 /* --- SAVE BAR --- */
-.save-changes-bar {
+.channel-save-changes-bar {
     position: absolute;
     bottom: 30px;
     left: 50%;
@@ -589,7 +589,7 @@
         inset 0 0 20px rgba(255, 255, 255, 0.02);
 }
 
-.save-changes-bar.slide-up {
+.channel-save-changes-bar.slide-up {
     animation: barIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -605,7 +605,7 @@
     }
 }
 
-.save-changes-text {
+.channel-save-changes-text {
     color: white;
     font-weight: 700;
     font-size: 14px;
@@ -613,13 +613,13 @@
     opacity: 0.9;
 }
 
-.save-changes-buttons {
+.channel-save-changes-buttons {
     display: flex;
     gap: 16px;
     align-items: center;
 }
 
-.save-button {
+.channel-save-button {
     background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
     color: #fff;
     border: none;
@@ -645,7 +645,7 @@
     margin: 0 !important;
 }
 
-.save-button::before {
+.channel-save-button::before {
     content: '';
     position: absolute;
     top: 0;
@@ -656,28 +656,28 @@
     transition: 0.5s;
 }
 
-.save-button:hover:not(:disabled)::before {
+.channel-save-button:hover:not(:disabled)::before {
     left: 100%;
 }
 
-.save-button:hover:not(:disabled) {
+.channel-save-button:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(0, 229, 255, 0.4);
     filter: brightness(1.1);
 }
 
-.save-button:active:not(:disabled) {
+.channel-save-button:active:not(:disabled) {
     transform: translateY(0) scale(0.96);
 }
 
-.save-button:disabled {
+.channel-save-button:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.3);
 }
 
-.reset-button {
+.channel-reset-button {
     background: transparent;
     color: rgba(255, 255, 255, 0.5);
     border: none;
@@ -691,7 +691,7 @@
     margin: 0 !important;
 }
 
-.reset-button:hover {
+.channel-reset-button:hover {
     color: white;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;

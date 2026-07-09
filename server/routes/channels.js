@@ -27,7 +27,7 @@ router.post('/', auth, checkPermission(Permissions.MANAGE_CHANNELS, 'body.server
     });
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(serverId).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(serverId).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${serverId}`).emit('server-updated', updatedServer);
     }
     res.status(201).json(channel);
@@ -80,7 +80,7 @@ router.put('/:id', auth, async (req, res, next) => {
 
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(channel.server).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(channel.server).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${channel.server}`).emit('server-updated', updatedServer);
     }
     res.json(channel);
@@ -115,7 +115,7 @@ router.delete('/:id', auth, async (req, res, next) => {
     }
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(serverId).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity');
+      const updatedServer = await Server.findById(serverId).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
       io.to(`server-${serverId}`).emit('server-updated', updatedServer);
     }
     res.json({ message: 'Channel deleted' });

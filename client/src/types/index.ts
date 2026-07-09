@@ -34,6 +34,7 @@ export interface User {
   isBot?: boolean;
     isPublished?: boolean;
     badges?: string[];
+  displayedTag?: { type: 'badge' | 'serverTag'; server?: string | Server | null };
   is2FAEnabled?: boolean;
   role?: 'user' | 'moderator' | 'admin';
   isVerified?: boolean;
@@ -138,6 +139,14 @@ export interface Emoji {
   author?: string;
 }
 
+export interface ServerBan {
+  user: User | string;
+  reason?: string | null;
+  expiresAt?: string | null;
+  bannedAt?: string;
+  bannedBy?: User | string | null;
+}
+
 export interface Server {
   _id: string;
   name: string;
@@ -160,6 +169,39 @@ export interface Server {
   }>;
   channels: Channel[];
   emojis?: Emoji[];
+  bans?: ServerBan[];
+  features?: string[];
+  featuredActivities?: { name: string; image?: string | null }[];
+  tag?: { text?: string | null; icon?: string | null; color?: string };
+  welcomeEnabled?: boolean;
+  welcomeMessages?: string[];
+  welcomeChannel?: string | Channel | null;
+  showMemberActivity?: boolean;
+  showMembersList?: boolean;
+  newcomerCooldownSeconds?: number;
+  createdAt: string;
+}
+
+export interface Invite {
+  _id: string;
+  code: string;
+  server: string | Server;
+  creator: User | string;
+  createdAt: string;
+  expiresAt?: string | null;
+  maxUses?: number | null;
+  uses: number;
+}
+
+export interface AuditLogEntry {
+  _id: string;
+  server: string;
+  executor: User;
+  target?: any;
+  targetModel: string;
+  action: string;
+  changes?: Array<{ key: string; oldValue?: any; newValue?: any }>;
+  reason?: string | null;
   createdAt: string;
 }
 

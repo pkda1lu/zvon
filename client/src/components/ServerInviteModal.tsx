@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AnimatedOverlay from '../animations/AnimatedOverlay';
 import { getAvatarUrl } from '../utils/avatar';
-import './SettingsModal.css'; // Переиспользуем стили оверлея
 
 interface ServerInviteModalProps {
     isOpen: boolean;
@@ -114,7 +113,29 @@ const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, onClose, 
                     <h1 style={{ color: 'white', fontSize: '30px', fontWeight: 800, marginBottom: '15px', letterSpacing: '-1px' }}>{server.name}</h1>
 
                     {server.description && (
-                        <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.5', marginBottom: '25px' }}>{server.description}</p>
+                        <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.5', marginBottom: '20px' }}>{server.description}</p>
+                    )}
+
+                    {(server.features || []).length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px', marginBottom: '20px' }}>
+                            {(server.features as string[]).map((f, i) => (
+                                <span key={i} className="server-settings-role-tag">{f}</span>
+                            ))}
+                        </div>
+                    )}
+
+                    {(server.featuredActivities || []).length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+                            {(server.featuredActivities as { name: string; image?: string | null }[]).map((a, i) => (
+                                <div key={`${a.name}-${i}`} title={a.name} style={{ width: '36px', height: '36px', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
+                                    {a.image ? (
+                                        <img src={getAvatarUrl(a.image)!} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                        <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>{a.name.charAt(0).toUpperCase()}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', marginBottom: '35px' }}>

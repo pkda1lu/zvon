@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import AnimatedOverlay from '../animations/AnimatedOverlay';
-import './SettingsModal.css'; // Reusing existing modal styles
 
 interface JoinServerModalProps {
     isOpen: boolean;

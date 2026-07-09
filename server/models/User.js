@@ -162,6 +162,19 @@ const userSchema = new mongoose.Schema({
     ref: 'Server',
     default: null
   },
+  // Какой значок показывать рядом с ником: собственный профильный бейдж или тег одного из серверов
+  displayedTag: {
+    type: {
+      type: String,
+      enum: ['badge', 'serverTag'],
+      default: 'badge'
+    },
+    server: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Server',
+      default: null
+    }
+  },
   settings: {
     showActivityStatus: {
       type: Boolean,

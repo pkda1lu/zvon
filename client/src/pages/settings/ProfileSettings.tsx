@@ -6,17 +6,7 @@ import { ChoiceGroup, CustomSelect, GridPicker } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import StreamerBlur from '../../components/StreamerBlur';
-
-const AVAILABLE_BADGES = [
-    { id: 'dev', label: 'Разработчик', image: './badges/developer.png' },
-    { id: 'premium', label: 'Премиум', image: './badges/premium.png' },
-    { id: 'moderator', label: 'Модератор', image: './badges/moderate.png' },
-    { id: 'artist', label: 'Художник', image: './badges/painter.png' },
-    { id: 'gamer', label: 'Геймер', image: './badges/gamer.png' },
-    { id: 'meow', label: 'Котик', image: './badges/cat.png' },
-    { id: 'staff', label: 'Персонал', image: './badges/personal%20stuff.png' },
-    { id: 'bug_hunter', label: 'Охотник за багами', image: './badges/Bug.png' }
-];
+import { AVAILABLE_BADGES } from '../../data/badges';
 
 const ProfileSettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
@@ -28,6 +18,11 @@ const ProfileSettings: React.FC = () => {
     const [primaryServer, setPrimaryServer] = useState(user?.primaryServer || '');
     const [bannerColor, setBannerColor] = useState(user?.bannerColor || '#5865f2');
     const [selectedBadges, setSelectedBadges] = useState<string[]>(user?.badges || []);
+    const [tagSource, setTagSource] = useState<'badge' | 'serverTag'>(user?.displayedTag?.type || 'badge');
+    const [tagServerId, setTagServerId] = useState<string>(() => {
+        const s = user?.displayedTag?.server;
+        return typeof s === 'string' ? s : (s as any)?._id || '';
+    });
 
     // Cropping State
     const [cropModal, setCropModal] = useState<{ isOpen: boolean; image: string; target: 'avatar' | 'banner' }>({
@@ -53,6 +48,9 @@ const ProfileSettings: React.FC = () => {
             setSelectedBadges(user.badges || []);
             const pId = typeof user.primaryServer === 'string' ? user.primaryServer : user.primaryServer?._id;
             setPrimaryServer(pId || '');
+            setTagSource(user.displayedTag?.type || 'badge');
+            const tId = user.displayedTag?.server;
+            setTagServerId(typeof tId === 'string' ? tId : (tId as any)?._id || '');
         }
     }, [user?._id]);
 
@@ -150,7 +148,19 @@ const ProfileSettings: React.FC = () => {
         saveField('badges', newBadges);
     };
 
+    const handleTagSourceChange = (source: string) => {
+        const s = source as 'badge' | 'serverTag';
+        setTagSource(s);
+        saveField('displayedTag', { type: s, server: s === 'serverTag' ? (tagServerId || null) : null });
+    };
+
+    const handleTagServerChange = (serverId: string) => {
+        setTagServerId(serverId);
+        saveField('displayedTag', { type: 'serverTag', server: serverId || null });
+    };
+
     const userServers = (user?.servers || []) as any[];
+    const serversWithTag = userServers.filter((s: any) => typeof s === 'object' && s?.tag?.text);
     const serverOptions = [
         { id: '', name: 'Не выбран' },
         ...userServers.map(s => ({
@@ -313,12 +323,42 @@ const ProfileSettings: React.FC = () => {
                 {/* 5. Значки (SINGLE SELECT) */}
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Значки профиля</h3>
-                    <GridPicker 
-                        items={AVAILABLE_BADGES} 
-                        selectedIds={selectedBadges} 
+                    <GridPicker
+                        items={AVAILABLE_BADGES}
+                        selectedIds={selectedBadges}
                         onToggle={handleBadgeToggle}
                         multi={false}
                     />
+
+                    <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
+
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                        Что показывать рядом с ником: значок профиля или значок одного из ваших серверов.
+                    </p>
+                    <ChoiceGroup
+                        options={[
+                            { value: 'badge', label: 'Значок профиля' },
+                            { value: 'serverTag', label: 'Значок сервера' }
+                        ]}
+                        value={tagSource}
+                        onChange={handleTagSourceChange}
+                    />
+                    {tagSource === 'serverTag' && (
+                        <div style={{ marginTop: '12px' }}>
+                            {serversWithTag.length === 0 ? (
+                                <p style={{ fontSize: '13px', color: 'var(--text-faint)' }}>
+                                    Ни у одного из ваших серверов пока не настроен значок.
+                                </p>
+                            ) : (
+                                <CustomSelect
+                                    options={serversWithTag.map((s: any) => ({ id: s._id, name: `${s.name} (${s.tag.text})`, icon: s.icon, type: 'server' as const }))}
+                                    value={tagServerId}
+                                    onChange={handleTagServerChange}
+                                    placeholder="Выберите сервер..."
+                                />
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* 6. Основной сервер */}

@@ -202,7 +202,7 @@
 .settings-section-title {
     font-size: 11px;
     font-weight: 800;
-    color: var(--text-faint);
+    color: #ffffff;
     text-transform: uppercase;
     margin-bottom: 12px;
     margin-top: 32px;
@@ -270,6 +270,38 @@
     border-color: var(--primary-neon);
     background: rgba(0, 0, 0, 0.3);
     box-shadow: 0 0 0 4px rgba(0, 106, 255, 0.15);
+}
+
+.settings-input.error {
+    border-color: var(--danger);
+}
+.settings-input.error:focus {
+    box-shadow: 0 0 0 4px rgba(255, 71, 87, 0.15);
+}
+
+select.settings-input {
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    padding-right: 38px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 15px;
+}
+
+select.settings-input:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+select.settings-input option {
+    background: #16161c;
+    color: var(--text-main);
+}
+
+input[type="date"].settings-input {
+    cursor: pointer;
+    color-scheme: dark;
 }
 
 .settings-textarea {
@@ -2019,4 +2051,575 @@ input[type=range]:disabled::-webkit-slider-thumb {
         width: 100%;
         height: 180px;
     }
+}
+
+/* ============================================================
+   НАСТРОЙКИ СЕРВЕРА (ServerSettingsLayout и вложенные страницы)
+   Используют тот же каркас, что и выше (.settings-sidebar,
+   .settings-content-wrapper, .settings-card, .settings-row,
+   .settings-input, SettingsToggle и т.д.). Ниже — только классы,
+   специфичные для серверных настроек (список ролей/участников/
+   банов/приглашений, журнал аудита).
+   ============================================================ */
+
+/* AnimatedOverlay оборачивает контент в свой motion.div (contentClassName).
+   .settings-overlay сам является flex-контейнером с сайдбаром и контентом
+   как прямыми детьми — поэтому обёртке AnimatedOverlay нужно "исчезнуть"
+   из потока раскладки. */
+.server-settings-passthrough {
+    display: contents;
+}
+
+.settings-sidebar-category {
+    margin-top: 24px !important;
+}
+
+/* Выше стилизован только .settings-sidebar-item.logout красным — добавляем то же для .danger */
+.settings-sidebar-item.danger {
+    color: var(--danger);
+    margin-top: auto;
+}
+.settings-sidebar-item.danger:hover {
+    background-color: rgba(255, 71, 87, 0.1);
+}
+
+.mobile-settings-header {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    padding: max(env(safe-area-inset-top), 40px) 16px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-sizing: content-box;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.mobile-settings-header .back-button {
+    margin-right: 16px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .server-settings-layout-content .settings-sidebar {
+        width: 100%;
+    }
+    .server-settings-layout-content .settings-content-wrapper {
+        padding: 16px;
+    }
+    .server-settings-layout-content .settings-close-btn {
+        display: none;
+    }
+}
+
+/* Небольшие utility-классы для страниц сервера (особенности, приветствия, теги и т.д.) */
+.server-settings-tag-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.server-settings-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.server-settings-tag-row .settings-input {
+    flex: 1;
+}
+
+.server-settings-empty-state {
+    text-align: center;
+    padding: 40px;
+    opacity: 0.5;
+}
+
+.server-settings-list-row {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.server-settings-list-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.server-settings-list-row-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.server-settings-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.server-settings-audit-filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.server-settings-audit-filters .settings-input {
+    flex: 1;
+    min-width: 160px;
+}
+
+/* --- Мелкие "иконка-кнопка" действия (список участников/банов/приглашений/ролей) --- */
+.action-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    transition: all 0.2s;
+    cursor: pointer;
+}
+.action-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+.action-button.danger:hover {
+    background: rgba(255, 59, 48, 0.2);
+    border-color: #ff3b30;
+    color: #ff3b30;
+}
+
+/* --- Строка участника --- */
+.member-row-wrapper {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 10px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.member-row-wrapper:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+.member-row {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.member-avatar-small {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    flex-shrink: 0;
+}
+.member-avatar-small img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.server-settings-role-tag {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* --- Значок сервера: превью строки участника --- */
+.server-tag-member-preview {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 10px;
+}
+
+/* --- Эмодзи сервера: список (картинка / название / удалить по наведению) --- */
+.server-emojis-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* --- Роли: строка роли + разворачиваемый редактор --- */
+.server-role-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.server-role-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+.server-role-row + .server-role-row {
+    margin-top: 4px;
+}
+.server-role-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 4px;
+    box-shadow: 0 0 8px currentColor;
+    flex-shrink: 0;
+}
+.server-role-editor {
+    padding: 16px 16px 20px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    margin: 4px 0 12px;
+}
+.server-role-color-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.server-role-color-row input[type="color"] {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* --- Роли: список слева / настройки выбранной роли справа --- */
+.roles-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.roles-list-column {
+    width: 260px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 8px;
+}
+
+.roles-detail-column {
+    flex: 1;
+    min-width: 0;
+}
+
+.roles-detail-column .server-role-editor {
+    margin: 0;
+}
+
+.server-role-row-reorder {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 3px;
+    border-radius: 10px;
+    background: rgba(20, 20, 26, 0.9);
+    backdrop-filter: blur(6px);
+    box-shadow: -12px 0 12px 4px rgba(20, 20, 26, 0.9);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.server-role-row:hover .server-role-row-reorder {
+    opacity: 1;
+}
+
+.server-role-row.active {
+    background: rgba(0, 229, 255, 0.08);
+}
+
+.server-role-row.active:hover {
+    background: rgba(0, 229, 255, 0.12);
+}
+
+@media (max-width: 900px) {
+    .roles-layout {
+        flex-direction: column;
+    }
+    .roles-list-column {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+}
+
+/* --- Журнал аудита сервера --- */
+.audit-logs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.audit-log-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: var(--fast-transition);
+}
+
+.audit-log-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.audit-log-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.audit-log-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.audit-log-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.audit-log-text {
+    flex: 1;
+}
+
+.audit-log-main {
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.audit-action-text {
+    color: var(--text-dim);
+}
+
+.audit-target {
+    color: var(--primary-neon);
+    font-weight: 600;
+}
+
+.audit-log-date {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+.audit-log-changes {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.audit-change-entry {
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.change-key {
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.change-old {
+    text-decoration: line-through;
+    opacity: 0.4;
+    color: #ff3b30;
+}
+
+.change-arrow {
+    opacity: 0.3;
+}
+
+.change-new {
+    color: #34c759;
+    font-weight: 600;
+}
+
+.audit-log-reason {
+    margin-top: 8px;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-dim);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+.load-more-btn-simple {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: #fff;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    margin-top: 20px;
+}
+
+.load-more-btn-simple:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.load-more-btn-simple:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Единый стиль списков в настройках (сервер: эмодзи/участники/роли/
+   приглашения/действия; пользователь: устройства/пользователи и сервера/
+   действия). Общий "боксовый" ряд — .server-settings-list-row остаётся
+   алиасом для обратной совместимости (баны/приглашения используют его же).
+   ========================================================================== */
+.settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-list-row,
+.server-settings-list-row {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.settings-list-row:hover,
+.server-settings-list-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+.settings-list-row-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-dim);
+    font-weight: 700;
+}
+
+.settings-list-row-icon.round {
+    border-radius: 50%;
+}
+
+.settings-list-row-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.settings-list-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.settings-list-row-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-list-row-meta {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.settings-list-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.settings-list-row-tag {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+/* "+N" (роли участника) — намеренно некликабелен, только индикатор количества. */
+.members-list-settings .role-chip-more {
+    cursor: default;
 }

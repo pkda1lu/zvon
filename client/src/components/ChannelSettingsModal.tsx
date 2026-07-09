@@ -186,11 +186,11 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                             <div className="settings-section">
                                 <h2 className="settings-title">Обзор</h2>
 
-                                <div className="settings-input-group">
+                                <div className="channel-settings-input-group">
                                     <label>Название канала</label>
                                     <div className="input-wrapper-with-icon">
                                         <input
-                                            className="settings-input"
+                                            className="channel-settings-input"
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
                                             maxLength={32}
@@ -203,7 +203,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                 {channel.type === 'text' && (
                                     <>
                                         <div className="settings-divider" />
-                                        <div className="settings-input-group">
+                                        <div className="channel-settings-input-group">
                                             <label>Тема канала</label>
                                             <div className="textarea-container">
                                                 <div className="textarea-toolbar">
@@ -213,7 +213,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                     <button title="Code">{"< >"}</button>
                                                 </div>
                                                 <textarea
-                                                    className="settings-textarea"
+                                                    className="channel-settings-textarea"
                                                     value={topic}
                                                     onChange={(e) => setTopic(e.target.value)}
                                                     placeholder="Расскажите всем, о чем этот канал..."
@@ -227,7 +227,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                         </div>
 
                                         <div className="settings-divider" />
-                                        <div className="settings-input-group">
+                                        <div className="channel-settings-input-group">
                                             <label>Медленный режим — {fmtSlow(SLOW_STEPS[slowIdx])}</label>
                                             <div className="slow-mode-container">
                                                 <div className="slow-mode-labels">
@@ -254,7 +254,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                 {channel.type === 'voice' && (
                                     <>
                                         <div className="settings-divider" />
-                                        <div className="settings-input-group">
+                                        <div className="channel-settings-input-group">
                                             <label>Битрейт — {bitrate} kbps</label>
                                             <div className="slow-mode-container">
                                                 <div className="slow-mode-labels">
@@ -277,7 +277,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                         </div>
 
                                         <div className="settings-divider" />
-                                        <div className="settings-input-group">
+                                        <div className="channel-settings-input-group">
                                             <label>Лимит пользователей — {userLimit === 0 ? 'Без лимита' : userLimit}</label>
                                             <div className="slow-mode-container">
                                                 <div className="slow-mode-labels">
@@ -445,15 +445,15 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                     </div>
 
                     {isDirty && (
-                        <div className="save-changes-bar slide-up">
-                            <span className="save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
-                            <div className="save-changes-buttons">
-                                <button className="reset-button" onClick={() => {
+                        <div className="channel-save-changes-bar slide-up">
+                            <span className="channel-save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
+                            <div className="channel-save-changes-buttons">
+                                <button className="channel-reset-button" onClick={() => {
                                     setName(channel.name);
                                     setTopic(channel.topic || '');
                                     setOverwrites(channel.permissionOverwrites || []);
                                 }}>Сбросить</button>
-                                <button className="save-button" onClick={handleSave} disabled={loading}>
+                                <button className="channel-save-button" onClick={handleSave} disabled={loading}>
                                     {loading ? 'Загрузка...' : 'Сохранить изменения'}
                                 </button>
                             </div>

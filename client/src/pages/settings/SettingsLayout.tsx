@@ -25,7 +25,8 @@ import {
     MaximizeIcon,
     VideoIcon,
     SettingsIcon,
-    DocumentIcon
+    DocumentIcon,
+    BarChartIcon
 } from '../../components/Icons';
 import ProfileSettings from './ProfileSettings';
 import ServerProfilesSettings from './ServerProfilesSettings';
@@ -189,7 +190,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <div className="settings-sidebar-header">Разработчикам</div>
                         <NavItem id="moderation" label="Модерация" icon={ShieldIcon} />
                         <NavItem id="admin-users" label="Пользователи и сервера" icon={UsersIcon} />
-                        <NavItem id="admin-stats" label="Статистика" icon={LayoutGridIcon} />
+                        <NavItem id="admin-stats" label="Статистика" icon={BarChartIcon} />
                         <NavItem id="admin-infra" label="Инфраструктура" icon={GlobeIcon} />
                         <NavItem id="admin-actions" label="Действия" icon={DocumentIcon} />
                     </>

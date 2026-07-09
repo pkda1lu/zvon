@@ -16,7 +16,7 @@ import DMView from '../components/DMView';
 import DMSidebar from '../components/DMSidebar';
 import VoiceCall from '../components/VoiceCall';
 import UserProfileCard from '../components/UserProfileCard';
-import ServerSettingsModal from '../components/ServerSettingsModal';
+import ServerSettingsLayout from '../pages/serverSettings/ServerSettingsLayout';
 import ServerProfileCard from '../components/ServerProfileCard';
 import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
@@ -1285,7 +1285,7 @@ const Main: React.FC = () => {
             );
           })()}
 
-          {selectedServer && !showFriends && ((!isMobile || mobileView === 'members')) && (
+          {selectedServer && selectedServer.showMembersList !== false && !showFriends && ((!isMobile || mobileView === 'members')) && (
             <div className={`members-sidebar-wrapper ${isMobile ? 'is-mobile' : ''}`}>
               <ServerMembers
                 server={selectedServer}
@@ -1371,7 +1371,7 @@ const Main: React.FC = () => {
         />
       )}
 
-      {showServerSettings && selectedServer && <ServerSettingsModal isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} />}
+      {showServerSettings && selectedServer && <ServerSettingsLayout isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} />}
 
       {showServerProfile && selectedServer && (
         <ServerProfileCard
