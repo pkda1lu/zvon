@@ -58,7 +58,7 @@ router.post('/', auth, async (req, res) => {
       if (!user.servers) user.servers = [];
       if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
     }
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
     await logGlobalAction({
       executorId: req.user._id,
       action: 'SERVER_CREATE',
@@ -87,14 +87,14 @@ router.get('/me', auth, async (req, res) => {
       }
     }
 
-    const allServers = await Server.find({ _id: { $in: userServerIds } }).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag').sort({ createdAt: -1 });
+    const allServers = await Server.find({ _id: { $in: userServerIds } }).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink').sort({ createdAt: -1 });
     res.json(allServers);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const server = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const server = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
     if (!server) return res.status(404).json({ message: 'Server not found' });
     res.json(server);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -108,7 +108,7 @@ router.post('/:id/join', auth, async (req, res) => {
     if (isMember) return res.status(400).json({ message: 'Already a member' });
     const io = req.app.get('io');
     await handleMemberJoin(server, req.user._id, io);
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
     if (io) {
       const newMember = populatedServer.members.find(m => m.user._id.toString() === req.user._id.toString());
       io.to(`server-${server._id}`).emit('server-member-joined', { serverId: server._id, member: newMember, server: populatedServer });
@@ -172,7 +172,7 @@ router.put('/:id', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, 
       ].filter(c => c.newValue !== undefined)
     });
 
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', populatedServer);
     res.json(populatedServer);
@@ -215,7 +215,7 @@ router.post('/:id/icon', auth, checkPermission(Permissions.MANAGE_GUILD), upload
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ icon: iconUrl });
@@ -232,7 +232,7 @@ router.post('/:id/banner', auth, checkPermission(Permissions.MANAGE_GUILD), uplo
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ banner: bannerUrl });
@@ -283,7 +283,7 @@ router.post('/:id/tag/icon', auth, checkPermission(Permissions.MANAGE_GUILD), up
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ icon: iconUrl });
@@ -343,22 +343,8 @@ router.patch('/:id/roles/positions', auth, checkPermission(Permissions.MANAGE_RO
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
-    const actorHigh = getHighestRolePosition(req.user._id, server);
-
-    // Validate: Access check
-    for (const item of rolePositions) {
-      const role = server.roles.id(item.id);
-      if (!role) continue;
-      // Cannot move roles if they are above you (unless owner)
-      if (role.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
-        return res.status(403).json({ message: 'Cannot move roles equal to or higher than your highest role' });
-      }
-      // Cannot move roles TO a position above you
-      if (item.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
-        return res.status(403).json({ message: 'Cannot move roles to a position higher than your highest role' });
-      }
-    }
-
+    // Иерархия ролей влияет только на отображение (порядок в списке, цвет ника) —
+    // MANAGE_ROLES (проверено в checkPermission выше) достаточно, чтобы менять порядок любых ролей.
     rolePositions.forEach(item => {
       const role = server.roles.id(item.id);
       if (role) role.position = item.position;
@@ -367,7 +353,7 @@ router.patch('/:id/roles/positions', auth, checkPermission(Permissions.MANAGE_RO
     await server.save();
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink'));
 
     res.json(server.roles);
   } catch (error) {
@@ -390,11 +376,19 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
       }
     });
 
+    // Новые роли всегда создаются в самом низу иерархии — сразу над @everyone.
+    // Иерархия влияет только на порядок отображения и цвет ника, не на права редактирования.
+    const everyoneRole = server.roles.find(r => r.name === '@everyone');
+    const everyonePos = everyoneRole ? everyoneRole.position : 0;
+    server.roles.forEach(r => {
+      if (r.position > everyonePos) r.position += 1;
+    });
+
     const newRole = {
       name: name || 'New Role',
       color: color || '#99aab5',
       hoist: hoist || false,
-      position: server.roles.length,
+      position: everyonePos + 1,
       permissions: permissions || DEFAULT_PERMISSIONS.toString(),
       mentionable: mentionable || false
     };
@@ -413,7 +407,7 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink'));
 
     res.status(201).json(server.roles[server.roles.length - 1]);
   } catch (error) {
@@ -462,12 +456,8 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     console.log(`[DEBUG] Found role to update: ${role.name} (${role._id})`);
 
 
-    // Hierarchy check: Cannot edit role if it's higher/equal to yours
-    const actorHigh = getHighestRolePosition(req.user._id, server);
-    if (role.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
-      return res.status(403).json({ message: 'Insufficient permissions to manage this role' });
-    }
-
+    // MANAGE_ROLES (проверено в checkPermission выше) достаточно для редактирования любой роли —
+    // иерархия позиций влияет только на отображение и цвет ника, не на права.
     if (role.name === '@everyone' && req.body.name) return res.status(400).json({ message: 'Cannot rename @everyone role' });
 
     const fields = ['name', 'color', 'hoist', 'position', 'permissions', 'mentionable'];
@@ -487,7 +477,7 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink'));
 
     res.json(role);
   } catch (error) {
@@ -533,7 +523,7 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
 
       if (server.roles.length < initialLength) {
         await server.save();
-        const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+        const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
         const io = req.app.get('io');
         if (io) io.to(`server-${server._id}`).emit('server-updated', updatedServer);
         return res.json({ message: 'Role forcibly removed' });
@@ -543,12 +533,6 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
       return res.status(404).json({ message: 'Role not found' });
     }
 
-
-    // Hierarchy check
-    const actorHigh = getHighestRolePosition(req.user._id, server);
-    if (role.position >= actorHigh && String(server.owner) !== String(req.user._id)) {
-      return res.status(403).json({ message: 'Insufficient permissions to delete this role' });
-    }
 
     if (role.name === '@everyone') return res.status(400).json({ message: 'Cannot delete @everyone role' });
 
@@ -572,7 +556,7 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag'));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink'));
 
     res.json({ message: 'Role deleted' });
   } catch (error) {
@@ -602,7 +586,7 @@ router.patch('/:id/update-member-roles', auth, checkPermission(Permissions.MANAG
       changes: [{ key: 'roles', newValue: roles }]
     });
 
-    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const populatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
     const updatedMember = populatedServer.members.find(m => m.user._id.toString() === userId);
 
     const io = req.app.get('io');
@@ -657,20 +641,8 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
       if (!(userPerms & Permissions.MANAGE_ROLES) && String(server.owner) !== String(req.user._id)) {
         return res.status(403).json({ message: 'Insufficient permissions to manage roles' });
       }
-
-      // Ensure user isn't assigning roles higher than their own (if not owner)
-      if (String(server.owner) !== String(req.user._id)) {
-        const actorHigh = getHighestRolePosition(req.user._id, server);
-        const addedRoles = roles.filter(r => !(server.members[memberIndex].roles || []).includes(r));
-
-        for (const rid of addedRoles) {
-          const r = server.roles.id(rid);
-          if (r && r.position >= actorHigh) {
-            return res.status(403).json({ message: 'Cannot assign a role higher or equal to your own' });
-          }
-        }
-      }
-
+      // Иерархия ролей влияет только на отображение и цвет ника — MANAGE_ROLES достаточно
+      // для назначения любой роли участнику.
       server.members[memberIndex].roles = roles;
     }
 
@@ -708,7 +680,7 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
       changes: Object.keys(req.body).map(k => ({ key: k, newValue: req.body[k] }))
     });
 
-    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: updatedServer.members[memberIndex] });
     res.json(updatedServer.members[memberIndex]);
@@ -840,7 +812,7 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.params.userId });
-      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
       io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
     }
     res.json({ message: 'Member removed' });
@@ -872,7 +844,7 @@ router.post('/:id/leave', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.user._id });
-      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+      const updatedServer = await Server.findById(req.params.id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
       io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
     }
 
@@ -964,7 +936,7 @@ router.patch('/:id/owner', auth, async (req, res) => {
       changes: [{ key: 'owner', oldValue: previousOwner, newValue: userId }]
     });
 
-    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+    const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     res.json(updatedServer);
@@ -1026,7 +998,7 @@ router.post('/:id/bans', auth, checkPermission(Permissions.BAN_MEMBERS), async (
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${server._id}`).emit('server-member-left', { serverId: server._id, userId: userId });
-      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag');
+      const updatedServer = await Server.findById(server._id).populate('owner', 'username avatar badges').populate('channels').populate('members.user', 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink');
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
 

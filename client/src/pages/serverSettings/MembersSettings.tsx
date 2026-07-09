@@ -57,7 +57,8 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
     const [editingMemberRoles, setEditingMemberRoles] = useState<string | null>(null);
     const [editingNickname, setEditingNickname] = useState<string | null>(null);
     const [nicknameValue, setNicknameValue] = useState('');
-    const [muteMenuFor, setMuteMenuFor] = useState<string | null>(null);
+    const [muteModalFor, setMuteModalFor] = useState<{ userId: string; username: string; alreadyMuted: boolean } | null>(null);
+    const [muteDuration, setMuteDuration] = useState<number | null>(60 * 60);
     const [banModalFor, setBanModalFor] = useState<{ userId: string; username: string } | null>(null);
     const [banReason, setBanReason] = useState('');
     const [banDuration, setBanDuration] = useState<number | null>(null);
@@ -107,7 +108,7 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
     };
 
     const applyMute = async (userId: string, seconds: number | null) => {
-        setMuteMenuFor(null);
+        setMuteModalFor(null);
         try {
             const until = seconds ? new Date(Date.now() + seconds * 1000).toISOString() : new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString();
             const res = await axios.put(`/api/servers/${server._id}/members/${userId}`, { communicationDisabledUntil: until });
@@ -118,6 +119,7 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
     };
 
     const clearMute = async (userId: string) => {
+        setMuteModalFor(null);
         try {
             const res = await axios.put(`/api/servers/${server._id}/members/${userId}`, { communicationDisabledUntil: null });
             const updated = members.map(m => (m.user as any)._id === userId ? { ...m, communicationDisabledUntil: res.data.communicationDisabledUntil } : m);
@@ -200,21 +202,13 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                                         <button className="action-button" title="Роли" onClick={() => setEditingMemberRoles(editingMemberRoles === uid ? null : uid)}><PlusIcon size={16} /></button>
                                     )}
                                     {canModerate && !targetIsOwner && (
-                                        <div style={{ position: 'relative' }}>
-                                            <button className="action-button" title="Мут" onClick={() => setMuteMenuFor(muteMenuFor === uid ? null : uid)}><SpeakerMutedIcon size={16} /></button>
-                                            {muteMenuFor === uid && (
-                                                <div className="settings-card" style={{ position: 'absolute', right: 0, top: '42px', zIndex: 10, width: '180px', padding: '8px', margin: 0 }}>
-                                                    {isMuted(member) && (
-                                                        <button className="settings-btn secondary" style={{ width: '100%', marginBottom: '6px' }} onClick={() => { clearMute(uid); setMuteMenuFor(null); }}>Снять мут</button>
-                                                    )}
-                                                    {MUTE_PRESETS.map(p => (
-                                                        <div key={p.label} className="settings-sidebar-item" style={{ margin: 0, padding: '8px 10px' }} onClick={() => applyMute(uid, p.seconds)}>
-                                                            {p.label}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <button
+                                            className="action-button"
+                                            title="Мут"
+                                            onClick={() => { setMuteDuration(60 * 60); setMuteModalFor({ userId: uid, username: member.nickname || member.user.username, alreadyMuted: isMuted(member) }); }}
+                                        >
+                                            <SpeakerMutedIcon size={16} />
+                                        </button>
                                     )}
                                     {canKick && !targetIsOwner && (
                                         <button className="action-button danger" title="Кикнуть" onClick={() => handleKick(uid)}><BootIcon size={16} /></button>
@@ -252,6 +246,32 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                     );
                 })}
             </div>
+
+            {muteModalFor && (
+                <div className="settings-modal-overlay">
+                    <div className="settings-modal-glass">
+                        <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Замутить {muteModalFor.username}?</h3>
+                        <p style={{ fontSize: '13px', marginBottom: '8px', color: 'var(--text-dim)' }}>Срок</p>
+                        <select
+                            className="settings-input"
+                            style={{ marginBottom: '4px' }}
+                            value={muteDuration ?? ''}
+                            onChange={(e) => setMuteDuration(e.target.value ? parseInt(e.target.value) : null)}
+                        >
+                            {MUTE_PRESETS.map(p => (
+                                <option key={p.label} value={p.seconds ?? ''}>{p.label}</option>
+                            ))}
+                        </select>
+                        <div className="modal-actions" style={{ justifyContent: 'stretch', display: 'flex', gap: '10px', marginTop: '20px' }}>
+                            <button className="settings-btn secondary" style={{ flex: 1 }} onClick={() => setMuteModalFor(null)}>Отмена</button>
+                            {muteModalFor.alreadyMuted && (
+                                <button className="settings-btn secondary" style={{ flex: 1 }} onClick={() => clearMute(muteModalFor.userId)}>Снять мут</button>
+                            )}
+                            <button className="settings-btn danger" style={{ flex: 1.2 }} onClick={() => applyMute(muteModalFor.userId, muteDuration)}>Замутить</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {banModalFor && (
                 <div className="settings-modal-overlay">

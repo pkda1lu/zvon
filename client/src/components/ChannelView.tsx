@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, LockIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import './panel-hero.css';
 import './ChannelView.css';
@@ -657,6 +657,17 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const canPin = hasPermission(userPermissions, Permissions.PIN_MESSAGES);
   const canReact = hasPermission(userPermissions, Permissions.ADD_REACTIONS);
   const canMentionEveryone = hasPermission(userPermissions, Permissions.MENTION_EVERYONE);
+
+  // Мут на сервере — заменяем поле ввода баннером-предупреждением, пока он не истёк.
+  const muteUntil = useMemo(() => {
+    const member = (server.members || []).find(m => (m.user as any)?._id === user?._id);
+    if (!member?.communicationDisabledUntil) return null;
+    const until = new Date(member.communicationDisabledUntil);
+    return until > new Date() ? until : null;
+  }, [server.members, user]);
+  const isMuted = !!muteUntil;
+  // Мут "навсегда" хранится как дата на ~100 лет вперёд — не показываем нелепую дату.
+  const isMutePermanent = isMuted && muteUntil!.getTime() - Date.now() > 50 * 365 * 24 * 60 * 60 * 1000;
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User, messageId?: string } | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1513,6 +1524,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             </div>
           </div>
         )}
+        {isMuted ? (
+          <div className="mute-composer-banner">
+            <LockIcon size={18} color="var(--danger)" />
+            <span>
+              Вы не можете отправлять сообщения на этом сервере — вы в муте{' '}
+              {isMutePermanent ? 'навсегда' : `до ${muteUntil!.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`}.
+            </span>
+          </div>
+        ) : (
         <form onSubmit={handleSendMessage} className="message-form">
           <ComposerAddMenu
             onAttach={() => fileInputRef.current?.click()}
@@ -1555,6 +1575,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           </div>
           <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>Отправить</button>
         </form>
+        )}
       </div>
       <CreatePollModal isOpen={showPollModal} onClose={() => setShowPollModal(false)} onCreate={handleCreatePoll} />
       {contextMenu && (

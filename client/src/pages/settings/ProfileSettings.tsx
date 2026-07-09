@@ -7,6 +7,7 @@ import ImageCropper from '../../components/ImageCropper';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import StreamerBlur from '../../components/StreamerBlur';
 import { AVAILABLE_BADGES } from '../../data/badges';
+import UserBadges from '../../components/UserBadges';
 
 const ProfileSettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
@@ -57,7 +58,9 @@ const ProfileSettings: React.FC = () => {
     const saveField = useCallback(async (field: string, value: any) => {
         try {
             await axios.put('/api/users/profile', { [field]: value });
-            if (field === 'bannerColor' || field === 'badges') await refreshUser();
+            // Значок/баннер/основной сервер видны и вне этой страницы (чат, список участников) —
+            // без refreshUser() глобальный user в AuthContext не обновится, и изменения "не применятся".
+            if (['bannerColor', 'badges', 'displayedTag', 'primaryServer'].includes(field)) await refreshUser();
         } catch (e) {
             console.error(`Failed to auto-save ${field}`, e);
         }
@@ -322,42 +325,46 @@ const ProfileSettings: React.FC = () => {
 
                 {/* 5. Значки (SINGLE SELECT) */}
                 <div className="settings-card">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>Значки профиля</h3>
-                    <GridPicker
-                        items={AVAILABLE_BADGES}
-                        selectedIds={selectedBadges}
-                        onToggle={handleBadgeToggle}
-                        multi={false}
-                    />
-
-                    <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
-
+                    <h3 className="settings-section-title" style={{marginTop: 0}}>Значок рядом с ником</h3>
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                        Что показывать рядом с ником: значок профиля или значок одного из ваших серверов.
+                        Что показывать рядом с ником: свой значок профиля или значок одного из ваших серверов.
                     </p>
                     <ChoiceGroup
                         options={[
-                            { value: 'badge', label: 'Значок профиля' },
+                            { value: 'badge', label: 'Свой значок' },
                             { value: 'serverTag', label: 'Значок сервера' }
                         ]}
                         value={tagSource}
                         onChange={handleTagSourceChange}
                     />
-                    {tagSource === 'serverTag' && (
-                        <div style={{ marginTop: '12px' }}>
-                            {serversWithTag.length === 0 ? (
-                                <p style={{ fontSize: '13px', color: 'var(--text-faint)' }}>
-                                    Ни у одного из ваших серверов пока не настроен значок.
-                                </p>
-                            ) : (
-                                <CustomSelect
-                                    options={serversWithTag.map((s: any) => ({ id: s._id, name: `${s.name} (${s.tag.text})`, icon: s.icon, type: 'server' as const }))}
-                                    value={tagServerId}
-                                    onChange={handleTagServerChange}
-                                    placeholder="Выберите сервер..."
-                                />
-                            )}
-                        </div>
+
+                    <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
+
+                    {tagSource === 'badge' ? (
+                        <GridPicker
+                            items={AVAILABLE_BADGES}
+                            selectedIds={selectedBadges}
+                            onToggle={handleBadgeToggle}
+                            multi={false}
+                        />
+                    ) : (
+                        serversWithTag.length === 0 ? (
+                            <p style={{ fontSize: '13px', color: 'var(--text-faint)' }}>
+                                Ни у одного из ваших серверов пока не настроен значок.
+                            </p>
+                        ) : (
+                            <CustomSelect
+                                options={serversWithTag.map((s: any) => ({
+                                    id: s._id,
+                                    name: s.name,
+                                    iconComponent: <UserBadges serverTag={s.tag} size={16} />,
+                                    type: 'server' as const
+                                }))}
+                                value={tagServerId}
+                                onChange={handleTagServerChange}
+                                placeholder="Выберите сервер..."
+                            />
+                        )
                     )}
                 </div>
 

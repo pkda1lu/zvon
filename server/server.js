@@ -101,6 +101,33 @@ app.use('/api/download', downloadRouter);
 //   https://zvonserver.ru/download/latest  -> latest installer (?platform=win|mac|linux)
 app.get('/download', downloadLatestRedirect);
 app.get('/download/latest', downloadLatestRedirect);
+// Прокси для внешних картинок (иконки игр из SteamGridDB и т.п.), которым нужен canvas-доступ
+// на клиенте (усреднение цвета для подложки события) — внешние CDN обычно не отдают
+// Access-Control-Allow-Origin, из-за чего canvas "затейнчивается". Отдаём с разрешающим CORS.
+const axios = require('axios');
+// Без auth: запрос уходит через нативный <img>/Image(), который не может нести заголовок
+// Authorization. Безопасность — за счёт ограничения протокола и блокировки внутренних адресов ниже.
+app.get('/api/media-proxy', async (req, res) => {
+  try {
+    const target = req.query.url;
+    if (!target || typeof target !== 'string') return res.status(400).json({ message: 'Missing url' });
+    let parsed;
+    try { parsed = new URL(target); } catch { return res.status(400).json({ message: 'Invalid url' }); }
+    if (!['http:', 'https:'].includes(parsed.protocol)) return res.status(400).json({ message: 'Invalid protocol' });
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || /^(10|127|169\.254|192\.168)\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+      return res.status(400).json({ message: 'Host not allowed' });
+    }
+    const response = await axios.get(target, { responseType: 'arraybuffer', timeout: 8000, maxContentLength: 8 * 1024 * 1024 });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+    res.send(response.data);
+  } catch (error) {
+    res.status(502).json({ message: 'Failed to fetch media' });
+  }
+});
+
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '7d',
   immutable: true,

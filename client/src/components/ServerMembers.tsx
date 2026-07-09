@@ -6,11 +6,58 @@ import UserAvatar from './UserAvatar';
 import UserBadges from './UserBadges';
 import { useVoice } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
+import { useDominantColor } from '../utils/dominantColor';
 import './panel-hero.css';
 import './ServerMembers.css';
 
+interface ServerEvent {
+    key: string;
+    kind: 'game' | 'stream' | 'voice';
+    image: string | null;
+    timestamp: number;
+    text: string;
+}
+
+// Мягкая подложка "перехватывает" цвет иконки игры; для эфира — фиксированный фиолетовый;
+// для войс-группы — нейтральный цвет по умолчанию.
+const STREAM_RGB = '112, 0, 255';
+const VOICE_RGB = '0, 229, 255';
+const FALLBACK_RGB = '160, 160, 170';
+
+// Иконка площадки стрима — берём фавикон домена из ссылки на стрим (любая платформа, без хардкода списка).
+const getStreamPlatformIcon = (streamLink: string): string | null => {
+    try {
+        const hostname = new URL(streamLink).hostname;
+        return `https://www.google.com/s2/favicons?sz=64&domain=${hostname}`;
+    } catch {
+        return null;
+    }
+};
+
+const ServerEventCard: React.FC<{ event: ServerEvent }> = ({ event }) => {
+    const extractedRgb = useDominantColor(event.kind === 'game' ? getFullUrl(event.image) : null);
+    const rgb = event.kind === 'stream' ? STREAM_RGB : event.kind === 'game' ? (extractedRgb || FALLBACK_RGB) : VOICE_RGB;
+
+    return (
+        <div className="server-event-item" style={{ background: `rgba(${rgb}, 0.1)` }}>
+            {event.image ? (
+                <img src={getFullUrl(event.image)!} alt="" className="server-event-icon" />
+            ) : (
+                <div className="server-event-icon-placeholder" style={{ background: `rgba(${rgb}, 0.25)` }} />
+            )}
+            <span className="server-event-text">{event.text}</span>
+        </div>
+    );
+};
+
 const ACTIVITY_VERBS: Record<string, string> = {
     playing: 'Играет в', streaming: 'В эфире:', listening: 'Слушает', watching: 'Смотрит', competing: 'Соревнуется в', sitting: 'Сидит в'
+};
+
+// Третье лицо — для общей ленты событий сервера (в отличие от ACTIVITY_VERBS, который читается
+// как продолжение имени владельца строки в списке участников).
+const ACTIVITY_VERBS_FEED: Record<string, string> = {
+    playing: 'играет в', streaming: 'стримит в', listening: 'слушает', watching: 'смотрит', competing: 'соревнуется в', sitting: 'сидит в'
 };
 
 const LiveBadge: React.FC = () => (
@@ -64,6 +111,83 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         return lines.slice(0, 3);
     };
 
+    // Лента "текущие события" — до 3 самых свежих событий (активности + войс-группы),
+    // отображается ОДИН РАЗ над списком участников, а не размазана по каждому его члену.
+    // Несколько участников одной игры/активности объединяются в одно событие; эфиры остаются
+    // отдельными событиями (каждый стример — своя трансляция).
+    const serverEvents = React.useMemo<ServerEvent[]>(() => {
+        if (!showActivity) return [];
+
+        const streamEvents: ServerEvent[] = [];
+        const groups = new Map<string, { type: string; name: string; image: string | null; timestamp: number; usernames: string[] }>();
+
+        server.members.map(m => m.user).filter(u => u?.activity?.name).forEach(u => {
+            const a = u.activity!;
+            if (a.type === 'streaming') {
+                // Без ссылки на стрим (площадка неизвестна) такое событие не показываем.
+                const streamLink = u.settings?.streamerMode?.streamerLink;
+                if (!streamLink) return;
+                streamEvents.push({
+                    key: `stream-${u._id}`,
+                    kind: 'stream',
+                    image: getStreamPlatformIcon(streamLink),
+                    timestamp: a.timestamps?.start || 0,
+                    text: `${u.username} стримит в ${a.name}`
+                });
+                return;
+            }
+            const groupKey = `${a.type}:${a.name}`;
+            const existing = groups.get(groupKey);
+            if (existing) {
+                existing.usernames.push(u.username);
+                existing.timestamp = Math.max(existing.timestamp, a.timestamps?.start || 0);
+                if (!existing.image && a.assets?.largeImage) existing.image = a.assets.largeImage;
+            } else {
+                groups.set(groupKey, {
+                    type: a.type || 'playing',
+                    name: a.name!,
+                    image: a.assets?.largeImage || null,
+                    timestamp: a.timestamps?.start || 0,
+                    usernames: [u.username]
+                });
+            }
+        });
+
+        const gameEvents: ServerEvent[] = Array.from(groups.entries()).map(([groupKey, g]) => {
+            const verb = ACTIVITY_VERBS_FEED[g.type] || 'занимается:';
+            const namesText = g.usernames.length <= 3
+                ? g.usernames.join(' и ')
+                : `${g.usernames.slice(0, 3).join(', ')} и ещё ${g.usernames.length - 3} участников`;
+            return {
+                key: `game-${groupKey}`,
+                kind: 'game',
+                image: g.image,
+                timestamp: g.timestamp,
+                text: `${namesText} ${verb} ${g.name}`
+            };
+        });
+
+        const voiceEvents: ServerEvent[] = Object.entries(voiceStates)
+            .filter(([, users]) => (users || []).length >= 2)
+            .map(([channelId, users]) => {
+                const channel = (server.channels || []).find(c => c._id === channelId);
+                const names = users.map(u => u.username);
+                const rest = names.length > 3 ? ` и ещё ${names.length - 3} участников` : '';
+                const namesText = names.length <= 3 ? names.join(' и ') : names.slice(0, 3).join(', ');
+                return {
+                    key: `voice-${channelId}`,
+                    kind: 'voice',
+                    image: null,
+                    timestamp: 0,
+                    text: `${namesText}${rest} общаются в #${channel?.name || 'войсе'}`
+                };
+            });
+
+        return [...gameEvents, ...streamEvents, ...voiceEvents]
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 3);
+    }, [showActivity, server.members, server.channels, voiceStates]);
+
     const handleContextMenu = (e: React.MouseEvent, user: User) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY, user });
@@ -91,6 +215,12 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     </button>
                     <span>Участники</span>
+                </div>
+            )}
+            {serverEvents.length > 0 && (
+                <div className="server-events-feed">
+                    <div className="server-events-feed-header">Текущие события</div>
+                    {serverEvents.map(ev => <ServerEventCard key={ev.key} event={ev} />)}
                 </div>
             )}
             <div className="members-list">

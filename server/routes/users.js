@@ -117,7 +117,7 @@ router.get('/profile/:id', auth, async (req, res) => {
 
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { username, displayName, primaryServer, status, bio, badges, bannerColor } = req.body;
+    const { username, displayName, primaryServer, status, bio, badges, bannerColor, displayedTag } = req.body;
     if (username) {
       const existingUser = await User.findOne({ username });
       if (existingUser && existingUser._id.toString() !== req.user._id.toString()) return res.status(400).json({ message: 'Username already taken' });
@@ -134,12 +134,18 @@ router.put('/profile', auth, async (req, res) => {
     if (bio !== undefined) req.user.bio = bio;
     if (badges !== undefined) req.user.badges = badges;
     if (bannerColor !== undefined) req.user.bannerColor = bannerColor;
+    if (displayedTag !== undefined) {
+      req.user.displayedTag = {
+        type: displayedTag?.type === 'serverTag' ? 'serverTag' : 'badge',
+        server: displayedTag?.type === 'serverTag' ? (displayedTag.server || null) : null
+      };
+    }
     await req.user.save();
     const io = req.app.get('io');
     if (io) {
-      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, badges: req.user.badges });
+      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, badges: req.user.badges, displayedTag: req.user.displayedTag });
     }
-    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, bio: req.user.bio, status: req.user.status, badges: req.user.badges });
+    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, bio: req.user.bio, status: req.user.status, badges: req.user.badges, displayedTag: req.user.displayedTag });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
