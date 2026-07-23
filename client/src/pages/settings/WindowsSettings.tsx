@@ -1,20 +1,22 @@
 import React from 'react';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { SettingsToggle } from './SettingsUI';
+import { getBrand } from '../../utils/branding';
 
 const WindowsSettings: React.FC = () => {
-    const { 
+    const {
         autoStart, setAutoStart,
         minimizeToTray, setMinimizeToTray,
         closeToTray, setCloseToTray,
         startMinimized, setStartMinimized
     } = useWindowSettings();
+    const brand = getBrand();
 
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Действия</h2>
             <p className="settings-description">
-                Управляйте поведением окна приложения ZVON в операционной системе.
+                Управляйте поведением окна приложения {brand.name.toUpperCase()} в операционной системе.
             </p>
 
             <div className="settings-section-title">Системные</div>
@@ -22,7 +24,7 @@ const WindowsSettings: React.FC = () => {
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Запуск при старте системы</h3>
-                        <p>Автоматически открывать ZVON при включении компьютера.</p>
+                        <p>Автоматически открывать {brand.name.toUpperCase()} при включении компьютера.</p>
                     </div>
                     <SettingsToggle checked={autoStart} onChange={setAutoStart} />
                 </div>

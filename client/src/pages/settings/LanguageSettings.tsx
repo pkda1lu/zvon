@@ -1,9 +1,11 @@
 import React from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { ChoiceGroup } from './SettingsUI';
+import { getBrand } from '../../utils/branding';
 
 const LanguageSettings: React.FC = () => {
     const { language, setLanguage, timeFormat, setTimeFormat } = useLanguage();
+    const brand = getBrand();
 
     const langOptions = [
         { value: 'ru', label: 'Русский' }
@@ -20,7 +22,7 @@ const LanguageSettings: React.FC = () => {
             
             <div className="settings-card">
                 <h3 className="settings-section-title" style={{marginTop: 0}}>Язык интерфейса</h3>
-                <p className="settings-description">Выберите язык, на котором будет отображаться интерфейс ZVON.</p>
+                <p className="settings-description">Выберите язык, на котором будет отображаться интерфейс {brand.name.toUpperCase()}.</p>
                 <ChoiceGroup 
                     options={langOptions}
                     value={language}

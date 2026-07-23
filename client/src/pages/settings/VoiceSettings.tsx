@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useVoice, useVoiceLevels } from '../../contexts/VoiceContext';
 import { CustomSelect, SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
 import { SpeakerIcon, MicIcon, CameraIcon, VideoIcon } from '../../components/Icons';
+import { getBrand } from '../../utils/branding';
 
 // Separate component for the sensitivity visualizer to isolate high-frequency re-renders
 const SensitivityVisualizer: React.FC<{ 
@@ -91,7 +92,8 @@ const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
   };
 
 const VoiceSettings: React.FC = () => {
-    const { 
+    const brand = getBrand();
+    const {
         inputDevices,
         outputDevices,
         videoDevices,
@@ -198,7 +200,7 @@ const VoiceSettings: React.FC = () => {
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Автоматически определять чувствительность</h3>
-                        <p>Позволить ZVON автоматически настраивать чувствительность нажатия.</p>
+                        <p>Позволить {brand.name.toUpperCase()} автоматически настраивать чувствительность нажатия.</p>
                     </div>
                     <SettingsToggle checked={isAutomaticSensitivity} onChange={setIsAutomaticSensitivity} />
                 </div>

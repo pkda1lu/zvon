@@ -20,7 +20,7 @@ const Landing: React.FC = () => {
     const brand = getBrand();
     const isMax = brand.id === 'maxcord';
     const base = import.meta.env.BASE_URL;
-    const heroImg = `${base}${isMax ? 'maxcord/landing_hero.png' : 'landing_hero.png'}`;
+    const heroImg = `${base}${isMax ? 'landing_hero.png' : 'landing_hero.png'}`;
     // Промо-видео в секции (опционально): client/public/promo.mp4
     const promoSrc = `${base}promo.mp4`;
 

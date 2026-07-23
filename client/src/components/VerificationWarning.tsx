@@ -9,6 +9,7 @@ import {
   modalPopTransition,
 } from '../animations/transitions';
 import { useFreezeAppBackground } from '../animations/useFreezeAppBackground';
+import { getBrand } from '../utils/branding';
 import './VerificationWarning.css';
 
 interface VerificationWarningProps {
@@ -17,6 +18,7 @@ interface VerificationWarningProps {
 
 const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSettings }) => {
   const { user, resendVerification, verifyRegistration } = useAuth();
+  const brand = getBrand();
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -35,7 +37,7 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
         isOpen={showSuccess} 
         onClose={() => setShowSuccess(false)} 
         title="Почта подтверждена!" 
-        message="Ваш аккаунт успешно защищен. Теперь вам доступны все функции Zvon." 
+        message={`Ваш аккаунт успешно защищен. Теперь вам доступны все функции ${brand.name}.`}
       />
     );
   }
@@ -208,7 +210,7 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
         isOpen={showSuccess} 
         onClose={() => setShowSuccess(false)} 
         title="Почта подтверждена!" 
-        message="Ваш аккаунт успешно защищен. Теперь вам доступны все функции Zvon." 
+        message={`Ваш аккаунт успешно защищен. Теперь вам доступны все функции ${brand.name}.`}
       />
     </>
   );

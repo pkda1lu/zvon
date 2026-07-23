@@ -22,6 +22,7 @@ import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { addRecentMiniApp } from '../utils/recentMiniApps';
+import { getBrand } from '../utils/branding';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useDialog } from '../contexts/DialogContext';
 import { useInbox } from '../contexts/InboxContext';
@@ -47,6 +48,7 @@ import './Main.css';
 
 const Main: React.FC = () => {
   const { user, logout, updateUser, updateGlobalUser } = useAuth();
+  const brand = getBrand();
   const { socket } = useSocket();
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
@@ -1290,7 +1292,7 @@ const Main: React.FC = () => {
                     initial="initial" animate="animate" exit="exit"
                     transition={iosSpring}
                   >
-                    <h2>Добро пожаловать в Zvon!</h2>
+                    <h2>Добро пожаловать в {brand.name}!</h2>
                     <p>Выберите друга или сервер, чтобы начать общение</p>
                   </motion.div>
                 )}

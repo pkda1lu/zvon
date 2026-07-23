@@ -9,6 +9,7 @@ import { useDialog } from '../contexts/DialogContext';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import ActiveContacts from './ActiveContacts';
+import { getBrand } from '../utils/branding';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
@@ -28,6 +29,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
   const { socket } = useSocket();
   const { user: currentUser } = useAuth();
   const { confirm } = useDialog();
+  const brand = getBrand();
   const [userDMs, setUserDMs] = useState<DMDict>({});
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,7 +138,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
           )}
 
           <header className="friends-hero-header">
-            <span className="friends-hero-eyebrow">Zvon · Социальное</span>
+            <span className="friends-hero-eyebrow">{brand.name} · Социальное</span>
             <h1 className="friends-hero-title">
               {activeTab === 'pending' ? <>Входящие <span className="friends-hero-title__accent">запросы</span></>
                 : activeTab === 'add' ? <>Найти <span className="friends-hero-title__accent">новых друзей</span></>

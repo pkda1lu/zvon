@@ -15,6 +15,7 @@ import ScreenSourceSelector from './ScreenSourceSelector';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import { nativeAudioManager } from '../utils/nativeAudio';
+import { getBrand } from '../utils/branding';
 import {
   Room,
   RoomEvent,
@@ -137,6 +138,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 }) => {
   const { user } = useAuth();
   const { alert } = useDialog();
+  const brand = getBrand();
   const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, setUserVolume, localMutes, toggleLocalMute, isDeafened: isGlobalDeafened } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
@@ -502,7 +504,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       console.error('[DM Voice] LiveKit join error:', e);
       const msg = String((e as Error)?.message || '');
       if (/support|webRTC|supported on this browser/i.test(msg)) {
-        alert('Не удалось установить соединение: WebRTC недоступен в этом браузере. Скорее всего его блокирует расширение (например, MetaMask или «WebRTC Leak Prevent»). Откройте звонок в десктоп-приложении Zvon или отключите расширения, блокирующие WebRTC.');
+        alert(`Не удалось установить соединение: WebRTC недоступен в этом браузере. Скорее всего его блокирует расширение (например, MetaMask или «WebRTC Leak Prevent»). Откройте звонок в десктоп-приложении ${brand.name} или отключите расширения, блокирующие WebRTC.`);
       } else {
         alert('Не удалось подключиться к звонку: ' + (msg || 'неизвестная ошибка') + '. Попробуйте ещё раз.');
       }

@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
+import { getBrand } from '../utils/branding';
 import './InvitePage.css';
 
 const InvitePage: React.FC = () => {
     const { code } = useParams<{ code: string }>();
     const navigate = useNavigate();
     const { user: authUser, loading: authLoading } = useAuth();
+    const brand = getBrand();
     const [invite, setInvite] = useState<any>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
@@ -155,7 +157,7 @@ const InvitePage: React.FC = () => {
                                             Открыть в приложении
                                         </button>
                                         <button style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
-                                            Установить ZVON
+                                            Установить {brand.name.toUpperCase()}
                                         </button>
                                     </>
                                 ) : (
@@ -170,7 +172,7 @@ const InvitePage: React.FC = () => {
             </div>
 
             <div style={{ position: 'absolute', bottom: '30px', left: '0', width: '100%', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>
-                ZVON • THE LIQUID FUTURE OF COMMUNICATION
+                {brand.name.toUpperCase()} • THE LIQUID FUTURE OF COMMUNICATION
             </div>
         </div>
     );
