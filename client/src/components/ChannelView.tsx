@@ -32,7 +32,7 @@ import type { ChatPoll } from './MessagePoll';
 import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
 import StickyPins from './StickyPins';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import AttachmentsModal from './AttachmentsModal';
 import { SmileIcon } from './Icons';
 import ServerInviteCard from './ServerInviteCard';
@@ -358,6 +358,24 @@ const MessageItem = React.memo<{
   const showDate = shouldShowDate(msg, prev);
   const grouped = isGrouped(msg, prev);
 
+  // Системное сообщение (напр. вход на сервер) — не оформляется как обычное сообщение от автора.
+  if (msg.type === 'server-join') {
+    return (
+      <>
+        {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
+        <div className="system-message" id={`msg-${msg._id}`}>
+          <div className="system-message-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+          <span className="system-message-text">{msg.content}</span>
+          <span className="system-message-time">{formatClockTime(msg.createdAt)}</span>
+        </div>
+      </>
+    );
+  }
+
   const member = useMemo(() =>
     server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id)),
     [server.members, msg.author._id]
@@ -387,7 +405,7 @@ const MessageItem = React.memo<{
             <ReplyIcon size={12} className="reply-icon-mini" />
             <UserAvatar user={msg.replyTo.author} size={16} className="reply-avatar" />
             <span className="reply-author">{msg.replyTo.author.username}</span>
-            <UserBadges badges={msg.replyTo.author.badges} size={10} />
+            <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />
             <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
           </div>
         )}
@@ -426,7 +444,7 @@ const MessageItem = React.memo<{
                 >
                   {member?.nickname || msg.author.username}
                 </span>
-                <UserBadges badges={msg.author.badges} size={14} />
+                <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />
                 {msg.author.isBot && <span className="bot-badge">БOТ</span>}
                 <span className="message-time">{formatDate(msg.createdAt)}</span>
               </div>
@@ -973,7 +991,31 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState<{ id: string; name: string; previewUrl: string | null }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Общая загрузка файлов для composer'а (клик по "+", вставка из буфера, drag&drop) —
+  // показывает индикатор загрузки на месте будущего вложения, пока идёт запрос.
+  const uploadComposerFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    const pending = files.map(file => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: file.name,
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+    }));
+    setUploadingFiles(prev => [...prev, ...pending]);
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    try {
+      const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setAttachments(prev => [...prev, ...response.data]);
+    } catch (error) {
+      await alert('Ошибка загрузки файла');
+    } finally {
+      pending.forEach(p => { if (p.previewUrl) URL.revokeObjectURL(p.previewUrl); });
+      setUploadingFiles(prev => prev.filter(p => !pending.some(pp => pp.id === p.id)));
+    }
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1023,14 +1065,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const formData = new FormData();
-      for (let i = 0; i < e.target.files.length; i++) formData.append('files', e.target.files[i]);
-      try {
-        const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        setAttachments(prev => [...prev, ...response.data]);
-      } catch (error) {
-        await alert('Ошибка загрузки файла');
-      }
+      await uploadComposerFiles(Array.from(e.target.files));
+      e.target.value = '';
     }
   };
 
@@ -1042,15 +1078,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
       if (isFile) {
         e.preventDefault();
-        const files = Array.from(e.clipboardData.files);
-        const formData = new FormData();
-        files.forEach(file => formData.append('files', file));
-        try {
-          const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-          setAttachments(prev => [...prev, ...response.data]);
-        } catch (error) {
-          await alert('Ошибка загрузки файла');
-        }
+        await uploadComposerFiles(Array.from(e.clipboardData.files));
       }
     }
   };
@@ -1235,18 +1263,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     dragCounter.current = 0;
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files);
-      const formData = new FormData();
-      files.forEach(file => formData.append('files', file));
-
-      try {
-        const response = await axios.post('/api/upload-files', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        setAttachments(prev => [...prev, ...response.data]);
-      } catch (error) {
-        await alert('Ошибка загрузки файла');
-      }
+      await uploadComposerFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -1351,7 +1368,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                     <div className="pin-author">
                       <UserAvatar user={msg.author} size={24} className="pin-avatar-comp" />
                       <span className="pin-name">{msg.author.username}</span>
-                      <UserBadges badges={msg.author.badges} size={12} />
+                      <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12} />
                       <span className="pin-date">{formatDate(msg.createdAt)}</span>
                     </div>
                     <div className="pin-content">
@@ -1505,20 +1522,28 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               <ReplyIcon size={16} color="var(--primary-neon)" />
               <div className="reply-input-text">
                 <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
-                <UserBadges badges={replyToMessage.author.badges} size={12} />
+                <UserBadges badges={replyToMessage.author.badges} serverTag={resolveServerTag(replyToMessage.author)} size={12} />
                 <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
               </div>
             </div>
             <button className="cancel-reply-btn" onClick={() => setReplyToMessage(null)}>×</button>
           </div>
         )}
-        {attachments.length > 0 && (
+        {(attachments.length > 0 || uploadingFiles.length > 0) && (
           <div className="attachments-preview">
             <div className="attachments-preview-list">
               {attachments.map((att, i) => (
                 <div key={i} className="input-attachment-preview">
                   {att.type.startsWith('image/') ? <img src={getFullUrl(att.url)!} alt="" /> : <div className="file-icon"><DocumentIcon size={24} /></div>}
                   <button type="button" className="remove-attachment-btn" onClick={() => removeAttachment(i)}>×</button>
+                </div>
+              ))}
+              {uploadingFiles.map(f => (
+                <div key={f.id} className="input-attachment-preview uploading">
+                  {f.previewUrl ? <img src={f.previewUrl} alt="" /> : <div className="file-icon"><DocumentIcon size={24} /></div>}
+                  <div className="attachment-upload-overlay">
+                    <span className="attachment-upload-spinner" />
+                  </div>
                 </div>
               ))}
             </div>

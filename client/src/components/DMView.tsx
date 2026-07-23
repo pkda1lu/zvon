@@ -26,7 +26,7 @@ import CreatePollModal from './CreatePollModal';
 import ComposerAddMenu from './ComposerAddMenu';
 import type { ChatPoll } from './MessagePoll';
 import StickyPins from './StickyPins';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import AttachmentsModal from './AttachmentsModal';
 import ServerInviteCard from './ServerInviteCard';
 import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
@@ -830,7 +830,7 @@ const DMView: React.FC<DMViewProps> = ({
             <div className="dm-header-text-info">
               <div className="dm-display-name-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3 className="dm-display-name" style={{ margin: 0, cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setShowAttachments(true); }}>{displayName}</h3>
-                {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} size={16} />}
+                {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={16} />}
               </div>
               {maskModeration ? (
                 <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
@@ -884,7 +884,7 @@ const DMView: React.FC<DMViewProps> = ({
                       <div className="pin-author" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <UserAvatar user={dispAuthor(msg.author)} size={24} className="pin-avatar-comp" />
                         <span className="pin-name" style={{ fontWeight: 600 }}>{dispAuthor(msg.author).username}</span>
-                        {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} size={12} />}
+                        {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12} />}
                         <span className="pin-date" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatDate(msg.createdAt)}</span>
                       </div>
                     <div className="pin-content">
@@ -991,7 +991,7 @@ const DMView: React.FC<DMViewProps> = ({
                           ) : (
                             <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
                           )}
-                          {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} size={14} />}
+                          {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
                           <span className="message-time">{formatDate(msg.createdAt)}</span>
                         </div>
                         <div className="system-message-text">Пропущенный звонок</div>
@@ -1009,7 +1009,7 @@ const DMView: React.FC<DMViewProps> = ({
                           <ReplyIcon size={12} className="reply-icon-mini" />
                           <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16} className="reply-avatar" />
                            <span className="reply-author" style={{ fontWeight: 600 }}>{dispAuthor(msg.replyTo.author).username}</span>
-                           {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={msg.replyTo.author.badges} size={10} />}
+                           {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />}
                           <span className="reply-content" style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
                         </div>
                       )}
@@ -1032,7 +1032,7 @@ const DMView: React.FC<DMViewProps> = ({
                             ) : (
                               <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
                             )}
-                            {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} size={14} />}
+                            {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
                             {!dispAuthor(msg.author)._masked && msg.author.isBot && <span className="bot-badge">БOТ</span>}
                             <span className="message-time">{formatDate(msg.createdAt)}</span>
                             {showHoverBar && (
@@ -1272,7 +1272,7 @@ const DMView: React.FC<DMViewProps> = ({
                 <ReplyIcon size={16} color="var(--primary-neon)" />
                 <div className="reply-input-text">
                    <span>Ответ пользователю <strong>{dispAuthor(replyToMessage.author).username}</strong></span>
-                   {!dispAuthor(replyToMessage.author)._masked && <UserBadges badges={replyToMessage.author.badges} size={12} />}
+                   {!dispAuthor(replyToMessage.author)._masked && <UserBadges badges={replyToMessage.author.badges} serverTag={resolveServerTag(replyToMessage.author)} size={12} />}
                   <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
                 </div>
               </div>

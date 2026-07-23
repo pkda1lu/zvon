@@ -53,7 +53,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Device-Id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Device-Id', 'x-device-id'],
   exposedHeaders: ['Content-Type', 'Authorization']
 };
 
@@ -199,7 +199,7 @@ const getVoiceChannelUsers = async (channelId) => {
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.userId) {
-      const user = await User.findById(socket.userId).select('username displayName avatar status banner badges activity');
+      const user = await User.findById(socket.userId).select('username displayName avatar status banner badges activity displayedTag').populate('displayedTag.server', 'name icon tag');
       if (user) {
         const userData = user.toObject();
         userData.isMuted = socket.isMuted || false;
@@ -615,21 +615,21 @@ io.on('connection', (socket) => {
       }
 
       await message.save();
-      await message.populate('author', 'username avatar activity');
+      await message.populate({ path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       if (message.replyTo) {
         await message.populate({
           path: 'replyTo',
-          populate: { path: 'author', select: 'username avatar activity' }
+          populate: { path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }
         });
       }
 
       if (data.channelId) {
         const fullMessage = await Message.findById(message._id)
-          .populate('author', 'username avatar activity')
-          .populate('mentions', 'username')
+          .populate({ path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+          .populate({ path: 'mentions', select: 'username badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
           .populate({
             path: 'replyTo',
-            populate: { path: 'author', select: 'username avatar activity' }
+            populate: { path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }
           });
         io.to(`channel-${data.channelId}`).emit('new-message', fullMessage);
 
@@ -701,7 +701,7 @@ io.on('connection', (socket) => {
       message.edited = true;
       message.editedAt = new Date();
       await message.save();
-      await message.populate('author', 'username avatar activity');
+      await message.populate({ path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       await message.populate('mentions', 'username');
 
       if (message.channel) {
@@ -978,6 +978,7 @@ io.on('connection', (socket) => {
       // user is already declared above
       const memberRec = (fullServer.members || []).find(m => String(m.user) === String(socket.userId));
       const serverNickname = memberRec?.nickname || null;
+      await user.populate('displayedTag.server', 'name icon tag');
       socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', {
         userId: socket.userId,
         user: {
@@ -988,6 +989,7 @@ io.on('connection', (socket) => {
           avatar: user.avatar,
           banner: user.banner,
           badges: user.badges || [],
+          displayedTag: user.displayedTag || null,
           isMuted: socket.isMuted || false,
           isDeafened: socket.isDeafened || false,
           isScreenSharing: socket.isScreenSharing || false,

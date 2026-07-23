@@ -314,6 +314,15 @@
 }
 
 /* --- CHANNEL ACTIONS --- */
+.voice-channel-timer {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding: 0 2px;
+}
+
 .channel-actions {
   display: flex;
   align-items: center;

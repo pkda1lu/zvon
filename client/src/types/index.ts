@@ -291,7 +291,7 @@ export interface Message {
     content?: string;
     createdAt?: string;
   } | null;
-  type?: 'default' | 'missed-call' | 'call-ended';
+  type?: 'default' | 'missed-call' | 'call-ended' | 'server-join';
   pinned?: boolean;
   pinnedAt?: string;
   createdAt: string;

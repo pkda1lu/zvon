@@ -3,10 +3,11 @@ import { Server, User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { useVoice } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useDominantColor } from '../utils/dominantColor';
+import { SpeakerIcon } from './Icons';
 import './panel-hero.css';
 import './ServerMembers.css';
 
@@ -42,6 +43,10 @@ const ServerEventCard: React.FC<{ event: ServerEvent }> = ({ event }) => {
         <div className="server-event-item" style={{ background: `rgba(${rgb}, 0.1)` }}>
             {event.image ? (
                 <img src={getFullUrl(event.image)!} alt="" className="server-event-icon" />
+            ) : event.kind === 'voice' ? (
+                <div className="server-event-icon-placeholder" style={{ background: `rgba(${rgb}, 0.25)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <SpeakerIcon size={18} color={`rgb(${rgb})`} />
+                </div>
             ) : (
                 <div className="server-event-icon-placeholder" style={{ background: `rgba(${rgb}, 0.25)` }} />
             )}
@@ -55,9 +60,33 @@ const ACTIVITY_VERBS: Record<string, string> = {
 };
 
 // Третье лицо — для общей ленты событий сервера (в отличие от ACTIVITY_VERBS, который читается
-// как продолжение имени владельца строки в списке участников).
-const ACTIVITY_VERBS_FEED: Record<string, string> = {
-    playing: 'играет в', streaming: 'стримит в', listening: 'слушает', watching: 'смотрит', competing: 'соревнуется в', sitting: 'сидит в'
+// как продолжение имени владельца строки в списке участников). Раздельно ед./мн. число, т.к. группа
+// может состоять как из одного, так и из нескольких участников ("один играет" / "двое играют").
+const ACTIVITY_VERBS_FEED: Record<string, { one: string; many: string }> = {
+    playing: { one: 'играет в', many: 'играют в' },
+    streaming: { one: 'стримит в', many: 'стримят в' },
+    listening: { one: 'слушает', many: 'слушают' },
+    watching: { one: 'смотрит', many: 'смотрят' },
+    competing: { one: 'соревнуется в', many: 'соревнуются в' },
+    sitting: { one: 'сидит в', many: 'сидят в' }
+};
+const DEFAULT_ACTIVITY_VERB = { one: 'занимается:', many: 'занимаются:' };
+
+// Склонение "пользователь/пользователя/пользователей" по числу N.
+const pluralUsers = (n: number): string => {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 14) return 'пользователей';
+    if (mod10 === 1) return 'пользователь';
+    if (mod10 >= 2 && mod10 <= 4) return 'пользователя';
+    return 'пользователей';
+};
+
+// Список имён для события: 1-2 имени полностью, дальше — "ПЕРВЫЙ и ещё N пользователя(-ей)",
+// чтобы длинный список участников не раздувал текст события.
+const formatEventNames = (usernames: string[]): string => {
+    if (usernames.length <= 2) return usernames.join(' и ');
+    const rest = usernames.length - 1;
+    return `${usernames[0]} и ещё ${rest} ${pluralUsers(rest)}`;
 };
 
 const LiveBadge: React.FC = () => (
@@ -78,37 +107,61 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
     const isLive = (userId: string) => !!userStates.get(userId)?.isScreenSharing;
 
     // Живой ростер голосовых каналов сервера — для "событий сервера" (кто с кем общается в войсе).
+    // Сокет присоединён к комнатам ВСЕХ серверов пользователя одновременно (см. join-server в Main.tsx),
+    // поэтому события по чужим каналам тоже долетают сюда — отфильтровываем их по каналам этого сервера,
+    // иначе в списке "текущих событий" утекают войс-статусы с других серверов.
+    const serverChannelIds = React.useMemo(() => new Set((server.channels || []).map(c => c._id)), [server.channels]);
     const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
     useEffect(() => {
         if (!socket) return;
-        const onSnapshot = (states: Record<string, User[]>) => setVoiceStates(states);
-        const onUpdate = (data: { channelId: string; users: User[] }) => setVoiceStates(prev => ({ ...prev, [data.channelId]: data.users }));
+        const onSnapshot = (states: Record<string, User[]>) => {
+            const filtered: Record<string, User[]> = {};
+            Object.entries(states).forEach(([cid, users]) => {
+                if (serverChannelIds.has(cid)) filtered[cid] = users;
+            });
+            // Мёрджим, а не заменяем целиком: этот снапшот может относиться к другому серверу
+            // (join-server рассылает его во все комнаты, в которых сейчас числится сокет).
+            setVoiceStates(prev => ({ ...prev, ...filtered }));
+        };
+        const onUpdate = (data: { channelId: string; users: User[] }) => {
+            if (!serverChannelIds.has(data.channelId)) return;
+            setVoiceStates(prev => ({ ...prev, [data.channelId]: data.users }));
+        };
         socket.on('server-voice-states', onSnapshot);
         socket.on('voice-channel-users-update', onUpdate);
         return () => {
             socket.off('server-voice-states', onSnapshot);
             socket.off('voice-channel-users-update', onUpdate);
         };
-    }, [socket]);
+    }, [socket, serverChannelIds]);
 
     const showActivity = server.showMemberActivity !== false;
 
-    // До 3 строк "событий" пользователя: текущая активность + голосовой канал (с кем).
-    const getActivityLines = (u: User): string[] => {
-        if (!showActivity) return [];
-        const lines: string[] = [];
+    // Единственная "свежая" строка события пользователя: активность (с известным временем начала)
+    // или войс-канал (без метки времени на клиенте — считается менее свежим, чем активная активность).
+    const getPrimaryActivity = (u: User): { text: string; icon: string | null } | null => {
+        if (!showActivity) return null;
+
+        const candidates: { text: string; icon: string | null; timestamp: number }[] = [];
+
         if (u.activity?.name) {
             const verb = ACTIVITY_VERBS[u.activity.type as string] || 'Занимается:';
-            lines.push(`${verb} ${u.activity.name}`);
+            candidates.push({
+                text: `${verb} ${u.activity.name}`,
+                icon: u.activity.assets?.largeImage || null,
+                timestamp: u.activity.timestamps?.start || 0
+            });
         }
         const voiceChannelId = Object.keys(voiceStates).find(cid => (voiceStates[cid] || []).some(vu => vu._id === u._id));
         if (voiceChannelId) {
             const channel = (server.channels || []).find(c => c._id === voiceChannelId);
             const others = (voiceStates[voiceChannelId] || []).filter(vu => vu._id !== u._id).map(vu => vu.username);
             const suffix = others.length > 0 ? ` с ${others.slice(0, 2).join(' и ')}` : '';
-            lines.push(`Общается в #${channel?.name || 'войсе'}${suffix}`);
+            candidates.push({ text: `Общается в #${channel?.name || 'войсе'}${suffix}`, icon: null, timestamp: 0 });
         }
-        return lines.slice(0, 3);
+
+        if (candidates.length === 0) return null;
+        return candidates.reduce((freshest, c) => (c.timestamp > freshest.timestamp ? c : freshest));
     };
 
     // Лента "текущие события" — до 3 самых свежих событий (активности + войс-группы),
@@ -154,10 +207,9 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         });
 
         const gameEvents: ServerEvent[] = Array.from(groups.entries()).map(([groupKey, g]) => {
-            const verb = ACTIVITY_VERBS_FEED[g.type] || 'занимается:';
-            const namesText = g.usernames.length <= 3
-                ? g.usernames.join(' и ')
-                : `${g.usernames.slice(0, 3).join(', ')} и ещё ${g.usernames.length - 3} участников`;
+            const verbForm = ACTIVITY_VERBS_FEED[g.type] || DEFAULT_ACTIVITY_VERB;
+            const verb = g.usernames.length === 1 ? verbForm.one : verbForm.many;
+            const namesText = formatEventNames(g.usernames);
             return {
                 key: `game-${groupKey}`,
                 kind: 'game',
@@ -172,14 +224,13 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
             .map(([channelId, users]) => {
                 const channel = (server.channels || []).find(c => c._id === channelId);
                 const names = users.map(u => u.username);
-                const rest = names.length > 3 ? ` и ещё ${names.length - 3} участников` : '';
-                const namesText = names.length <= 3 ? names.join(' и ') : names.slice(0, 3).join(', ');
+                const namesText = formatEventNames(names);
                 return {
                     key: `voice-${channelId}`,
                     kind: 'voice',
                     image: null,
                     timestamp: 0,
-                    text: `${namesText}${rest} общаются в #${channel?.name || 'войсе'}`
+                    text: `${namesText} общаются в #${channel?.name || 'войсе'}`
                 };
             });
 
@@ -193,14 +244,9 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         setContextMenu({ x: e.clientX, y: e.clientY, user });
     };
 
-    // Значок сервера показываем, только если пользователь выбрал показывать именно значок ЭТОГО сервера —
-    // его данные (текст/иконка/цвет) у нас уже есть локально, не нужно резолвить другие сервера.
-    const getServerTag = (u: User) => {
-        if (u.displayedTag?.type !== 'serverTag') return undefined;
-        const tagServerId = typeof u.displayedTag.server === 'string' ? u.displayedTag.server : (u.displayedTag.server as any)?._id;
-        if (String(tagServerId) !== String(server._id)) return undefined;
-        return server.tag?.text ? server.tag : undefined;
-    };
+    // Значок сервера показываем на всех серверах и в профиле — независимо от того, на каком сервере
+    // пользователь его выбрал (displayedTag.server приходит populated с сервера).
+    const getServerTag = (u: User) => resolveServerTag(u);
 
     return (
         <div className="server-members panel-hero">
@@ -280,6 +326,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                     <div className="member-avatar-wrap">
                                                         <UserAvatar
                                                             user={member.user}
+                                                            avatarOverride={member.avatar || undefined}
                                                             size={32}
                                                             className="member-avatar"
                                                         />
@@ -288,19 +335,23 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                     <div className="member-info">
                                                         <div className="member-name-row">
                                                             <span className="member-name" style={{ color: memberColor }}>
-                                                                {member.nickname || member.user.username}
+                                                                {member.nickname || member.user.displayName || member.user.username}
                                                             </span>
                                                             <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
                                                             {isLive(member.user._id) && <LiveBadge />}
                                                         </div>
-                                                        {getActivityLines(member.user).map((line, i) => (
-                                                            <div className="member-activity" key={i}>
-                                                                {i === 0 && member.user.activity?.assets?.largeImage && (
-                                                                    <img src={getFullUrl(member.user.activity.assets.largeImage)!} alt="" className="member-activity-icon" />
-                                                                )}
-                                                                <span className="activity-text">{line}</span>
-                                                            </div>
-                                                        ))}
+                                                        {(() => {
+                                                            const primary = getPrimaryActivity(member.user);
+                                                            if (!primary) return null;
+                                                            return (
+                                                                <div className="member-activity">
+                                                                    {primary.icon && (
+                                                                        <img src={getFullUrl(primary.icon)!} alt="" className="member-activity-icon" />
+                                                                    )}
+                                                                    <span className="activity-text">{primary.text}</span>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                             );
@@ -329,6 +380,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                 <div className="member-avatar-wrap">
                                                     <UserAvatar
                                                         user={member.user}
+                                                        avatarOverride={member.avatar || undefined}
                                                         size={32}
                                                         className="member-avatar"
                                                     />
@@ -336,18 +388,22 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                 </div>
                                                 <div className="member-info">
                                                     <div className="member-name-row">
-                                                        <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.username}</span>
+                                                        <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.displayName || member.user.username}</span>
                                                         <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
                                                         {isLive(member.user._id) && <LiveBadge />}
                                                     </div>
-                                                    {getActivityLines(member.user).map((line, i) => (
-                                                        <div className="member-activity" key={i}>
-                                                            {i === 0 && member.user.activity?.assets?.largeImage && (
-                                                                <img src={getFullUrl(member.user.activity.assets.largeImage)!} alt="" className="member-activity-icon" />
-                                                            )}
-                                                            <span className="activity-text">{line}</span>
-                                                        </div>
-                                                    ))}
+                                                    {(() => {
+                                                        const primary = getPrimaryActivity(member.user);
+                                                        if (!primary) return null;
+                                                        return (
+                                                            <div className="member-activity">
+                                                                {primary.icon && (
+                                                                    <img src={getFullUrl(primary.icon)!} alt="" className="member-activity-icon" />
+                                                                )}
+                                                                <span className="activity-text">{primary.text}</span>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         );
@@ -375,6 +431,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                 <div className="member-avatar-wrap">
                                                     <UserAvatar
                                                         user={member.user}
+                                                        avatarOverride={member.avatar || undefined}
                                                         size={32}
                                                         className="member-avatar"
                                                     />
@@ -382,7 +439,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                                 </div>
                                                 <div className="member-name-row">
                                                     <span className="member-name" style={{ color: memberColor }}>
-                                                        {member.nickname || member.user.username}
+                                                        {member.nickname || member.user.displayName || member.user.username}
                                                     </span>
                                                     <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
                                                     {isLive(member.user._id) && <LiveBadge />}

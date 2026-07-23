@@ -292,6 +292,42 @@
   position: relative;
 }
 
+.system-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 16px 2px 58px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.system-message-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(35, 165, 89, 0.15);
+  color: #23a559;
+  flex-shrink: 0;
+}
+
+.system-message-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.system-message-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
 .message-date-divider::before {
   content: "";
   position: absolute;

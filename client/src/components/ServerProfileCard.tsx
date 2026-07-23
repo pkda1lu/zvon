@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Server } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { useDialog } from '../contexts/DialogContext';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { motion } from 'framer-motion';
 import {
   popoverVariants,
@@ -138,7 +138,7 @@ export const ServerProfileCardBody: React.FC<ServerProfileCardBodyProps> = ({ se
                                     {getAvatarUrl(owner.avatar) ? <img src={getAvatarUrl(owner.avatar)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>{owner.username?.charAt(0).toUpperCase()}</span>}
                                 </div>
                                 <span>{owner.username}</span>
-                                <UserBadges badges={owner.badges} size={14} />
+                                <UserBadges badges={owner.badges} serverTag={resolveServerTag(owner)} size={14} />
                             </div>
                         </section>
                     )}

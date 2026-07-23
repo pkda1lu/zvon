@@ -34,6 +34,9 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     
     // For handling popout to full modal transition
     const [forceFull, setForceFull] = useState(false);
+    // Локальный оверрайд serverId: клик по аватарке в полном профиле на сервере снимает привязку к серверу.
+    const [localServerId, setLocalServerId] = useState(serverId);
+    useEffect(() => { setLocalServerId(serverId); }, [serverId, userId]);
     const [showBotServerSelect, setShowBotServerSelect] = useState(false);
     const [userServers, setUserServers] = useState<any[]>([]);
 
@@ -107,11 +110,11 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         try {
             const response = await axios.get(`/api/users/profile/${userId}`);
             setProfileData(response.data);
-            if (serverId) {
+            if (localServerId) {
                 try {
                     const [memberRes, serverRes] = await Promise.all([
-                        axios.get(`/api/servers/${serverId}/members/${userId}`),
-                        axios.get(`/api/servers/${serverId}`)
+                        axios.get(`/api/servers/${localServerId}/members/${userId}`),
+                        axios.get(`/api/servers/${localServerId}`)
                     ]);
                     setMemberData(memberRes.data);
                     setServer(serverRes.data);
@@ -119,6 +122,9 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     setMemberData(null);
                     setServer(null);
                 }
+            } else {
+                setMemberData(null);
+                setServer(null);
             }
 
             if (response.data.user.isBot) {
@@ -134,7 +140,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
     useEffect(() => {
         fetchProfile();
-    }, [userId, serverId]);
+    }, [userId, localServerId]);
 
     const handleAddFriend = async () => {
         try {
@@ -225,10 +231,19 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
 
     let type: 'full' | 'compact' | 'server-full' | 'server-compact' = 'full';
     if (isPopout) {
-        type = serverId ? 'server-compact' : 'compact';
+        type = localServerId ? 'server-compact' : 'compact';
     } else {
-        type = serverId ? 'server-full' : 'full';
+        type = localServerId ? 'server-full' : 'full';
     }
+
+    const handleAvatarClick = () => {
+        if (isPopout) {
+            setForceFull(true);
+        } else if (localServerId) {
+            // Клик по аватарке в полном профиле на сервере -> открыть полный профиль без привязки к серверу.
+            setLocalServerId(undefined);
+        }
+    };
 
     const actionButtons = !isMe ? (
         <>
@@ -302,11 +317,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     server={server}
                     type={type}
                     onClose={onClose}
-                    onAvatarClick={() => {
-                        if (isPopout) {
-                            setForceFull(true);
-                        }
-                    }}
+                    onAvatarClick={handleAvatarClick}
                     mutualFriends={mutualFriends}
                     mutualServers={mutualServers}
                     developments={developments}

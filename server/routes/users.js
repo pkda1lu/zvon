@@ -32,7 +32,7 @@ router.get('/profile/:id', auth, async (req, res) => {
   try {
     const targetUserId = req.params.id;
     const currentUserId = req.user._id;
-    const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon members');
+    const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon members').populate('displayedTag.server', 'name icon tag');
     if (!user) return res.status(404).json({ message: 'User not found' });
     
     // Privacy logic
@@ -70,7 +70,7 @@ router.get('/profile/:id', auth, async (req, res) => {
     const targetUserFriendships = await Friendship.find({ $or: [{ requester: targetUserId }, { recipient: targetUserId }], status: 'accepted' });
     const targetUserFriendIds = targetUserFriendships.map(f => f.requester.toString() === targetUserId.toString() ? f.recipient : f.requester);
     const mutualFriendIds = currentUserFriendIds.filter(id => targetUserFriendIds.some(tid => tid.toString() === id.toString()));
-    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity');
+    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity displayedTag').populate('displayedTag.server', 'name icon tag');
 
     // Fetch developments (redacted if not full profile)
     let bots = [];
@@ -141,6 +141,9 @@ router.put('/profile', auth, async (req, res) => {
       };
     }
     await req.user.save();
+    // Populate до эмита/ответа — иначе клиенты (включая себя, через сокет-эхо) получают
+    // displayedTag.server голым id и значок сервера перестаёт резолвиться в реальном времени.
+    await req.user.populate('displayedTag.server', 'name icon tag');
     const io = req.app.get('io');
     if (io) {
       io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, badges: req.user.badges, displayedTag: req.user.displayedTag });

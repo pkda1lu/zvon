@@ -43,7 +43,7 @@ async function handleMemberJoin(server, userId, io) {
       if (channel && String(channel.server) === String(server._id)) {
         const template = server.welcomeMessages[Math.floor(Math.random() * server.welcomeMessages.length)];
         const content = template.replace(/\{user\}/g, user.displayName || user.username);
-        const welcomeMsg = new Message({ content, author: userId, channel: channel._id, mentions: [userId] });
+        const welcomeMsg = new Message({ content, author: userId, channel: channel._id, mentions: [userId], type: 'server-join' });
         await welcomeMsg.save();
         await welcomeMsg.populate('author', 'username avatar badges');
         if (io) io.to(`channel-${channel._id}`).emit('new-message', welcomeMsg);

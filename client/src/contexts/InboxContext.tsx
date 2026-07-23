@@ -17,6 +17,7 @@ export interface InboxItem {
         username: string;
         avatar: string | null;
         badges?: string[];
+        displayedTag?: User['displayedTag'];
     };
     link?: {
         serverId?: string;
@@ -145,7 +146,8 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     _id: message.author._id,
                     username: message.author.username,
                     avatar: message.author.avatar || null,
-                    badges: message.author.badges || []
+                    badges: message.author.badges || [],
+                    displayedTag: message.author.displayedTag
                 },
                 link: {
                     serverId: (message.channel as any)?.server,
@@ -165,7 +167,8 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     _id: requester._id,
                     username: requester.username,
                     avatar: requester.avatar || null,
-                    badges: requester.badges || []
+                    badges: requester.badges || [],
+                    displayedTag: requester.displayedTag
                 },
                 data: friendship
             });
@@ -181,7 +184,8 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     _id: other._id,
                     username: other.username,
                     avatar: other.avatar || null,
-                    badges: (other as any).badges || []
+                    badges: (other as any).badges || [],
+                    displayedTag: (other as any).displayedTag
                 },
                 data: friendship
             });

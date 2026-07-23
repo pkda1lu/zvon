@@ -7,7 +7,7 @@ const { friendIdSet } = require('../utils/privacy');
 
 router.get('/', auth, async (req, res) => {
   try {
-    const friendships = await Friendship.find({ $or: [{ requester: req.user._id, status: 'accepted' }, { recipient: req.user._id, status: 'accepted' }] }).populate('requester', 'username avatar status badges activity').populate('recipient', 'username avatar status badges activity');
+    const friendships = await Friendship.find({ $or: [{ requester: req.user._id, status: 'accepted' }, { recipient: req.user._id, status: 'accepted' }] }).populate({ path: 'requester', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate({ path: 'recipient', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     const friends = friendships.map(f => {
       const friend = f.requester._id.toString() === req.user._id.toString() ? f.recipient : f.requester;
       return { ...friend.toObject(), friendshipId: f._id };
@@ -18,7 +18,7 @@ router.get('/', auth, async (req, res) => {
 
 router.get('/pending', auth, async (req, res) => {
   try {
-    const requests = await Friendship.find({ recipient: req.user._id, status: 'pending' }).populate('requester', 'username avatar status badges activity');
+    const requests = await Friendship.find({ recipient: req.user._id, status: 'pending' }).populate({ path: 'requester', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     res.json(requests);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -41,8 +41,8 @@ router.post('/request', auth, async (req, res) => {
     }
     const friendship = new Friendship({ requester: req.user._id, recipient: userId, status: 'pending' });
     await friendship.save();
-    await friendship.populate('requester', 'username avatar status badges activity');
-    await friendship.populate('recipient', 'username avatar status badges activity');
+    await friendship.populate({ path: 'requester', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    await friendship.populate({ path: 'recipient', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
 
     // Notify recipient
     const io = req.app.get('io');
@@ -62,8 +62,8 @@ router.post('/accept/:id', auth, async (req, res) => {
     if (friendship.status !== 'pending') return res.status(400).json({ message: 'Request already processed' });
     friendship.status = 'accepted';
     await friendship.save();
-    await friendship.populate('requester', 'username avatar status badges activity');
-    await friendship.populate('recipient', 'username avatar status badges activity');
+    await friendship.populate({ path: 'requester', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    await friendship.populate({ path: 'recipient', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
 
     // Notify requester
     const io = req.app.get('io');
@@ -99,7 +99,7 @@ router.get('/search', auth, async (req, res) => {
     const candidates = await User.find({
       username: { $regex: safe, $options: 'i' },
       _id: { $ne: viewerId }
-    }).select('username avatar status badges activity settings blockedUsers').limit(40);
+    }).select('username avatar status badges activity settings blockedUsers displayedTag').populate('displayedTag.server', 'name icon tag').limit(40);
 
     // Друзья текущего пользователя — нужны для правила «друзья друзей».
     const viewerFr = await Friendship.find({

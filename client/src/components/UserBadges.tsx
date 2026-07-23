@@ -14,6 +14,24 @@ export const BADGES: Record<string, Badge> = Object.fromEntries(
   AVAILABLE_BADGES.map(b => [b.id, { id: b.id, label: b.label, icon: b.image }])
 );
 
+/**
+ * Резолвит выбранный пользователем значок сервера в отображаемые данные {text, icon, color}.
+ * `displayedTag.server` может быть как populated-объектом (уже содержит tag), так и голым id —
+ * во втором случае (например, для своего профиля из AuthContext) ищем сервер в переданном списке.
+ */
+export const resolveServerTag = (
+  user?: { displayedTag?: { type?: string; server?: any } | null } | null,
+  ownServers?: any[] | null
+): { text?: string | null; icon?: string | null; color?: string } | undefined => {
+  const dt = user?.displayedTag;
+  if (!dt || dt.type !== 'serverTag' || !dt.server) return undefined;
+  let srv = dt.server;
+  if (typeof srv === 'string') {
+    srv = ownServers?.find(s => String(s._id) === srv);
+  }
+  return srv?.tag?.text ? srv.tag : undefined;
+};
+
 interface UserBadgesProps {
   badges?: string[];
   /** Значок сервера (заранее разрешённый вызывающим компонентом), показывается вместо профильных значков. */

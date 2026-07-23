@@ -67,6 +67,16 @@
     /* Dynamics are now handled by .active-card-glow */
 }
 
+.active-card[data-type="voice"] {
+    border-color: rgba(59, 214, 130, 0.15);
+}
+
+.active-card[data-type="voice"]:hover {
+    border-color: rgba(59, 214, 130, 0.35);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2),
+                0 0 20px rgba(59, 214, 130, 0.1);
+}
+
 .active-card-glow {
     position: absolute;
     left: -30px;
@@ -143,6 +153,61 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.active-voice-avatar-stack {
+    display: flex;
+    align-items: center;
+}
+
+.active-voice-avatar {
+    position: relative;
+    border: 2px solid rgba(20, 22, 28, 0.9);
+    box-shadow: none !important;
+}
+
+.active-voice-avatar-stack .active-voice-avatar:not(:first-child) {
+    margin-left: -12px;
+}
+
+.active-voice-avatar-more {
+    margin-left: -12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    border: 2px solid rgba(20, 22, 28, 0.9);
+    background: rgba(59, 214, 130, 0.2);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.active-voice-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: rgba(59, 214, 130, 0.12);
+    color: #3bd682;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.active-voice-channel-icon {
+    background: rgba(59, 214, 130, 0.12) !important;
+    color: #3bd682;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.active-voice-info {
+    background: rgba(59, 214, 130, 0.05);
 }
 
 .active-game-mini-icon {

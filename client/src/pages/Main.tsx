@@ -111,6 +111,8 @@ const Main: React.FC = () => {
   } | null>(null);
   const [showProfileUserId, setShowProfileUserId] = useState<string | null>(null);
   const [profilePosition, setProfilePosition] = useState<{ x: number, y: number } | null>(null);
+  // Профиль без привязки к серверу (напр. клик по своей аватарке в sidebar-user) — игнорируем selectedServer.
+  const [profileScopeless, setProfileScopeless] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [showServerProfile, setShowServerProfile] = useState(false);
   const [serverProfilePosition, setServerProfilePosition] = useState<{ x: number, y: number } | null>(null);
@@ -230,16 +232,24 @@ const Main: React.FC = () => {
     };
     const handleSelectServerEvent = (e: any) => {
       const srvId = e.detail.serverId;
+      const channelId = e.detail.channelId;
       const srv = servers.find(s => s._id === srvId);
       if (srv) {
         setSelectedServer(srv);
-        // Сразу выбираем канал по умолчанию (как при клике по серверу в рейле).
-        // Иначе при выборе сервера из профиля канал обнулялся и контент-область
-        // оставалась пустой — «пропадала часть экрана».
-        const firstTextChannel = srv.channels.find((c: any) => c.type === 'text');
-        if (firstTextChannel) setSelectedChannel(firstTextChannel);
-        else if (srv.channels.length > 0) setSelectedChannel(srv.channels[0]);
-        else setSelectedChannel(null);
+        // Явно указанный канал (напр. клик по "друзья в голосовом" в Активных контактах)
+        // имеет приоритет над каналом по умолчанию.
+        const targetChannel = channelId ? srv.channels.find((c: any) => c._id === channelId) : null;
+        if (targetChannel) {
+          setSelectedChannel(targetChannel);
+        } else {
+          // Сразу выбираем канал по умолчанию (как при клике по серверу в рейле).
+          // Иначе при выборе сервера из профиля канал обнулялся и контент-область
+          // оставалась пустой — «пропадала часть экрана».
+          const firstTextChannel = srv.channels.find((c: any) => c.type === 'text');
+          if (firstTextChannel) setSelectedChannel(firstTextChannel);
+          else if (srv.channels.length > 0) setSelectedChannel(srv.channels[0]);
+          else setSelectedChannel(null);
+        }
         setSelectedDM(null);
         setShowFriends(false);
         setMobileView('content');
@@ -983,8 +993,9 @@ const Main: React.FC = () => {
         setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(appId); return n; });
     };
 
-    const handleUserClick = (userId: string, event?: React.MouseEvent | CustomEvent) => {
+    const handleUserClick = (userId: string, event?: React.MouseEvent | CustomEvent, scopeless?: boolean) => {
     setShowProfileUserId(userId);
+    setProfileScopeless(!!scopeless);
     if (event) {
       if ('clientX' in event) {
         setProfilePosition({ x: event.clientX, y: event.clientY });
@@ -1153,6 +1164,7 @@ const Main: React.FC = () => {
                       onBack={() => setMobileView('sidebar')}
                       isMobile={isMobile}
                       friends={friends}
+                      servers={servers}
                       onUserClick={handleUserClick}
                     />
                   </motion.div>
@@ -1174,6 +1186,7 @@ const Main: React.FC = () => {
                       unreadCounts={unreadCounts}
                       onBack={() => setMobileView('sidebar')}
                       isMobile={isMobile}
+                      servers={servers}
                     />
                   </motion.div>
                 )}
@@ -1285,7 +1298,7 @@ const Main: React.FC = () => {
             );
           })()}
 
-          {selectedServer && selectedServer.showMembersList !== false && !showFriends && ((!isMobile || mobileView === 'members')) && (
+          {selectedServer && selectedServer.showMembersList !== false && !showFriends && selectedChannel?.type !== 'voice' && ((!isMobile || mobileView === 'members')) && (
             <div className={`members-sidebar-wrapper ${isMobile ? 'is-mobile' : ''}`}>
               <ServerMembers
                 server={selectedServer}
@@ -1365,7 +1378,7 @@ const Main: React.FC = () => {
         <UserProfileCard
           userId={showProfileUserId}
           onClose={() => { setShowProfileUserId(null); setProfilePosition(null); }}
-          serverId={selectedServer?._id}
+          serverId={profileScopeless ? undefined : selectedServer?._id}
           position={profilePosition}
           onUserClick={handleUserClick}
         />

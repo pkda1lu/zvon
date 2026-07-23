@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { User, Friendship } from '../types';
+import { User, Friendship, Server } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import { ChatIcon, CloseIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import ActiveContacts from './ActiveContacts';
 import './FriendsPanel.css';
 
@@ -19,11 +19,12 @@ interface FriendsPanelProps {
   unreadCounts: Record<string, number>;
   onBack?: () => void;
   isMobile?: boolean;
+  servers?: Server[];
 }
 
 interface DMDict { [userId: string]: string; }
 
-const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStartDM, onUserClick, unreadCounts, onBack, isMobile }) => {
+const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStartDM, onUserClick, unreadCounts, onBack, isMobile, servers = [] }) => {
   const { socket } = useSocket();
   const { user: currentUser } = useAuth();
   const { confirm } = useDialog();
@@ -178,7 +179,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                     <div className="friend-info" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}>
                       <div className="friend-name">
                         {f.username}
-                        <UserBadges badges={f.badges} size={14} />
+                        <UserBadges badges={f.badges} serverTag={resolveServerTag(f)} size={14} />
                         {userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}
                       </div>
                       <div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div>
@@ -208,7 +209,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                     <div className="request-info" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}>
                       <div className="request-name">
                         {r.requester.username}
-                        <UserBadges badges={r.requester.badges} size={14} />
+                        <UserBadges badges={r.requester.badges} serverTag={resolveServerTag(r.requester)} size={14} />
                       </div>
                       <div className="request-text">хочет добавить вас в друзья</div>
                     </div>
@@ -233,7 +234,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                       <div className="result-info" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}>
                         <div className="result-name">
                           {u.username}
-                          <UserBadges badges={u.badges} size={14} />
+                          <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={14} />
                         </div>
                       </div>
                       <button className="add-button" onClick={() => sendFriendRequest(u._id)} disabled={!!loadingAction}>{loadingAction === u._id ? '...' : 'Добавить'}</button>
@@ -245,9 +246,10 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
           </div>
         </div>
         {!isMobile && (
-          <ActiveContacts 
-            friends={currentUser ? [...friends, currentUser] : friends} 
-            onUserClick={onUserClick} 
+          <ActiveContacts
+            friends={currentUser ? [...friends, currentUser] : friends}
+            servers={servers}
+            onUserClick={onUserClick}
           />
         )}
       </div>

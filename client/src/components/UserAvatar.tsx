@@ -18,6 +18,8 @@ interface UserAvatarProps {
     style?: React.CSSProperties;
     onClick?: (e: React.MouseEvent) => void;
     onContextMenu?: (e: React.MouseEvent) => void;
+    /** Явно заданный аватар (например, аватар на конкретном сервере), имеет приоритет над глобальным кэшем пользователя. */
+    avatarOverride?: string | null;
 }
 
 const UserAvatar: React.FC<UserAvatarProps> = ({
@@ -28,7 +30,8 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
     className = '',
     style,
     onClick,
-    onContextMenu
+    onContextMenu,
+    avatarOverride
 }) => {
     const { globalUsers } = useAuth();
     const [isHovered, setIsHovered] = useState(false);
@@ -38,8 +41,8 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
 
     // Get the most up-to-date user data from global cache if available
     const activeUser = (user?._id && globalUsers[user._id]) ? { ...user, ...globalUsers[user._id] } : user;
-    
-    const avatarUrl = getAvatarUrl(activeUser?.avatar);
+
+    const avatarUrl = getAvatarUrl(avatarOverride !== undefined ? avatarOverride : activeUser?.avatar);
     const username = activeUser?.username || '?';
     const firstLetter = username.charAt(0).toUpperCase();
 

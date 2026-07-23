@@ -5,7 +5,7 @@ import { BotIcon, LayoutGridIcon, PlusIcon, MonitorIcon } from './Icons';
 import { useDialog } from '../contexts/DialogContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
-import { User } from '../types';
+import { User, Server } from '../types';
 import ActiveContacts from './ActiveContacts';
 import './ShowcaseView.css';
 
@@ -14,10 +14,11 @@ interface ShowcaseViewProps {
     onBack?: () => void;
     isMobile?: boolean;
     friends?: User[];
+    servers?: Server[];
     onUserClick?: (userId: string, event?: React.MouseEvent) => void;
 }
 
-const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMobile, friends = [], onUserClick = () => {} }) => {
+const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMobile, friends = [], servers = [], onUserClick = () => {} }) => {
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
     const [activeTab, setActiveTab] = useState<'all' | 'bots' | 'miniapps'>('all');
@@ -249,9 +250,10 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                     </div>
                 </div>
                 {!isMobile && (
-                    <ActiveContacts 
-                        friends={currentUser ? [...friends, currentUser] : friends} 
-                        onUserClick={onUserClick} 
+                    <ActiveContacts
+                        friends={currentUser ? [...friends, currentUser] : friends}
+                        servers={servers}
+                        onUserClick={onUserClick}
                     />
                 )}
             </div>

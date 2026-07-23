@@ -54,6 +54,33 @@
     filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.1));
 }
 
+.input-attachment-preview.uploading {
+    opacity: 0.7;
+}
+
+.attachment-upload-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 14px;
+}
+
+.attachment-upload-spinner {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(255, 255, 255, 0.25);
+    border-top-color: var(--primary-neon, #00e5ff);
+    animation: attachment-upload-spin 0.8s linear infinite;
+}
+
+@keyframes attachment-upload-spin {
+    to { transform: rotate(360deg); }
+}
+
 .remove-attachment-btn {
     position: absolute;
     top: -6px;

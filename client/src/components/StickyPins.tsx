@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Message } from '../types';
 import { PinIcon, ChevronDownIcon, ChevronUpIcon, CameraIcon } from './Icons';
 import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { getFullUrl } from '../utils/avatar';
 import { iosSpring } from '../animations/transitions';
 import './StickyPins.css';
@@ -53,7 +53,7 @@ const StickyPins: React.FC<StickyPinsProps> = ({ pinnedMessages, onOpenPins }) =
                             <span className="sticky-pin-label">Закрепленное сообщение</span>
                             <div className="sticky-pin-snippet">
                                 <strong>{latestPin.author.username}</strong>
-                                <UserBadges badges={latestPin.author.badges} size={12} />
+                                <UserBadges badges={latestPin.author.badges} serverTag={resolveServerTag(latestPin.author)} size={12} />
                                 <strong>:</strong> {latestPin.content || (latestPin.attachments?.length ? 'Вложение' : '')}
                             </div>
                         </div>
