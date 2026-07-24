@@ -13,9 +13,29 @@ import './ServerSidebar.css';
 import InviteModal from './InviteModal';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
 import { ConnectionState } from 'livekit-client';
+
+// Секунды с момента, когда в канале появился хотя бы 1 участник → "12:34" / "1:02:03".
+const formatVoiceDuration = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+};
+
+const VoiceChannelTimer: React.FC<{ startedAt: number }> = ({ startedAt }) => {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return <span className="voice-channel-timer">{formatVoiceDuration((Date.now() - startedAt) / 1000)}</span>;
+};
 
 interface ServerSidebarProps {
   server: Server;
@@ -130,6 +150,18 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const voiceChannels = server.channels.filter(ch => ch.type === 'voice');
   const roomChannels = server.channels.filter(ch => ch.type === 'room');
 
+  // Момент, когда в канале появился первый участник — для тайминга "сколько уже длится звонок".
+  // Живёт только на клиенте (сбрасывается при перезагрузке/пересоздании компонента), сервер это не хранит.
+  const voiceStartTimesRef = useRef<Record<string, number>>({});
+  Object.keys(voiceStates).forEach(channelId => {
+    const count = voiceStates[channelId]?.length || 0;
+    if (count > 0 && !voiceStartTimesRef.current[channelId]) {
+      voiceStartTimesRef.current[channelId] = Date.now();
+    } else if (count === 0 && voiceStartTimesRef.current[channelId]) {
+      delete voiceStartTimesRef.current[channelId];
+    }
+  });
+
   // Голосовые каналы и 3D-комнаты используют один и тот же голосовой стек
   // (join-voice-channel/LiveKit) и одинаковую разметку в сайдбаре — различается
   // только иконка и заголовок категории.
@@ -176,6 +208,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                 </span>
                 <span className="channel-name">{channel.name}</span>
               </div>
+              {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && voiceStartTimesRef.current[channel._id] && (
+                <VoiceChannelTimer startedAt={voiceStartTimesRef.current[channel._id]} />
+              )}
               <div className="channel-actions">
                 {canEditThisChannel && (
                   <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
@@ -206,7 +241,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                       <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
                         {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
                       </span>
-                      <UserBadges badges={u.badges} size={12} />
+                      <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={12} />
                     </div>
                     <div className="voice-user-icons">
                       {userStates.get(u._id)?.isScreenSharing && (

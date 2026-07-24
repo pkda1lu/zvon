@@ -53,7 +53,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Device-Id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Device-Id', 'x-device-id'],
   exposedHeaders: ['Content-Type', 'Authorization']
 };
 
@@ -101,6 +101,33 @@ app.use('/api/download', downloadRouter);
 //   https://zvonserver.ru/download/latest  -> latest installer (?platform=win|mac|linux)
 app.get('/download', downloadLatestRedirect);
 app.get('/download/latest', downloadLatestRedirect);
+// Прокси для внешних картинок (иконки игр из SteamGridDB и т.п.), которым нужен canvas-доступ
+// на клиенте (усреднение цвета для подложки события) — внешние CDN обычно не отдают
+// Access-Control-Allow-Origin, из-за чего canvas "затейнчивается". Отдаём с разрешающим CORS.
+const axios = require('axios');
+// Без auth: запрос уходит через нативный <img>/Image(), который не может нести заголовок
+// Authorization. Безопасность — за счёт ограничения протокола и блокировки внутренних адресов ниже.
+app.get('/api/media-proxy', async (req, res) => {
+  try {
+    const target = req.query.url;
+    if (!target || typeof target !== 'string') return res.status(400).json({ message: 'Missing url' });
+    let parsed;
+    try { parsed = new URL(target); } catch { return res.status(400).json({ message: 'Invalid url' }); }
+    if (!['http:', 'https:'].includes(parsed.protocol)) return res.status(400).json({ message: 'Invalid protocol' });
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || /^(10|127|169\.254|192\.168)\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+      return res.status(400).json({ message: 'Host not allowed' });
+    }
+    const response = await axios.get(target, { responseType: 'arraybuffer', timeout: 8000, maxContentLength: 8 * 1024 * 1024 });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+    res.send(response.data);
+  } catch (error) {
+    res.status(502).json({ message: 'Failed to fetch media' });
+  }
+});
+
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '7d',
   immutable: true,
@@ -172,7 +199,7 @@ const getVoiceChannelUsers = async (channelId) => {
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.userId) {
-      const user = await User.findById(socket.userId).select('username displayName avatar status banner badges activity');
+      const user = await User.findById(socket.userId).select('username displayName avatar status banner badges activity displayedTag').populate('displayedTag.server', 'name icon tag');
       if (user) {
         const userData = user.toObject();
         userData.isMuted = socket.isMuted || false;
@@ -471,6 +498,21 @@ io.on('connection', (socket) => {
         if (!hasPermission(perms, Permissions.SEND_MESSAGES)) {
           return socket.emit('error', { message: 'У вас нет прав для отправки сообщений в этот канал' });
         }
+        // Мут / кулдаун новичков (не действуют на владельца)
+        if (String(server.owner) !== String(socket.userId)) {
+          const member = server.members.find(m => String(m.user) === String(socket.userId));
+          if (member) {
+            if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
+              return socket.emit('error', { message: 'Вы временно не можете отправлять сообщения на этом сервере (мут)' });
+            }
+            if (server.newcomerCooldownSeconds > 0) {
+              const remainingMs = new Date(member.joinedAt).getTime() + server.newcomerCooldownSeconds * 1000 - Date.now();
+              if (remainingMs > 0) {
+                return socket.emit('error', { message: `Подождите ещё ${Math.ceil(remainingMs / 1000)} с. после присоединения к серверу` });
+              }
+            }
+          }
+        }
         // Медленный режим
         const slow = channel.slowMode || 0;
         if (slow > 0) {
@@ -600,21 +642,21 @@ io.on('connection', (socket) => {
       }
 
       await message.save();
-      await message.populate('author', 'username avatar activity');
+      await message.populate({ path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       if (message.replyTo) {
         await message.populate({
           path: 'replyTo',
-          populate: { path: 'author', select: 'username avatar activity' }
+          populate: { path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }
         });
       }
 
       if (data.channelId) {
         const fullMessage = await Message.findById(message._id)
-          .populate('author', 'username avatar activity')
-          .populate('mentions', 'username')
+          .populate({ path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+          .populate({ path: 'mentions', select: 'username badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
           .populate({
             path: 'replyTo',
-            populate: { path: 'author', select: 'username avatar activity' }
+            populate: { path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }
           });
         io.to(`channel-${data.channelId}`).emit('new-message', fullMessage);
 
@@ -686,7 +728,7 @@ io.on('connection', (socket) => {
       message.edited = true;
       message.editedAt = new Date();
       await message.save();
-      await message.populate('author', 'username avatar activity');
+      await message.populate({ path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       await message.populate('mentions', 'username');
 
       if (message.channel) {
@@ -965,6 +1007,7 @@ io.on('connection', (socket) => {
       // user is already declared above
       const memberRec = (fullServer.members || []).find(m => String(m.user) === String(socket.userId));
       const serverNickname = memberRec?.nickname || null;
+      await user.populate('displayedTag.server', 'name icon tag');
       socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', {
         userId: socket.userId,
         user: {
@@ -975,6 +1018,7 @@ io.on('connection', (socket) => {
           avatar: user.avatar,
           banner: user.banner,
           badges: user.badges || [],
+          displayedTag: user.displayedTag || null,
           isMuted: socket.isMuted || false,
           isDeafened: socket.isDeafened || false,
           isScreenSharing: socket.isScreenSharing || false,

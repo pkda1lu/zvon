@@ -292,6 +292,42 @@
   position: relative;
 }
 
+.system-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 16px 2px 58px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.system-message-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(35, 165, 89, 0.15);
+  color: #23a559;
+  flex-shrink: 0;
+}
+
+.system-message-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.system-message-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
 .message-date-divider::before {
   content: "";
   position: absolute;
@@ -485,8 +521,12 @@
   text-overflow: ellipsis;
 }
 
-.message-author-info .user-badges-container {
+/* .message-author-info уже задаёт gap:8px между детьми — свой margin-left у бейджей здесь лишний
+   и удваивает отступ от ника. */
+.message-author-info .user-badges-container,
+.message-author-info .server-tag-preview {
   flex-shrink: 0;
+  margin-left: 0;
 }
 
 .message-time {
@@ -547,6 +587,23 @@
   border: 1px solid var(--glass-border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Баннер вместо поля ввода, пока участник в муте на сервере */
+.mute-composer-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 71, 87, 0.08);
+  border: 1px solid rgba(255, 71, 87, 0.25);
+  border-radius: 16px;
+  padding: 14px 20px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.mute-composer-banner strong {
+  color: var(--text-main);
 }
 
 .message-form:focus-within {

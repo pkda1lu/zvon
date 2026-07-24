@@ -35,7 +35,7 @@ interface SidebarProps {
   onServerLeave: (serverId: string) => void;
   onOpenJoinModal: () => void;
   onOpenSettings: () => void;
-  onOpenProfile: (userId: string, event?: React.MouseEvent) => void;
+  onOpenProfile: (userId: string, event?: React.MouseEvent, scopeless?: boolean) => void;
   onToggleInbox: () => void;
   inboxUnreadCount: number;
   minimizedMiniApps?: MiniApp[];
@@ -82,19 +82,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="blob pink" />
       </div>
       <div className="sidebar-servers">
-        <div className="server-item">
-          <div className="pill"><span /></div>
-          <motion.div
-            className="server-icon inbox-sidebar-icon"
-            onClick={onToggleInbox}
-            title="Уведомления"
-            {...pressFeedback}
-          >
-            <BellIcon size={28} color="var(--secondary-neon)" />
-            {inboxUnreadCount > 0 && <div className="unread-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
-          </motion.div>
-        </div>
-
         <div className={`server-item ${showFriends ? 'active' : ''}`}>
           <div className="pill"><span /></div>
           <motion.div
@@ -158,18 +145,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="server-item">
           <div className="pill"><span /></div>
           <motion.div
-            className="server-icon report-sidebar-icon"
-            onClick={() => setShowReport(true)}
-            title="Сообщить о проблеме"
-            {...pressFeedback}
-          >
-            <FlagIcon size={26} color="#ff3b30" />
-          </motion.div>
-        </div>
-
-        <div className="server-item">
-          <div className="pill"><span /></div>
-          <motion.div
             className="server-icon home-icon"
             onClick={onOpenJoinModal}
             title="Добавить сервер"
@@ -208,7 +183,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <motion.div
           className="user-avatar-wrapper"
           title={`${user.username} (${user.status})`}
-          onClick={(e) => onOpenProfile(user._id)}
+          onClick={() => onOpenProfile(user._id, undefined, true)}
           style={{ position: 'relative' }}
           {...pressFeedback}
         >
@@ -219,16 +194,40 @@ const Sidebar: React.FC<SidebarProps> = ({
           />
           <div className={`status-indicator ${user.activity?.type === 'streaming' ? 'streaming' : user.status}`}></div>
         </motion.div>
-        <motion.button
-          className="logout-button"
-          onClick={onOpenSettings}
-          title="Настройки"
-          whileTap={{ scale: 0.88, rotate: 30 }}
-          whileHover={{ scale: 1.08, rotate: -8 }}
-          transition={iosSpringSnappy}
-        >
-          <SettingsIcon size={20} />
-        </motion.button>
+        <div className="sidebar-user-actions">
+          <motion.button
+            className="logout-button"
+            onClick={onToggleInbox}
+            title="Уведомления"
+            style={{ position: 'relative' }}
+            whileTap={{ scale: 0.88, rotate: 30 }}
+            whileHover={{ scale: 1.08, rotate: -8 }}
+            transition={iosSpringSnappy}
+          >
+            <BellIcon size={18} />
+            {inboxUnreadCount > 0 && <div className="unread-badge sidebar-user-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
+          </motion.button>
+          <motion.button
+            className="logout-button report-button"
+            onClick={() => setShowReport(true)}
+            title="Сообщить о проблеме"
+            whileTap={{ scale: 0.88, rotate: 30 }}
+            whileHover={{ scale: 1.08, rotate: -8 }}
+            transition={iosSpringSnappy}
+          >
+            <FlagIcon size={18} />
+          </motion.button>
+          <motion.button
+            className="logout-button"
+            onClick={onOpenSettings}
+            title="Настройки"
+            whileTap={{ scale: 0.88, rotate: 30 }}
+            whileHover={{ scale: 1.08, rotate: -8 }}
+            transition={iosSpringSnappy}
+          >
+            <SettingsIcon size={20} />
+          </motion.button>
+        </div>
       </div>
 
 

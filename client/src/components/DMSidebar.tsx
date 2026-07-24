@@ -3,7 +3,7 @@ import { DirectMessage, User } from '../types';
 import { UsersIcon, PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import './panel-hero.css';
 import './DMSidebar.css';
 
@@ -86,7 +86,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 <div className="dm-info">
                     <div className="dm-name-row">
                         <span className="dm-name">{displayName}</span>
-                        {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} size={12} />}
+                        {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={12} />}
                     </div>
                     {!isGroup && !maskModeration && otherUser?.activity && (
                         <span className="dm-activity">Играет в {otherUser.activity.name}</span>

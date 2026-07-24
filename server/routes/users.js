@@ -32,7 +32,7 @@ router.get('/profile/:id', auth, async (req, res) => {
   try {
     const targetUserId = req.params.id;
     const currentUserId = req.user._id;
-    const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon members');
+    const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon members').populate('displayedTag.server', 'name icon tag');
     if (!user) return res.status(404).json({ message: 'User not found' });
     
     // Privacy logic
@@ -70,7 +70,7 @@ router.get('/profile/:id', auth, async (req, res) => {
     const targetUserFriendships = await Friendship.find({ $or: [{ requester: targetUserId }, { recipient: targetUserId }], status: 'accepted' });
     const targetUserFriendIds = targetUserFriendships.map(f => f.requester.toString() === targetUserId.toString() ? f.recipient : f.requester);
     const mutualFriendIds = currentUserFriendIds.filter(id => targetUserFriendIds.some(tid => tid.toString() === id.toString()));
-    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity');
+    const mutualFriends = await User.find({ _id: { $in: mutualFriendIds } }).select('username avatar status badges activity displayedTag').populate('displayedTag.server', 'name icon tag');
 
     // Fetch developments (redacted if not full profile)
     let bots = [];
@@ -117,7 +117,7 @@ router.get('/profile/:id', auth, async (req, res) => {
 
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { username, displayName, primaryServer, status, bio, badges, bannerColor } = req.body;
+    const { username, displayName, primaryServer, status, bio, badges, bannerColor, displayedTag } = req.body;
     if (username) {
       const existingUser = await User.findOne({ username });
       if (existingUser && existingUser._id.toString() !== req.user._id.toString()) return res.status(400).json({ message: 'Username already taken' });
@@ -134,12 +134,21 @@ router.put('/profile', auth, async (req, res) => {
     if (bio !== undefined) req.user.bio = bio;
     if (badges !== undefined) req.user.badges = badges;
     if (bannerColor !== undefined) req.user.bannerColor = bannerColor;
+    if (displayedTag !== undefined) {
+      req.user.displayedTag = {
+        type: displayedTag?.type === 'serverTag' ? 'serverTag' : 'badge',
+        server: displayedTag?.type === 'serverTag' ? (displayedTag.server || null) : null
+      };
+    }
     await req.user.save();
+    // Populate до эмита/ответа — иначе клиенты (включая себя, через сокет-эхо) получают
+    // displayedTag.server голым id и значок сервера перестаёт резолвиться в реальном времени.
+    await req.user.populate('displayedTag.server', 'name icon tag');
     const io = req.app.get('io');
     if (io) {
-      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, badges: req.user.badges });
+      io.emit('user-updated', { _id: req.user._id, username: req.user.username, status: req.user.status, bio: req.user.bio, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, badges: req.user.badges, displayedTag: req.user.displayedTag });
     }
-    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, bio: req.user.bio, status: req.user.status, badges: req.user.badges });
+    res.json({ id: req.user._id, username: req.user.username, email: req.user.email, avatar: req.user.avatar, banner: req.user.banner, bannerColor: req.user.bannerColor, bio: req.user.bio, status: req.user.status, badges: req.user.badges, displayedTag: req.user.displayedTag });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 

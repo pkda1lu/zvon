@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { User, Role } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { popoverVariants, popoverTransition } from '../animations/transitions';
 import './MentionAutocomplete.css';
 
@@ -94,7 +94,7 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({ query, items,
                             )}
                             <div className="mention-item-name" style={{ color: !isUser ? item.color : 'inherit' }}>
                                 {name}
-                                {isUser && <UserBadges badges={item.badges} size={12} />}
+                                {isUser && <UserBadges badges={item.badges} serverTag={resolveServerTag(item as any)} size={12} />}
                                 {!isUser && <span className="role-tag">Роль</span>}
                             </div>
                         </div>

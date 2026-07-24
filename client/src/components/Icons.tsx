@@ -451,3 +451,40 @@ export const ExternalLinkIcon: React.FC<{ size?: number; color?: string; classNa
         <line x1="10" y1="14" x2="21" y2="3" />
     </svg>
 );
+
+export const BootIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M9 2v8.34a2 2 0 0 0 .78 1.58L14 15v3" />
+        <path d="M7 2h4" />
+        <path d="M4 21v-3.34a2 2 0 0 1 .78-1.58L9 13" />
+        <path d="M4 21h17a1 1 0 0 0 1-1c0-2.76-2.24-5-5-5h-3" />
+    </svg>
+);
+
+export const HammerIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="m15 12-8.5 8.5a1.5 1.5 0 0 1-2-2L13 10" />
+        <path d="M17.64 15 22 10.64" />
+        <path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H8l6.4 6.4v1.61c0 .85.33 1.65.93 2.25l1.25 1.25a1.73 1.73 0 0 0 2.44 0l1.9-1.9a1.73 1.73 0 0 0-.01-2.44z" />
+    </svg>
+);
+
+export const MedalIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15" />
+        <path d="M11 12 5.12 2.2" />
+        <path d="m13 12 5.88-9.8" />
+        <path d="M8 7h8" />
+        <circle cx="12" cy="17" r="5" />
+        <path d="M12 18v-2h-.5" />
+    </svg>
+);
+
+export const BarChartIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M3 3v18h18" />
+        <path d="M18 17V9" />
+        <path d="M13 17V5" />
+        <path d="M8 17v-3" />
+    </svg>
+);

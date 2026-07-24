@@ -7,6 +7,7 @@ const Permissions = {
     MANAGE_CHANNELS: 1n << 4n,
     MANAGE_GUILD: 1n << 5n,
     VIEW_AUDIT_LOG: 1n << 7n,
+    MODERATE_MEMBERS: 1n << 8n,
     VIEW_CHANNEL: 1n << 10n,
 
     // Text Permissions

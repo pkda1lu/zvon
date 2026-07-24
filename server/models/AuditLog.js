@@ -33,7 +33,11 @@ const auditLogSchema = new mongoose.Schema({
       'MEMBER_KICK',
       'MEMBER_BAN',
       'MEMBER_UNBAN',
+      'MEMBER_JOIN',
+      'MEMBER_LEAVE',
       'MEMBER_UPDATE', // Roles, Nickname change
+      'MEMBER_TIMEOUT',
+      'SERVER_TRANSFER',
       'ROLE_CREATE',
       'ROLE_UPDATE',
       'ROLE_DELETE',

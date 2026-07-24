@@ -13,8 +13,9 @@ import { useDialog } from '../contexts/DialogContext';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { nativeAudioManager } from '../utils/nativeAudio';
+import { getBrand } from '../utils/branding';
 import {
   Room,
   RoomEvent,
@@ -137,6 +138,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 }) => {
   const { user } = useAuth();
   const { alert } = useDialog();
+  const brand = getBrand();
   const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, setUserVolume, localMutes, toggleLocalMute, isDeafened: isGlobalDeafened } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
@@ -502,7 +504,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       console.error('[DM Voice] LiveKit join error:', e);
       const msg = String((e as Error)?.message || '');
       if (/support|webRTC|supported on this browser/i.test(msg)) {
-        alert('Не удалось установить соединение: WebRTC недоступен в этом браузере. Скорее всего его блокирует расширение (например, MetaMask или «WebRTC Leak Prevent»). Откройте звонок в десктоп-приложении Zvon или отключите расширения, блокирующие WebRTC.');
+        alert(`Не удалось установить соединение: WebRTC недоступен в этом браузере. Скорее всего его блокирует расширение (например, MetaMask или «WebRTC Leak Prevent»). Откройте звонок в десктоп-приложении ${brand.name} или отключите расширения, блокирующие WebRTC.`);
       } else {
         alert('Не удалось подключиться к звонку: ' + (msg || 'неизвестная ошибка') + '. Попробуйте ещё раз.');
       }
@@ -650,7 +652,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           <div className="notification-info">
             <div className="notification-name">
               {isGroup ? (dmName || 'Групповой звонок') : otherUser.username}
-              {!isGroup && <UserBadges badges={otherUser.badges} size={14} />}
+              {!isGroup && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={14} />}
             </div>
             <div className="notification-status">Входящий звонок...</div>
           </div>
@@ -758,7 +760,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           </button>
           <div className="call-title">
             {isGroup ? (dmName || 'Групповой звонок') : `Звонок: ${otherUser.username}`}
-            {!isGroup && <UserBadges badges={otherUser.badges} size={16} />}
+            {!isGroup && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={16} />}
           </div>
         </div>
         <div className="call-duration">{isCallActive ? 'В эфире' : 'Подключение...'}</div>
@@ -796,7 +798,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                     <UserAvatar user={userMeta || (p.isMe ? user : null)} size={allParticipants.length > 2 ? 80 : 120} animate={isSpeaking} />
                     <div className="participant-placeholder-name">
                       <span>{userMeta?.username || 'Загрузка...'}</span>
-                      {userMeta && <UserBadges badges={userMeta.badges} size={16} />}
+                      {userMeta && <UserBadges badges={userMeta.badges} serverTag={resolveServerTag(userMeta)} size={16} />}
                     </div>
                   </div>
                 )}
@@ -840,7 +842,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                 )}
                 <div className="participant-label">
                   {userMeta?.username || p.identity} {p.isMe && '(Вы)'}
-                  {userMeta && <UserBadges badges={userMeta.badges} size={12} />}
+                  {userMeta && <UserBadges badges={userMeta.badges} serverTag={resolveServerTag(userMeta)} size={12} />}
                 </div>
               </motion.div>
             );

@@ -5,8 +5,9 @@ import { BotIcon, LayoutGridIcon, PlusIcon, MonitorIcon } from './Icons';
 import { useDialog } from '../contexts/DialogContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
-import { User } from '../types';
+import { User, Server } from '../types';
 import ActiveContacts from './ActiveContacts';
+import { getBrand } from '../utils/branding';
 import './ShowcaseView.css';
 
 interface ShowcaseViewProps {
@@ -14,12 +15,14 @@ interface ShowcaseViewProps {
     onBack?: () => void;
     isMobile?: boolean;
     friends?: User[];
+    servers?: Server[];
     onUserClick?: (userId: string, event?: React.MouseEvent) => void;
 }
 
-const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMobile, friends = [], onUserClick = () => {} }) => {
+const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMobile, friends = [], servers = [], onUserClick = () => {} }) => {
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
+    const brand = getBrand();
     const [activeTab, setActiveTab] = useState<'all' | 'bots' | 'miniapps'>('all');
     const [showcaseData, setShowcaseData] = useState<{ bots: any[], miniApps: any[] }>({ bots: [], miniApps: [] });
     const [loading, setLoading] = useState(true);
@@ -200,7 +203,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                     )}
 
                     <header className="showcase-hero-header">
-                        <span className="showcase-hero-eyebrow">Zvon · Экосистема</span>
+                        <span className="showcase-hero-eyebrow">{brand.name} · Экосистема</span>
                         <h1 className="showcase-hero-title">
                             {activeTab === 'bots' ? <>Наши <span className="showcase-hero-title__accent">умные боты</span></>
                                 : activeTab === 'miniapps' ? <>Лучшие <span className="showcase-hero-title__accent">мини-приложения</span></>
@@ -209,7 +212,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                         <p className="showcase-hero-sub">
                             {activeTab === 'bots' ? 'Автоматизируйте свои серверы с помощью мощных инструментов.'
                                 : activeTab === 'miniapps' ? 'Игры, утилиты и развлечения прямо внутри вашего окна чата.'
-                                : 'Исследуйте мир возможностей ZVON. Добавляйте ботов или запускайте приложения в один клик.'}
+                                : `Исследуйте мир возможностей ${brand.name.toUpperCase()}. Добавляйте ботов или запускайте приложения в один клик.`}
                         </p>
                     </header>
 
@@ -249,9 +252,10 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                     </div>
                 </div>
                 {!isMobile && (
-                    <ActiveContacts 
-                        friends={currentUser ? [...friends, currentUser] : friends} 
-                        onUserClick={onUserClick} 
+                    <ActiveContacts
+                        friends={currentUser ? [...friends, currentUser] : friends}
+                        servers={servers}
+                        onUserClick={onUserClick}
                     />
                 )}
             </div>

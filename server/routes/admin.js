@@ -333,13 +333,20 @@ const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 router.get('/actions', [auth, isModerator], async (req, res) => {
   try {
-    const { action, hours = 24, page = 1, limit = 50, search } = req.query;
+    const { action, hours, after, before, page = 1, limit = 50, search } = req.query;
     const query = {};
     if (action) query.action = action;
 
-    const timeLimit = new Date();
-    timeLimit.setHours(timeLimit.getHours() - parseInt(hours));
-    query.createdAt = { $gte: timeLimit };
+    // Диапазон дат (after/before) имеет приоритет над устаревшим параметром hours.
+    if (after || before) {
+      query.createdAt = {};
+      if (after) query.createdAt.$gte = new Date(after);
+      if (before) query.createdAt.$lte = new Date(before);
+    } else {
+      const timeLimit = new Date();
+      timeLimit.setHours(timeLimit.getHours() - parseInt(hours || 24));
+      query.createdAt = { $gte: timeLimit };
+    }
 
     // Поиск по исполнителю/цели (имя пользователя или сервера), а также по
     // текстовым полям details и коду действия.

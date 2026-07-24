@@ -17,7 +17,7 @@ router.get('/channel/:channelId', auth, async (req, res) => {
     // When fetching `after`, take the OLDEST matches above the cursor (sort ascending).
     // Otherwise default to newest-first paging.
     const sort = after ? { createdAt: 1 } : { createdAt: -1 };
-    const messages = await Message.find(query).populate('author', 'username avatar badges').populate({ path: 'replyTo', populate: { path: 'author', select: 'username avatar badges' } }).populate('mentions', 'username avatar badges').sort(sort).limit(parseInt(limit)).exec();
+    const messages = await Message.find(query).populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate({ path: 'replyTo', populate: { path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } } }).populate({ path: 'mentions', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).sort(sort).limit(parseInt(limit)).exec();
     res.json(after ? messages : messages.reverse());
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -41,7 +41,7 @@ router.get('/channel/:channelId/search', auth, async (req, res) => {
     if (before) query.createdAt = { $lt: new Date(before) };
 
     const results = await Message.find(query)
-      .populate('author', 'username avatar badges')
+      .populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .lean();
@@ -54,9 +54,32 @@ router.get('/channel/:channelId/search', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const { content, channelId, replyTo, attachments } = req.body;
+
+    if (channelId) {
+      const channel = await Channel.findById(channelId);
+      if (channel && channel.server) {
+        const server = await Server.findById(channel.server);
+        if (server) {
+          const member = server.members.find(m => String(m.user) === String(req.user._id));
+          if (member && String(server.owner) !== String(req.user._id)) {
+            if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
+              return res.status(403).json({ message: 'Вы временно не можете отправлять сообщения на этом сервере (мут)', mutedUntil: member.communicationDisabledUntil });
+            }
+            if (server.newcomerCooldownSeconds > 0) {
+              const joinedMs = new Date(member.joinedAt).getTime();
+              const remainingMs = joinedMs + server.newcomerCooldownSeconds * 1000 - Date.now();
+              if (remainingMs > 0) {
+                return res.status(403).json({ message: 'Подождите немного после присоединения к серверу, прежде чем писать', remainingSeconds: Math.ceil(remainingMs / 1000) });
+              }
+            }
+          }
+        }
+      }
+    }
+
     const message = new Message({ content, author: req.user._id, channel: channelId, replyTo, attachments: attachments || [] });
     await message.save();
-    await message.populate('author', 'username avatar badges');
+    await message.populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     if (replyTo) await message.populate('replyTo');
     res.status(201).json(message);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -72,7 +95,7 @@ router.put('/:id', auth, async (req, res) => {
     message.edited = true;
     message.editedAt = new Date();
     await message.save();
-    await message.populate('author', 'username avatar badges');
+    await message.populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     res.json(message);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -130,8 +153,8 @@ router.delete('/:id', auth, async (req, res) => {
 router.get('/channel/:channelId/pins', auth, async (req, res) => {
   try {
     const pins = await Message.find({ channel: req.params.channelId, pinned: true })
-      .populate('author', 'username avatar badges')
-      .populate('mentions', 'username avatar badges')
+      .populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+      .populate({ path: 'mentions', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
       .sort({ pinnedAt: -1 });
     res.json(pins);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -176,7 +199,7 @@ router.patch('/:id/pin', auth, async (req, res) => {
       }
     }
 
-    await message.populate('author', 'username avatar badges');
+    await message.populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
 
     const io = req.app.get('io');
     if (io) {
@@ -307,7 +330,7 @@ router.get('/channel/:channelId/attachments', auth, async (req, res) => {
       channel: req.params.channelId, 
       attachments: { $exists: true, $not: { $size: 0 } } 
     })
-    .populate('author', 'username avatar badges')
+    .populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
     .sort({ createdAt: -1 });
     res.json(messages);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -319,7 +342,7 @@ router.get('/dm/:dmId/attachments', auth, async (req, res) => {
       directMessage: req.params.dmId, 
       attachments: { $exists: true, $not: { $size: 0 } } 
     })
-    .populate('author', 'username avatar badges')
+    .populate({ path: 'author', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
     .sort({ createdAt: -1 });
     res.json(messages);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }

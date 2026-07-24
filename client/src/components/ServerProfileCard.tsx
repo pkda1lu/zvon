@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { Server } from '../types';
-import { getAvatarUrl } from '../utils/avatar';
+import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { useDialog } from '../contexts/DialogContext';
-import { CloseIcon } from './Icons';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { motion } from 'framer-motion';
 import {
   popoverVariants,
@@ -12,8 +11,150 @@ import {
   modalPopVariants,
   modalPopTransition,
 } from '../animations/transitions';
+import './UserProfileCard.css';
 import './ServerProfileCard.css';
 
+interface ServerProfileCardOverrides {
+    name?: string;
+    description?: string;
+    icon?: string | null;
+    banner?: string | null;
+    bannerColor?: string;
+    features?: string[];
+    featuredActivities?: { name: string; image?: string | null }[];
+}
+
+interface ServerProfileCardBodyProps {
+    server: Server;
+    overrides?: ServerProfileCardOverrides;
+    onOwnerClick?: (userId: string, event?: React.MouseEvent) => void;
+    onLeave?: () => void;
+}
+
+/**
+ * Содержимое компактной карточки сервера — переиспользуется и в попапе (клик по серверу),
+ * и в предпросмотре настроек "Профиль сервера" (там же, но с ещё не сохранёнными правками).
+ */
+export const ServerProfileCardBody: React.FC<ServerProfileCardBodyProps> = ({ server, overrides, onOwnerClick, onLeave }) => {
+    const name = overrides?.name ?? server.name;
+    const description = overrides?.description ?? server.description;
+    const icon = overrides && 'icon' in overrides ? overrides.icon : server.icon;
+    const banner = overrides && 'banner' in overrides ? overrides.banner : server.banner;
+    const bannerColor = overrides?.bannerColor ?? server.bannerColor ?? '#5865f2';
+    const features = (overrides?.features ?? server.features ?? []).filter(f => f && f.trim());
+    const featuredActivities = overrides?.featuredActivities ?? server.featuredActivities ?? [];
+    const owner = typeof server.owner === 'object' ? (server.owner as any) : null;
+
+    return (
+        <div className="compact-profile-wrapper">
+            <div
+                className="profile-banner"
+                style={{
+                    backgroundColor: bannerColor,
+                    backgroundImage: banner ? `url(${getFullUrl(banner)})` : 'none',
+                    backgroundSize: 'cover',
+                    height: '120px'
+                }}
+            />
+
+            <div className="profile-header">
+                <div className="profile-avatar-container">
+                    <div className="profile-avatar" style={{ width: '80px', height: '80px', background: '#202225', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', fontWeight: 800, color: '#fff', overflow: 'hidden' }}>
+                        {icon ? <img src={getAvatarUrl(icon)!} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>{name ? name.charAt(0).toUpperCase() : '?'}</span>}
+                    </div>
+                </div>
+            </div>
+
+            <div className="profile-body server-profile-body-spacing">
+                <div className="profile-names">
+                    <div className="profile-names-top">
+                        <span className="profile-nickname">{name || 'Название сервера'}</span>
+                    </div>
+                </div>
+
+                <div className="profile-divider"></div>
+
+                <div className="info-tab">
+                    {description && (
+                        <section>
+                            <h4>О СЕРВЕРЕ</h4>
+                            <p className="bio-text">{description}</p>
+                        </section>
+                    )}
+
+                    {features.length > 0 && (
+                        <section>
+                            <h4>ФИШКИ</h4>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {features.map((f, i) => (
+                                    <span key={i} className="server-settings-role-tag">{f}</span>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
+                    {featuredActivities.length > 0 && (
+                        <section>
+                            <h4>ЛЮБИМЫЕ АКТИВНОСТИ</h4>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                {featuredActivities.map((a, i) => (
+                                    <div key={`${a.name}-${i}`} title={a.name} style={{ width: '36px', height: '36px', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
+                                        {a.image ? (
+                                            <img src={getFullUrl(a.image)!} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : (
+                                            <span style={{ fontSize: '14px', fontWeight: 800 }}>{a.name.charAt(0).toUpperCase()}</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
+                    <section>
+                        <h4>СТАТИСТИКА</h4>
+                        <div className="server-profile-stats">
+                            <div className="stat-item">
+                                <span className="stat-value">{server.members.length}</span>
+                                <span className="stat-label">Участников</span>
+                            </div>
+                            <div className="stat-item">
+                                <span className="stat-value">
+                                    {new Date(server.createdAt).toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' })}
+                                </span>
+                                <span className="stat-label">Создан</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    {owner && (
+                        <section>
+                            <h4>ВЛАДЕЛЕЦ</h4>
+                            <div
+                                className="mutual-item server-profile-owner"
+                                onClick={(e) => onOwnerClick?.(owner._id, e)}
+                                style={{ cursor: onOwnerClick ? 'pointer' : 'default' }}
+                            >
+                                <div className="mutual-avatar">
+                                    {getAvatarUrl(owner.avatar) ? <img src={getAvatarUrl(owner.avatar)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>{owner.username?.charAt(0).toUpperCase()}</span>}
+                                </div>
+                                <span>{owner.username}</span>
+                                <UserBadges badges={owner.badges} serverTag={resolveServerTag(owner)} size={14} />
+                            </div>
+                        </section>
+                    )}
+                </div>
+
+                {onLeave && (
+                    <div className="server-profile-actions">
+                        <button className="leave-server-btn" onClick={onLeave}>
+                            Покинуть сервер
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 interface ServerProfileCardProps {
     server: Server;
@@ -51,6 +192,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
         setAdjustedPos({ top: finalY, left: finalX });
         setIsVisible(true);
     }, [position]);
+
     const handleLeave = async () => {
         if (await confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
             try {
@@ -64,9 +206,9 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
     };
 
     return (
-        <div className={`server-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
             <motion.div
-                className={`server-profile-card ${position ? 'popout' : ''} panel-hero`}
+                className={`user-profile-card ${position ? 'popout' : ''} panel-hero`}
                 onClick={e => e.stopPropagation()}
                 style={position ? {
                     position: 'absolute',
@@ -86,82 +228,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                     <div className="blob purple" />
                     <div className="blob pink" />
                 </div>
-                <div
-                    className="server-profile-banner"
-                    style={{
-                        backgroundColor: server.bannerColor || '#5865f2',
-                        backgroundImage: server.banner ? `url(${getAvatarUrl(server.banner)})` : 'none'
-                    }}
-                >
-                </div>
-
-                <div className="server-profile-header">
-                    <div className="server-profile-icon-container">
-                        <div className="server-profile-icon">
-                            {server.icon ? (
-                                <img src={getAvatarUrl(server.icon)!} alt={server.name} />
-                            ) : (
-                                <span>{server.name.charAt(0).toUpperCase()}</span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="server-profile-body">
-                    <span className="server-profile-name">{server.name}</span>
-
-                    <div className="server-profile-divider"></div>
-
-                    <div className="server-profile-section">
-                        <h4>О ПАБЛИКЕ</h4>
-                        <p>{server.description || 'Описание отсутствует.'}</p>
-                    </div>
-
-                    <div className="server-profile-stats">
-                        <div className="stat-item">
-                            <span className="stat-value">{server.members.length}</span>
-                            <span className="stat-label">Участников</span>
-                        </div>
-                        <div className="stat-item">
-                            <span className="stat-value">
-                                {new Date(server.createdAt).toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' })}
-                            </span>
-                            <span className="stat-label">Создан</span>
-                        </div>
-                    </div>
-
-                    <div className="server-profile-divider"></div>
-
-                    <div className="server-profile-section">
-                        <h4>ВЛАДЕЛЕЦ</h4>
-                        <div className="owner-info" onClick={(e) => typeof server.owner === 'object' && onUserClick?.((server.owner as any)._id, e)} style={{ cursor: 'pointer' }}>
-                            {typeof server.owner === 'object' && (
-                                <>
-                                    <img
-                                        src={getAvatarUrl((server.owner as any).avatar) || ''}
-                                        alt=""
-                                        className="owner-avatar"
-                                    />
-                                    <div className="owner-name-row" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontSize: '14px', color: '#fff', fontWeight: 600 }}>
-                                            {(server.owner as any).username}
-                                        </span>
-                                        <UserBadges badges={(server.owner as any).badges} size={14} />
-                                    </div>
-
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="server-profile-divider"></div>
-
-                    <div className="server-profile-actions">
-                        <button className="leave-server-btn" onClick={handleLeave}>
-                            Покинуть сервер
-                        </button>
-                    </div>
-                </div>
+                <ServerProfileCardBody server={server} onOwnerClick={onUserClick} onLeave={handleLeave} />
             </motion.div>
         </div>
     );

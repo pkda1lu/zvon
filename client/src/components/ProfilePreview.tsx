@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { MonitorIcon, CloseIcon } from './Icons';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { formatClockTime } from '../utils/time';
@@ -155,8 +155,11 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
         return `был(-а) в сети ${date.toLocaleDateString('ru-RU')} в ${timeStr}`;
     };
 
+    // В компактном попоуте клик по аватару раскрывает полный профиль; в полном профиле на сервере —
+    // открывает полный профиль без привязки к серверу (см. onAvatarClick у вызывающего компонента).
+    const canClickAvatar = isCompact || isServerType;
     const handleAvatarClick = () => {
-        if (isCompact && onAvatarClick) {
+        if (canClickAvatar && onAvatarClick) {
             onAvatarClick();
         }
     };
@@ -206,9 +209,10 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
             </div>
 
             <div className="profile-header">
-                <div className="profile-avatar-container" onClick={handleAvatarClick} style={{ cursor: isCompact && onAvatarClick ? 'pointer' : 'default' }}>
+                <div className="profile-avatar-container" onClick={handleAvatarClick} style={{ cursor: canClickAvatar && onAvatarClick ? 'pointer' : 'default' }}>
                     <UserAvatar
-                        user={{...user, avatar}}
+                        user={user}
+                        avatarOverride={avatar}
                         size={80}
                         className={`profile-avatar ${user.status}`}
                         animate={true}
@@ -223,7 +227,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     <div className="profile-names-top">
                         <span className="profile-nickname" style={{ fontSize: '20px' }}>{displayName}</span>
                         {user.isBot && <span className="bot-badge-mini">BOT</span>}
-                        <UserBadges badges={user.badges} size={18} className="profile-badges" />
+                        <UserBadges badges={user.badges} serverTag={resolveServerTag(user, (user as any).servers)} size={18} className="profile-badges" />
                     </div>
                     <span className="profile-username sub">
                         <StreamerBlur>@{user.username}</StreamerBlur>
@@ -260,15 +264,15 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                         </section>
                     )}
 
-                    <section>
-                        <h4>ДАТА РЕГИСТРАЦИИ</h4>
-                        <p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                    </section>
-                    
-                    {isServerType && memberData && (
+                    {isServerType && memberData ? (
                         <section>
                             <h4>ДАТА ВСТУПЛЕНИЯ НА СЕРВЕР</h4>
                             <p>{new Date(memberData.joinedAt || user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        </section>
+                    ) : (
+                        <section>
+                            <h4>ДАТА РЕГИСТРАЦИИ</h4>
+                            <p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         </section>
                     )}
                 </div>

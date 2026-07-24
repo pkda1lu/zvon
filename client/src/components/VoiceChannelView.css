@@ -125,14 +125,124 @@
   color: #ffffff;
 }
 
+.voice-chat-toggle-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.voice-chat-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.voice-chat-toggle-btn.active {
+  background: rgba(0, 229, 255, 0.12);
+  border-color: var(--primary-neon);
+  color: var(--primary-neon);
+}
+
+/* --- BODY: CANVAS + CHAT SIDE PANEL --- */
+.voice-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* --- MAIN CANVAS --- */
 .voice-canvas {
   flex: 1;
+  min-width: 0;
   position: relative;
   overflow: hidden;
   z-index: 1;
   display: flex;
   flex-direction: column;
+}
+
+.voice-chat-panel {
+  width: 360px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle, rgba(0, 0, 0, 0.15));
+}
+
+.voice-chat-panel-header {
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.voice-chat-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  min-width: 0;
+}
+
+.voice-chat-panel-title span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voice-chat-panel-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.voice-chat-panel-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.voice-chat-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.voice-chat-panel-body .channel-view {
+  border: none;
+  border-radius: 0;
+}
+
+@media (max-width: 900px) {
+  .voice-chat-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    width: 100%;
+  }
 }
 
 /* --- PARTICIPANTS GRID --- */

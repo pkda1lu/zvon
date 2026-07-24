@@ -8,6 +8,12 @@ export const getAvatarUrl = (avatar: string | null | undefined): string | null =
     return avatar;
   }
 
+  // Значок из общей базы иконок (client/src/data/badges.ts) — статический ассет
+  // приложения, отдаём как есть, а не как путь на сервере.
+  if (avatar.startsWith('./badges/')) {
+    return avatar;
+  }
+
   // If avatar starts with /api/uploads, it's a relative path from server
   if (avatar.startsWith('/api/uploads')) {
     return `${API_URL}${avatar}`;

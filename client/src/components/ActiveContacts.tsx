@@ -1,20 +1,86 @@
-import React from 'react';
-import { User } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { User, Server } from '../types';
 import UserAvatar from './UserAvatar';
 import { getFullUrl } from '../utils/avatar';
+import { useSocket } from '../contexts/SocketContext';
+import { SpeakerIcon } from './Icons';
 import './panel-hero.css';
 import './ActiveContacts.css';
 
 interface ActiveContactsProps {
     friends: User[];
+    servers?: Server[];
     onUserClick: (userId: string, event?: React.MouseEvent) => void;
 }
 
-const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick }) => {
-    // Filter friends who have an active activity
-    const activeFriends = friends.filter(f => f.activity && (f.activity.name || f.activity.details));
+interface VoiceGroup {
+    server: Server;
+    channelId: string;
+    channelName: string;
+    users: User[];
+}
 
-    if (activeFriends.length === 0) {
+const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], onUserClick }) => {
+    const { socket } = useSocket();
+    // Плоская карта channelId -> список пользователей. ID канала уникален глобально,
+    // поэтому можно мержить снапшоты со всех серверов пользователя в одну карту без
+    // необходимости хранить serverId в самом событии.
+    const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
+
+    useEffect(() => {
+        if (!socket || servers.length === 0) return;
+
+        const handleServerVoiceStates = (states: Record<string, User[]>) => {
+            setVoiceStates(prev => ({ ...prev, ...states }));
+        };
+        const handleChannelUpdate = (data: { channelId: string; users: User[] }) => {
+            setVoiceStates(prev => ({ ...prev, [data.channelId]: data.users }));
+        };
+
+        socket.on('server-voice-states', handleServerVoiceStates);
+        socket.on('voice-channel-users-update', handleChannelUpdate);
+        // Форсируем свежий снапшот при монтировании — компонент мог смонтироваться
+        // позже первоначальной загрузки приложения и пропустить исходный снапшот.
+        servers.forEach(s => socket.emit('join-server', s._id));
+
+        return () => {
+            socket.off('server-voice-states', handleServerVoiceStates);
+            socket.off('voice-channel-users-update', handleChannelUpdate);
+        };
+    }, [socket, servers]);
+
+    const friendIds = useMemo(() => new Set(friends.map(f => f._id)), [friends]);
+
+    const voiceGroups = useMemo<VoiceGroup[]>(() => {
+        const groups: VoiceGroup[] = [];
+        for (const server of servers) {
+            for (const channel of server.channels) {
+                if (channel.type !== 'voice') continue;
+                const occupants = voiceStates[channel._id];
+                if (!occupants || occupants.length === 0) continue;
+                const friendsHere = occupants.filter(u => friendIds.has(u._id));
+                if (friendsHere.length === 0) continue;
+                groups.push({ server, channelId: channel._id, channelName: channel.name, users: friendsHere });
+            }
+        }
+        return groups;
+    }, [servers, voiceStates, friendIds]);
+
+    // Друзья в голосовых каналах не должны дублироваться карточкой активности —
+    // голосовое присутствие важнее и уже показывает их в отдельной карточке.
+    const voiceFriendIds = useMemo(() => {
+        const ids = new Set<string>();
+        voiceGroups.forEach(g => g.users.forEach(u => ids.add(u._id)));
+        return ids;
+    }, [voiceGroups]);
+
+    const activeFriends = friends.filter(f => f.activity && (f.activity.name || f.activity.details) && !voiceFriendIds.has(f._id));
+
+    const handleVoiceGroupClick = (group: VoiceGroup) => {
+        window.dispatchEvent(new CustomEvent('select-server', { detail: { serverId: group.server._id, channelId: group.channelId } }));
+    };
+
+    if (activeFriends.length === 0 && voiceGroups.length === 0) {
         return (
             <div className="active-contacts-sidebar panel-hero empty">
                 <div className="panel-hero-bg" aria-hidden="true">
@@ -32,7 +98,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
                         </svg>
                     </div>
                     <h4>Тишина...</h4>
-                    <p>Пока никто не играет. Когда ваши друзья начнут во что-то играть, это появится здесь!</p>
+                    <p>Пока никто не играет, не стримит и не сидит в голосовом. Когда друзья появятся тут — вы это увидите!</p>
                 </div>
             </div>
         );
@@ -58,6 +124,47 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
             </div>
             <h3 className="section-title">Активные контакты</h3>
             <div className="active-contacts-list custom-scrollbar">
+                {voiceGroups.map(group => (
+                    <div
+                        key={group.channelId}
+                        className="active-card glass-panel-base"
+                        data-type="voice"
+                        onClick={() => handleVoiceGroupClick(group)}
+                    >
+                        <div className="active-card-header">
+                            <div className="active-user-info">
+                                <div className="active-voice-avatar-stack">
+                                    {group.users.slice(0, 3).map((u, i) => (
+                                        <UserAvatar key={u._id} user={u} size={32} className="active-avatar active-voice-avatar" style={{ zIndex: 3 - i }} />
+                                    ))}
+                                    {group.users.length > 3 && (
+                                        <div className="active-voice-avatar-more">+{group.users.length - 3}</div>
+                                    )}
+                                </div>
+                                <div className="active-user-details">
+                                    <span className="active-username">
+                                        {group.users.map(u => u.username).join(', ')}
+                                    </span>
+                                    <span className="active-activity-name">{group.server.name} · {group.channelName}</span>
+                                </div>
+                            </div>
+                            <div className="active-voice-icon">
+                                <SpeakerIcon size={18} />
+                            </div>
+                        </div>
+                        <div className="active-card-content">
+                            <div className="active-game-info active-voice-info">
+                                <div className="active-game-icon active-voice-channel-icon">
+                                    <SpeakerIcon size={20} />
+                                </div>
+                                <div className="active-game-details">
+                                    <div className="active-game-title">{group.channelName}</div>
+                                    <div className="active-game-subtitle">В голосовом на «{group.server.name}»</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
                 {activeFriends.map(friend => (
                     <div
                         key={friend._id}
@@ -66,8 +173,8 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, onUserClick })
                         onClick={(e) => onUserClick(friend._id, e)}
                     >
                         {friend.activity?.assets?.largeImage && (
-                            <div 
-                                className="active-card-glow" 
+                            <div
+                                className="active-card-glow"
                                 style={{ backgroundImage: `url(${getFullUrl(friend.activity.assets.largeImage)})` }}
                             />
                         )}

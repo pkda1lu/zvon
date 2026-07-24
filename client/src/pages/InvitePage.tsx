@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
+import { getBrand } from '../utils/branding';
 import './InvitePage.css';
 
 const InvitePage: React.FC = () => {
     const { code } = useParams<{ code: string }>();
     const navigate = useNavigate();
     const { user: authUser, loading: authLoading } = useAuth();
+    const brand = getBrand();
     const [invite, setInvite] = useState<any>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
@@ -118,7 +120,29 @@ const InvitePage: React.FC = () => {
                             <h1 style={{ color: 'white', fontSize: '32px', fontWeight: 800, marginBottom: '15px', letterSpacing: '-1px' }}>{invite.server.name}</h1>
 
                             {invite.server.description && (
-                                <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.5', marginBottom: '25px' }}>{invite.server.description}</p>
+                                <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.5', marginBottom: '20px' }}>{invite.server.description}</p>
+                            )}
+
+                            {(invite.server.features || []).length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px', marginBottom: '20px' }}>
+                                    {invite.server.features.map((f: string, i: number) => (
+                                        <span key={i} className="server-settings-role-tag">{f}</span>
+                                    ))}
+                                </div>
+                            )}
+
+                            {(invite.server.featuredActivities || []).length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+                                    {invite.server.featuredActivities.map((a: { name: string; image?: string | null }, i: number) => (
+                                        <div key={`${a.name}-${i}`} title={a.name} style={{ width: '36px', height: '36px', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
+                                            {a.image ? (
+                                                <img src={getAvatarUrl(a.image)!} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>{a.name.charAt(0).toUpperCase()}</span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             )}
 
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', marginBottom: '35px' }}>
@@ -133,7 +157,7 @@ const InvitePage: React.FC = () => {
                                             Открыть в приложении
                                         </button>
                                         <button style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
-                                            Установить ZVON
+                                            Установить {brand.name.toUpperCase()}
                                         </button>
                                     </>
                                 ) : (
@@ -148,7 +172,7 @@ const InvitePage: React.FC = () => {
             </div>
 
             <div style={{ position: 'absolute', bottom: '30px', left: '0', width: '100%', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>
-                ZVON • THE LIQUID FUTURE OF COMMUNICATION
+                {brand.name.toUpperCase()} • THE LIQUID FUTURE OF COMMUNICATION
             </div>
         </div>
     );

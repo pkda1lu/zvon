@@ -1,11 +1,13 @@
 import React from 'react';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { SettingsToggle } from './SettingsUI';
+import { getBrand } from '../../utils/branding';
 
 const AdvancedSettings: React.FC = () => {
-    const { 
-        hardwareAcceleration, setHardwareAcceleration 
+    const {
+        hardwareAcceleration, setHardwareAcceleration
     } = useWindowSettings();
+    const brand = getBrand();
 
     const handleHwAccelChange = (val: boolean) => {
         setHardwareAcceleration(val);
@@ -35,7 +37,7 @@ const AdvancedSettings: React.FC = () => {
                     <SettingsToggle checked={hardwareAcceleration} onChange={handleHwAccelChange} />
                 </div>
                 <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(240, 178, 50, 0.1)', border: '1px solid rgba(240, 178, 50, 0.2)', borderRadius: '8px', fontSize: '12px', color: '#f0b232' }}>
-                    ⚠️ Внимание: Изменение этой настройки потребует перезапуска ZVON.
+                    ⚠️ Внимание: Изменение этой настройки потребует перезапуска {brand.name.toUpperCase()}.
                 </div>
             </div>
         </div>

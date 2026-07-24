@@ -192,20 +192,22 @@ const DevicesSettings: React.FC = () => {
                 <>
                     <h3 className="settings-section-title">Текущее устройство</h3>
                     {currentGroup && (
-                        <div className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', background: 'rgba(35, 165, 89, 0.05)', borderColor: 'rgba(35, 165, 89, 0.2)' }}>
-                            <div style={{ padding: '16px', background: 'rgba(35, 165, 89, 0.1)', borderRadius: '16px', color: 'var(--success)' }}>
-                                {currentGroup.deviceType === 'mobile' || currentGroup.deviceType === 'tablet'
-                                    ? <SmartphoneIcon size={32} />
-                                    : <MonitorIcon size={32} />}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {currentGroup.deviceName || currentGroup.os}
-                                    <span style={{ fontSize: '10px', background: 'var(--success)', color: '#fff', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>Текущее</span>
+                        <div className="settings-list" style={{ marginBottom: '8px' }}>
+                            <div className="settings-list-row">
+                                <div className="settings-list-row-icon" style={{ color: 'var(--success)', background: 'rgba(35, 165, 89, 0.1)' }}>
+                                    {currentGroup.deviceType === 'mobile' || currentGroup.deviceType === 'tablet'
+                                        ? <SmartphoneIcon size={20} />
+                                        : <MonitorIcon size={20} />}
                                 </div>
-                                {renderLocations(currentGroup)}
-                                <div style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px' }}>
-                                    {deviceMeta(currentGroup, true)}
+                                <div className="settings-list-row-body">
+                                    <div className="settings-list-row-title">
+                                        {currentGroup.deviceName || currentGroup.os}
+                                        <span className="settings-list-row-tag" style={{ background: 'var(--success)' }}>Текущее</span>
+                                    </div>
+                                    <div className="settings-list-row-meta">
+                                        {renderLocations(currentGroup)}
+                                        <div>{deviceMeta(currentGroup, true)}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -224,33 +226,36 @@ const DevicesSettings: React.FC = () => {
                                     Завершить все
                                 </button>
                             </div>
-                            {otherGroups.map(group => (
-                                <div key={group.key} className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                    <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', color: 'var(--text-dim)' }}>
-                                        {group.deviceType === 'mobile' || group.deviceType === 'tablet'
-                                            ? <SmartphoneIcon size={32} />
-                                            : <MonitorIcon size={32} />}
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
-                                            {group.deviceName || group.os}
+                            <div className="settings-list">
+                                {otherGroups.map(group => (
+                                    <div key={group.key} className="settings-list-row">
+                                        <div className="settings-list-row-icon">
+                                            {group.deviceType === 'mobile' || group.deviceType === 'tablet'
+                                                ? <SmartphoneIcon size={20} />
+                                                : <MonitorIcon size={20} />}
                                         </div>
-                                        {renderLocations(group)}
-                                        <div style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px' }}>
-                                            {deviceMeta(group, false)}
+                                        <div className="settings-list-row-body">
+                                            <div className="settings-list-row-title">
+                                                {group.deviceName || group.os}
+                                            </div>
+                                            <div className="settings-list-row-meta">
+                                                {renderLocations(group)}
+                                                <div>{deviceMeta(group, false)}</div>
+                                            </div>
+                                        </div>
+                                        <div className="settings-list-row-actions">
+                                            <button
+                                                className="action-button"
+                                                onClick={() => revokeGroup(group)}
+                                                disabled={revokingKey === group.key}
+                                                title="Завершить все сессии устройства"
+                                            >
+                                                <LogOutIcon size={18} />
+                                            </button>
                                         </div>
                                     </div>
-                                    <button
-                                        className="settings-btn"
-                                        style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', padding: '10px' }}
-                                        onClick={() => revokeGroup(group)}
-                                        disabled={revokingKey === group.key}
-                                        title="Завершить все сессии устройства"
-                                    >
-                                        <LogOutIcon size={18} />
-                                    </button>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </>
                     )}
                 </>

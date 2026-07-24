@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useInbox, InboxItem } from '../contexts/InboxContext';
 import { TrashIcon, CheckIcon, MailIcon } from './Icons';
 import UserAvatar from './UserAvatar';
-import UserBadges from './UserBadges';
+import UserBadges, { resolveServerTag } from './UserBadges';
 import { iosSpring } from '../animations/transitions';
 import './Inbox.css';
 
@@ -82,7 +82,7 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                                 <div className="inbox-item-content">{item.content}</div>
                                 <div className="inbox-item-meta">
                                     <span>{item.author?.username}</span>
-                                    {item.author && <UserBadges badges={item.author.badges} size={12} />}
+                                    {item.author && <UserBadges badges={item.author.badges} serverTag={resolveServerTag(item.author)} size={12} />}
                                     <span>{formatDate(item.timestamp)}</span>
                                 </div>
                             </div>

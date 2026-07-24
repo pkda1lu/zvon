@@ -1,8 +1,10 @@
 import React from 'react';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { SettingsToggle } from './SettingsUI';
+import { getBrand } from '../../utils/branding';
 
 const StreamerSettings: React.FC = () => {
+    const brand = getBrand();
     const {
         streamerModeEnabled, setStreamerModeEnabled,
         autoEnableWithOBS, setAutoEnableWithOBS,
@@ -100,7 +102,7 @@ const StreamerSettings: React.FC = () => {
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Отключить все звуковые эффекты</h3>
-                        <p>ZVON не будет воспроизводить звуки уведомлений, звонков и др.</p>
+                        <p>{brand.name.toUpperCase()} не будет воспроизводить звуки уведомлений, звонков и др.</p>
                     </div>
                     <SettingsToggle checked={disableSounds} onChange={setDisableSounds} />
                 </div>

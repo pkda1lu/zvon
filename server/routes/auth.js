@@ -343,7 +343,7 @@ router.post('/toggle-2fa', auth, async (req, res) => {
 
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password').populate('servers');
+    const user = await User.findById(req.user._id).select('-password').populate('servers').populate('primaryServer', 'name icon').populate('displayedTag.server', 'name icon tag');
     if (user && user.username === 'da1lu' && user.role !== 'admin') {
       user.role = 'admin';
       await user.save();

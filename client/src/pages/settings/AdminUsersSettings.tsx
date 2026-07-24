@@ -136,46 +136,44 @@ const AdminUsersSettings: React.FC = () => {
                 <button type="submit" className="settings-btn" style={{ padding: '0 20px' }}>Поиск</button>
             </form>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="settings-list">
                 {loading ? (
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Загрузка...</div>
                 ) : data.length === 0 ? (
-                    <div className="settings-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Ничего не найдено.</div>
+                    <div className="server-settings-empty-state">Ничего не найдено.</div>
                 ) : (
                     data.map(item => (
-                        <div key={item._id} className="settings-card" style={{ margin: 0, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div key={item._id} className="settings-list-row">
+                            {view === 'users' ? (
+                                <div className="settings-list-row-icon round"><UserAvatar user={item} size={40} /></div>
+                            ) : (
+                                <div className="settings-list-row-icon">
+                                    {item.icon ? (
+                                        <img src={getFullUrl(item.icon)!} alt="" />
+                                    ) : (item.name?.[0]?.toUpperCase() || '#')}
+                                </div>
+                            )}
+
+                            <div className="settings-list-row-body">
                                 {view === 'users' ? (
                                     <>
-                                        <UserAvatar user={item} size={48} />
-                                        <div>
-                                            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {item.username} 
-                                                {item.role === 'admin' && <span style={{ fontSize: '10px', background: 'var(--accent-pink)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>ADMIN</span>}
-                                                {item.role === 'moderator' && <span style={{ fontSize: '10px', background: 'var(--primary-neon)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>MOD</span>}
-                                                {item.isBanned && <span style={{ fontSize: '10px', background: 'var(--danger)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>BANNED</span>}
-                                            </div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{item.email}</div>
+                                        <div className="settings-list-row-title">
+                                            {item.username}
+                                            {item.role === 'admin' && <span className="settings-list-row-tag" style={{ background: 'var(--accent-pink)' }}>ADMIN</span>}
+                                            {item.role === 'moderator' && <span className="settings-list-row-tag" style={{ background: 'var(--primary-neon)' }}>MOD</span>}
+                                            {item.isBanned && <span className="settings-list-row-tag" style={{ background: 'var(--danger)' }}>BANNED</span>}
                                         </div>
+                                        <div className="settings-list-row-meta">{item.email}</div>
                                     </>
                                 ) : (
                                     <>
-                                        {item.icon ? (
-                                            <img src={getFullUrl(item.icon)!} style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
-                                        ) : (
-                                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--glass-bg-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '20px' }}>
-                                                {item.name?.[0]?.toUpperCase() || '#'}
-                                            </div>
-                                        )}
-                                        <div>
-                                            <div style={{ fontWeight: 700 }}>{item.name}</div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Владелец: {item.owner?.username || 'System'} • {item.members?.length || 0} уч.</div>
-                                        </div>
+                                        <div className="settings-list-row-title">{item.name}</div>
+                                        <div className="settings-list-row-meta">Владелец: {item.owner?.username || 'System'} • {item.members?.length || 0} уч.</div>
                                     </>
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', gap: '8px' }}>
+                            <div className="settings-list-row-actions">
                                 {view === 'users' ? (
                                     <>
                                         <button

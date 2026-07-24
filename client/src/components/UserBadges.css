@@ -21,3 +21,20 @@
     filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.6));
 }
 
+.server-tag-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 6px;
+    font-weight: 800;
+    color: #fff;
+    vertical-align: middle;
+    margin-left: 6px;
+    line-height: 1.4;
+}
+
+.server-tag-preview img {
+    border-radius: 3px;
+    object-fit: cover;
+}
+
