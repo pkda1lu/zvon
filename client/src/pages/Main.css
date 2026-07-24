@@ -189,3 +189,22 @@
     z-index: 1000;
     background: var(--bg-primary);
 }
+
+.voice-chat-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  gap: 15px;
+}
+
+.voice-chat-container .content-inner-layer {
+  flex-grow: 1;
+  height: 100%;
+}
+
+.voice-chat-sidebar {
+  width: 320px;
+  min-width: 320px;
+  height: 100%;
+  border-left: 1px solid var(--border-color);
+}

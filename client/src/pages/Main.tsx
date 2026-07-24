@@ -83,6 +83,11 @@ const Main: React.FC = () => {
   const [showShowcase, setShowShowcase] = useState(false);
   const [openMiniApps, setOpenMiniApps] = useState<MiniApp[]>([]);
   const [minimizedMiniAppIds, setMinimizedMiniAppIds] = useState<Set<string>>(new Set());
+  const [showVoiceChat, setShowVoiceChat] = useState(false);
+
+  useEffect(() => {
+    setShowVoiceChat(false);
+  }, [selectedChannel]);
 
   const userRef = useRef(user);
   const selectedServerRef = useRef(selectedServer);
@@ -1243,22 +1248,45 @@ const Main: React.FC = () => {
                     initial="initial" animate="animate" exit="exit"
                     transition={iosSpring}
                   >
-                    <div key={selectedChannel._id} className="content-inner-layer">
-                      <VoiceChannelView
-                        channel={selectedChannel}
-                        server={selectedServer!}
-                        onUserClick={handleUserClick}
-                        onMessageClick={handleStartDM}
-                        onCallClick={async (userId) => {
-                          try {
-                            const response = await axios.get(`/api/direct-messages/user/${userId}`);
-                            const other = response.data.participants.find((p: User) => p._id !== user?._id);
-                            if (other) handleStartDirectCall(other, response.data._id);
-                          } catch (e) { reportDMError(e); }
-                        }}
-                        onBack={() => setMobileView('sidebar')}
-                        isMobile={isMobile}
-                      />
+                    <div key={selectedChannel._id} className="voice-chat-container">
+                      <div className="content-inner-layer">
+                        <VoiceChannelView
+                          channel={selectedChannel}
+                          server={selectedServer!}
+                          onUserClick={handleUserClick}
+                          onMessageClick={handleStartDM}
+                          onCallClick={async (userId) => {
+                            try {
+                              const response = await axios.get(`/api/direct-messages/user/${userId}`);
+                              const other = response.data.participants.find((p: User) => p._id !== user?._id);
+                              if (other) handleStartDirectCall(other, response.data._id);
+                            } catch (e) { reportDMError(e); }
+                          }}
+                          onBack={() => setMobileView('sidebar')}
+                          isMobile={isMobile}
+                          onToggleChat={() => setShowVoiceChat(!showVoiceChat)}
+                        />
+                      </div>
+                      {showVoiceChat && (
+                        <div className="voice-chat-sidebar">
+                          <ChannelView
+                            channel={selectedChannel}
+                            server={selectedServer!}
+                            messages={messages}
+                            socket={socket}
+                            onUserClick={handleUserClick}
+                            initialUnreadCount={unreadCounts[selectedChannel._id]}
+                            hasMore={hasMore}
+                            isLoadingMore={isLoadingMore}
+                            onLoadMore={loadMoreMessages}
+                            pinnedMessages={pinnedMessages}
+                            setMessages={setMessages}
+                            onBack={() => setMobileView('sidebar')}
+                            onToggleMembers={() => setMobileView((prev: string) => prev === 'members' ? 'content' : 'members')}
+                            isMobile={isMobile}
+                          />
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}

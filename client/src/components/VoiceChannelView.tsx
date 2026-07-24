@@ -17,76 +17,17 @@ import ChannelView from './ChannelView';
 import './panel-hero.css';
 import './VoiceChannelView.css';
 
-const VoiceChannelChat: React.FC<{ channel: Channel; server: Server; onUserClick: (userId: string, event?: React.MouseEvent) => void; onClose: () => void }> = ({ channel, server, onUserClick, onClose }) => {
-  const { socket } = useSocket();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [msgsRes, pinsRes] = await Promise.all([
-          axios.get(`/api/messages/channel/${channel._id}`),
-          axios.get(`/api/messages/channel/${channel._id}/pins`)
-        ]);
-        if (!cancelled) {
-          setMessages(msgsRes.data);
-          setHasMore(msgsRes.data.length === 50);
-          setPinnedMessages(pinsRes.data);
-        }
-      } catch (e) { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [channel._id]);
-
-  useEffect(() => {
-    if (!socket) return;
-    socket.emit('join-channel', channel._id);
-    const handleNewMessage = (message: Message) => { if (message.channel === channel._id) setMessages(prev => [...prev, message]); };
-    const handleMessageDeleted = (messageId: string) => setMessages(prev => prev.filter(m => m._id !== messageId));
-    socket.on('new-message', handleNewMessage);
-    socket.on('message-deleted', handleMessageDeleted);
-    return () => {
-      socket.emit('leave-channel', channel._id);
-      socket.off('new-message', handleNewMessage);
-      socket.off('message-deleted', handleMessageDeleted);
-    };
-  }, [socket, channel._id]);
-
-  const loadMoreMessages = async () => {
-    if (isLoadingMore || !hasMore || messages.length === 0) return;
-    setIsLoadingMore(true);
-    try {
-      const response = await axios.get(`/api/messages/channel/${channel._id}`, { params: { before: messages[0].createdAt } });
-      if (response.data.length > 0) {
-        setMessages(prev => [...response.data, ...prev]);
-        setHasMore(response.data.length === 50);
-      } else {
-        setHasMore(false);
-      }
-    } catch (e) { /* ignore */ } finally { setIsLoadingMore(false); }
-  };
-
-  return (
-    <div className="voice-chat-panel">
-      <div className="voice-chat-panel-header">
-        <div className="voice-chat-panel-title"><ChatIcon size={16} /><span>{channel.name}</span></div>
-        <button className="voice-chat-panel-close" onClick={onClose} title="Закрыть чат"><CloseIcon size={16} /></button>
-      </div>
-      <div className="voice-chat-panel-body">
-        <ChannelView channel={channel} server={server} messages={messages} socket={socket} onUserClick={onUserClick} hasMore={hasMore} isLoadingMore={isLoadingMore} onLoadMore={loadMoreMessages} pinnedMessages={pinnedMessages} setMessages={setMessages} />
-      </div>
-    </div>
-  );
-};
 
 interface VoiceChannelViewProps {
   channel: Channel;
   server: Server;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
+  onMessageClick: (userId: string) => void;
+  onCallClick: (userId: string) => void;
+  onBack: () => void;
+  isMobile: boolean;
+  onToggleChat: () => void;
 }
 
 const VoiceParticipantCard: React.FC<{ participant: any, isSpeaking: boolean, onContextMenu: any, getDisplayName: any, onClick: () => void }> = ({ participant, isSpeaking, onContextMenu, getDisplayName, onClick }) => {
@@ -157,7 +98,7 @@ const getGridDimensions = (count: number) => {
   return { rows, cols };
 };
 
-const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, onUserClick }) => {
+const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, onUserClick, onToggleChat }) => {
   const isPresent = useIsPresent();
   const { user: currentUser } = useAuth();
   const { socket, connected } = useSocket();
@@ -174,7 +115,6 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, userId: string } | null>(null);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
-  const [showChat, setShowChat] = useState(false);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const viewRef = useRef<HTMLDivElement>(null);
   const [ctrlsRect, setCtrlsRect] = useState<{ bottom: number, left: number, width: number } | null>(null);
@@ -274,12 +214,11 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       <div className="panel-hero-bg" aria-hidden="true"><div className="blob cyan" /><div className="blob purple" /><div className="blob pink" /></div>
       <header className="voice-hdr">
         <div className="hdr-left"><h1><div className="voice-status-indicator inline"><div className="pulse-ring"></div><div className="status-dot"></div></div>{channel.name}</h1></div>
-        <div className="hdr-right">{channel.topic && <div className="channel-topic-tag">{channel.topic}</div>}<button className={`voice-chat-toggle-btn ${showChat ? 'active' : ''}`} onClick={() => setShowChat(v => !v)} title={showChat ? 'Скрыть чат' : 'Открыть чат'}><ChatIcon size={18} /></button></div>
+        <div className="hdr-right">{channel.topic && <div className="channel-topic-tag">{channel.topic}</div>}<button className={`voice-chat-toggle-btn`} onClick={onToggleChat} title={'Открыть чат'}><ChatIcon size={18} /></button></div>
       </header>
       {contextMenu && <MemberContextMenu user={displayParticipants.find(p => p._id === contextMenu.userId)} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onOpenProfile={onUserClick} />}
       <div className="voice-body">
         <main className="voice-canvas">{displayParticipants.length > 0 ? renderLayout() : <div className="v-empty"><div className="v-empty-icon"><SpeakerIcon size={64} /></div>{!isConnectedToThisChannel && <div className="v-empty-sub">Нажмите кнопку соединения внизу, чтобы начать</div>}</div>}</main>
-        {showChat && <VoiceChannelChat channel={channel} server={server} onUserClick={onUserClick} onClose={() => setShowChat(false)} />}
       </div>
       
       {isPresent && createPortal(<div className="voice-ctrls-anchor" style={ctrlsRect ? { position: 'fixed', bottom: window.innerHeight - ctrlsRect.bottom, left: ctrlsRect.left, width: ctrlsRect.width, right: 'auto' } : undefined}>
