@@ -25,7 +25,7 @@ export const useCallSettings = () => {
 export const CallSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, updateUser } = useAuth();
   const [settings, setSettings] = useState<CallSettings>(() => {
-    const savedSettings = user?.settings?.interaction?.call;
+    const savedSettings = user?.settings?.interaction?.voice;
     return {
       layout: savedSettings?.layout || 'grid',
       muteOnDeafen: savedSettings?.muteOnDeafen ?? true,
@@ -33,10 +33,10 @@ export const CallSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
 
   useEffect(() => {
-    if (user?.settings?.interaction?.call) {
-      setSettings(user.settings.interaction.call);
+    if (user?.settings?.interaction?.voice) {
+      setSettings(user.settings.interaction.voice);
     }
-  }, [user?.settings?.interaction?.call]);
+  }, [user?.settings?.interaction?.voice]);
 
   const setSetting = useCallback((key: keyof CallSettings, value: any) => {
     const newSettings = { ...settings, [key]: value };
@@ -48,13 +48,13 @@ export const CallSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const { data } = await axios.put('/api/users/settings', {
           settings: {
             interaction: {
-              call: newSettings,
+              voice: newSettings,
             },
           },
         });
         updateUser({ settings: data.settings });
       } catch (err) {
-        console.error('Failed to save call settings:', err);
+        console.error('Failed to save voice settings:', err);
       }
     }, 1000);
 

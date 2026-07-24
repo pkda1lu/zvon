@@ -141,14 +141,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     let items: any[] = [];
     if (isConnectedToThisChannel && currentUser) {
       const seenIds = new Set<string>();
-      items.push({ _id: currentUser._id, ...currentUser, isMe: true, isMuted, isDeafened, type: 'user', cameraStream: isVideoOn ? localCameraStream : null });
+      items.push({ ...currentUser, isMe: true, isMuted, isDeafened, type: 'user', cameraStream: isVideoOn ? localCameraStream : null });
       seenIds.add(currentUser._id);
       if (isScreenSharing) items.push({ _id: `stream-${currentUser._id}`, userId: currentUser._id, type: 'stream', isMe: true });
 
       activeConnectedUsers.forEach(u => {
         if (seenIds.has(u._id)) return;
-        const state = userStates.get(u._id) || {};
-        items.push({ _id: u._id, ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened, type: 'user', cameraStream: state.isVideoOn ? remoteStreams.get(u._id) : null });
+        const state = userStates.get(u._id) || { isMuted: false, isDeafened: false, isVideoOn: false, isScreenSharing: false };
+        items.push({ ...u, isMe: false, isMuted: state.isMuted, isDeafened: state.isDeafened, type: 'user', cameraStream: state.isVideoOn ? remoteStreams.get(u._id) : null });
         seenIds.add(u._id);
         if (state.isScreenSharing || remoteScreenStreams.has(u._id)) items.push({ _id: `stream-${u._id}`, userId: u._id, type: 'stream', isMe: false });
       });
