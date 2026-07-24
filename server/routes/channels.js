@@ -10,6 +10,11 @@ const { logAction } = require('../utils/auditLogger');
 router.post('/', auth, checkPermission(Permissions.MANAGE_CHANNELS, 'body.serverId'), async (req, res) => {
   try {
     const { name, type, serverId, category, position, topic } = req.body;
+    // 3D-комнаты пока в разработке — создавать их могут только модераторы/админы Zvon.
+    // Гейт дублирует клиентскую проверку, т.к. запрос можно отправить в обход UI.
+    if (type === 'room' && !['admin', 'moderator'].includes(req.user.role)) {
+      return res.status(403).json({ message: '3D-комнаты в разработке и доступны только модераторам Zvon' });
+    }
     const server = await Server.findById(serverId);
     if (!server) return res.status(404).json({ message: 'Server not found' });
     const channel = new Channel({ name, type: type || 'text', server: serverId, category, position: position || server.channels.length, topic });

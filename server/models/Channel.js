@@ -29,7 +29,7 @@ const channelSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['text', 'voice', 'category'],
+    enum: ['text', 'voice', 'category', 'room'],
     default: 'text'
   },
   server: {

@@ -235,6 +235,29 @@ app.get('/api/channels/:id/voice-participants', async (req, res) => {
 // Map<channelId, { appId, hostUserId, ts }>
 const miniappWatchByChannel = new Map();
 
+// --- 3D-комнаты (channel.type === 'room') ---
+// Позиции аватарок пользователей на плоскости комнаты. Храним только x/z
+// (y — высота — фиксирована на клиенте), синхронизируем по voice-channel room.
+// Map<channelId, Map<userId, { x: number, z: number }>>
+const roomPositionsByChannel = new Map();
+
+function getRoomPositionsSnapshot(channelId) {
+  const m = roomPositionsByChannel.get(String(channelId));
+  return m ? Array.from(m.entries()).map(([userId, pos]) => ({ userId, ...pos })) : [];
+}
+function setRoomPosition(channelId, userId, pos) {
+  const key = String(channelId);
+  let m = roomPositionsByChannel.get(key);
+  if (!m) { m = new Map(); roomPositionsByChannel.set(key, m); }
+  m.set(String(userId), pos);
+}
+function removeRoomPosition(channelId, userId) {
+  const m = roomPositionsByChannel.get(String(channelId));
+  if (!m) return;
+  m.delete(String(userId));
+  if (m.size === 0) roomPositionsByChannel.delete(String(channelId));
+}
+
 // --- Voice presences (mini-app virtual participants) ---
 // Map<channelId, Map<sessionId, presence>>
 const voicePresencesByChannel = new Map();
@@ -311,6 +334,8 @@ const disconnectOtherVoiceSessions = async (userId, exceptSocketId) => {
     s.leave(`voice-channel-${oldChannelId}`);
     s.voiceChannelId = null;
     io.to(`voice-channel-${oldChannelId}`).emit('voice-user-left', { userId: String(userId) });
+    removeRoomPosition(oldChannelId, userId);
+    io.to(`voice-channel-${oldChannelId}`).emit('room-position-removed', { channelId: oldChannelId, userId: String(userId) });
     await notifyVoiceChannelUpdate(oldChannelId);
   }
 };
@@ -339,6 +364,8 @@ setInterval(async () => {
           }
           if (s && s.userId) {
             io.to(roomName).emit('voice-user-left', { userId: s.userId });
+            removeRoomPosition(channelId, s.userId);
+            io.to(roomName).emit('room-position-removed', { channelId, userId: String(s.userId) });
           }
           affectedChannels.add(channelId);
         }
@@ -963,6 +990,8 @@ io.on('connection', (socket) => {
       if (socket.voiceChannelId && socket.voiceChannelId !== channelId) {
         socket.leave(`voice-channel-${socket.voiceChannelId}`);
         io.to(`voice-channel-${socket.voiceChannelId}`).emit('voice-user-left', { userId: socket.userId });
+        removeRoomPosition(socket.voiceChannelId, socket.userId);
+        io.to(`voice-channel-${socket.voiceChannelId}`).emit('room-position-removed', { channelId: socket.voiceChannelId, userId: String(socket.userId) });
         await notifyVoiceChannelUpdate(socket.voiceChannelId);
       }
 
@@ -1003,6 +1032,16 @@ io.on('connection', (socket) => {
         isServerDeafened: socket.isServerDeafened || false,
         myNickname: serverNickname,
       });
+
+      // 3D-комната: даём присоединившемуся снапшот позиций всех, кто уже в
+      // комнате, назначаем ему случайную стартовую позицию и рассылаем её остальным.
+      if (channel.type === 'room') {
+        socket.emit('room-positions-snapshot', { channelId, positions: getRoomPositionsSnapshot(channelId) });
+        const startPos = { x: (Math.random() - 0.5) * 6, z: (Math.random() - 0.5) * 6 };
+        setRoomPosition(channelId, socket.userId, startPos);
+        io.to(`voice-channel-${channelId}`).emit('room-position-update', { channelId, userId: String(socket.userId), ...startPos });
+      }
+
       await notifyVoiceChannelUpdate(channelId);
       const ch = await Channel.findById(channelId);
       if (ch && ch.server) io.to(`server-${ch.server}`).emit('voice-channel-users-update', { channelId, users: await getVoiceChannelUsers(channelId) });
@@ -1125,7 +1164,30 @@ io.on('connection', (socket) => {
     socket.leave(`voice-channel-${channelId}`);
     socket.voiceChannelId = null;
     io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
+    removeRoomPosition(channelId, socket.userId);
+    io.to(`voice-channel-${channelId}`).emit('room-position-removed', { channelId, userId: String(socket.userId) });
     await notifyVoiceChannelUpdate(channelId);
+  });
+
+  // 3D-комната: пользователь перетащил свою аватарку. Рассылаем позицию всем
+  // прочим участникам того же голосового канала.
+  socket.on('room-position-update', (data) => {
+    const { channelId, x, z } = data || {};
+    if (!channelId || String(socket.voiceChannelId || '') !== String(channelId)) return;
+    if (typeof x !== 'number' || typeof z !== 'number') return;
+    const pos = { x: Math.max(-20, Math.min(20, x)), z: Math.max(-20, Math.min(20, z)) };
+    setRoomPosition(channelId, socket.userId, pos);
+    socket.to(`voice-channel-${channelId}`).emit('room-position-update', { channelId, userId: String(socket.userId), ...pos });
+  });
+
+  // 3D-комната: клиент просит актуальный снапшот позиций. Нужен потому, что
+  // three.js-сцена инициализируется асинхронно и обычно НЕ успевает подписаться
+  // на 'room-positions-snapshot' к моменту его отправки при входе в voice-канал.
+  // Клиент повторно запрашивает снапшот, когда сцена готова.
+  socket.on('room-request-snapshot', (data) => {
+    const { channelId } = data || {};
+    if (!channelId || String(socket.voiceChannelId || '') !== String(channelId)) return;
+    socket.emit('room-positions-snapshot', { channelId, positions: getRoomPositionsSnapshot(channelId) });
   });
 
   socket.on('admin-voice-move', async (data) => {
@@ -1237,6 +1299,8 @@ io.on('connection', (socket) => {
       cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
       endWatchIfHost(channelId, socket.userId, io);
       io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
+      removeRoomPosition(channelId, socket.userId);
+      io.to(`voice-channel-${channelId}`).emit('room-position-removed', { channelId, userId: String(socket.userId) });
       await notifyVoiceChannelUpdate(channelId);
     }
     if (socket.dmCallId) cleanupUserPresencesInChannel('call-' + socket.dmCallId, socket.userId, io);

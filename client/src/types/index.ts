@@ -208,7 +208,7 @@ export interface AuditLogEntry {
 export interface Channel {
   _id: string;
   name: string;
-  type: 'text' | 'voice' | 'category';
+  type: 'text' | 'voice' | 'category' | 'room';
   server: string | Server;
   category?: string | Channel;
   position: number;
