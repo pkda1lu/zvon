@@ -103,6 +103,14 @@ const Main: React.FC = () => {
     }
   };
 
+  // Нельзя одновременно находиться в голосовом канале сервера и в ЛС-звонке —
+  // оба используют микрофон и свою LiveKit-комнату. Перед подключением к звонку
+  // (исходящему или входящему) выходим из серверного войса. Читаем актуальный
+  // канал через ref, звук выхода играет только если мы реально были в канале.
+  const leaveServerVoiceForCall = useCallback(async () => {
+    if (activeChannelIdRef.current) await leaveChannel();
+  }, [leaveChannel]);
+
   const [activeCall, setActiveCall] = useState<{
     user: User;
     isIncoming: boolean;
@@ -1372,6 +1380,7 @@ const Main: React.FC = () => {
             initialOffer={activeCall.offer}
             onEndCall={() => setActiveCall(null)}
             onOpenProfile={handleUserClick}
+            onCallConnecting={leaveServerVoiceForCall}
           />
         )}
       </AnimatePresence>

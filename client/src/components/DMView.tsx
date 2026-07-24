@@ -52,6 +52,337 @@ interface DMViewProps {
   isMobile?: boolean;
 }
 
+interface DMMessageItemProps {
+  msg: Message;
+  grouped: boolean;
+  isFresh: boolean;
+  user: User | null;
+  dmId: string;
+  socket: Socket | null;
+  showPreview: boolean;
+  showHoverBar: boolean;
+  highlightMentions: boolean;
+  dispAuthor: (a: any) => any;
+  formatDate: (d: string) => string;
+  renderMessageContent: (content: string, mentions?: User[]) => React.ReactNode;
+  renderEmbed: (embed: any, key: number) => React.ReactNode;
+  handleReact: (messageId: string, emoji: string) => void;
+  handleDownload: (e: React.MouseEvent, url: string, filename: string) => void;
+  handleTogglePin: (messageId: string) => void;
+  scrollToMessage: (msgId: string) => void;
+  onUserClick: (userId: string, event?: React.MouseEvent) => void;
+  setReplyToMessage: React.Dispatch<React.SetStateAction<Message | null>>;
+  inputRef: React.RefObject<HTMLInputElement>;
+  setShowEmojiPicker: React.Dispatch<React.SetStateAction<{ x: number; y: number; msgId: string } | null>>;
+  setLightboxMedia: React.Dispatch<React.SetStateAction<any[]>>;
+  setLightboxIndex: React.Dispatch<React.SetStateAction<number>>;
+  setLightboxOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  allMessages: Message[];
+}
+
+// Одна строка сообщения в личке. Вынесено в отдельный React.memo-компонент, чтобы
+// набор текста в поле ввода и прочие частые ре-рендеры DMView не перерисовывали
+// весь список сообщений (все хендлеры-пропсы стабилизированы через useCallback).
+const DMMessageItem = React.memo(function DMMessageItem({
+  msg, grouped, isFresh, user, dmId, socket,
+  showPreview, showHoverBar, highlightMentions,
+  dispAuthor, formatDate, renderMessageContent, renderEmbed,
+  handleReact, handleDownload, handleTogglePin, scrollToMessage,
+  onUserClick, setReplyToMessage, inputRef, setShowEmojiPicker,
+  setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
+}: DMMessageItemProps) {
+  const messageMotionProps: any = isFresh ? {
+    initial: { opacity: 0, y: 6 },
+    animate: { opacity: 1, y: 0 },
+    transition: { type: 'spring', stiffness: 420, damping: 34, mass: 0.75 },
+  } : {};
+  const MessageBox: any = isFresh ? motion.div : 'div';
+
+  return (
+    <>
+      {msg.type === 'missed-call' ? (
+        <div className="message system-message missed-call">
+          <div className="system-message-icon">
+            <PhoneIcon color="#ff4d4d" />
+          </div>
+          <div className="system-message-content" style={{ marginLeft: '15px' }}>
+            <div className="system-message-header message-author-info">
+              {dispAuthor(msg.author)._masked ? (
+                <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
+              ) : (
+                <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+              )}
+              {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
+              <span className="message-time">{formatDate(msg.createdAt)}</span>
+            </div>
+            <div className="system-message-text">Пропущенный звонок</div>
+          </div>
+        </div>
+      ) : (
+        <MessageBox
+          id={`msg-${msg._id}`}
+          className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
+          {...messageMotionProps}
+        >
+          {msg.replyTo && (
+            <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="reply-line" />
+              <ReplyIcon size={12} className="reply-icon-mini" />
+              <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16} className="reply-avatar" />
+               <span className="reply-author" style={{ fontWeight: 600 }}>{dispAuthor(msg.replyTo.author).username}</span>
+               {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />}
+              <span className="reply-content" style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
+            </div>
+          )}
+          {!grouped && (
+            <div className="message-author-avatar-wrap">
+              <UserAvatar
+                user={dispAuthor(msg.author)}
+                size={40}
+                className="message-author-avatar"
+                onClick={(e) => { if (!dispAuthor(msg.author)._masked) onUserClick(msg.author._id, e); }}
+              />
+            </div>
+          )}
+          {grouped && <div className="message-time-mini">{formatClockTime(msg.createdAt)}</div>}
+          <div className="message-content">
+            {!grouped && (
+              <div className="message-header message-author-info">
+                {dispAuthor(msg.author)._masked ? (
+                  <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
+                ) : (
+                  <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                )}
+                {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
+                {!dispAuthor(msg.author)._masked && msg.author.isBot && <span className="bot-badge">БOТ</span>}
+                <span className="message-time">{formatDate(msg.createdAt)}</span>
+                {showHoverBar && (
+                  <div className="message-actions-hover">
+                    <button
+                      className="msg-action-btn"
+                      onClick={() => handleTogglePin(msg._id)}
+                      title={msg.pinned ? "Открепить" : "Закрепить"}
+                    >
+                      <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                    </button>
+                    <button
+                      className="msg-action-btn"
+                      onClick={(e) => {
+                        setReplyToMessage(msg);
+                        inputRef.current?.focus();
+                      }}
+                      title="Ответить"
+                    >
+                      <ReplyIcon size={16} />
+                    </button>
+                    <button
+                      className="msg-action-btn"
+                      onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
+                      title="Добавить реакцию"
+                    >
+                      <SmileIcon size={16} />
+                    </button>
+                    <button
+                      className="msg-action-btn"
+                      onClick={() => {
+                        const text = msg.content;
+                        if ((window as any).electron?.clipboard) {
+                          (window as any).electron.clipboard.writeText(text);
+                        } else {
+                          navigator.clipboard.writeText(text).catch(err => {
+                            console.error('Failed to copy: ', err);
+                          });
+                        }
+                      }}
+                      title="Копировать текст"
+                    >
+                      <CopyIcon size={16} />
+                    </button>
+                    <button
+                      className="msg-action-btn"
+                      onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
+                      title="Переслать"
+                    >
+                      <ForwardIcon size={16} />
+                    </button>
+                    {msg.author._id === user?._id && (
+                      <button
+                        className="msg-action-btn danger"
+                        onClick={() => {
+                          if (socket) socket.emit('delete-message', { messageId: msg._id, dmId: dmId });
+                        }}
+                        title="Удалить"
+                      >
+                        <TrashIcon size={16} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {grouped && showHoverBar && (
+              <div className="message-actions-hover mini">
+                <button
+                  className="msg-action-btn mini"
+                  onClick={() => {
+                    setReplyToMessage(msg);
+                    inputRef.current?.focus();
+                  }}
+                  title="Ответить"
+                >
+                  <ReplyIcon size={14} />
+                </button>
+                <button
+                  className="msg-action-btn mini"
+                  onClick={() => handleTogglePin(msg._id)}
+                >
+                  <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                </button>
+                <button
+                  className="msg-action-btn mini"
+                  onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
+                >
+                  <SmileIcon size={14} />
+                </button>
+                <button
+                    className="msg-action-btn mini"
+                    onClick={() => {
+                      const text = msg.content;
+                      if ((window as any).electron?.clipboard) {
+                        (window as any).electron.clipboard.writeText(text);
+                      } else {
+                        navigator.clipboard.writeText(text).catch(err => {
+                          console.error('Failed to copy: ', err);
+                        });
+                      }
+                    }}
+                    title="Копировать текст"
+                  >
+                    <CopyIcon size={14} />
+                  </button>
+                  <button
+                    className="msg-action-btn mini"
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
+                    title="Переслать"
+                  >
+                    <ForwardIcon size={14} />
+                  </button>
+                  {msg.author._id === user?._id && (
+                    <button
+                      className="msg-action-btn mini danger"
+                      onClick={() => {
+                        if (socket) socket.emit('delete-message', { messageId: msg._id, dmId: dmId });
+                      }}
+                      title="Удалить"
+                    >
+                      <TrashIcon size={14} />
+                    </button>
+                  )}
+              </div>
+            )}
+            {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
+
+            {msg.forwardedFrom && (
+              <div className="forwarded-label">
+                <ForwardIcon size={13} />
+                <span>Переслано от <b>{msg.forwardedFrom.authorUsername || 'пользователя'}</b></span>
+              </div>
+            )}
+
+            <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
+
+            {extractInviteCodes(msg.content).map((code) => (
+              <ServerInviteCard key={code} code={code} />
+            ))}
+
+            {msg.buttons && msg.buttons.length > 0 && (
+              <div className="message-interactive-buttons">
+                {msg.buttons.map((btn, idx) => (
+                  <a key={idx} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
+                    {btn.label}
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {msg.poll && <MessagePoll messageId={msg._id} poll={msg.poll as any} currentUserId={user?._id} />}
+
+            <Reactions
+              reactions={msg.reactions || []}
+              currentUserId={user?._id || ''}
+              onReact={(emoji) => handleReact(msg._id, emoji)}
+            />
+
+            {showPreview && msg.attachments && msg.attachments.length > 0 && (
+              <div className="message-attachments">
+                {msg.attachments.map((att, i) => (
+                  <div key={i} className="attachment-item">
+                    {att.type.startsWith('image/') ? (
+                      <div className="attachment-image-container">
+                        <img
+                          src={getFullUrl(att.url)!}
+                          alt=""
+                          className="attachment-image"
+                          onClick={() => {
+                            const allMedia = allMessages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/'));
+                            setLightboxMedia(allMedia);
+                            setLightboxIndex(allMedia.findIndex(a => a.url === att.url));
+                            setLightboxOpen(true);
+                          }}
+                        />
+                        <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
+                          <DownloadIcon size={16} />
+                        </button>
+                      </div>
+                    ) : att.type.startsWith('video/') ? (
+                      <div className="attachment-video-wrapper">
+                        <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
+                          const allMedia = allMessages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/')).map(a => ({ ...a }));
+                          const idx = allMedia.findIndex(a => a.url === att.url);
+                          if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
+                          setLightboxMedia(allMedia);
+                          setLightboxIndex(idx);
+                          setLightboxOpen(true);
+                        }} />
+                        <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
+                          <DownloadIcon size={16} />
+                        </button>
+                      </div>
+                    ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
+                      <div className="attachment-audio-container">
+                        <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
+                        <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
+                          <DownloadIcon size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="attachment-file-container">
+                        <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
+                          <DocumentIcon size={18} />
+                          <span>{att.filename}</span>
+                        </a>
+                        <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
+                          <DownloadIcon size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {showPreview && msg.embeds && msg.embeds.length > 0 && (
+              <div className="message-embeds">
+                {msg.embeds.map((emb, i) => renderEmbed(emb, i))}
+              </div>
+            )}
+          </div>
+        </MessageBox>
+      )}
+    </>
+  );
+});
+
 const DMView: React.FC<DMViewProps> = ({
   dm, messages, socket, onClose, onStartCall, onStartGroupCall, onUserClick, initialUnreadCount = 0,
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages,
@@ -60,13 +391,13 @@ const DMView: React.FC<DMViewProps> = ({
   const { user } = useAuth();
   const { confirm: customConfirm, alert } = useDialog();
 
-  const openLink = (url: string) => {
+  const openLink = useCallback((url: string) => {
     if ((window as any).electron?.util?.openExternal) {
       (window as any).electron.util.openExternal(url);
     } else {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
-  };
+  }, []);
   const {
     showPreview,
     showHoverBar,
@@ -289,9 +620,9 @@ const DMView: React.FC<DMViewProps> = ({
     return () => { cancelled = true; };
   }, [flashMessageId, messages]);
 
-  const handleReact = (messageId: string, emoji: string) => {
+  const handleReact = useCallback((messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });
-  };
+  }, []);
 
   const otherUser = dm.participants.find(p => p._id !== user?._id);
   const isGroup = dm.participants.length > 2 || !!dm.name;
@@ -302,14 +633,14 @@ const DMView: React.FC<DMViewProps> = ({
   const maskModeration = !!moderatorId && moderatorId !== user?._id;
   const isModerationChat = !!dm.isModeration;
   // Подменяет автора сообщения на «Модерация», если нужно скрыть личность модератора.
-  const dispAuthor = (a: any) => (maskModeration && a && a._id === moderatorId)
+  const dispAuthor = useCallback((a: any) => (maskModeration && a && a._id === moderatorId)
     ? { ...a, username: 'Модерация', avatar: null, badges: [], isBot: false, _masked: true }
-    : a;
+    : a, [maskModeration, moderatorId]);
   const displayName = maskModeration ? 'Модерация'
     : (dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username));
   const headerUser = maskModeration ? { username: 'Модерация', avatar: null } : otherUser;
 
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     const d = new Date(dateString);
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
@@ -322,7 +653,7 @@ const DMView: React.FC<DMViewProps> = ({
     if (isToday) return `Сегодня в ${timeStr}`;
     if (isYesterday) return `Вчера в ${timeStr}`;
     return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} в ${timeStr}`;
-  };
+  }, []);
 
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
     if (!previous) return true;
@@ -417,7 +748,7 @@ const DMView: React.FC<DMViewProps> = ({
     }
   };
 
-  const handleDownload = async (e: React.MouseEvent, url: string, filename: string) => {
+  const handleDownload = useCallback(async (e: React.MouseEvent, url: string, filename: string) => {
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -439,7 +770,7 @@ const DMView: React.FC<DMViewProps> = ({
       link.target = "_blank";
       link.click();
     }
-  };
+  }, []);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -536,7 +867,7 @@ const DMView: React.FC<DMViewProps> = ({
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  const renderMessageContent = (content: string, mentions: User[] = []) => {
+  const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
     if (!content) return null;
     const parts = content.split(/(@\w+)|(```[\s\S]*?```)/g);
 
@@ -651,9 +982,9 @@ const DMView: React.FC<DMViewProps> = ({
         })}
       </>
     );
-  };
+  }, [onUserClick, customConfirm, openLink]);
 
-  const renderEmbed = (embed: any, key: number) => {
+  const renderEmbed = useCallback((embed: any, key: number) => {
     return (
       <div key={key} className="message-embed" style={{ borderLeftColor: embed.color || 'var(--primary-neon)' }}>
         <div className="embed-content-wrap">
@@ -741,7 +1072,7 @@ const DMView: React.FC<DMViewProps> = ({
         )}
       </div>
     );
-  };
+  }, [customConfirm, openLink]);
 
   useEffect(() => {
     if (messages.length > 0 && !hasScrolledToNew) {
@@ -763,11 +1094,11 @@ const DMView: React.FC<DMViewProps> = ({
     }
   }, [messages.length, textToSpeech]);
 
-  const handleTogglePin = (messageId: string) => {
+  const handleTogglePin = useCallback((messageId: string) => {
     axios.patch(`/api/messages/${messageId}/pin`);
-  };
+  }, []);
 
-  const scrollToMessage = (msgId: string) => {
+  const scrollToMessage = useCallback((msgId: string) => {
     const idx = messages.findIndex(m => m._id === msgId);
     if (idx >= 0 && virtuosoRef.current) {
       virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
@@ -782,7 +1113,7 @@ const DMView: React.FC<DMViewProps> = ({
       }
     };
     tryFlash(15);
-  };
+  }, [messages]);
 
   return (
     <div
@@ -956,12 +1287,6 @@ const DMView: React.FC<DMViewProps> = ({
               const showDate = shouldShowDate(msg, prev);
               const grouped = isGrouped(msg, prev);
               const isFresh = hasBaseline && idx > lastSeenIdx;
-              const messageMotionProps: any = isFresh ? {
-                initial: { opacity: 0, y: 6 },
-                animate: { opacity: 1, y: 0 },
-                transition: { type: 'spring', stiffness: 420, damping: 34, mass: 0.75 },
-              } : {};
-              const MessageBox: any = isFresh ? motion.div : 'div';
 
               return (
                 <React.Fragment key={msg._id}>
@@ -979,285 +1304,33 @@ const DMView: React.FC<DMViewProps> = ({
                     </div>
                   )}
 
-                  {msg.type === 'missed-call' ? (
-                    <div className="message system-message missed-call">
-                      <div className="system-message-icon">
-                        <PhoneIcon color="#ff4d4d" />
-                      </div>
-                      <div className="system-message-content" style={{ marginLeft: '15px' }}>
-                        <div className="system-message-header message-author-info">
-                          {dispAuthor(msg.author)._masked ? (
-                            <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
-                          ) : (
-                            <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
-                          )}
-                          {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
-                          <span className="message-time">{formatDate(msg.createdAt)}</span>
-                        </div>
-                        <div className="system-message-text">Пропущенный звонок</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <MessageBox
-                      id={`msg-${msg._id}`}
-                      className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
-                      {...messageMotionProps}
-                    >
-                      {msg.replyTo && (
-                        <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <div className="reply-line" />
-                          <ReplyIcon size={12} className="reply-icon-mini" />
-                          <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16} className="reply-avatar" />
-                           <span className="reply-author" style={{ fontWeight: 600 }}>{dispAuthor(msg.replyTo.author).username}</span>
-                           {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />}
-                          <span className="reply-content" style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
-                        </div>
-                      )}
-                      {!grouped && (
-                        <div className="message-author-avatar-wrap">
-                          <UserAvatar
-                            user={dispAuthor(msg.author)}
-                            size={40}
-                            className="message-author-avatar"
-                            onClick={(e) => { if (!dispAuthor(msg.author)._masked) onUserClick(msg.author._id, e); }}
-                          />
-                        </div>
-                      )}
-                      {grouped && <div className="message-time-mini">{formatClockTime(msg.createdAt)}</div>}
-                      <div className="message-content">
-                        {!grouped && (
-                          <div className="message-header message-author-info">
-                            {dispAuthor(msg.author)._masked ? (
-                              <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
-                            ) : (
-                              <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
-                            )}
-                            {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
-                            {!dispAuthor(msg.author)._masked && msg.author.isBot && <span className="bot-badge">БOТ</span>}
-                            <span className="message-time">{formatDate(msg.createdAt)}</span>
-                            {showHoverBar && (
-                              <div className="message-actions-hover">
-                                <button
-                                  className="msg-action-btn"
-                                  onClick={() => handleTogglePin(msg._id)}
-                                  title={msg.pinned ? "Открепить" : "Закрепить"}
-                                >
-                                  <PinIcon size={16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
-                                </button>
-                                <button
-                                  className="msg-action-btn"
-                                  onClick={(e) => {
-                                    setReplyToMessage(msg);
-                                    inputRef.current?.focus();
-                                  }}
-                                  title="Ответить"
-                                >
-                                  <ReplyIcon size={16} />
-                                </button>
-                                <button
-                                  className="msg-action-btn"
-                                  onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
-                                  title="Добавить реакцию"
-                                >
-                                  <SmileIcon size={16} />
-                                </button>
-                                <button
-                                  className="msg-action-btn"
-                                  onClick={() => {
-                                    const text = msg.content;
-                                    if ((window as any).electron?.clipboard) {
-                                      (window as any).electron.clipboard.writeText(text);
-                                    } else {
-                                      navigator.clipboard.writeText(text).catch(err => {
-                                        console.error('Failed to copy: ', err);
-                                      });
-                                    }
-                                  }}
-                                  title="Копировать текст"
-                                >
-                                  <CopyIcon size={16} />
-                                </button>
-                                <button
-                                  className="msg-action-btn"
-                                  onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
-                                  title="Переслать"
-                                >
-                                  <ForwardIcon size={16} />
-                                </button>
-                                {msg.author._id === user?._id && (
-                                  <button
-                                    className="msg-action-btn danger"
-                                    onClick={() => {
-                                      if (socket) socket.emit('delete-message', { messageId: msg._id, dmId: dm._id });
-                                    }}
-                                    title="Удалить"
-                                  >
-                                    <TrashIcon size={16} />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {grouped && showHoverBar && (
-                          <div className="message-actions-hover mini">
-                            <button
-                              className="msg-action-btn mini"
-                              onClick={() => {
-                                setReplyToMessage(msg);
-                                inputRef.current?.focus();
-                              }}
-                              title="Ответить"
-                            >
-                              <ReplyIcon size={14} />
-                            </button>
-                            <button
-                              className="msg-action-btn mini"
-                              onClick={() => handleTogglePin(msg._id)}
-                            >
-                              <PinIcon size={14} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
-                            </button>
-                            <button
-                              className="msg-action-btn mini"
-                              onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
-                            >
-                              <SmileIcon size={14} />
-                            </button>
-                            <button
-                                className="msg-action-btn mini"
-                                onClick={() => {
-                                  const text = msg.content;
-                                  if ((window as any).electron?.clipboard) {
-                                    (window as any).electron.clipboard.writeText(text);
-                                  } else {
-                                    navigator.clipboard.writeText(text).catch(err => {
-                                      console.error('Failed to copy: ', err);
-                                    });
-                                  }
-                                }}
-                                title="Копировать текст"
-                              >
-                                <CopyIcon size={14} />
-                              </button>
-                              <button
-                                className="msg-action-btn mini"
-                                onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
-                                title="Переслать"
-                              >
-                                <ForwardIcon size={14} />
-                              </button>
-                              {msg.author._id === user?._id && (
-                                <button
-                                  className="msg-action-btn mini danger"
-                                  onClick={() => {
-                                    if (socket) socket.emit('delete-message', { messageId: msg._id, dmId: dm._id });
-                                  }}
-                                  title="Удалить"
-                                >
-                                  <TrashIcon size={14} />
-                                </button>
-                              )}
-                          </div>
-                        )}
-                        {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
-
-                        {msg.forwardedFrom && (
-                          <div className="forwarded-label">
-                            <ForwardIcon size={13} />
-                            <span>Переслано от <b>{msg.forwardedFrom.authorUsername || 'пользователя'}</b></span>
-                          </div>
-                        )}
-
-                        <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
-
-                        {extractInviteCodes(msg.content).map((code) => (
-                          <ServerInviteCard key={code} code={code} />
-                        ))}
-
-                        {msg.buttons && msg.buttons.length > 0 && (
-                          <div className="message-interactive-buttons">
-                            {msg.buttons.map((btn, idx) => (
-                              <a key={idx} href={btn.url} target="_blank" rel="noopener noreferrer" className={`msg-button ${btn.style || 'primary'}`}>
-                                {btn.label}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-
-                        {msg.poll && <MessagePoll messageId={msg._id} poll={msg.poll as any} currentUserId={user?._id} />}
-
-                        <Reactions
-                          reactions={msg.reactions || []}
-                          currentUserId={user?._id || ''}
-                          onReact={(emoji) => handleReact(msg._id, emoji)}
-                        />
-
-                        {showPreview && msg.attachments && msg.attachments.length > 0 && (
-                          <div className="message-attachments">
-                            {msg.attachments.map((att, i) => (
-                              <div key={i} className="attachment-item">
-                                {att.type.startsWith('image/') ? (
-                                  <div className="attachment-image-container">
-                                    <img
-                                      src={getFullUrl(att.url)!}
-                                      alt=""
-                                      className="attachment-image"
-                                      onClick={() => {
-                                        const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/'));
-                                        setLightboxMedia(allMedia);
-                                        setLightboxIndex(allMedia.findIndex(a => a.url === att.url));
-                                        setLightboxOpen(true);
-                                      }}
-                                    />
-                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
-                                      <DownloadIcon size={16} />
-                                    </button>
-                                  </div>
-                                ) : att.type.startsWith('video/') ? (
-                                  <div className="attachment-video-wrapper">
-                                    <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
-                                      const allMedia = messages.flatMap(m => m.attachments || []).filter(a => a.type.startsWith('image/') || a.type.startsWith('video/')).map(a => ({ ...a }));
-                                      const idx = allMedia.findIndex(a => a.url === att.url);
-                                      if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
-                                      setLightboxMedia(allMedia);
-                                      setLightboxIndex(idx);
-                                      setLightboxOpen(true);
-                                    }} />
-                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
-                                      <DownloadIcon size={16} />
-                                    </button>
-                                  </div>
-                                ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
-                                  <div className="attachment-audio-container">
-                                    <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
-                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
-                                      <DownloadIcon size={16} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="attachment-file-container">
-                                    <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                                      <DocumentIcon size={18} />
-                                      <span>{att.filename}</span>
-                                    </a>
-                                    <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
-                                      <DownloadIcon size={16} />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {showPreview && msg.embeds && msg.embeds.length > 0 && (
-                          <div className="message-embeds">
-                            {msg.embeds.map((emb, i) => renderEmbed(emb, i))}
-                          </div>
-                        )}
-                      </div>
-                    </MessageBox>
-                  )}
+                  <DMMessageItem
+                    msg={msg}
+                    grouped={grouped}
+                    isFresh={isFresh}
+                    user={user}
+                    dmId={dm._id}
+                    socket={socket}
+                    showPreview={showPreview}
+                    showHoverBar={showHoverBar}
+                    highlightMentions={highlightMentions}
+                    dispAuthor={dispAuthor}
+                    formatDate={formatDate}
+                    renderMessageContent={renderMessageContent}
+                    renderEmbed={renderEmbed}
+                    handleReact={handleReact}
+                    handleDownload={handleDownload}
+                    handleTogglePin={handleTogglePin}
+                    scrollToMessage={scrollToMessage}
+                    onUserClick={onUserClick}
+                    setReplyToMessage={setReplyToMessage}
+                    inputRef={inputRef}
+                    setShowEmojiPicker={setShowEmojiPicker}
+                    setLightboxMedia={setLightboxMedia}
+                    setLightboxIndex={setLightboxIndex}
+                    setLightboxOpen={setLightboxOpen}
+                    allMessages={messages}
+                  />
                 </React.Fragment>
               );
             }}

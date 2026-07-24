@@ -4,6 +4,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
+import MemberRow from './MemberRow';
 import { useVoice } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useDominantColor } from '../utils/dominantColor';
@@ -92,6 +93,58 @@ const formatEventNames = (usernames: string[]): string => {
 const LiveBadge: React.FC = () => (
     <span className="live-badge nano" style={{ marginLeft: 6 }}>ЭФИР</span>
 );
+
+// Единая строка участника (раньше этот JSX был продублирован трижды: группы ролей,
+// онлайн без роли и оффлайн). offline-вариант не показывает активность и обёртку
+// member-info. Цвет ника вычисляется из ролей прямо здесь.
+const MemberItem: React.FC<{
+    member: any;
+    offline: boolean;
+    serverRoles: any[];
+    isLive: boolean;
+    serverTag: any;
+    primaryActivity: { text: string; icon: string | null } | null;
+    onUserClick: (userId: string, event?: React.MouseEvent) => void;
+    onContextMenu: (e: React.MouseEvent, user: User) => void;
+}> = ({ member, offline, serverRoles, isLive, serverTag, primaryActivity, onUserClick, onContextMenu }) => {
+    const memberRoleIds = member.roles || [];
+    const memberRoles = serverRoles
+        .filter(r => memberRoleIds.includes(r._id))
+        .sort((a, b) => (b.position || 0) - (a.position || 0));
+    const colorRole = memberRoles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
+    const memberColor = colorRole ? colorRole.color : 'inherit';
+
+    return (
+        <MemberRow
+            offline={offline}
+            onClick={(e) => onUserClick(member.user._id, e)}
+            onContextMenu={(e) => onContextMenu(e, member.user)}
+            avatar={<>
+                <UserAvatar
+                    user={member.user}
+                    avatarOverride={member.avatar || undefined}
+                    size={32}
+                    className="member-avatar"
+                />
+                <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
+            </>}
+            extra={!offline && primaryActivity ? (
+                <div className="member-activity">
+                    {primaryActivity.icon && (
+                        <img src={getFullUrl(primaryActivity.icon)!} alt="" className="member-activity-icon" />
+                    )}
+                    <span className="activity-text">{primaryActivity.text}</span>
+                </div>
+            ) : undefined}
+        >
+            <span className="member-name" style={{ color: memberColor }}>
+                {member.nickname || member.user.displayName || member.user.username}
+            </span>
+            <UserBadges badges={member.user.badges} serverTag={serverTag} size={14} />
+            {isLive && <LiveBadge />}
+        </MemberRow>
+    );
+};
 
 interface ServerMembersProps {
     server: Server;
@@ -308,54 +361,19 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                                 return (
                                     <div key={role._id || role.name} className="member-group">
                                         <div className="group-header">{role.name.toUpperCase()} — {membersInRole.length}</div>
-                                        {membersInRole.map(member => {
-                                            const memberRoleIds = member.roles || [];
-                                            const memberRoles = serverRoles.filter(r => memberRoleIds.includes(r._id));
-                                            memberRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
-
-                                            const colorRole = memberRoles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
-                                            const memberColor = colorRole ? colorRole.color : 'inherit';
-
-                                            return (
-                                                <div
-                                                    key={member.user._id}
-                                                    className="member-item"
-                                                    onClick={(e) => onUserClick(member.user._id, e)}
-                                                    onContextMenu={(e) => handleContextMenu(e, member.user)}
-                                                >
-                                                    <div className="member-avatar-wrap">
-                                                        <UserAvatar
-                                                            user={member.user}
-                                                            avatarOverride={member.avatar || undefined}
-                                                            size={32}
-                                                            className="member-avatar"
-                                                        />
-                                                        <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
-                                                    </div>
-                                                    <div className="member-info">
-                                                        <div className="member-name-row">
-                                                            <span className="member-name" style={{ color: memberColor }}>
-                                                                {member.nickname || member.user.displayName || member.user.username}
-                                                            </span>
-                                                            <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
-                                                            {isLive(member.user._id) && <LiveBadge />}
-                                                        </div>
-                                                        {(() => {
-                                                            const primary = getPrimaryActivity(member.user);
-                                                            if (!primary) return null;
-                                                            return (
-                                                                <div className="member-activity">
-                                                                    {primary.icon && (
-                                                                        <img src={getFullUrl(primary.icon)!} alt="" className="member-activity-icon" />
-                                                                    )}
-                                                                    <span className="activity-text">{primary.text}</span>
-                                                                </div>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                        {membersInRole.map(member => (
+                                            <MemberItem
+                                                key={member.user._id}
+                                                member={member}
+                                                offline={false}
+                                                serverRoles={serverRoles}
+                                                isLive={isLive(member.user._id)}
+                                                serverTag={getServerTag(member.user)}
+                                                primaryActivity={getPrimaryActivity(member.user)}
+                                                onUserClick={onUserClick}
+                                                onContextMenu={handleContextMenu}
+                                            />
+                                        ))}
                                     </div>
                                 );
                             })}
@@ -363,90 +381,38 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                             {noRoleMembers.length > 0 && (
                                 <div className="member-group">
                                     <div className="group-header">ОНЛАЙН — {noRoleMembers.length}</div>
-                                    {noRoleMembers.map(member => {
-                                        const memberRoleIds = member.roles || [];
-                                        const memberRoles = serverRoles.filter(r => memberRoleIds.includes(r._id));
-                                        memberRoles.sort((a, b) => b.position - a.position);
-                                        const colorRole = memberRoles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
-                                        const memberColor = colorRole ? colorRole.color : 'inherit';
-
-                                        return (
-                                            <div
-                                                key={member.user._id}
-                                                className="member-item"
-                                                onClick={(e) => onUserClick(member.user._id, e)}
-                                                onContextMenu={(e) => handleContextMenu(e, member.user)}
-                                            >
-                                                <div className="member-avatar-wrap">
-                                                    <UserAvatar
-                                                        user={member.user}
-                                                        avatarOverride={member.avatar || undefined}
-                                                        size={32}
-                                                        className="member-avatar"
-                                                    />
-                                                    <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
-                                                </div>
-                                                <div className="member-info">
-                                                    <div className="member-name-row">
-                                                        <span className="member-name" style={{ color: memberColor }}>{member.nickname || member.user.displayName || member.user.username}</span>
-                                                        <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
-                                                        {isLive(member.user._id) && <LiveBadge />}
-                                                    </div>
-                                                    {(() => {
-                                                        const primary = getPrimaryActivity(member.user);
-                                                        if (!primary) return null;
-                                                        return (
-                                                            <div className="member-activity">
-                                                                {primary.icon && (
-                                                                    <img src={getFullUrl(primary.icon)!} alt="" className="member-activity-icon" />
-                                                                )}
-                                                                <span className="activity-text">{primary.text}</span>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                    {noRoleMembers.map(member => (
+                                        <MemberItem
+                                            key={member.user._id}
+                                            member={member}
+                                            offline={false}
+                                            serverRoles={serverRoles}
+                                            isLive={isLive(member.user._id)}
+                                            serverTag={getServerTag(member.user)}
+                                            primaryActivity={getPrimaryActivity(member.user)}
+                                            onUserClick={onUserClick}
+                                            onContextMenu={handleContextMenu}
+                                        />
+                                    ))}
                                 </div>
                             )}
 
                             {offlineMembers.length > 0 && (
                                 <div className="member-group">
                                     <div className="group-header">ОФФЛАЙН — {offlineMembers.length}</div>
-                                    {offlineMembers.map(member => {
-                                        const memberRoleIds = member.roles || [];
-                                        const memberRoles = serverRoles.filter(r => memberRoleIds.includes(r._id));
-                                        memberRoles.sort((a, b) => b.position - a.position);
-                                        const colorRole = memberRoles.find(r => r.color && r.color !== '#99AAB5' && r.color !== '#99aab5');
-                                        const memberColor = colorRole ? colorRole.color : 'inherit';
-
-                                        return (
-                                            <div
-                                                key={member.user._id}
-                                                className="member-item offline"
-                                                onClick={(e) => onUserClick(member.user._id, e)}
-                                                onContextMenu={(e) => handleContextMenu(e, member.user)}
-                                            >
-                                                <div className="member-avatar-wrap">
-                                                    <UserAvatar
-                                                        user={member.user}
-                                                        avatarOverride={member.avatar || undefined}
-                                                        size={32}
-                                                        className="member-avatar"
-                                                    />
-                                                    <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
-                                                </div>
-                                                <div className="member-name-row">
-                                                    <span className="member-name" style={{ color: memberColor }}>
-                                                        {member.nickname || member.user.displayName || member.user.username}
-                                                    </span>
-                                                    <UserBadges badges={member.user.badges} serverTag={getServerTag(member.user)} size={14} />
-                                                    {isLive(member.user._id) && <LiveBadge />}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                    {offlineMembers.map(member => (
+                                        <MemberItem
+                                            key={member.user._id}
+                                            member={member}
+                                            offline={true}
+                                            serverRoles={serverRoles}
+                                            isLive={isLive(member.user._id)}
+                                            serverTag={getServerTag(member.user)}
+                                            primaryActivity={null}
+                                            onUserClick={onUserClick}
+                                            onContextMenu={handleContextMenu}
+                                        />
+                                    ))}
                                 </div>
                             )}
                         </>

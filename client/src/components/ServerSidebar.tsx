@@ -277,7 +277,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                           <SpeakerIcon size={18} />
                         )}
                       </span>
-                      <span className="channel-name">{channel.name}</span>
+                      <span className="channel-name channel-name--voice">{channel.name}</span>
                     </div>
                     {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && voiceStartTimesRef.current[channel._id] && (
                       <VoiceChannelTimer startedAt={voiceStartTimesRef.current[channel._id]} />

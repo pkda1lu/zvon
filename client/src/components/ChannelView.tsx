@@ -339,9 +339,6 @@ const MessageItem = React.memo<{
   };
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
 
-  useEffect(() => {
-  }, []);
-
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
     if (!previous) return true;
     return new Date(current.createdAt).getDate() !== new Date(previous.createdAt).getDate();
@@ -633,13 +630,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const { user } = useAuth();
   const { confirm: customConfirm, alert } = useDialog();
 
-  const openLink = (url: string) => {
+  const openLink = useCallback((url: string) => {
     if ((window as any).electron?.util?.openExternal) {
       (window as any).electron.util.openExternal(url);
     } else {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
-  };
+  }, []);
   const {
     showPreview,
     showHoverBar,
@@ -789,11 +786,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     }
   }, [messages.length, scrollToBottom]);
 
-  const handleContextMenu = (e: React.MouseEvent, user: User, messageId?: string) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, user: User, messageId?: string) => {
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ x: e.clientX, y: e.clientY, user, messageId });
-  };
+  }, []);
 
   const handleMention = (username: string) => {
     setMessage((prev) => `${prev}@${username} `);
@@ -881,11 +878,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     }
   }, [messages.length, textToSpeech]);
 
-  const handleTogglePin = (messageId: string) => {
+  const handleTogglePin = useCallback((messageId: string) => {
     axios.patch(`/api/messages/${messageId}/pin`);
-  };
+  }, []);
 
-  const scrollToMessage = (msgId: string) => {
+  const scrollToMessage = useCallback((msgId: string) => {
     const idx = messages.findIndex(m => m._id === msgId);
     if (idx >= 0 && virtuosoRef.current) {
       virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
@@ -900,7 +897,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       }
     };
     tryFlash(15);
-  };
+  }, [messages]);
 
   useEffect(() => {
     if (!socket) return;
@@ -986,9 +983,18 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   }, [socket, channel._id, user?._id, setMessages, messages]);
 
 
-  const handleReact = (messageId: string, emoji: string) => {
+  const handleReact = useCallback((messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });
-  };
+  }, []);
+
+  const handleReply = useCallback((m: Message) => {
+    setReplyToMessage(m);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleInteractiveButtonClick = useCallback((messageId: string, actionId: string) => {
+    socket?.emit('interactive-button-click', { messageId, actionId, channelId: channel._id });
+  }, [socket, channel._id]);
 
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<{ id: string; name: string; previewUrl: string | null }[]>([]);
@@ -1127,7 +1133,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  const renderMessageContent = (content: string, mentions: User[] = []) => {
+  const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
     const parts = content.split(/(@\w+)|(```[\s\S]*?```)/g);
 
     return (
@@ -1204,12 +1210,12 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         })}
       </>
     );
-  };
+  }, [server, onUserClick, customConfirm, openLink]);
 
 
   const removeAttachment = (index: number) => setAttachments(prev => prev.filter((_, i) => i !== index));
 
-  const handleDownload = async (e: React.MouseEvent, url: string, filename: string) => {
+  const handleDownload = useCallback(async (e: React.MouseEvent, url: string, filename: string) => {
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -1231,7 +1237,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       link.target = "_blank";
       link.click();
     }
-  };
+  }, []);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1267,13 +1273,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     }
   };
 
-  const handleDeleteMessage = async (messageId: string) => {
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (await customConfirm('Удалить это сообщение?')) {
       socket?.emit('delete-message', { messageId, channelId: channel._id });
     }
-  };
+  }, [customConfirm, socket, channel._id]);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -1281,22 +1287,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     if (days === 0) return formatClockTime(date);
     if (days === 1) return 'Вчера';
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-  };
-
-  const shouldShowDate = (current: Message, previous: Message | undefined) => {
-    if (!previous) return true;
-    return new Date(current.createdAt).getDate() !== new Date(previous.createdAt).getDate();
-  };
-
-  const isGrouped = (current: Message, previous: Message | undefined) => {
-    if (!previous) return false;
-    if (current.author._id !== previous.author._id) return false;
-    if (shouldShowDate(current, previous)) return false;
-
-    // Group if within 5 minutes
-    const timeDiff = new Date(current.createdAt).getTime() - new Date(previous.createdAt).getTime();
-    return timeDiff < 5 * 60 * 1000;
-  };
+  }, []);
 
   return (
     <div
@@ -1500,12 +1491,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                   setLightboxOpen={setLightboxOpen}
                   allMessages={messages}
                   onReact={handleReact}
-                  onReply={(m) => {
-                    setReplyToMessage(m);
-                    inputRef.current?.focus();
-                  }}
+                  onReply={handleReply}
                   scrollToMessage={scrollToMessage}
-                  onInteractiveButtonClick={(messageId, actionId) => socket?.emit('interactive-button-click', { messageId, actionId, channelId: channel._id })}
+                  onInteractiveButtonClick={handleInteractiveButtonClick}
                 />
               </>
             );

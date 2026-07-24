@@ -7,6 +7,7 @@ import { MonitorIcon, CloseIcon } from './Icons';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { formatClockTime } from '../utils/time';
 import StreamerBlur from './StreamerBlur';
+import MemberRow from './MemberRow';
 import './UserProfileCard.css';
 
 // Секунды → «5 ч 30 мин» / «45 мин» / «меньше минуты».
@@ -333,18 +334,17 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                 <h4 className="full-tab-section-title">ОБЩИЕ ДРУЗЬЯ ({mutualFriends.length})</h4>
                                 <div className="mutual-list-members">
                                     {mutualFriends.length > 0 ? mutualFriends.map(friend => (
-                                        <div key={friend._id} className="member-item" onClick={() => handleFriendClick(friend._id)}>
-                                            <div className="member-avatar-wrap">
+                                        <MemberRow
+                                            key={friend._id}
+                                            onClick={() => handleFriendClick(friend._id)}
+                                            avatar={<>
                                                 <UserAvatar user={friend} size={32} className="member-avatar" />
                                                 <div className={`status-indicator ${friend.status}`}></div>
-                                            </div>
-                                            <div className="member-info">
-                                                <div className="member-name-row">
-                                                    <span className="member-name"><StreamerBlur>{friend.username}</StreamerBlur></span>
-                                                    <UserBadges badges={friend.badges} size={14} />
-                                                </div>
-                                            </div>
-                                        </div>
+                                            </>}
+                                        >
+                                            <span className="member-name"><StreamerBlur>{friend.username}</StreamerBlur></span>
+                                            <UserBadges badges={friend.badges} size={14} />
+                                        </MemberRow>
                                     )) : <div className="empty-mutual">Нет общих друзей.</div>}
                                 </div>
                             </section>
@@ -353,18 +353,17 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                 <h4 className="full-tab-section-title">ОБЩИЕ СЕРВЕРЫ ({mutualServers.length})</h4>
                                 <div className="mutual-list-members">
                                     {mutualServers.length > 0 ? mutualServers.map(srv => (
-                                        <div key={srv._id} className="member-item" onClick={() => handleServerClick(srv._id)}>
-                                            <div className="member-avatar-wrap">
+                                        <MemberRow
+                                            key={srv._id}
+                                            onClick={() => handleServerClick(srv._id)}
+                                            avatar={
                                                 <div className="member-avatar server" style={{ width: 32, height: 32, borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                     {srv.icon ? <img src={getAvatarUrl(srv.icon)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 14, fontWeight: 800 }}>{srv.name.charAt(0).toUpperCase()}</span>}
                                                 </div>
-                                            </div>
-                                            <div className="member-info">
-                                                <div className="member-name-row">
-                                                    <span className="member-name">{srv.name}</span>
-                                                </div>
-                                            </div>
-                                        </div>
+                                            }
+                                        >
+                                            <span className="member-name">{srv.name}</span>
+                                        </MemberRow>
                                     )) : <div className="empty-mutual">Нет общих серверов.</div>}
                                 </div>
                             </section>

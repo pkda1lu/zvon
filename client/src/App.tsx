@@ -1,23 +1,26 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { HashRouter, BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import InvitePage from './pages/InvitePage';
-import Docs from './pages/Docs';
-import Policy from './pages/Policy';
-import Security from './pages/Security';
-import Servers from './pages/Servers';
-import About from './pages/About';
-import Download from './pages/Download';
 import Home from './Home';
+
+// Публичные страницы (маркетинг/контент) — не входная точка приложения, грузятся
+// лениво, чтобы не утяжелять основной чанк.
+const Docs = React.lazy(() => import('./pages/Docs'));
+const Policy = React.lazy(() => import('./pages/Policy'));
+const Security = React.lazy(() => import('./pages/Security'));
+const Servers = React.lazy(() => import('./pages/Servers'));
+const About = React.lazy(() => import('./pages/About'));
+const Download = React.lazy(() => import('./pages/Download'));
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
 import TitleBar from './components/TitleBar';
 import Landing3D from './components/Landing3D';
-import Overlay from './pages/Overlay';
+const Overlay = React.lazy(() => import('./pages/Overlay'));
 import UpdateNotifier from './components/UpdateNotifier';
 import ScreenReaderHandler from './components/ScreenReaderHandler';
 
@@ -209,6 +212,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { pagePushVariants, iosSpring } from './animations/transitions';
 import MotionPreferences from './animations/MotionPreferences';
 
+// Fallback на время загрузки лениво-подгружаемого чанка страницы.
+const RouteFallback: React.FC = () => (
+  <div className="invite-page-loading" style={{ position: 'absolute', inset: 0 }}>
+    <div className="loading-spinner-rings">
+      <div></div><div></div><div></div><div></div>
+    </div>
+  </div>
+);
+
 const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <motion.div
     variants={pagePushVariants}
@@ -234,6 +246,7 @@ const AnimatedRoutes: React.FC = () => {
   return (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
       <AnimatePresence mode="wait" initial={false}>
+        <Suspense fallback={<RouteFallback />}>
         <Routes location={location} key={routeKey}>
           <Route path="/login"   element={<PageShell><Login /></PageShell>} />
           <Route path="/register" element={<PageShell><Register /></PageShell>} />
@@ -247,6 +260,7 @@ const AnimatedRoutes: React.FC = () => {
           <Route path="/"        element={<PageShell><Home /></PageShell>} />
           <Route path="/*"       element={<PageShell><Home /></PageShell>} />
         </Routes>
+        </Suspense>
       </AnimatePresence>
     </div>
   );
@@ -259,7 +273,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/overlay" element={<Overlay />} />
+        <Route path="/overlay" element={<Suspense fallback={<RouteFallback />}><Overlay /></Suspense>} />
         <Route path="*" element={
           <DialogProvider>
             <AuthProvider>

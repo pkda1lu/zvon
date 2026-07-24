@@ -39,6 +39,9 @@ interface VoiceCallProps {
   initialIncomingCall?: boolean;
   initialOffer?: any;
   onOpenProfile?: (userId: string, event?: React.MouseEvent) => void;
+  // Вызывается перед подключением к ЛС-звонку — чтобы выйти из голосового канала
+  // сервера (нельзя быть в двух голосовых сразу: конфликт микрофона/LiveKit).
+  onCallConnecting?: () => Promise<void> | void;
 }
 
 const RemoteAudioPlayer: React.FC<{
@@ -134,7 +137,7 @@ const DmCallContextMenu: React.FC<{
 };
 
 const VoiceCall: React.FC<VoiceCallProps> = ({
-  socket, otherUser, dmId, isGroup = false, dmName, onEndCall, initialIncomingCall = false, onOpenProfile
+  socket, otherUser, dmId, isGroup = false, dmName, onEndCall, initialIncomingCall = false, onOpenProfile, onCallConnecting
 }) => {
   const { user } = useAuth();
   const { alert } = useDialog();
@@ -319,6 +322,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const joinLiveKitRoom = async () => {
     if (roomRef.current || joiningRoomRef.current) return;
     joiningRoomRef.current = true;
+    // Выходим из голосового канала сервера ДО захвата микрофона ЛС-звонком —
+    // иначе две LiveKit-комнаты конфликтуют за устройство (и пользователь остаётся
+    // «висеть» в серверном войсе). Ошибку выхода не даём заблокировать звонок.
+    try { await onCallConnecting?.(); } catch (e) { console.warn('[DM Voice] leave server voice before call failed:', e); }
     console.log('[DM Voice] media handlers v3 — deafened:', isGlobalDeafened);
     try {
       const { data } = await axios.get('/api/livekit/token', {

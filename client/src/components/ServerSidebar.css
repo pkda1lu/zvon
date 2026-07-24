@@ -282,6 +282,11 @@
   flex: 1;
 }
 
+/* Названия голосовых каналов — чуть мельче текстовых (рядом ещё таймер и участники). */
+.channel-name--voice {
+  font-size: 13.5px;
+}
+
 /* --- UNREAD & BADGES --- */
 .channel-item.unread {
   color: #fff;
@@ -313,14 +318,25 @@
   box-shadow: 0 2px 5px rgba(255, 59, 48, 0.3);
 }
 
-/* --- CHANNEL ACTIONS --- */
+/* --- VOICE CHANNEL TIMER (длительность звонка возле названия канала) --- */
+/* Компактная пилюля: по ширине почти как исходный текст, чтобы не вытеснять
+   кнопку настроек канала (появляется на ховере строки). */
 .voice-channel-timer {
   flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.4;
+  color: var(--primary-neon, #00f2ff);
+  background: color-mix(in srgb, var(--primary-neon, #00f2ff) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary-neon, #00f2ff) 22%, transparent);
   font-variant-numeric: tabular-nums;
-  padding: 0 2px;
+  font-feature-settings: "tnum" 1;
+  user-select: none;
 }
 
 .channel-actions {
