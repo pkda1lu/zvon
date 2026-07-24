@@ -26,7 +26,8 @@ import {
     VideoIcon,
     SettingsIcon,
     DocumentIcon,
-    BarChartIcon
+    BarChartIcon,
+    PhoneIcon
 } from '../../components/Icons';
 import ProfileSettings from './ProfileSettings';
 import ServerProfilesSettings from './ServerProfilesSettings';
@@ -40,6 +41,7 @@ import LanguageSettings from './LanguageSettings';
 import BotsSettings from './BotsSettings';
 import MiniAppsSettings from './MiniAppsSettings';
 import VoiceSettings from './VoiceSettings';
+import CallSettings from './CallSettings';
 import KeybindsSettings from './KeybindsSettings';
 import AccessibilitySettings from './AccessibilitySettings';
 import ScalingSettings from './ScalingSettings';
@@ -110,6 +112,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'bots': return <BotsSettings />;
             case 'miniapps': return <MiniAppsSettings />;
             case 'voice': return <VoiceSettings />;
+            case 'calls': return <CallSettings />;
             case 'keybinds': return <KeybindsSettings />;
             case 'accessibility': return <AccessibilitySettings />;
             case 'scaling': return <ScalingSettings />;
@@ -154,6 +157,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <div className="settings-sidebar-header">Интерфейс</div>
                 <NavItem id="appearance" label="Внешний вид" icon={PaletteIcon} />
                 <NavItem id="chat" label="Чаты" icon={ChatIcon} />
+                <NavItem id="calls" label="Звонки" icon={PhoneIcon} />
                 <NavItem id="optimization" label="Оптимизация" icon={SettingsIcon} />
                 <NavItem id="language" label="Язык и время" icon={GlobeIcon} />
 

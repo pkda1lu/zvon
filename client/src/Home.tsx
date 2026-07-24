@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { VoiceProvider } from './contexts/VoiceContext';
+import { CallSettingsProvider } from './contexts/CallSettingsContext';
 import { InboxProvider } from './contexts/InboxContext';
 import { KeybindsProvider } from './contexts/KeybindsContext';
 
@@ -40,14 +41,15 @@ const Home: React.FC = () => {
     return (
         <Suspense fallback={<HomeLoader />}>
             <SocketProvider>
-                <VoiceProvider>
-                    <KeybindsProvider>
-                        <InboxProvider>
-                            <Main />
-                        </InboxProvider>
-                    </KeybindsProvider>
-                </VoiceProvider>
-            </SocketProvider>
+                <CallSettingsProvider>
+                    <VoiceProvider>
+                        <KeybindsProvider>
+                            <InboxProvider>
+                                <Main />
+                            </InboxProvider>
+                        </KeybindsProvider>
+                    </VoiceProvider>
+                </CallSettingsProvider>            </SocketProvider>
         </Suspense>
     );
 };

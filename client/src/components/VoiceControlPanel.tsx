@@ -173,7 +173,7 @@ const VoiceControlPanel: React.FC = () => {
   };
 
   // Counts derived from voice context — surfaced in the rich tooltip.
-  const memberCount = connectedUsers.length;
+  const memberCount = connectedUsers.length + 1;
   let activeStreamers = isScreenSharing ? 1 : 0;
   let activeCameras = isVideoOn ? 1 : 0;
   userStates.forEach((state) => {

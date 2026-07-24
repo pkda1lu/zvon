@@ -24,6 +24,8 @@ import {
     LocalVideoTrack
 } from 'livekit-client';
 
+import { useCallSettings } from './CallSettingsContext';
+
 // --- Types ---
 
 interface VoiceContextType {
@@ -435,6 +437,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { user, updateUser } = useAuth();
     const { alert } = useDialog();
 
+    const { settings: callSettings } = useCallSettings();
+
     // Refs
     const roomRef = useRef<Room | null>(null);
     const activeChannelIdRef = useRef<string | null>(null);
@@ -824,9 +828,16 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const toggleDeafen = () => {
         const next = !isDeafened;
         setIsDeafened(next);
-        // Деаф также глушит собственный микрофон.
-        if (livekitTrackRef.current) livekitTrackRef.current.enabled = !isMuted && !isServerMuted && !next && !isServerDeafened;
-        emitVoiceState({ isDeafened: next });
+
+        if (callSettings.muteOnDeafen) {
+            setIsMuted(next);
+            if (livekitTrackRef.current) livekitTrackRef.current.enabled = !next && !isServerMuted && !isServerDeafened;
+            emitVoiceState({ isDeafened: next, isMuted: next });
+        } else {
+            // Деаф также глушит собственный микрофон.
+            if (livekitTrackRef.current) livekitTrackRef.current.enabled = !isMuted && !isServerMuted && !next && !isServerDeafened;
+            emitVoiceState({ isDeafened: next });
+        }
     };
 
     // Сообщаем серверу/другим участникам своё состояние (мьют/деаф/экран/видео).
