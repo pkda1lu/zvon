@@ -875,7 +875,7 @@ const Main: React.FC = () => {
   useEffect(() => {
     if (!selectedChannel || !socket) return;
     const s = socket;
-    if (selectedChannel.type === 'text') {
+    if (selectedChannel.type === 'text' || selectedChannel.type === 'voice') {
       setMessages([]); setSelectedDM(null);
       s.emit('join-channel', selectedChannel._id);
       fetchMessages(selectedChannel._id);
@@ -920,7 +920,7 @@ const Main: React.FC = () => {
     setSelectedDM(null);
     setShowFriends(false);
     setMobileView('content');
-    if (channel.type === 'voice') setMessages([]);
+    
   };
   const handleStartDM = async (userId: string) => {
     try {
