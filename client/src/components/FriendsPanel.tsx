@@ -10,6 +10,7 @@ import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import ActiveContacts from './ActiveContacts';
 import { getBrand } from '../utils/branding';
+import { useAppearance } from '../contexts/AppearanceContext';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
@@ -29,6 +30,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
   const { socket } = useSocket();
   const { user: currentUser } = useAuth();
   const { confirm } = useDialog();
+  const { interfaceScale } = useAppearance();
   const brand = getBrand();
   const [userDMs, setUserDMs] = useState<DMDict>({});
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
@@ -128,7 +130,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
           {isMobile && (
             <div className="friends-mobile-header">
               <button className="back-button" onClick={onBack} title="Назад в меню">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={20 * interfaceScale} height={20 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="19" y1="12" x2="5" y2="12"></line>
                   <polyline points="12 19 5 12 12 5"></polyline>
                 </svg>
@@ -172,7 +174,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                     <div className="friend-avatar-wrap">
                       <UserAvatar
                         user={f}
-                        size={38}
+                        size={38 * interfaceScale}
                         className="friend-avatar"
                         onClick={(e) => onUserClick(f._id, e)}
                       />
@@ -181,17 +183,17 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                     <div className="friend-info" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}>
                       <div className="friend-name">
                         {f.username}
-                        <UserBadges badges={f.badges} serverTag={resolveServerTag(f)} size={14} />
+                        <UserBadges badges={f.badges} serverTag={resolveServerTag(f)} size={14 * interfaceScale} />
                         {userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}
                       </div>
                       <div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div>
                     </div>
                     <div className="friend-actions">
                       <button className="test-action-btn" onClick={() => onStartDM(f._id)} title="Написать сообщение">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                        <svg width={16 * interfaceScale} height={16 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                       </button>
                       <button className="test-action-btn remove" onClick={() => removeFriend((f as any).friendshipId)} title="Удалить из друзей">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        <svg width={16 * interfaceScale} height={16 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                       </button>
                     </div>
                   </div>
@@ -204,14 +206,14 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                   <div key={r._id} className="request-item">
                     <UserAvatar
                       user={r.requester}
-                      size={38}
+                      size={38 * interfaceScale}
                       className="request-avatar"
                       onClick={(e) => onUserClick(r.requester._id, e)}
                     />
                     <div className="request-info" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}>
                       <div className="request-name">
                         {r.requester.username}
-                        <UserBadges badges={r.requester.badges} serverTag={resolveServerTag(r.requester)} size={14} />
+                        <UserBadges badges={r.requester.badges} serverTag={resolveServerTag(r.requester)} size={14 * interfaceScale} />
                       </div>
                       <div className="request-text">хочет добавить вас в друзья</div>
                     </div>
@@ -229,14 +231,14 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                     <div key={u._id} className="search-result-item">
                       <UserAvatar
                         user={u}
-                        size={40}
+                        size={40 * interfaceScale}
                         className="result-avatar"
                         onClick={(e) => onUserClick(u._id, e)}
                       />
                       <div className="result-info" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}>
                         <div className="result-name">
                           {u.username}
-                          <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={14} />
+                          <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={14 * interfaceScale} />
                         </div>
                       </div>
                       <button className="add-button" onClick={() => sendFriendRequest(u._id)} disabled={!!loadingAction}>{loadingAction === u._id ? '...' : 'Добавить'}</button>
