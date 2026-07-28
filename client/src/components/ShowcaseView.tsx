@@ -8,6 +8,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { User, Server } from '../types';
 import ActiveContacts from './ActiveContacts';
 import { getBrand } from '../utils/branding';
+import { useAppearance } from '../contexts/AppearanceContext';
 import './ShowcaseView.css';
 
 interface ShowcaseViewProps {
@@ -22,6 +23,7 @@ interface ShowcaseViewProps {
 const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMobile, friends = [], servers = [], onUserClick = () => {} }) => {
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
+    const { interfaceScale } = useAppearance();
     const brand = getBrand();
     const [activeTab, setActiveTab] = useState<'all' | 'bots' | 'miniapps'>('all');
     const [showcaseData, setShowcaseData] = useState<{ bots: any[], miniApps: any[] }>({ bots: [], miniApps: [] });
@@ -93,7 +95,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
             <div className="profile-card-content">
                 <div className="profile-card-header">
                     <div className="profile-card-avatar">
-                        {bot.avatar ? <img src={getFullUrl(bot.avatar)!} alt="" /> : <BotIcon size={28} color="var(--primary-neon)" />}
+                        {bot.avatar ? <img src={getFullUrl(bot.avatar)!} alt="" /> : <BotIcon size={28 * interfaceScale} color="var(--primary-neon)" />}
                     </div>
                     <div className="profile-card-main-info">
                         <div className="profile-card-name">{bot.username}</div>
@@ -106,14 +108,14 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                         title="Пожаловаться"
                         onClick={(e) => { e.stopPropagation(); reportItem('bot', bot._id, bot.username); }}
                     >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width={14 * interfaceScale} height={14 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
                             <line x1="4" y1="22" x2="4" y2="15"/>
                         </svg>
                     </button>
                     <div className="action-button-container">
                         <button className="profile-action-btn primary" onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}>
-                            <PlusIcon size={18} />
+                            <PlusIcon size={18 * interfaceScale} />
                             <span>Добавить</span>
                         </button>
                         {showServerSelect === bot._id && (
@@ -143,7 +145,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
             <div className="profile-card-content">
                 <div className="profile-card-header">
                     <div className="profile-card-avatar">
-                        {app.avatar ? <img src={getFullUrl(app.avatar)!} alt="" /> : <LayoutGridIcon size={28} color="var(--secondary-neon)" />}
+                        {app.avatar ? <img src={getFullUrl(app.avatar)!} alt="" /> : <LayoutGridIcon size={28 * interfaceScale} color="var(--secondary-neon)" />}
                     </div>
                     <div className="profile-card-main-info">
                         <div className="profile-card-name">{app.name}</div>
@@ -156,13 +158,13 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                         title="Пожаловаться"
                         onClick={(e) => { e.stopPropagation(); reportItem('miniapp', app._id, app.name); }}
                     >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width={14 * interfaceScale} height={14 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
                             <line x1="4" y1="22" x2="4" y2="15"/>
                         </svg>
                     </button>
                     <button className="profile-action-btn secondary" onClick={() => handleOpenApp(app)}>
-                        <MonitorIcon size={18} />
+                        <MonitorIcon size={18 * interfaceScale} />
                         <span>Открыть</span>
                     </button>
                 </div>
