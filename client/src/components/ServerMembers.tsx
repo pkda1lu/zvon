@@ -8,6 +8,7 @@ import MemberRow from './MemberRow';
 import { useVoice } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useDominantColor } from '../utils/dominantColor';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { SpeakerIcon } from './Icons';
 import './panel-hero.css';
 import './ServerMembers.css';
@@ -37,6 +38,7 @@ const getStreamPlatformIcon = (streamLink: string): string | null => {
 };
 
 const ServerEventCard: React.FC<{ event: ServerEvent }> = ({ event }) => {
+    const { interfaceScale } = useAppearance();
     const extractedRgb = useDominantColor(event.kind === 'game' ? getFullUrl(event.image) : null);
     const rgb = event.kind === 'stream' ? STREAM_RGB : event.kind === 'game' ? (extractedRgb || FALLBACK_RGB) : VOICE_RGB;
 
@@ -46,7 +48,7 @@ const ServerEventCard: React.FC<{ event: ServerEvent }> = ({ event }) => {
                 <img src={getFullUrl(event.image)!} alt="" className="server-event-icon" />
             ) : event.kind === 'voice' ? (
                 <div className="server-event-icon-placeholder" style={{ background: `rgba(${rgb}, 0.25)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <SpeakerIcon size={18} color={`rgb(${rgb})`} />
+                    <SpeakerIcon size={18 * interfaceScale} color={`rgb(${rgb})`} />
                 </div>
             ) : (
                 <div className="server-event-icon-placeholder" style={{ background: `rgba(${rgb}, 0.25)` }} />
@@ -107,6 +109,7 @@ const MemberItem: React.FC<{
     onUserClick: (userId: string, event?: React.MouseEvent) => void;
     onContextMenu: (e: React.MouseEvent, user: User) => void;
 }> = ({ member, offline, serverRoles, isLive, serverTag, primaryActivity, onUserClick, onContextMenu }) => {
+    const { interfaceScale } = useAppearance();
     const memberRoleIds = member.roles || [];
     const memberRoles = serverRoles
         .filter(r => memberRoleIds.includes(r._id))
@@ -123,7 +126,7 @@ const MemberItem: React.FC<{
                 <UserAvatar
                     user={member.user}
                     avatarOverride={member.avatar || undefined}
-                    size={32}
+                    size={32 * interfaceScale}
                     className="member-avatar"
                 />
                 <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
@@ -140,7 +143,7 @@ const MemberItem: React.FC<{
             <span className="member-name" style={{ color: memberColor }}>
                 {member.nickname || member.user.displayName || member.user.username}
             </span>
-            <UserBadges badges={member.user.badges} serverTag={serverTag} size={14} />
+            <UserBadges badges={member.user.badges} serverTag={serverTag} size={14 * interfaceScale} />
             {isLive && <LiveBadge />}
         </MemberRow>
     );
