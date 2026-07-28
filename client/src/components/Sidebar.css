@@ -99,7 +99,7 @@
 
 
 .server-icon:hover {
-  border-radius: calc(15px * var(--interface-scale, 1));
+  border-radius: calc(18px * var(--interface-scale, 1));
   background: var(--primary-neon);
   transform: none; /* Removed transform to avoid conflicting with pressFeedback and pill */
   color: black;
@@ -108,7 +108,7 @@
 }
 
 .server-icon.active {
-  border-radius: calc(15px * var(--interface-scale, 1));
+  border-radius: calc(18px * var(--interface-scale, 1));
   background: var(--primary-neon);
   border-color: var(--primary-neon);
   box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);

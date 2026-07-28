@@ -16,6 +16,7 @@ import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
 import { ConnectionState } from 'livekit-client';
+import {useAppearance} from "../contexts/AppearanceContext";
 
 // Секунды с момента, когда в канале появился хотя бы 1 участник → "12:34" / "1:02:03".
 const formatVoiceDuration = (seconds: number): string => {
@@ -60,6 +61,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   unreadCounts,
   style
 }) => {
+  const { interfaceScale } = useAppearance();
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
   const { joinChannel, userStates, activeChannelId, roomConnectionState } = useVoice();
@@ -304,8 +306,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           <h2>{server.name}</h2>
         </div>
         <div className="server-header-actions">
-          {canInvite && <button className="invite-button" onClick={() => setShowInviteModal(true)} title="Пригласить друзей"><PlusIcon size={18} /></button>}
-          {canManageGuild && <button className="settings-button" onClick={onOpenSettings} title="Настройки сервера"><SettingsIcon size={18} /></button>}
+          {canInvite && <button className="invite-button" onClick={() => setShowInviteModal(true)} title="Пригласить друзей"><PlusIcon size={18 * interfaceScale} /></button>}
+          {canManageGuild && <button className="settings-button" onClick={onOpenSettings} title="Настройки сервера"><SettingsIcon size={18 * interfaceScale} /></button>}
         </div>
       </div>
 
