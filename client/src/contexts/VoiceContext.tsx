@@ -881,6 +881,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const isElectron = !!(window as any).electron;
         // В Electron нужен выбранный источник; в вебе источник выбирается нативным пикером.
         if (isElectron && !sourceId) { console.warn('[Voice] startScreenShare: не выбран источник'); return; }
+
+        if (!isElectron && (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)) {
+            await alert('Демонстрация экрана не поддерживается в вашем браузере.');
+            return;
+        }
+        
         try {
             console.log('[Voice] Запуск трансляции экрана, источник:', sourceId || '(web picker)');
             const frameRate = parseInt(options?.frameRate || '30', 10);

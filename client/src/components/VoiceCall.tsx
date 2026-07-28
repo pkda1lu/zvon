@@ -564,6 +564,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
   const toggleScreenShare = async (sourceId?: string, options?: { resolution: string, frameRate: string, videoCodec: 'av1' | 'vp9' | 'h264' }) => {
     const isElectron = !!(window as any).electron;
+    if (!isElectron && (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)) {
+      await alert('Демонстрация экрана не поддерживается в вашем браузере.');
+      return;
+    }
     if (isScreenSharing) {
       setIsScreenSharing(false);
       soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
