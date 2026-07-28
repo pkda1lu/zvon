@@ -3,6 +3,7 @@ import { User, Server } from '../types';
 import UserAvatar from './UserAvatar';
 import { getFullUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { SpeakerIcon } from './Icons';
 import './panel-hero.css';
 import './ActiveContacts.css';
@@ -22,6 +23,7 @@ interface VoiceGroup {
 
 const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], onUserClick }) => {
     const { socket } = useSocket();
+    const { interfaceScale } = useAppearance();
     // Плоская карта channelId -> список пользователей. ID канала уникален глобально,
     // поэтому можно мержить снапшоты со всех серверов пользователя в одну карту без
     // необходимости хранить serverId в самом событии.
@@ -91,7 +93,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                 <h3 className="section-title">Активные контакты</h3>
                 <div className="empty-active-state">
                     <div className="empty-active-icon">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width={48 * interfaceScale} height={48 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M6 12h.01M9 12h.01M15 12h.01M18 12h.01" />
                             <rect x="2" y="6" width="20" height="12" rx="2" />
                             <path d="M12 12h.01" />
@@ -135,7 +137,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                             <div className="active-user-info">
                                 <div className="active-voice-avatar-stack">
                                     {group.users.slice(0, 3).map((u, i) => (
-                                        <UserAvatar key={u._id} user={u} size={32} className="active-avatar active-voice-avatar" style={{ zIndex: 3 - i }} />
+                                        <UserAvatar key={u._id} user={u} size={32 * interfaceScale} className="active-avatar active-voice-avatar" style={{ zIndex: 3 - i }} />
                                     ))}
                                     {group.users.length > 3 && (
                                         <div className="active-voice-avatar-more">+{group.users.length - 3}</div>
@@ -149,13 +151,13 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                                 </div>
                             </div>
                             <div className="active-voice-icon">
-                                <SpeakerIcon size={18} />
+                                <SpeakerIcon size={18 * interfaceScale} />
                             </div>
                         </div>
                         <div className="active-card-content">
                             <div className="active-game-info active-voice-info">
                                 <div className="active-game-icon active-voice-channel-icon">
-                                    <SpeakerIcon size={20} />
+                                    <SpeakerIcon size={20 * interfaceScale} />
                                 </div>
                                 <div className="active-game-details">
                                     <div className="active-game-title">{group.channelName}</div>
@@ -180,7 +182,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                         )}
                         <div className="active-card-header">
                             <div className="active-user-info">
-                                <UserAvatar user={friend} size={32} className="active-avatar" />
+                                <UserAvatar user={friend} size={32 * interfaceScale} className="active-avatar" />
                                 <div className="active-user-details">
                                     <span className="active-username">{friend.username}</span>
                                     <span className="active-activity-name">
