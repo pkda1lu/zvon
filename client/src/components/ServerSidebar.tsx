@@ -255,13 +255,15 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                     title={canMoveMembers ? 'Перетащите для перемещения в другой канал' : undefined}
                   >
                     <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                      {/* draggable={false} on the <img> — otherwise the browser's default
-                          image-drag intercepts the parent's drag and our dragstart never fires. */}
-                      {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} alt="" draggable={false} /> : <span>{u.username.charAt(0).toUpperCase()}</span>}
+                      <UserAvatar
+                        user={u}
+                        avatarOverride={server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.avatar || undefined}
+                        size={24}
+                      />
                     </div>
                     <div className="voice-user-name-row">
                       <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                        {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
+                        {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.displayName || u.username}
                       </span>
                       <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={12} />
                     </div>

@@ -396,20 +396,24 @@ const MessageItem = React.memo<{
         onContextMenu={(e: React.MouseEvent) => onContextMenu(e, msg.author, msg._id)}
         {...messageProps}
       >
-        {msg.replyTo && (
-          <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
-            <div className="reply-line" />
-            <ReplyIcon size={12} className="reply-icon-mini" />
-            <UserAvatar user={msg.replyTo.author} size={16} className="reply-avatar" />
-            <span className="reply-author">{msg.replyTo.author.username}</span>
-            <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />
-            <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
-          </div>
-        )}
+        {msg.replyTo && (() => {
+          const replyMember = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.replyTo!.author._id));
+          return (
+            <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
+              <div className="reply-line" />
+              <ReplyIcon size={12} className="reply-icon-mini" />
+              <UserAvatar user={msg.replyTo.author} avatarOverride={replyMember?.avatar || undefined} size={16} className="reply-avatar" />
+              <span className="reply-author">{replyMember?.nickname || msg.replyTo.author.displayName || msg.replyTo.author.username}</span>
+              <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />
+              <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
+            </div>
+          );
+        })()}
         {!grouped && (
           <div className="message-author-avatar-wrap">
             <UserAvatar
               user={msg.author}
+              avatarOverride={member?.avatar || undefined}
               size={42}
               className="message-author-avatar"
               onClick={(e) => { if (server.showMembersList !== false) onUserClick(msg.author._id, e); }}
@@ -439,7 +443,7 @@ const MessageItem = React.memo<{
                     })()
                   }}
                 >
-                  {member?.nickname || msg.author.username}
+                  {member?.nickname || msg.author.displayName || msg.author.username}
                 </span>
                 <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />
                 {msg.author.isBot && <span className="bot-badge">БOТ</span>}
@@ -1354,48 +1358,51 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               {pinnedMessages.length === 0 ? (
                 <div className="empty-pins">Нет закрепленных сообщений</div>
               ) : (
-                pinnedMessages.map(msg => (
-                  <div key={msg._id} className="pin-item">
-                    <div className="pin-author">
-                      <UserAvatar user={msg.author} size={24} className="pin-avatar-comp" />
-                      <span className="pin-name">{msg.author.username}</span>
-                      <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12} />
-                      <span className="pin-date">{formatDate(msg.createdAt)}</span>
+                pinnedMessages.map(msg => {
+                  const member = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id));
+                  return (
+                    <div key={msg._id} className="pin-item">
+                      <div className="pin-author">
+                        <UserAvatar user={msg.author} avatarOverride={member?.avatar || undefined} size={24} className="pin-avatar-comp" />
+                        <span className="pin-name">{member?.nickname || msg.author.displayName || msg.author.username}</span>
+                        <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12} />
+                        <span className="pin-date">{formatDate(msg.createdAt)}</span>
+                      </div>
+                      <div className="pin-content">
+                        {msg.content}
+                        {msg.attachments?.some(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')) && (
+                          <div className="pin-media-preview" style={{ marginTop: '8px', display: 'flex', gap: '5px', overflowX: 'auto' }}>
+                            {msg.attachments.filter(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')).map((a, i) => (
+                              <div key={i} className="pin-media-item" style={{ width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--glass-border)' }}>
+                                {a.type?.startsWith('image/') ? (
+                                  <img 
+                                    src={getFullUrl(a.url)!} 
+                                    alt="" 
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                                    onClick={() => {
+                                      setLightboxMedia(msg.attachments!.filter(att => att.type?.startsWith('image/') || att.type?.startsWith('video/')).map(att => ({ 
+                                        url: getFullUrl(att.url)!, 
+                                        type: att.type?.startsWith('video/') ? 'video' : 'image', 
+                                        filename: att.filename 
+                                      })));
+                                      setLightboxIndex(i);
+                                      setLightboxOpen(true);
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="pin-video-placeholder" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                                    <CameraIcon size={20} color="var(--primary-neon)" />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
                     </div>
-                    <div className="pin-content">
-                      {msg.content}
-                      {msg.attachments?.some(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')) && (
-                        <div className="pin-media-preview" style={{ marginTop: '8px', display: 'flex', gap: '5px', overflowX: 'auto' }}>
-                          {msg.attachments.filter(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')).map((a, i) => (
-                            <div key={i} className="pin-media-item" style={{ width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--glass-border)' }}>
-                              {a.type?.startsWith('image/') ? (
-                                <img 
-                                  src={getFullUrl(a.url)!} 
-                                  alt="" 
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                                  onClick={() => {
-                                    setLightboxMedia(msg.attachments!.filter(att => att.type?.startsWith('image/') || att.type?.startsWith('video/')).map(att => ({ 
-                                      url: getFullUrl(att.url)!, 
-                                      type: att.type?.startsWith('video/') ? 'video' : 'image', 
-                                      filename: att.filename 
-                                    })));
-                                    setLightboxIndex(i);
-                                    setLightboxOpen(true);
-                                  }}
-                                />
-                              ) : (
-                                <div className="pin-video-placeholder" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
-                                  <CameraIcon size={20} color="var(--primary-neon)" />
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

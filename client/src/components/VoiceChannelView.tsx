@@ -43,7 +43,7 @@ const VoiceParticipantCard: React.FC<{ participant: any, isSpeaking: boolean, on
     <div className={`p-card ${isSpeaking ? 'is-speaking' : ''} ${participant.cameraStream ? 'has-video' : ''}`} onContextMenu={onContextMenu} onClick={onClick}>
       {participant.cameraStream && <video ref={videoRef} autoPlay playsInline muted className="p-camera-video" />}
       {!participant.cameraStream && participant.banner && <div className="p-bg" style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }} />}
-      {!participant.cameraStream && <div className="p-avatar-wrap"><UserAvatar user={participant} size={64} animate={true} className="p-avatar" /></div>}
+      {!participant.cameraStream && <div className="p-avatar-wrap"><UserAvatar user={participant} avatarOverride={participant.avatar} size={64} animate={true} className="p-avatar" /></div>}
       <div className="p-info"><div className="p-name-row"><span className="p-name">{getDisplayName(participant)}</span></div></div>
       <div className="p-indicators">
         {(participant.isMuted || participant.isDeafened) && <div className="ind-icon is-muted">{participant.isDeafened ? <DeafenedIcon size={18} /> : <MicMutedIcon size={18} />}</div>}
@@ -119,7 +119,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const viewRef = useRef<HTMLDivElement>(null);
   const [ctrlsRect, setCtrlsRect] = useState<{ bottom: number, left: number, width: number } | null>(null);
 
-  const getDisplayName = (u: User) => server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username;
+  const getDisplayName = (u: User) => server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.displayName || u.username;
   const isConnectedToThisChannel = isConnected && activeChannelId === channel._id;
   
   useEffect(() => {
@@ -176,12 +176,17 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     const clickHandler = () => handleParticipantClick(item);
 
     switch (item.type) {
-      case 'stream':
-        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(activeConnectedUsers.find(u => u._id === item.userId) || externalParticipants.find(u => u._id === item.userId)!) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} />;
+      case 'stream': {
+        const user = activeConnectedUsers.find(u => u._id === item.userId) || externalParticipants.find(u => u._id === item.userId);
+        const member = user ? server.members.find(m => String((m.user as any)._id || m.user) === String(user._id)) : null;
+        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user!) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} />;
+      }
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
-      default:
-        return <VoiceParticipantCard key={item._id} participant={item} isSpeaking={speakingUsers.has(item._id) && !item.isMuted} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} />;
+      default: {
+        const member = server.members.find(m => String((m.user as any)._id || m.user) === String(item._id));
+        return <VoiceParticipantCard key={item._id} participant={{...item, avatar: member?.avatar || undefined}} isSpeaking={speakingUsers.has(item._id) && !item.isMuted} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} />;
+      }
     }
   };
   

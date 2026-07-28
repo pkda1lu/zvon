@@ -7,6 +7,7 @@ import { getAvatarUrl } from '../utils/avatar';
 import { useDialog } from '../contexts/DialogContext';
 import { CloseIcon, TrashIcon, PlusIcon } from './Icons';
 import './ChannelSettingsModal.css';
+import UserAvatar from "./UserAvatar";
 
 interface ChannelSettingsModalProps {
     isOpen: boolean;
@@ -392,10 +393,13 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                                             setShowAddAccessDropdown(false);
                                                                             setSearchTerm('');
                                                                         }}>
-                                                                            <div className="member-avatar-mini" style={{ width: 24, height: 24 }}>
-                                                                                {member.user.avatar ? <img src={getAvatarUrl(member.user.avatar)!} alt="" /> : <span>{member.user.username?.charAt(0)}</span>}
-                                                                            </div>
-                                                                            <span>{member.user.username}</span>
+                                                                            <UserAvatar
+                                                                              user={member.user}
+                                                                              avatarOverride={member.avatar || undefined}
+                                                                              size={24}
+                                                                              className="member-avatar-mini"
+                                                                            />
+                                                                            <span>{member.nickname || member.user.displayName || member.user.username}</span>
                                                                         </div>
                                                                     );
                                                                 })
@@ -414,7 +418,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 
                                                 if (!role && !member) return null;
 
-                                                const name = role ? role.name : member?.user.username;
+                                                const name = role ? role.name : member?.nickname || member?.user.displayName || member?.user.username;
                                                 const color = role ? role.color : '#b5bac1';
                                                 const isAdmin = role ? (BigInt(role.permissions) & Permissions.ADMINISTRATOR) === Permissions.ADMINISTRATOR : false;
 
@@ -424,9 +428,12 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                             {role ? (
                                                                 <div className="role-shield-icon" style={{ background: color }}>🛡️</div>
                                                             ) : (
-                                                                <div className="member-avatar-mini">
-                                                                    {member?.user.avatar ? <img src={getAvatarUrl(member.user.avatar)!} alt="" /> : <span>{name?.charAt(0)}</span>}
-                                                                </div>
+                                                                <UserAvatar
+                                                                  user={member!.user}
+                                                                  avatarOverride={member!.avatar || undefined}
+                                                                  size={24}
+                                                                  className="member-avatar-mini"
+                                                                />
                                                             )}
                                                             <span className="role-access-name">{name}</span>
                                                         </div>
