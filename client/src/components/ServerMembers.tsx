@@ -190,12 +190,16 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
 
     const showActivity = server.showMemberActivity !== false;
 
+    const currentServerVoiceStates = React.useMemo(() => Object.fromEntries(
+        Object.entries(voiceStates).filter(([cid]) => serverChannelIds.has(cid))
+    ), [voiceStates, serverChannelIds]);
+
     // Единственная "свежая" строка события пользователя: активность (с известным временем начала)
     // или войс-канал (без метки времени на клиенте — считается менее свежим, чем активная активность).
-    const getPrimaryActivity = (u: User): { text: string; icon: string | null } | null => {
+    const getPrimaryActivity = (u: User): { text:string; icon: string | null } | null => {
         if (!showActivity) return null;
 
-        const candidates: { text: string; icon: string | null; timestamp: number }[] = [];
+        const candidates: { text:string; icon: string | null; timestamp: number }[] = [];
 
         if (u.activity?.name) {
             const verb = ACTIVITY_VERBS[u.activity.type as string] || 'Занимается:';
@@ -205,10 +209,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                 timestamp: u.activity.timestamps?.start || 0
             });
         }
-        const voiceChannelId = Object.keys(voiceStates).find(cid => (voiceStates[cid] || []).some(vu => vu._id === u._id));
+        const voiceChannelId = Object.keys(currentServerVoiceStates).find(cid => (currentServerVoiceStates[cid] || []).some(vu => vu._id === u._id));
         if (voiceChannelId) {
             const channel = (server.channels || []).find(c => c._id === voiceChannelId);
-            const others = (voiceStates[voiceChannelId] || []).filter(vu => vu._id !== u._id).map(vu => vu.username);
+            const others = (currentServerVoiceStates[voiceChannelId] || []).filter(vu => vu._id !== u._id).map(vu => vu.username);
             const suffix = others.length > 0 ? ` с ${others.slice(0, 2).join(' и ')}` : '';
             candidates.push({ text: `Общается в #${channel?.name || 'войсе'}${suffix}`, icon: null, timestamp: 0 });
         }
@@ -272,7 +276,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
             };
         });
 
-        const voiceEvents: ServerEvent[] = Object.entries(voiceStates)
+        const voiceEvents: ServerEvent[] = Object.entries(currentServerVoiceStates)
             .filter(([, users]) => (users || []).length >= 2)
             .map(([channelId, users]) => {
                 const channel = (server.channels || []).find(c => c._id === channelId);
@@ -290,7 +294,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         return [...gameEvents, ...streamEvents, ...voiceEvents]
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 3);
-    }, [showActivity, server.members, server.channels, voiceStates]);
+    }, [showActivity, server.members, server.channels, currentServerVoiceStates]);
 
     const handleContextMenu = (e: React.MouseEvent, user: User) => {
         e.preventDefault();
