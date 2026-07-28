@@ -2,7 +2,7 @@
 
 /* --- LIQUID GLASS SERVER SIDEBAR --- */
 .server-sidebar {
-  width: 260px;
+  width: calc(260px * var(--interface-scale, 1));
   /* Background provided by .panel-hero gradient + animated blobs.
      No backdrop-filter — would double-blur over custom user bg. */
   display: flex;
@@ -19,8 +19,8 @@
 
 /* --- HEADER --- */
 .server-header {
-  height: 64px;
-  padding: 0 16px;
+  height: calc(64px * var(--interface-scale, 1));
+  padding: 0 calc(16px * var(--interface-scale, 1));
   border-bottom: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
@@ -54,14 +54,14 @@
 .server-header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: calc(12px * var(--interface-scale, 1));
   min-width: 0;
   flex: 1;
 }
 
 .server-header h2 {
   color: white;
-  font-size: 16px;
+  font-size: calc(16px * var(--interface-scale, 1));
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -71,9 +71,9 @@
 
 .server-header-icon,
 .server-header-icon-placeholder {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: calc(36px * var(--interface-scale, 1));
+  height: calc(36px * var(--interface-scale, 1));
+  border-radius: calc(12px * var(--interface-scale, 1));
   /* Squircle */
   flex-shrink: 0;
   display: flex;
@@ -82,7 +82,7 @@
   overflow: hidden;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 14px;
+  font-size: calc(14px * var(--interface-scale, 1));
   font-weight: 800;
   color: white;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
@@ -104,7 +104,7 @@
 /* --- ACTIONS --- */
 .server-header-actions {
   display: flex;
-  gap: 8px;
+  gap: calc(8px * var(--interface-scale, 1));
 }
 
 .invite-button,
@@ -113,8 +113,8 @@
   border: 1px solid var(--glass-border);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 6px;
-  border-radius: 8px;
+  padding: calc(6px * var(--interface-scale, 1));
+  border-radius: calc(8px * var(--interface-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,19 +134,19 @@
 .channels-list {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 10px;
+  padding: calc(20px * var(--interface-scale, 1)) calc(10px * var(--interface-scale, 1));
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
 .channel-category {
-  margin-bottom: 25px;
+  margin-bottom: calc(25px * var(--interface-scale, 1));
 }
 
 .category-header {
-  padding: 0 8px;
-  margin-bottom: 10px;
-  font-size: 11px;
+  padding: 0 calc(8px * var(--interface-scale, 1));
+  margin-bottom: calc(10px * var(--interface-scale, 1));
+  font-size: calc(11px * var(--interface-scale, 1));
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -162,10 +162,10 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  padding: calc(4px * var(--interface-scale, 1));
+  width: calc(20px * var(--interface-scale, 1));
+  height: calc(20px * var(--interface-scale, 1));
+  border-radius: calc(6px * var(--interface-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -186,11 +186,11 @@
 .channel-item {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
-  border-radius: 14px;
+  padding: calc(10px * var(--interface-scale, 1)) calc(14px * var(--interface-scale, 1));
+  border-radius: calc(14px * var(--interface-scale, 1));
   cursor: pointer;
   transition: background 0.25s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
-  margin: 4px 6px;
+  margin: calc(4px * var(--interface-scale, 1)) calc(6px * var(--interface-scale, 1));
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid transparent;
@@ -217,19 +217,19 @@
 }
 
 .channel-icon {
-  margin-right: 10px;
+  margin-right: calc(10px * var(--interface-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
   transition: all 0.2s;
   opacity: 0.7;
-  width: 20px;
+  width: calc(20px * var(--interface-scale, 1));
 }
 
 .voice-status-indicator.sidebar-inline {
-  width: 14px;
-  height: 14px;
+  width: calc(14px * var(--interface-scale, 1));
+  height: calc(14px * var(--interface-scale, 1));
   position: relative;
   display: flex;
   align-items: center;
@@ -237,8 +237,8 @@
 }
 
 .voice-status-indicator.sidebar-inline .status-dot {
-  width: 6px;
-  height: 6px;
+  width: calc(6px * var(--interface-scale, 1));
+  height: calc(6px * var(--interface-scale, 1));
   background: #23a559;
   border-radius: 50%;
   box-shadow: 0 0 10px #23a559;
@@ -273,7 +273,7 @@
 }
 
 .channel-name {
-  font-size: 15px;
+  font-size: calc(15px * var(--interface-scale, 1));
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -284,7 +284,7 @@
 
 /* Названия голосовых каналов — чуть мельче текстовых (рядом ещё таймер и участники). */
 .channel-name--voice {
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--interface-scale, 1));
 }
 
 /* --- UNREAD & BADGES --- */
@@ -299,8 +299,8 @@
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
-  height: 16px;
+  width: calc(3px * var(--interface-scale, 1));
+  height: calc(16px * var(--interface-scale, 1));
   border-radius: 0 4px 4px 0;
   background-color: var(--primary-neon);
   box-shadow: 0 0 8px var(--primary-neon);
@@ -309,11 +309,11 @@
 .channel-unread-badge {
   background: #ff3b30;
   color: white;
-  border-radius: 8px;
-  padding: 2px 6px;
-  font-size: 11px;
+  border-radius: calc(8px * var(--interface-scale, 1));
+  padding: calc(2px * var(--interface-scale, 1)) calc(6px * var(--interface-scale, 1));
+  font-size: calc(11px * var(--interface-scale, 1));
   font-weight: 800;
-  min-width: 18px;
+  min-width: calc(18px * var(--interface-scale, 1));
   text-align: center;
   box-shadow: 0 2px 5px rgba(255, 59, 48, 0.3);
 }
@@ -325,9 +325,9 @@
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  padding: 1px 5px;
+  padding: calc(1px * var(--interface-scale, 1)) calc(5px * var(--interface-scale, 1));
   border-radius: 999px;
-  font-size: 10px;
+  font-size: calc(10px * var(--interface-scale, 1));
   font-weight: 700;
   letter-spacing: 0.2px;
   line-height: 1.4;
@@ -342,7 +342,7 @@
 .channel-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: calc(4px * var(--interface-scale, 1));
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -357,8 +357,8 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
+  padding: calc(4px * var(--interface-scale, 1));
+  border-radius: calc(6px * var(--interface-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -372,24 +372,24 @@
 
 /* --- EMPTY STATE --- */
 .empty-channels {
-  padding: 30px;
+  padding: calc(30px * var(--interface-scale, 1));
   text-align: center;
   color: var(--text-muted);
   font-style: italic;
-  font-size: 14px;
+  font-size: calc(14px * var(--interface-scale, 1));
 }
 
 .create-first-channel-button {
   background: var(--bg-accent);
   color: white;
   border: none;
-  border-radius: 8px;
-  padding: 10px 20px;
-  font-size: 14px;
+  border-radius: calc(8px * var(--interface-scale, 1));
+  padding: calc(10px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
+  font-size: calc(14px * var(--interface-scale, 1));
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 15px;
+  margin-top: calc(15px * var(--interface-scale, 1));
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
@@ -402,11 +402,11 @@
 .live-badge {
   background: linear-gradient(135deg, #ff0055 0%, #ff3b30 100%);
   color: white;
-  font-size: 8px;
+  font-size: calc(8px * var(--interface-scale, 1));
   font-weight: 900;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-left: 8px;
+  padding: calc(2px * var(--interface-scale, 1)) calc(6px * var(--interface-scale, 1));
+  border-radius: calc(4px * var(--interface-scale, 1));
+  margin-left: calc(8px * var(--interface-scale, 1));
   text-transform: uppercase;
   letter-spacing: 1px;
   display: inline-flex;
@@ -418,10 +418,10 @@
 }
 
 .live-badge.nano {
-  font-size: 7px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  margin-left: 5px;
+  font-size: calc(7px * var(--interface-scale, 1));
+  padding: calc(1px * var(--interface-scale, 1)) calc(4px * var(--interface-scale, 1));
+  border-radius: calc(3px * var(--interface-scale, 1));
+  margin-left: calc(5px * var(--interface-scale, 1));
   letter-spacing: 0.5px;
   box-shadow: 0 0 5px rgba(255, 0, 85, 0.3);
 }

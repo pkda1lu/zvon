@@ -1,5 +1,5 @@
 .dm-sidebar {
-    width: 240px;
+    width: calc(240px * var(--interface-scale, 1));
     /* Background comes from .panel-hero gradient + animated blobs.
        No backdrop-filter — would double-blur over custom user bg. */
     display: flex;
@@ -13,7 +13,7 @@
 }
 
 .dm-sidebar-header {
-    padding: 20px 15px;
+    padding: calc(20px * var(--interface-scale, 1)) calc(15px * var(--interface-scale, 1));
     border-bottom: 1px solid var(--glass-border);
 }
 
@@ -21,13 +21,13 @@
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 15px;
+    gap: calc(12px * var(--interface-scale, 1));
+    padding: calc(10px * var(--interface-scale, 1)) calc(15px * var(--interface-scale, 1));
     background: transparent;
     border: none;
-    border-radius: 12px;
+    border-radius: calc(12px * var(--interface-scale, 1));
     color: var(--text-dim);
-    font-size: 15px;
+    font-size: calc(15px * var(--interface-scale, 1));
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -58,17 +58,17 @@
 .dm-list-container {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 0;
+    padding: calc(20px * var(--interface-scale, 1)) 0;
 }
 
 .dm-list-title {
-    padding: 0 20px;
-    margin-bottom: 15px;
+    padding: 0 calc(20px * var(--interface-scale, 1));
+    margin-bottom: calc(15px * var(--interface-scale, 1));
     display: flex;
     justify-content: space-between;
     align-items: center;
     color: var(--text-dim);
-    font-size: 11px;
+    font-size: calc(11px * var(--interface-scale, 1));
     font-weight: 900;
     letter-spacing: 0.5px;
 }
@@ -88,19 +88,19 @@
 }
 
 .dm-list {
-    padding: 0 10px;
+    padding: 0 calc(10px * var(--interface-scale, 1));
 }
 
 /* Glass card matches FriendsPanel / ServerSidebar — no neon rim */
 .dm-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 9px 13px;
-    border-radius: 14px;
+    gap: calc(12px * var(--interface-scale, 1));
+    padding: calc(9px * var(--interface-scale, 1)) calc(13px * var(--interface-scale, 1));
+    border-radius: calc(14px * var(--interface-scale, 1));
     cursor: pointer;
     transition: background 0.25s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
-    margin-bottom: 4px;
+    margin-bottom: calc(4px * var(--interface-scale, 1));
     position: relative;
     background: rgba(255, 255, 255, 0.025);
     border: 1px solid transparent;
@@ -114,10 +114,10 @@
 
 .dm-delete-button {
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
+    width: calc(28px * var(--interface-scale, 1));
+    height: calc(28px * var(--interface-scale, 1));
     border: none;
-    border-radius: 8px;
+    border-radius: calc(8px * var(--interface-scale, 1));
     background: transparent;
     color: var(--text-dim, rgba(255, 255, 255, 0.4));
     display: none;
@@ -141,7 +141,7 @@
 }
 
 .dm-avatar {
-    border-radius: 12px !important;
+    border-radius: calc(12px * var(--interface-scale, 1)) !important;
     flex-shrink: 0;
 }
 
@@ -158,7 +158,7 @@
 }
 
 .dm-name {
-    font-size: 14px;
+    font-size: calc(14px * var(--interface-scale, 1));
     font-weight: 600;
     color: var(--text-dim);
     white-space: nowrap;
@@ -169,7 +169,131 @@
 
 .dm-name-row {
     display: flex;
-    align-items: center;
+    align-.sidebar-user {
+  width: 100%;
+  padding: calc(24px * var(--interface-scale, 1)) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(20px * var(--interface-scale, 1));
+  flex-shrink: 0;
+  margin-top: auto;
+  border-top: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+}
+
+.server-header-icon,
+.server-header-icon-placeholder {
+  width: calc(24px * var(--interface-scale, 1));
+  height: calc(24px * var(--interface-scale, 1));
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--text-muted);
+  font-size: calc(12px * var(--interface-scale, 1));
+  font-weight: 700;
+  color: #fff;
+}
+
+.user-avatar,
+.user-avatar.user-avatar-container {
+  width: calc(44px * var(--interface-scale, 1));
+  height: calc(44px * var(--interface-scale, 1));
+  border-radius: calc(14px * var(--interface-scale, 1)) !important;
+  /* Squircle */
+  background: var(--bg-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: calc(16px * var(--interface-scale, 1));
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.user-avatar:hover,
+.user-avatar.user-avatar-container:hover {
+  transform: scale(1.1) rotate(5deg);
+  border-color: var(--primary-neon);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: calc(14px * var(--interface-scale, 1));
+  object-fit: cover;
+}
+
+.status-indicator {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: calc(14px * var(--interface-scale, 1));
+  height: calc(14px * var(--interface-scale, 1));
+  border-radius: 50%;
+  border: calc(3px * var(--interface-scale, 1)) solid #1a1a24;
+  z-index: 10;
+}
+.status-indicator.online {
+  background: #43b581;
+  box-shadow: 0 0 10px #43b581;
+}
+.status-indicator.away {
+  background: #faa61a;
+  box-shadow: 0 0 10px #faa61a;
+}
+.status-indicator.busy {
+  background: #f04747;
+  box-shadow: 0 0 10px #f04747;
+}
+.status-indicator.streaming {
+  background: var(--secondary-neon, #7000ff);
+  box-shadow: 0 0 10px var(--secondary-neon, #7000ff);
+}
+.status-indicator.offline {
+  background: #747f8d;
+}
+
+.logout-button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: calc(4px * var(--interface-scale, 1));
+  font-size: calc(16px * var(--interface-scale, 1));
+  width: calc(32px * var(--interface-scale, 1));
+  height: calc(32px * var(--interface-scale, 1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(4px * var(--interface-scale, 1));
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.logout-button:hover {
+  color: var(--primary-neon);
+  background: rgba(0, 229, 255, 0.1);
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.sidebar-user-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6px * var(--interface-scale, 1));
+}
+items: center;
     gap: 0;
     overflow: hidden;
 }
@@ -185,7 +309,7 @@
 }
 
 .dm-activity {
-    font-size: 11px;
+    font-size: calc(11px * var(--interface-scale, 1));
     color: var(--primary-neon);
     white-space: nowrap;
     overflow: hidden;
@@ -196,13 +320,13 @@
 .dm-unread-badge {
     background: var(--accent-pink);
     color: white;
-    min-width: 18px;
-    height: 18px;
+    min-width: calc(18px * var(--interface-scale, 1));
+    height: calc(18px * var(--interface-scale, 1));
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: calc(10px * var(--interface-scale, 1));
     font-weight: 800;
     box-shadow: 0 0 10px var(--accent-pink);
 }
@@ -211,10 +335,10 @@
     position: absolute;
     bottom: -2px;
     right: -2px;
-    width: 12px;
-    height: 12px;
-    border-radius: 4px;
-    border: 2px solid #1a1a24;
+    width: calc(12px * var(--interface-scale, 1));
+    height: calc(12px * var(--interface-scale, 1));
+    border-radius: calc(4px * var(--interface-scale, 1));
+    border: calc(2px * var(--interface-scale, 1)) solid #1a1a24;
     z-index: 10;
 }
 
@@ -233,9 +357,9 @@
 }
 
 .moderation-hub-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 12px;
+    width: calc(32px * var(--interface-scale, 1));
+    height: calc(32px * var(--interface-scale, 1));
+    border-radius: calc(12px * var(--interface-scale, 1));
     background: rgba(0, 242, 255, 0.1);
     border: 1px solid rgba(0, 242, 255, 0.2);
     display: flex;
@@ -263,8 +387,8 @@
 
 /* Вложенный список переписок модерации */
 .moderation-subchats {
-    margin: 0 0 6px 14px;
-    padding-left: 8px;
+    margin: 0 0 calc(6px * var(--interface-scale, 1)) calc(14px * var(--interface-scale, 1));
+    padding-left: calc(8px * var(--interface-scale, 1));
     border-left: 1px solid rgba(0, 242, 255, 0.15);
     display: flex;
     flex-direction: column;
@@ -279,7 +403,7 @@
 .dm-item.dm-subitem {
     background: transparent;
     border: 1px solid transparent;
-    padding: 7px 10px;
+    padding: calc(7px * var(--interface-scale, 1)) calc(10px * var(--interface-scale, 1));
 }
 
 .dm-item.dm-subitem:hover {

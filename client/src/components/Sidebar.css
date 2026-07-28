@@ -1,11 +1,11 @@
 .sidebar {
-  width: var(--sidebar-width);
+  width: calc(var(--sidebar-width, 80px) * var(--interface-scale, 1));
   /* Background provided by .panel-hero gradient + animated blobs.
      No backdrop-filter — would double-blur over custom user bg. */
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 24px 0;
+  padding: calc(24px * var(--interface-scale, 1)) 0;
   height: 100%;
   position: relative;
   border: 1px solid var(--glass-border);
@@ -20,11 +20,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: calc(12px * var(--interface-scale, 1));
   overflow-y: auto;
   overflow-x: hidden;
   width: 100%;
-  padding: 12px 0;
+  padding: calc(12px * var(--interface-scale, 1)) 0;
   min-height: 0;
 }
 
@@ -51,27 +51,27 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: calc(8px * var(--interface-scale, 1));
   display: flex;
   align-items: center;
 }
 
 .pill span {
-  width: 4px;
-  height: 8px;
+  width: calc(4px * var(--interface-scale, 1));
+  height: calc(8px * var(--interface-scale, 1));
   background: white;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 calc(4px * var(--interface-scale, 1)) calc(4px * var(--interface-scale, 1)) 0;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   opacity: 0;
 }
 
 .server-item:hover .pill span {
-  height: 20px;
+  height: calc(20px * var(--interface-scale, 1));
   opacity: 1;
 }
 
 .server-item.active .pill span {
-  height: 40px;
+  height: calc(40px * var(--interface-scale, 1));
   opacity: 1;
   background: var(--primary-neon);
   box-shadow: 0 0 10px var(--primary-neon);
@@ -79,9 +79,9 @@
 
 .server-icon {
   position: relative;
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
+  width: calc(54px * var(--interface-scale, 1));
+  height: calc(54px * var(--interface-scale, 1));
+  border-radius: calc(18px * var(--interface-scale, 1));
   /* Squircle */
   background: var(--glass-bg-subtle);
   display: flex;
@@ -91,7 +91,7 @@
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--text-muted);
   font-weight: 800;
-  font-size: 18px;
+  font-size: calc(18px * var(--interface-scale, 1));
   border: 1px solid var(--glass-border);
   overflow: visible;
 }
@@ -99,7 +99,7 @@
 
 
 .server-icon:hover {
-  border-radius: 15px;
+  border-radius: calc(15px * var(--interface-scale, 1));
   background: var(--primary-neon);
   transform: none; /* Removed transform to avoid conflicting with pressFeedback and pill */
   color: black;
@@ -108,7 +108,7 @@
 }
 
 .server-icon.active {
-  border-radius: 15px;
+  border-radius: calc(15px * var(--interface-scale, 1));
   background: var(--primary-neon);
   border-color: var(--primary-neon);
   box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
@@ -117,28 +117,28 @@
 
 .server-icon:hover img,
 .server-icon.active img {
-  border-radius: 12px;
+  border-radius: calc(12px * var(--interface-scale, 1));
 }
 
 .server-icon-avatar {
   width: 100%;
   height: 100%;
-  border-radius: 18px !important;
+  border-radius: calc(18px * var(--interface-scale, 1)) !important;
   object-fit: cover;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .server-icon:hover .server-icon-avatar,
 .server-icon.active .server-icon-avatar {
-  border-radius: 15px !important;
+  border-radius: calc(15px * var(--interface-scale, 1)) !important;
 }
 
 .sidebar-divider {
-  width: 32px;
-  height: 2px;
+  width: calc(32px * var(--interface-scale, 1));
+  height: calc(2px * var(--interface-scale, 1));
   background: var(--glass-border);
-  border-radius: 1px;
-  margin: 8px 0;
+  border-radius: calc(1px * var(--interface-scale, 1));
+  margin: calc(8px * var(--interface-scale, 1)) 0;
 }
 
 .inbox-sidebar-icon {
@@ -155,20 +155,20 @@
 
 .unread-badge {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  min-width: 18px;
-  height: 18px;
+  bottom: calc(-2px * var(--interface-scale, 1));
+  right: calc(-2px * var(--interface-scale, 1));
+  min-width: calc(18px * var(--interface-scale, 1));
+  height: calc(18px * var(--interface-scale, 1));
   background-color: var(--accent-pink);
-  border-radius: 9px;
-  border: 2px solid var(--bg-dark);
+  border-radius: calc(9px * var(--interface-scale, 1));
+  border: calc(2px * var(--interface-scale, 1)) solid var(--bg-dark);
   color: white;
-  font-size: 10px;
+  font-size: calc(10px * var(--interface-scale, 1));
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0 calc(4px * var(--interface-scale, 1));
   box-shadow: 0 0 10px var(--accent-pink);
   z-index: 10;
 }
@@ -261,11 +261,11 @@
 
 .sidebar-user {
   width: 100%;
-  padding: 24px 0;
+  padding: calc(24px * var(--interface-scale, 1)) 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: calc(20px * var(--interface-scale, 1));
   flex-shrink: 0;
   margin-top: auto;
   border-top: 1px solid var(--glass-border);
@@ -274,8 +274,8 @@
 
 .server-header-icon,
 .server-header-icon-placeholder {
-  width: 24px;
-  height: 24px;
+  width: calc(24px * var(--interface-scale, 1));
+  height: calc(24px * var(--interface-scale, 1));
   border-radius: 50%;
   flex-shrink: 0;
   display: flex;
@@ -283,16 +283,16 @@
   justify-content: center;
   overflow: hidden;
   background: var(--text-muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--interface-scale, 1));
   font-weight: 700;
   color: #fff;
 }
 
 .user-avatar,
 .user-avatar.user-avatar-container {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px !important;
+  width: calc(44px * var(--interface-scale, 1));
+  height: calc(44px * var(--interface-scale, 1));
+  border-radius: calc(14px * var(--interface-scale, 1)) !important;
   /* Squircle */
   background: var(--bg-accent);
   display: flex;
@@ -300,7 +300,7 @@
   justify-content: center;
   color: #fff;
   font-weight: 700;
-  font-size: 16px;
+  font-size: calc(16px * var(--interface-scale, 1));
   flex-shrink: 0;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -319,7 +319,7 @@
 .user-avatar img {
   width: 100%;
   height: 100%;
-  border-radius: 14px;
+  border-radius: calc(14px * var(--interface-scale, 1));
   object-fit: cover;
 }
 
@@ -327,33 +327,28 @@
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 14px;
-  height: 14px;
+  width: calc(14px * var(--interface-scale, 1));
+  height: calc(14px * var(--interface-scale, 1));
   border-radius: 50%;
-  border: 3px solid #1a1a24;
+  border: calc(3px * var(--interface-scale, 1)) solid #1a1a24;
   z-index: 10;
 }
-
 .status-indicator.online {
   background: #43b581;
   box-shadow: 0 0 10px #43b581;
 }
-
 .status-indicator.away {
   background: #faa61a;
   box-shadow: 0 0 10px #faa61a;
 }
-
 .status-indicator.busy {
   background: #f04747;
   box-shadow: 0 0 10px #f04747;
 }
-
 .status-indicator.streaming {
   background: var(--secondary-neon, #7000ff);
   box-shadow: 0 0 10px var(--secondary-neon, #7000ff);
 }
-
 .status-indicator.offline {
   background: #747f8d;
 }
@@ -363,14 +358,14 @@
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 4px;
-  font-size: 16px;
-  width: 32px;
-  height: 32px;
+  padding: calc(4px * var(--interface-scale, 1));
+  font-size: calc(16px * var(--interface-scale, 1));
+  width: calc(32px * var(--interface-scale, 1));
+  height: calc(32px * var(--interface-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: calc(4px * var(--interface-scale, 1));
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
@@ -386,7 +381,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: calc(6px * var(--interface-scale, 1));
 }
 
 .report-button {

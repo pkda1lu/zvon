@@ -4,6 +4,7 @@ import { UsersIcon, PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, Tra
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
+import { useAppearance } from '../contexts/AppearanceContext';
 import './panel-hero.css';
 import './DMSidebar.css';
 
@@ -36,6 +37,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     onDeleteDM,
     style
 }) => {
+    const { interfaceScale } = useAppearance();
     // Чаты «от имени модерации», где текущий пользователь — модератор.
     // Их прячем из общего списка и собираем в один хаб «Модерация».
     const myModerationDMs = dms.filter(dm => {
@@ -78,7 +80,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 <div className="dm-avatar-wrap">
                     <UserAvatar
                         user={avatarUser}
-                        size={32}
+                        size={32 * interfaceScale}
                         className="dm-avatar"
                     />
                     {!isGroup && !maskModeration && otherUser && <div className={`status-indicator ${otherUser.status}`}></div>}
@@ -86,7 +88,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 <div className="dm-info">
                     <div className="dm-name-row">
                         <span className="dm-name">{displayName}</span>
-                        {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={12} />}
+                        {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={12 * interfaceScale} />}
                     </div>
                     {!isGroup && !maskModeration && otherUser?.activity && (
                         <span className="dm-activity">Играет в {otherUser.activity.name}</span>
@@ -104,7 +106,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                         title="Удалить чат"
                         onClick={(e) => { e.stopPropagation(); onDeleteDM(dm); }}
                     >
-                        <TrashIcon size={15} />
+                        <TrashIcon size={15 * interfaceScale} />
                     </button>
                 )}
             </div>
@@ -124,7 +126,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                     onClick={onShowFriends}
                 >
                     <div className="icon-wrapper">
-                        <UsersIcon size={20} />
+                        <UsersIcon size={20 * interfaceScale} />
                     </div>
                     <span>Друзья</span>
                 </button>
@@ -138,7 +140,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                         title="Начать переписку"
                         onClick={onAddDM}
                     >
-                        <PlusIcon size={16} />
+                        <PlusIcon size={16 * interfaceScale} />
                     </button>
                 </div>
 
@@ -153,7 +155,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                             >
                                 <div className="dm-avatar-wrap">
                                     <div className="moderation-hub-icon">
-                                        <ShieldIcon size={18} color="var(--primary-neon)" />
+                                        <ShieldIcon size={18 * interfaceScale} color="var(--primary-neon)" />
                                     </div>
                                 </div>
                                 <div className="dm-info">
@@ -166,7 +168,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                                     <div className="dm-unread-badge">{moderationUnread}</div>
                                 )}
                                 <div className="moderation-hub-chevron">
-                                    {modExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+                                    {modExpanded ? <ChevronDownIcon size={16 * interfaceScale} /> : <ChevronRightIcon size={16 * interfaceScale} />}
                                 </div>
                             </div>
                             {modExpanded && (

@@ -8,6 +8,7 @@ import UserAvatar from './UserAvatar';
 import { UsersIcon, PlusIcon, SettingsIcon, BellIcon, LayoutGridIcon, FlagIcon } from './Icons';
 import ServerContextMenu from './ServerContextMenu';
 import ProblemReportModal from './ProblemReportModal';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { iosSpringSnappy } from '../animations/transitions';
 import './panel-hero.css';
 import './Sidebar.css';
@@ -66,6 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRestoreMiniApp,
   onCloseMiniApp,
 }) => {
+  const { interfaceScale } = useAppearance();
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
   const [showReport, setShowReport] = useState(false);
 
@@ -90,7 +92,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             title="Друзья"
             {...pressFeedback}
           >
-            <UsersIcon size={28} />
+            <UsersIcon size={28 * interfaceScale} />
             {Object.entries(unreadCounts).some(([id, count]) => count > 0 && !servers.some(s => s.channels.some(c => c._id === id))) && (
               <div className="unread-badge"></div>
             )}
@@ -105,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             title="Витрина ботов и мини-приложений"
             {...pressFeedback}
           >
-            <LayoutGridIcon size={28} color="var(--accent-pink)" />
+            <LayoutGridIcon size={28 * interfaceScale} color="var(--accent-pink)" />
           </motion.div>
         </div>
 
@@ -135,7 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {app.avatar ? (
                   <img src={getAvatarUrl(app.avatar) || ''} alt={app.name} />
                 ) : (
-                  <LayoutGridIcon size={24} color="var(--accent-pink)" />
+                  <LayoutGridIcon size={24 * interfaceScale} color="var(--accent-pink)" />
                 )}
               </motion.div>
             </motion.div>
@@ -150,7 +152,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             title="Добавить сервер"
             {...pressFeedback}
           >
-            <PlusIcon size={28} color="var(--primary-neon)" />
+            <PlusIcon size={28 * interfaceScale} color="var(--primary-neon)" />
           </motion.div>
         </div>
 
@@ -168,7 +170,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <UserAvatar
                 user={{ username: server.name, avatar: server.icon }}
-                size={48}
+                size={48 * interfaceScale}
                 className="server-icon-avatar"
               />
               {server.channels.some(c => unreadCounts[c._id] > 0) && (
@@ -189,7 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <UserAvatar
             user={user}
-            size={38}
+            size={38 * interfaceScale}
             className="user-avatar"
           />
           <div className={`status-indicator ${user.activity?.type === 'streaming' ? 'streaming' : user.status}`}></div>
@@ -204,7 +206,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             whileHover={{ scale: 1.08, rotate: -8 }}
             transition={iosSpringSnappy}
           >
-            <BellIcon size={18} />
+            <BellIcon size={18 * interfaceScale} />
             {inboxUnreadCount > 0 && <div className="unread-badge sidebar-user-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
           </motion.button>
           <motion.button
@@ -215,7 +217,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             whileHover={{ scale: 1.08, rotate: -8 }}
             transition={iosSpringSnappy}
           >
-            <FlagIcon size={18} />
+            <FlagIcon size={18 * interfaceScale} />
           </motion.button>
           <motion.button
             className="logout-button"
@@ -225,7 +227,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             whileHover={{ scale: 1.08, rotate: -8 }}
             transition={iosSpringSnappy}
           >
-            <SettingsIcon size={20} />
+            <SettingsIcon size={20 * interfaceScale} />
           </motion.button>
         </div>
       </div>
