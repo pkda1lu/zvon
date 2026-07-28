@@ -7,6 +7,7 @@ import { useDialog } from '../../contexts/DialogContext';
 import { Permissions, hasPermission, computePermissions } from '../../utils/permissions';
 import { PlusIcon, SpeakerMutedIcon, BootIcon, HammerIcon } from '../../components/Icons';
 import '../../components/UserProfileCard.css';
+import UserAvatar from "../../components/UserAvatar";
 
 interface Props {
     server: Server;
@@ -167,10 +168,13 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                         <div key={uid} className="member-row-wrapper">
                             <div className="member-row" style={{ flexWrap: 'wrap', gap: '10px' }}>
                                 <div className="member-user-info" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                    <div className="member-avatar-small">
-                                        {getAvatarUrl(member.user.avatar) ? <img src={getAvatarUrl(member.user.avatar)!} alt="" /> : <span>{member.user.username.charAt(0).toUpperCase()}</span>}
-                                    </div>
-                                    <div className="member-meta">
+                                    <UserAvatar
+                                      user={member.user}
+                                      avatarOverride={member.avatar || undefined}
+                                      size={40}
+                                      className="member-avatar-small"
+                                      style={{ borderRadius: '10px', overflow: 'hidden' }}
+                                    />                                    <div className="member-meta">
                                         {editingNickname === uid ? (
                                             <input
                                                 className="settings-input"
@@ -187,7 +191,7 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                                                 title={canManageNicknames ? 'Изменить никнейм на сервере' : undefined}
                                                 onClick={() => { if (canManageNicknames) { setEditingNickname(uid); setNicknameValue(member.nickname || ''); } }}
                                             >
-                                                {member.nickname || member.user.username}
+                                                {member.nickname || member.user.displayName || member.user.username}
                                             </span>
                                         )}
                                         <div className="member-roles-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px', alignItems: 'center' }}>
