@@ -178,21 +178,25 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
     useEffect(() => {
         if (!position || !cardRef.current) return;
         const rect = cardRef.current.getBoundingClientRect();
+        
+        const scaledWidth = rect.width * interfaceScale;
+        const scaledHeight = rect.height * interfaceScale;
+
         let finalX = position.x + 20;
         let finalY = position.y;
 
-        if (finalX + rect.width > window.innerWidth) {
-            finalX = position.x - rect.width - 20;
+        if (finalX + scaledWidth > window.innerWidth) {
+            finalX = position.x - scaledWidth - 20;
         }
 
-        if (finalY + rect.height > window.innerHeight) {
-            finalY = position.y - rect.height;
+        if (finalY + scaledHeight > window.innerHeight) {
+            finalY = position.y - scaledHeight;
         }
 
-        if (finalY + rect.height > window.innerHeight) finalY = window.innerHeight - rect.height - 10;
+        if (finalY + scaledHeight > window.innerHeight) finalY = window.innerHeight - scaledHeight - 10;
         if (finalY < 10) finalY = 10;
         if (finalX < 10) finalX = 10;
-        if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 10;
+        if (finalX + scaledWidth > window.innerWidth) finalX = window.innerWidth - scaledWidth - 10;
 
         setAdjustedPos({ top: finalY, left: finalX });
         setIsVisible(true);

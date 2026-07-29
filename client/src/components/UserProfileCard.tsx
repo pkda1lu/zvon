@@ -58,6 +58,9 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             if (!cardRef.current || isDisposed) return;
             const rect = cardRef.current.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
+            
+            const scaledWidth = rect.width * interfaceScale;
+            const scaledHeight = rect.height * interfaceScale;
 
             const winW = window.innerWidth;
             const winH = window.innerHeight;
@@ -65,17 +68,17 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             let finalX = position.x + 20;
             let finalY = position.y;
 
-            if (finalX + rect.width > winW - 20) {
-                finalX = position.x - rect.width - 20;
+            if (finalX + scaledWidth > winW - 20) {
+                finalX = position.x - scaledWidth - 20;
             }
-            if (finalY + rect.height > winH - 20) {
-                finalY = position.y - rect.height;
+            if (finalY + scaledHeight > winH - 20) {
+                finalY = position.y - scaledHeight;
             }
 
-            if (finalY + rect.height > winH - 10) finalY = winH - rect.height - 10;
+            if (finalY + scaledHeight > winH - 10) finalY = winH - scaledHeight - 10;
             if (finalY < 10) finalY = 10;
             if (finalX < 10) finalX = 10;
-            if (finalX + rect.width > winW - 10) finalX = winW - rect.width - 10;
+            if (finalX + scaledWidth > winW - 10) finalX = winW - scaledWidth - 10;
 
             setAdjustedPos({ top: finalY, left: finalX });
             setIsVisible(true);
