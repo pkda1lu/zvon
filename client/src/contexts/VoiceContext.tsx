@@ -452,6 +452,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const screenStreamRef = useRef<MediaStream | null>(null);
     // Аудио-трек демонстрации (звук приложения через нативный драйвер, только Electron).
     const screenAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+    // Реакция на аварийный обрыв комнаты. Живёт в рефе, т.к. подписка вешается
+    // внутри joinChannel, а сам обработчик опирается на emitVoiceState, который
+    // объявлен ниже по файлу (прямая ссылка в deps дала бы TDZ-ошибку).
+    const onRoomDisconnectedRef = useRef<() => void>(() => {});
 
     // States
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -690,7 +694,34 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (pub?.track) handleLocalMicPublicationRef.current(pub);
     }, [noiseSuppressionMode]);
 
+    // Полная остановка захвата экрана: снимаем публикацию видео/звука, глушим
+    // нативный аудиозахват и отпускаем системный стрим (гаснет индикатор
+    // «идёт демонстрация» в ОС/браузере). Общая для явного выключения демки и
+    // для выхода из канала, чтобы состояние не «залипало».
+    const teardownScreenShare = useCallback(async () => {
+        if (screenAudioTrackRef.current) {
+            try { if (roomRef.current) await roomRef.current.localParticipant.unpublishTrack(screenAudioTrackRef.current); } catch (e) { console.warn('[Voice] unpublish screen audio failed:', e); }
+            try { screenAudioTrackRef.current.stop(); } catch {}
+            screenAudioTrackRef.current = null;
+        }
+        try { nativeAudioManager.stopCapture(); } catch (e) { console.warn('[Voice] nativeAudio stopCapture failed:', e); }
+        try {
+            if (roomRef.current) await roomRef.current.localParticipant.setScreenShareEnabled(false);
+        } catch (e) { console.warn('[Voice] setScreenShareEnabled(false) failed:', e); }
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(t => t.stop());
+            screenStreamRef.current = null;
+        }
+        setScreenStream(null);
+        setIsScreenSharing(false);
+    }, []);
+
     const leaveChannel = useCallback(async () => {
+        // Демонстрация не должна переживать выход из канала: раньше захват
+        // продолжал работать, а isScreenSharing оставался true — после быстрого
+        // перезахода UI показывал «фантомную» плитку стрима (и ронял рендер).
+        // Останавливаем ДО disconnect, пока публикацию ещё есть с чего снимать.
+        await teardownScreenShare();
         if (roomRef.current) await roomRef.current.disconnect();
         roomRef.current = null;
         if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
@@ -710,7 +741,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setRoomConnectionState(ConnectionState.Disconnected);
         if (socket && activeChannelIdRef.current) socket.emit('leave-voice-channel', { channelId: activeChannelIdRef.current });
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
-    }, [socket]);
+    }, [socket, teardownScreenShare]);
 
     const joinChannel = useCallback(async (channelId: string) => {
         if (isConnectedRef.current || roomRef.current) await leaveChannel();
@@ -783,6 +814,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             // Без этих подписок roomConnectionState навсегда оставался Disconnected,
             // и панель всегда показывала «Связь потеряна», даже при рабочем звонке.
             room.on(RoomEvent.ConnectionStateChanged, state => setRoomConnectionState(state));
+            // Комната закрылась окончательно (сеть отвалилась, сервер перезапустился).
+            // При штатном выходе демонстрация уже снята — обработчик это увидит и
+            // ничего не сделает; здесь важен именно аварийный случай.
+            room.on(RoomEvent.Disconnected, () => onRoomDisconnectedRef.current());
             room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
                 if (participant?.identity === room.localParticipant.identity) setConnectionQuality(quality);
             });
@@ -984,30 +1019,27 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [emitVoiceState]);
 
     const stopScreenShare = useCallback(async () => {
-        // Звук демонстрации: останавливаем нативный захват и снимаем трек с публикации.
-        if (screenAudioTrackRef.current) {
-            try { if (roomRef.current) await roomRef.current.localParticipant.unpublishTrack(screenAudioTrackRef.current); } catch (e) { console.warn('[Voice] unpublish screen audio failed:', e); }
-            try { screenAudioTrackRef.current.stop(); } catch {}
-            screenAudioTrackRef.current = null;
-        }
-        try { nativeAudioManager.stopCapture(); } catch (e) { console.warn('[Voice] nativeAudio stopCapture failed:', e); }
-
-        try {
-            if (roomRef.current) await roomRef.current.localParticipant.setScreenShareEnabled(false);
-        } catch (e) { console.warn('[Voice] setScreenShareEnabled(false) failed:', e); }
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(t => t.stop());
-            screenStreamRef.current = null;
-        }
-        setScreenStream(null);
-        setIsScreenSharing(false);
+        await teardownScreenShare();
         soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
         emitVoiceState({ isScreenSharing: false });
-    }, [emitVoiceState]);
+    }, [teardownScreenShare, emitVoiceState]);
 
     // Стабильная ссылка на stopScreenShare для обработчика 'ended' внутри start.
     const stopScreenShareRef = useRef(stopScreenShare);
     useEffect(() => { stopScreenShareRef.current = stopScreenShare; }, [stopScreenShare]);
+
+    // Аварийный обрыв комнаты: гасим демонстрацию, иначе захват экрана продолжит
+    // работать (в ОС висит «идёт демонстрация»), а участники будут видеть нас
+    // «в эфире». Проверка по рефам захвата отсекает штатный выход из канала —
+    // там teardownScreenShare уже отработал и делать нечего.
+    useEffect(() => {
+        onRoomDisconnectedRef.current = () => {
+            if (!screenStreamRef.current && !screenAudioTrackRef.current) return;
+            console.warn('[Voice] Комната оборвалась — останавливаю демонстрацию экрана');
+            teardownScreenShare();
+            emitVoiceState({ isScreenSharing: false });
+        };
+    }, [teardownScreenShare, emitVoiceState]);
 
     // Смотрящая сторона: включить/выключить просмотр чужой трансляции.
     // Поток уже приходит в remoteScreenStreams (авто-подписка), здесь только

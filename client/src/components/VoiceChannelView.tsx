@@ -119,7 +119,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const viewRef = useRef<HTMLDivElement>(null);
   const [ctrlsRect, setCtrlsRect] = useState<{ bottom: number, left: number, width: number } | null>(null);
 
-  const getDisplayName = (u: User) => server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.displayName || u.username;
+  // Участник может отсутствовать (гонка при перезаходе в канал) или прийти
+  // с непопулированным m.user — обе ситуации раньше роняли рендер на чтении _id.
+  const getDisplayName = (u?: User | null) => {
+    if (!u) return 'Участник';
+    return server.members.find(m => String((m.user as any)?._id || m.user) === String(u._id))?.nickname
+      || u.displayName || u.username;
+  };
   const isConnectedToThisChannel = isConnected && activeChannelId === channel._id;
   
   useEffect(() => {
@@ -177,9 +183,15 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
 
     switch (item.type) {
       case 'stream': {
-        const user = activeConnectedUsers.find(u => u._id === item.userId) || externalParticipants.find(u => u._id === item.userId);
-        const member = user ? server.members.find(m => String((m.user as any)._id || m.user) === String(user._id)) : null;
-        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user!) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} />;
+        // Автор трансляции может на миг отсутствовать в обоих списках: при быстром
+        // перезаходе в канал старый список участников уже без нас, а обновлённый
+        // ещё не пришёл. Для своей же демонстрации берём currentUser, иначе —
+        // безопасный фолбэк. Раньше здесь стоял getDisplayName(user!) и рендер
+        // падал с TypeError (белый экран вместо звонка).
+        const user = activeConnectedUsers.find(u => u._id === item.userId)
+          || externalParticipants.find(u => u._id === item.userId)
+          || (item.isMe ? currentUser : null);
+        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} />;
       }
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
