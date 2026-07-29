@@ -164,9 +164,14 @@ interface ServerProfileCardProps {
     onUserClick?: (userId: string, event?: React.MouseEvent) => void;
 }
 
+import { useAppearance } from '../contexts/AppearanceContext';
+
+// ... (imports)
+
 const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, onLeave, position, onUserClick }) => {
     const cardRef = useRef<HTMLDivElement>(null);
     const { confirm, alert } = useDialog();
+    const { interfaceScale } = useAppearance();
     const [adjustedPos, setAdjustedPos] = useState({ top: position?.y || 0, left: (position?.x || 0) + 20 });
     const [isVisible, setIsVisible] = useState(false);
 
@@ -191,7 +196,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
 
         setAdjustedPos({ top: finalY, left: finalX });
         setIsVisible(true);
-    }, [position]);
+    }, [position, interfaceScale]);
 
     const handleLeave = async () => {
         if (await confirm(`Вы уверены, что хотите покинуть сервер "${server.name}"?`)) {
@@ -215,7 +220,6 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                     top: adjustedPos.top,
                     left: adjustedPos.left,
                     visibility: isVisible ? 'visible' : 'hidden',
-                    transformOrigin: `${Math.max(0, position.x - adjustedPos.left)}px ${Math.max(0, position.y - adjustedPos.top)}px`,
                 } : undefined}
                 ref={cardRef}
                 variants={position ? popoverVariants : modalPopVariants}
@@ -223,12 +227,14 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                 animate={position ? (isVisible ? 'animate' : 'initial') : 'animate'}
                 transition={position ? popoverTransition : modalPopTransition}
             >
-                <div className="panel-hero-bg" aria-hidden="true">
-                    <div className="blob cyan" />
-                    <div className="blob purple" />
-                    <div className="blob pink" />
+                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: position ? 'top left' : 'center' }}>
+                    <div className="panel-hero-bg" aria-hidden="true">
+                        <div className="blob cyan" />
+                        <div className="blob purple" />
+                        <div className="blob pink" />
+                    </div>
+                    <ServerProfileCardBody server={server} onOwnerClick={onUserClick} onLeave={handleLeave} />
                 </div>
-                <ServerProfileCardBody server={server} onOwnerClick={onUserClick} onLeave={handleLeave} />
             </motion.div>
         </div>
     );

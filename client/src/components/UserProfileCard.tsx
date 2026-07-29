@@ -14,6 +14,8 @@ import {
 import ProfilePreview from './ProfilePreview';
 import './UserProfileCard.css';
 
+import { useAppearance } from '../contexts/AppearanceContext';
+
 interface UserProfileCardProps {
     userId: string;
     onClose: () => void;
@@ -26,6 +28,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const { socket } = useSocket();
     const { user: currentUser } = useAuth();
     const { alert, confirm } = useDialog();
+    const { interfaceScale } = useAppearance();
     const [profileData, setProfileData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -89,7 +92,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             clearTimeout(t2);
             clearTimeout(t3);
         };
-    }, [position, isPopout, profileData, loading]);
+    }, [position, isPopout, profileData, loading, interfaceScale]);
 
     useEffect(() => {
         if (socket && userId) {
@@ -185,7 +188,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         }
     };
 
-    if (error) return (
+        if (error) return (
         <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose}>
             <div
                 className={`user-profile-card error ${isPopout ? 'popout' : ''}`}
@@ -199,8 +202,10 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 } : undefined}
                 ref={cardRef}
             >
-                <p>{error}</p>
-                <button onClick={onClose}>Закрыть</button>
+                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: isPopout ? 'top left' : 'center' }}>
+                    <p>{error}</p>
+                    <button onClick={onClose}>Закрыть</button>
+                </div>
             </div>
         </div>
     );
@@ -219,9 +224,11 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 } : undefined}
                 ref={cardRef}
             >
-                <div className="profile-banner skeleton"></div>
-                <div className="profile-header"><div className="profile-avatar-container"><div className="profile-avatar skeleton"></div></div></div>
-                <div className="profile-body"><div className="skeleton-text large" style={{ width: '60%' }}></div></div>
+                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: isPopout ? 'top left' : 'center' }}>
+                    <div className="profile-banner skeleton"></div>
+                    <div className="profile-header"><div className="profile-avatar-container"><div className="profile-avatar skeleton"></div></div></div>
+                    <div className="profile-body"><div className="skeleton-text large" style={{ width: '60%' }}></div></div>
+                </div>
             </div>
         </div>
     );
@@ -311,18 +318,20 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 animate={isPopout ? (isVisible ? 'animate' : 'initial') : 'animate'}
                 transition={isPopout ? popoverTransition : modalPopTransition}
             >
-                <ProfilePreview
-                    user={user}
-                    memberData={memberData}
-                    server={server}
-                    type={type}
-                    onClose={onClose}
-                    onAvatarClick={handleAvatarClick}
-                    mutualFriends={mutualFriends}
-                    mutualServers={mutualServers}
-                    developments={developments}
-                    actionButtons={actionButtons}
-                />
+                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: isPopout ? 'top left' : 'center' }}>
+                    <ProfilePreview
+                        user={user}
+                        memberData={memberData}
+                        server={server}
+                        type={type}
+                        onClose={onClose}
+                        onAvatarClick={handleAvatarClick}
+                        mutualFriends={mutualFriends}
+                        mutualServers={mutualServers}
+                        developments={developments}
+                        actionButtons={actionButtons}
+                    />
+                </div>
             </motion.div>
         </div>
     );
