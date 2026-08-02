@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, LockIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, LockIcon, UsersIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import './panel-hero.css';
 import './ChannelView.css';
@@ -125,6 +125,7 @@ interface ChannelViewProps {
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
   onBack?: () => void;
   onToggleMembers?: () => void;
+  showMembersSidebar?: boolean;
   isMobile?: boolean;
 }
 
@@ -631,7 +632,7 @@ const MessageItem = React.memo<{
 const ChannelView: React.FC<ChannelViewProps> = ({
   channel, server, messages, socket, onUserClick, initialUnreadCount = 0,
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages,
-  onBack, onToggleMembers, isMobile
+  onBack, onToggleMembers, showMembersSidebar = true, isMobile
 }) => {
   const { user } = useAuth();
   const { confirm: customConfirm, alert } = useDialog();
@@ -1329,11 +1330,6 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         </div>
         {channel.topic && !isMobile && <div className="channel-topic">{channel.topic}</div>}
         <div style={{ flex: 1 }} />
-        {isMobile && onToggleMembers && (
-          <button className="header-action-btn" onClick={onToggleMembers} title="Участники">
-            <svg width={20 * interfaceScale} height={20 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-          </button>
-        )}
         <button
           className="header-action-btn"
           onClick={() => setShowSearch(s => !s)}
@@ -1348,6 +1344,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         >
           <PinIcon size={20 * interfaceScale} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
         </button>
+        {server.showMembersList !== false && onToggleMembers && (
+          <button
+            className={`voice-chat-toggle-btn ${showMembersSidebar ? 'active' : ''}`}
+            onClick={onToggleMembers}
+            title={showMembersSidebar ? "Скрыть список участников" : "Показать список участников"}
+          >
+            <UsersIcon size={18 * interfaceScale} />
+          </button>
+        )}
       </div>
 
       {showPins && (

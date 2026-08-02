@@ -152,6 +152,7 @@ const Main: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [mobileView, setMobileView] = useState<'sidebar' | 'content' | 'members'>('sidebar');
+  const [showMembersSidebar, setShowMembersSidebar] = useState<boolean>(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
 
@@ -1233,7 +1234,14 @@ const Main: React.FC = () => {
                         pinnedMessages={pinnedMessages}
                         setMessages={setMessages}
                         onBack={() => setMobileView('sidebar')}
-                        onToggleMembers={() => setMobileView((prev: string) => prev === 'members' ? 'content' : 'members')}
+                        onToggleMembers={() => {
+                          if (isMobile) {
+                            setMobileView((prev: string) => prev === 'members' ? 'content' : 'members');
+                          } else {
+                            setShowMembersSidebar(prev => !prev);
+                          }
+                        }}
+                        showMembersSidebar={isMobile ? mobileView === 'members' : showMembersSidebar}
                         isMobile={isMobile}
                       />
                     </div>
@@ -1282,7 +1290,14 @@ const Main: React.FC = () => {
                             pinnedMessages={pinnedMessages}
                             setMessages={setMessages}
                             onBack={() => setMobileView('sidebar')}
-                            onToggleMembers={() => setMobileView((prev: string) => prev === 'members' ? 'content' : 'members')}
+                            onToggleMembers={() => {
+                              if (isMobile) {
+                                setMobileView((prev: string) => prev === 'members' ? 'content' : 'members');
+                              } else {
+                                setShowMembersSidebar(prev => !prev);
+                              }
+                            }}
+                            showMembersSidebar={isMobile ? mobileView === 'members' : showMembersSidebar}
                             isMobile={isMobile}
                           />
                         </div>
@@ -1356,7 +1371,7 @@ const Main: React.FC = () => {
             );
           })()}
 
-          {selectedServer && selectedServer.showMembersList !== false && !showFriends && selectedChannel?.type !== 'voice' && ((!isMobile || mobileView === 'members')) && (
+          {selectedServer && selectedServer.showMembersList !== false && !showFriends && selectedChannel?.type !== 'voice' && (isMobile ? mobileView === 'members' : showMembersSidebar) && (
             <div className={`members-sidebar-wrapper ${isMobile ? 'is-mobile' : ''}`}>
               <ServerMembers
                 server={selectedServer}

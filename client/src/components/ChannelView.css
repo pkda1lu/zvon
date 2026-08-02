@@ -23,9 +23,36 @@
   padding: 0 calc(24px * var(--interface-scale, 1));
   display: flex;
   align-items: center;
+  gap: calc(8px * var(--interface-scale, 1));
   border-bottom: 1px solid var(--glass-border);
   background: var(--glass-bg-subtle);
   box-shadow: 0 calc(4px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.1);
+}
+
+.voice-chat-toggle-btn {
+  width: calc(32px * var(--interface-scale, 1));
+  height: calc(32px * var(--interface-scale, 1));
+  border-radius: calc(10px * var(--interface-scale, 1));
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.voice-chat-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.voice-chat-toggle-btn.active {
+  background: rgba(0, 229, 255, 0.12);
+  border-color: var(--primary-neon);
+  color: var(--primary-neon);
 }
 
 .channel-header-info {
