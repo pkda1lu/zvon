@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import AnimatedOverlay from '../animations/AnimatedOverlay';
 import { Channel, Server, Role, PermissionOverwrite } from '../types';
@@ -8,6 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import { CloseIcon, TrashIcon, PlusIcon } from './Icons';
 import './ChannelSettingsModal.css';
 import UserAvatar from "./UserAvatar";
+import { SettingsToggle, RangeSlider } from '../pages/settings/SettingsUI';
 
 interface ChannelSettingsModalProps {
     isOpen: boolean;
@@ -20,18 +21,18 @@ interface ChannelSettingsModalProps {
 
 type Tab = 'overview' | 'permissions';
 
-// Шаги слайдера медленного режима (индекс 0..10 → секунды), как в Discord.
-const SLOW_STEPS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 3600, 21600];
-const fmtSlow = (s: number): string => {
-    if (!s) return 'Выкл';
-    if (s < 60) return `${s} сек`;
-    if (s < 3600) return `${s / 60} мин`;
-    return `${s / 3600} ч`;
-};
-const slowToIdx = (s: number): number => {
-    let best = 0;
-    for (let i = 0; i < SLOW_STEPS.length; i++) if (SLOW_STEPS[i] <= s) best = i;
-    return best;
+const COOLDOWN_UNITS = [
+    { value: 1, label: 'секунд' },
+    { value: 60, label: 'минут' },
+    { value: 3600, label: 'часов' },
+];
+
+const decomposeSlowMode = (seconds: number): { amount: number; unit: number } => {
+    if (!seconds) return { amount: 10, unit: 1 };
+    for (const u of [...COOLDOWN_UNITS].reverse()) {
+        if (seconds % u.value === 0 && seconds / u.value >= 1) return { amount: seconds / u.value, unit: u.value };
+    }
+    return { amount: seconds, unit: 1 };
 };
 
 const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
@@ -52,16 +53,29 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     const [loading, setLoading] = useState(false);
     const [showAddAccessDropdown, setShowAddAccessDropdown] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedOverwriteId, setSelectedOverwriteId] = useState<string | null>(null);
 
     const [bitrate, setBitrate] = useState(64);
     const [userLimit, setUserLimit] = useState(0);
-    const [slowIdx, setSlowIdx] = useState(0);
+
+    const initialSlow = (channel as any).slowMode || 0;
+    const initialDecomposed = decomposeSlowMode(initialSlow);
+    const [slowModeEnabled, setSlowModeEnabled] = useState(initialSlow > 0);
+    const [slowAmount, setSlowAmount] = useState(initialDecomposed.amount);
+    const [slowUnit, setSlowUnit] = useState(initialDecomposed.unit);
+
+    const isPrivate = !!overwrites.find(o => String(o.id) === String(server._id))?.deny;
 
     useEffect(() => {
         setName(channel.name);
         setTopic(channel.topic || '');
         setOverwrites(channel.permissionOverwrites || []);
-        setSlowIdx(slowToIdx((channel as any).slowMode || 0));
+        const s = (channel as any).slowMode || 0;
+        setSlowModeEnabled(s > 0);
+        const d = decomposeSlowMode(s);
+        setSlowAmount(d.amount);
+        setSlowUnit(d.unit);
+
         if (channel.type === 'voice') {
             setBitrate(((channel as any).bitrate || 64000) / 1000);
             setUserLimit((channel as any).userLimit || 0);
@@ -69,28 +83,58 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
         setActiveTab('overview');
     }, [channel]);
 
-    const handleSave = async () => {
-        setLoading(true);
+    const channelStateRef = useRef({ name, topic, overwrites, slowModeEnabled, slowAmount, slowUnit, bitrate, userLimit });
+    useEffect(() => {
+        channelStateRef.current = { name, topic, overwrites, slowModeEnabled, slowAmount, slowUnit, bitrate, userLimit };
+    }, [name, topic, overwrites, slowModeEnabled, slowAmount, slowUnit, bitrate, userLimit]);
+
+    const saveField = useCallback(async (updates: Partial<{ name: string; topic: string; permissionOverwrites: PermissionOverwrite[]; slowMode: number; bitrate: number; userLimit: number }>) => {
         try {
-            const payload: any = {
-                name,
-                topic,
-                permissionOverwrites: overwrites
-            };
-            if (channel.type === 'voice') {
-                payload.bitrate = bitrate * 1000;
-                payload.userLimit = userLimit;
-            } else {
-                payload.slowMode = SLOW_STEPS[slowIdx];
-            }
-            const res = await axios.put(`/api/channels/${channel._id}`, payload);
+            const res = await axios.put(`/api/channels/${channel._id}`, updates);
             onChannelUpdate(res.data);
-            // We can add a success toast here if available, or just clear the dirty state
         } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
+            console.error('Failed to update channel field', err);
         }
+    }, [channel._id, onChannelUpdate]);
+
+    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const updateNameField = (val: string) => {
+        setName(val);
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => {
+            saveField({ name: val });
+        }, 800);
+    };
+
+    const updateTopicField = (val: string) => {
+        setTopic(val);
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => {
+            saveField({ topic: val });
+        }, 800);
+    };
+
+    const handleCloseModal = () => {
+        if (debounceTimer.current) {
+            clearTimeout(debounceTimer.current);
+        }
+        const st = channelStateRef.current;
+        const payload: any = {
+            name: st.name,
+            topic: st.topic,
+            permissionOverwrites: st.overwrites
+        };
+        if (channel.type === 'voice') {
+            payload.bitrate = st.bitrate * 1000;
+            payload.userLimit = st.userLimit;
+        } else {
+            payload.slowMode = st.slowModeEnabled ? (Math.max(1, st.slowAmount) * st.slowUnit) : 0;
+        }
+        axios.put(`/api/channels/${channel._id}`, payload)
+            .then(res => onChannelUpdate(res.data))
+            .catch(err => console.error(err))
+            .finally(() => onClose());
     };
 
     const handleDelete = async () => {
@@ -114,190 +158,201 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
             newOverwrites[index] = { id, type, allow: allow.toString(), deny: deny.toString() };
         }
         setOverwrites(newOverwrites);
+        setSelectedOverwriteId(id);
+        saveField({ permissionOverwrites: newOverwrites });
     };
 
     const removeOverwrite = (id: string) => {
-        setOverwrites(overwrites.filter(o => o.id !== id));
+        const newOverwrites = overwrites.filter(o => o.id !== id);
+        setOverwrites(newOverwrites);
+        if (selectedOverwriteId === id) setSelectedOverwriteId(null);
+        saveField({ permissionOverwrites: newOverwrites });
     };
 
-    const isDirty = name !== channel.name ||
-        topic !== (channel.topic || '') ||
-        (channel.type === 'voice' && (bitrate !== (((channel as any).bitrate || 64000) / 1000) || userLimit !== ((channel as any).userLimit || 0))) ||
-        (channel.type !== 'voice' && SLOW_STEPS[slowIdx] !== ((channel as any).slowMode || 0)) ||
-        JSON.stringify(overwrites) !== JSON.stringify(channel.permissionOverwrites);
+    const handleSlowToggle = (enabled: boolean) => {
+        setSlowModeEnabled(enabled);
+        const sec = enabled ? (Math.max(1, slowAmount) * slowUnit) : 0;
+        saveField({ slowMode: sec });
+    };
+
+    const handleSlowAmountChange = (amt: number) => {
+        const safeAmt = Math.max(1, amt || 1);
+        setSlowAmount(safeAmt);
+        if (slowModeEnabled) {
+            saveField({ slowMode: safeAmt * slowUnit });
+        }
+    };
+
+    const handleSlowUnitChange = (u: number) => {
+        setSlowUnit(u);
+        if (slowModeEnabled) {
+            saveField({ slowMode: Math.max(1, slowAmount) * u });
+        }
+    };
+
+    const NavItem = ({ id, label }: { id: Tab; label: string }) => (
+        <div className={`settings-sidebar-item ${activeTab === id ? 'active' : ''}`} onClick={() => { setActiveTab(id); if (isMobile) setMobileViewState('content'); }}>
+            <div className="sidebar-item-content">
+                <span>{label}</span>
+            </div>
+            {activeTab === id && <div className="active-indicator" />}
+        </div>
+    );
+
+    const customAccessList = overwrites.filter(o => String(o.id) !== String(server._id));
+    const selectedOverwrite = customAccessList.find(o => String(o.id) === String(selectedOverwriteId)) || customAccessList[0] || null;
 
     return (
         <AnimatedOverlay
             isOpen={isOpen}
-            onClose={onClose}
-            overlayClassName="channel-settings-modal-overlay"
-            contentClassName="channel-settings-modal"
+            onClose={handleCloseModal}
+            overlayClassName="settings-overlay"
+            contentClassName="server-settings-passthrough server-settings-layout-content"
             variant="fade"
         >
-            <div style={{ display: 'contents' }}>
+            <>
                 {(!isMobile || mobileViewState === 'tabs') && (
-                    <div className="channel-settings-sidebar">
-                        <div className="sidebar-header">{channel.type === 'voice' ? '🔊' : '# '} {channel.name}</div>
+                    <div className="settings-sidebar">
+                        <div className="settings-sidebar-header">{channel.type === 'voice' ? '🔊' : '#'} {channel.name}</div>
 
-                        <div className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => { setActiveTab('overview'); if (isMobile) setMobileViewState('content'); }}>
-                            Обзор
-                        </div>
-                        <div className={`sidebar-item ${activeTab === 'permissions' ? 'active' : ''}`} onClick={() => { setActiveTab('permissions'); if (isMobile) setMobileViewState('content'); }}>
-                            Права доступа
-                        </div>
+                        <div className="settings-sidebar-header settings-sidebar-category">Настройки</div>
+                        <NavItem id="overview" label="Обзор" />
+                        <NavItem id="permissions" label="Права доступа" />
 
                         <div style={{ flex: 1 }} />
-                        <div className="sidebar-item danger" onClick={handleDelete}>
-                            Удалить канал
+                        <div className="settings-sidebar-divider" />
+                        <div className="settings-sidebar-item danger" onClick={handleDelete}>
+                            <div className="sidebar-item-content">
+                                <TrashIcon size={18} />
+                                <span>Удалить канал</span>
+                            </div>
                         </div>
-                        {isMobile && <div className="sidebar-item" onClick={onClose} style={{ marginTop: 'auto', background: 'rgba(255,255,254,0.05)' }}>Закрыть</div>}
+                        {isMobile && <div className="settings-sidebar-item" onClick={handleCloseModal}>Закрыть</div>}
                     </div>
                 )}
 
                 {(!isMobile || mobileViewState === 'content') && (
-                    <div className="channel-settings-content">
+                    <div className="settings-content-wrapper">
                         {isMobile ? (
-                            <div className="mobile-settings-header" style={{ 
-                                height: '56px', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                padding: 'max(env(safe-area-inset-top), 40px) 16px 8px', 
-                                borderBottom: '1px solid rgba(255,255,255,0.1)',
-                                boxSizing: 'content-box',
-                                background: 'rgba(0,0,0,0.2)',
-                                backdropFilter: 'blur(10px)'
-                            }}>
-                                <button className="back-button" onClick={() => setMobileViewState('tabs')} style={{ marginRight: '16px' }}>
+                            <div className="mobile-settings-header">
+                                <button className="back-button" onClick={() => setMobileViewState('tabs')}>
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                                 </button>
-                                <span style={{ fontWeight: 800, fontSize: '16px' }}>
+                                <span style={{ fontWeight: 800, fontSize: '18px' }}>
                                     {activeTab === 'overview' && 'Обзор'}
-                                    {activeTab === 'permissions' && 'Права'}
+                                    {activeTab === 'permissions' && 'Права доступа'}
                                 </span>
                             </div>
                         ) : (
-                            <div className="close-settings-button" onClick={onClose}>
-                                <div className="close-icon-wrapper"><CloseIcon size={20} /></div>
-                                <span className="close-text">ESC</span>
-                            </div>
+                            <button className="settings-close-btn" onClick={handleCloseModal}>
+                                <CloseIcon size={20} />
+                            </button>
                         )}
 
-                    <div className="content-scroll-area">
+                        <div className={`settings-content-inner ${activeTab === 'permissions' ? 'full-width-layout' : ''}`}>
                         {activeTab === 'overview' && (
                             <div className="settings-section">
-                                <h2 className="settings-title">Обзор</h2>
+                                <h2 className="settings-page-title">Обзор</h2>
 
-                                <div className="channel-settings-input-group">
-                                    <label>Название канала</label>
-                                    <div className="input-wrapper-with-icon">
-                                        <input
-                                            className="channel-settings-input"
-                                            value={name}
-                                            onChange={(e) => setName(e.target.value)}
-                                            maxLength={32}
-                                            placeholder="Напишите название..."
-                                        />
-                                        <span className="input-emoji-icon">✨</span>
+                                <div className="settings-card">
+                                    <h3 className="settings-section-title" style={{ marginTop: 0 }}>Название канала</h3>
+                                    <input
+                                        className="settings-input"
+                                        value={name}
+                                        onChange={(e) => updateNameField(e.target.value)}
+                                        maxLength={64}
+                                        placeholder="Напишите название..."
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                                        <span className="char-counter">{64 - name.length} символов осталось</span>
                                     </div>
                                 </div>
 
                                 {channel.type === 'text' && (
                                     <>
-                                        <div className="settings-divider" />
-                                        <div className="channel-settings-input-group">
-                                            <label>Тема канала</label>
-                                            <div className="textarea-container">
-                                                <div className="textarea-toolbar">
-                                                    <button title="Bold">B</button>
-                                                    <button title="Italic">I</button>
-                                                    <button title="Strike">S</button>
-                                                    <button title="Code">{"< >"}</button>
-                                                </div>
-                                                <textarea
-                                                    className="channel-settings-textarea"
-                                                    value={topic}
-                                                    onChange={(e) => setTopic(e.target.value)}
-                                                    placeholder="Расскажите всем, о чем этот канал..."
-                                                    maxLength={1024}
-                                                />
-                                                <div className="textarea-footer">
-                                                    <span className="char-counter">{1024 - topic.length} символов осталось</span>
-                                                    <span className="input-emoji-icon" style={{ position: 'relative', top: 0, right: 0, transform: 'none' }}>😊</span>
-                                                </div>
+                                        <div className="settings-card">
+                                            <h3 className="settings-section-title" style={{ marginTop: 0 }}>Описание канала</h3>
+                                            <textarea
+                                                className="settings-textarea"
+                                                value={topic}
+                                                onChange={(e) => updateTopicField(e.target.value)}
+                                                placeholder="Расскажите всем, о чем этот канал..."
+                                                maxLength={1024}
+                                                style={{ minHeight: '120px' }}
+                                            />
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                                                <span className="char-counter">{1024 - topic.length} символов осталось</span>
                                             </div>
                                         </div>
 
-                                        <div className="settings-divider" />
-                                        <div className="channel-settings-input-group">
-                                            <label>Медленный режим — {fmtSlow(SLOW_STEPS[slowIdx])}</label>
-                                            <div className="slow-mode-container">
-                                                <div className="slow-mode-labels">
-                                                    <span>Без задержки</span>
-                                                    <span>6 часов</span>
+                                        <div className="settings-card">
+                                            <div className="settings-row">
+                                                <div className="settings-row-text">
+                                                    <h3>Медленный режим</h3>
+                                                    <p>Таймер для кулдауна между сообщениями пользователя в данном текстовом канале.</p>
                                                 </div>
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max={SLOW_STEPS.length - 1}
-                                                    step="1"
-                                                    className="slow-mode-slider"
-                                                    value={slowIdx}
-                                                    onChange={(e) => setSlowIdx(parseInt(e.target.value, 10))}
-                                                />
-                                                <p className="settings-description">
-                                                    Участники смогут отправлять сообщения только один раз в заданный промежуток времени.
-                                                </p>
+                                                <SettingsToggle checked={slowModeEnabled} onChange={handleSlowToggle} />
                                             </div>
+                                            {slowModeEnabled && (
+                                                <>
+                                                    <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
+                                                    <div style={{ display: 'flex', gap: '10px', maxWidth: '320px' }}>
+                                                        <input
+                                                            type="number"
+                                                            min={1}
+                                                            className="settings-input"
+                                                            style={{ flex: 1 }}
+                                                            value={slowAmount}
+                                                            onChange={(e) => handleSlowAmountChange(parseInt(e.target.value))}
+                                                        />
+                                                        <select
+                                                            className="settings-input"
+                                                            style={{ flex: 1 }}
+                                                            value={slowUnit}
+                                                            onChange={(e) => handleSlowUnitChange(parseInt(e.target.value))}
+                                                        >
+                                                            {COOLDOWN_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </>
                                 )}
 
                                 {channel.type === 'voice' && (
                                     <>
-                                        <div className="settings-divider" />
-                                        <div className="channel-settings-input-group">
-                                            <label>Битрейт — {bitrate} kbps</label>
-                                            <div className="slow-mode-container">
-                                                <div className="slow-mode-labels">
-                                                    <span>8kbps</span>
-                                                    <span>96kbps</span>
+                                        <div className="settings-card">
+                                            <div className="settings-row" style={{ marginBottom: 16 }}>
+                                                <div className="settings-row-text">
+                                                    <h3>Битрейт — {bitrate} kbps</h3>
+                                                    <p>Более высокий битрейт улучшает качество звука, но требует больше трафика.</p>
                                                 </div>
-                                                <input
-                                                    type="range"
-                                                    min="8"
-                                                    max="96"
-                                                    step="8"
-                                                    className="slow-mode-slider"
-                                                    value={bitrate}
-                                                    onChange={(e) => setBitrate(parseInt(e.target.value))}
-                                                />
-                                                <p className="settings-description">
-                                                    Более высокий битрейт улучшает качество звука, но требует больше трафика.
-                                                </p>
                                             </div>
+                                            <RangeSlider
+                                                min={8}
+                                                max={96}
+                                                step={8}
+                                                value={bitrate}
+                                                onChange={(val) => { setBitrate(val); saveField({ bitrate: val * 1000 }); }}
+                                                unit=" kbps"
+                                            />
                                         </div>
 
-                                        <div className="settings-divider" />
-                                        <div className="channel-settings-input-group">
-                                            <label>Лимит пользователей — {userLimit === 0 ? 'Без лимита' : userLimit}</label>
-                                            <div className="slow-mode-container">
-                                                <div className="slow-mode-labels">
-                                                    <span>0</span>
-                                                    <span>99</span>
+                                        <div className="settings-card">
+                                            <div className="settings-row" style={{ marginBottom: 16 }}>
+                                                <div className="settings-row-text">
+                                                    <h3>Лимит пользователей — {userLimit === 0 ? 'Без лимита' : userLimit}</h3>
+                                                    <p>Ограничьте количество пользователей, которые могут одновременно находиться в канале.</p>
                                                 </div>
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="99"
-                                                    step="1"
-                                                    className="slow-mode-slider"
-                                                    value={userLimit}
-                                                    onChange={(e) => setUserLimit(parseInt(e.target.value))}
-                                                />
-                                                <p className="settings-description">
-                                                    Ограничьте количество пользователей, которые могут одновременно находиться в канале.
-                                                </p>
                                             </div>
+                                            <RangeSlider
+                                                min={0}
+                                                max={99}
+                                                step={1}
+                                                value={userLimit}
+                                                onChange={(val) => { setUserLimit(val); saveField({ userLimit: val }); }}
+                                            />
                                         </div>
                                     </>
                                 )}
@@ -305,45 +360,37 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                         )}
 
                         {activeTab === 'permissions' && (
-                            <div className="settings-section">
-                                <h2 className="settings-title">Права доступа</h2>
-                                <p className="settings-subtitle">Настройте, кто может видеть и взаимодействовать с этим каналом.</p>
+                            <div>
+                                <h2 className="settings-page-title">Права доступа</h2>
+                                <p className="settings-description">Настройте приватность канала и индивидуальные разрешения для ролей и участников.</p>
 
-                                <div className="private-channel-card">
-                                    <div className="private-header">
-                                        <div className="private-title-group">
-                                            <div className="private-icon-lock">🛡️</div>
-                                            <div className="private-text-group">
-                                                <div className="private-title">Приватный канал</div>
-                                                <div className="private-description">Только выбранные участники и роли смогут видеть этот канал.</div>
-                                            </div>
+                                <div className="settings-card">
+                                    <div className="settings-row">
+                                        <div className="settings-row-text">
+                                            <h3>Приватный канал</h3>
+                                            <p>Только выбранные участники и роли смогут видеть этот канал.</p>
                                         </div>
-                                        <div
-                                            className={`toggle-switch ${overwrites.find(o => String(o.id) === String(server._id))?.deny ? 'active' : ''}`}
-                                            onClick={() => {
+                                        <SettingsToggle
+                                            checked={isPrivate}
+                                            onChange={(checked) => {
                                                 const everyoneId = String(server._id);
-                                                const existing = overwrites.find(o => String(o.id) === everyoneId);
-                                                const isPrivate = !!existing?.deny;
-
-                                                if (!isPrivate) {
+                                                if (checked) {
                                                     updateOverwrite(everyoneId, 'role', 0n, Permissions.VIEW_CHANNEL);
                                                 } else {
                                                     removeOverwrite(everyoneId);
                                                 }
                                             }}
-                                        >
-                                            <div className="toggle-knob" />
-                                        </div>
+                                        />
                                     </div>
+                                </div>
 
-                                    <div className="access-divider" />
-
-                                    <div className="access-section">
-                                        <div className="access-header">
-                                            <span className="access-label">Доступ к каналу</span>
-                                            <div className="add-access-container" style={{ position: 'relative' }}>
-                                                <button className="add-access-btn" onClick={() => setShowAddAccessDropdown(!showAddAccessDropdown)}>
-                                                    Добавить роли/участников
+                                {isPrivate && (
+                                    <>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                            <h3 className="settings-section-title" style={{ margin: 0 }}>Исключения прав канала</h3>
+                                            <div style={{ position: 'relative' }}>
+                                                <button className="settings-btn" onClick={() => setShowAddAccessDropdown(!showAddAccessDropdown)}>
+                                                    <PlusIcon size={16} /> Добавить роль/участника
                                                 </button>
 
                                                 {showAddAccessDropdown && (
@@ -371,7 +418,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                                         setShowAddAccessDropdown(false);
                                                                         setSearchTerm('');
                                                                     }}>
-                                                                        <div className="role-shield-icon" style={{ background: role.color, width: 24, height: 24, fontSize: 12 }}>🛡️</div>
+                                                                        <div className="server-role-dot" style={{ backgroundColor: role.color, color: role.color }} />
                                                                         <span>{role.name}</span>
                                                                     </div>
                                                                 ))
@@ -380,13 +427,18 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                             <div className="dropdown-section-title">Участники</div>
                                                             {server.members
                                                                 .filter(m => {
-                                                                    const userId = String(m.user._id || m.user);
-                                                                    const username = m.user.username || '';
+                                                                    if (!m) return false;
+                                                                    const mUser = typeof m.user === 'object' ? m.user : null;
+                                                                    const userId = String(mUser?._id || m.user);
+                                                                    const username = mUser?.username || '';
                                                                     return !overwrites.find(o => String(o.id) === userId) &&
                                                                         username.toLowerCase().includes(searchTerm.toLowerCase());
                                                                 })
                                                                 .map(member => {
-                                                                    const userId = String(member.user._id || member.user);
+                                                                    const mUser = typeof member.user === 'object' ? member.user : null;
+                                                                    const userId = String(mUser?._id || member.user);
+                                                                    if (!mUser) return null;
+
                                                                     return (
                                                                         <div key={userId} className="dropdown-item" onClick={() => {
                                                                             updateOverwrite(userId, 'member', Permissions.VIEW_CHANNEL, 0n);
@@ -394,12 +446,12 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                                             setSearchTerm('');
                                                                         }}>
                                                                             <UserAvatar
-                                                                              user={member.user}
+                                                                              user={mUser}
                                                                               avatarOverride={member.avatar || undefined}
                                                                               size={24}
                                                                               className="member-avatar-mini"
                                                                             />
-                                                                            <span>{member.nickname || member.user.displayName || member.user.username}</span>
+                                                                            <span>{member.nickname || mUser.displayName || mUser.username}</span>
                                                                         </div>
                                                                     );
                                                                 })
@@ -410,65 +462,113 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                             </div>
                                         </div>
 
-                                        <div className="roles-access-list">
-                                            <div className="access-list-header">Роли и участники с доступом</div>
-                                            {overwrites.filter(o => String(o.id) !== String(server._id)).map(ow => {
-                                                const role = server.roles.find(r => String(r._id) === String(ow.id));
-                                                const member = !role ? server.members.find(m => String(m.user._id || m.user) === String(ow.id)) : null;
+                                        <div className="roles-layout">
+                                            <div className="roles-list-column">
+                                                {customAccessList.map((ow) => {
+                                                    const role = server.roles.find(r => String(r._id) === String(ow.id));
+                                                    const member = !role ? server.members.find(m => {
+                                                        if (!m) return false;
+                                                        const mId = typeof m.user === 'object' ? m.user?._id : m.user;
+                                                        return String(mId) === String(ow.id);
+                                                    }) : null;
+                                                    if (!role && !member) return null;
 
-                                                if (!role && !member) return null;
+                                                    const memberUser = typeof member?.user === 'object' ? member.user : null;
+                                                    const displayName = role ? role.name : member?.nickname || memberUser?.displayName || memberUser?.username || 'Участник';
+                                                    const color = role ? role.color : '#b5bac1';
+                                                    const isSelected = selectedOverwrite && String(selectedOverwrite.id) === String(ow.id);
 
-                                                const name = role ? role.name : member?.nickname || member?.user.displayName || member?.user.username;
-                                                const color = role ? role.color : '#b5bac1';
-                                                const isAdmin = role ? (BigInt(role.permissions) & Permissions.ADMINISTRATOR) === Permissions.ADMINISTRATOR : false;
-
-                                                return (
-                                                    <div key={ow.id} className="role-access-item">
-                                                        <div className="role-access-left">
-                                                            {role ? (
-                                                                <div className="role-shield-icon" style={{ background: color }}>🛡️</div>
-                                                            ) : (
-                                                                <UserAvatar
-                                                                  user={member!.user}
-                                                                  avatarOverride={member!.avatar || undefined}
-                                                                  size={24}
-                                                                  className="member-avatar-mini"
-                                                                />
-                                                            )}
-                                                            <span className="role-access-name">{name}</span>
+                                                    return (
+                                                        <div
+                                                            key={ow.id}
+                                                            className={`server-role-row ${isSelected ? 'active' : ''}`}
+                                                            onClick={() => setSelectedOverwriteId(ow.id)}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                                                                {role ? (
+                                                                    <div className="server-role-dot" style={{ backgroundColor: color, color: color }} />
+                                                                ) : memberUser ? (
+                                                                    <UserAvatar
+                                                                        user={memberUser}
+                                                                        avatarOverride={member?.avatar || undefined}
+                                                                        size={20}
+                                                                    />
+                                                                ) : (
+                                                                    <div className="server-role-dot" style={{ backgroundColor: '#b5bac1' }} />
+                                                                )}
+                                                                <span style={{ color: role ? color : '#fff', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    {displayName}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                        <div className="role-access-right">
-                                                            <span className="role-type-badge">{isAdmin ? 'Администратор' : (role ? 'Роль' : 'Участник')}</span>
-                                                            <button className="remove-role-access" onClick={() => removeOverwrite(ow.id)}>✕</button>
+                                                    );
+                                                })}
+                                                {customAccessList.length === 0 && (
+                                                    <div className="server-settings-empty-state">Нет ни одной роли или участника с персональным доступом.</div>
+                                                )}
+                                            </div>
+
+                                            <div className="roles-detail-column">
+                                                {selectedOverwrite ? (() => {
+                                                    const role = server.roles.find(r => String(r._id) === String(selectedOverwrite.id));
+                                                    const member = !role ? server.members.find(m => {
+                                                        if (!m) return false;
+                                                        const mId = typeof m.user === 'object' ? m.user?._id : m.user;
+                                                        return String(mId) === String(selectedOverwrite.id);
+                                                    }) : null;
+                                                    const memberUser = typeof member?.user === 'object' ? member.user : null;
+                                                    const displayName = role ? role.name : member?.nickname || memberUser?.displayName || memberUser?.username || 'Участник';
+                                                    const color = role ? role.color : '#b5bac1';
+                                                    const isAdmin = role ? (BigInt(role.permissions) & Permissions.ADMINISTRATOR) === Permissions.ADMINISTRATOR : false;
+
+                                                    return (
+                                                        <div className="server-role-editor" key={selectedOverwrite.id}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                                    {role ? (
+                                                                        <div className="server-role-dot" style={{ backgroundColor: color, width: 14, height: 14 }} />
+                                                                    ) : memberUser ? (
+                                                                        <UserAvatar user={memberUser} avatarOverride={member?.avatar || undefined} size={28} />
+                                                                    ) : (
+                                                                        <div className="server-role-dot" style={{ backgroundColor: '#b5bac1', width: 14, height: 14 }} />
+                                                                    )}
+                                                                    <h3 className="settings-page-title" style={{ marginBottom: 0, fontSize: '20px' }}>{displayName}</h3>
+                                                                    <span className="role-type-badge">{isAdmin ? 'Администратор' : (role ? 'Роль' : 'Участник')}</span>
+                                                                </div>
+                                                                <button className="settings-btn danger" onClick={() => removeOverwrite(selectedOverwrite.id)}>
+                                                                    <TrashIcon size={16} /> Удалить доступ
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="settings-card" style={{ background: 'rgba(0,0,0,0.15)' }}>
+                                                                <div className="settings-row">
+                                                                    <div className="settings-row-text">
+                                                                        <h3>Просмотр канала</h3>
+                                                                        <p>Разрешить {role ? 'роли' : 'участнику'} видеть данный канал и его историю сообщений.</p>
+                                                                    </div>
+                                                                    <SettingsToggle
+                                                                        checked={true}
+                                                                        onChange={(checked) => {
+                                                                            if (!checked) removeOverwrite(selectedOverwrite.id);
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                    );
+                                                })() : (
+                                                    <div className="server-settings-empty-state">Выберите роль или участника слева для просмотра разрешений.</div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
-
-                    {isDirty && (
-                        <div className="channel-save-changes-bar slide-up">
-                            <span className="channel-save-changes-text">Осторожно! У вас есть несохраненные изменения!</span>
-                            <div className="channel-save-changes-buttons">
-                                <button className="channel-reset-button" onClick={() => {
-                                    setName(channel.name);
-                                    setTopic(channel.topic || '');
-                                    setOverwrites(channel.permissionOverwrites || []);
-                                }}>Сбросить</button>
-                                <button className="channel-save-button" onClick={handleSave} disabled={loading}>
-                                    {loading ? 'Загрузка...' : 'Сохранить изменения'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                        </div>
+                    </div>
                 )}
-            </div>
+            </>
         </AnimatedOverlay>
     );
 };
