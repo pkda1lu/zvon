@@ -241,7 +241,7 @@ const AppearanceSettings: React.FC = () => {
                 <div className="appearance-preview-sticky">
                     <div className="preview-label">Предпросмотр интерфейса</div>
                     <div className="interface-preview-scaling-container">
-                        <InterfacePreview settings={appearance} scale={previewScale} />
+                        <InterfacePreview settings={appearance} scale={previewScale * (appearance.interfaceScale || 1)} />
                     </div>
                 </div>
             </div>

@@ -1,14 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppearance } from '../../contexts/AppearanceContext';
 import { RangeSlider } from './SettingsUI';
 
 const ScalingSettings: React.FC = () => {
     const { interfaceScale, setInterfaceScale } = useAppearance();
+    const [localScale, setLocalScale] = useState(interfaceScale);
+    const setInterfaceScaleRef = useRef(setInterfaceScale);
+    const localScaleRef = useRef(localScale);
+
+    useEffect(() => {
+        setInterfaceScaleRef.current = setInterfaceScale;
+    }, [setInterfaceScale]);
+
+    useEffect(() => {
+        localScaleRef.current = localScale;
+    }, [localScale]);
+
+    // Commit setting when leaving scaling settings page / closing modal
+    useEffect(() => {
+        return () => {
+            setInterfaceScaleRef.current(localScaleRef.current);
+        };
+    }, []);
 
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Масштабирование</h2>
-            <p className="settings-description">Настройте масштаб интерфейса для удобства чтения и использования.</p>
+            <p className="settings-description">Настройте масштаб интерфейса для удобства чтения и использования. Изменения применятся после закрытия или выхода из настроек.</p>
             
             <div className="settings-section">
                 <div className="settings-card">
@@ -18,12 +36,12 @@ const ScalingSettings: React.FC = () => {
                             <p>Изменяет размер шрифтов и элементов управления во всем приложении.</p>
                         </div>
                         <RangeSlider 
-                            value={interfaceScale} 
+                            value={localScale} 
                             min={0.8} 
                             max={1.5} 
                             step={0.05} 
                             unit="x" 
-                            onChange={setInterfaceScale} 
+                            onChange={setLocalScale} 
                         />
                     </div>
                 </div>

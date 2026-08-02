@@ -55,33 +55,33 @@
 
 /* --- SIDEBAR --- */
 .channel-settings-sidebar {
-    width: 280px;
+    width: calc(280px * var(--interface-scale, 1));
     background: var(--settings-sidebar-bg);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 40px 20px;
+    padding: calc(40px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: calc(8px * var(--interface-scale, 1));
 }
 
 .sidebar-header {
-    padding: 0 15px 20px;
+    padding: 0 calc(15px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
     color: white;
-    font-size: 18px;
+    font-size: calc(18px * var(--interface-scale, 1));
     font-weight: 700;
     letter-spacing: -0.5px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    margin-bottom: 20px;
+    margin-bottom: calc(20px * var(--interface-scale, 1));
 }
 
 .sidebar-item {
     display: flex;
     align-items: center;
-    padding: 12px 18px;
-    border-radius: 16px;
+    padding: calc(12px * var(--interface-scale, 1)) calc(18px * var(--interface-scale, 1));
+    border-radius: calc(16px * var(--interface-scale, 1));
     color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
-    font-size: 15px;
+    font-size: calc(15px * var(--interface-scale, 1));
     font-weight: 500;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     border: 1px solid transparent;

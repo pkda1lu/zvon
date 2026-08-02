@@ -1,8 +1,10 @@
 import React from 'react';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
+import { useAppearance } from '../../contexts/AppearanceContext';
 import { SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
 
 const OverlaySettings: React.FC = () => {
+    const { interfaceScale = 1 } = useAppearance();
     const {
         overlayEnabled, setOverlayEnabled,
         overlayPosition, setOverlayPosition,
@@ -145,7 +147,7 @@ const OverlaySettings: React.FC = () => {
                     <div className="preview-label">Предпросмотр оверлея</div>
                     <div className="interface-preview-scaling-container">
                         <div className="interface-preview-scaling-wrapper" style={{ 
-                            transform: `scale(${previewScale})`,
+                            transform: `scale(${previewScale * interfaceScale})`,
                             transformOrigin: 'top left'
                         }}>
                             <div className="large-interface-preview liquid-glass-preview" style={{ 
