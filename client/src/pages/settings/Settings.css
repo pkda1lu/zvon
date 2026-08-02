@@ -19,7 +19,8 @@
 }
 
 .settings-sidebar {
-    width: calc(280px * var(--interface-scale, 1));
+    zoom: var(--settings-scale, var(--interface-scale, 1));
+    width: 280px;
     background: rgba(15, 15, 20, 0.4);
     backdrop-filter: blur(40px) saturate(160%);
     display: flex;
@@ -489,6 +490,16 @@ input[type="date"].settings-input {
     width: fit-content;
     max-width: 100%;
     border: 1px solid var(--glass-border);
+}
+
+.settings-choice-group.fixed-width-choice {
+    width: 320px;
+    box-sizing: border-box;
+}
+
+.settings-choice-group.fixed-width-choice .settings-choice-item {
+    flex: 1;
+    justify-content: center;
 }
 
 .settings-choice-item {
@@ -1536,11 +1547,13 @@ input[type=range]:disabled::-webkit-slider-thumb {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex: 1;
+    width: 320px;
+    max-width: 100%;
 }
 
 .settings-range-input {
     flex: 1;
+    min-width: 0;
 }
 
 .settings-slider-value {

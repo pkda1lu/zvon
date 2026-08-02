@@ -5,14 +5,24 @@ import { RangeSlider, ChoiceGroup } from './SettingsUI';
 const ScalingSettings: React.FC = () => {
     const { interfaceScale, setInterfaceScale, pageScales, setPageScales } = useAppearance();
 
+    // Determine initial scale mode: saved in pageScales.scaleMode or check if individual scales differ
+    const initialMode = pageScales?.scaleMode ?? (
+        (pageScales?.sidebar !== undefined && pageScales.sidebar !== interfaceScale) ||
+        (pageScales?.chat !== undefined && pageScales.chat !== interfaceScale) ||
+        (pageScales?.members !== undefined && pageScales.members !== interfaceScale) ||
+        (pageScales?.settings !== undefined && pageScales.settings !== interfaceScale)
+            ? 'separate'
+            : 'global'
+    );
+
     // Scaling mode: 'global' | 'separate'
-    const [scaleMode, setScaleMode] = useState<'global' | 'separate'>('global');
+    const [scaleMode, setScaleMode] = useState<'global' | 'separate'>(initialMode);
 
     // Global scale stored as percentage integer (e.g. 100 for 1.0)
     const [globalPercent, setGlobalPercent] = useState(() => Math.round(interfaceScale * 100));
 
     // Per-page scales stored as percentage integers
-    const [localPages, setLocalPages] = useState<Record<keyof PageScales, number>>(() => ({
+    const [localPages, setLocalPages] = useState<Record<string, number>>(() => ({
         sidebar: Math.round((pageScales?.sidebar ?? interfaceScale) * 100),
         chat: Math.round((pageScales?.chat ?? interfaceScale) * 100),
         members: Math.round((pageScales?.members ?? interfaceScale) * 100),
@@ -41,18 +51,17 @@ const ScalingSettings: React.FC = () => {
         setGlobalPercent(clamped);
     };
 
-    const handlePageChange = (key: keyof PageScales, newVal: number) => {
+    const handlePageChange = (key: 'sidebar' | 'chat' | 'members' | 'settings', newVal: number) => {
         const clamped = Math.min(150, Math.max(70, Math.round(newVal)));
         setLocalPages(prev => ({ ...prev, [key]: clamped }));
     };
 
-    // When switching mode, sync values so current settings match mode selection
+    // When switching mode, sync local state
     const handleModeChange = (mode: string) => {
         const newMode = mode as 'global' | 'separate';
         setScaleMode(newMode);
 
         if (newMode === 'global') {
-            // Apply current globalPercent to all separate sliders
             setLocalPages({
                 sidebar: globalPercent,
                 chat: globalPercent,
@@ -62,7 +71,7 @@ const ScalingSettings: React.FC = () => {
         }
     };
 
-    // Commit settings when unmounting (leaving tab or closing settings)
+    // Apply scale settings when unmounting (leaving tab or closing settings overlay)
     useEffect(() => {
         return () => {
             const currentMode = scaleModeRef.current;
@@ -71,6 +80,7 @@ const ScalingSettings: React.FC = () => {
 
             if (currentMode === 'global') {
                 setPageScalesRef.current({
+                    scaleMode: 'global',
                     sidebar: globalFactor,
                     chat: globalFactor,
                     members: globalFactor,
@@ -79,6 +89,7 @@ const ScalingSettings: React.FC = () => {
             } else {
                 const pages = localPagesRef.current;
                 setPageScalesRef.current({
+                    scaleMode: 'separate',
                     sidebar: (pages.sidebar ?? globalPercentRef.current) / 100,
                     chat: (pages.chat ?? globalPercentRef.current) / 100,
                     members: (pages.members ?? globalPercentRef.current) / 100,
@@ -89,8 +100,8 @@ const ScalingSettings: React.FC = () => {
     }, []);
 
     const modeOptions = [
-        { value: 'global', label: 'Общий масштаб' },
-        { value: 'separate', label: 'Раздельное масштабирование' }
+        { value: 'global', label: 'Общий' },
+        { value: 'separate', label: 'Раздельный' }
     ];
 
     return (
@@ -100,17 +111,20 @@ const ScalingSettings: React.FC = () => {
                 Изменяйте масштабирование интерфейса как удобно: всё сразу или раздельно
             </p>
             
-            <div className="settings-card" style={{ marginBottom: '24px' }}>
-                <div className="settings-row">
-                    <div className="settings-row-text">
-                        <h3>Режим масштабирования</h3>
-                        <p>Укажите, как вы хотите настроить пропорции интерфейса.</p>
+            <div className="settings-section">
+                <div className="settings-card">
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <h3>Режим масштабирования</h3>
+                            <p>Укажите, как вы хотите настроить пропорции интерфейса.</p>
+                        </div>
+                        <ChoiceGroup 
+                            options={modeOptions}
+                            value={scaleMode}
+                            onChange={handleModeChange}
+                            className="fixed-width-choice"
+                        />
                     </div>
-                    <ChoiceGroup 
-                        options={modeOptions}
-                        value={scaleMode}
-                        onChange={handleModeChange}
-                    />
                 </div>
             </div>
 

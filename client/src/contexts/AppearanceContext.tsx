@@ -28,6 +28,7 @@ export interface ThemeObject {
 }
 
 export interface PageScales {
+    scaleMode?: 'global' | 'separate';
     sidebar?: number;
     chat?: number;
     members?: number;
@@ -146,6 +147,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     ...prev,
                     theme: s.theme || prev.theme,
                     interfaceScale: acc.interfaceScale || s.interfaceScale || prev.interfaceScale,
+                    pageScales: s.pageScales || prev.pageScales,
                     screenReader: acc.screenReader ?? prev.screenReader,
                     appIcon: s.appIcon || prev.appIcon,
                     reduceMotion: s.reduceMotion ?? prev.reduceMotion,
@@ -173,6 +175,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         density: newSettings.density,
                         messageSpacing: newSettings.messageSpacing,
                         groupSpacing: newSettings.groupSpacing,
+                        pageScales: newSettings.pageScales,
                         appIcon: newSettings.appIcon,
                         reduceMotion: newSettings.reduceMotion,
                         performanceMode: newSettings.performanceMode,

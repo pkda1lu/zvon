@@ -190,7 +190,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           )}
 
           <div className="channel-actions">
-            {channel.type === 'text' && unreadCounts[channel._id] > 0 && (
+            {(channel.type === 'text' || channel.type === 'room') && unreadCounts[channel._id] > 0 && (
               <div className="channel-unread-badge" style={{ marginRight: '4px' }}>{unreadCounts[channel._id]}</div>
             )}
             {canEditThisChannel && (

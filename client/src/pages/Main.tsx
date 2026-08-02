@@ -876,7 +876,7 @@ const Main: React.FC = () => {
   useEffect(() => {
     if (!selectedChannel || !socket) return;
     const s = socket;
-    if (selectedChannel.type === 'text' || selectedChannel.type === 'voice') {
+    if (selectedChannel.type === 'text' || selectedChannel.type === 'voice' || selectedChannel.type === 'room') {
       setMessages([]); setSelectedDM(null);
       s.emit('join-channel', selectedChannel._id);
       fetchMessages(selectedChannel._id);
@@ -1290,14 +1290,6 @@ const Main: React.FC = () => {
                             pinnedMessages={pinnedMessages}
                             setMessages={setMessages}
                             onBack={() => setMobileView('sidebar')}
-                            onToggleMembers={() => {
-                              if (isMobile) {
-                                setMobileView((prev: string) => prev === 'members' ? 'content' : 'members');
-                              } else {
-                                setShowMembersSidebar(prev => !prev);
-                              }
-                            }}
-                            showMembersSidebar={isMobile ? mobileView === 'members' : showMembersSidebar}
                             isMobile={isMobile}
                           />
                         </div>
@@ -1339,14 +1331,6 @@ const Main: React.FC = () => {
                             pinnedMessages={pinnedMessages}
                             setMessages={setMessages}
                             onBack={() => setMobileView('sidebar')}
-                            onToggleMembers={() => {
-                              if (isMobile) {
-                                setMobileView((prev: string) => prev === 'members' ? 'content' : 'members');
-                              } else {
-                                setShowMembersSidebar(prev => !prev);
-                              }
-                            }}
-                            showMembersSidebar={isMobile ? mobileView === 'members' : showMembersSidebar}
                             isMobile={isMobile}
                           />
                         </div>

@@ -2,7 +2,8 @@
 
 /* --- LIQUID GLASS SERVER SIDEBAR --- */
 .server-sidebar {
-  width: calc(260px * var(--interface-scale, 1));
+  zoom: var(--sidebar-scale, var(--interface-scale, 1));
+  width: 260px;
   /* Background provided by .panel-hero gradient + animated blobs.
      No backdrop-filter — would double-blur over custom user bg. */
   display: flex;
