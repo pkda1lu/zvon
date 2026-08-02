@@ -3,7 +3,7 @@ import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Channel, Server, User } from '../types';
-import { CubeIcon } from './Icons';
+import { CubeIcon, ChatIcon } from './Icons';
 import './panel-hero.css';
 import './VoiceChannelView.css';
 import './Room3DView.css';
@@ -13,6 +13,7 @@ interface Room3DViewProps {
     server: Server;
     onUserClick: (userId: string, event?: React.MouseEvent) => void;
     isMobile?: boolean;
+    onToggleChat?: () => void;
 }
 
 // Стабильный цвет аватарки по userId — чтобы у каждого участника был свой
@@ -45,7 +46,7 @@ const colorForUser = (userId: string): number => {
 const AVATAR_MODEL_URL = `${import.meta.env.BASE_URL}models/low_poly_female_base_character.glb`;
 const AVATAR_TARGET_HEIGHT = 1.7;
 
-const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick }) => {
+const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, onToggleChat }) => {
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
     const { isConnected, activeChannelId, joinChannel, connectedUsers } = useVoice();
@@ -635,6 +636,11 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick })
                 <div className="hdr-right">
                     <div className="channel-topic-tag">Перетаскивайте свою аватарку мышью · вращение камеры — зажать и потянуть фон</div>
                     <div className="channel-status-badge">Подключено</div>
+                    {onToggleChat && (
+                        <button className="voice-chat-toggle-btn" onClick={onToggleChat} title="Открыть чат">
+                            <ChatIcon size={18} />
+                        </button>
+                    )}
                 </div>
             </header>
             <div className="room3d-canvas" ref={mountRef} />

@@ -1314,13 +1314,43 @@ const Main: React.FC = () => {
                     initial="initial" animate="animate" exit="exit"
                     transition={iosSpring}
                   >
-                    <div key={selectedChannel._id} className="content-inner-layer">
-                      <Room3DView
-                        channel={selectedChannel}
-                        server={selectedServer!}
-                        onUserClick={handleUserClick}
-                        isMobile={isMobile}
-                      />
+                    <div key={selectedChannel._id} className="voice-chat-container">
+                      <div className="content-inner-layer">
+                        <Room3DView
+                          channel={selectedChannel}
+                          server={selectedServer!}
+                          onUserClick={handleUserClick}
+                          isMobile={isMobile}
+                          onToggleChat={() => setShowVoiceChat(!showVoiceChat)}
+                        />
+                      </div>
+                      {showVoiceChat && (
+                        <div className="voice-chat-sidebar">
+                          <ChannelView
+                            channel={selectedChannel}
+                            server={selectedServer!}
+                            messages={messages}
+                            socket={socket}
+                            onUserClick={handleUserClick}
+                            initialUnreadCount={unreadCounts[selectedChannel._id]}
+                            hasMore={hasMore}
+                            isLoadingMore={isLoadingMore}
+                            onLoadMore={loadMoreMessages}
+                            pinnedMessages={pinnedMessages}
+                            setMessages={setMessages}
+                            onBack={() => setMobileView('sidebar')}
+                            onToggleMembers={() => {
+                              if (isMobile) {
+                                setMobileView((prev: string) => prev === 'members' ? 'content' : 'members');
+                              } else {
+                                setShowMembersSidebar(prev => !prev);
+                              }
+                            }}
+                            showMembersSidebar={isMobile ? mobileView === 'members' : showMembersSidebar}
+                            isMobile={isMobile}
+                          />
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -1371,7 +1401,7 @@ const Main: React.FC = () => {
             );
           })()}
 
-          {selectedServer && selectedServer.showMembersList !== false && !showFriends && selectedChannel?.type !== 'voice' && (isMobile ? mobileView === 'members' : showMembersSidebar) && (
+          {selectedServer && selectedServer.showMembersList !== false && !showFriends && selectedChannel?.type !== 'voice' && selectedChannel?.type !== 'room' && (isMobile ? mobileView === 'members' : showMembersSidebar) && (
             <div className={`members-sidebar-wrapper ${isMobile ? 'is-mobile' : ''}`}>
               <ServerMembers
                 server={selectedServer}
