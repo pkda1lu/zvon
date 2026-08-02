@@ -6,6 +6,7 @@ import ImageCropper from '../../components/ImageCropper';
 import { useDialog } from '../../contexts/DialogContext';
 import { PlusIcon, TrashIcon } from '../../components/Icons';
 import { ServerProfileCardBody } from '../../components/ServerProfileCard';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 
 interface Props {
     server: Server;
@@ -239,15 +240,14 @@ const ServerProfileSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                 </div>
             </div>
 
-            <div className="settings-preview-column">
-                <h3 className="settings-section-title" style={{ marginTop: 0 }}>Предпросмотр</h3>
+            <SettingsPreviewContainer baseWidth={340} title="Предпросмотр">
                 <div className="user-profile-card" style={{ width: '100%', position: 'relative' }}>
                     <ServerProfileCardBody
                         server={server}
                         overrides={{ name, description, icon: server.icon, banner: server.banner, bannerColor, features, featuredActivities }}
                     />
                 </div>
-            </div>
+            </SettingsPreviewContainer>
 
             {cropModal.isOpen && (
                 <ImageCropper

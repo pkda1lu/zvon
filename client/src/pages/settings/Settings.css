@@ -117,43 +117,65 @@
 }
 
 .settings-content-inner {
-    width: fit-content;
-    min-width: 800px;
-    max-width: min(100%, 1200px);
+    width: 100%;
+    max-width: 1000px;
+    box-sizing: border-box;
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .settings-content-inner.with-preview {
-    width: fit-content;
-    max-width: min(100%, 1800px);
+    width: 100%;
+    max-width: 1600px;
     display: flex;
     flex-direction: row;
     gap: 40px;
     align-items: flex-start;
+    transition: flex-direction 0.3s ease;
+}
+
+.settings-content-inner.with-preview.has-stacked-preview {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
 }
 
 .settings-main-column {
-    flex: 0 1 auto;
-    width: fit-content;
-    max-width: 100%;
+    flex: 1 1 560px;
+    width: 100%;
+    max-width: 1000px;
+    min-width: 0;
+    order: 1;
 }
 
-.settings-preview-column {
-    --preview-base-width: calc(340px * var(--interface-scale, 1));
-    width: var(--preview-base-width);
-    min-width: calc(var(--preview-base-width) * 0.5);
-    max-width: var(--preview-base-width);
-    flex: 0 1 var(--preview-base-width);
-    position: sticky;
-    top: 0;
+.settings-preview-container-root {
+    box-sizing: border-box;
 }
 
-.settings-preview-column.interface-preview-col {
-    --preview-base-width: calc(420px * var(--interface-scale, 1));
+.settings-preview-container-root.side-by-side {
+    order: 2;
+}
+
+.settings-preview-container-root.stacked-above {
+    width: 100%;
+    margin-bottom: 24px;
+    order: -1 !important; /* Always strictly on top! */
+}
+
+.settings-preview-container-root.stacked-above .settings-preview-header {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 16px !important;
+}
+
+.settings-preview-container-root.stacked-above .settings-preview-header:hover {
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .interface-preview-scaling-container {
     width: 100%;
+    height: 100%;
     position: relative;
     aspect-ratio: 16 / 9;
     overflow: hidden;

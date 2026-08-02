@@ -5,6 +5,7 @@ import { useDialog } from '../../contexts/DialogContext';
 import { getAvatarUrl, getFullUrl } from '../../utils/avatar';
 import { CustomSelect } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { PlusIcon, BotIcon, ShieldIcon, CopyIcon, TrashIcon, CheckIcon, ExternalLinkIcon, CloseIcon } from '../../components/Icons';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -437,8 +438,7 @@ const BotsSettings: React.FC = () => {
                 )}
             </div>
 
-            <div className="settings-preview-column">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Предпросмотр на витрине</h3>
+            <SettingsPreviewContainer baseWidth={340} title="Предпросмотр на витрине">
                 {selectedBotId && selectedBot && (
                     <div className="showcase-profile-card" style={{ width: '100%', margin: 0 }}>
                         <div 
@@ -470,7 +470,7 @@ const BotsSettings: React.FC = () => {
                         </div>
                     </div>
                 )}
-            </div>
+            </SettingsPreviewContainer>
 
             {/* Bot Deletion Modal */}
             <AnimatePresence>

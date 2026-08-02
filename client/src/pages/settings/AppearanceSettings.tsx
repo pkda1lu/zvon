@@ -4,6 +4,7 @@ import { ChoiceGroup, GridPicker, RangeSlider, SettingsToggle } from './Settings
 import { getIconBrand } from '../../utils/branding';
 import { PlusIcon, TrashIcon, CheckIcon, GlobeIcon, LockIcon, BellIcon, PinIcon, UsersIcon, SmileIcon } from '../../components/Icons';
 import InterfacePreview from '../../components/InterfacePreview';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 
 const ThemePreviewCard: React.FC<{ 
     theme: any, 
@@ -237,14 +238,11 @@ const AppearanceSettings: React.FC = () => {
                 </div>
             </div>
 
-            <div className="settings-preview-column interface-preview-col">
-                <div className="appearance-preview-sticky">
-                    <div className="preview-label">Предпросмотр интерфейса</div>
-                    <div className="interface-preview-scaling-container">
-                        <InterfacePreview settings={appearance} scale={previewScale * (appearance.interfaceScale || 1)} />
-                    </div>
+            <SettingsPreviewContainer baseWidth={420} title="Предпросмотр интерфейса">
+                <div className="interface-preview-scaling-container">
+                    <InterfacePreview settings={appearance} scale={previewScale * (appearance.interfaceScale || 1)} />
                 </div>
-            </div>
+            </SettingsPreviewContainer>
 
             {showSaveModal && (
                 <div className="settings-modal-overlay">

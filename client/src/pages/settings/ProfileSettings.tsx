@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfilePreview from '../../components/ProfilePreview';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { ChoiceGroup, CustomSelect, GridPicker } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
@@ -382,10 +383,9 @@ const ProfileSettings: React.FC = () => {
                 </div>
             </div>
 
-            <div className="settings-preview-column">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Предпросмотр</h3>
+            <SettingsPreviewContainer baseWidth={320} title="Предпросмотр">
                 {user && <ProfilePreview user={{...user, displayName, bio, bannerColor, badges: selectedBadges}} type="compact" />}
-            </div>
+            </SettingsPreviewContainer>
 
             {cropModal.isOpen && (
                 <ImageCropper

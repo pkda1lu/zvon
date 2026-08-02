@@ -8,6 +8,7 @@ import UserAvatar from '../../components/UserAvatar';
 import UserBadges from '../../components/UserBadges';
 import { GridPicker } from '../settings/SettingsUI';
 import { AVAILABLE_BADGES } from '../../data/badges';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import '../../components/ServerMembers.css';
 
 interface Props {
@@ -158,8 +159,7 @@ const ServerTagSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                 </div>
             </div>
 
-            <div className="settings-preview-column">
-                <h3 className="settings-section-title" style={{ marginTop: 0 }}>Предпросмотр в списке участников</h3>
+            <SettingsPreviewContainer baseWidth={340} title="Предпросмотр в списке участников">
                 <div className="server-tag-member-preview">
                     {previewList.map(item => item.isTagHolder ? (
                         <div key={item.id} className="member-item" style={{ cursor: 'default' }}>
@@ -189,7 +189,7 @@ const ServerTagSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                         </div>
                     ))}
                 </div>
-            </div>
+            </SettingsPreviewContainer>
 
             {cropModal.isOpen && (
                 <ImageCropper

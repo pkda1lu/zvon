@@ -5,6 +5,7 @@ import { useDialog } from '../../contexts/DialogContext';
 import { getAvatarUrl, getFullUrl } from '../../utils/avatar';
 import { CustomSelect } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { PlusIcon, LayoutGridIcon, MonitorIcon, TrashIcon, CheckIcon, ExternalLinkIcon, CloseIcon } from '../../components/Icons';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -406,8 +407,7 @@ const MiniAppsSettings: React.FC = () => {
                 )}
             </div>
 
-            <div className="settings-preview-column">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Предпросмотр на витрине</h3>
+            <SettingsPreviewContainer baseWidth={340} title="Предпросмотр на витрине">
                 {selectedAppId && selectedApp && (
                     <div className="showcase-profile-card" style={{ width: '100%', margin: 0 }}>
                         <div 
@@ -437,7 +437,7 @@ const MiniAppsSettings: React.FC = () => {
                         </div>
                     </div>
                 )}
-            </div>
+            </SettingsPreviewContainer>
 
             {/* App Deletion Modal */}
             <AnimatePresence>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfilePreview from '../../components/ProfilePreview';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { CustomSelect } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
 
@@ -282,10 +283,10 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
                 )}
             </div>
 
-            <div className="settings-preview-column">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>
-                    {selectedServer ? `Предпросмотр: ${selectedServer.name}` : 'Предпросмотр'}
-                </h3>
+            <SettingsPreviewContainer 
+                baseWidth={320} 
+                title={selectedServer ? `Предпросмотр: ${selectedServer.name}` : 'Предпросмотр'}
+            >
                 {user && selectedServerId && (
                     <ProfilePreview 
                         user={user} 
@@ -301,7 +302,7 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
                         type="server-compact" 
                     />
                 )}
-            </div>
+            </SettingsPreviewContainer>
 
             {cropModal.isOpen && (
                 <ImageCropper

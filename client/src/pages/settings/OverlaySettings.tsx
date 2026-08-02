@@ -2,6 +2,7 @@ import React from 'react';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { useAppearance } from '../../contexts/AppearanceContext';
 import { SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
+import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 
 const OverlaySettings: React.FC = () => {
     const { interfaceScale = 1 } = useAppearance();
@@ -142,81 +143,78 @@ const OverlaySettings: React.FC = () => {
                 </div>
             </div>
 
-            <div className="settings-preview-column interface-preview-col">
-                <div className="appearance-preview-sticky">
-                    <div className="preview-label">Предпросмотр оверлея</div>
-                    <div className="interface-preview-scaling-container">
-                        <div className="interface-preview-scaling-wrapper" style={{ 
-                            transform: `scale(${previewScale * interfaceScale})`,
-                            transformOrigin: 'top left'
+            <SettingsPreviewContainer baseWidth={420} title="Предпросмотр оверлея">
+                <div className="interface-preview-scaling-container">
+                    <div className="interface-preview-scaling-wrapper" style={{ 
+                        transform: `scale(${previewScale * interfaceScale})`,
+                        transformOrigin: 'top left'
+                    }}>
+                        <div className="large-interface-preview liquid-glass-preview" style={{ 
+                            width: '1280px', 
+                            height: '720px', 
+                            background: 'radial-gradient(circle at center, #1a1a2e 0%, #050510 100%)',
+                            position: 'relative',
+                            border: 'none'
                         }}>
-                            <div className="large-interface-preview liquid-glass-preview" style={{ 
-                                width: '1280px', 
-                                height: '720px', 
-                                background: 'radial-gradient(circle at center, #1a1a2e 0%, #050510 100%)',
-                                position: 'relative',
-                                border: 'none'
-                            }}>
-                                <div 
-                                    className={`overlay-mock ${overlayPosition} ${overlayShowBackground ? 'with-bg' : ''}`}
-                                    style={{ 
-                                        opacity: overlayOpacity,
-                                        // middle → центрируем по вертикали (top:50% + сдвиг внутри transform).
-                                        transform: overlayPosition.includes('middle')
-                                            ? `translateY(-50%) scale(${overlaySize})`
-                                            : `scale(${overlaySize})`,
-                                        transformOrigin: `${overlayPosition.includes('top') ? 'top' : overlayPosition.includes('middle') ? 'center' : 'bottom'} ${overlayPosition.includes('left') ? 'left' : 'right'}`,
-                                        position: 'absolute',
-                                        zIndex: 10,
-                                        margin: overlayPosition.includes('middle') ? '0 40px' : '40px',
-                                        top: overlayPosition.includes('top') ? '0' : overlayPosition.includes('middle') ? '50%' : 'auto',
-                                        bottom: overlayPosition.includes('bottom') ? '0' : 'auto',
-                                        left: overlayPosition.includes('left') ? '0' : 'auto',
-                                        right: overlayPosition.includes('right') ? '0' : 'auto'
-                                    }}
-                                >
-                                    <div className={`overlay-user-item ${overlayShowSpeakingRing ? 'speaking' : ''}`}>
-                                        {overlayShowAvatars && (
-                                            <div className="overlay-avatar-wrapper">
-                                                <div className="overlay-avatar-placeholder" style={{ background: 'var(--accent-primary)' }}>M</div>
-                                                {overlayShowSpeakingRing && <div className="overlay-speaking-ring" />}
-                                            </div>
-                                        )}
-                                        {overlayShowNames && <span className="overlay-username">MaxCord</span>}
-                                    </div>
-                                    <div className="overlay-user-item" style={{ opacity: overlayIdleOpacity }}>
-                                        {overlayShowAvatars && (
-                                            <div className="overlay-avatar-wrapper">
-                                                <div className="overlay-avatar-placeholder">Z</div>
-                                            </div>
-                                        )}
-                                        {overlayShowNames && <span className="overlay-username">ZvonUser</span>}
-                                    </div>
-                                    <div className="overlay-user-item" style={{ opacity: overlayIdleOpacity }}>
-                                        {overlayShowAvatars && (
-                                            <div className="overlay-avatar-wrapper">
-                                                <div className="overlay-avatar-placeholder" style={{ background: '#7000ff' }}>A</div>
-                                            </div>
-                                        )}
-                                        {overlayShowNames && <span className="overlay-username">Alex</span>}
-                                    </div>
+                            <div 
+                                className={`overlay-mock ${overlayPosition} ${overlayShowBackground ? 'with-bg' : ''}`}
+                                style={{ 
+                                    opacity: overlayOpacity,
+                                    // middle → центрируем по вертикали (top:50% + сдвиг внутри transform).
+                                    transform: overlayPosition.includes('middle')
+                                        ? `translateY(-50%) scale(${overlaySize})`
+                                        : `scale(${overlaySize})`,
+                                    transformOrigin: `${overlayPosition.includes('top') ? 'top' : overlayPosition.includes('middle') ? 'center' : 'bottom'} ${overlayPosition.includes('left') ? 'left' : 'right'}`,
+                                    position: 'absolute',
+                                    zIndex: 10,
+                                    margin: overlayPosition.includes('middle') ? '0 40px' : '40px',
+                                    top: overlayPosition.includes('top') ? '0' : overlayPosition.includes('middle') ? '50%' : 'auto',
+                                    bottom: overlayPosition.includes('bottom') ? '0' : 'auto',
+                                    left: overlayPosition.includes('left') ? '0' : 'auto',
+                                    right: overlayPosition.includes('right') ? '0' : 'auto'
+                                }}
+                            >
+                                <div className={`overlay-user-item ${overlayShowSpeakingRing ? 'speaking' : ''}`}>
+                                    {overlayShowAvatars && (
+                                        <div className="overlay-avatar-wrapper">
+                                            <div className="overlay-avatar-placeholder" style={{ background: 'var(--accent-primary)' }}>M</div>
+                                            {overlayShowSpeakingRing && <div className="overlay-speaking-ring" />}
+                                        </div>
+                                    )}
+                                    {overlayShowNames && <span className="overlay-username">MaxCord</span>}
                                 </div>
-
-                                <div style={{ 
-                                    position: 'absolute', 
-                                    top: '50%', 
-                                    left: '50%', 
-                                    transform: 'translate(-50%, -50%)',
-                                    width: '10px',
-                                    height: '10px',
-                                    border: '2px solid rgba(255,255,255,0.1)',
-                                    borderRadius: '50%'
-                                }} />
+                                <div className="overlay-user-item" style={{ opacity: overlayIdleOpacity }}>
+                                    {overlayShowAvatars && (
+                                        <div className="overlay-avatar-wrapper">
+                                            <div className="overlay-avatar-placeholder">Z</div>
+                                        </div>
+                                    )}
+                                    {overlayShowNames && <span className="overlay-username">ZvonUser</span>}
+                                </div>
+                                <div className="overlay-user-item" style={{ opacity: overlayIdleOpacity }}>
+                                    {overlayShowAvatars && (
+                                        <div className="overlay-avatar-wrapper">
+                                            <div className="overlay-avatar-placeholder" style={{ background: '#7000ff' }}>A</div>
+                                        </div>
+                                    )}
+                                    {overlayShowNames && <span className="overlay-username">Alex</span>}
+                                </div>
                             </div>
+
+                            <div style={{ 
+                                position: 'absolute', 
+                                top: '50%', 
+                                left: '50%', 
+                                transform: 'translate(-50%, -50%)',
+                                width: '10px',
+                                height: '10px',
+                                border: '2px solid rgba(255,255,255,0.1)',
+                                borderRadius: '50%'
+                            }} />
                         </div>
                     </div>
                 </div>
-            </div>
+            </SettingsPreviewContainer>
         </div>
     );
 };
