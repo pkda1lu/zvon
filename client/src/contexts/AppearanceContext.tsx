@@ -27,12 +27,20 @@ export interface ThemeObject {
     creator?: string;
 }
 
+export interface PageScales {
+    sidebar?: number;
+    chat?: number;
+    members?: number;
+    settings?: number;
+}
+
 interface AppearanceSettings {
     theme: ThemeType;
     density: DensityType;
     messageSpacing: number; // 0 to 24px
     groupSpacing: number; // 0 to 48px
-    interfaceScale: number; // 0.8 to 1.5
+    interfaceScale: number; // 0.7 to 1.5
+    pageScales: PageScales;
     screenReader: boolean;
     appIcon: AppIconType;
     performanceMode: boolean;
@@ -49,6 +57,7 @@ interface AppearanceContextType extends AppearanceSettings {
     setMessageSpacing: (spacing: number) => void;
     setGroupSpacing: (spacing: number) => void;
     setInterfaceScale: (scale: number) => void;
+    setPageScales: (scales: Partial<PageScales>) => void;
     setAppIcon: (icon: AppIconType) => void;
     setPerformanceMode: (enabled: boolean) => void;
     setReduceMotion: (enabled: boolean) => void;
@@ -88,6 +97,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 messageSpacing: parsed.messageSpacing ?? 2,
                 groupSpacing: parsed.groupSpacing ?? 16,
                 interfaceScale: parsed.interfaceScale ?? 1.0,
+                pageScales: parsed.pageScales || {},
                 screenReader: parsed.screenReader ?? false,
                 appIcon: parsed.appIcon || 'default',
                 performanceMode: parsed.performanceMode ?? false,
@@ -104,6 +114,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             messageSpacing: 2,
             groupSpacing: 16,
             interfaceScale: 1.0,
+            pageScales: {},
             screenReader: false,
             appIcon: 'default',
             performanceMode: false,
@@ -301,6 +312,12 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         root.style.setProperty('--interface-scale', s.interfaceScale.toString());
         root.style.setProperty('--base-font-size', `${16 * s.interfaceScale}px`);
 
+        const ps = s.pageScales || {};
+        root.style.setProperty('--sidebar-scale', (ps.sidebar ?? s.interfaceScale).toString());
+        root.style.setProperty('--chat-scale', (ps.chat ?? s.interfaceScale).toString());
+        root.style.setProperty('--members-scale', (ps.members ?? s.interfaceScale).toString());
+        root.style.setProperty('--settings-scale', (ps.settings ?? s.interfaceScale).toString());
+
         if (s.density === 'compact') {
             root.style.setProperty('--message-padding-v', '2px');
             root.style.setProperty('--message-margin-v', '0px');
@@ -345,6 +362,13 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     const setInterfaceScale = (interfaceScale: number) => {
         setSettings(prev => ({ ...prev, interfaceScale }));
+        setActiveThemeId(null);
+    };
+    const setPageScales = (scales: Partial<PageScales>) => {
+        setSettings(prev => ({
+            ...prev,
+            pageScales: { ...prev.pageScales, ...scales }
+        }));
         setActiveThemeId(null);
     };
     const setAppIcon = (appIcon: AppIconType) => setSettings(prev => ({ ...prev, appIcon }));
@@ -453,6 +477,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setMessageSpacing,
             setGroupSpacing,
             setInterfaceScale,
+            setPageScales,
             setAppIcon,
             setPerformanceMode,
             setReduceMotion,

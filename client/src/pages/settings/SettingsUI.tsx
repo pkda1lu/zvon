@@ -175,17 +175,69 @@ export const RangeSlider: React.FC<{
     step?: number;
     onChange: (val: number) => void;
     unit?: string;
-}> = ({ value, min, max, step = 1, onChange, unit = '' }) => (
-    <div className="settings-slider-container">
-        <input 
-            type="range" 
-            className="settings-range-input"
-            min={min} 
-            max={max} 
-            step={step} 
-            value={value} 
-            onChange={(e) => onChange(parseFloat(e.target.value))} 
-        />
-        <span className="settings-slider-value">{value}{unit}</span>
-    </div>
-);
+    showInput?: boolean;
+    inputMin?: number;
+    inputMax?: number;
+}> = ({ value, min, max, step = 1, onChange, unit = '', showInput = false, inputMin, inputMax }) => {
+    const effectiveMin = inputMin !== undefined ? inputMin : min;
+    const effectiveMax = inputMax !== undefined ? inputMax : max;
+    const [inputValue, setInputValue] = useState<string>(value.toString());
+
+    useEffect(() => {
+        setInputValue(value.toString());
+    }, [value]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputValue(e.target.value);
+    };
+
+    const commitInput = () => {
+        let val = parseFloat(inputValue);
+        if (isNaN(val)) {
+            val = value;
+        } else {
+            val = Math.min(effectiveMax, Math.max(effectiveMin, val));
+        }
+        setInputValue(val.toString());
+        onChange(val);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            commitInput();
+            (e.target as HTMLInputElement).blur();
+        }
+    };
+
+    return (
+        <div className="settings-slider-container">
+            <input 
+                type="range" 
+                className="settings-range-input"
+                min={min} 
+                max={max} 
+                step={step} 
+                value={value} 
+                onChange={(e) => onChange(parseFloat(e.target.value))} 
+            />
+            {showInput ? (
+                <div className="settings-slider-input-wrapper">
+                    <input 
+                        type="number" 
+                        className="settings-slider-number-input"
+                        min={effectiveMin}
+                        max={effectiveMax}
+                        step={step}
+                        value={inputValue}
+                        onChange={handleInputChange}
+                        onBlur={commitInput}
+                        onKeyDown={handleKeyDown}
+                    />
+                    <span className="settings-slider-unit">{unit}</span>
+                </div>
+            ) : (
+                <span className="settings-slider-value">{value}{unit}</span>
+            )}
+        </div>
+    );
+};
