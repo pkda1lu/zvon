@@ -12,7 +12,7 @@ const ScalingSettings: React.FC = () => {
     const [globalPercent, setGlobalPercent] = useState(() => Math.round(interfaceScale * 100));
 
     // Per-page scales stored as percentage integers
-    const [localPages, setLocalPages] = useState<{ [K in keyof PageScales]: number }>(() => ({
+    const [localPages, setLocalPages] = useState<Record<keyof PageScales, number>>(() => ({
         sidebar: Math.round((pageScales?.sidebar ?? interfaceScale) * 100),
         chat: Math.round((pageScales?.chat ?? interfaceScale) * 100),
         members: Math.round((pageScales?.members ?? interfaceScale) * 100),
@@ -79,10 +79,10 @@ const ScalingSettings: React.FC = () => {
             } else {
                 const pages = localPagesRef.current;
                 setPageScalesRef.current({
-                    sidebar: pages.sidebar / 100,
-                    chat: pages.chat / 100,
-                    members: pages.members / 100,
-                    settings: pages.settings / 100,
+                    sidebar: (pages.sidebar ?? globalPercentRef.current) / 100,
+                    chat: (pages.chat ?? globalPercentRef.current) / 100,
+                    members: (pages.members ?? globalPercentRef.current) / 100,
+                    settings: (pages.settings ?? globalPercentRef.current) / 100,
                 });
             }
         };
@@ -147,7 +147,7 @@ const ScalingSettings: React.FC = () => {
                                 <p>Размер списка серверов, каналов и профиля пользователя.</p>
                             </div>
                             <RangeSlider 
-                                value={localPages.sidebar} 
+                                value={localPages.sidebar ?? globalPercent} 
                                 min={70} 
                                 max={150} 
                                 step={1} 
@@ -167,7 +167,7 @@ const ScalingSettings: React.FC = () => {
                                 <p>Размер сообщений, аватаров и текстового ввода в чате.</p>
                             </div>
                             <RangeSlider 
-                                value={localPages.chat} 
+                                value={localPages.chat ?? globalPercent} 
                                 min={70} 
                                 max={150} 
                                 step={1} 
@@ -187,7 +187,7 @@ const ScalingSettings: React.FC = () => {
                                 <p>Размер списка участников сервера в правой колонке.</p>
                             </div>
                             <RangeSlider 
-                                value={localPages.members} 
+                                value={localPages.members ?? globalPercent} 
                                 min={70} 
                                 max={150} 
                                 step={1} 
@@ -207,7 +207,7 @@ const ScalingSettings: React.FC = () => {
                                 <p>Размер боковой панели настроек и рабочей области параметров.</p>
                             </div>
                             <RangeSlider 
-                                value={localPages.settings} 
+                                value={localPages.settings ?? globalPercent} 
                                 min={70} 
                                 max={150} 
                                 step={1} 

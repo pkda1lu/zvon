@@ -302,8 +302,8 @@ export const ChevronUpIcon: React.FC<{ size?: number; color?: string; className?
     </svg>
 );
 
-export const ChevronDownIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 24, color = 'var(--icon-color)', className = "" }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ChevronDownIcon: React.FC<{ size?: number; color?: string; className?: string; style?: React.CSSProperties }> = ({ size = 24, color = 'var(--icon-color)', className = "", style }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
         <polyline points="6 9 12 15 18 9" />
     </svg>
 );
