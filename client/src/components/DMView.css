@@ -354,7 +354,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 40px 0;
+  margin: calc(30px * var(--interface-scale, 1)) 0;
   position: relative;
 }
 
@@ -363,31 +363,31 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 1px;
+  height: calc(1px * var(--interface-scale, 1));
   background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
 }
 
 .message-date-divider span {
   background: rgba(0, 229, 255, 0.03);
   backdrop-filter: blur(15px);
-  padding: 8px 20px;
-  border-radius: 14px;
-  border: 1px solid rgba(0, 229, 255, 0.15);
+  padding: calc(8px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
+  border-radius: calc(14px * var(--interface-scale, 1));
+  border: calc(1px * var(--interface-scale, 1)) solid rgba(0, 229, 255, 0.15);
   color: var(--primary-neon);
-  font-size: 10px;
+  font-size: calc(10px * var(--interface-scale, 1));
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 2.5px;
+  letter-spacing: calc(2.5px * var(--interface-scale, 1));
   position: relative;
   z-index: 1;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 calc(4px * var(--interface-scale, 1)) calc(15px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.2);
 }
 
 .message {
   display: flex;
-  padding: 12px 16px;
-  margin-bottom: 4px;
-  border-radius: 16px;
+  padding: calc(12px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
+  margin-bottom: calc(4px * var(--interface-scale, 1));
+  border-radius: calc(16px * var(--interface-scale, 1));
   transition: all 0.2s ease;
   position: relative;
 }
@@ -402,17 +402,17 @@
   background: var(--glass-bg);
   backdrop-filter: blur(10px);
   border: 1px solid var(--glass-border);
-  border-radius: 8px;
+  border-radius: calc(8px * var(--interface-scale, 1));
   display: flex;
   position: absolute;
-  right: 16px;
-  top: -20px;
+  right: calc(16px * var(--interface-scale, 1));
+  top: calc(-20px * var(--interface-scale, 1));
   z-index: 10;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 calc(4px * var(--interface-scale, 1)) calc(15px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.3);
 }
 
 .message.grouped .message-actions-hover {
-  top: -12px;
+  top: calc(-12px * var(--interface-scale, 1));
   will-change: transform;
 }
 
@@ -423,8 +423,8 @@
 .msg-action-btn {
   background: transparent;
   border: none;
-  padding: 6px;
-  border-radius: 6px;
+  padding: calc(6px * var(--interface-scale, 1));
+  border-radius: calc(6px * var(--interface-scale, 1));
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -443,23 +443,30 @@
   background: #ed4245;
   color: #fff;
   transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 calc(2px * var(--interface-scale, 1)) calc(4px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.2);
 }
 
 .message.grouped {
-  padding-top: 2px;
-  padding-bottom: 2px;
+  padding-top: calc(2px * var(--interface-scale, 1));
+  padding-bottom: calc(2px * var(--interface-scale, 1));
+}
+
+.message-author-avatar-wrap,
+.message-time-mini {
+  width: calc(var(--avatar-size, 42px) * var(--interface-scale, 1));
+  min-width: calc(var(--avatar-size, 42px) * var(--interface-scale, 1));
+  max-width: calc(var(--avatar-size, 42px) * var(--interface-scale, 1));
+  margin-right: calc(15px * var(--interface-scale, 1));
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .message-time-mini {
-  width: 42px;
-  margin-right: 15px;
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: calc(10px * var(--interface-scale, 1));
   opacity: 0;
   transition: opacity 0.2s;
 }

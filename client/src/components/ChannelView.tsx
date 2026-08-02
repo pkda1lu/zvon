@@ -37,6 +37,7 @@ import AttachmentsModal from './AttachmentsModal';
 import { SmileIcon } from './Icons';
 import ServerInviteCard from './ServerInviteCard';
 import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 // Helper for inline markdown shared across components
 const renderInlineMarkdown = (
@@ -160,6 +161,7 @@ const MessageItem = React.memo<{
   onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh
 }) => {
   const { confirm: customConfirm } = useDialog();
+  const { interfaceScale } = useAppearance();
 
   const openLink = (url: string) => {
     if ((window as any).electron?.util?.openExternal) {
@@ -402,9 +404,9 @@ const MessageItem = React.memo<{
             <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
               <div className="reply-line" />
               <ReplyIcon size={12} className="reply-icon-mini" />
-              <UserAvatar user={msg.replyTo.author} avatarOverride={replyMember?.avatar || undefined} size={16} className="reply-avatar" />
+              <UserAvatar user={msg.replyTo.author} avatarOverride={replyMember?.avatar || undefined} size={16 * interfaceScale} className="reply-avatar" />
               <span className="reply-author">{replyMember?.nickname || msg.replyTo.author.displayName || msg.replyTo.author.username}</span>
-              <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />
+              <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10 * interfaceScale} />
               <span className="reply-content">{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
             </div>
           );
@@ -414,7 +416,7 @@ const MessageItem = React.memo<{
             <UserAvatar
               user={msg.author}
               avatarOverride={member?.avatar || undefined}
-              size={42}
+              size={42 * interfaceScale}
               className="message-author-avatar"
               onClick={(e) => { if (server.showMembersList !== false) onUserClick(msg.author._id, e); }}
               onContextMenu={(e) => onContextMenu(e, msg.author)}
@@ -445,7 +447,7 @@ const MessageItem = React.memo<{
                 >
                   {member?.nickname || msg.author.displayName || msg.author.username}
                 </span>
-                <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />
+                <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14 * interfaceScale} />
                 {msg.author.isBot && <span className="bot-badge">БOТ</span>}
                 <span className="message-time">{formatDate(msg.createdAt)}</span>
               </div>
@@ -633,6 +635,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 }) => {
   const { user } = useAuth();
   const { confirm: customConfirm, alert } = useDialog();
+  const { interfaceScale } = useAppearance();
 
   const openLink = useCallback((url: string) => {
     if ((window as any).electron?.util?.openExternal) {
@@ -1309,7 +1312,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       {isDragging && (
         <div className="drag-drop-overlay">
           <div className="drag-drop-content">
-            <div className="drag-drop-icon"><PlusIcon size={48} /></div>
+            <div className="drag-drop-icon"><PlusIcon size={48 * interfaceScale} /></div>
             <div className="drag-drop-text">Перетащите файлы сюда для загрузки</div>
           </div>
         </div>
@@ -1317,18 +1320,18 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       <div className="channel-header">
         {isMobile && onBack && (
           <button className="mobile-close-btn" onClick={onBack}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <svg width={24 * interfaceScale} height={24 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
           </button>
         )}
         <div className="channel-header-info" onClick={() => setShowAttachments(true)} style={{ cursor: 'pointer' }}>
-          <span className="channel-icon"><HashtagIcon size={24} color="#8e9297" /></span>
+          <span className="channel-icon"><HashtagIcon size={24 * interfaceScale} color="#8e9297" /></span>
           <h3>{channel.name}</h3>
         </div>
         {channel.topic && !isMobile && <div className="channel-topic">{channel.topic}</div>}
         <div style={{ flex: 1 }} />
         {isMobile && onToggleMembers && (
           <button className="header-action-btn" onClick={onToggleMembers} title="Участники">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <svg width={20 * interfaceScale} height={20 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           </button>
         )}
         <button
@@ -1336,14 +1339,14 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           onClick={() => setShowSearch(s => !s)}
           title="Поиск по сообщениям"
         >
-          <SearchIcon size={20} color={showSearch ? "var(--primary-neon)" : "var(--text-dim)"} />
+          <SearchIcon size={20 * interfaceScale} color={showSearch ? "var(--primary-neon)" : "var(--text-dim)"} />
         </button>
         <button
           className="header-action-btn"
           onClick={() => setShowPins(!showPins)}
           title="Закрепленные сообщения"
         >
-          <PinIcon size={20} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
+          <PinIcon size={20 * interfaceScale} fill={showPins ? "var(--primary-neon)" : "none"} color={showPins ? "var(--primary-neon)" : "var(--text-dim)"} />
         </button>
       </div>
 
@@ -1363,9 +1366,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                   return (
                     <div key={msg._id} className="pin-item">
                       <div className="pin-author">
-                        <UserAvatar user={msg.author} avatarOverride={member?.avatar || undefined} size={24} className="pin-avatar-comp" />
+                        <UserAvatar user={msg.author} avatarOverride={member?.avatar || undefined} size={24 * interfaceScale} className="pin-avatar-comp" />
                         <span className="pin-name">{member?.nickname || msg.author.displayName || msg.author.username}</span>
-                        <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12} />
+                        <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12 * interfaceScale} />
                         <span className="pin-date">{formatDate(msg.createdAt)}</span>
                       </div>
                       <div className="pin-content">
@@ -1391,7 +1394,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                                   />
                                 ) : (
                                   <div className="pin-video-placeholder" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
-                                    <CameraIcon size={20} color="var(--primary-neon)" />
+                                    <CameraIcon size={20 * interfaceScale} color="var(--primary-neon)" />
                                   </div>
                                 )}
                               </div>
@@ -1514,10 +1517,10 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         {replyToMessage && (
           <div className="reply-input-preview">
             <div className="reply-input-content">
-              <ReplyIcon size={16} color="var(--primary-neon)" />
+              <ReplyIcon size={16 * interfaceScale} color="var(--primary-neon)" />
               <div className="reply-input-text">
                 <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
-                <UserBadges badges={replyToMessage.author.badges} serverTag={resolveServerTag(replyToMessage.author)} size={12} />
+                <UserBadges badges={replyToMessage.author.badges} serverTag={resolveServerTag(replyToMessage.author)} size={12 * interfaceScale} />
                 <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
               </div>
             </div>
@@ -1529,13 +1532,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             <div className="attachments-preview-list">
               {attachments.map((att, i) => (
                 <div key={i} className="input-attachment-preview">
-                  {att.type.startsWith('image/') ? <img src={getFullUrl(att.url)!} alt="" /> : <div className="file-icon"><DocumentIcon size={24} /></div>}
+                  {att.type.startsWith('image/') ? <img src={getFullUrl(att.url)!} alt="" /> : <div className="file-icon"><DocumentIcon size={24 * interfaceScale} /></div>}
                   <button type="button" className="remove-attachment-btn" onClick={() => removeAttachment(i)}>×</button>
                 </div>
               ))}
               {uploadingFiles.map(f => (
                 <div key={f.id} className="input-attachment-preview uploading">
-                  {f.previewUrl ? <img src={f.previewUrl} alt="" /> : <div className="file-icon"><DocumentIcon size={24} /></div>}
+                  {f.previewUrl ? <img src={f.previewUrl} alt="" /> : <div className="file-icon"><DocumentIcon size={24 * interfaceScale} /></div>}
                   <div className="attachment-upload-overlay">
                     <span className="attachment-upload-spinner" />
                   </div>
@@ -1546,7 +1549,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         )}
         {isMuted ? (
           <div className="mute-composer-banner">
-            <LockIcon size={18} color="var(--danger)" />
+            <LockIcon size={18 * interfaceScale} color="var(--danger)" />
             <span>
               Вы не можете отправлять сообщения на этом сервере — вы в муте{' '}
               {isMutePermanent ? 'навсегда' : `до ${muteUntil!.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`}.
@@ -1563,7 +1566,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           <div style={{ flex: 1, position: 'relative' }}>
             {showScrollBottom && (
               <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)}>
-                <ArrowDownIcon size={20} />
+                <ArrowDownIcon size={20 * interfaceScale} />
                 <span>Новые сообщения</span>
               </button>
             )}

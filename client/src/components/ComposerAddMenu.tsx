@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { popoverVariants, popoverTransition } from '../animations/transitions';
 import { PlusIcon } from './Icons';
 import './ComposerAddMenu.css';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 interface ComposerAddMenuProps {
   onAttach: () => void;
@@ -10,8 +11,8 @@ interface ComposerAddMenuProps {
   onPoll: () => void;
 }
 
-const PollGlyph: React.FC = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const PollGlyph: React.FC<{ size?: number }> = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="6" y1="20" x2="6" y2="12" />
     <line x1="12" y1="20" x2="12" y2="4" />
     <line x1="18" y1="20" x2="18" y2="14" />
@@ -19,6 +20,7 @@ const PollGlyph: React.FC = () => (
 );
 
 const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPoll }) => {
+  const { interfaceScale } = useAppearance();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -56,7 +58,7 @@ const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPo
         aria-haspopup="true"
         aria-expanded={open}
       >
-        <PlusIcon />
+        <PlusIcon size={20 * interfaceScale} />
       </button>
       <AnimatePresence>
         {open && (
@@ -70,7 +72,7 @@ const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPo
             style={{ transformOrigin: 'bottom left' }}
           >
             <button type="button" className="composer-add-item" onClick={() => run(onAttach)}>
-              <span className="composer-add-icon"><PlusIcon /></span>
+              <span className="composer-add-icon"><PlusIcon size={16 * interfaceScale} /></span>
               <span>Прикрепить медиа</span>
             </button>
             <button type="button" className="composer-add-item" onClick={handleGif}>
@@ -78,7 +80,7 @@ const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPo
               <span>GIF</span>
             </button>
             <button type="button" className="composer-add-item" onClick={() => run(onPoll)}>
-              <span className="composer-add-icon"><PollGlyph /></span>
+              <span className="composer-add-icon"><PollGlyph size={18 * interfaceScale} /></span>
               <span>Опрос</span>
             </button>
           </motion.div>
