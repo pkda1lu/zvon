@@ -403,6 +403,7 @@
 .p-avatar-wrap {
   position: relative;
   z-index: 2;
+  zoom: var(--interface-scale, 1);
 }
 
 .p-avatar {
@@ -447,6 +448,7 @@
   backdrop-filter: blur(15px);
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  zoom: var(--interface-scale, 1);
 }
 
 .p-name {
@@ -494,6 +496,7 @@
   display: flex;
   gap: 10px;
   z-index: 5;
+  zoom: var(--interface-scale, 1);
 }
 
 .ind-icon {
@@ -605,6 +608,7 @@
   z-index: 100;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
   pointer-events: none;
+  zoom: var(--interface-scale, 1);
 }
 
 .stream-controls-overlay > * {
