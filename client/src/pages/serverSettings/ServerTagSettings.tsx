@@ -120,8 +120,7 @@ const ServerTagSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
             <div className="settings-main-column">
                 <h2 className="settings-page-title">Значок сервера</h2>
                 <p className="settings-description">
-                    Значок сервера отображается рядом с ником участника вместо значка профиля. Каждый участник сам решает,
-                    какой значок показывать в своём профиле — на странице «Общий профиль».
+                    Значок сервера отображается рядом с ником участника вместо значка профиля.
                 </p>
 
                 <div className="settings-card">

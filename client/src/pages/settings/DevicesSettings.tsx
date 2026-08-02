@@ -183,7 +183,7 @@ const DevicesSettings: React.FC = () => {
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Устройства</h2>
             <p className="settings-description">
-                Список устройств, на которых вы вошли в свой аккаунт. Входы с одного устройства сгруппированы вместе, даже если IP-адрес менялся. Если вы заметили подозрительную активность, завершите сессию и смените пароль.
+                Список устройств, на которых вы вошли в свой аккаунт. Входы с одного устройства сгруппированы вместе, даже если IP-адрес менялся.
             </p>
 
             {loading && sessions.length === 0 ? (
@@ -267,7 +267,7 @@ const DevicesSettings: React.FC = () => {
                     <div>
                         <h3 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 4px 0' }}>Совет по безопасности</h3>
                         <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
-                            Если вы завершили сессию на другом устройстве, но оно снова появилось в списке — возможно, ваш пароль скомпрометирован. Мы рекомендуем немедленно <span style={{ color: 'var(--primary-neon)', cursor: 'pointer', fontWeight: 600 }}>сменить пароль</span>.
+                            Если вы завершили сессию, но она снова появилось — возможно, ваш пароль скомпрометирован. Мы рекомендуем немедленно <span style={{ color: 'var(--primary-neon)', cursor: 'pointer', fontWeight: 600 }}>сменить пароль</span>.
                         </p>
                     </div>
                 </div>

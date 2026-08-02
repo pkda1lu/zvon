@@ -113,37 +113,43 @@
     position: relative;
     overflow-y: auto;
     padding: calc(60px * var(--interface-scale, 1)) calc(80px * var(--interface-scale, 1)) calc(100px * var(--interface-scale, 1)) calc(60px * var(--interface-scale, 1));
+    zoom: var(--settings-scale, var(--interface-scale, 1));
 }
 
 .settings-content-inner {
     width: fit-content;
-    max-width: 100%;
+    min-width: 800px;
+    max-width: min(100%, 1200px);
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .settings-content-inner.with-preview {
-    width: 100%;
-    max-width: calc(1200px * var(--interface-scale, 1));
+    width: fit-content;
+    max-width: min(100%, 1800px);
     display: flex;
     flex-direction: row;
-    gap: calc(60px * var(--interface-scale, 1));
+    gap: 40px;
     align-items: flex-start;
 }
 
 .settings-main-column {
-    flex: 1;
-    min-width: 0;
+    flex: 0 1 auto;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .settings-preview-column {
-    width: calc(340px * var(--interface-scale, 1));
+    --preview-base-width: calc(340px * var(--interface-scale, 1));
+    width: var(--preview-base-width);
+    min-width: calc(var(--preview-base-width) * 0.5);
+    max-width: var(--preview-base-width);
+    flex: 0 1 var(--preview-base-width);
     position: sticky;
     top: 0;
-    flex-shrink: 0;
 }
 
 .settings-preview-column.interface-preview-col {
-    width: calc(420px * var(--interface-scale, 1));
+    --preview-base-width: calc(420px * var(--interface-scale, 1));
 }
 
 .interface-preview-scaling-container {
@@ -2033,12 +2039,19 @@ input[type=range]:disabled::-webkit-slider-thumb {
     gap: 10px;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1000px) {
     .settings-content-inner.with-preview {
         flex-direction: column;
     }
+    .settings-main-column {
+        width: 100%;
+        min-width: 0;
+        order: 1;
+    }
     .settings-preview-column {
         width: 100%;
+        min-width: 0;
+        max-width: var(--preview-base-width);
         position: static;
         order: -1;
         margin-bottom: 30px;

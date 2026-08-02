@@ -97,8 +97,7 @@ const ScalingSettings: React.FC = () => {
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Масштабирование</h2>
             <p className="settings-description">
-                Выберите режим масштабирования: один общий размер для всего интерфейса или индивидуальную настройку каждого раздела. 
-                Изменения применятся после закрытия или выхода из настроек.
+                Изменяйте масштабирование интерфейса как удобно: всё сразу или раздельно
             </p>
             
             <div className="settings-card" style={{ marginBottom: '24px' }}>
