@@ -179,8 +179,8 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
         if (!position || !cardRef.current) return;
         const rect = cardRef.current.getBoundingClientRect();
         
-        const scaledWidth = rect.width * interfaceScale;
-        const scaledHeight = rect.height * interfaceScale;
+        const scaledWidth = rect.width;
+        const scaledHeight = rect.height;
 
         let finalX = position.x + 20;
         let finalY = position.y;
@@ -231,7 +231,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                 animate={position ? (isVisible ? 'animate' : 'initial') : 'animate'}
                 transition={position ? popoverTransition : modalPopTransition}
             >
-                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: position ? 'top left' : 'center' }}>
+                <div>
                     <div className="panel-hero-bg" aria-hidden="true">
                         <div className="blob cyan" />
                         <div className="blob purple" />

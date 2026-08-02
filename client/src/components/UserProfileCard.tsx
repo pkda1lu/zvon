@@ -59,8 +59,8 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
             const rect = cardRef.current.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
             
-            const scaledWidth = rect.width * interfaceScale;
-            const scaledHeight = rect.height * interfaceScale;
+            const scaledWidth = rect.width;
+            const scaledHeight = rect.height;
 
             const winW = window.innerWidth;
             const winH = window.innerHeight;
@@ -205,7 +205,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 } : undefined}
                 ref={cardRef}
             >
-                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: isPopout ? 'top left' : 'center' }}>
+                <div>
                     <p>{error}</p>
                     <button onClick={onClose}>Закрыть</button>
                 </div>
@@ -227,7 +227,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 } : undefined}
                 ref={cardRef}
             >
-                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: isPopout ? 'top left' : 'center' }}>
+                <div>
                     <div className="profile-banner skeleton"></div>
                     <div className="profile-header"><div className="profile-avatar-container"><div className="profile-avatar skeleton"></div></div></div>
                     <div className="profile-body"><div className="skeleton-text large" style={{ width: '60%' }}></div></div>
@@ -321,20 +321,18 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 animate={isPopout ? (isVisible ? 'animate' : 'initial') : 'animate'}
                 transition={isPopout ? popoverTransition : modalPopTransition}
             >
-                <div style={{ transform: `scale(${interfaceScale})`, transformOrigin: isPopout ? 'top left' : 'center' }}>
-                    <ProfilePreview
-                        user={user}
-                        memberData={memberData}
-                        server={server}
-                        type={type}
-                        onClose={onClose}
-                        onAvatarClick={handleAvatarClick}
-                        mutualFriends={mutualFriends}
-                        mutualServers={mutualServers}
-                        developments={developments}
-                        actionButtons={actionButtons}
-                    />
-                </div>
+                <ProfilePreview
+                    user={user}
+                    memberData={memberData}
+                    server={server}
+                    type={type}
+                    onClose={onClose}
+                    onAvatarClick={handleAvatarClick}
+                    mutualFriends={mutualFriends}
+                    mutualServers={mutualServers}
+                    developments={developments}
+                    actionButtons={actionButtons}
+                />
             </motion.div>
         </div>
     );
