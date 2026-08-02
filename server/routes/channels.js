@@ -54,6 +54,47 @@ router.get('/:id', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+router.put('/reorder', auth, checkPermission(Permissions.MANAGE_CHANNELS, 'body.serverId'), async (req, res) => {
+  try {
+    const { serverId, items } = req.body;
+    if (!serverId || !Array.isArray(items)) {
+      return res.status(400).json({ message: 'Invalid payload' });
+    }
+    const bulkOps = items.map((item) => ({
+      updateOne: {
+        filter: { _id: item._id, server: serverId },
+        update: {
+          $set: {
+            position: item.position,
+            category: item.category === undefined ? null : item.category
+          }
+        }
+      }
+    }));
+
+    if (bulkOps.length > 0) {
+      await Channel.bulkWrite(bulkOps);
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      const updatedServer = await Server.findById(serverId)
+        .populate('owner', 'username avatar badges')
+        .populate('channels')
+        .populate({
+          path: 'members.user',
+          select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink',
+          populate: { path: 'displayedTag.server', select: 'name icon tag' }
+        });
+      io.to(`server-${serverId}`).emit('server-updated', updatedServer);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Reorder channels error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.put('/:id', auth, async (req, res, next) => {
   try {
     const channel = await Channel.findById(req.params.id);
@@ -64,10 +105,11 @@ router.put('/:id', auth, async (req, res, next) => {
 }, checkPermission(Permissions.MANAGE_CHANNELS), async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id);
-    const { name, topic, position, permissionOverwrites, slowMode, bitrate, userLimit } = req.body;
+    const { name, topic, position, category, permissionOverwrites, slowMode, bitrate, userLimit } = req.body;
     if (name) channel.name = name;
     if (topic !== undefined) channel.topic = topic;
     if (position !== undefined) channel.position = position;
+    if (category !== undefined) channel.category = category || null;
     if (permissionOverwrites !== undefined) channel.permissionOverwrites = permissionOverwrites;
     if (slowMode !== undefined) channel.slowMode = Math.max(0, Math.min(21600, parseInt(slowMode, 10) || 0));
     if (bitrate !== undefined) channel.bitrate = parseInt(bitrate, 10) || 64000;
@@ -103,7 +145,14 @@ router.delete('/:id', auth, async (req, res, next) => {
   try {
     const channel = await Channel.findById(req.params.id);
     const serverId = channel.server;
+    const isCategory = channel.type === 'category';
+
     await Channel.findByIdAndDelete(req.params.id);
+
+    if (isCategory) {
+      await Channel.updateMany({ category: req.params.id }, { $set: { category: null } });
+    }
+
     const server = await Server.findById(serverId);
     if (server) {
       server.channels = server.channels.filter(id => id.toString() !== req.params.id);
@@ -115,7 +164,7 @@ router.delete('/:id', auth, async (req, res, next) => {
         targetId: serverId, // Server is target since channel is gone
         targetModel: 'Server',
         action: 'CHANNEL_DELETE',
-        reason: `Deleted channel #${channel.name}`
+        reason: `Deleted ${isCategory ? 'category' : 'channel'} ${channel.name}`
       });
     }
     const io = req.app.get('io');

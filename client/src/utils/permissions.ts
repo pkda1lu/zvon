@@ -84,10 +84,11 @@ export function computePermissions(userId: string, server: any, channel: any = n
         return Object.values(Permissions).reduce((acc, p) => acc | p, 0n);
     }
 
-    // 5. Channel Overwrites
-    if (channel && channel.permissionOverwrites) {
+    // 5. Category & Channel Overwrites
+    const applyOverwrites = (overwritesList: any[]) => {
+        if (!overwritesList) return;
         // @everyone overwrite
-        const everyoneOverwrite = channel.permissionOverwrites.find((o: any) => String(o.id) === String(server._id));
+        const everyoneOverwrite = overwritesList.find((o: any) => String(o.id) === String(server._id));
         if (everyoneOverwrite) {
             permissions &= ~BigInt(everyoneOverwrite.deny || 0n);
             permissions |= BigInt(everyoneOverwrite.allow || 0n);
@@ -97,7 +98,7 @@ export function computePermissions(userId: string, server: any, channel: any = n
         let roleAllow = 0n;
         let roleDeny = 0n;
         for (const roleId of memberRoleIds) {
-            const overwrite = channel.permissionOverwrites.find((o: any) => String(o.id) === String(roleId));
+            const overwrite = overwritesList.find((o: any) => String(o.id) === String(roleId));
             if (overwrite) {
                 roleAllow |= BigInt(overwrite.allow || 0n);
                 roleDeny |= BigInt(overwrite.deny || 0n);
@@ -107,10 +108,24 @@ export function computePermissions(userId: string, server: any, channel: any = n
         permissions |= roleAllow;
 
         // Member overwrite
-        const memberOverwrite = channel.permissionOverwrites.find((o: any) => String(o.id) === uId);
+        const memberOverwrite = overwritesList.find((o: any) => String(o.id) === uId);
         if (memberOverwrite) {
             permissions &= ~BigInt(memberOverwrite.deny || 0n);
             permissions |= BigInt(memberOverwrite.allow || 0n);
+        }
+    };
+
+    if (channel) {
+        if (channel.category) {
+            const categoryObj = typeof channel.category === 'object' 
+                ? channel.category 
+                : server.channels?.find((c: any) => String(c._id) === String(channel.category));
+            if (categoryObj && categoryObj.permissionOverwrites) {
+                applyOverwrites(categoryObj.permissionOverwrites);
+            }
+        }
+        if (channel.permissionOverwrites) {
+            applyOverwrites(channel.permissionOverwrites);
         }
     }
 

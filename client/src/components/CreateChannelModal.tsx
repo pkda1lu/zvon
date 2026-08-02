@@ -9,6 +9,7 @@ interface CreateChannelModalProps {
   isOpen: boolean;
   onClose: () => void;
   serverId: string;
+  initialCategoryId?: string;
   onChannelCreated: () => void;
 }
 
@@ -16,6 +17,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   isOpen,
   onClose,
   serverId,
+  initialCategoryId,
   onChannelCreated
 }) => {
   const { user } = useAuth();
@@ -41,7 +43,8 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       await axios.post('/api/channels', {
         name: channelName.trim(),
         type: channelType,
-        serverId: serverId
+        serverId: serverId,
+        category: initialCategoryId || undefined
       });
 
       setChannelName('');
