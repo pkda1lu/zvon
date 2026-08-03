@@ -47,8 +47,11 @@ import {
 } from '../animations/transitions';
 import './Main.css';
 
+import { useAppearance } from '../contexts/AppearanceContext';
+
 const Main: React.FC = () => {
   const { user, logout, updateUser, updateGlobalUser } = useAuth();
+  const { pageScales, interfaceScale } = useAppearance();
   const brand = getBrand();
   const { socket } = useSocket();
   const { activeChannelId, leaveChannel } = useVoice();
@@ -1084,13 +1087,18 @@ const Main: React.FC = () => {
         if (!(!isMobile || mobileView === 'sidebar')) return null;
         // Direction: server sidebar slides in from the right, DM sidebar from the left.
         const dir = sidebarKind === 'server' ? 1 : -1;
+        const currentSidebarScale = (pageScales?.scaleMode === 'separate' && pageScales?.sidebar !== undefined)
+          ? pageScales.sidebar
+          : interfaceScale;
+        const computedSidebarWidth = isMobile ? '100%' : Math.round(SIDEBAR_WIDTH * currentSidebarScale);
+
         return (
           <AnimatePresence mode="wait" initial={false} custom={dir}>
             {sidebarKind === 'server' && (
               <motion.div
                 key="server-sidebar"
                 className="secondary-sidebar-container"
-                style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
+                style={{ width: computedSidebarWidth }}
                 custom={dir}
                 variants={sidebarSwapVariants}
                 initial="initial"
@@ -1107,7 +1115,7 @@ const Main: React.FC = () => {
                   onUserClick={handleUserClick}
                   onOpenSettings={() => setShowServerSettings(true)}
                   onServerClick={handleServerProfileClick}
-                  style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
+                  style={{ width: '100%' }}
                 />
               </motion.div>
             )}
@@ -1115,7 +1123,7 @@ const Main: React.FC = () => {
               <motion.div
                 key="dm-sidebar"
                 className="secondary-sidebar-container"
-                style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
+                style={{ width: computedSidebarWidth }}
                 custom={dir}
                 variants={sidebarSwapVariants}
                 initial="initial"
@@ -1144,7 +1152,7 @@ const Main: React.FC = () => {
                   showFriends={showFriends}
                   currentUser={user!}
                   unreadCounts={unreadCounts}
-                  style={{ width: isMobile ? '100%' : SIDEBAR_WIDTH }}
+                  style={{ width: '100%' }}
                 />
               </motion.div>
             )}
