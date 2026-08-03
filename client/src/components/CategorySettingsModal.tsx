@@ -193,6 +193,96 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
                                             <span className="char-counter">{64 - name.length} символов осталось</span>
                                         </div>
                                     </div>
+
+                                    <div className="settings-card">
+                                        <h3 className="settings-section-title" style={{ marginTop: 0 }}>Порядок каналов в категории</h3>
+                                        <p className="settings-description" style={{ marginBottom: '16px' }}>
+                                            Изменяйте порядок отображения каналов в данной категории с помощью стрелок.
+                                        </p>
+                                        {(() => {
+                                            const categoryChannels = server.channels
+                                                .filter(c => {
+                                                    if (c.type === 'category') return false;
+                                                    const catId = typeof c.category === 'object' ? c.category?._id : c.category;
+                                                    return String(catId) === String(category._id);
+                                                })
+                                                .sort((a, b) => (a.position || 0) - (b.position || 0));
+
+                                            if (categoryChannels.length === 0) {
+                                                return <div className="server-settings-empty-state">В этой категории пока нет каналов.</div>;
+                                            }
+
+                                            const handleMove = async (index: number, direction: 'up' | 'down') => {
+                                                const targetIndex = direction === 'up' ? index - 1 : index + 1;
+                                                if (targetIndex < 0 || targetIndex >= categoryChannels.length) return;
+
+                                                const newList = [...categoryChannels];
+                                                const [moved] = newList.splice(index, 1);
+                                                newList.splice(targetIndex, 0, moved);
+
+                                                const items = newList.map((ch, idx) => ({
+                                                    _id: ch._id,
+                                                    position: idx,
+                                                    category: category._id
+                                                }));
+
+                                                try {
+                                                    await axios.put('/api/channels/reorder', {
+                                                        serverId: server._id,
+                                                        items
+                                                    });
+                                                } catch (err) {
+                                                    console.error('Failed to reorder category channels', err);
+                                                }
+                                            };
+
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    {categoryChannels.map((ch, idx) => (
+                                                        <div
+                                                            key={ch._id}
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justify: 'space-between',
+                                                                padding: '10px 14px',
+                                                                background: 'rgba(255, 255, 255, 0.03)',
+                                                                borderRadius: '12px',
+                                                                border: '1px solid rgba(255, 255, 255, 0.06)'
+                                                            }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fff', fontWeight: 600 }}>
+                                                                <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                                                                    {ch.type === 'voice' ? '🔊' : ch.type === 'room' ? '🧊' : '#'}
+                                                                </span>
+                                                                <span>{ch.name}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                                <button
+                                                                    className="settings-btn"
+                                                                    style={{ padding: '6px 10px', minWidth: 0 }}
+                                                                    disabled={idx === 0}
+                                                                    onClick={() => handleMove(idx, 'up')}
+                                                                    title="Переместить вверх"
+                                                                >
+                                                                    ↑
+                                                                </button>
+                                                                <button
+                                                                    className="settings-btn"
+                                                                    style={{ padding: '6px 10px', minWidth: 0 }}
+                                                                    disabled={idx === categoryChannels.length - 1}
+                                                                    onClick={() => handleMove(idx, 'down')}
+                                                                    title="Переместить вниз"
+                                                                >
+                                                                    ↓
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                             )}
 

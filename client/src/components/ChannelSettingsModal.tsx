@@ -268,6 +268,29 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                     </div>
                                 </div>
 
+                                <div className="settings-card">
+                                    <h3 className="settings-section-title" style={{ marginTop: 0 }}>Категория</h3>
+                                    <select
+                                        className="settings-input"
+                                        style={{ width: '100%', cursor: 'pointer' }}
+                                        value={channel.category ? (typeof channel.category === 'object' ? channel.category._id : channel.category) : ''}
+                                        onChange={(e) => {
+                                            const newCatId = e.target.value || null;
+                                            saveField({ category: newCatId as any });
+                                        }}
+                                    >
+                                        <option value="">Без категории</option>
+                                        {server.channels
+                                            .filter(c => c.type === 'category')
+                                            .map(cat => (
+                                                <option key={cat._id} value={cat._id}>
+                                                    {cat.name}
+                                                </option>
+                                            ))
+                                        }
+                                    </select>
+                                </div>
+
                                 {channel.type === 'text' && (
                                     <>
                                         <div className="settings-card">
