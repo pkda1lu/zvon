@@ -469,20 +469,23 @@ const DMView: React.FC<DMViewProps> = ({
     const v = virtuosoRef.current;
     if (!v) return;
     setShowScrollBottom(false);
-    v.scrollToIndex({ index: 'LAST', align: 'end', behavior: smooth ? 'smooth' : 'auto' });
+    const targetIdx = firstItemIndex + Math.max(0, messages.length - 1);
+    v.scrollToIndex({ index: targetIdx, align: 'end', behavior: smooth ? 'smooth' : 'auto' });
     let tries = 0;
     const settle = () => {
       const el = scrollerElRef.current;
-      if (!el) return;
-      const offset = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (offset > 2 && tries < 12) {
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
+      const offset = el ? el.scrollHeight - el.scrollTop - el.clientHeight : 0;
+      if (offset > 2 && tries < 15) {
         tries++;
-        virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' });
-        window.setTimeout(settle, 90);
+        virtuosoRef.current?.scrollToIndex({ index: targetIdx, align: 'end', behavior: 'auto' });
+        window.setTimeout(settle, 80);
       }
     };
-    window.setTimeout(settle, smooth ? 320 : 30);
-  }, []);
+    window.setTimeout(settle, smooth ? 300 : 30);
+  }, [firstItemIndex, messages.length]);
 
   // Авто-прокрутка вниз при добавлении НОВОГО сообщения в конец списка.
   // Скроллим, если это наше только что отправленное сообщение либо пользователь
@@ -600,7 +603,7 @@ const DMView: React.FC<DMViewProps> = ({
     if (!flashMessageId) return;
     const idx = messages.findIndex(m => m._id === flashMessageId);
     if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
+      virtuosoRef.current.scrollToIndex({ index: firstItemIndex + idx, behavior: 'smooth', align: 'center' });
     }
     let cancelled = false;
     const attempt = (tries: number) => {
@@ -618,7 +621,7 @@ const DMView: React.FC<DMViewProps> = ({
     };
     attempt(15);
     return () => { cancelled = true; };
-  }, [flashMessageId, messages]);
+  }, [flashMessageId, messages, firstItemIndex]);
 
   const handleReact = useCallback((messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });
@@ -1101,7 +1104,7 @@ const DMView: React.FC<DMViewProps> = ({
   const scrollToMessage = useCallback((msgId: string) => {
     const idx = messages.findIndex(m => m._id === msgId);
     if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
+      virtuosoRef.current.scrollToIndex({ index: firstItemIndex + idx, behavior: 'smooth', align: 'center' });
     }
     const tryFlash = (tries: number) => {
       const el = document.getElementById(`msg-${msgId}`);
@@ -1113,7 +1116,7 @@ const DMView: React.FC<DMViewProps> = ({
       }
     };
     tryFlash(15);
-  }, [messages]);
+  }, [messages, firstItemIndex]);
 
   return (
     <div
@@ -1270,9 +1273,9 @@ const DMView: React.FC<DMViewProps> = ({
             style={{ height: '100%', width: '100%' }}
             data={messages}
             firstItemIndex={firstItemIndex}
-            initialTopMostItemIndex={Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
+            initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
             startReached={handleStartReached}
-            followOutput={false}
+            followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
             atBottomThreshold={120}
             atBottomStateChange={handleAtBottomStateChange}
             increaseViewportBy={{ top: 600, bottom: 300 }}
