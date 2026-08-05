@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DirectMessage, User } from '../types';
-import { UsersIcon, PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon } from './Icons';
+import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
@@ -120,17 +120,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 <div className="blob purple" />
                 <div className="blob pink" />
             </div>
-            <div className="dm-sidebar-header">
-                <button
-                    className={`friends-tab-button ${showFriends ? 'active' : ''}`}
-                    onClick={onShowFriends}
-                >
-                    <div className="icon-wrapper">
-                        <UsersIcon size={20 * interfaceScale} />
-                    </div>
-                    <span>Друзья</span>
-                </button>
-            </div>
+
 
             <div className="dm-list-container custom-scrollbar">
                 <div className="dm-list-title">
