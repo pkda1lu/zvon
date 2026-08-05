@@ -39,8 +39,19 @@
   }
 
   .secondary-sidebar-container {
+    flex: 1 !important;
     width: calc(100% - 72px) !important;
+    max-width: none !important;
     border-radius: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .dm-sidebar, .server-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+    zoom: 1 !important;
   }
 
   .sidebar-resizer {

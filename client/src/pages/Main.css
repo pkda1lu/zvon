@@ -208,3 +208,16 @@
   height: 100%;
   border-left: 1px solid var(--border-color);
 }
+
+@media (max-width: 768px) {
+  .voice-chat-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1200 !important;
+    background: var(--bg-primary, #0e0e14) !important;
+    border-left: none !important;
+  }
+}

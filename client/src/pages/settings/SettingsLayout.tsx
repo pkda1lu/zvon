@@ -68,21 +68,34 @@ interface SettingsLayoutProps {
 const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initialTab = 'profile', initialData }) => {
     const [activeTab, setActiveTab] = React.useState(initialTab);
     const [pendingTab, setPendingTab] = React.useState<string | null>(null);
+    const [isSidebarExpanded, setIsSidebarExpanded] = React.useState(false);
+    const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
     const { user, logout } = useAuth();
     const { streamerModeEnabled, confirmSettingsAccess } = useWindowSettings();
 
     React.useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    React.useEffect(() => {
         if (isOpen) {
             setActiveTab(initialTab);
+            setIsSidebarExpanded(false);
         }
     }, [isOpen, initialTab]);
     
     const isWindows = !!(window as any).electron;
     const isModerator = user?.role === 'admin' || user?.role === 'moderator';
 
+    const touchStartRef = React.useRef<{ x: number; y: number; t: number } | null>(null);
+
     if (!isOpen) return null;
 
     const handleTabChange = (id: string) => {
+        if (isMobile) setIsSidebarExpanded(false);
         const sensitiveTabs = ['account', 'devices', 'bots', 'miniapps'];
         if (streamerModeEnabled && confirmSettingsAccess && sensitiveTabs.includes(id)) {
             setPendingTab(id);
@@ -131,55 +144,109 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     };
 
     const NavItem = ({ id, label, icon: Icon }: any) => (
-        <div className={`settings-sidebar-item ${activeTab === id ? 'active' : ''}`} onClick={() => handleTabChange(id)}>
+        <div className={`settings-sidebar-item ${activeTab === id ? 'active' : ''}`} onClick={() => handleTabChange(id)} title={label}>
             <div className="sidebar-item-content">
                 <Icon size={18} />
-                <span>{label}</span>
+                {(!isMobile || isSidebarExpanded) && <span>{label}</span>}
             </div>
-            {activeTab === id && <div className="active-indicator" />}
+            {activeTab === id && (!isMobile || isSidebarExpanded) && <div className="active-indicator" />}
         </div>
     );
 
+    const CategoryHeader = ({ children }: { children: React.ReactNode }) => {
+        if (isMobile && !isSidebarExpanded) return null;
+        return <div className="settings-sidebar-header">{children}</div>;
+    };
+
+    const Divider = () => {
+        if (isMobile && !isSidebarExpanded) return <div className="settings-sidebar-divider-collapsed" />;
+        return <div className="settings-sidebar-divider" />;
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (!isMobile) return;
+        const t = e.touches[0];
+        touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+    };
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (!isMobile || !touchStartRef.current) return;
+        const start = touchStartRef.current;
+        touchStartRef.current = null;
+        const end = e.changedTouches[0];
+        const dx = end.clientX - start.x;
+        const dy = end.clientY - start.y;
+        const dt = Date.now() - start.t;
+        if (dt > 600) return;
+        if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+
+        if (dx > 50 && !isSidebarExpanded) {
+            setIsSidebarExpanded(true);
+        } else if (dx < -50 && isSidebarExpanded) {
+            setIsSidebarExpanded(false);
+        }
+    };
+
     return (
-        <div className="settings-overlay">
-            <div className="settings-sidebar">
-                <div className="settings-sidebar-header">Мой профиль</div>
+        <div className="settings-overlay" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+            <div className={`settings-sidebar ${isMobile ? 'mobile-collapsed' : ''} ${isSidebarExpanded ? 'mobile-expanded' : ''}`}>
+                {isMobile && (
+                    <button
+                        className="settings-sidebar-toggle-btn"
+                        onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                        title={isSidebarExpanded ? "Свернуть меню" : "Раскрыть меню"}
+                    >
+                        {isSidebarExpanded ? (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        ) : (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="3" y1="12" x2="21" y2="12" />
+                                <line x1="3" y1="6" x2="21" y2="6" />
+                                <line x1="3" y1="18" x2="21" y2="18" />
+                            </svg>
+                        )}
+                    </button>
+                )}
+
+                <CategoryHeader>Мой профиль</CategoryHeader>
                 <NavItem id="profile" label="Общий профиль" icon={UsersIcon} />
                 <NavItem id="server-profiles" label="Профили на серверах" icon={LayoutGridIcon} />
 
-                <div className="settings-sidebar-divider" />
-                <div className="settings-sidebar-header">Безопасность</div>
+                <Divider />
+                <CategoryHeader>Безопасность</CategoryHeader>
                 <NavItem id="account" label="Учётная запись" icon={ShieldIcon} />
                 <NavItem id="devices" label="Устройства" icon={SmartphoneIcon} />
                 <NavItem id="privacy" label="Приватность" icon={EyeIcon} />
 
-                <div className="settings-sidebar-divider" />
-                <div className="settings-sidebar-header">Интерфейс</div>
+                <Divider />
+                <CategoryHeader>Интерфейс</CategoryHeader>
                 <NavItem id="appearance" label="Внешний вид" icon={PaletteIcon} />
                 <NavItem id="chat" label="Чаты" icon={ChatIcon} />
                 <NavItem id="calls" label="Звонки" icon={PhoneIcon} />
                 <NavItem id="optimization" label="Оптимизация" icon={SettingsIcon} />
                 <NavItem id="language" label="Язык и время" icon={GlobeIcon} />
 
-                <div className="settings-sidebar-divider" />
-                <div className="settings-sidebar-header">Приложения</div>
+                <Divider />
+                <CategoryHeader>Приложения</CategoryHeader>
                 <NavItem id="bots" label="Мои боты" icon={BotIcon} />
                 <NavItem id="miniapps" label="Мои мини-приложения" icon={LayoutGridIcon} />
 
-                <div className="settings-sidebar-divider" />
-                <div className="settings-sidebar-header">Взаимодействие</div>
+                <Divider />
+                <CategoryHeader>Взаимодействие</CategoryHeader>
                 <NavItem id="voice" label="Голос и видео" icon={MicIcon} />
                 <NavItem id="keybinds" label="Горячие клавиши" icon={KeyboardIcon} />
 
-                <div className="settings-sidebar-divider" />
-                <div className="settings-sidebar-header">Специальные возможности</div>
+                <Divider />
+                <CategoryHeader>Специальные возможности</CategoryHeader>
                 <NavItem id="accessibility" label="Экранный диктор" icon={SpeakerIcon} />
                 <NavItem id="scaling" label="Масштабирование" icon={MaximizeIcon} />
 
                 {isWindows && (
                     <>
-                        <div className="settings-sidebar-divider" />
-                        <div className="settings-sidebar-header">Настройки Windows</div>
+                        <Divider />
+                        <CategoryHeader>Настройки Windows</CategoryHeader>
                         <NavItem id="activity" label="Активность" icon={GamepadIcon} />
                         <NavItem id="streamer" label="Режим стримера" icon={VideoIcon} />
                         <NavItem id="overlay" label="Оверлей" icon={EyeIcon} />
@@ -190,8 +257,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
                 {isModerator && (
                     <>
-                        <div className="settings-sidebar-divider" />
-                        <div className="settings-sidebar-header">Разработчикам</div>
+                        <Divider />
+                        <CategoryHeader>Разработчикам</CategoryHeader>
                         <NavItem id="moderation" label="Модерация" icon={ShieldIcon} />
                         <NavItem id="admin-users" label="Пользователи и сервера" icon={UsersIcon} />
                         <NavItem id="admin-stats" label="Статистика" icon={BarChartIcon} />
@@ -200,17 +267,17 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                     </>
                 )}
                 
-                <div className="settings-sidebar-divider" />
-                <div className="settings-sidebar-item logout" onClick={logout}>
+                <Divider />
+                <div className="settings-sidebar-item logout" onClick={logout} title="Выйти из аккаунта">
                     <div className="sidebar-item-content">
                         <LogOutIcon size={18} />
-                        <span>Выйти из аккаунта</span>
+                        {(!isMobile || isSidebarExpanded) && <span>Выйти из аккаунта</span>}
                     </div>
                 </div>
             </div>
 
             <div className="settings-content-wrapper">
-                <button className="settings-close-btn" onClick={onClose}>
+                <button className="settings-close-btn" onClick={onClose} title="Закрыть">
                     <CloseIcon size={20} />
                 </button>
                 {renderContent()}

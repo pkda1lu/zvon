@@ -2203,6 +2203,141 @@ input[type=range]:disabled::-webkit-slider-thumb {
 }
 
 @media (max-width: 768px) {
+    .settings-overlay {
+        flex-direction: row;
+        padding-bottom: 0 !important;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    .settings-close-btn {
+        display: flex !important;
+        position: absolute !important;
+        top: 16px !important;
+        right: 16px !important;
+        z-index: 1200 !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid var(--glass-border) !important;
+        border-radius: 50% !important;
+        width: 36px !important;
+        height: 36px !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: #fff !important;
+        cursor: pointer !important;
+    }
+
+    .settings-preview-wrapper,
+    .settings-preview-container {
+        max-width: calc(100% - 48px) !important;
+    }
+
+    /* Collapsed sidebar (narrow, like server list) */
+    .settings-sidebar.mobile-collapsed {
+        width: 72px !important;
+        padding: 16px 8px !important;
+        align-items: center;
+        transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s;
+        z-index: 100;
+        background: rgba(10, 10, 15, 0.95) !important;
+        border-right: 1px solid var(--glass-border);
+    }
+
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item {
+        width: 48px;
+        height: 48px;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        justify-content: center !important;
+        margin: 6px 0 !important;
+    }
+
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.active {
+        border-radius: 16px !important;
+        background: linear-gradient(135deg, rgba(0, 242, 255, 0.15), rgba(112, 0, 255, 0.15)) !important;
+        border-color: var(--primary-neon) !important;
+    }
+
+    .settings-sidebar.mobile-collapsed .sidebar-item-content {
+        justify-content: center;
+        width: 100%;
+        gap: 0 !important;
+    }
+
+    .settings-sidebar-toggle-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--glass-border);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        margin-bottom: 16px;
+        flex-shrink: 0;
+        transition: all 0.25s;
+    }
+
+    .settings-sidebar-toggle-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--primary-neon);
+    }
+
+    /* Expanded sidebar (full screen overlay) */
+    .settings-sidebar.mobile-expanded {
+        width: 100% !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 1100;
+        align-items: stretch;
+        padding: 24px 20px !important;
+        background: rgba(8, 8, 14, 0.98) !important;
+    }
+
+    .settings-sidebar.mobile-expanded .settings-sidebar-item {
+        width: 100%;
+        height: auto;
+        border-radius: 12px !important;
+        padding: 10px 14px !important;
+        justify-content: space-between !important;
+        margin: 4px 0 !important;
+    }
+
+    .settings-sidebar.mobile-expanded .sidebar-item-content {
+        justify-content: flex-start;
+        gap: 12px !important;
+    }
+
+    .settings-sidebar.mobile-expanded .settings-sidebar-toggle-btn {
+        align-self: flex-start;
+    }
+
+    .settings-sidebar-divider-collapsed {
+        height: 1px;
+        width: 24px;
+        background-color: var(--glass-border);
+        margin: 8px 0;
+        opacity: 0.3;
+    }
+
+    .settings-content-wrapper {
+        padding: 16px !important;
+    }
+
+    .settings-card {
+        padding: 16px !important;
+    }
+
+    .settings-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+
     .server-settings-layout-content .settings-sidebar {
         width: 100%;
     }

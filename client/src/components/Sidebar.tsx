@@ -42,6 +42,7 @@ interface SidebarProps {
   minimizedMiniApps?: MiniApp[];
   onRestoreMiniApp?: (appId: string) => void;
   onCloseMiniApp?: (appId: string) => void;
+  isMobile?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -66,6 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   minimizedMiniApps = [],
   onRestoreMiniApp,
   onCloseMiniApp,
+  isMobile = false,
 }) => {
   const { interfaceScale } = useAppearance();
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
@@ -84,12 +86,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="blob pink" />
       </div>
       <div className="sidebar-servers">
-        <div className={`server-item ${showFriends ? 'active' : ''}`}>
+        <div className={`server-item ${!selectedServer && !showShowcase ? 'active' : ''}`}>
           <div className="pill"><span /></div>
           <motion.div
-            className={`server-icon friends-sidebar-icon ${showFriends ? 'active' : ''}`}
+            className={`server-icon friends-sidebar-icon ${!selectedServer && !showShowcase ? 'active' : ''}`}
             onClick={onShowFriends}
-            title="Друзья"
+            title="Личные сообщения"
             {...pressFeedback}
           >
             <UsersIcon size={28 * interfaceScale} />
@@ -99,17 +101,19 @@ const Sidebar: React.FC<SidebarProps> = ({
           </motion.div>
         </div>
 
-        <div className={`server-item ${showShowcase ? 'active' : ''}`}>
-          <div className="pill"><span /></div>
-          <motion.div
-            className={`server-icon showcase-sidebar-icon ${showShowcase ? 'active' : ''}`}
-            onClick={onShowShowcase}
-            title="Витрина ботов и мини-приложений"
-            {...pressFeedback}
-          >
-            <LayoutGridIcon size={28 * interfaceScale} color="var(--accent-pink)" />
-          </motion.div>
-        </div>
+        {!isMobile && (
+          <div className={`server-item ${showShowcase ? 'active' : ''}`}>
+            <div className="pill"><span /></div>
+            <motion.div
+              className={`server-icon showcase-sidebar-icon ${showShowcase ? 'active' : ''}`}
+              onClick={onShowShowcase}
+              title="Витрина ботов и мини-приложений"
+              {...pressFeedback}
+            >
+              <LayoutGridIcon size={28 * interfaceScale} color="var(--accent-pink)" />
+            </motion.div>
+          </div>
+        )}
 
         <AnimatePresence>
           {minimizedMiniApps.map(app => (
@@ -181,56 +185,58 @@ const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </div>
 
-      <div className="sidebar-user">
-        <motion.div
-          className="user-avatar-wrapper"
-          title={`${user.username} (${user.status})`}
-          onClick={() => onOpenProfile(user._id, undefined, true)}
-          style={{ position: 'relative' }}
-          {...pressFeedback}
-        >
-          <UserAvatar
-            user={user}
-            size={38 * interfaceScale}
-            className="user-avatar"
-          />
-          <div className={`status-indicator ${user.activity?.type === 'streaming' ? 'streaming' : user.status}`}></div>
-        </motion.div>
-        <div className="sidebar-user-actions">
-          <motion.button
-            className="logout-button"
-            onClick={onToggleInbox}
-            title="Уведомления"
+      {!isMobile && (
+        <div className="sidebar-user">
+          <motion.div
+            className="user-avatar-wrapper"
+            title={`${user.username} (${user.status})`}
+            onClick={() => onOpenProfile(user._id, undefined, true)}
             style={{ position: 'relative' }}
-            whileTap={{ scale: 0.88, rotate: 30 }}
-            whileHover={{ scale: 1.08, rotate: -8 }}
-            transition={iosSpringSnappy}
+            {...pressFeedback}
           >
-            <BellIcon size={18 * interfaceScale} />
-            {inboxUnreadCount > 0 && <div className="unread-badge sidebar-user-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
-          </motion.button>
-          <motion.button
-            className="logout-button report-button"
-            onClick={() => setShowReport(true)}
-            title="Сообщить о проблеме"
-            whileTap={{ scale: 0.88, rotate: 30 }}
-            whileHover={{ scale: 1.08, rotate: -8 }}
-            transition={iosSpringSnappy}
-          >
-            <FlagIcon size={18 * interfaceScale} />
-          </motion.button>
-          <motion.button
-            className="logout-button"
-            onClick={onOpenSettings}
-            title="Настройки"
-            whileTap={{ scale: 0.88, rotate: 30 }}
-            whileHover={{ scale: 1.08, rotate: -8 }}
-            transition={iosSpringSnappy}
-          >
-            <SettingsIcon size={20 * interfaceScale} />
-          </motion.button>
+            <UserAvatar
+              user={user}
+              size={38 * interfaceScale}
+              className="user-avatar"
+            />
+            <div className={`status-indicator ${user.activity?.type === 'streaming' ? 'streaming' : user.status}`}></div>
+          </motion.div>
+          <div className="sidebar-user-actions">
+            <motion.button
+              className="logout-button"
+              onClick={onToggleInbox}
+              title="Уведомления"
+              style={{ position: 'relative' }}
+              whileTap={{ scale: 0.88, rotate: 30 }}
+              whileHover={{ scale: 1.08, rotate: -8 }}
+              transition={iosSpringSnappy}
+            >
+              <BellIcon size={18 * interfaceScale} />
+              {inboxUnreadCount > 0 && <div className="unread-badge sidebar-user-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
+            </motion.button>
+            <motion.button
+              className="logout-button report-button"
+              onClick={() => setShowReport(true)}
+              title="Сообщить о проблеме"
+              whileTap={{ scale: 0.88, rotate: 30 }}
+              whileHover={{ scale: 1.08, rotate: -8 }}
+              transition={iosSpringSnappy}
+            >
+              <FlagIcon size={18 * interfaceScale} />
+            </motion.button>
+            <motion.button
+              className="logout-button"
+              onClick={onOpenSettings}
+              title="Настройки"
+              whileTap={{ scale: 0.88, rotate: 30 }}
+              whileHover={{ scale: 1.08, rotate: -8 }}
+              transition={iosSpringSnappy}
+            >
+              <SettingsIcon size={20 * interfaceScale} />
+            </motion.button>
+          </div>
         </div>
-      </div>
+      )}
 
 
       {contextMenu && (

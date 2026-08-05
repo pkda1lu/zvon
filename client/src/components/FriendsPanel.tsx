@@ -129,12 +129,6 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
         <div className="friends-left-section">
           {isMobile && (
             <div className="friends-mobile-header">
-              <button className="back-button" onClick={onBack} title="Назад в меню">
-                <svg width={20 * interfaceScale} height={20 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
-              </button>
               <h3>Друзья</h3>
             </div>
           )}

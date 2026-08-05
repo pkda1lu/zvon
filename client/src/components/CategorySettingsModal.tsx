@@ -4,7 +4,7 @@ import AnimatedOverlay from '../animations/AnimatedOverlay';
 import { Channel, Server, Role, PermissionOverwrite } from '../types';
 import { Permissions } from '../utils/permissions';
 import { useDialog } from '../contexts/DialogContext';
-import { CloseIcon, TrashIcon, PlusIcon } from './Icons';
+import { CloseIcon, TrashIcon, PlusIcon, LayoutGridIcon, ShieldIcon } from './Icons';
 import './ChannelSettingsModal.css';
 import UserAvatar from "./UserAvatar";
 import { SettingsToggle } from '../pages/settings/SettingsUI';
@@ -60,6 +60,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
         }
     }, [category._id, onCategoryUpdate]);
 
+    const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const updateNameField = (val: string) => {
@@ -116,14 +117,55 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
         saveField({ permissionOverwrites: newOverwrites });
     };
 
-    const NavItem = ({ id, label }: { id: Tab; label: string }) => (
-        <div className={`settings-sidebar-item ${activeTab === id ? 'active' : ''}`} onClick={() => { setActiveTab(id); if (isMobile) setMobileViewState('content'); }}>
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+
+    const handleTabChange = (t: Tab) => {
+        setActiveTab(t);
+        if (isMobile) setIsSidebarExpanded(false);
+    };
+
+    const NavItem = ({ id, label, icon: Icon }: { id: Tab; label: string; icon: any }) => (
+        <div className={`settings-sidebar-item ${activeTab === id ? 'active' : ''}`} onClick={() => handleTabChange(id)} title={label}>
             <div className="sidebar-item-content">
-                <span>{label}</span>
+                <Icon size={18} />
+                {(!isMobile || isSidebarExpanded) && <span>{label}</span>}
             </div>
-            {activeTab === id && <div className="active-indicator" />}
+            {activeTab === id && (!isMobile || isSidebarExpanded) && <div className="active-indicator" />}
         </div>
     );
+
+    const CategoryHeader = ({ children }: { children: React.ReactNode }) => {
+        if (isMobile && !isSidebarExpanded) return null;
+        return <div className="settings-sidebar-header settings-sidebar-category">{children}</div>;
+    };
+
+    const Divider = () => {
+        if (isMobile && !isSidebarExpanded) return <div className="settings-sidebar-divider-collapsed" />;
+        return <div className="settings-sidebar-divider" />;
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (!isMobile) return;
+        const t = e.touches[0];
+        touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+    };
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (!isMobile || !touchStartRef.current) return;
+        const start = touchStartRef.current;
+        touchStartRef.current = null;
+        const end = e.changedTouches[0];
+        const dx = end.clientX - start.x;
+        const dy = end.clientY - start.y;
+        const dt = Date.now() - start.t;
+        if (dt > 600) return;
+        if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+
+        if (dx > 50 && !isSidebarExpanded) {
+            setIsSidebarExpanded(true);
+        } else if (dx < -50 && isSidebarExpanded) {
+            setIsSidebarExpanded(false);
+        }
+    };
 
     const customAccessList = overwrites.filter(o => String(o.id) !== String(server._id));
     const selectedOverwrite = customAccessList.find(o => String(o.id) === String(selectedOverwriteId)) || customAccessList[0] || null;
@@ -136,44 +178,47 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
             contentClassName="server-settings-passthrough server-settings-layout-content"
             variant="fade"
         >
-            <>
-                {(!isMobile || mobileViewState === 'tabs') && (
-                    <div className="settings-sidebar">
-                        <div className="settings-sidebar-header">📁 {category.name}</div>
+            <div style={{ display: 'flex', width: '100%', height: '100%' }} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+                <div className={`settings-sidebar ${isMobile ? 'mobile-collapsed' : ''} ${isSidebarExpanded ? 'mobile-expanded' : ''}`}>
+                    {isMobile && (
+                        <button
+                            className="settings-sidebar-toggle-btn"
+                            onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                            title={isSidebarExpanded ? "Свернуть меню" : "Раскрыть меню"}
+                        >
+                            {isSidebarExpanded ? (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            ) : (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="3" y1="12" x2="21" y2="12" />
+                                    <line x1="3" y1="6" x2="21" y2="6" />
+                                    <line x1="3" y1="18" x2="21" y2="18" />
+                                </svg>
+                            )}
+                        </button>
+                    )}
 
-                        <div className="settings-sidebar-header settings-sidebar-category">Настройки категории</div>
-                        <NavItem id="overview" label="Обзор" />
-                        <NavItem id="permissions" label="Права доступа" />
+                    <CategoryHeader>Настройки категории</CategoryHeader>
+                    <NavItem id="overview" label="Обзор" icon={LayoutGridIcon} />
+                    <NavItem id="permissions" label="Права доступа" icon={ShieldIcon} />
 
-                        <div style={{ flex: 1 }} />
-                        <div className="settings-sidebar-divider" />
-                        <div className="settings-sidebar-item danger" onClick={handleDelete}>
-                            <div className="sidebar-item-content">
-                                <TrashIcon size={18} />
-                                <span>Удалить категорию</span>
-                            </div>
+                    <div style={{ flex: 1 }} />
+                    <Divider />
+                    <div className="settings-sidebar-item danger" onClick={handleDelete} title="Удалить категорию">
+                        <div className="sidebar-item-content">
+                            <TrashIcon size={18} />
+                            {(!isMobile || isSidebarExpanded) && <span>Удалить категорию</span>}
                         </div>
-                        {isMobile && <div className="settings-sidebar-item" onClick={handleCloseModal}>Закрыть</div>}
                     </div>
-                )}
+                </div>
 
-                {(!isMobile || mobileViewState === 'content') && (
-                    <div className="settings-content-wrapper">
-                        {isMobile ? (
-                            <div className="mobile-settings-header">
-                                <button className="back-button" onClick={() => setMobileViewState('tabs')}>
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                                </button>
-                                <span style={{ fontWeight: 800, fontSize: '18px' }}>
-                                    {activeTab === 'overview' && 'Обзор'}
-                                    {activeTab === 'permissions' && 'Права доступа'}
-                                </span>
-                            </div>
-                        ) : (
-                            <button className="settings-close-btn" onClick={handleCloseModal}>
-                                <CloseIcon size={20} />
-                            </button>
-                        )}
+                <div className="settings-content-wrapper">
+                    <button className="settings-close-btn" onClick={handleCloseModal} title="Закрыть">
+                        <CloseIcon size={20} />
+                    </button>
 
                         <div className={`settings-content-inner ${activeTab === 'permissions' ? 'full-width-layout' : ''}`}>
                             {activeTab === 'overview' && (
@@ -491,11 +536,10 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
                                         </>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </>
+                             )}
+                         </div>
+                     </div>
+                 </div>
         </AnimatedOverlay>
     );
 };

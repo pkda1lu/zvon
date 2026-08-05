@@ -12,6 +12,7 @@ interface ActiveContactsProps {
     friends: User[];
     servers?: Server[];
     onUserClick: (userId: string, event?: React.MouseEvent) => void;
+    variant?: 'sidebar' | 'mobile-row';
 }
 
 interface VoiceGroup {
@@ -21,7 +22,7 @@ interface VoiceGroup {
     users: User[];
 }
 
-const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], onUserClick }) => {
+const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], onUserClick, variant = 'sidebar' }) => {
     const { socket } = useSocket();
     const { interfaceScale } = useAppearance();
     // Плоская карта channelId -> список пользователей. ID канала уникален глобально,
@@ -83,6 +84,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
     };
 
     if (activeFriends.length === 0 && voiceGroups.length === 0) {
+        if (variant === 'mobile-row') return null;
         return (
             <div className="active-contacts-sidebar panel-hero empty">
                 <div className="panel-hero-bg" aria-hidden="true">
@@ -101,6 +103,55 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                     </div>
                     <h4>Тишина...</h4>
                     <p>Пока никто не играет, не стримит и не сидит в голосовом. Когда друзья появятся тут — вы это увидите!</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (variant === 'mobile-row') {
+        return (
+            <div className="active-contacts-mobile-row">
+                <div className="active-contacts-mobile-title">АКТИВНЫЕ КОНТАКТЫ</div>
+                <div className="active-contacts-list-horizontal custom-scrollbar">
+                    {voiceGroups.map(group => (
+                        <div
+                            key={group.channelId}
+                            className="active-card-mobile glass-panel-base"
+                            data-type="voice"
+                            onClick={() => handleVoiceGroupClick(group)}
+                        >
+                            <div className="active-avatar-stack-mobile">
+                                {group.users.slice(0, 2).map((u, i) => (
+                                    <UserAvatar key={u._id} user={u} size={28 * interfaceScale} className="active-avatar" style={{ zIndex: 2 - i }} />
+                                ))}
+                            </div>
+                            <div className="active-info-mobile">
+                                <div className="active-username-mobile">
+                                    {group.users.map(u => u.username).join(', ')}
+                                </div>
+                                <div className="active-sub-mobile">В голосовом</div>
+                            </div>
+                        </div>
+                    ))}
+                    {activeFriends.map(friend => (
+                        <div
+                            key={friend._id}
+                            className="active-card-mobile glass-panel-base"
+                            data-type={friend.activity?.type || 'playing'}
+                            onClick={(e) => onUserClick(friend._id, e)}
+                        >
+                            <div className="active-avatar-wrap-mobile">
+                                <UserAvatar user={friend} size={28 * interfaceScale} />
+                                <div className={`status-indicator ${friend.status}`}></div>
+                            </div>
+                            <div className="active-info-mobile">
+                                <div className="active-username-mobile">{friend.username}</div>
+                                <div className="active-sub-mobile">
+                                    {friend.activity?.type === 'streaming' ? 'Стримит' : (friend.activity?.name || 'Играет')}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         );

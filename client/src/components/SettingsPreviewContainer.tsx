@@ -22,7 +22,7 @@ export const SettingsPreviewContainer: React.FC<SettingsPreviewContainerProps> =
     const targetWidth = baseWidth * userScale;
 
     const [isStackedAbove, setIsStackedAbove] = useState<boolean>(false);
-    const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+    const [isCollapsed, setIsCollapsed] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 768);
 
     useEffect(() => {
         const updateLayout = () => {

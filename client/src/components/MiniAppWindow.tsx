@@ -68,6 +68,13 @@ function pickTrackFromMessage(msg: any, iframe?: HTMLIFrameElement | null): Medi
 }
 
 const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize, minimized = false }) => {
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    useEffect(() => {
+        const handleWinResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleWinResize);
+        return () => window.removeEventListener('resize', handleWinResize);
+    }, []);
+
     const [position, setPosition] = useState({ x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 });
     const [size, setSize] = useState({ width: 800, height: 600 });
     const [isDragging, setIsDragging] = useState(false);
@@ -511,6 +518,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
     }, [minimized, onMinimize, app._id]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
+        if (isMobile) return;
         setIsDragging(true);
         dragStartRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
     };
@@ -633,9 +641,13 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                     style={{ pointerEvents: isDragging || isResizing ? 'none' : 'auto', background: 'white', display: isBlocked ? 'none' : 'block' }}
                 />
             </div>
-            <div className="resize-handle right" onMouseDown={(e) => handleResizeDown(e, 'right')} />
-            <div className="resize-handle bottom" onMouseDown={(e) => handleResizeDown(e, 'bottom')} />
-            <div className="resize-handle bottom-right" onMouseDown={(e) => handleResizeDown(e, 'bottom-right')} />
+            {!isMobile && (
+                <>
+                    <div className="resize-handle right" onMouseDown={(e) => handleResizeDown(e, 'right')} />
+                    <div className="resize-handle bottom" onMouseDown={(e) => handleResizeDown(e, 'bottom')} />
+                    <div className="resize-handle bottom-right" onMouseDown={(e) => handleResizeDown(e, 'bottom-right')} />
+                </>
+            )}
         </motion.div>
     );
 };

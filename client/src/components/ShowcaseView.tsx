@@ -192,14 +192,8 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
 
             <div className="showcase-main-container">
                 <div className="showcase-left-section">
-                    {isMobile && onBack && (
+                    {isMobile && (
                         <div className="showcase-mobile-header" style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', flexShrink: 0 }}>
-                            <button className="back-button" onClick={onBack} title="Назад" style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--glass-border)', color: '#fff', width: '36px', height: '36px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginRight: '12px' }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                                    <polyline points="12 19 5 12 12 5"></polyline>
-                                </svg>
-                            </button>
                             <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#fff' }}>Витрина</h3>
                         </div>
                     )}

@@ -437,6 +437,6 @@
   .showcase-hero-header { padding: 18px 24px; }
   .showcase-hero-title { font-size: 26px; }
   .showcase-tabs { padding: 8px 24px; }
-  .showcase-list { padding: 8px 24px 24px; grid-template-columns: 1fr; }
-  .showcase-profile-card { min-height: auto; }
+  .showcase-list { padding: 8px 24px calc(70px + env(safe-area-inset-bottom)); grid-template-columns: 1fr; }
+  .showcase-profile-card { min-height: 320px; }
 }

@@ -172,20 +172,30 @@ const Main: React.FC = () => {
     const dx = end.clientX - start.x;
     const dy = end.clientY - start.y;
     const dt = Date.now() - start.t;
-    if (dt > 500) return; // too slow
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return; // not horizontal enough
-    // Edge-only swipe to avoid hijacking interactive content
-    const edgeThreshold = 40;
-    const fromLeftEdge = start.x < edgeThreshold;
-    const fromRightEdge = start.x > window.innerWidth - edgeThreshold;
-    const order: Array<'sidebar' | 'content' | 'members'> = ['sidebar', 'content', 'members'];
-    const idx = order.indexOf(mobileView);
-    if (dx > 0 && (fromLeftEdge || mobileView !== 'content') && idx > 0) {
-      setMobileView(order[idx - 1]);
-    } else if (dx < 0 && (fromRightEdge || mobileView !== 'content') && idx < order.length - 1) {
-      // Only allow swipe to members if a server is selected
-      if (order[idx + 1] === 'members' && !selectedServer) return;
-      setMobileView(order[idx + 1]);
+    if (dt > 600) return; // too slow
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.2) return; // not horizontal enough
+
+    const isVoice = selectedChannel?.type === 'voice' || selectedChannel?.type === 'room';
+
+    if (dx < -50) { // Swipe Right-to-Left (forward)
+      if (isVoice) {
+        if (mobileView === 'sidebar') setMobileView('content');
+        else if (mobileView === 'content' && !showVoiceChat) setShowVoiceChat(true);
+      } else {
+        if (mobileView === 'sidebar') {
+          if (selectedServer || selectedDM || showFriends) setMobileView('content');
+        } else if (mobileView === 'content') {
+          if (selectedServer && selectedServer.showMembersList !== false) setMobileView('members');
+        }
+      }
+    } else if (dx > 50) { // Swipe Left-to-Right (back)
+      if (isVoice) {
+        if (showVoiceChat) setShowVoiceChat(false);
+        else if (mobileView === 'content') setMobileView('sidebar');
+      } else {
+        if (mobileView === 'members') setMobileView('content');
+        else if (mobileView === 'content') setMobileView('sidebar');
+      }
     }
   };
 
@@ -980,6 +990,7 @@ const Main: React.FC = () => {
   };
 
     const handleShowShowcase = () => {
+        setShowSettingsModal(false);
         setShowShowcase(true);
         setShowFriends(false);
         setSelectedServer(null);
@@ -1046,6 +1057,7 @@ const Main: React.FC = () => {
     >
       {( (!isMobile || mobileView === 'sidebar') ) && (
         <Sidebar
+          isMobile={isMobile}
           user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
           onServerSelect={(server) => {
               setSelectedServer(server); setShowFriends(false); setShowShowcase(false); setSelectedDM(null);
@@ -1060,7 +1072,7 @@ const Main: React.FC = () => {
           }}
           onCreateServer={handleCreateServer}
           onServerJoined={(server) => { setServers((prev) => [...prev, server]); setSelectedServer(server); if (socket) socket.emit('join-server', server._id); if (server.channels.length > 0) setSelectedChannel(server.channels[0]); }}
-          onLogout={logout} onShowFriends={() => { setShowFriends(true); setShowShowcase(false); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); setMobileView(isMobile ? 'content' : 'sidebar'); }}
+          onLogout={logout} onShowFriends={() => { setShowFriends(false); setShowShowcase(false); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); setMobileView('sidebar'); }}
           showFriends={showFriends}
           onShowShowcase={handleShowShowcase}
           showShowcase={showShowcase}
@@ -1153,6 +1165,10 @@ const Main: React.FC = () => {
                   currentUser={user!}
                   unreadCounts={unreadCounts}
                   style={{ width: '100%' }}
+                  isMobile={isMobile}
+                  friends={friends}
+                  servers={servers}
+                  onUserClick={handleUserClick}
                 />
               </motion.div>
             )}
@@ -1161,7 +1177,7 @@ const Main: React.FC = () => {
       })()}
 
       {/* --- CONTENT AREA --- */}
-      {((!isMobile || mobileView === 'content')) && (
+      {((!isMobile || mobileView === 'content' || mobileView === 'members')) && (
         <div className="main-content-area">
           <VerificationWarning onOpenSettings={() => setShowSettingsModal(true)} />
           {(() => {
@@ -1414,17 +1430,20 @@ const Main: React.FC = () => {
         const inConversation = !!(selectedChannel || selectedDM) && mobileView === 'content';
         if (inConversation || mobileView === 'members') return null;
 
-        const active: 'chats' | 'friends' | 'showcase' | null =
-          showShowcase ? 'showcase'
+        const active: 'chats' | 'friends' | 'showcase' | 'settings' | null =
+          showSettingsModal ? 'settings'
+          : showShowcase ? 'showcase'
           : showFriends ? 'friends'
           : (!selectedServer ? 'chats' : null);
 
         const goChats = () => {
+          setShowSettingsModal(false);
           setShowFriends(false); setShowShowcase(false);
           setSelectedServer(null); setSelectedChannel(null);
           setMobileView('sidebar');
         };
         const goFriends = () => {
+          setShowSettingsModal(false);
           setShowFriends(true); setShowShowcase(false);
           setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null);
           setMobileView('content');
@@ -1444,9 +1463,9 @@ const Main: React.FC = () => {
               <LayoutGridIcon size={22} />
               <span>Витрина</span>
             </button>
-            <button className="mbn-item" onClick={() => setShowSettingsModal(true)}>
+            <button className={`mbn-item ${active === 'settings' ? 'active' : ''}`} onClick={() => setShowSettingsModal(true)}>
               <SettingsIcon size={22} />
-              <span>Профиль</span>
+              <span>Настройки</span>
             </button>
           </nav>
         );

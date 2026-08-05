@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { DirectMessage, User } from '../types';
+import { DirectMessage, User, Server } from '../types';
 import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
+import ActiveContacts from './ActiveContacts';
 import { useAppearance } from '../contexts/AppearanceContext';
 import './panel-hero.css';
 import './DMSidebar.css';
@@ -19,6 +20,10 @@ interface DMSidebarProps {
     onAddDM?: () => void;
     onDeleteDM?: (dm: DirectMessage) => void;
     style?: React.CSSProperties;
+    isMobile?: boolean;
+    friends?: User[];
+    servers?: Server[];
+    onUserClick?: (userId: string, event?: React.MouseEvent) => void;
 }
 
 // ID модератора у чата «от имени модерации» (или null, если это обычный чат).
@@ -35,7 +40,11 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     unreadCounts,
     onAddDM,
     onDeleteDM,
-    style
+    style,
+    isMobile = false,
+    friends = [],
+    servers = [],
+    onUserClick
 }) => {
     const { interfaceScale } = useAppearance();
     // Чаты «от имени модерации», где текущий пользователь — модератор.
@@ -123,6 +132,14 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
 
 
             <div className="dm-list-container custom-scrollbar">
+                {isMobile && onUserClick && (
+                    <ActiveContacts
+                        variant="mobile-row"
+                        friends={friends}
+                        servers={servers}
+                        onUserClick={onUserClick}
+                    />
+                )}
                 <div className="dm-list-title">
                     <span>ЛИЧНЫЕ СООБЩЕНИЯ</span>
                     <button

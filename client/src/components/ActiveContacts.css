@@ -340,3 +340,91 @@
         display: none;
     }
 }
+
+/* === Mobile Horizontal Row === */
+.active-contacts-mobile-row {
+    padding: 12px 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.active-contacts-mobile-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-faint, rgba(255, 255, 255, 0.5));
+    letter-spacing: 0.8px;
+}
+
+.active-contacts-list-horizontal {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.active-contacts-list-horizontal::-webkit-scrollbar {
+    height: 3px;
+}
+.active-contacts-list-horizontal::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.active-card-mobile {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    max-width: 160px;
+}
+
+.active-card-mobile:active {
+    transform: scale(0.96);
+}
+
+.active-avatar-wrap-mobile {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.active-avatar-stack-mobile {
+    display: flex;
+    align-items: center;
+}
+.active-avatar-stack-mobile .active-avatar:not(:first-child) {
+    margin-left: -10px;
+}
+
+.active-info-mobile {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.active-username-mobile {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.active-sub-mobile {
+    font-size: 10px;
+    color: var(--primary-neon, #00f2ff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
