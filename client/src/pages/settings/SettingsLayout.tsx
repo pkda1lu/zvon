@@ -236,7 +236,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <Divider />
                 <CategoryHeader>Взаимодействие</CategoryHeader>
                 <NavItem id="voice" label="Голос и видео" icon={MicIcon} />
-                <NavItem id="keybinds" label="Горячие клавиши" icon={KeyboardIcon} />
+                {!isMobile && <NavItem id="keybinds" label="Горячие клавиши" icon={KeyboardIcon} />}
 
                 <Divider />
                 <CategoryHeader>Специальные возможности</CategoryHeader>
@@ -277,9 +277,6 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             </div>
 
             <div className="settings-content-wrapper">
-                <button className="settings-close-btn" onClick={onClose} title="Закрыть">
-                    <CloseIcon size={20} />
-                </button>
                 {renderContent()}
             </div>
 

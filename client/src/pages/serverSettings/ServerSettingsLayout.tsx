@@ -152,7 +152,7 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
         <AnimatedOverlay
             isOpen={isOpen}
             onClose={onClose}
-            overlayClassName="settings-overlay"
+            overlayClassName="settings-overlay server-settings-passthrough"
             contentClassName="server-settings-passthrough server-settings-layout-content"
             variant="fade"
         >

@@ -205,7 +205,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
                     <NavItem id="overview" label="Обзор" icon={LayoutGridIcon} />
                     <NavItem id="permissions" label="Права доступа" icon={ShieldIcon} />
 
-                    <div style={{ flex: 1 }} />
+                    <div style={{ flex: isMobile ? 0 : 1 }} />
                     <Divider />
                     <div className="settings-sidebar-item danger" onClick={handleDelete} title="Удалить категорию">
                         <div className="sidebar-item-content">

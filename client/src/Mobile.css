@@ -180,7 +180,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 1500;
+    z-index: 12000 !important;
     display: flex;
     align-items: stretch;
     height: calc(56px + env(safe-area-inset-bottom));
@@ -189,6 +189,10 @@
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border-top: 1px solid var(--glass-border);
+  }
+
+  body:has(.server-settings-passthrough) .mobile-bottom-nav {
+    display: none !important;
   }
 
   .mbn-item {

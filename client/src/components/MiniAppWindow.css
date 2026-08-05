@@ -24,6 +24,15 @@
         border: none !important;
         z-index: 9500 !important;
     }
+    .miniapp-header {
+        background: #0d0d15 !important;
+        background-color: #0d0d15 !important;
+        opacity: 1 !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border-bottom: 1px solid var(--glass-border) !important;
+        z-index: 10 !important;
+    }
 }
 
 .miniapp-header {

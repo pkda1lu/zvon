@@ -2203,49 +2203,75 @@ input[type=range]:disabled::-webkit-slider-thumb {
 }
 
 @media (max-width: 768px) {
-    .settings-overlay {
-        flex-direction: row;
-        padding-bottom: 0 !important;
-        box-sizing: border-box;
-        overflow: hidden;
-    }
-
-    .settings-close-btn {
+    /* Server settings and channel settings stretch 100% full screen (no mobile-bottom-nav, fills empty black space) */
+    .settings-overlay.server-settings-passthrough,
+    .server-settings-passthrough,
+    .server-settings-layout-content {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 11000 !important;
         display: flex !important;
-        position: absolute !important;
-        top: 16px !important;
-        right: 16px !important;
-        z-index: 1200 !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-        border: 1px solid var(--glass-border) !important;
-        border-radius: 50% !important;
-        width: 36px !important;
-        height: 36px !important;
-        align-items: center !important;
-        justify-content: center !important;
-        color: #fff !important;
-        cursor: pointer !important;
+        flex-direction: row !important;
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
     }
 
-    .settings-preview-wrapper,
-    .settings-preview-container {
-        max-width: calc(100% - 48px) !important;
+    /* Regular settings overlay stops above mobile-bottom-nav so bottom nav remains visible */
+    .settings-overlay:not(.server-settings-passthrough) {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+        width: 100vw !important;
+        height: calc(100vh - 56px - env(safe-area-inset-bottom, 0px)) !important;
+        z-index: 10000 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    /* Sidebars inside regular settings fit 100% within regular settings overlay height */
+    .settings-overlay:not(.server-settings-passthrough) .settings-sidebar.mobile-collapsed,
+    .settings-overlay:not(.server-settings-passthrough) .settings-sidebar.mobile-expanded {
+        padding-bottom: 16px !important;
     }
 
     /* Collapsed sidebar (narrow, like server list) */
     .settings-sidebar.mobile-collapsed {
         width: 72px !important;
-        padding: 16px 8px !important;
+        padding: 16px 8px 16px !important;
         align-items: center;
         transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s;
         z-index: 100;
         background: rgba(10, 10, 15, 0.95) !important;
         border-right: 1px solid var(--glass-border);
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        max-height: 100% !important;
+        height: 100% !important;
+        flex-shrink: 0 !important;
+        box-sizing: border-box !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+
+    .settings-sidebar.mobile-collapsed::-webkit-scrollbar {
+        display: none !important;
     }
 
     .settings-sidebar.mobile-collapsed .settings-sidebar-item {
         width: 48px;
         height: 48px;
+        flex-shrink: 0 !important;
         border-radius: 50% !important;
         padding: 0 !important;
         justify-content: center !important;
@@ -2256,6 +2282,31 @@ input[type=range]:disabled::-webkit-slider-thumb {
         border-radius: 16px !important;
         background: linear-gradient(135deg, rgba(0, 242, 255, 0.15), rgba(112, 0, 255, 0.15)) !important;
         border-color: var(--primary-neon) !important;
+    }
+
+    /* PC style logout button: NO BORDER in inactive format */
+    .settings-sidebar .settings-sidebar-item.logout {
+        color: var(--danger) !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout {
+        width: 48px !important;
+        height: 48px !important;
+        flex-shrink: 0 !important;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        justify-content: center !important;
+        margin: 12px 0 6px 0 !important;
+        color: var(--danger) !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout:hover,
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout:active {
+        background: rgba(255, 59, 48, 0.15) !important;
     }
 
     .settings-sidebar.mobile-collapsed .sidebar-item-content {
@@ -2294,8 +2345,43 @@ input[type=range]:disabled::-webkit-slider-thumb {
         bottom: 0;
         z-index: 1100;
         align-items: stretch;
-        padding: 24px 20px !important;
+        padding: 24px 20px 24px;
         background: rgba(8, 8, 14, 0.98) !important;
+        overflow-y: auto !important;
+        box-sizing: border-box !important;
+    }
+
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout {
+        width: 100% !important;
+        height: auto !important;
+        border-radius: 12px !important;
+        padding: 12px 16px !important;
+        margin: 12px 0 8px 0 !important;
+        color: var(--danger) !important;
+        border: none !important;
+        background: transparent !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
+
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout:hover,
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout:active {
+        background: rgba(255, 59, 48, 0.15) !important;
+    }
+
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout .sidebar-item-content {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        width: 100% !important;
+        justify-content: flex-start !important;
+    }
+
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout span {
+        display: inline-block !important;
+        color: var(--danger) !important;
+        font-weight: 600 !important;
     }
 
     .settings-sidebar.mobile-expanded .settings-sidebar-item {
@@ -2338,14 +2424,10 @@ input[type=range]:disabled::-webkit-slider-thumb {
         gap: 12px !important;
     }
 
-    .server-settings-layout-content .settings-sidebar {
-        width: 100%;
-    }
     .server-settings-layout-content .settings-content-wrapper {
         padding: 16px;
-    }
-    .server-settings-layout-content .settings-close-btn {
-        display: none;
+        flex: 1;
+        overflow-y: auto;
     }
 }
 

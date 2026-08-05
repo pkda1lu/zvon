@@ -166,6 +166,7 @@ const Main: React.FC = () => {
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isMobile || !touchStartRef.current) return;
+    if (showFriends || showShowcase) return; // Disable swipe gestures on Friends & Showcase pages
     const start = touchStartRef.current;
     touchStartRef.current = null;
     const end = e.changedTouches[0];
@@ -1428,7 +1429,7 @@ const Main: React.FC = () => {
         // Hide while reading a conversation (composer needs the space) and on the
         // full-screen members overlay.
         const inConversation = !!(selectedChannel || selectedDM) && mobileView === 'content';
-        if (inConversation || mobileView === 'members') return null;
+        if (inConversation || mobileView === 'members' || showServerSettings) return null;
 
         const active: 'chats' | 'friends' | 'showcase' | 'settings' | null =
           showSettingsModal ? 'settings'
