@@ -72,7 +72,7 @@ interface DMMessageItemProps {
   scrollToMessage: (msgId: string) => void;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   setReplyToMessage: React.Dispatch<React.SetStateAction<Message | null>>;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement>;
   setShowEmojiPicker: React.Dispatch<React.SetStateAction<{ x: number; y: number; msgId: string } | null>>;
   setLightboxMedia: React.Dispatch<React.SetStateAction<any[]>>;
   setLightboxIndex: React.Dispatch<React.SetStateAction<number>>;
@@ -421,7 +421,7 @@ const DMView: React.FC<DMViewProps> = ({
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [friends, setFriends] = useState<User[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showPins, setShowPins] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [flashMessageId, setFlashMessageId] = useState<string | null>(null);
@@ -686,6 +686,7 @@ const DMView: React.FC<DMViewProps> = ({
     setMessage('');
     setAttachments([]);
     setReplyToMessage(null);
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     // ...
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { dmId: dm._id });
@@ -831,7 +832,7 @@ const DMView: React.FC<DMViewProps> = ({
     } catch (e) { }
   };
 
-  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = e.target.value;
     setMessage(value);
 
@@ -1393,15 +1394,27 @@ const DMView: React.FC<DMViewProps> = ({
                   onClose={() => setShowMentions(false)}
                 />
               )}
-              <input
+              <textarea
                 ref={inputRef}
-                type="text"
+                rows={1}
                 placeholder={maskModeration ? 'Написать модерации...' : `Написать ${otherUser?.username}...`}
                 value={message}
-                onChange={handleTyping}
+                onChange={(e) => {
+                  handleTyping(e);
+                  const el = e.currentTarget;
+                  el.style.height = 'auto';
+                  el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e as any);
+                    if (inputRef.current) inputRef.current.style.height = 'auto';
+                  }
+                }}
                 onPaste={handlePaste}
                 className="message-input"
-                style={{ width: '100%' }}
+                style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
               />
             </div>
             <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>

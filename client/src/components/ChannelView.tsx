@@ -706,7 +706,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showPins, setShowPins] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [flashMessageId, setFlashMessageId] = useState<string | null>(null);
@@ -1047,6 +1047,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     setMessage('');
     setAttachments([]);
     setReplyToMessage(null);
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { channelId: channel._id });
   };
@@ -1100,7 +1101,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     }
   };
 
-  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = e.target.value;
     setMessage(value);
 
@@ -1593,15 +1594,27 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 onClose={() => setShowMentions(false)}
               />
             )}
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={1}
               placeholder={`Написать в #${channel.name}`}
               value={message}
-              onChange={handleTyping}
+              onChange={(e) => {
+                handleTyping(e);
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e as any);
+                  if (inputRef.current) inputRef.current.style.height = 'auto';
+                }
+              }}
               onPaste={handlePaste}
               className="message-input"
-              style={{ width: '100%' }}
+              style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
             />
           </div>
           <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>Отправить</button>

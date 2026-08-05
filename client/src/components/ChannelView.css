@@ -598,6 +598,7 @@
   font-size: calc(1rem * var(--font-scale, 1) * var(--interface-scale, 1));
   line-height: 1.375;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .message-edited {
@@ -673,6 +674,11 @@
   font-size: calc(1rem * var(--interface-scale, 1));
   outline: none;
   padding: calc(8px * var(--interface-scale, 1));
+  font-family: inherit;
+  resize: none;
+  min-height: calc(38px * var(--interface-scale, 1));
+  max-height: calc(160px * var(--interface-scale, 1));
+  line-height: 1.4;
 }
 
 .message-input::placeholder {

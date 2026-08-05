@@ -244,7 +244,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
                                                             style={{
                                                                 display: 'flex',
                                                                 alignItems: 'center',
-                                                                justify: 'space-between',
+                                                                justifyContent: 'space-between',
                                                                 padding: '10px 14px',
                                                                 background: 'rgba(255, 255, 255, 0.03)',
                                                                 borderRadius: '12px',

@@ -88,7 +88,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
         channelStateRef.current = { name, topic, overwrites, slowModeEnabled, slowAmount, slowUnit, bitrate, userLimit };
     }, [name, topic, overwrites, slowModeEnabled, slowAmount, slowUnit, bitrate, userLimit]);
 
-    const saveField = useCallback(async (updates: Partial<{ name: string; topic: string; permissionOverwrites: PermissionOverwrite[]; slowMode: number; bitrate: number; userLimit: number }>) => {
+    const saveField = useCallback(async (updates: Partial<{ name: string; topic: string; permissionOverwrites: PermissionOverwrite[]; slowMode: number; bitrate: number; userLimit: number; category?: string | null }>) => {
         try {
             const res = await axios.put(`/api/channels/${channel._id}`, updates);
             onChannelUpdate(res.data);

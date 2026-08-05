@@ -529,6 +529,7 @@
   font-size: 17px;
   line-height: 1.6;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 /* Input Area */
@@ -564,6 +565,10 @@
   outline: none;
   padding: 10px 5px;
   font-family: inherit;
+  resize: none;
+  min-height: 38px;
+  max-height: 160px;
+  line-height: 1.4;
 }
 
 .message-input::placeholder {
