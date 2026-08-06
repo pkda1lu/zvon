@@ -7,7 +7,7 @@ import { Channel, User, Server, Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, ChatIcon, CloseIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, ChatIcon, CloseIcon, FullscreenIcon, MinimizeIcon } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
@@ -53,11 +53,12 @@ const VoiceParticipantCard: React.FC<{ participant: any, isSpeaking: boolean, on
   );
 };
 
-const VoiceStreamCard: React.FC<{ item: any, getDisplayName: (u: User) => string, remoteScreenStreams: Map<string, MediaStream>, watchedScreenIds: Set<string>, setWatchingScreen: (uId: string, w: boolean) => void, onClick: () => void, screenStream: MediaStream | null }> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream }) => {
+const VoiceStreamCard: React.FC<{ item: any, getDisplayName: (u: User) => string, remoteScreenStreams: Map<string, MediaStream>, watchedScreenIds: Set<string>, setWatchingScreen: (uId: string, w: boolean) => void, onClick: () => void, screenStream: MediaStream | null, isExpanded: boolean, onToggleExpand: () => void }> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isExpanded, onToggleExpand }) => {
   const isMe = item.isMe;
   const stream = isMe ? screenStream : remoteScreenStreams.get(item.userId);
   const isWatching = isMe || watchedScreenIds.has(item.userId);
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const viewportRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (videoRef.current && stream && isWatching && videoRef.current.srcObject !== stream) {
@@ -65,13 +66,62 @@ const VoiceStreamCard: React.FC<{ item: any, getDisplayName: (u: User) => string
       videoRef.current.muted = isMe;
       videoRef.current.play().catch(() => {});
     }
-  }, [stream, isMe, isWatching]);
+  }, [stream, isMe, isWatching, isExpanded]);
 
-  return (
-    <div className="p-card" onClick={onClick}>
-      <div className="stream-viewport">
+  // Разворот синхронизируем с аппаратным полноэкранным режимом: карточка уходит
+  // в fullscreen, при сворачивании — выходим из него.
+  useEffect(() => {
+    if (isExpanded && viewportRef.current) {
+      const target: any = viewportRef.current;
+      const method = ['requestFullscreen', 'webkitRequestFullscreen', 'webkitRequestFullScreen', 'mozRequestFullScreen', 'msRequestFullscreen']
+        .find(m => typeof target[m] === 'function');
+      if (method) { try { target[method]()?.catch?.(() => {}); } catch {} }
+    } else if (!isExpanded) {
+      const doc: any = document;
+      const exitMethod = ['exitFullscreen', 'webkitExitFullscreen', 'webkitCancelFullScreen', 'mozCancelFullScreen', 'msExitFullscreen']
+        .find(m => typeof doc[m] === 'function');
+      if (exitMethod && (doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement)) {
+        try { doc[exitMethod](); } catch {}
+      }
+    }
+  }, [isExpanded]);
+
+  // Выход из fullscreen по Esc/кнопке браузера должен сворачивать и карточку,
+  // иначе она осталась бы растянутой поверх интерфейса.
+  useEffect(() => {
+    if (!isExpanded) return;
+    const onFsChange = () => {
+      const doc: any = document;
+      const active = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+      if (!active) onToggleExpand();
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange as any);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange as any);
+    };
+  }, [isExpanded, onToggleExpand]);
+
+  const card = (
+    <div className={`p-card ${isExpanded ? 'is-expanded' : ''}`} onClick={onClick}>
+      <div className="stream-viewport" ref={viewportRef}>
         {(stream && isWatching) ? (
-          <video autoPlay playsInline ref={videoRef} className="stream-video" muted={isMe} />
+          <>
+            <video autoPlay playsInline ref={videoRef} className="stream-video" muted={isMe} />
+            <div className="stream-controls-overlay top" onClick={e => e.stopPropagation()}>
+              <div className="stream-controls-left" />
+              <div className="stream-controls-right">
+                <button
+                  className="stream-control-btn"
+                  onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+                  title={isExpanded ? 'Свернуть' : 'Развернуть'}
+                >
+                  {isExpanded ? <MinimizeIcon size={18} /> : <FullscreenIcon size={18} />}
+                </button>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="stream-overlay">
             <div className="stream-icon-glow"><MonitorIcon size={64} /></div>
@@ -83,6 +133,10 @@ const VoiceStreamCard: React.FC<{ item: any, getDisplayName: (u: User) => string
       </div>
     </div>
   );
+
+  // Развёрнутую карточку выносим порталом поверх интерфейса, иначе её обрезала
+  // бы сетка участников.
+  return isExpanded ? createPortal(card, document.body) : card;
 };
 
 const getGridDimensions = (count: number) => {
@@ -116,6 +170,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, userId: string } | null>(null);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  // Развёрнутая («на весь экран») трансляция — независимо от фокуса в сетке.
+  const [expandedStreamId, setExpandedStreamId] = useState<string | null>(null);
   const viewRef = useRef<HTMLDivElement>(null);
   const [ctrlsRect, setCtrlsRect] = useState<{ bottom: number, left: number, width: number } | null>(null);
 
@@ -167,6 +223,14 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     return items.sort((a, b) => (a.type === 'stream' && b.type !== 'stream') ? -1 : (a.type !== 'stream' && b.type === 'stream') ? 1 : 0);
   }, [isConnectedToThisChannel, currentUser, activeConnectedUsers, isMuted, isDeafened, isScreenSharing, isVideoOn, localCameraStream, externalParticipants, userStates, remoteScreenStreams, remoteStreams, voicePresences, channel._id]);
 
+  // Трансляция пропала (стример выключил демку / мы вышли из канала) — снимаем
+  // разворот, иначе следующий стрим того же участника сразу открылся бы на весь экран.
+  useEffect(() => {
+    if (expandedStreamId && !displayParticipants.some(p => p._id === expandedStreamId)) {
+      setExpandedStreamId(null);
+    }
+  }, [displayParticipants, expandedStreamId]);
+
   const handleParticipantClick = (item: any) => {
     if (item._id === focusedItemId) {
       setFocusedItemId(null);
@@ -191,7 +255,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         const user = activeConnectedUsers.find(u => u._id === item.userId)
           || externalParticipants.find(u => u._id === item.userId)
           || (item.isMe ? currentUser : null);
-        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} />;
+        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
       }
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
