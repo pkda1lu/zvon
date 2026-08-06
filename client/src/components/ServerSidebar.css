@@ -105,7 +105,19 @@
 /* --- ACTIONS --- */
 .server-header-actions {
   display: flex;
+  align-items: center;
   gap: calc(8px * var(--interface-scale, 1));
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  padding: calc(4px * var(--interface-scale, 1)) 0;
+  transition: opacity 0.2s ease, max-width 0.25s ease;
+  flex-shrink: 0;
+}
+
+.server-header:hover .server-header-actions {
+  opacity: 1;
+  max-width: 150px;
 }
 
 .invite-button,
@@ -128,7 +140,6 @@
   color: var(--primary-neon);
   box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
   border-color: rgba(0, 229, 255, 0.3);
-  transform: translateY(-1px);
 }
 
 /* --- CHANNELS LIST --- */
@@ -365,12 +376,12 @@
 }
 
 /* --- VOICE CHANNEL TIMER (длительность звонка возле названия канала) --- */
-/* Компактная пилюля: по ширине почти как исходный текст, чтобы не вытеснять
-   кнопку настроек канала (появляется на ховере строки). */
+/* Прижимаем таймер к правой стороне, если кнопки скрыты */
 .voice-channel-timer {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
+  margin-left: auto;
   padding: calc(1px * var(--interface-scale, 1)) calc(5px * var(--interface-scale, 1));
   border-radius: 999px;
   font-size: calc(10px * var(--interface-scale, 1));
@@ -383,6 +394,7 @@
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
   user-select: none;
+  transition: transform 0.2s ease, margin 0.2s ease;
 }
 
 .channel-actions {
@@ -390,12 +402,16 @@
   align-items: center;
   gap: calc(4px * var(--interface-scale, 1));
   opacity: 0;
-  transition: opacity 0.2s ease;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease, max-width 0.2s ease;
+  flex-shrink: 0;
 }
 
 .channel-item:hover .channel-actions,
 .channel-item.active .channel-actions {
   opacity: 1;
+  max-width: 80px;
 }
 
 .channel-settings-icon {

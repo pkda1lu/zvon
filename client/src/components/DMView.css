@@ -6,6 +6,7 @@
   background: transparent;
   height: 100%;
   min-height: 0;
+  min-width: 320px;
   position: relative;
   position: relative;
   /* Ensure absolute children like drag-drop-overlay are scoped */

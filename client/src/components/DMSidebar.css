@@ -58,6 +58,7 @@
 
 .dm-list-container {
     flex: 1;
+    min-width: 180px;
     overflow-y: auto;
     padding: calc(20px * var(--interface-scale, 1)) 0;
 }
