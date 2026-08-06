@@ -28,7 +28,9 @@ import {
     DocumentIcon,
     BarChartIcon,
     PhoneIcon,
-    GestureIcon
+    GestureIcon,
+    InfoIcon,
+    HistoryIcon
 } from '../../components/Icons';
 import ProfileSettings from './ProfileSettings';
 import ServerProfilesSettings from './ServerProfilesSettings';
@@ -57,6 +59,8 @@ import AdminUsersSettings from './AdminUsersSettings';
 import AdminStatsSettings from './AdminStatsSettings';
 import AdminInfraSettings from './AdminInfraSettings';
 import AdminActionsSettings from './AdminActionsSettings';
+import AppVersionSettings from './AppVersionSettings';
+import AppChangelogSettings from './AppChangelogSettings';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { useGestureSettings } from '../../contexts/GestureSettingsContext';
@@ -157,6 +161,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'admin-stats': return <AdminStatsSettings />;
             case 'admin-infra': return <AdminInfraSettings />;
             case 'admin-actions': return <AdminActionsSettings />;
+            case 'app-version': return <AppVersionSettings />;
+            case 'app-changelog': return <AppChangelogSettings />;
             default: return <ProfileSettings />;
         }
     };
@@ -296,6 +302,11 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                     </>
                 )}
                 
+                <Divider />
+                <CategoryHeader>О приложении</CategoryHeader>
+                <NavItem id="app-version" label="Текущая версия" icon={InfoIcon} />
+                <NavItem id="app-changelog" label="История обновлений" icon={HistoryIcon} />
+
                 <Divider />
                 <div className="settings-sidebar-item logout" onClick={logout} title="Выйти из аккаунта">
                     <div className="sidebar-item-content">

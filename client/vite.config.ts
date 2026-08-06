@@ -4,8 +4,36 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { execSync } from 'node:child_process';
+
 // detect if we are building for electron
 const isElectron = process.env.VITE_ELECTRON === 'true';
+
+// Read version from package.json
+const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+
+// Extract git commit info dynamically
+const getGitInfo = () => {
+    try {
+        const hash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+        const shortHash = hash.substring(0, 7);
+        const author = execSync('git log -1 --format="%an"', { encoding: 'utf-8' }).trim();
+        const date = execSync('git log -1 --format="%cd"', { encoding: 'utf-8' }).trim();
+        const message = execSync('git log -1 --format="%s"', { encoding: 'utf-8' }).trim();
+        return { hash, shortHash, author, date, message };
+    } catch {
+        return {
+            hash: 'a11addbbad81ca254ac90a920d0c13b1abc516b6',
+            shortHash: 'a11addb',
+            author: 'pkda1lu',
+            date: new Date().toISOString(),
+            message: 'Latest release',
+        };
+    }
+};
+
+const gitInfo = getGitInfo();
+const buildTime = new Date().toISOString();
 
 // Vite's static server (sirv) treats files ending in `.gz` as *pre-compressed*
 // and serves them with `Content-Encoding: gzip`. The browser then transparently
@@ -46,6 +74,15 @@ const serveDfAssetsRaw = (): Plugin => {
 
 export default defineConfig({
     plugins: [react(), tsconfigPaths(), serveDfAssetsRaw()],
+    define: {
+        __APP_VERSION__: JSON.stringify(pkg.version),
+        __BUILD_TIME__: JSON.stringify(buildTime),
+        __GIT_COMMIT_HASH__: JSON.stringify(gitInfo.hash),
+        __GIT_COMMIT_SHORT_HASH__: JSON.stringify(gitInfo.shortHash),
+        __GIT_COMMIT_AUTHOR__: JSON.stringify(gitInfo.author),
+        __GIT_COMMIT_DATE__: JSON.stringify(gitInfo.date),
+        __GIT_COMMIT_MESSAGE__: JSON.stringify(gitInfo.message),
+    },
     base: isElectron ? './' : '/',
     server: {
         port: 3000,

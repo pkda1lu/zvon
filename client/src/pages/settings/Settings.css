@@ -244,13 +244,18 @@
 }
 
 .settings-section-title {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
-    color: #ffffff;
+    color: var(--text-dim);
     text-transform: uppercase;
-    margin-bottom: 12px;
-    margin-top: 32px;
-    letter-spacing: 1px;
+    margin-bottom: 16px;
+    margin-top: 24px;
+    letter-spacing: 0.8px;
+}
+
+.settings-card > .settings-section-title:first-child,
+.settings-card > h3:first-child {
+    margin-top: 0;
 }
 
 .settings-description {
@@ -2944,4 +2949,566 @@ input[type=range]:disabled::-webkit-slider-thumb {
 /* "+N" (роли участника) — намеренно некликабелен, только индикатор количества. */
 .members-list-settings .role-chip-more {
     cursor: default;
+}
+
+/* ============================================================
+   О ПРИЛОЖЕНИИ / ТЕКУЩАЯ ВЕРСИЯ / ИСТОРИЯ ОБНОВЛЕНИЙ
+   ============================================================ */
+
+.app-version-hero-card {
+    position: relative;
+    padding: 36px 40px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+
+.app-version-hero-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(50px);
+    pointer-events: none;
+    opacity: 0.45;
+}
+
+.app-version-hero-orb.orb-1 {
+    top: -60px;
+    right: -40px;
+    width: 240px;
+    height: 240px;
+    background: radial-gradient(circle, rgba(0, 242, 255, 0.7) 0%, rgba(0, 106, 255, 0) 70%);
+}
+
+.app-version-hero-orb.orb-2 {
+    bottom: -70px;
+    left: -30px;
+    width: 260px;
+    height: 260px;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.7) 0%, rgba(112, 0, 255, 0) 70%);
+}
+
+.app-version-hero-content {
+    position: relative;
+    z-index: 1;
+}
+
+.app-version-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.app-version-hero-title {
+    font-size: 34px;
+    font-weight: 900;
+    color: #fff;
+    margin: 0;
+    letter-spacing: -0.5px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.app-version-hero-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 800;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(0, 106, 255, 0.25), rgba(0, 242, 255, 0.2));
+    border: 1px solid rgba(0, 242, 255, 0.35);
+    color: var(--primary-neon);
+    box-shadow: 0 4px 14px rgba(0, 242, 255, 0.15);
+}
+
+.app-version-hero-right {
+    display: flex;
+    align-items: center;
+}
+
+.app-version-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.app-version-detail-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.app-version-detail-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(0, 106, 255, 0.15);
+    border: 1px solid rgba(0, 106, 255, 0.3);
+    color: var(--primary-neon);
+}
+
+.app-version-detail-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.app-platform-detail-badge {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-transform: lowercase;
+}
+
+.app-platform-detail-badge.electron {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.app-platform-detail-badge.web {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.12);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.app-version-brand-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.app-version-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.app-version-name {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.3px;
+}
+
+.app-version-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: rgba(0, 106, 255, 0.15);
+    border: 1px solid rgba(0, 106, 255, 0.3);
+    color: var(--primary-neon);
+}
+
+.app-platform-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--glass-border);
+    color: var(--text-dim);
+}
+
+.app-platform-pill.electron {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    border-color: rgba(56, 189, 248, 0.2);
+}
+
+.app-platform-pill.web {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.1);
+    border-color: rgba(52, 211, 153, 0.2);
+}
+
+.app-info-code-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--glass-border);
+}
+
+.app-commit-sha-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #c084fc;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    padding: 4px 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.app-commit-sha-badge:hover {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: rgba(168, 85, 247, 0.4);
+}
+
+.app-author-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 10px 3px 3px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+}
+
+.app-author-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), #a855f7);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.app-author-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.app-commit-msg-box {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    margin: 6px 0 0 0;
+}
+
+.settings-plain-value {
+    font-size: 14px;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+/* CHANGELOG STYLES */
+.changelog-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.changelog-releases-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.changelog-release-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 18px 20px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.changelog-release-card:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.changelog-release-card.latest {
+    border-color: rgba(0, 242, 255, 0.3);
+    background: linear-gradient(180deg, rgba(0, 242, 255, 0.03), rgba(255, 255, 255, 0.02));
+    box-shadow: 0 4px 20px rgba(0, 242, 255, 0.05);
+}
+
+.changelog-release-card.unreleased {
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    opacity: 0.85;
+}
+
+.changelog-release-card.unreleased:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.changelog-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    cursor: pointer;
+}
+
+.changelog-tag-badge-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.changelog-tag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: rgba(0, 106, 255, 0.12);
+    border: 1px solid rgba(0, 106, 255, 0.25);
+    color: var(--primary-neon);
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.changelog-tag-badge.muted {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-dim);
+}
+
+.changelog-release-name.muted {
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.changelog-tag-badge:hover {
+    background: rgba(0, 106, 255, 0.22);
+    border-color: rgba(0, 106, 255, 0.4);
+}
+
+.changelog-latest-pill {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+.changelog-card-title-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.changelog-release-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.changelog-release-date {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.changelog-expand-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    transition: transform 0.2s ease;
+}
+
+.changelog-expand-indicator svg {
+    transition: transform 0.2s ease;
+}
+
+.changelog-expand-indicator svg.open {
+    transform: rotate(180deg);
+    color: var(--primary-neon);
+}
+
+.changelog-body-text {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-dim);
+}
+
+.changelog-body-text p {
+    margin: 0 0 6px 0;
+}
+
+/* EXPANDED COMMITS LIST */
+.changelog-commits-section {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+}
+
+.changelog-commits-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.changelog-commits-header h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.changelog-commits-count-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+}
+
+.changelog-commits-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.changelog-commit-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    transition: background 0.15s ease;
+}
+
+.changelog-commit-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.changelog-commit-sha {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #c084fc;
+    background: rgba(168, 85, 247, 0.12);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.changelog-commit-sha:hover {
+    text-decoration: underline;
+    background: rgba(168, 85, 247, 0.2);
+}
+
+.changelog-commit-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.changelog-commit-message {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-main);
+    word-break: break-word;
+}
+
+.changelog-commit-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.changelog-commit-avatar {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+}
+
+.changelog-commit-avatar-fallback {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.changelog-commit-author {
+    font-weight: 600;
+    color: var(--text-dim);
+}
+
+.changelog-commits-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+.changelog-commits-empty {
+    padding: 12px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+}
+
+.spinning-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
