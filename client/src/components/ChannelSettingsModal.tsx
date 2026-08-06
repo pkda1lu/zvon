@@ -116,7 +116,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
         }, 800);
     };
 
-    const handleCloseModal = () => {
+    const handleCloseModal = useCallback(() => {
         if (debounceTimer.current) {
             clearTimeout(debounceTimer.current);
         }
@@ -136,7 +136,17 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
             .then(res => onChannelUpdate(res.data))
             .catch(err => console.error(err))
             .finally(() => onClose());
-    };
+    }, [channel._id, channel.type, onChannelUpdate, onClose]);
+
+    useEffect(() => {
+        const handleAction = (e: any) => {
+            if (e.detail?.action === 'close-window') handleCloseModal();
+        };
+        window.addEventListener('zvon-keybind-action', handleAction);
+        return () => {
+            window.removeEventListener('zvon-keybind-action', handleAction);
+        };
+    }, [handleCloseModal]);
 
     const handleDelete = async () => {
         if (await confirm(`Вы уверены, что хотите удалить ${channel.type === 'voice' ? 'голосовой' : 'текстовый'} канал "${channel.name}"? Это действие невозможно отменить.`)) {

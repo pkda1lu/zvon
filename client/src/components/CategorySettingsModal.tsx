@@ -71,7 +71,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
         }, 800);
     };
 
-    const handleCloseModal = () => {
+    const handleCloseModal = useCallback(() => {
         if (debounceTimer.current) {
             clearTimeout(debounceTimer.current);
         }
@@ -83,7 +83,17 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
             .then(res => onCategoryUpdate(res.data))
             .catch(err => console.error(err))
             .finally(() => onClose());
-    };
+    }, [category._id, onCategoryUpdate, onClose]);
+
+    useEffect(() => {
+        const handleAction = (e: any) => {
+            if (e.detail?.action === 'close-window') handleCloseModal();
+        };
+        window.addEventListener('zvon-keybind-action', handleAction);
+        return () => {
+            window.removeEventListener('zvon-keybind-action', handleAction);
+        };
+    }, [handleCloseModal]);
 
     const handleDelete = async () => {
         if (await confirm(`Вы уверены, что хотите удалить категорию "${category.name}"? Каналы из этой категории останутся, но не будут иметь категории.`)) {

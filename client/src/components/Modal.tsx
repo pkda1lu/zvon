@@ -44,12 +44,14 @@ const Modal: React.FC<ModalProps> = ({
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open || !closeOnEsc) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    if (!open) return;
+    const onAction = (e: any) => {
+      if (closeOnEsc && e.detail?.action === 'close-window') onClose();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('zvon-keybind-action', onAction);
+    return () => {
+      window.removeEventListener('zvon-keybind-action', onAction);
+    };
   }, [open, closeOnEsc, onClose]);
 
   useFreezeAppBackground(open);

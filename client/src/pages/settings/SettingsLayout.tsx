@@ -89,13 +89,15 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
     React.useEffect(() => {
         if (!isOpen) return;
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
+        const handleKeybindAction = (e: any) => {
+            if (e.detail?.action === 'close-window') {
                 onClose();
             }
         };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('zvon-keybind-action', handleKeybindAction);
+        return () => {
+            window.removeEventListener('zvon-keybind-action', handleKeybindAction);
+        };
     }, [isOpen, onClose]);
     
     const isWindows = !!(window as any).electron;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useKeybinds } from '../../contexts/KeybindsContext';
 import { SettingsToggle, CustomSelect } from './SettingsUI';
-import { CloseIcon, PlusIcon, KeyboardIcon } from '../../components/Icons';
+import { CloseIcon, PlusIcon, KeyboardIcon, RotateCcwIcon } from '../../components/Icons';
 
 const ACTION_LABELS: Record<string, string> = {
     'toggle-mute': 'Включить/выключить микрофон',
@@ -28,6 +28,7 @@ const KeybindsSettings: React.FC = () => {
         addKeybind, 
         removeKeybind, 
         updateKeybind,
+        resetKeybinds,
         isRecording: contextIsRecording,
         startRecording: contextStartRecording,
         stopRecording: contextStopRecording,
@@ -49,9 +50,20 @@ const KeybindsSettings: React.FC = () => {
         else setLocalRecordingId(null);
     };
 
-    const [newAction, setNewAction] = useState('toggle-mute');
+    const actionOptions = useMemo(() => {
+        const existingActions = new Set(keybinds.map(k => k.action));
+        return Object.entries(ACTION_LABELS)
+            .filter(([id]) => !existingActions.has(id))
+            .map(([id, name]) => ({ id, name }));
+    }, [keybinds]);
 
-    const actionOptions = useMemo(() => Object.entries(ACTION_LABELS).map(([id, name]) => ({ id, name })), []);
+    const [newAction, setNewAction] = useState(() => actionOptions[0]?.id || 'toggle-mute');
+
+    useEffect(() => {
+        if (actionOptions.length > 0 && !actionOptions.some(opt => opt.id === newAction)) {
+            setNewAction(actionOptions[0].id);
+        }
+    }, [actionOptions, newAction]);
 
     const formatAccelerator = (acc: string) => {
         if (acc === 'Нажмите, чтобы задать') return acc;
@@ -64,12 +76,10 @@ const KeybindsSettings: React.FC = () => {
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if (!isRecording || !recordingId) return;
 
-        if (e.key === 'Escape') {
-            stopRecording();
-            return;
-        }
-
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
         const modifiers = [];
         if (e.ctrlKey || e.metaKey) modifiers.push('CommandOrControl');
         if (e.shiftKey) modifiers.push('Shift');
@@ -79,6 +89,7 @@ const KeybindsSettings: React.FC = () => {
         if (key === ' ') key = 'Space';
         if (key === 'CONTROL' || key === 'SHIFT' || key === 'ALT' || key === 'META') return;
         
+        if (key === 'ESCAPE') key = 'Escape';
         if (key === 'ARROWUP') key = 'Up';
         if (key === 'ARROWDOWN') key = 'Down';
         if (key === 'ARROWLEFT') key = 'Left';
@@ -93,95 +104,187 @@ const KeybindsSettings: React.FC = () => {
 
     useEffect(() => {
         if (isRecording) {
-            window.addEventListener('keydown', handleKeyDown);
-            return () => window.removeEventListener('keydown', handleKeyDown);
+            window.addEventListener('keydown', handleKeyDown, true);
+            return () => window.removeEventListener('keydown', handleKeyDown, true);
         }
     }, [isRecording, handleKeyDown]);
 
+    const acceleratorCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        keybinds.forEach(kb => {
+            const acc = kb.accelerator.trim().toUpperCase();
+            if (acc && acc !== 'НАЖМИТЕ, ЧТОБЫ ЗАДАТЬ') {
+                counts[acc] = (counts[acc] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [keybinds]);
+
+    const groupedKeybinds = useMemo(() => {
+        const groups: { action: string; items: typeof keybinds }[] = [];
+        const map = new Map<string, typeof keybinds>();
+        keybinds.forEach(kb => {
+            if (!map.has(kb.action)) {
+                const list: typeof keybinds = [];
+                map.set(kb.action, list);
+                groups.push({ action: kb.action, items: list });
+            }
+            map.get(kb.action)!.push(kb);
+        });
+        return groups;
+    }, [keybinds]);
+
     return (
         <div className="settings-content-inner">
-            <h2 className="settings-page-title">Горячие клавиши</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h2 className="settings-page-title" style={{ margin: 0 }}>Горячие клавиши</h2>
+                <button 
+                    className="settings-btn settings-btn-secondary"
+                    onClick={resetKeybinds}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', fontSize: '13px' }}
+                    title="Сбросить все горячие клавиши к настройкам по умолчанию"
+                >
+                    <RotateCcwIcon size={16} />
+                    Сбросить
+                </button>
+            </div>
             <p className="settings-description">
                 Настройте глобальные клавиши для управления приложением, даже если оно находится в фоне.
             </p>
             
             <div className="settings-card">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Добавить новую клавишу</h3>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1 }}>
-                        <label className="settings-label" style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-faint)' }}>Действие</label>
-                        <CustomSelect 
-                            options={actionOptions} 
-                            value={newAction} 
-                            onChange={setNewAction} 
-                        />
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Добавить новое действие</h3>
+                {actionOptions.length > 0 ? (
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
+                        <div style={{ flex: 1 }}>
+                            <label className="settings-label" style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-faint)' }}>Действие</label>
+                            <CustomSelect 
+                                options={actionOptions} 
+                                value={newAction} 
+                                onChange={setNewAction} 
+                            />
+                        </div>
+                        <button 
+                            className="settings-btn"
+                            onClick={() => addKeybind(newAction, 'Нажмите, чтобы задать')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '44px' }}
+                        >
+                            <PlusIcon size={18} />
+                            Добавить
+                        </button>
                     </div>
-                    <button 
-                        className="settings-btn"
-                        onClick={() => addKeybind(newAction, 'Нажмите, чтобы задать')}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '44px' }}
-                    >
-                        <PlusIcon size={18} />
-                        Добавить
-                    </button>
-                </div>
+                ) : (
+                    <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0 }}>
+                        Все доступные действия уже добавлены в ваш список. Вы можете добавлять дополнительные комбинации клавиш к существующим действиям ниже.
+                    </p>
+                )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {keybinds.length > 0 ? (
-                    keybinds.map((kb) => (
-                        <div key={kb.id} className="settings-card" style={{ padding: '20px', margin: 0 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ flex: 1 }}>
-                                    <h3 style={{ fontSize: '16px', margin: '0 0 4px 0', color: 'var(--text-main)' }}>
-                                        {ACTION_LABELS[kb.action] || kb.action}
+                {groupedKeybinds.length > 0 ? (
+                    groupedKeybinds.map((group) => (
+                        <div key={group.action} className="settings-card" style={{ padding: '20px', margin: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '16px', margin: '0 0 4px 0', color: 'var(--text-main)', fontWeight: 700 }}>
+                                        {ACTION_LABELS[group.action] || group.action}
                                     </h3>
                                     <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0 }}>
-                                        Глобальное сочетание клавиш
+                                        {group.items.length === 1 ? 'Глобальное сочетание клавиш' : `${group.items.length} сочетания клавиш`}
                                     </p>
                                 </div>
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                    <div 
-                                        className={`keybind-recorder ${recordingId === kb.id ? 'recording' : ''}`}
-                                        onClick={() => recordingId === kb.id ? stopRecording() : startRecording(kb.id)}
-                                        style={{
-                                            background: recordingId === kb.id ? 'rgba(0, 106, 255, 0.15)' : 'rgba(0,0,0,0.2)',
-                                            border: `1px solid ${recordingId === kb.id ? 'var(--primary-neon)' : 'var(--glass-border)'}`,
-                                            padding: '10px 20px',
-                                            borderRadius: '12px',
-                                            color: recordingId === kb.id ? 'var(--primary-neon)' : 'var(--text-main)',
-                                            fontSize: '14px',
-                                            fontWeight: '700',
-                                            minWidth: '160px',
-                                            textAlign: 'center',
-                                            cursor: 'pointer',
-                                            fontFamily: 'monospace',
-                                            transition: 'all 0.2s ease',
-                                            boxShadow: recordingId === kb.id ? '0 0 10px rgba(0, 106, 255, 0.3)' : 'none'
-                                        }}
-                                    >
-                                        {recordingId === kb.id ? 'Нажмите клавиши...' : formatAccelerator(kb.accelerator)}
-                                    </div>
-                                    
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <SettingsToggle 
-                                            checked={kb.isEnabled} 
-                                            onChange={(val) => updateKeybind(kb.id, { isEnabled: val })} 
-                                        />
-                                        <button 
-                                            className="settings-btn settings-btn-danger"
-                                            onClick={() => removeKeybind(kb.id)}
-                                            style={{
-                                                padding: '10px',
-                                                borderRadius: '12px',
-                                                minWidth: 'auto'
-                                            }}
-                                        >
-                                            <CloseIcon size={18} />
-                                        </button>
-                                    </div>
-                                </div>
+                                <button
+                                    className="settings-btn settings-btn-secondary"
+                                    onClick={() => addKeybind(group.action, 'Нажмите, чтобы задать')}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', fontSize: '12px' }}
+                                    title="Добавить комбинацию"
+                                >
+                                    <PlusIcon size={14} />
+                                    Добавить комбинацию
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {group.items.map((kb) => {
+                                    const accUpper = kb.accelerator.trim().toUpperCase();
+                                    const isDup = !!(accUpper && accUpper !== 'НАЖМИТЕ, ЧТОБЫ ЗАДАТЬ' && (acceleratorCounts[accUpper] || 0) > 1);
+                                    const isRec = recordingId === kb.id;
+
+                                    return (
+                                        <div key={kb.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <div 
+                                                    className={`keybind-recorder ${isRec ? 'recording' : ''}`}
+                                                    onClick={() => isRec ? stopRecording() : startRecording(kb.id)}
+                                                    style={{
+                                                        background: isRec 
+                                                            ? 'rgba(0, 106, 255, 0.15)' 
+                                                            : isDup 
+                                                            ? 'rgba(255, 71, 87, 0.12)' 
+                                                            : 'rgba(0,0,0,0.2)',
+                                                        border: isRec 
+                                                            ? '1.5px solid var(--primary-neon)' 
+                                                            : isDup 
+                                                            ? '1.5px solid #ff4757' 
+                                                            : '1px solid var(--glass-border)',
+                                                        padding: '8px 16px',
+                                                        borderRadius: '10px',
+                                                        color: isRec 
+                                                            ? 'var(--primary-neon)' 
+                                                            : isDup 
+                                                            ? '#ff6b81' 
+                                                            : 'var(--text-main)',
+                                                        fontSize: '13px',
+                                                        fontWeight: '700',
+                                                        minWidth: '150px',
+                                                        textAlign: 'center',
+                                                        cursor: 'pointer',
+                                                        fontFamily: 'monospace',
+                                                        transition: 'all 0.2s ease',
+                                                        boxShadow: isRec 
+                                                            ? '0 0 10px rgba(0, 106, 255, 0.3)' 
+                                                            : isDup 
+                                                            ? '0 0 10px rgba(255, 71, 87, 0.3)' 
+                                                            : 'none'
+                                                    }}
+                                                    title={isDup ? "Комбинация уже используется" : undefined}
+                                                >
+                                                    {isRec ? 'Нажмите клавиши...' : formatAccelerator(kb.accelerator)}
+                                                </div>
+                                                {isDup && (
+                                                    <span style={{ fontSize: '11px', color: '#ff6b81', fontWeight: 600 }}>
+                                                        Дубликат
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontSize: '12px', color: kb.isEnabled ? 'var(--text-dim)' : 'var(--text-faint)' }}>
+                                                        {kb.isEnabled ? 'Включено' : 'Отключено'}
+                                                    </span>
+                                                    <SettingsToggle 
+                                                        checked={kb.isEnabled} 
+                                                        onChange={(val) => updateKeybind(kb.id, { isEnabled: val })} 
+                                                    />
+                                                </div>
+
+                                                <button 
+                                                    className="settings-btn settings-btn-danger"
+                                                    onClick={() => removeKeybind(kb.id)}
+                                                    style={{
+                                                        padding: '8px',
+                                                        borderRadius: '10px',
+                                                        minWidth: 'auto'
+                                                    }}
+                                                    title="Удалить комбинацию"
+                                                >
+                                                    <CloseIcon size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     ))

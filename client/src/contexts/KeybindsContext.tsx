@@ -15,6 +15,7 @@ interface KeybindsContextType {
     addKeybind: (action: string, accelerator: string) => void;
     removeKeybind: (id: string) => void;
     updateKeybind: (id: string, updates: Partial<Keybind>) => void;
+    resetKeybinds: () => void;
     isRecording: boolean;
     startRecording: (id: string) => void;
     stopRecording: () => void;
@@ -32,24 +33,36 @@ const DEFAULT_KEYBINDS: Keybind[] = [
     { id: '6', action: 'channel-next', accelerator: 'Alt+Right', isEnabled: true },
     { id: '7', action: 'channel-prev', accelerator: 'Alt+Left', isEnabled: true },
     { id: '8', action: 'mark-server-read', accelerator: 'Shift+Escape', isEnabled: true },
-    { id: '9', action: 'mark-chat-read', accelerator: 'Escape', isEnabled: true },
+    { id: '9', action: 'mark-chat-read', accelerator: 'Alt+Escape', isEnabled: true },
     { id: '10', action: 'open-notifications', accelerator: 'CommandOrControl+I', isEnabled: true },
     { id: '11', action: 'scroll-up', accelerator: 'PageUp', isEnabled: true },
     { id: '12', action: 'scroll-down', accelerator: 'PageDown', isEnabled: true },
     { id: '13', action: 'edit-last', accelerator: 'Up', isEnabled: true },
     { id: '14', action: 'delete-last', accelerator: 'CommandOrControl+Backspace', isEnabled: true },
-    { id: '15', action: 'close-window', accelerator: 'CommandOrControl+W', isEnabled: true },
+    { id: '15', action: 'close-window', accelerator: 'Escape', isEnabled: true },
     { id: '16', action: 'minimize-to-tray', accelerator: 'CommandOrControl+M', isEnabled: true }
 ];
 
 export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { toggleMute, toggleDeafen, toggleOverlay } = useVoice();
     const { user, updateUser } = useAuth();
+    const normalizeKeybinds = (list: Keybind[]): Keybind[] => {
+        return list.map(kb => {
+            if (kb.action === 'close-window' && kb.accelerator === 'CommandOrControl+W') {
+                return { ...kb, accelerator: 'Escape' };
+            }
+            if (kb.action === 'mark-chat-read' && kb.accelerator === 'Escape' && list.some(k => k.action === 'close-window' && k.accelerator === 'Escape')) {
+                return { ...kb, accelerator: 'Alt+Escape' };
+            }
+            return kb;
+        });
+    };
+
     const [keybinds, setKeybinds] = useState<Keybind[]>(() => {
         const savedKeybinds = user?.settings?.interaction?.keybinds;
-        if (savedKeybinds && savedKeybinds.length > 0) return savedKeybinds;
+        if (savedKeybinds && savedKeybinds.length > 0) return normalizeKeybinds(savedKeybinds);
         const saved = localStorage.getItem('keybinds');
-        if (saved) return JSON.parse(saved);
+        if (saved) return normalizeKeybinds(JSON.parse(saved));
         return DEFAULT_KEYBINDS;
     });
 
@@ -63,10 +76,11 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     useEffect(() => {
         const savedKeybinds = user?.settings?.interaction?.keybinds;
         if (savedKeybinds && savedKeybinds.length > 0) {
-            const serialized = JSON.stringify(savedKeybinds);
+            const normalized = normalizeKeybinds(savedKeybinds);
+            const serialized = JSON.stringify(normalized);
             if (serialized !== lastSyncedRef.current) {
                 lastSyncedRef.current = serialized;
-                setKeybinds(savedKeybinds);
+                setKeybinds(normalized);
             }
         }
     }, [user?.settings?.interaction?.keybinds]);
@@ -141,14 +155,20 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (key === 'ARROWRIGHT') key = 'RIGHT';
 
         const currentAccelerator = [...modifiers, key].join('+');
-        const match = keybinds.find(k => k.isEnabled && k.accelerator.toUpperCase() === currentAccelerator);
+        const matches = keybinds.filter(k => k.isEnabled && k.accelerator.toUpperCase() === currentAccelerator);
         
-        if (match) {
+        if (matches.length > 0) {
             e.preventDefault();
-            window.dispatchEvent(new CustomEvent('zvon-keybind-action', { detail: { action: match.action } }));
-            if (match.action === 'toggle-mute') toggleMute();
-            if (match.action === 'toggle-deafen') toggleDeafen();
-            if (match.action === 'toggle-overlay') toggleOverlay();
+            const actionsTriggered = new Set<string>();
+            matches.forEach(match => {
+                if (!actionsTriggered.has(match.action)) {
+                    actionsTriggered.add(match.action);
+                    window.dispatchEvent(new CustomEvent('zvon-keybind-action', { detail: { action: match.action } }));
+                    if (match.action === 'toggle-mute') toggleMute();
+                    if (match.action === 'toggle-deafen') toggleDeafen();
+                    if (match.action === 'toggle-overlay') toggleOverlay();
+                }
+            });
         }
     }, [keybinds, toggleMute, toggleDeafen, toggleOverlay]);
 
@@ -208,9 +228,13 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setRecordingId(null);
     };
 
+    const resetKeybinds = () => {
+        setKeybinds(DEFAULT_KEYBINDS);
+    };
+
     return (
         <KeybindsContext.Provider value={{
-            keybinds, addKeybind, removeKeybind, updateKeybind,
+            keybinds, addKeybind, removeKeybind, updateKeybind, resetKeybinds,
             isRecording, startRecording, stopRecording, recordingId
         }}>
             {children}

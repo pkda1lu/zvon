@@ -478,6 +478,10 @@ const Main: React.FC = () => {
           else if (showCreateGroupModal) setShowCreateGroupModal(false);
           else if (showInbox) setShowInbox(false);
           else if (showProfileUserId) setShowProfileUserId(null);
+          else if (showServerProfile) setShowServerProfile(false);
+          else if (showUserServerProfile) setShowUserServerProfile(false);
+          else if (inviteServerId) setInviteServerId(null);
+          else if (forwardMessage) setForwardMessage(null);
           else {
               // @ts-ignore
               if (window.electron && window.electron.ipc) {
@@ -543,7 +547,7 @@ const Main: React.FC = () => {
       window.removeEventListener('open-forward', handleOpenForwardEvent);
       window.removeEventListener('zvon-keybind-action', handleKeybindAction);
     };
-  }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId]);
+  }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId, showServerProfile, showUserServerProfile, inviteServerId, forwardMessage]);
 
 
   // --- Activity orchestration ---

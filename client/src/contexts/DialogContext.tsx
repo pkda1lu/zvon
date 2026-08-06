@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   overlayVariants,
@@ -113,6 +113,17 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const dialogOpen = !!(dialogState && dialogState.isOpen);
     useFreezeAppBackground(dialogOpen);
+
+    useEffect(() => {
+        if (!dialogOpen) return;
+        const handleAction = (e: any) => {
+            if (e.detail?.action === 'close-window') {
+                handleCancel();
+            }
+        };
+        window.addEventListener('zvon-keybind-action', handleAction);
+        return () => window.removeEventListener('zvon-keybind-action', handleAction);
+    }, [dialogOpen, handleCancel]);
 
     return (
         <DialogContext.Provider value={{ alert, confirm, prompt }}>

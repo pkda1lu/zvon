@@ -56,10 +56,12 @@ const AnimatedOverlay: React.FC<AnimatedOverlayProps> = ({
   children,
 }) => {
   useEffect(() => {
-    if (!isOpen || !closeOnEsc) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    if (!isOpen) return;
+    const onAction = (e: any) => { if (closeOnEsc && e.detail?.action === 'close-window') onClose(); };
+    window.addEventListener('zvon-keybind-action', onAction);
+    return () => {
+      window.removeEventListener('zvon-keybind-action', onAction);
+    };
   }, [isOpen, closeOnEsc, onClose]);
 
   useFreezeAppBackground(isOpen);
