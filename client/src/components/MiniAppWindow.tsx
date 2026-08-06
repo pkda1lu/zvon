@@ -559,7 +559,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
     return (
         <motion.div
             ref={windowRef}
-            className="miniapp-window"
+            className={`miniapp-window ${!minimized ? 'miniapp-active-fullscreen' : ''}`}
             style={{
                 left: position.x,
                 top: position.y,

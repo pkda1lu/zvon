@@ -191,7 +191,8 @@
     border-top: 1px solid var(--glass-border);
   }
 
-  body:has(.server-settings-passthrough) .mobile-bottom-nav {
+  body:has(.server-settings-passthrough) .mobile-bottom-nav,
+  body:has(.miniapp-active-fullscreen) .mobile-bottom-nav {
     display: none !important;
   }
 

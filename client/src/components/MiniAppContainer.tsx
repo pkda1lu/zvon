@@ -10,8 +10,9 @@ interface MiniAppContainerProps {
 }
 
 const MiniAppContainer: React.FC<MiniAppContainerProps> = ({ openApps, minimizedIds, onClose, onMinimize }) => {
+    const hasActiveApp = openApps.some(app => !minimizedIds.has(app._id));
     return (
-        <div className="miniapp-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9000 }}>
+        <div className="miniapp-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: hasActiveApp ? 15000 : 9000 }}>
             {openApps.map(app => (
                 <div key={app._id} style={{ pointerEvents: minimizedIds.has(app._id) ? 'none' : 'auto' }}>
                     <MiniAppWindow
