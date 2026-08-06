@@ -174,7 +174,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
         <AnimatedOverlay
             isOpen={isOpen}
             onClose={handleCloseModal}
-            overlayClassName="settings-overlay"
+            overlayClassName="settings-overlay server-settings-overlay"
             contentClassName="server-settings-passthrough server-settings-layout-content"
             variant="fade"
         >

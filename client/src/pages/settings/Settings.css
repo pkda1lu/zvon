@@ -2204,8 +2204,7 @@ input[type=range]:disabled::-webkit-slider-thumb {
 
 @media (max-width: 768px) {
     /* Server settings and channel settings stretch 100% full screen (no mobile-bottom-nav, fills empty black space) */
-    .settings-overlay.server-settings-passthrough,
-    .server-settings-passthrough,
+    .settings-overlay.server-settings-overlay,
     .server-settings-layout-content {
         position: fixed !important;
         top: 0 !important;
@@ -2224,7 +2223,7 @@ input[type=range]:disabled::-webkit-slider-thumb {
     }
 
     /* Regular settings overlay stops above mobile-bottom-nav so bottom nav remains visible */
-    .settings-overlay:not(.server-settings-passthrough) {
+    .settings-overlay:not(.server-settings-overlay) {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
@@ -2240,8 +2239,8 @@ input[type=range]:disabled::-webkit-slider-thumb {
     }
 
     /* Sidebars inside regular settings fit 100% within regular settings overlay height */
-    .settings-overlay:not(.server-settings-passthrough) .settings-sidebar.mobile-collapsed,
-    .settings-overlay:not(.server-settings-passthrough) .settings-sidebar.mobile-expanded {
+    .settings-overlay:not(.server-settings-overlay) .settings-sidebar.mobile-collapsed,
+    .settings-overlay:not(.server-settings-overlay) .settings-sidebar.mobile-expanded {
         padding-bottom: 16px !important;
     }
 

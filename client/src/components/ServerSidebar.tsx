@@ -4,7 +4,6 @@ import { Server, Channel, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
 import CreateChannelModal from './CreateChannelModal';
-import CreateCategoryModal from './CreateCategoryModal';
 import ChannelSettingsModal from './ChannelSettingsModal';
 import CategorySettingsModal from './CategorySettingsModal';
 import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon } from './Icons';
@@ -81,7 +80,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalCategoryId, setCreateModalCategoryId] = useState<string | undefined>(undefined);
-  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
+  const [createModalType, setCreateModalType] = useState<'text' | 'voice' | 'room' | 'category' | undefined>(undefined);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [editingCategory, setEditingCategory] = useState<Channel | null>(null);
@@ -136,13 +135,18 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const handleChannelCreated = () => {
     if (onChannelCreated) onChannelCreated();
     setShowCreateModal(false);
-    setShowCreateCategoryModal(false);
   };
 
   // Sort all channels by position
   const sortedChannels = [...server.channels].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const userCategories = sortedChannels.filter(ch => ch.type === 'category');
   const uncategorizedChannels = sortedChannels.filter(ch => ch.type !== 'category' && !ch.category);
+
+  const uncategorizedGroups = [
+    { key: 'uncategorized-text', title: 'ТЕКСТОВЫЕ КАНАЛЫ', type: 'text' as const, channels: uncategorizedChannels.filter(ch => ch.type === 'text') },
+    { key: 'uncategorized-voice', title: 'ГОЛОСОВЫЕ КАНАЛЫ', type: 'voice' as const, channels: uncategorizedChannels.filter(ch => ch.type === 'voice') },
+    { key: 'uncategorized-room', title: '3D-КАНАЛЫ', type: 'room' as const, channels: uncategorizedChannels.filter(ch => ch.type === 'room' || (ch.type !== 'text' && ch.type !== 'voice')) },
+  ];
 
   // Helper to render single channel item
   const renderChannelItem = (channel: Channel) => {
@@ -261,7 +265,15 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
         </div>
         <div className="server-header-actions">
           {canManageChannels && (
-            <button className="invite-button" onClick={() => setShowCreateCategoryModal(true)} title="Создать категорию">
+            <button
+              className="invite-button"
+              onClick={() => {
+                setCreateModalCategoryId(undefined);
+                setCreateModalType('category');
+                setShowCreateModal(true);
+              }}
+              title="Создать категорию или канал"
+            >
               <PlusIcon size={18 * interfaceScale} />
             </button>
           )}
@@ -324,22 +336,54 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           );
         })}
 
-        {/* Uncategorized Channels Section */}
-        {uncategorizedChannels.length > 0 && (
+        {/* Uncategorized Channels Section (grouped by channel type) */}
+        {uncategorizedGroups.map(group => {
+          if (group.channels.length === 0) return null;
+          const isCollapsed = !!collapsedCategories[group.key];
+          return (
+            <div key={group.key} className="channel-category">
+              <div className="category-header">
+                <div className="category-header-title" onClick={() => toggleCategoryCollapse(group.key)}>
+                  <span className={`category-collapse-icon ${isCollapsed ? 'collapsed' : ''}`}>▼</span>
+                  <span>{group.title}</span>
+                </div>
+                <div className="category-header-actions">
+                  {canManageChannels && (
+                    <button
+                      className="add-channel-button"
+                      onClick={() => {
+                        setCreateModalCategoryId(undefined);
+                        setCreateModalType(group.type);
+                        setShowCreateModal(true);
+                      }}
+                      title={`Создать ${group.type === 'text' ? 'текстовый' : group.type === 'voice' ? 'голосовой' : '3D'} канал`}
+                    >
+                      <PlusIcon size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {!isCollapsed && group.channels.map(ch => renderChannelItem(ch))}
+            </div>
+          );
+        })}
+
+        {/* Fallback if no categories and no uncategorized channels exist */}
+        {userCategories.length === 0 && uncategorizedChannels.length === 0 && (
           <div className="channel-category">
             <div className="category-header">
               <span>КАНАЛЫ</span>
               {canManageChannels && (
                 <button
                   className="add-channel-button"
-                  onClick={() => { setCreateModalCategoryId(undefined); setShowCreateModal(true); }}
+                  onClick={() => { setCreateModalCategoryId(undefined); setCreateModalType(undefined); setShowCreateModal(true); }}
                   title="Создать канал"
                 >
                   <PlusIcon size={18} />
                 </button>
               )}
             </div>
-            {uncategorizedChannels.map(ch => renderChannelItem(ch))}
           </div>
         )}
       </div>
@@ -347,19 +391,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
       {showCreateModal && (
         <CreateChannelModal
           isOpen={showCreateModal}
-          onClose={() => { setShowCreateModal(false); setCreateModalCategoryId(undefined); }}
+          onClose={() => { setShowCreateModal(false); setCreateModalCategoryId(undefined); setCreateModalType(undefined); }}
           serverId={server._id}
+          categories={userCategories}
           initialCategoryId={createModalCategoryId}
+          initialType={createModalType}
           onChannelCreated={handleChannelCreated}
-        />
-      )}
-
-      {showCreateCategoryModal && (
-        <CreateCategoryModal
-          isOpen={showCreateCategoryModal}
-          onClose={() => setShowCreateCategoryModal(false)}
-          serverId={server._id}
-          onCategoryCreated={handleChannelCreated}
         />
       )}
 
