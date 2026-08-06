@@ -206,6 +206,7 @@ const AppBackground: React.FC = () => {
 
 import { ChatSettingsProvider } from './contexts/ChatSettingsContext';
 import { WindowSettingsProvider } from './contexts/WindowSettingsContext';
+import { GestureSettingsProvider } from './contexts/GestureSettingsContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { DialogProvider } from './contexts/DialogContext';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -282,19 +283,21 @@ function App() {
                   <LanguageProvider>
                     <ChatSettingsProvider>
                       <WindowSettingsProvider>
-                        <NotificationProvider>
-                        <div className="App" style={{ position: 'relative' }}>
-                          <AppBackground />
-                          <ScreenReaderHandler />
-                          <TitleBar />
-                          <ElectronHandler />
-                          <MouseNavGuard />
-                          <UpdateNotifier />
-                          <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
-                            <AnimatedRoutes />
+                        <GestureSettingsProvider>
+                          <NotificationProvider>
+                          <div className="App" style={{ position: 'relative' }}>
+                            <AppBackground />
+                            <ScreenReaderHandler />
+                            <TitleBar />
+                            <ElectronHandler />
+                            <MouseNavGuard />
+                            <UpdateNotifier />
+                            <div className="app-content" style={{ position: 'relative', zIndex: 1 }}>
+                              <AnimatedRoutes />
+                            </div>
                           </div>
-                        </div>
-                      </NotificationProvider>
+                        </NotificationProvider>
+                      </GestureSettingsProvider>
                     </WindowSettingsProvider>
                   </ChatSettingsProvider>
                 </LanguageProvider>

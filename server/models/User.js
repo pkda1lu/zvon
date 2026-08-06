@@ -285,6 +285,14 @@ const userSchema = new mongoose.Schema({
         isAutomaticSensitivity: { type: Boolean, default: true },
         inputSensitivity: { type: Number, default: -60 }
       },
+      gestures: {
+        enabled: { type: Boolean, default: true },
+        swipeNavigation: { type: Boolean, default: true },
+        swipeSensitivity: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+        hapticFeedback: { type: Boolean, default: true },
+        swipeToOpenSidebar: { type: Boolean, default: true },
+        swipeToOpenMembers: { type: Boolean, default: true }
+      },
       keybinds: [{
         id: String,
         action: String,

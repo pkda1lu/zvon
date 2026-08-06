@@ -504,3 +504,13 @@ export const BarChartIcon: React.FC<{ size?: number; color?: string; className?:
         <path d="M8 17v-3" />
     </svg>
 );
+
+export const GestureIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0" />
+        <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6" />
+        <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
+        <path d="M18 8a2 2 0 0 1 2 2v4a8 8 0 0 1-8 8h-2c-2.5 0-4.5-1.5-5.3-3.7l-1.9-5.1a1.8 1.8 0 0 1 3.2-1.7l1 1.7" />
+    </svg>
+);
+

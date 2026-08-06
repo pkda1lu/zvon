@@ -27,7 +27,8 @@ import {
     SettingsIcon,
     DocumentIcon,
     BarChartIcon,
-    PhoneIcon
+    PhoneIcon,
+    GestureIcon
 } from '../../components/Icons';
 import ProfileSettings from './ProfileSettings';
 import ServerProfilesSettings from './ServerProfilesSettings';
@@ -43,6 +44,7 @@ import MiniAppsSettings from './MiniAppsSettings';
 import VoiceSettings from './VoiceSettings';
 import CallSettings from './CallSettings';
 import KeybindsSettings from './KeybindsSettings';
+import GestureSettings from './GestureSettings';
 import AccessibilitySettings from './AccessibilitySettings';
 import ScalingSettings from './ScalingSettings';
 import ActivitySettings from './ActivitySettings';
@@ -57,6 +59,7 @@ import AdminInfraSettings from './AdminInfraSettings';
 import AdminActionsSettings from './AdminActionsSettings';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
+import { useGestureSettings } from '../../contexts/GestureSettingsContext';
 
 interface SettingsLayoutProps {
     isOpen: boolean;
@@ -73,6 +76,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
     const { user, logout } = useAuth();
     const { streamerModeEnabled, confirmSettingsAccess } = useWindowSettings();
+    const { settings: gestureSettings } = useGestureSettings();
 
     React.useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -140,6 +144,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'voice': return <VoiceSettings />;
             case 'calls': return <CallSettings />;
             case 'keybinds': return <KeybindsSettings />;
+            case 'gestures': return <GestureSettings />;
             case 'accessibility': return <AccessibilitySettings />;
             case 'scaling': return <ScalingSettings />;
             case 'activity': return <ActivitySettings />;
@@ -177,12 +182,12 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     };
 
     const handleTouchStart = (e: React.TouchEvent) => {
-        if (!isMobile) return;
+        if (!isMobile || !gestureSettings.enabled) return;
         const t = e.touches[0];
         touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
     };
     const handleTouchEnd = (e: React.TouchEvent) => {
-        if (!isMobile || !touchStartRef.current) return;
+        if (!isMobile || !gestureSettings.enabled || !touchStartRef.current) return;
         const start = touchStartRef.current;
         touchStartRef.current = null;
         const end = e.changedTouches[0];
@@ -190,12 +195,22 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
         const dy = end.clientY - start.y;
         const dt = Date.now() - start.t;
         if (dt > 600) return;
-        if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
 
-        if (dx > 50 && !isSidebarExpanded) {
+        const threshold = gestureSettings.swipeSensitivity === 'low' ? 120 : gestureSettings.swipeSensitivity === 'high' ? 20 : 50;
+
+        if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+
+        let actionTriggered = false;
+        if (dx > 0 && !isSidebarExpanded) {
             setIsSidebarExpanded(true);
-        } else if (dx < -50 && isSidebarExpanded) {
+            actionTriggered = true;
+        } else if (dx < 0 && isSidebarExpanded) {
             setIsSidebarExpanded(false);
+            actionTriggered = true;
+        }
+
+        if (actionTriggered && gestureSettings.hapticFeedback && typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate(15); } catch (e) {}
         }
     };
 
@@ -250,6 +265,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <CategoryHeader>Взаимодействие</CategoryHeader>
                 <NavItem id="voice" label="Голос и видео" icon={MicIcon} />
                 {!isMobile && <NavItem id="keybinds" label="Горячие клавиши" icon={KeyboardIcon} />}
+                {isMobile && <NavItem id="gestures" label="Жесты" icon={GestureIcon} />}
 
                 <Divider />
                 <CategoryHeader>Специальные возможности</CategoryHeader>

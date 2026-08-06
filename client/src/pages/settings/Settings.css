@@ -18,6 +18,14 @@
     animation: fadeIn 0.3s ease-out;
 }
 
+@media (max-width: 768px) {
+    .settings-overlay {
+        background-color: #06070b !important;
+        background: #06070b !important;
+        backdrop-filter: none !important;
+    }
+}
+
 .settings-sidebar {
     zoom: var(--settings-scale, var(--interface-scale, 1));
     width: 280px;
