@@ -249,58 +249,112 @@ const Main: React.FC = () => {
   const [mobileView, setMobileView] = useState<'sidebar' | 'content' | 'members'>('sidebar');
   const [showMembersSidebar, setShowMembersSidebar] = useState<boolean>(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  useEffect(() => {
+    if (!isMobile || !gestureSettings.enabled) return;
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isMobile || !gestureSettings.enabled || showSettings) return;
-    const t = e.touches[0];
-    touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!isMobile || !gestureSettings.enabled || !touchStartRef.current || showSettings) return;
-    if (showFriends || showShowcase || showSettings) return; // Disable swipe gestures on Friends, Showcase & Settings
-    const start = touchStartRef.current;
-    touchStartRef.current = null;
-    const end = e.changedTouches[0];
-    const dx = end.clientX - start.x;
-    const dy = end.clientY - start.y;
-    const dt = Date.now() - start.t;
-    if (dt > 600) return; // too slow
+    let touchStart: { x: number; y: number; t: number } | null = null;
 
-    const threshold = gestureSettings.swipeSensitivity === 'low' ? 120 : gestureSettings.swipeSensitivity === 'high' ? 20 : 50;
+    const handleWindowTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      // Do not initiate gestures on interactive elements, inputs, settings modal, mini-apps
+      if (
+        showSettingsModal ||
+        showServerSettings ||
+        document.querySelector('.settings-overlay') ||
+        document.querySelector('.miniapp-active-fullscreen') ||
+        target.closest('input, textarea, select, button, label, .settings-overlay, .miniapp-window, .settings-choice-item, .settings-toggle')
+      ) {
+        touchStart = null;
+        return;
+      }
+      const t = e.touches[0];
+      touchStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+    };
 
-    if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.2) return; // not horizontal or far enough
+    const handleWindowTouchEnd = (e: TouchEvent) => {
+      if (!touchStart || showSettingsModal || showServerSettings) return;
+      const start = touchStart;
+      touchStart = null;
 
-    const isVoice = selectedChannel?.type === 'voice' || selectedChannel?.type === 'room';
+      const end = e.changedTouches[0];
+      const dx = end.clientX - start.x;
+      const dy = end.clientY - start.y;
+      const dt = Date.now() - start.t;
 
-    let actionTriggered = false;
-    if (dx < 0) { // Swipe Right-to-Left (forward)
-      if (isVoice) {
-        if (mobileView === 'sidebar') { setMobileView('content'); actionTriggered = true; }
-        else if (mobileView === 'content' && !showVoiceChat) { setShowVoiceChat(true); actionTriggered = true; }
-      } else {
-        if (mobileView === 'sidebar') {
-          if (selectedServer || selectedDM || showFriends) { setMobileView('content'); actionTriggered = true; }
-        } else if (mobileView === 'content') {
-          if (selectedServer && selectedServer.showMembersList !== false) { setMobileView('members'); actionTriggered = true; }
+      if (dt > 600) return; // too slow
+
+      const threshold = gestureSettings.swipeSensitivity === 'low' ? 90 : gestureSettings.swipeSensitivity === 'high' ? 25 : 50;
+
+      if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.2) return; // not horizontal enough
+
+      const isVoice = selectedChannel?.type === 'voice' || selectedChannel?.type === 'room';
+      let actionTriggered = false;
+
+      if (dx < 0) { // Swipe Right-to-Left (forward)
+        if (isVoice) {
+          if (mobileView === 'sidebar') {
+            setMobileView('content');
+            setShowVoiceChat(false);
+            actionTriggered = true;
+          } else if (mobileView === 'content' && !showVoiceChat) {
+            setShowVoiceChat(true);
+            actionTriggered = true;
+          }
+        } else if (selectedServer) {
+          if (mobileView === 'sidebar') {
+            setMobileView('content');
+            actionTriggered = true;
+          } else if (mobileView === 'content') {
+            setMobileView('members');
+            actionTriggered = true;
+          }
+        } else if (selectedDM) {
+          if (mobileView === 'sidebar') {
+            setMobileView('content');
+            actionTriggered = true;
+          }
+        }
+      } else if (dx > 0) { // Swipe Left-to-Right (back)
+        if (isVoice) {
+          if (mobileView === 'content' && showVoiceChat) {
+            setShowVoiceChat(false);
+            actionTriggered = true;
+          } else if (mobileView === 'content' && !showVoiceChat) {
+            setMobileView('sidebar');
+            actionTriggered = true;
+          }
+        } else if (selectedServer) {
+          if (mobileView === 'members') {
+            setMobileView('content');
+            actionTriggered = true;
+          } else if (mobileView === 'content') {
+            setMobileView('sidebar');
+            actionTriggered = true;
+          }
+        } else {
+          // DMs or general content view
+          if (mobileView === 'content') {
+            setMobileView('sidebar');
+            actionTriggered = true;
+          }
         }
       }
-    } else if (dx > 0) { // Swipe Left-to-Right (back)
-      if (isVoice) {
-        if (showVoiceChat) { setShowVoiceChat(false); actionTriggered = true; }
-        else if (mobileView === 'content') { setMobileView('sidebar'); actionTriggered = true; }
-      } else {
-        if (mobileView === 'members') { setMobileView('content'); actionTriggered = true; }
-        else if (mobileView === 'content') { setMobileView('sidebar'); actionTriggered = true; }
-      }
-    }
 
-    if (actionTriggered && gestureSettings.hapticFeedback && typeof navigator !== 'undefined' && navigator.vibrate) {
-      try {
-        navigator.vibrate(15);
-      } catch (err) {}
-    }
-  };
+      if (actionTriggered && gestureSettings.hapticFeedback && typeof navigator !== 'undefined' && navigator.vibrate) {
+        try {
+          navigator.vibrate(15);
+        } catch (err) {}
+      }
+    };
+
+    window.addEventListener('touchstart', handleWindowTouchStart, { passive: true });
+    window.addEventListener('touchend', handleWindowTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleWindowTouchStart);
+      window.removeEventListener('touchend', handleWindowTouchEnd);
+    };
+  }, [isMobile, gestureSettings, mobileView, selectedServer, selectedChannel, selectedDM, showVoiceChat, showSettingsModal, showServerSettings]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1159,8 +1213,6 @@ const Main: React.FC = () => {
   return (
     <div
       className={`main-container ${isMobile ? 'is-mobile' : ''} view-${mobileView} ${(!!(selectedChannel || selectedDM) && mobileView === 'content') ? 'in-conversation' : ''}`}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
     >
       {( (!isMobile || mobileView === 'sidebar') ) && (
         <Sidebar
