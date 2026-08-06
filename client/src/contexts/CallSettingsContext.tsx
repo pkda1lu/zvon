@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import axios from 'axios';
 
 interface CallSettings {
-  layout: 'grid' | 'sidebar' | 'strip';
+  layout: 'sidebar' | 'strip';
   muteOnDeafen: boolean;
 }
 
@@ -26,8 +26,9 @@ export const CallSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user, updateUser } = useAuth();
   const [settings, setSettings] = useState<CallSettings>(() => {
     const savedSettings = (user?.settings?.interaction as any)?.call;
+    const rawLayout = savedSettings?.layout;
     return {
-      layout: savedSettings?.layout || 'grid',
+      layout: rawLayout === 'strip' ? 'strip' : 'sidebar',
       muteOnDeafen: savedSettings?.muteOnDeafen ?? true,
     };
   });
@@ -35,7 +36,10 @@ export const CallSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     const callSettings = (user?.settings?.interaction as any)?.call;
     if (callSettings) {
-      setSettings(callSettings);
+      setSettings({
+        ...callSettings,
+        layout: callSettings.layout === 'strip' ? 'strip' : 'sidebar',
+      });
     }
   }, [user?.settings?.interaction]);
 

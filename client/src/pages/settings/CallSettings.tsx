@@ -16,7 +16,7 @@ const CallSettings: React.FC = () => {
                     { value: 'sidebar', label: 'Боковая панель' },
                     { value: 'strip', label: 'Нижняя полоса' },
                 ]}
-                value={settings.layout === 'grid' ? 'sidebar' : settings.layout}
+                value={settings.layout === 'strip' ? 'strip' : 'sidebar'}
                 onChange={(v) => setSetting('layout', v)}
             />
         </div>

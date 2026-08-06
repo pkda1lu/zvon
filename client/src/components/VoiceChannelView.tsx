@@ -30,20 +30,85 @@ interface VoiceChannelViewProps {
   onToggleChat: () => void;
 }
 
-const VoiceParticipantCard: React.FC<{ participant: any, isSpeaking: boolean, onContextMenu: any, getDisplayName: any, onClick: () => void }> = ({ participant, isSpeaking, onContextMenu, getDisplayName, onClick }) => {
+const VoiceParticipantCard: React.FC<{
+  participant: any;
+  isSpeaking: boolean;
+  onContextMenu: any;
+  getDisplayName: any;
+  onClick: () => void;
+  isPrimary?: boolean;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+}> = ({ participant, isSpeaking, onContextMenu, getDisplayName, onClick, isPrimary = false, isExpanded = false, onToggleExpand }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const cardRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (participant.cameraStream && videoRef.current && videoRef.current.srcObject !== participant.cameraStream) {
       videoRef.current.srcObject = participant.cameraStream;
     }
-  }, [participant.cameraStream]);
+  }, [participant.cameraStream, isExpanded]);
 
-  return (
-    <div className={`p-card ${isSpeaking ? 'is-speaking' : ''} ${participant.cameraStream ? 'has-video' : ''}`} onContextMenu={onContextMenu} onClick={onClick}>
-      {participant.cameraStream && <video ref={videoRef} autoPlay playsInline muted className="p-camera-video" />}
-      {!participant.cameraStream && participant.banner && <div className="p-bg" style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }} />}
-      {!participant.cameraStream && <div className="p-avatar-wrap"><UserAvatar user={participant} avatarOverride={participant.avatar} size={64} animate={true} className="p-avatar" /></div>}
+  useEffect(() => {
+    if (isExpanded && cardRef.current) {
+      const target: any = cardRef.current;
+      const method = ['requestFullscreen', 'webkitRequestFullscreen', 'webkitRequestFullScreen', 'mozRequestFullScreen', 'msRequestFullscreen']
+        .find(m => typeof target[m] === 'function');
+      if (method) { try { target[method]()?.catch?.(() => {}); } catch {} }
+    } else if (!isExpanded) {
+      const doc: any = document;
+      const exitMethod = ['exitFullscreen', 'webkitExitFullscreen', 'webkitCancelFullScreen', 'mozCancelFullScreen', 'msExitFullscreen']
+        .find(m => typeof doc[m] === 'function');
+      if (exitMethod && (doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement)) {
+        try { doc[exitMethod](); } catch {}
+      }
+    }
+  }, [isExpanded]);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    const onFsChange = () => {
+      const doc: any = document;
+      const active = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+      if (!active && onToggleExpand) onToggleExpand();
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange as any);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange as any);
+    };
+  }, [isExpanded, onToggleExpand]);
+
+  const hasVideo = !!participant.cameraStream;
+  const showFullscreenBtn = isPrimary && hasVideo && onToggleExpand;
+
+  const cardContent = (
+    <div
+      ref={cardRef}
+      className={`p-card ${isSpeaking ? 'is-speaking' : ''} ${hasVideo ? 'has-video' : ''} ${isExpanded ? 'is-expanded' : ''}`}
+      onContextMenu={onContextMenu}
+      onClick={onClick}
+    >
+      {hasVideo && <video ref={videoRef} autoPlay playsInline muted className="p-camera-video" />}
+      {!hasVideo && participant.banner && <div className="p-bg" style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }} />}
+      {!hasVideo && <div className="p-avatar-wrap"><UserAvatar user={participant} avatarOverride={participant.avatar} size={64} animate={true} className="p-avatar" /></div>}
+      
+      {showFullscreenBtn && (
+        <div className="stream-controls-overlay top" onClick={e => e.stopPropagation()}>
+          <div className="stream-controls-left" />
+          <div className="stream-controls-right">
+            <button
+              className="stream-control-btn"
+              onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+              title={isExpanded ? 'Свернуть' : 'Развернуть'}
+            >
+              {isExpanded ? <MinimizeIcon size={18} /> : <FullscreenIcon size={18} />}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="p-info"><div className="p-name-row"><span className="p-name">{getDisplayName(participant)}</span></div></div>
       <div className="p-indicators">
         {(participant.isMuted || participant.isDeafened) && <div className="ind-icon is-muted">{participant.isDeafened ? <DeafenedIcon size={18} /> : <MicMutedIcon size={18} />}</div>}
@@ -51,9 +116,22 @@ const VoiceParticipantCard: React.FC<{ participant: any, isSpeaking: boolean, on
       </div>
     </div>
   );
+
+  return isExpanded ? createPortal(cardContent, document.body) : cardContent;
 };
 
-const VoiceStreamCard: React.FC<{ item: any, getDisplayName: (u: User) => string, remoteScreenStreams: Map<string, MediaStream>, watchedScreenIds: Set<string>, setWatchingScreen: (uId: string, w: boolean) => void, onClick: () => void, screenStream: MediaStream | null, isExpanded: boolean, onToggleExpand: () => void }> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isExpanded, onToggleExpand }) => {
+const VoiceStreamCard: React.FC<{
+  item: any;
+  getDisplayName: (u: User) => string;
+  remoteScreenStreams: Map<string, MediaStream>;
+  watchedScreenIds: Set<string>;
+  setWatchingScreen: (uId: string, w: boolean) => void;
+  onClick: () => void;
+  screenStream: MediaStream | null;
+  isPrimary?: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isPrimary = false, isExpanded, onToggleExpand }) => {
   const isMe = item.isMe;
   const stream = isMe ? screenStream : remoteScreenStreams.get(item.userId);
   const isWatching = isMe || watchedScreenIds.has(item.userId);
@@ -109,23 +187,25 @@ const VoiceStreamCard: React.FC<{ item: any, getDisplayName: (u: User) => string
         {(stream && isWatching) ? (
           <>
             <video autoPlay playsInline ref={videoRef} className="stream-video" muted={isMe} />
-            <div className="stream-controls-overlay top" onClick={e => e.stopPropagation()}>
-              <div className="stream-controls-left" />
-              <div className="stream-controls-right">
-                <button
-                  className="stream-control-btn"
-                  onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
-                  title={isExpanded ? 'Свернуть' : 'Развернуть'}
-                >
-                  {isExpanded ? <MinimizeIcon size={18} /> : <FullscreenIcon size={18} />}
-                </button>
+            {isPrimary && (
+              <div className="stream-controls-overlay top" onClick={e => e.stopPropagation()}>
+                <div className="stream-controls-left" />
+                <div className="stream-controls-right">
+                  <button
+                    className="stream-control-btn"
+                    onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+                    title={isExpanded ? 'Свернуть' : 'Развернуть'}
+                  >
+                    {isExpanded ? <MinimizeIcon size={18} /> : <FullscreenIcon size={18} />}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </>
         ) : (
           <div className="stream-overlay">
             <div className="stream-icon-glow"><MonitorIcon size={64} /></div>
-            {!isMe && <button className="btn-watch" onClick={(e) => { e.stopPropagation(); setWatchingScreen(item.userId, true); }}><PlayIcon size={18} /><span>Смотреть</span></button>}
+            {!isMe && <button className="btn-watch" onClick={(e) => { e.stopPropagation(); setWatchingScreen(item.userId, true); onClick(); }}><PlayIcon size={18} /><span>Смотреть</span></button>}
             {isMe && <div className="p-name">Загрузка вашей трансляции...</div>}
           </div>
         )}
@@ -255,13 +335,13 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         const user = activeConnectedUsers.find(u => u._id === item.userId)
           || externalParticipants.find(u => u._id === item.userId)
           || (item.isMe ? currentUser : null);
-        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
+        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
       }
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
       default: {
         const member = server.members.find(m => String((m.user as any)._id || m.user) === String(item._id));
-        return <VoiceParticipantCard key={item._id} participant={{...item, avatar: member?.avatar || undefined}} isSpeaking={speakingUsers.has(item._id) && !item.isMuted} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} />;
+        return <VoiceParticipantCard key={item._id} participant={{...item, avatar: member?.avatar || undefined}} isSpeaking={speakingUsers.has(item._id) && !item.isMuted} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
       }
     }
   };
@@ -270,7 +350,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   const gridDimensions = getGridDimensions(displayParticipants.length);
 
   const renderLayout = () => {
-    const effectiveLayout = (callSettings.layout === 'grid' || !focusedItem) ? 'grid' : callSettings.layout;
+    const selectedLayout = (callSettings.layout === 'strip') ? 'strip' : 'sidebar';
+    const effectiveLayout = !focusedItem ? 'grid' : selectedLayout;
     
     if (effectiveLayout === 'grid') {
       return <div className="grid-wrap"><div className={`v-grid count-${displayParticipants.length}`} style={{ gridTemplateColumns: `repeat(${gridDimensions.cols}, 1fr)`, gridTemplateRows: `repeat(${gridDimensions.rows}, 1fr)` }}>{displayParticipants.map(item => renderItem(item))}</div></div>;

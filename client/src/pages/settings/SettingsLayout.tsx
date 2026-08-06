@@ -86,6 +86,17 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             setIsSidebarExpanded(false);
         }
     }, [isOpen, initialTab]);
+
+    React.useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
     
     const isWindows = !!(window as any).electron;
     const isModerator = user?.role === 'admin' || user?.role === 'moderator';
@@ -277,6 +288,11 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             </div>
 
             <div className="settings-content-wrapper">
+                {!isMobile && (
+                    <button className="settings-close-btn" onClick={onClose} title="Закрыть">
+                        <CloseIcon size={20} />
+                    </button>
+                )}
                 {renderContent()}
             </div>
 
