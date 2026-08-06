@@ -120,6 +120,13 @@
   max-width: 150px;
 }
 
+@media (max-width: 768px) {
+  .server-header-actions {
+    opacity: 1 !important;
+    max-width: 150px !important;
+  }
+}
+
 .invite-button,
 .settings-button {
   background: var(--glass-bg-accent);
