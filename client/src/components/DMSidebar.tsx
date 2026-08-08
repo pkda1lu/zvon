@@ -194,4 +194,4 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     );
 };
 
-export default DMSidebar;
+export default React.memo(DMSidebar);

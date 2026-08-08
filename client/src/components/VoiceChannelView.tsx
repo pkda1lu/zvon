@@ -8,7 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, ChatIcon, CloseIcon, FullscreenIcon, MinimizeIcon } from './Icons';
-import ScreenSourceSelector from './ScreenSourceSelector';
+// См. VoiceCall — модалка выбора экрана грузится по требованию.
+const ScreenSourceSelector = React.lazy(() => import('./ScreenSourceSelector'));
 import axios from 'axios';
 import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
@@ -395,7 +396,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
           </div>
         ) : connected && <button className="btn-join" onClick={() => joinChannel(channel._id)}>Подключиться</button>}
       </div>, document.getElementById('voice-controls-portal') || document.body)}
-      {showScreenSelector && <ScreenSourceSelector onClose={() => setShowScreenSelector(false)} onSelect={(id, opts) => { startScreenShare(id, { resolution: opts.resolution, frameRate: opts.frameRate, videoCodec: opts.videoCodec, withAudio: opts.withAudio }); setShowScreenSelector(false); }} />}
+      {showScreenSelector && <React.Suspense fallback={null}><ScreenSourceSelector onClose={() => setShowScreenSelector(false)} onSelect={(id, opts) => { startScreenShare(id, { resolution: opts.resolution, frameRate: opts.frameRate, videoCodec: opts.videoCodec, withAudio: opts.withAudio }); setShowScreenSelector(false); }} /></React.Suspense>}
     </div>
   );
 };

@@ -1,16 +1,15 @@
 import React, { Suspense } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import { SocketProvider } from './contexts/SocketContext';
-import { VoiceProvider } from './contexts/VoiceContext';
-import { CallSettingsProvider } from './contexts/CallSettingsContext';
-import { InboxProvider } from './contexts/InboxContext';
-import { KeybindsProvider } from './contexts/KeybindsContext';
 
-// Тяжёлые ветки грузятся лениво: Main — весь чат-апп (рендерится только для
-// авторизованных), Landing — маркетинговая страница (только для гостей в вебе).
-// Так неавторизованный веб-посетитель и страницы логина/докс не тянут бандл Main.
-const Main = React.lazy(() => import('./pages/Main'));
+// Тяжёлые ветки грузятся лениво:
+//   AuthedApp — весь чат-апп вместе со стеком провайдеров (сокет, голос,
+//               кейбинды, инбокс); рендерится только для авторизованных;
+//   Landing   — маркетинговая страница (только для гостей в вебе).
+// Важно: провайдеры импортируются внутри AuthedApp, а не здесь — иначе
+// VoiceContext (а с ним livekit-client, ~420 КБ) попадает в entry-чанк,
+// потому что Home статически импортируется из App.
+const AuthedApp = React.lazy(() => import('./AuthedApp'));
 const Landing = React.lazy(() => import('./pages/Landing'));
 
 const HomeLoader: React.FC = () => (
@@ -40,16 +39,7 @@ const Home: React.FC = () => {
 
     return (
         <Suspense fallback={<HomeLoader />}>
-            <SocketProvider>
-                <CallSettingsProvider>
-                    <VoiceProvider>
-                        <KeybindsProvider>
-                            <InboxProvider>
-                                <Main />
-                            </InboxProvider>
-                        </KeybindsProvider>
-                    </VoiceProvider>
-                </CallSettingsProvider>            </SocketProvider>
+            <AuthedApp />
         </Suspense>
     );
 };

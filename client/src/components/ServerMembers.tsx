@@ -441,4 +441,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
     );
 };
 
-export default ServerMembers;
+// Список участников перерисовывается на каждое событие присутствия/активности,
+// приходящее в Main. Пропсы со стороны Main стабилизированы (useCallback), так
+// что memo здесь реально отсекает лишние рендеры.
+export default React.memo(ServerMembers);

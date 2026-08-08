@@ -33,7 +33,11 @@ import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
 import StickyPins from './StickyPins';
 import UserBadges, { resolveServerTag } from './UserBadges';
-import AttachmentsModal from './AttachmentsModal';
+// Модалка вложений открывается редко — грузим её чанк (и ~9 КБ стилей) только
+// при первом открытии. Размонтировать её обратно нельзя: AnimatedOverlay внутри
+// проигрывает анимацию закрытия, поэтому после первого показа компонент
+// остаётся смонтированным, а видимостью управляет isOpen.
+const AttachmentsModal = React.lazy(() => import('./AttachmentsModal'));
 import { SmileIcon } from './Icons';
 import ServerInviteCard from './ServerInviteCard';
 import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
@@ -655,6 +659,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [message, setMessage] = useState('');
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [attachmentsEverOpened, setAttachmentsEverOpened] = useState(false);
+  useEffect(() => { if (showAttachments) setAttachmentsEverOpened(true); }, [showAttachments]);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
   const [showPollModal, setShowPollModal] = useState(false);
 
@@ -1648,13 +1654,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         document.body
       )}
       <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />
-      {createPortal(
-        <AttachmentsModal
-          isOpen={showAttachments}
-          onClose={() => setShowAttachments(false)}
-          channelId={channel._id}
-          title={`#${channel.name}`}
-        />,
+      {attachmentsEverOpened && createPortal(
+        <React.Suspense fallback={null}>
+          <AttachmentsModal
+            isOpen={showAttachments}
+            onClose={() => setShowAttachments(false)}
+            channelId={channel._id}
+            title={`#${channel.name}`}
+          />
+        </React.Suspense>,
         document.body
       )}
       <MessageSearchPanel

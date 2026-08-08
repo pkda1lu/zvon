@@ -11,7 +11,8 @@ import { createNoiseProcessor } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useDialog } from '../contexts/DialogContext';
 import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon } from './Icons';
-import ScreenSourceSelector from './ScreenSourceSelector';
+// Выбор источника экрана нужен только при старте демонстрации — ленивый чанк.
+const ScreenSourceSelector = React.lazy(() => import('./ScreenSourceSelector'));
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import { nativeAudioManager } from '../utils/nativeAudio';
@@ -881,10 +882,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       {renderCtxMenu()}
 
       {showScreenSelector && (
-        <ScreenSourceSelector
-          onClose={() => setShowScreenSelector(false)}
-          onSelect={(id, opts) => { toggleScreenShare(id, opts); setShowScreenSelector(false); }}
-        />
+        <React.Suspense fallback={null}>
+          <ScreenSourceSelector
+            onClose={() => setShowScreenSelector(false)}
+            onSelect={(id, opts) => { toggleScreenShare(id, opts); setShowScreenSelector(false); }}
+          />
+        </React.Suspense>
       )}
     </motion.div>
   );

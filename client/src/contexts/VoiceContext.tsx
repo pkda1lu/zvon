@@ -8,21 +8,22 @@ import { nativeAudioManager } from '../utils/nativeAudio';
 import axios from 'axios';
 import { useDialog } from './DialogContext';
 import { getAvatarUrl } from '../utils/avatar';
-import {
+// livekit-client грузится динамически (см. utils/livekitLazy): библиотека на
+// ~433 КБ нужна только при реальном заходе в голос, а этот контекст смонтирован
+// всегда. Типы берём через `import type` — они стираются при компиляции и в
+// бандл ничего не тянут; значения (Room, RoomEvent, Track…) берутся из
+// загруженного неймспейса внутри connectToRoom.
+import type {
     Room,
-    RoomEvent,
     RemoteParticipant,
     RemoteTrack,
     RemoteTrackPublication,
-    Track,
-    ConnectionState,
-    VideoPresets,
-    VideoQuality,
     TrackPublication,
-    ConnectionQuality,
     LocalAudioTrack,
-    LocalVideoTrack
+    ConnectionState,
+    ConnectionQuality,
 } from 'livekit-client';
+import { loadLiveKit, ConnectionStates, ConnectionQualities, TrackSources } from '../utils/livekitLazy';
 
 import { useCallSettings } from './CallSettingsContext';
 
@@ -600,8 +601,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return () => clearTimeout(timer);
     }, [noiseSuppressionMode, echoCancellation, autoGainControl, attenuation, inputSensitivity, isAutomaticSensitivity]);
     const [ping, setPing] = useState(0);
-    const [connectionQuality, setConnectionQuality] = useState(ConnectionQuality.Unknown);
-    const [roomConnectionState, setRoomConnectionState] = useState(ConnectionState.Disconnected);
+    const [connectionQuality, setConnectionQuality] = useState(ConnectionQualities.Unknown);
+    const [roomConnectionState, setRoomConnectionState] = useState(ConnectionStates.Disconnected);
 
     // Sync refs
     useEffect(() => { activeChannelIdRef.current = activeChannelId; }, [activeChannelId]);
@@ -653,6 +654,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // 'rnnoise'/'deepfilter' — свой AI-граф через LiveKit-процессор;
         // 'standard' — нативное подавление браузера (через audioCaptureDefaults), процессор не нужен;
         // 'none' — снимаем любой ранее установленный процессор.
+        // Библиотека здесь заведомо уже загружена (трек существует только после
+        // подключения к комнате), но берём её через loadLiveKit, чтобы не
+        // зависеть от порядка инициализации.
+        const { LocalAudioTrack } = await loadLiveKit();
         if (track instanceof LocalAudioTrack) {
             try {
                 const processor = createNoiseProcessor(noiseSuppressionMode);
@@ -690,7 +695,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!isConnectedRef.current) return;
         const room = roomRef.current;
         if (!room) return;
-        const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+        const pub = room.localParticipant.getTrackPublication(TrackSources.Microphone);
         if (pub?.track) handleLocalMicPublicationRef.current(pub);
     }, [noiseSuppressionMode]);
 
@@ -738,7 +743,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setWatchedScreenIds(new Set());
         setIsConnected(false);
         setActiveChannelId(null);
-        setRoomConnectionState(ConnectionState.Disconnected);
+        setRoomConnectionState(ConnectionStates.Disconnected);
         if (socket && activeChannelIdRef.current) socket.emit('leave-voice-channel', { channelId: activeChannelIdRef.current });
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, teardownScreenShare]);
@@ -746,7 +751,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const joinChannel = useCallback(async (channelId: string) => {
         if (isConnectedRef.current || roomRef.current) await leaveChannel();
         try {
-            const { data } = await axios.get('/api/livekit/token', { params: { roomName: `channel-${channelId}`, identity: user?._id } });
+            // Подтягиваем библиотеку параллельно с запросом токена — оба сетевых
+            // похода идут одновременно, так что ленивая загрузка не удлиняет вход.
+            const [lk, { data }] = await Promise.all([
+                loadLiveKit(),
+                axios.get('/api/livekit/token', { params: { roomName: `channel-${channelId}`, identity: user?._id } }),
+            ]);
+            const { Room, RoomEvent, Track } = lk;
             // Нативное подавление браузера включаем только для режима 'standard'.
             // Для 'rnnoise'/'deepfilter' выключаем, чтобы не было двойной обработки —
             // подавлением займётся наш процессор поверх трека.
@@ -897,7 +908,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 selectedVideoDeviceId && selectedVideoDeviceId !== 'default' ? { deviceId: selectedVideoDeviceId } : undefined
             );
             if (next) {
-                const pub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Camera);
+                const pub = roomRef.current.localParticipant.getTrackPublication(TrackSources.Camera);
                 const mst = pub?.track?.mediaStreamTrack;
                 setLocalCameraStream(mst ? new MediaStream([mst]) : null);
             } else {
@@ -950,7 +961,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (videoTrack && roomRef.current) {
                 (videoTrack as any).contentHint = frameRate >= 60 ? 'motion' : 'detail';
                 await roomRef.current.localParticipant.publishTrack(videoTrack, {
-                    source: Track.Source.ScreenShare,
+                    source: TrackSources.ScreenShare,
                     videoCodec: options?.videoCodec || 'vp9',
                     simulcast: false,
                     degradationPreference: 'maintain-resolution',
@@ -975,7 +986,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                             screenAudioTrack.enabled = true;
                             screenAudioTrackRef.current = screenAudioTrack;
                             await roomRef.current.localParticipant.publishTrack(screenAudioTrack, {
-                                source: Track.Source.ScreenShareAudio,
+                                source: TrackSources.ScreenShareAudio,
                                 dtx: false,
                                 red: false
                             });
@@ -996,7 +1007,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         webAudioTrack.enabled = true;
                         screenAudioTrackRef.current = webAudioTrack;
                         await roomRef.current.localParticipant.publishTrack(webAudioTrack, {
-                            source: Track.Source.ScreenShareAudio,
+                            source: TrackSources.ScreenShareAudio,
                             dtx: false,
                             red: false
                         });
@@ -1194,6 +1205,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             track.enabled = true; // иначе собеседники не слышат (трек мог прийти выключенным)
             // publishTrack ждёт LocalTrack, а не сырой MediaStreamTrack — иначе
             // TypeError: track.updateLoggerOptions is not a function.
+            const { LocalAudioTrack } = await loadLiveKit();
             const localTrack = new LocalAudioTrack(track);
             const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
                 name: name || 'external-audio',
@@ -1209,6 +1221,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!roomRef.current || !track) return null;
         try {
             track.enabled = true;
+            const { LocalVideoTrack } = await loadLiveKit();
             const localTrack = new LocalVideoTrack(track);
             const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
                 name: name || 'external-video',

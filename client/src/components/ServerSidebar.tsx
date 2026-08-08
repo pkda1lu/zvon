@@ -1,24 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import axios from 'axios';
 import { Server, Channel, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useSocket } from '../contexts/SocketContext';
-import CreateChannelModal from './CreateChannelModal';
-import ChannelSettingsModal from './ChannelSettingsModal';
-import CategorySettingsModal from './CategorySettingsModal';
 import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './panel-hero.css';
 import './ServerSidebar.css';
-import InviteModal from './InviteModal';
-import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
-import { ConnectionState } from 'livekit-client';
+import { ConnectionStates } from '../utils/livekitLazy';
 import { useAppearance } from "../contexts/AppearanceContext";
+
+// Модалки сайдбара открываются по действию пользователя, поэтому грузятся
+// лениво — вместе со своими стилями (ChannelSettingsModal ~19 КБ CSS,
+// CreateChannelModal ~13 КБ), которые иначе лежат в общем чанке приложения.
+const CreateChannelModal = React.lazy(() => import('./CreateChannelModal'));
+const ChannelSettingsModal = React.lazy(() => import('./ChannelSettingsModal'));
+const CategorySettingsModal = React.lazy(() => import('./CategorySettingsModal'));
+const InviteModal = React.lazy(() => import('./InviteModal'));
+const MemberContextMenu = React.lazy(() => import('./MemberContextMenu'));
+
+// Оверлеи ничего не занимают в потоке — пока грузится чанк, показывать нечего.
+const LazyOverlay: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Suspense fallback={null}>{children}</Suspense>
+);
 
 // Секунды с момента, когда в канале появился хотя бы 1 участник → "12:34" / "1:02:03".
 const formatVoiceDuration = (seconds: number): string => {
@@ -174,8 +183,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             <span className="channel-icon">
               {(channel.type === 'voice' || channel.type === 'room') && activeChannelId === channel._id ? (
                 <div className={`voice-status-indicator sidebar-inline ${
-                  roomConnectionState === ConnectionState.Connecting ||
-                  roomConnectionState === ConnectionState.Reconnecting ? 'connecting' : ''
+                  roomConnectionState === ConnectionStates.Connecting ||
+                  roomConnectionState === ConnectionStates.Reconnecting ? 'connecting' : ''
                 }`}>
                   <div className="pulse-ring"></div>
                   <div className="status-dot"></div>
@@ -389,6 +398,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
       </div>
 
       {showCreateModal && (
+        <LazyOverlay>
         <CreateChannelModal
           isOpen={showCreateModal}
           onClose={() => { setShowCreateModal(false); setCreateModalCategoryId(undefined); setCreateModalType(undefined); }}
@@ -398,18 +408,22 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           initialType={createModalType}
           onChannelCreated={handleChannelCreated}
         />
+        </LazyOverlay>
       )}
 
       {showInviteModal && (
+        <LazyOverlay>
         <InviteModal
           isOpen={showInviteModal}
           onClose={() => setShowInviteModal(false)}
           serverId={server._id}
           serverName={server.name}
         />
+        </LazyOverlay>
       )}
 
       {editingChannel && (
+        <LazyOverlay>
         <ChannelSettingsModal
           isOpen={!!editingChannel}
           onClose={() => setEditingChannel(null)}
@@ -418,9 +432,11 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           onChannelUpdate={() => { if (onChannelCreated) onChannelCreated(); }}
           onChannelDelete={() => { if (onChannelCreated) onChannelCreated(); }}
         />
+        </LazyOverlay>
       )}
 
       {editingCategory && (
+        <LazyOverlay>
         <CategorySettingsModal
           isOpen={!!editingCategory}
           onClose={() => setEditingCategory(null)}
@@ -429,9 +445,11 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           onCategoryUpdate={() => { if (onChannelCreated) onChannelCreated(); }}
           onCategoryDelete={() => { if (onChannelCreated) onChannelCreated(); }}
         />
+        </LazyOverlay>
       )}
 
       {contextMenu && (
+        <LazyOverlay>
         <MemberContextMenu
           user={contextMenu.user}
           server={server}
@@ -440,6 +458,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           onClose={() => setContextMenu(null)}
           onOpenProfile={onUserClick}
         />
+        </LazyOverlay>
       )}
 
       <VoiceControlPanel />
@@ -447,4 +466,4 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   );
 };
 
-export default ServerSidebar;
+export default React.memo(ServerSidebar);

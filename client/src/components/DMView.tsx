@@ -27,7 +27,9 @@ import ComposerAddMenu from './ComposerAddMenu';
 import type { ChatPoll } from './MessagePoll';
 import StickyPins from './StickyPins';
 import UserBadges, { resolveServerTag } from './UserBadges';
-import AttachmentsModal from './AttachmentsModal';
+// См. комментарий в ChannelView: ленивый чанк + компонент остаётся смонтирован
+// после первого открытия, чтобы не потерять анимацию закрытия AnimatedOverlay.
+const AttachmentsModal = React.lazy(() => import('./AttachmentsModal'));
 import ServerInviteCard from './ServerInviteCard';
 import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
 import './panel-hero.css';
@@ -509,6 +511,8 @@ const DMView: React.FC<DMViewProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [attachmentsEverOpened, setAttachmentsEverOpened] = useState(false);
+  useEffect(() => { if (showAttachments) setAttachmentsEverOpened(true); }, [showAttachments]);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
   const [showPollModal, setShowPollModal] = useState(false);
 
@@ -1471,13 +1475,15 @@ const DMView: React.FC<DMViewProps> = ({
         </div>,
         document.body
       )}
-      {createPortal(
-        <AttachmentsModal
-          isOpen={showAttachments}
-          onClose={() => setShowAttachments(false)}
-          dmId={dm._id}
-          title={displayName || ''}
-        />,
+      {attachmentsEverOpened && createPortal(
+        <React.Suspense fallback={null}>
+          <AttachmentsModal
+            isOpen={showAttachments}
+            onClose={() => setShowAttachments(false)}
+            dmId={dm._id}
+            title={displayName || ''}
+          />
+        </React.Suspense>,
         document.body
       )}
       <MessageSearchPanel

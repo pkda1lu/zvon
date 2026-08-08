@@ -54,5 +54,19 @@ export default defineConfig({
         outDir: 'build',
         emptyOutDir: true,
         chunkSizeWarningLimit: 1500,
+        rollupOptions: {
+            output: {
+                // Крупные и редко меняющиеся зависимости выносим в отдельные
+                // чанки: они грузятся параллельно с кодом приложения и, что
+                // важнее, переживают деплои в кэше браузера — правка в UI не
+                // инвалидирует react/livekit/three.
+                manualChunks: {
+                    'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+                    'vendor-motion': ['framer-motion'],
+                    'vendor-livekit': ['livekit-client'],
+                    'vendor-net': ['axios', 'socket.io-client'],
+                },
+            },
+        },
     },
 });

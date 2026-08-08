@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
@@ -6,20 +6,8 @@ import axios from 'axios';
 import { Server, Channel, Message, DirectMessage, User, MiniApp } from '../types';
 import Sidebar from '../components/Sidebar';
 import ServerSidebar from '../components/ServerSidebar';
-import ChannelView from '../components/ChannelView';
-import VoiceChannelView from '../components/VoiceChannelView';
-import Room3DView from '../components/Room3DView';
 import ActiveVoiceOverlay from '../components/ActiveVoiceOverlay';
-import FriendsPanel from '../components/FriendsPanel';
-import ShowcaseView from '../components/ShowcaseView';
-import MiniAppContainer from '../components/MiniAppContainer';
-import DMView from '../components/DMView';
 import DMSidebar from '../components/DMSidebar';
-import VoiceCall from '../components/VoiceCall';
-import UserProfileCard from '../components/UserProfileCard';
-import ServerSettingsLayout from '../pages/serverSettings/ServerSettingsLayout';
-import ServerProfileCard from '../components/ServerProfileCard';
-import UserServerProfileModal from '../components/UserServerProfileModal';
 import ServerMembers from '../components/ServerMembers';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { addRecentMiniApp } from '../utils/recentMiniApps';
@@ -29,12 +17,6 @@ import { useDialog } from '../contexts/DialogContext';
 import { useInbox } from '../contexts/InboxContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { useGestureSettings } from '../contexts/GestureSettingsContext';
-import JoinServerModal from '../components/JoinServerModal';
-import ServerInviteModal from '../components/ServerInviteModal';
-import ForwardMessageModal from '../components/ForwardMessageModal';
-import SettingsModal from '../components/SettingsModal';
-import Inbox from '../components/Inbox';
-import CreateGroupDMModal from '../components/CreateGroupDMModal';
 import VerificationWarning from '../components/VerificationWarning';
 import PostAnnouncements from '../components/posts/PostAnnouncements';
 import { ChatIcon, UsersIcon, LayoutGridIcon, SettingsIcon } from '../components/Icons';
@@ -49,6 +31,58 @@ import {
 import './Main.css';
 
 import { useAppearance } from '../contexts/AppearanceContext';
+
+// Тяжёлые экраны и модалки грузим лениво: они открываются по действию
+// пользователя, а не при первом рендере. Это уносит из основного чанка Main
+// (и из Main.css) настройки сервера/пользователя, витрину, мини-приложения
+// и 3D-комнату вместе с их стилями.
+// ChannelView и VoiceChannelView вынесены в отдельные чанки прежде всего
+// ради их CSS (41 КБ и 20 КБ), который иначе лежит в общем AuthedApp.css.
+// ChannelView нужен почти сразу после старта (Main восстанавливает последний
+// канал из localStorage), поэтому ниже он префетчится на монтировании —
+// чанк успевает скачаться параллельно с запросом списка серверов.
+const ChannelView = React.lazy(() => import('../components/ChannelView'));
+const VoiceChannelView = React.lazy(() => import('../components/VoiceChannelView'));
+
+// Основные вкладки контента: не нужны в момент первой отрисовки, но пользователь
+// заходит в них часто, поэтому чанки подогреваются на простое (см. эффект
+// префетча в Main). VoiceCall и UserProfileCard — чисто по требованию.
+const FriendsPanel = React.lazy(() => import('../components/FriendsPanel'));
+const DMView = React.lazy(() => import('../components/DMView'));
+const VoiceCall = React.lazy(() => import('../components/VoiceCall'));
+const UserProfileCard = React.lazy(() => import('../components/UserProfileCard'));
+
+const Room3DView = React.lazy(() => import('../components/Room3DView'));
+const ShowcaseView = React.lazy(() => import('../components/ShowcaseView'));
+const MiniAppContainer = React.lazy(() => import('../components/MiniAppContainer'));
+const ServerSettingsLayout = React.lazy(() => import('../pages/serverSettings/ServerSettingsLayout'));
+const ServerProfileCard = React.lazy(() => import('../components/ServerProfileCard'));
+const UserServerProfileModal = React.lazy(() => import('../components/UserServerProfileModal'));
+const JoinServerModal = React.lazy(() => import('../components/JoinServerModal'));
+const ServerInviteModal = React.lazy(() => import('../components/ServerInviteModal'));
+const ForwardMessageModal = React.lazy(() => import('../components/ForwardMessageModal'));
+const SettingsModal = React.lazy(() => import('../components/SettingsModal'));
+const Inbox = React.lazy(() => import('../components/Inbox'));
+const CreateGroupDMModal = React.lazy(() => import('../components/CreateGroupDMModal'));
+
+// Заглушка на время подгрузки чанка для полноэкранных вкладок — держит место
+// в раскладке, чтобы контент не «прыгал».
+const LazyViewFallback: React.FC = () => (
+  <div className="content-inner-layer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+    <div className="loading-spinner-rings"><div></div><div></div><div></div><div></div></div>
+  </div>
+);
+
+// Оверлеи (модалки) ничего не занимают в потоке — пока грузится чанк,
+// показывать нечего, поэтому fallback пустой. Отдельная граница на каждую
+// модалку, чтобы загрузка одной не гасила остальные.
+const LazyOverlay: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Suspense fallback={null}>{children}</Suspense>
+);
+
+// Вынесено на уровень модуля: инлайновый литерал создавал новый объект на
+// каждый рендер Main и ломал React.memo у сайдбаров.
+const FULL_WIDTH_STYLE: React.CSSProperties = { width: '100%' };
 
 const Main: React.FC = () => {
   const { user, logout, updateUser, updateGlobalUser } = useAuth();
@@ -70,6 +104,29 @@ const Main: React.FC = () => {
   };
   const { streamerModeEnabled, changeStatusToStreaming } = useWindowSettings();
   const { settings: gestureSettings } = useGestureSettings();
+
+  // Префетч чанка чата сразу на монтировании: он почти наверняка понадобится
+  // (восстановление последнего канала), а скачать его надо параллельно с
+  // запросом серверов, а не после него — иначе ленивая загрузка добавила бы
+  // лишний раунд-трип перед первой отрисовкой чата.
+  // Личные сообщения и список друзей на загрузочном пути не лежат, но
+  // открываются часто — их греем на простое, чтобы переход был мгновенным
+  // и при этом их CSS не утяжелял основной чанк.
+  useEffect(() => {
+    import('../components/ChannelView');
+
+    const warmUp = () => {
+      import('../components/DMView');
+      import('../components/FriendsPanel');
+    };
+    const idle = (window as any).requestIdleCallback;
+    if (typeof idle === 'function') {
+      const handle = idle(warmUp, { timeout: 3000 });
+      return () => (window as any).cancelIdleCallback?.(handle);
+    }
+    const timer = window.setTimeout(warmUp, 2000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
@@ -1078,7 +1135,7 @@ const Main: React.FC = () => {
     return () => { s.off('new-message', handleNewMessage); s.off('message-deleted', handleMessageDeleted); };
   }, [selectedDM, socket, fetchDMMessages]);
 
-  const handleCreateServer = async (name: string) => {
+  const handleCreateServer = useCallback(async (name: string) => {
     try {
       const response = await axios.post('/api/servers', { name });
       setServers((prev: Server[]) => [...prev, response.data]);
@@ -1086,17 +1143,17 @@ const Main: React.FC = () => {
       if (socket) socket.emit('join-server', response.data._id);
       if (response.data.channels.length > 0) setSelectedChannel(response.data.channels[0]);
     } catch (error) { }
-  };
+  }, [socket]);
 
-  const handleChannelSelect = (channel: Channel) => {
+  const handleChannelSelect = useCallback((channel: Channel) => {
     setInitialUnreadCount(unreadCounts[channel._id] || 0);
     setMessages([]);
     setSelectedChannel(channel);
     setSelectedDM(null);
     setShowFriends(false);
     setMobileView('content');
-    
-  };
+
+  }, [unreadCounts]);
   const handleStartDM = async (userId: string) => {
     try {
       const response = await axios.get(`/api/direct-messages/user/${userId}`);
@@ -1125,7 +1182,7 @@ const Main: React.FC = () => {
     setServers(prev => prev.filter(s => s._id !== serverId));
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
   };
-  const handleDeleteDM = async (dm: DirectMessage) => {
+  const handleDeleteDM = useCallback(async (dm: DirectMessage) => {
     const isGroup = dm.participants.length > 2 || !!dm.name;
     const ok = await customConfirm(
       isGroup
@@ -1143,14 +1200,14 @@ const Main: React.FC = () => {
       setDms((prev: DirectMessage[]) => prev.filter(d => d._id !== dm._id));
       setSelectedDM((prev: DirectMessage | null) => (prev && prev._id === dm._id) ? null : prev);
     } catch (err) { /* ошибку покажет общий обработчик */ }
-  };
+  }, [customConfirm]);
 
-  const handleServerLeave = (serverId: string) => {
+  const handleServerLeave = useCallback((serverId: string) => {
     setServers(prev => prev.filter(s => s._id !== serverId));
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
-  };
+  }, [selectedServer?._id]);
 
-    const handleShowShowcase = () => {
+    const handleShowShowcase = useCallback(() => {
         setShowSettingsModal(false);
         setShowShowcase(true);
         setShowFriends(false);
@@ -1158,7 +1215,7 @@ const Main: React.FC = () => {
         setSelectedChannel(null);
         setSelectedDM(null);
         setMobileView('content');
-    };
+    }, []);
 
     const handleOpenMiniApp = (app: MiniApp) => {
         // Запоминаем запуск, чтобы предлагать приложение для быстрого повторного
@@ -1171,21 +1228,23 @@ const Main: React.FC = () => {
         }
     };
 
-    const handleCloseMiniApp = (appId: string) => {
-        setOpenMiniApps(openMiniApps.filter(a => a._id !== appId));
+    const handleCloseMiniApp = useCallback((appId: string) => {
+        // Функциональный апдейт вместо чтения openMiniApps из замыкания —
+        // так колбэк остаётся стабильным между рендерами.
+        setOpenMiniApps(prev => prev.filter(a => a._id !== appId));
         setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(appId); return n; });
         // Activity is recomputed by the centralized effect (game > miniapps > null).
-    };
+    }, []);
 
-    const handleMinimizeMiniApp = (appId: string) => {
+    const handleMinimizeMiniApp = useCallback((appId: string) => {
         setMinimizedMiniAppIds(prev => new Set(prev).add(appId));
-    };
+    }, []);
 
-    const handleRestoreMiniApp = (appId: string) => {
+    const handleRestoreMiniApp = useCallback((appId: string) => {
         setMinimizedMiniAppIds(prev => { const n = new Set(prev); n.delete(appId); return n; });
-    };
+    }, []);
 
-    const handleUserClick = (userId: string, event?: React.MouseEvent | CustomEvent, scopeless?: boolean) => {
+    const handleUserClick = useCallback((userId: string, event?: React.MouseEvent | CustomEvent, scopeless?: boolean) => {
     setShowProfileUserId(userId);
     setProfileScopeless(!!scopeless);
     if (event) {
@@ -1197,16 +1256,74 @@ const Main: React.FC = () => {
     } else {
       setProfilePosition(null);
     }
-  };
+  }, []);
 
-  const handleServerProfileClick = (event?: React.MouseEvent) => {
+  const handleServerProfileClick = useCallback((event?: React.MouseEvent) => {
     setShowServerProfile(true);
     if (event) {
       setServerProfilePosition({ x: event.clientX, y: event.clientY });
     } else {
       setServerProfilePosition(null);
     }
-  };
+  }, []);
+
+  // --- Стабильные колбэки для мемоизированных сайдбаров ---
+  // Раньше это были инлайн-стрелки прямо в JSX: новая функция на каждый рендер
+  // Main обнуляла эффект React.memo у Sidebar/ServerSidebar/DMSidebar, а Main
+  // перерисовывается на каждое событие присутствия из сокета.
+
+  const handleSidebarServerSelect = useCallback((server: Server) => {
+    setSelectedServer(server); setShowFriends(false); setShowShowcase(false); setSelectedDM(null);
+    const firstTextChannel = server.channels.find(c => c.type === 'text');
+    if (firstTextChannel) {
+      setMessages([]);
+      setSelectedChannel(firstTextChannel);
+      fetchMessages(firstTextChannel._id);
+    }
+    else if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
+    // On mobile, selecting a server stays in sidebar mode to show channel list
+  }, [fetchMessages]);
+
+  const handleServerJoined = useCallback((server: Server) => {
+    setServers((prev) => [...prev, server]);
+    setSelectedServer(server);
+    if (socket) socket.emit('join-server', server._id);
+    if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
+  }, [socket]);
+
+  const handleShowFriendsFromSidebar = useCallback(() => {
+    setShowFriends(true); setShowShowcase(false); setSelectedServer(null);
+    setSelectedChannel(null); setSelectedDM(null); setMobileView('sidebar');
+  }, []);
+
+  const handleOpenJoinModal = useCallback(() => setShowJoinModal(true), []);
+  const handleOpenSettingsModal = useCallback(() => setShowSettingsModal(true), []);
+  const handleToggleInbox = useCallback(() => setShowInbox(prev => !prev), []);
+  const handleOpenServerSettings = useCallback(() => setShowServerSettings(true), []);
+  const handleBackToContent = useCallback(() => setMobileView('content'), []);
+  const handleOpenCreateGroupModal = useCallback(() => setShowCreateGroupModal(true), []);
+
+  const handleDMSelect = useCallback((dm: DirectMessage) => {
+    setSelectedDM(dm);
+    setShowFriends(false);
+    setShowShowcase(false);
+    setSelectedServer(null);
+    setMobileView('content');
+  }, []);
+
+  const handleShowFriendsFromDM = useCallback(() => {
+    setShowFriends(true);
+    setShowShowcase(false);
+    setSelectedDM(null);
+    setMobileView(isMobile ? 'content' : 'sidebar');
+  }, [isMobile]);
+
+  // Новый массив на каждый рендер тоже ломал memo — считаем его только при
+  // реальном изменении списка открытых/свёрнутых мини-приложений.
+  const minimizedMiniApps = React.useMemo(
+    () => openMiniApps.filter(a => minimizedMiniAppIds.has(a._id)),
+    [openMiniApps, minimizedMiniAppIds]
+  );
 
   if (loading) return <div className="loading">Загрузка...</div>;
 
@@ -1218,30 +1335,20 @@ const Main: React.FC = () => {
         <Sidebar
           isMobile={isMobile}
           user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
-          onServerSelect={(server) => {
-              setSelectedServer(server); setShowFriends(false); setShowShowcase(false); setSelectedDM(null);
-            const firstTextChannel = server.channels.find(c => c.type === 'text');
-            if (firstTextChannel) {
-              setMessages([]);
-              setSelectedChannel(firstTextChannel);
-              fetchMessages(firstTextChannel._id);
-            }
-            else if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
-            // On mobile, selecting a server stays in sidebar mode to show channel list
-          }}
+          onServerSelect={handleSidebarServerSelect}
           onCreateServer={handleCreateServer}
-          onServerJoined={(server) => { setServers((prev) => [...prev, server]); setSelectedServer(server); if (socket) socket.emit('join-server', server._id); if (server.channels.length > 0) setSelectedChannel(server.channels[0]); }}
-          onLogout={logout} onShowFriends={() => { setShowFriends(true); setShowShowcase(false); setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); setMobileView('sidebar'); }}
+          onServerJoined={handleServerJoined}
+          onLogout={logout} onShowFriends={handleShowFriendsFromSidebar}
           showFriends={showFriends}
           onShowShowcase={handleShowShowcase}
           showShowcase={showShowcase}
           onServerLeave={handleServerLeave}
-          onOpenJoinModal={() => setShowJoinModal(true)}
-          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenJoinModal={handleOpenJoinModal}
+          onOpenSettings={handleOpenSettingsModal}
           onOpenProfile={handleUserClick}
-          onToggleInbox={() => setShowInbox(!showInbox)}
+          onToggleInbox={handleToggleInbox}
           inboxUnreadCount={inboxUnreadCount}
-          minimizedMiniApps={openMiniApps.filter(a => minimizedMiniAppIds.has(a._id))}
+          minimizedMiniApps={minimizedMiniApps}
           onRestoreMiniApp={handleRestoreMiniApp}
           onCloseMiniApp={handleCloseMiniApp}
         />
@@ -1285,9 +1392,9 @@ const Main: React.FC = () => {
                     onChannelSelect={handleChannelSelect}
                     onChannelCreated={fetchServers}
                     onUserClick={handleUserClick}
-                    onOpenSettings={() => setShowServerSettings(true)}
+                    onOpenSettings={handleOpenServerSettings}
                     onServerClick={handleServerProfileClick}
-                    style={{ width: '100%' }}
+                    style={FULL_WIDTH_STYLE}
                   />
                 </motion.div>
               )}
@@ -1306,25 +1413,14 @@ const Main: React.FC = () => {
                   <DMSidebar
                     dms={dms}
                     selectedDM={selectedDM}
-                    onDMSelect={(dm) => {
-                      setSelectedDM(dm);
-                      setShowFriends(false);
-                        setShowShowcase(false);
-                        setSelectedServer(null);
-                      setMobileView('content');
-                    }}
-                    onShowFriends={() => {
-                      setShowFriends(true);
-                        setShowShowcase(false);
-                        setSelectedDM(null);
-                      setMobileView(isMobile ? 'content' : 'sidebar');
-                    }}
-                    onAddDM={() => setShowCreateGroupModal(true)}
+                    onDMSelect={handleDMSelect}
+                    onShowFriends={handleShowFriendsFromDM}
+                    onAddDM={handleOpenCreateGroupModal}
                     onDeleteDM={handleDeleteDM}
                     showFriends={showFriends}
                     currentUser={user!}
                     unreadCounts={unreadCounts}
-                    style={{ width: '100%' }}
+                    style={FULL_WIDTH_STYLE}
                     isMobile={isMobile}
                     friends={friends}
                     servers={servers}
@@ -1369,14 +1465,16 @@ const Main: React.FC = () => {
                     initial="initial" animate="animate" exit="exit"
                     transition={iosSpring}
                   >
-                    <ShowcaseView
-                      onOpenMiniApp={handleOpenMiniApp}
-                      onBack={() => setMobileView('sidebar')}
-                      isMobile={isMobile}
-                      friends={friends}
-                      servers={servers}
-                      onUserClick={handleUserClick}
-                    />
+                    <Suspense fallback={<LazyViewFallback />}>
+                      <ShowcaseView
+                        onOpenMiniApp={handleOpenMiniApp}
+                        onBack={() => setMobileView('sidebar')}
+                        isMobile={isMobile}
+                        friends={friends}
+                        servers={servers}
+                        onUserClick={handleUserClick}
+                      />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1388,16 +1486,18 @@ const Main: React.FC = () => {
                     initial="initial" animate="animate" exit="exit"
                     transition={iosSpring}
                   >
-                    <FriendsPanel
-                      friends={friends}
-                      setFriends={setFriends}
-                      onStartDM={handleStartDM}
-                      onUserClick={handleUserClick}
-                      unreadCounts={unreadCounts}
-                      onBack={() => setMobileView('sidebar')}
-                      isMobile={isMobile}
-                      servers={servers}
-                    />
+                    <Suspense fallback={<LazyViewFallback />}>
+                      <FriendsPanel
+                        friends={friends}
+                        setFriends={setFriends}
+                        onStartDM={handleStartDM}
+                        onUserClick={handleUserClick}
+                        unreadCounts={unreadCounts}
+                        onBack={() => setMobileView('sidebar')}
+                        isMobile={isMobile}
+                        servers={servers}
+                      />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1414,6 +1514,7 @@ const Main: React.FC = () => {
                         and a delayed unmount made those buttons linger across channel
                         switches. */}
                     <div key={selectedChannel._id} className="content-inner-layer">
+                      <Suspense fallback={<LazyViewFallback />}>
                       <ChannelView
                         channel={selectedChannel}
                         server={selectedServer!}
@@ -1437,6 +1538,7 @@ const Main: React.FC = () => {
                         showMembersSidebar={isMobile ? mobileView === 'members' : showMembersSidebar}
                         isMobile={isMobile}
                       />
+                      </Suspense>
                     </div>
                   </motion.div>
                 )}
@@ -1451,6 +1553,7 @@ const Main: React.FC = () => {
                   >
                     <div key={selectedChannel._id} className="voice-chat-container">
                       <div className="content-inner-layer">
+                        <Suspense fallback={<LazyViewFallback />}>
                         <VoiceChannelView
                           channel={selectedChannel}
                           server={selectedServer!}
@@ -1467,6 +1570,7 @@ const Main: React.FC = () => {
                           isMobile={isMobile}
                           onToggleChat={() => setShowVoiceChat(!showVoiceChat)}
                         />
+                        </Suspense>
                       </div>
                       {showVoiceChat && (
                         <React.Fragment>
@@ -1479,6 +1583,7 @@ const Main: React.FC = () => {
                             />
                           )}
                           <div className="voice-chat-sidebar" style={!isMobile ? { width: `${voiceChatWidth}px` } : undefined}>
+                            <Suspense fallback={<LazyViewFallback />}>
                             <ChannelView
                               channel={selectedChannel}
                               server={selectedServer!}
@@ -1494,6 +1599,7 @@ const Main: React.FC = () => {
                               onBack={() => setMobileView('sidebar')}
                               isMobile={isMobile}
                             />
+                            </Suspense>
                           </div>
                         </React.Fragment>
                       )}
@@ -1511,13 +1617,15 @@ const Main: React.FC = () => {
                   >
                     <div key={selectedChannel._id} className="voice-chat-container">
                       <div className="content-inner-layer">
-                        <Room3DView
-                          channel={selectedChannel}
-                          server={selectedServer!}
-                          onUserClick={handleUserClick}
-                          isMobile={isMobile}
-                          onToggleChat={() => setShowVoiceChat(!showVoiceChat)}
-                        />
+                        <Suspense fallback={<LazyViewFallback />}>
+                          <Room3DView
+                            channel={selectedChannel}
+                            server={selectedServer!}
+                            onUserClick={handleUserClick}
+                            isMobile={isMobile}
+                            onToggleChat={() => setShowVoiceChat(!showVoiceChat)}
+                          />
+                        </Suspense>
                       </div>
                       {showVoiceChat && (
                         <React.Fragment>
@@ -1530,6 +1638,7 @@ const Main: React.FC = () => {
                             />
                           )}
                           <div className="voice-chat-sidebar" style={!isMobile ? { width: `${voiceChatWidth}px` } : undefined}>
+                            <Suspense fallback={<LazyViewFallback />}>
                             <ChannelView
                               channel={selectedChannel}
                               server={selectedServer!}
@@ -1545,6 +1654,7 @@ const Main: React.FC = () => {
                               onBack={() => setMobileView('sidebar')}
                               isMobile={isMobile}
                             />
+                            </Suspense>
                           </div>
                         </React.Fragment>
                       )}
@@ -1561,6 +1671,7 @@ const Main: React.FC = () => {
                     transition={iosSpring}
                   >
                     <div key={selectedDM._id} className="content-inner-layer">
+                      <Suspense fallback={<LazyViewFallback />}>
                       <DMView
                         dm={selectedDM}
                         messages={dmMessages}
@@ -1578,6 +1689,7 @@ const Main: React.FC = () => {
                         onBack={() => setMobileView('sidebar')}
                         isMobile={isMobile}
                       />
+                      </Suspense>
                     </div>
                   </motion.div>
                 )}
@@ -1615,7 +1727,7 @@ const Main: React.FC = () => {
                 <ServerMembers
                   server={selectedServer}
                   onUserClick={handleUserClick}
-                  onBack={() => setMobileView('content')}
+                  onBack={handleBackToContent}
                   isMobile={isMobile}
                 />
               </div>
@@ -1675,8 +1787,8 @@ const Main: React.FC = () => {
 
       <AnimatePresence>
         {activeCall && (
+          <LazyOverlay key="voice-call">
           <VoiceCall
-            key="voice-call"
             socket={socket}
             otherUser={activeCall.user}
             dmId={activeCall.dmId}
@@ -1688,10 +1800,12 @@ const Main: React.FC = () => {
             onOpenProfile={handleUserClick}
             onCallConnecting={leaveServerVoiceForCall}
           />
+          </LazyOverlay>
         )}
       </AnimatePresence>
 
       {showProfileUserId && (
+        <LazyOverlay>
         <UserProfileCard
           userId={showProfileUserId}
           onClose={() => { setShowProfileUserId(null); setProfilePosition(null); }}
@@ -1699,11 +1813,13 @@ const Main: React.FC = () => {
           position={profilePosition}
           onUserClick={handleUserClick}
         />
+        </LazyOverlay>
       )}
 
-      {showServerSettings && selectedServer && <ServerSettingsLayout isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} />}
+      {showServerSettings && selectedServer && <LazyOverlay><ServerSettingsLayout isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} /></LazyOverlay>}
 
       {showServerProfile && selectedServer && (
+        <LazyOverlay>
         <ServerProfileCard
           server={selectedServer}
           onClose={() => { setShowServerProfile(false); setServerProfilePosition(null); }}
@@ -1711,11 +1827,13 @@ const Main: React.FC = () => {
           position={serverProfilePosition}
           onUserClick={handleUserClick}
         />
+        </LazyOverlay>
       )}
 
-      {showUserServerProfile && serverProfileServerId && <UserServerProfileModal isOpen={showUserServerProfile} onClose={() => setShowUserServerProfile(false)} serverId={serverProfileServerId} onUpdate={handleServerUpdate} />}
+      {showUserServerProfile && serverProfileServerId && <LazyOverlay><UserServerProfileModal isOpen={showUserServerProfile} onClose={() => setShowUserServerProfile(false)} serverId={serverProfileServerId} onUpdate={handleServerUpdate} /></LazyOverlay>}
 
       {showJoinModal && (
+        <LazyOverlay>
         <JoinServerModal
           isOpen={showJoinModal}
           onClose={() => setShowJoinModal(false)}
@@ -1727,9 +1845,11 @@ const Main: React.FC = () => {
           }}
           onCreate={handleCreateServer}
         />
+        </LazyOverlay>
       )}
 
       {inviteServerId && (
+        <LazyOverlay>
         <ServerInviteModal
           isOpen={!!inviteServerId}
           serverId={inviteServerId}
@@ -1746,9 +1866,11 @@ const Main: React.FC = () => {
             setMobileView('content');
           }}
         />
+        </LazyOverlay>
       )}
 
       {forwardMessage && user && (
+        <LazyOverlay>
         <ForwardMessageModal
           isOpen={!!forwardMessage}
           onClose={() => setForwardMessage(null)}
@@ -1757,18 +1879,27 @@ const Main: React.FC = () => {
           currentUser={user}
           socket={socket}
         />
+        </LazyOverlay>
       )}
 
-      <SettingsModal
-        isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        initialTab={settingsInitialTab}
-        initialData={settingsInitialData}
-      />
+      {/* SettingsModal внутри сам возвращает null при isOpen=false, поэтому
+          монтируем его только когда он реально открыт — так чанк настроек
+          (вместе с Settings.css) не грузится, пока их не откроют. */}
+      {showSettingsModal && (
+        <LazyOverlay>
+          <SettingsModal
+            isOpen={showSettingsModal}
+            onClose={() => setShowSettingsModal(false)}
+            initialTab={settingsInitialTab}
+            initialData={settingsInitialData}
+          />
+        </LazyOverlay>
+      )}
 
       <PostAnnouncements />
 
       {showCreateGroupModal && (
+        <LazyOverlay>
         <CreateGroupDMModal
           isOpen={showCreateGroupModal}
           onClose={() => setShowCreateGroupModal(false)}
@@ -1782,6 +1913,7 @@ const Main: React.FC = () => {
             } catch (e) { }
           }}
         />
+        </LazyOverlay>
       )}
 
       <AnimatePresence>
@@ -1796,8 +1928,8 @@ const Main: React.FC = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
             />
+            <LazyOverlay key="inbox">
             <Inbox
-              key="inbox"
               onClose={() => setShowInbox(false)}
               onItemClick={(item) => {
                 if (item.type === 'mention' || item.type === 'dm') {
@@ -1822,17 +1954,22 @@ const Main: React.FC = () => {
                 setShowInbox(false);
               }}
             />
+            </LazyOverlay>
           </React.Fragment>
         )}
       </AnimatePresence>
       <div id="voice-controls-portal" />
 
-        <MiniAppContainer
-            openApps={openMiniApps}
-            minimizedIds={minimizedMiniAppIds}
-            onClose={handleCloseMiniApp}
-            onMinimize={handleMinimizeMiniApp}
-        />
+        {openMiniApps.length > 0 && (
+          <LazyOverlay>
+            <MiniAppContainer
+                openApps={openMiniApps}
+                minimizedIds={minimizedMiniAppIds}
+                onClose={handleCloseMiniApp}
+                onMinimize={handleMinimizeMiniApp}
+            />
+          </LazyOverlay>
+        )}
     </div>
   );
 };

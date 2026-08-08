@@ -8,7 +8,7 @@ import {
   VideoIcon, CameraIcon, LayoutGridIcon,
 } from './Icons';
 import ScreenSourceSelector from './ScreenSourceSelector';
-import { ConnectionState } from 'livekit-client';
+import { ConnectionStates } from '../utils/livekitLazy';
 import { iosSpringSnappy } from '../animations/transitions';
 import { getRecentMiniApps, RecentMiniApp } from '../utils/recentMiniApps';
 import { getFullUrl } from '../utils/avatar';
@@ -80,9 +80,9 @@ const VoiceControlPanel: React.FC = () => {
   const [elapsed, setElapsed] = useState(0);
   const startedAtRef = useRef<number | null>(null);
   useEffect(() => {
-    if (roomConnectionState === ConnectionState.Connected) {
+    if (roomConnectionState === ConnectionStates.Connected) {
       if (startedAtRef.current === null) startedAtRef.current = Date.now();
-    } else if (roomConnectionState === ConnectionState.Disconnected) {
+    } else if (roomConnectionState === ConnectionStates.Disconnected) {
       startedAtRef.current = null;
       setElapsed(0);
     }
@@ -109,13 +109,13 @@ const VoiceControlPanel: React.FC = () => {
   type Tone = 'excellent' | 'good' | 'poor' | 'lost' | 'connecting' | 'unknown';
 
   const getEffectiveState = (): { tone: Tone; label: string; line: string } => {
-    if (roomConnectionState === ConnectionState.Connecting) {
+    if (roomConnectionState === ConnectionStates.Connecting) {
       return { tone: 'connecting', label: 'Установка связи', line: 'Подключаемся к каналу…' };
     }
-    if (roomConnectionState === ConnectionState.Reconnecting) {
+    if (roomConnectionState === ConnectionStates.Reconnecting) {
       return { tone: 'connecting', label: 'Восстановление связи', line: 'Связь прервалась, ждём…' };
     }
-    if (roomConnectionState === ConnectionState.Disconnected) {
+    if (roomConnectionState === ConnectionStates.Disconnected) {
       return { tone: 'lost', label: 'Связь потеряна', line: 'Нет соединения с сервером' };
     }
     // Connected
@@ -141,7 +141,7 @@ const VoiceControlPanel: React.FC = () => {
   const statusEyebrow = isLost
     ? 'Связь потеряна'
     : isConnecting
-    ? (roomConnectionState === ConnectionState.Reconnecting ? 'Восстановление' : 'Подключение')
+    ? (roomConnectionState === ConnectionStates.Reconnecting ? 'Восстановление' : 'Подключение')
     : 'Голосовая связь';
   const statusLine = effective.line;
 
