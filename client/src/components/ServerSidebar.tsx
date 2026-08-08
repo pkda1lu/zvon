@@ -130,6 +130,18 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const voiceChannels = server.channels.filter(ch => ch.type === 'voice');
   const roomChannels = server.channels.filter(ch => ch.type === 'room');
 
+  // Момент, когда в канале появился первый участник — для тайминга "сколько уже длится звонок".
+  // Живёт только на клиенте (сбрасывается при перезагрузке/пересоздании компонента), сервер это не хранит.
+  const voiceStartTimesRef = useRef<Record<string, number>>({});
+  Object.keys(voiceStates).forEach(channelId => {
+    const count = voiceStates[channelId]?.length || 0;
+    if (count > 0 && !voiceStartTimesRef.current[channelId]) {
+      voiceStartTimesRef.current[channelId] = Date.now();
+    } else if (count === 0 && voiceStartTimesRef.current[channelId]) {
+      delete voiceStartTimesRef.current[channelId];
+    }
+  });
+
   // Голосовые каналы и 3D-комнаты используют один и тот же голосовой стек
   // (join-voice-channel/LiveKit) и одинаковую разметку в сайдбаре — различается
   // только иконка и заголовок категории.
@@ -176,6 +188,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                 </span>
                 <span className="channel-name">{channel.name}</span>
               </div>
+              {voiceStates[channel._id] && voiceStates[channel._id].length > 0 && voiceStartTimesRef.current[channel._id] && (
+                <VoiceChannelTimer startedAt={voiceStartTimesRef.current[channel._id]} />
+              )}
               <div className="channel-actions">
                 {canEditThisChannel && (
                   <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>
@@ -206,7 +221,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                       <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
                         {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.username}
                       </span>
-                      <UserBadges badges={u.badges} size={12} />
+                      <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={12} />
                     </div>
                     <div className="voice-user-icons">
                       {userStates.get(u._id)?.isScreenSharing && (
