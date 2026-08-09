@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Socket } from 'socket.io-client';
 import { DirectMessage, Server, User, Message } from '../types';
-import { CloseIcon, SearchIcon, HashtagIcon } from './Icons';
+import { SearchIcon, HashtagIcon, CheckIcon } from './Icons';
 import UserAvatar from './UserAvatar';
-import AnimatedOverlay from '../animations/AnimatedOverlay';
+import Modal from './Modal';
 import './ForwardMessageModal.css';
 
 interface ForwardTarget {
@@ -90,13 +90,20 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ isOpen, onClo
     const preview = message?.content || (message?.attachments?.length ? 'Вложение' : (message?.poll ? 'Опрос' : ''));
 
     return (
-        <AnimatedOverlay isOpen={isOpen} onClose={onClose} contentClassName="forward-modal">
-            <>
-                <div className="forward-header">
-                    <h3>Переслать сообщение</h3>
-                    <button className="close-btn" onClick={onClose}><CloseIcon /></button>
-                </div>
-
+        <Modal
+            open={isOpen}
+            onClose={onClose}
+            title="Переслать сообщение"
+            size="md"
+            className="liquid-glass-modal forward-modal-styled"
+            footer={
+                <button type="button" onClick={onClose} className="zv-btn zv-btn--ghost">
+                    Закрыть
+                </button>
+            }
+        >
+            <div className="forward-modal-content">
+                {/* 1. Превью пересылаемого сообщения */}
                 {preview && (
                     <div className="forward-preview">
                         <span className="forward-preview__author">{message?.author?.username}</span>
@@ -104,17 +111,21 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ isOpen, onClo
                     </div>
                 )}
 
-                <div className="forward-search">
-                    <SearchIcon size={18} />
+                {/* 2. Поиск чата / канала */}
+                <div className="input-wrapper forward-search-wrapper">
+                    <span className="input-prefix">
+                        <SearchIcon size={18} />
+                    </span>
                     <input
                         type="text"
-                        placeholder="Поиск чата или канала"
+                        placeholder="Поиск чата или канала..."
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         autoFocus
                     />
                 </div>
 
+                {/* 3. Список чатов / каналов */}
                 <div className="forward-list custom-scrollbar">
                     {filtered.length === 0 ? (
                         <div className="forward-empty">Ничего не найдено</div>
@@ -124,7 +135,7 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ isOpen, onClo
                                 {t.isChannel ? (
                                     <div className="forward-item__hash"><HashtagIcon size={18} /></div>
                                 ) : (
-                                    <UserAvatar user={t.avatarUser} size={36} />
+                                    <UserAvatar user={t.avatarUser} size={38} className="forward-avatar-comp" />
                                 )}
                             </div>
                             <div className="forward-item__info">
@@ -132,18 +143,26 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ isOpen, onClo
                                 {t.sub && <span className="forward-item__sub">{t.sub}</span>}
                             </div>
                             <button
+                                type="button"
                                 className={`forward-item__btn ${sentKeys.has(t.key) ? 'sent' : ''}`}
                                 onClick={() => handleForward(t)}
                                 disabled={sentKeys.has(t.key)}
                             >
-                                {sentKeys.has(t.key) ? 'Отправлено' : 'Переслать'}
+                                {sentKeys.has(t.key) ? (
+                                    <>
+                                        <CheckIcon size={14} /> Отправлено
+                                    </>
+                                ) : (
+                                    'Переслать'
+                                )}
                             </button>
                         </div>
                     ))}
                 </div>
-            </>
-        </AnimatedOverlay>
+            </div>
+        </Modal>
     );
 };
 
 export default ForwardMessageModal;
+

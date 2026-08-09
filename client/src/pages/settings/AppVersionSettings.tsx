@@ -185,6 +185,25 @@ const AppVersionSettings: React.FC = () => {
                     </a>
                 </div>
             </div>
+
+            {/* Prod by Vlyne Card */}
+            <div className="settings-card">
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h3>Prod by Vlyne</h3>
+                        <p>Быстрые и стабильные Vless-решения</p>
+                    </div>
+                    <a 
+                        href="https://t.me/vless_outline_channel" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="settings-btn secondary"
+                        style={{ textDecoration: 'none', background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}
+                    >
+                        Telegram
+                    </a>
+                </div>
+            </div>
         </div>
     );
 };
