@@ -11,6 +11,42 @@ const AppVersionSettings: React.FC = () => {
     const commitMessage = typeof __GIT_COMMIT_MESSAGE__ !== 'undefined' ? __GIT_COMMIT_MESSAGE__ : '';
 
     const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
+    const platformDisplay = isElectron ? 'Desktop (Electron)' : 'Веб-версия (Браузер)';
+
+    const [authorAvatar, setAuthorAvatar] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (!commitAuthor) return;
+        let isMounted = true;
+        // Try fetching author avatar from GitHub API using commit author username or hash
+        const fetchAvatar = async () => {
+            try {
+                if (commitHash) {
+                    const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/commits/${commitHash}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (isMounted && data.author?.avatar_url) {
+                            setAuthorAvatar(data.author.avatar_url);
+                            return;
+                        }
+                    }
+                }
+                const res = await fetch(`https://api.github.com/users/${commitAuthor}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted && data.avatar_url) {
+                        setAuthorAvatar(data.avatar_url);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to fetch commit author avatar:', e);
+            }
+        };
+        fetchAvatar();
+        return () => {
+            isMounted = false;
+        };
+    }, [commitAuthor, commitHash]);
 
     const formattedBuildDate = (() => {
         try {
@@ -76,7 +112,7 @@ const AppVersionSettings: React.FC = () => {
                         <p>Текущая среда выполнения приложения</p>
                     </div>
                     <span className={`app-platform-detail-badge ${isElectron ? 'electron' : 'web'}`}>
-                        {isElectron ? 'desktop' : 'веб'}
+                        {platformDisplay}
                     </span>
                 </div>
             </div>
@@ -107,18 +143,25 @@ const AppVersionSettings: React.FC = () => {
                         <p>Разработчик последнего коммита</p>
                     </div>
                     <div className="app-author-chip">
-                        <div className="app-author-avatar">
-                            {commitAuthor.charAt(0).toUpperCase()}
-                        </div>
+                        {authorAvatar ? (
+                            <img src={authorAvatar} alt={commitAuthor} className="app-author-avatar" style={{ objectFit: 'cover' }} />
+                        ) : (
+                            <div className="app-author-avatar">
+                                {commitAuthor.charAt(0).toUpperCase()}
+                            </div>
+                        )}
                         <span className="app-author-name">{commitAuthor}</span>
                     </div>
                 </div>
 
                 {commitMessage && (
-                    <div className="settings-row">
+                    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
                         <div className="settings-row-text">
                             <h3>Сообщение</h3>
-                            <p>{commitMessage}</p>
+                            <p>Описание изменений в коммите</p>
+                        </div>
+                        <div className="app-commit-msg-box" style={{ width: '100%', boxSizing: 'border-box' }}>
+                            {commitMessage}
                         </div>
                     </div>
                 )}
