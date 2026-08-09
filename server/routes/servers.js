@@ -1101,13 +1101,36 @@ router.delete('/:id/emojis/:emojiId', auth, checkPermission(Permissions.MANAGE_G
 
 router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), async (req, res) => {
   try {
-    const { limit = 50, before, user, action, reason, after } = req.query;
+    const { limit = 50, before, user, action, actions, reason, after } = req.query;
     const query = { server: req.params.id };
 
-    if (before) query.createdAt = { ...(query.createdAt || {}), $lt: new Date(before) };
-    if (after) query.createdAt = { ...(query.createdAt || {}), $gt: new Date(after) };
+    if (before) {
+      const bDate = new Date(before);
+      if (typeof before === 'string' && before.length === 10) {
+        bDate.setHours(23, 59, 59, 999);
+      }
+      query.createdAt = { ...(query.createdAt || {}), $lte: bDate };
+    }
+    if (after) {
+      const aDate = new Date(after);
+      if (typeof after === 'string' && after.length === 10) {
+        aDate.setHours(0, 0, 0, 0);
+      }
+      query.createdAt = { ...(query.createdAt || {}), $gte: aDate };
+    }
     if (user) query.$or = [{ executor: user }, { target: user }];
-    if (action) query.action = action;
+    
+    // Поддержка фильтрации по 1 или нескольким действия одновременно (массив или через запятую)
+    let actionList = [];
+    if (actions) {
+      actionList = Array.isArray(actions) ? actions : String(actions).split(',').filter(Boolean);
+    } else if (action) {
+      actionList = [action];
+    }
+    if (actionList.length > 0) {
+      query.action = { $in: actionList };
+    }
+
     if (reason) query.reason = { $regex: reason.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
 
     const logs = await AuditLog.find(query)
@@ -1116,7 +1139,7 @@ router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG),
       .populate('executor', 'username avatar')
       .populate({
         path: 'target',
-        select: 'username name content' // Select relevant fields for different target types
+        select: 'username name content'
       });
 
     res.json(logs);
@@ -1126,55 +1149,99 @@ router.get('/:id/audit-logs', auth, checkPermission(Permissions.VIEW_AUDIT_LOG),
   }
 });
 
-// Per-server statistics: message activity (accurate history) + member growth (best-effort, tracked via audit log going forward)
+// Per-server statistics: message activity + member growth (cumulative dynamics & daily breakdown)
 router.get('/:id/stats', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Server not found' });
 
-    const range = req.query.range || '30d';
-    const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    let startDate, endDate;
+    if (req.query.after || req.query.before) {
+      if (req.query.after) {
+        startDate = new Date(req.query.after);
+        if (typeof req.query.after === 'string' && req.query.after.length === 10) startDate.setHours(0, 0, 0, 0);
+      } else {
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      }
+      if (req.query.before) {
+        endDate = new Date(req.query.before);
+        if (typeof req.query.before === 'string' && req.query.before.length === 10) endDate.setHours(23, 59, 59, 999);
+      } else {
+        endDate = new Date();
+      }
+    } else {
+      const range = req.query.range || '30d';
+      const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
+      endDate = new Date();
+      startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    }
 
     const Message = require('../models/Message');
 
     const messagesChart = await Message.aggregate([
-      { $match: { channel: { $in: server.channels }, createdAt: { $gte: since } } },
+      { $match: { channel: { $in: server.channels }, createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
     const totalMessages = await Message.countDocuments({ channel: { $in: server.channels } });
 
+    const activeUsersDaily = await Message.aggregate([
+      { $match: { channel: { $in: server.channels }, createdAt: { $gte: startDate, $lte: endDate } } },
+      { $group: { _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, author: '$author' } } },
+      { $group: { _id: '$_id.day', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+
     const joinEvents = await AuditLog.aggregate([
-      { $match: { server: server._id, action: 'MEMBER_JOIN', createdAt: { $gte: since } } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
+      { $match: { server: server._id, action: 'MEMBER_JOIN', createdAt: { $gte: startDate, $lte: endDate } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
     ]);
     const leaveEvents = await AuditLog.aggregate([
-      { $match: { server: server._id, action: { $in: ['MEMBER_LEAVE', 'MEMBER_KICK', 'MEMBER_BAN'] }, createdAt: { $gte: since } } },
+      { $match: { server: server._id, action: { $in: ['MEMBER_LEAVE', 'MEMBER_KICK', 'MEMBER_BAN'] }, createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
     ]);
+
+    const attachmentsCount = await Message.countDocuments({
+      channel: { $in: server.channels },
+      'attachments.0': { $exists: true }
+    });
+
     const deltaByDay = new Map();
     joinEvents.forEach(e => deltaByDay.set(e._id, (deltaByDay.get(e._id) || 0) + e.count));
     leaveEvents.forEach(e => deltaByDay.set(e._id, (deltaByDay.get(e._id) || 0) - e.count));
     const sortedDays = Array.from(deltaByDay.keys()).sort();
     let running = server.members.length;
-    // Работаем от текущего количества назад, чтобы получить приблизительный тренд за период
     const dayDeltas = sortedDays.map(day => ({ day, delta: deltaByDay.get(day) }));
     for (let i = dayDeltas.length - 1; i >= 0; i--) running -= dayDeltas[i].delta;
     const membersChart = [];
     let cursor = running;
     for (const { day, delta } of dayDeltas) {
       cursor += delta;
-      membersChart.push({ _id: day, count: cursor });
+      membersChart.push({ _id: day, count: Math.max(1, cursor) });
     }
 
+    // Cumulative messages path
+    let cumMsg = 0;
+    const cumulativeMessages = messagesChart.map(m => {
+      cumMsg += m.count;
+      return { _id: m._id, count: cumMsg };
+    });
+
     res.json({
-      totals: { members: server.members.length, messages: totalMessages },
+      totals: {
+        members: server.members.length,
+        messages: totalMessages,
+        attachments: attachmentsCount,
+        newMembersPeriod: joinEvents.reduce((acc, curr) => acc + curr.count, 0)
+      },
       charts: {
         messages: messagesChart.map(m => ({ _id: m._id, count: m.count })),
-        members: membersChart
-      },
-      trackingSince: null
+        cumulativeMessages,
+        members: membersChart.length > 0 ? membersChart : [{ _id: startDate.toISOString().slice(0, 10), count: server.members.length }],
+        newMembersDaily: joinEvents.map(j => ({ _id: j._id, count: j.count })),
+        activeUsersDaily: activeUsersDaily.map(a => ({ _id: a._id, count: a.count }))
+      }
     });
   } catch (error) {
     console.error('Server stats error:', error);

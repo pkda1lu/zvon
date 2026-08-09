@@ -204,7 +204,7 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                             <Divider />
                             <CategoryHeader>Аналитика</CategoryHeader>
                             <NavItem id="stats" label="Статистика" icon={BarChartIcon} />
-                            <NavItem id="audit" label="Действия" icon={DocumentIcon} />
+                            <NavItem id="audit" label="Журнал действий" icon={DocumentIcon} />
                         </>
                     )}
 

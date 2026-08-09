@@ -28,17 +28,38 @@ export const ChoiceGroup: React.FC<{
     );
 };
 
+export interface CustomSelectOption {
+    id: string;
+    name: string;
+    icon?: string;
+    iconComponent?: React.ReactNode;
+    type?: 'server' | 'user' | 'bot' | 'app' | 'default';
+}
+
 /**
- * CustomSelect: Dropdown with avatars/icons and text.
+ * CustomSelect: Dropdown with avatars/icons and text, supporting single and multi-select modes.
  */
 export const CustomSelect: React.FC<{
-    options: { id: string; name: string; icon?: string; iconComponent?: React.ReactNode; type?: 'server' | 'user' | 'bot' | 'app' | 'default' }[];
-    value: string;
-    onChange: (id: string) => void;
+    options: CustomSelectOption[];
+    value?: string;
+    selectedValues?: string[];
+    onChange?: (id: string) => void;
+    onMultiChange?: (ids: string[]) => void;
+    multiple?: boolean;
     placeholder?: string;
-}> = ({ options, value, onChange, placeholder = "Выберите вариант..." }) => {
+}> = ({
+    options,
+    value,
+    selectedValues = [],
+    onChange,
+    onMultiChange,
+    multiple = false,
+    placeholder = "Выберите вариант..."
+}) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
+
     const selectedOption = options.find(o => o.id === value);
 
     useEffect(() => {
@@ -51,7 +72,12 @@ export const CustomSelect: React.FC<{
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const renderIcon = (opt: typeof options[0]) => {
+    const filteredOptions = options.filter(opt =>
+        opt.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        opt.id.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const renderIcon = (opt: CustomSelectOption) => {
         if (opt.iconComponent) return opt.iconComponent;
         
         const avatarUrl = getAvatarUrl(opt.icon);
@@ -86,36 +112,139 @@ export const CustomSelect: React.FC<{
         return null;
     };
 
+    const toggleOption = (id: string) => {
+        if (selectedValues.includes(id)) {
+            onMultiChange?.(selectedValues.filter(v => v !== id));
+        } else {
+            onMultiChange?.([...selectedValues, id]);
+        }
+    };
+
+    const getDisplayText = () => {
+        if (multiple) {
+            if (selectedValues.length === 0) return placeholder;
+            if (selectedValues.length === options.length) return 'Все действия';
+            if (selectedValues.length === 1) {
+                const opt = options.find(o => o.id === selectedValues[0]);
+                return opt ? opt.name : selectedValues[0];
+            }
+            return `Выбрано: ${selectedValues.length}`;
+        }
+        return selectedOption ? selectedOption.name : placeholder;
+    };
+
     return (
         <div className="custom-select-container" ref={containerRef}>
             <div className="custom-select-trigger" onClick={() => setIsOpen(!isOpen)}>
-                <div className="custom-select-value">
-                    {selectedOption ? (
-                        <>
-                            {renderIcon(selectedOption)}
-                            <span>{selectedOption.name}</span>
-                        </>
-                    ) : <span style={{ color: 'var(--text-faint)' }}>{placeholder}</span>}
+                <div className="custom-select-value" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                    {!multiple && selectedOption && renderIcon(selectedOption)}
+                    <span style={{ color: (multiple ? selectedValues.length > 0 : !!selectedOption) ? 'var(--text-main)' : 'var(--text-faint)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {getDisplayText()}
+                    </span>
                 </div>
-                <div style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                <div style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {multiple && selectedValues.length > 0 && (
+                        <span style={{
+                            background: 'var(--primary-neon, #5865f2)',
+                            color: '#fff',
+                            borderRadius: '10px',
+                            padding: '1px 7px',
+                            fontSize: '11px',
+                            fontWeight: 700
+                        }}>
+                            {selectedValues.length}
+                        </span>
+                    )}
                     <ChevronDownIcon size={16} />
                 </div>
             </div>
+
             {isOpen && (
-                <div className="custom-select-dropdown">
-                    {options.map((opt) => (
-                        <div 
-                            key={opt.id} 
-                            className={`custom-select-option ${value === opt.id ? 'active' : ''}`}
-                            onClick={() => {
-                                onChange(opt.id);
-                                setIsOpen(false);
-                            }}
-                        >
-                            {renderIcon(opt)}
-                            <span>{opt.name}</span>
+                <div className="custom-select-dropdown" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <input
+                        type="text"
+                        placeholder="Поиск..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: '100%',
+                            padding: '6px 10px',
+                            fontSize: '12px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--glass-border)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                            color: '#fff',
+                            marginBottom: '4px'
+                        }}
+                    />
+
+                    {multiple && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px 4px', fontSize: '11px', borderBottom: '1px solid var(--glass-border)' }}>
+                            <button
+                                type="button"
+                                onClick={() => onMultiChange?.(options.map(o => o.id))}
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-neon)', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                            >
+                                Выбрать все
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onMultiChange?.([])}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: 0 }}
+                            >
+                                Сбросить
+                            </button>
                         </div>
-                    ))}
+                    )}
+
+                    <div style={{ overflowY: 'auto', maxHeight: '180px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {filteredOptions.length === 0 ? (
+                            <div style={{ padding: '8px', fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center' }}>
+                                Ничего не найдено
+                            </div>
+                        ) : (
+                            filteredOptions.map((opt) => {
+                                const isSelected = multiple ? selectedValues.includes(opt.id) : value === opt.id;
+                                return (
+                                    <div
+                                        key={opt.id}
+                                        className={`custom-select-option ${isSelected ? 'active' : ''}`}
+                                        onClick={() => {
+                                            if (multiple) {
+                                                toggleOption(opt.id);
+                                            } else {
+                                                onChange?.(opt.id);
+                                                setIsOpen(false);
+                                            }
+                                        }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                    >
+                                        {multiple && (
+                                            <div style={{
+                                                width: '14px',
+                                                height: '14px',
+                                                borderRadius: '3px',
+                                                border: isSelected ? '1px solid var(--primary-neon)' : '1px solid var(--text-dim)',
+                                                backgroundColor: isSelected ? 'var(--primary-neon)' : 'transparent',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0,
+                                                fontSize: '10px',
+                                                color: '#fff',
+                                                fontWeight: 700
+                                            }}>
+                                                {isSelected ? '✓' : ''}
+                                            </div>
+                                        )}
+                                        {renderIcon(opt)}
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.name}</span>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             )}
         </div>

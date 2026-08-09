@@ -1,26 +1,76 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getAvatarUrl } from '../../utils/avatar';
+import { ChoiceGroup, CustomSelect, CustomSelectOption } from './SettingsUI';
 
-const toDateInputValue = (d: Date) => d.toISOString().slice(0, 10);
-
-const ACTION_OPTIONS = [
-    'USER_REGISTER', 'USER_LOGIN', 'USER_DELETE', 'USER_BLOCK', 'USER_UNBLOCK', 'USER_UPDATE',
-    'SERVER_CREATE', 'SERVER_DELETE', 'SERVER_UPDATE', 'SERVER_MEMBER_BAN',
-    'BOT_CREATE', 'BOT_DELETE', 'MINIAPP_CREATE', 'MODERATION_REPORT_RESOLVE', 'MODERATION_BAN'
+const RANGES = [
+    { value: '7d', label: '7 дней' },
+    { value: '30d', label: '30 дней' },
+    { value: '90d', label: '90 дней' },
+    { value: 'custom', label: 'Свой период' },
 ];
+
+const ACTION_MAP: Record<string, string> = {
+    'USER_REGISTER': 'Регистрация пользователя',
+    'USER_LOGIN': 'Вход в аккаунт',
+    'USER_DELETE': 'Удаление аккаунта',
+    'USER_BLOCK': 'Блокировка аккаунта',
+    'USER_UNBLOCK': 'Разблокировка аккаунта',
+    'USER_UPDATE': 'Обновление профиля',
+    'SERVER_CREATE': 'Создание сервера',
+    'SERVER_DELETE': 'Удаление сервера',
+    'SERVER_UPDATE': 'Обновление сервера',
+    'SERVER_MEMBER_BAN': 'Бан на сервере',
+    'BOT_CREATE': 'Создание бота',
+    'BOT_DELETE': 'Удаление бота',
+    'MINIAPP_CREATE': 'Создание мини-приложения',
+    'MODERATION_REPORT_RESOLVE': 'Решение жалобы',
+    'MODERATION_BAN': 'Бан модератором'
+};
+
+const ACTION_OPTIONS: CustomSelectOption[] = Object.entries(ACTION_MAP).map(([val, label]) => ({
+    id: val,
+    name: label
+}));
+
+const toLocalDateInputValue = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const format24hDateTime = (dateInput: string | Date) => {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+};
 
 const AdminActionsSettings: React.FC = () => {
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [actionFilter, setActionFilter] = useState('');
-    const [after, setAfter] = useState(() => toDateInputValue(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)));
-    const [before, setBefore] = useState(() => toDateInputValue(new Date()));
+    const [selectedActions, setSelectedActions] = useState<string[]>([]);
+    const [range, setRange] = useState('7d');
+    const [after, setAfter] = useState(() => toLocalDateInputValue(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)));
+    const [before, setBefore] = useState(() => toLocalDateInputValue(new Date()));
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
-    // Отложенное значение поиска — запрос уходит после паузы в наборе.
     const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    useEffect(() => {
+        if (range !== 'custom') {
+            const days = range === '30d' ? 30 : range === '90d' ? 90 : 7;
+            setAfter(toLocalDateInputValue(new Date(Date.now() - days * 24 * 60 * 60 * 1000)));
+            setBefore(toLocalDateInputValue(new Date()));
+        }
+    }, [range]);
 
     useEffect(() => {
         const t = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 350);
@@ -31,10 +81,19 @@ const AdminActionsSettings: React.FC = () => {
         setLoading(true);
         try {
             const params = new URLSearchParams({ page: String(page) });
-            if (actionFilter) params.set('action', actionFilter);
-            if (after) params.set('after', new Date(after).toISOString());
-            if (before) params.set('before', new Date(before).toISOString());
+            if (selectedActions.length > 0) {
+                params.set('actions', selectedActions.join(','));
+            }
+            if (after) {
+                const aDate = new Date(`${after}T00:00:00`);
+                params.set('after', aDate.toISOString());
+            }
+            if (before) {
+                const bDate = new Date(`${before}T23:59:59.999`);
+                params.set('before', bDate.toISOString());
+            }
             if (debouncedSearch) params.set('search', debouncedSearch);
+
             const res = await axios.get(`/api/admin/actions?${params.toString()}`);
             setLogs(Array.isArray(res.data.logs) ? res.data.logs : []);
             setTotalPages(res.data.pages || 1);
@@ -47,30 +106,12 @@ const AdminActionsSettings: React.FC = () => {
     useEffect(() => {
         fetchLogs();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [actionFilter, after, before, page, debouncedSearch]);
+    }, [selectedActions, after, before, page, debouncedSearch]);
 
     const getActionLabel = (action: string) => {
-        switch (action) {
-            case 'USER_REGISTER': return 'Регистрация';
-            case 'USER_LOGIN': return 'Вход';
-            case 'USER_DELETE': return 'Удаление аккаунта';
-            case 'USER_BLOCK': return 'Блокировка';
-            case 'USER_UNBLOCK': return 'Разблокировка';
-            case 'USER_UPDATE': return 'Обновление профиля';
-            case 'SERVER_CREATE': return 'Создание сервера';
-            case 'SERVER_DELETE': return 'Удаление сервера';
-            case 'SERVER_UPDATE': return 'Обновление сервера';
-            case 'SERVER_MEMBER_BAN': return 'Бан на сервере';
-            case 'BOT_CREATE': return 'Создание бота';
-            case 'BOT_DELETE': return 'Удаление бота';
-            case 'MINIAPP_CREATE': return 'Создание мини-приложения';
-            case 'MODERATION_REPORT_RESOLVE': return 'Решение жалобы';
-            case 'MODERATION_BAN': return 'Бан модератором';
-            default: return action;
-        }
+        return ACTION_MAP[action] || action;
     };
 
-    // Название и, если применимо, ссылка на удалённый объект — одной строкой, как в серверном журнале.
     const getTargetLabel = (log: any): string | null => {
         if (log.targetModel === 'User' && log.target) return log.target.username;
         if (log.targetModel === 'Server' && log.target) return log.target.name;
@@ -83,16 +124,66 @@ const AdminActionsSettings: React.FC = () => {
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Журнал действий</h2>
-            <p className="settings-description">Глобальный аудит событий платформы с поиском и фильтрацией по действию и периоду.</p>
+            <p className="settings-description">Глобальный аудит событий платформы с выбором нескольких типов действий и фильтрацией по периодам.</p>
 
-            <div className="server-settings-audit-filters">
-                <input className="settings-input" placeholder="Поиск по пользователю, серверу, действию или причине..." value={search} onChange={(e) => setSearch(e.target.value)} />
-                <select className="settings-input" style={{ maxWidth: '220px' }} value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}>
-                    <option value="">Все действия</option>
-                    {ACTION_OPTIONS.map(a => <option key={a} value={a}>{getActionLabel(a)}</option>)}
-                </select>
-                <input type="date" lang="ru-RU" className="settings-input" style={{ maxWidth: '160px' }} value={after} onChange={(e) => { setAfter(e.target.value); setPage(1); }} title="С даты" />
-                <input type="date" lang="ru-RU" className="settings-input" style={{ maxWidth: '160px' }} value={before} onChange={(e) => { setBefore(e.target.value); setPage(1); }} title="По дату" />
+            <div className="server-settings-audit-filters" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+                {/* Строка 1: Поиск и фильтр действий */}
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <input
+                        className="settings-input"
+                        placeholder="Поиск по пользователю, серверу или причине..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        style={{ flex: '1 1 260px', minWidth: '220px' }}
+                    />
+
+                    <div style={{ flex: '1 1 240px' }}>
+                        <CustomSelect
+                            options={ACTION_OPTIONS}
+                            selectedValues={selectedActions}
+                            onMultiChange={(vals) => { setSelectedActions(vals); setPage(1); }}
+                            multiple={true}
+                            placeholder="Все действия (выберите фильтр)"
+                        />
+                    </div>
+                </div>
+
+                {/* Строка 2: Выбор периода времени и даты от / до */}
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: '0 1 auto' }}>
+                        <ChoiceGroup options={RANGES} value={range} onChange={setRange} />
+                    </div>
+
+                    {range === 'custom' && (
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>С:</span>
+                                <input
+                                    type="date"
+                                    lang="ru-RU"
+                                    className="settings-input"
+                                    style={{ width: '145px' }}
+                                    value={after}
+                                    onChange={(e) => { setAfter(e.target.value); setPage(1); }}
+                                    title="С даты"
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>По (вкл. 23:59):</span>
+                                <input
+                                    type="date"
+                                    lang="ru-RU"
+                                    className="settings-input"
+                                    style={{ width: '145px' }}
+                                    value={before}
+                                    onChange={(e) => { setBefore(e.target.value); setPage(1); }}
+                                    title="По дату (включительно до 23:59)"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="audit-logs-list">
@@ -103,30 +194,42 @@ const AdminActionsSettings: React.FC = () => {
                 ) : (
                     logs.map(log => {
                         const target = getTargetLabel(log);
+
                         return (
-                            <div key={log._id} className="audit-log-item">
-                                <div className="audit-log-header">
-                                    <div className="audit-log-avatar">
+                            <div key={log._id} className="audit-log-item" style={{ padding: '14px', borderRadius: '8px', marginBottom: '10px', background: 'var(--bg-secondary, rgba(255,255,255,0.03))', border: '1px solid var(--glass-border, rgba(255,255,255,0.06))' }}>
+                                <div className="audit-log-header" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                    <div className="audit-log-avatar" style={{ width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: 'var(--secondary-neon, #a855f7)' }}>
                                         {log.executor && getAvatarUrl(log.executor.avatar) ? (
-                                            <img src={getAvatarUrl(log.executor.avatar)!} alt="" />
+                                            <img src={getAvatarUrl(log.executor.avatar)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         ) : (
-                                            <span>{log.executor?.username?.charAt(0).toUpperCase() || 'S'}</span>
+                                            <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700 }}>
+                                                {log.executor?.username?.charAt(0).toUpperCase() || 'S'}
+                                            </span>
                                         )}
                                     </div>
-                                    <div className="audit-log-text">
-                                        <div className="audit-log-main">
-                                            <strong>{log.executor?.username || 'Система'}</strong>
-                                            <span className="audit-action-text"> {getActionLabel(log.action)} </span>
-                                            {target && <span className="audit-target">{target}</span>}
+                                    <div className="audit-log-text" style={{ flex: 1 }}>
+                                        <div className="audit-log-main" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <strong style={{ color: 'var(--text-normal)' }}>{log.executor?.username || 'Система'}</strong>
+                                            <span className="audit-action-badge" style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}>
+                                                {getActionLabel(log.action)}
+                                            </span>
+                                            {target && <span className="audit-target" style={{ fontWeight: 600, color: 'var(--text-bright, #fff)' }}>{target}</span>}
                                         </div>
-                                        <div className="audit-log-date">{new Date(log.createdAt).toLocaleString('ru-RU')}</div>
+                                        <div className="audit-log-date" style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                                            {format24hDateTime(log.createdAt)}
+                                        </div>
                                     </div>
                                 </div>
-                                {(log.details?.serverName || log.details?.reason) && (
-                                    <div className="audit-log-reason">
-                                        {log.details.serverName && `Сервер: ${log.details.serverName}`}
-                                        {log.details.serverName && log.details.reason && ' · '}
-                                        {log.details.reason && `Причина: ${log.details.reason}`}
+
+                                {(log.details?.serverName || log.details?.reason || log.details?.changes) && (
+                                    <div className="audit-log-reason" style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-normal)', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '6px' }}>
+                                        {log.details.serverName && <div><strong>Сервер:</strong> {log.details.serverName}</div>}
+                                        {log.details.reason && <div><strong>Причина:</strong> {log.details.reason}</div>}
+                                        {log.details.changes && (
+                                            <div style={{ marginTop: '4px' }}>
+                                                <strong>Детали:</strong> {JSON.stringify(log.details.changes)}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -137,18 +240,18 @@ const AdminActionsSettings: React.FC = () => {
 
             {totalPages > 1 && (
                 <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'center', gap: '12px' }}>
-                    <button 
-                        className="settings-btn" 
-                        disabled={page === 1} 
+                    <button
+                        className="settings-btn"
+                        disabled={page === 1}
                         onClick={() => setPage(p => Math.max(1, p - 1))}
                         style={{ padding: '8px 16px', opacity: page === 1 ? 0.5 : 1 }}
                     >
                         Назад
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', fontWeight: 700 }}>{page} / {totalPages}</div>
-                    <button 
-                        className="settings-btn" 
-                        disabled={page === totalPages} 
+                    <button
+                        className="settings-btn"
+                        disabled={page === totalPages}
                         onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                         style={{ padding: '8px 16px', opacity: page === totalPages ? 0.5 : 1 }}
                     >

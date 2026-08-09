@@ -297,8 +297,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <NavItem id="moderation" label="Модерация" icon={ShieldIcon} />
                         <NavItem id="admin-users" label="Пользователи и сервера" icon={UsersIcon} />
                         <NavItem id="admin-stats" label="Статистика" icon={BarChartIcon} />
+                        <NavItem id="admin-actions" label="Журнал действий" icon={DocumentIcon} />
                         <NavItem id="admin-infra" label="Инфраструктура" icon={GlobeIcon} />
-                        <NavItem id="admin-actions" label="Действия" icon={DocumentIcon} />
                     </>
                 )}
                 

@@ -110,12 +110,34 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     const totalServers = await Server.countDocuments();
     const totalMessages = await Message.countDocuments();
 
-    // Stats for charts (grouped by day for the last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const MiniApp = require('../models/MiniApp');
+    const Bot = require('../models/Bot');
+    const totalMiniApps = MiniApp ? await MiniApp.countDocuments() : 0;
+    const totalBots = Bot ? await Bot.countDocuments() : 0;
 
-    const userStats = await User.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+    let startDate, endDate;
+    if (req.query.after || req.query.before) {
+      if (req.query.after) {
+        startDate = new Date(req.query.after);
+        if (typeof req.query.after === 'string' && req.query.after.length === 10) startDate.setHours(0, 0, 0, 0);
+      } else {
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      }
+      if (req.query.before) {
+        endDate = new Date(req.query.before);
+        if (typeof req.query.before === 'string' && req.query.before.length === 10) endDate.setHours(23, 59, 59, 999);
+      } else {
+        endDate = new Date();
+      }
+    } else {
+      const range = req.query.range || '30d';
+      const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
+      endDate = new Date();
+      startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    }
+
+    const dailyNewUsers = await User.aggregate([
+      { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           count: { $sum: 1 }
@@ -123,8 +145,8 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
-    const serverStats = await Server.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+    const dailyNewServers = await Server.aggregate([
+      { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           count: { $sum: 1 }
@@ -132,28 +154,65 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
-    const messageStats = await Message.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+    const dailyMessages = await Message.aggregate([
+      { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           count: { $sum: 1 }
       }},
       { $sort: { _id: 1 } }
     ]);
+
+    const activeUsersDaily = await Message.aggregate([
+      { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+      { $group: { _id: { day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, author: "$author" } } },
+      { $group: { _id: "$_id.day", count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Cumulative calculations starting from total before period
+    const usersBeforePeriod = await User.countDocuments({ createdAt: { $lt: startDate } });
+    let cumulativeUserCount = usersBeforePeriod;
+    const cumulativeUsers = dailyNewUsers.map(d => {
+      cumulativeUserCount += d.count;
+      return { _id: d._id, count: cumulativeUserCount };
+    });
+
+    const serversBeforePeriod = await Server.countDocuments({ createdAt: { $lt: startDate } });
+    let cumulativeServerCount = serversBeforePeriod;
+    const cumulativeServers = dailyNewServers.map(d => {
+      cumulativeServerCount += d.count;
+      return { _id: d._id, count: cumulativeServerCount };
+    });
+
+    const messagesBeforePeriod = await Message.countDocuments({ createdAt: { $lt: startDate } });
+    let cumulativeMessageCount = messagesBeforePeriod;
+    const cumulativeMessages = dailyMessages.map(d => {
+      cumulativeMessageCount += d.count;
+      return { _id: d._id, count: cumulativeMessageCount };
+    });
 
     res.json({
       totals: {
         users: totalUsers,
         servers: totalServers,
-        messages: totalMessages
+        messages: totalMessages,
+        miniApps: totalMiniApps,
+        bots: totalBots,
+        newUsersPeriod: dailyNewUsers.reduce((a, b) => a + b.count, 0)
       },
       charts: {
-        users: userStats,
-        servers: serverStats,
-        messages: messageStats
+        usersDaily: dailyNewUsers,
+        usersCumulative: cumulativeUsers.length > 0 ? cumulativeUsers : [{ _id: startDate.toISOString().slice(0, 10), count: totalUsers }],
+        serversDaily: dailyNewServers,
+        serversCumulative: cumulativeServers.length > 0 ? cumulativeServers : [{ _id: startDate.toISOString().slice(0, 10), count: totalServers }],
+        messagesDaily: dailyMessages,
+        messagesCumulative: cumulativeMessages,
+        activeUsersDaily
       }
     });
   } catch (err) {
+    console.error('Admin stats error:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
@@ -333,15 +392,32 @@ const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 router.get('/actions', [auth, isModerator], async (req, res) => {
   try {
-    const { action, hours, after, before, page = 1, limit = 50, search } = req.query;
+    const { action, actions, hours, after, before, page = 1, limit = 50, search } = req.query;
     const query = {};
-    if (action) query.action = action;
+
+    let actionList = [];
+    if (actions) {
+      actionList = Array.isArray(actions) ? actions : String(actions).split(',').filter(Boolean);
+    } else if (action) {
+      actionList = [action];
+    }
+    if (actionList.length > 0) {
+      query.action = { $in: actionList };
+    }
 
     // Диапазон дат (after/before) имеет приоритет над устаревшим параметром hours.
     if (after || before) {
       query.createdAt = {};
-      if (after) query.createdAt.$gte = new Date(after);
-      if (before) query.createdAt.$lte = new Date(before);
+      if (after) {
+        const aDate = new Date(after);
+        if (typeof after === 'string' && after.length === 10) aDate.setHours(0, 0, 0, 0);
+        query.createdAt.$gte = aDate;
+      }
+      if (before) {
+        const bDate = new Date(before);
+        if (typeof before === 'string' && before.length === 10) bDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = bDate;
+      }
     } else {
       const timeLimit = new Date();
       timeLimit.setHours(timeLimit.getHours() - parseInt(hours || 24));
@@ -383,6 +459,7 @@ router.get('/actions', [auth, isModerator], async (req, res) => {
     const total = await GlobalAuditLog.countDocuments(query);
     res.json({ logs, total, pages: Math.ceil(total / limit) });
   } catch (err) {
+    console.error('Admin actions fetch error:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });

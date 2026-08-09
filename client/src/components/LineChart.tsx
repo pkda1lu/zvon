@@ -1,10 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Адаптивный линейный график: area-заливка + линия + точки. Ширину берём из
-// контейнера через ResizeObserver, чтобы SVG корректно тянулся без искажений.
-const LineChart: React.FC<{ data: any[]; color: string }> = ({ data, color }) => {
+export interface ChartDataItem {
+    _id: string; // YYYY-MM-DD or date string
+    count: number;
+    secondaryCount?: number;
+    label?: string;
+}
+
+interface LineChartProps {
+    data: ChartDataItem[];
+    color?: string;
+    secondaryColor?: string;
+    type?: 'line' | 'bar'; // 'line' for cumulative dynamics, 'bar' for daily actions/breakdown
+    title?: string;
+    height?: number;
+    unit?: string;
+}
+
+// Адаптивный график для статистики: динамика (линейная с градиентом) или действия по дням (столбчатый / ступенчатый).
+const LineChart: React.FC<LineChartProps> = ({
+    data,
+    color = 'var(--primary-neon, #5865f2)',
+    secondaryColor = 'var(--accent-pink, #f472b6)',
+    type = 'line',
+    title,
+    height = 180,
+    unit = ''
+}) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(600);
+    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -18,33 +43,65 @@ const LineChart: React.FC<{ data: any[]; color: string }> = ({ data, color }) =>
     }, []);
 
     if (!data || data.length === 0) {
-        return <div style={{ height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)' }}>Нет данных за период</div>;
+        return (
+            <div style={{ height: `${height}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint, #666)' }}>
+                Нет данных за выбранный период
+            </div>
+        );
     }
 
-    const height = 180;
-    const pad = { top: 22, right: 14, bottom: 26, left: 34 };
+    const pad = { top: 26, right: 16, bottom: 28, left: 36 };
     const innerW = Math.max(width - pad.left - pad.right, 10);
-    const innerH = height - pad.top - pad.bottom;
-    const max = Math.max(...data.map(d => d.count), 1);
+    const innerH = Math.max(height - pad.top - pad.bottom, 10);
+    const maxVal = Math.max(...data.map(d => Math.max(d.count || 0, d.secondaryCount || 0)), 1);
     const n = data.length;
 
     const xFor = (i: number) => pad.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-    const yFor = (v: number) => pad.top + innerH - (v / max) * innerH;
+    const yFor = (v: number) => pad.top + innerH - (v / maxVal) * innerH;
 
-    const pts = data.map((d, i) => ({ x: xFor(i), y: yFor(d.count), d }));
+    const pts = data.map((d, i) => ({ x: xFor(i), y: yFor(d.count || 0), d }));
     const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
     const baseline = pad.top + innerH;
     const areaPath = `${linePath} L${pts[pts.length - 1].x.toFixed(1)},${baseline} L${pts[0].x.toFixed(1)},${baseline} Z`;
-    const gradId = `lc-grad-${color.replace(/[^a-z0-9]/gi, '')}`;
+    const gradId = `lc-grad-${color.replace(/[^a-z0-9]/gi, '')}-${Math.random().toString(36).substr(2, 4)}`;
 
-    // Горизонтальные линии сетки + подписи по оси Y (0, середина, максимум).
-    const yTicks = [0, Math.round(max / 2), max];
-    const fmtDate = (s: string) => { const [, m, day] = (s || '').split('-'); return day && m ? `${day}.${m}` : s; };
+    // Горизонтальные линии сетки (0, 50%, 100%)
+    const yTicks = [0, Math.round(maxVal / 2), maxVal];
+    const fmtDate = (s: string) => {
+        if (!s) return '';
+        const parts = s.split('-');
+        if (parts.length === 3) return `${parts[2]}.${parts[1]}`;
+        return s;
+    };
+
     const labelIdx = n <= 1 ? [0] : [...new Set([0, Math.floor((n - 1) / 2), n - 1])];
 
+    const barWidth = Math.max(2, Math.min(24, (innerW / n) * 0.65));
+
     return (
-        <div ref={containerRef} style={{ width: '100%' }}>
-            <svg width={width} height={height} style={{ display: 'block', overflow: 'visible' }}>
+        <div ref={containerRef} style={{ width: '100%', position: 'relative' }}>
+            {title && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-normal)' }}>{title}</span>
+                    {hoveredIdx !== null && data[hoveredIdx] && (
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: color }}>
+                            {fmtDate(data[hoveredIdx]._id)}: {data[hoveredIdx].count} {unit}
+                            {data[hoveredIdx].secondaryCount !== undefined && (
+                                <span style={{ color: secondaryColor, marginLeft: '8px' }}>
+                                    / {data[hoveredIdx].secondaryCount}
+                                </span>
+                            )}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            <svg
+                width={width}
+                height={height}
+                style={{ display: 'block', overflow: 'visible', cursor: 'crosshair' }}
+                onMouseLeave={() => setHoveredIdx(null)}
+            >
                 <defs>
                     <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity="0.35" />
@@ -52,27 +109,86 @@ const LineChart: React.FC<{ data: any[]; color: string }> = ({ data, color }) =>
                     </linearGradient>
                 </defs>
 
+                {/* Сетка Y */}
                 {yTicks.map((t, i) => {
                     const y = yFor(t);
                     return (
                         <g key={i}>
-                            <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} stroke="var(--glass-border)" strokeWidth="1" strokeDasharray="3 4" />
-                            <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="var(--text-faint)">{t}</text>
+                            <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} stroke="var(--glass-border, rgba(255,255,255,0.08))" strokeWidth="1" strokeDasharray="3 4" />
+                            <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="var(--text-faint, #777)">{t}</text>
                         </g>
                     );
                 })}
 
-                <path d={areaPath} fill={`url(#${gradId})`} />
-                <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                {/* График: линия/область или столбцы */}
+                {type === 'line' ? (
+                    <>
+                        <path d={areaPath} fill={`url(#${gradId})`} />
+                        <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
 
-                {pts.map((p, i) => (
-                    <circle key={i} cx={p.x} cy={p.y} r="3" fill={color} stroke="var(--bg-main, #0c0c14)" strokeWidth="1.5">
-                        <title>{`${p.d.count}`}</title>
-                    </circle>
-                ))}
+                        {pts.map((p, i) => (
+                            <circle
+                                key={i}
+                                cx={p.x}
+                                cy={p.y}
+                                r={hoveredIdx === i ? 5 : 3}
+                                fill={hoveredIdx === i ? '#fff' : color}
+                                stroke={color}
+                                strokeWidth="2"
+                                style={{ transition: 'r 0.15s ease' }}
+                                onMouseEnter={() => setHoveredIdx(i)}
+                            />
+                        ))}
+                    </>
+                ) : (
+                    /* Столбчатый график для действий по дням */
+                    data.map((d, i) => {
+                        const x = xFor(i) - barWidth / 2;
+                        const h = Math.max(2, (d.count / maxVal) * innerH);
+                        const y = pad.top + innerH - h;
+                        const isHover = hoveredIdx === i;
 
+                        return (
+                            <g key={i} onMouseEnter={() => setHoveredIdx(i)}>
+                                <rect
+                                    x={x}
+                                    y={y}
+                                    width={barWidth}
+                                    height={h}
+                                    rx={barWidth > 4 ? 2 : 1}
+                                    fill={isHover ? '#fff' : color}
+                                    opacity={isHover ? 1 : 0.8}
+                                    style={{ transition: 'all 0.15s ease' }}
+                                />
+                            </g>
+                        );
+                    })
+                )}
+
+                {/* Активный ховер и подпись */}
+                {hoveredIdx !== null && (
+                    <line
+                        x1={xFor(hoveredIdx)}
+                        y1={pad.top}
+                        x2={xFor(hoveredIdx)}
+                        y2={baseline}
+                        stroke="var(--primary-neon, #5865f2)"
+                        strokeWidth="1"
+                        strokeDasharray="2 2"
+                        opacity="0.6"
+                    />
+                )}
+
+                {/* Метки по оси X (Даты) */}
                 {labelIdx.map(i => (
-                    <text key={i} x={xFor(i)} y={height - 8} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize="10" fill="var(--text-faint)">
+                    <text
+                        key={i}
+                        x={xFor(i)}
+                        y={height - 6}
+                        textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                        fontSize="10"
+                        fill="var(--text-faint, #888)"
+                    >
                         {fmtDate(data[i]._id)}
                     </text>
                 ))}
