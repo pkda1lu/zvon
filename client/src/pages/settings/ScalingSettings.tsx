@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppearance, PageScales } from '../../contexts/AppearanceContext';
 import { RangeSlider, ChoiceGroup } from './SettingsUI';
+import { getDeviceIdKey, getDeviceLabel } from '../../utils/device';
 
 const ScalingSettings: React.FC = () => {
     const { interfaceScale, setInterfaceScale, pageScales, setPageScales } = useAppearance();
+    const currentDeviceKey = getDeviceIdKey();
 
     // Determine initial scale mode: saved in pageScales.scaleMode or check if individual scales differ
     const initialMode = pageScales?.scaleMode ?? (
@@ -236,8 +238,23 @@ const ScalingSettings: React.FC = () => {
                 </div>
             )}
 
-            <div className="settings-info-box">
-                <p>Масштабирование интерфейса можно в любой момент отрегулировать. Обычный размер интерфейса по умолчанию составляет 100%.</p>
+            <div className="settings-info-box" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                    <span style={{
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        background: 'var(--primary-neon)',
+                        color: '#fff',
+                        fontSize: '12px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                    }}>
+                        Устройство: {getDeviceLabel(currentDeviceKey)}
+                    </span>
+                </div>
+                <p>
+                    Настройки масштаба сохраняются персонально для каждого из ваших устройств.
+                </p>
             </div>
         </div>
     );

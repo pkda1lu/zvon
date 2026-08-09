@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getIconBrand } from '../utils/branding';
+import { getDeviceIdKey, DeviceScalesMap, DeviceScaleConfig } from '../utils/device';
 import axios from 'axios';
 
 export type ThemeType = 'dark' | 'amoled';
@@ -42,6 +43,7 @@ interface AppearanceSettings {
     groupSpacing: number; // 0 to 48px
     interfaceScale: number; // 0.7 to 1.5
     pageScales: PageScales;
+    deviceScales: DeviceScalesMap;
     screenReader: boolean;
     appIcon: AppIconType;
     performanceMode: boolean;
@@ -90,15 +92,20 @@ const AppearanceContext = createContext<AppearanceContextType | undefined>(undef
 export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [settings, setSettings] = useState<AppearanceSettings>(() => {
         const saved = localStorage.getItem('appearance-settings');
+        const deviceKey = getDeviceIdKey();
         if (saved) {
             const parsed = JSON.parse(saved);
+            const devScales: DeviceScalesMap = parsed.deviceScales || {};
+            const localDeviceConfig = devScales[deviceKey];
+
             return {
                 theme: parsed.theme === 'amoled' ? 'amoled' : 'dark',
                 density: parsed.density || 'cozy',
                 messageSpacing: parsed.messageSpacing ?? 2,
                 groupSpacing: parsed.groupSpacing ?? 16,
-                interfaceScale: parsed.interfaceScale ?? 1.0,
-                pageScales: parsed.pageScales || {},
+                interfaceScale: localDeviceConfig?.interfaceScale ?? parsed.interfaceScale ?? 1.0,
+                pageScales: localDeviceConfig?.pageScales || parsed.pageScales || {},
+                deviceScales: devScales,
                 screenReader: parsed.screenReader ?? false,
                 appIcon: parsed.appIcon || 'default',
                 performanceMode: parsed.performanceMode ?? false,
@@ -116,6 +123,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             groupSpacing: 16,
             interfaceScale: 1.0,
             pageScales: {},
+            deviceScales: {},
             screenReader: false,
             appIcon: 'default',
             performanceMode: false,
@@ -143,11 +151,16 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (res.data.settings && res.data.settings.appearance) {
                 const s = res.data.settings.appearance;
                 const acc = res.data.settings.accessibility || {};
+                const deviceKey = getDeviceIdKey();
+                const devScales: DeviceScalesMap = s.deviceScales || {};
+                const localDeviceConfig = devScales[deviceKey];
+
                 setSettings(prev => ({
                     ...prev,
                     theme: s.theme || prev.theme,
-                    interfaceScale: acc.interfaceScale || s.interfaceScale || prev.interfaceScale,
-                    pageScales: s.pageScales || prev.pageScales,
+                    deviceScales: devScales,
+                    interfaceScale: localDeviceConfig?.interfaceScale ?? acc.interfaceScale ?? s.interfaceScale ?? prev.interfaceScale,
+                    pageScales: localDeviceConfig?.pageScales || s.pageScales || prev.pageScales,
                     screenReader: acc.screenReader ?? prev.screenReader,
                     appIcon: s.appIcon || prev.appIcon,
                     reduceMotion: s.reduceMotion ?? prev.reduceMotion,
@@ -176,6 +189,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         messageSpacing: newSettings.messageSpacing,
                         groupSpacing: newSettings.groupSpacing,
                         pageScales: newSettings.pageScales,
+                        deviceScales: newSettings.deviceScales,
                         appIcon: newSettings.appIcon,
                         reduceMotion: newSettings.reduceMotion,
                         performanceMode: newSettings.performanceMode,
@@ -364,14 +378,40 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setActiveThemeId(null);
     };
     const setInterfaceScale = (interfaceScale: number) => {
-        setSettings(prev => ({ ...prev, interfaceScale }));
+        setSettings(prev => {
+            const deviceKey = getDeviceIdKey();
+            const updatedDeviceScales: DeviceScalesMap = {
+                ...prev.deviceScales,
+                [deviceKey]: {
+                    interfaceScale,
+                    pageScales: prev.pageScales
+                }
+            };
+            return {
+                ...prev,
+                interfaceScale,
+                deviceScales: updatedDeviceScales
+            };
+        });
         setActiveThemeId(null);
     };
     const setPageScales = (scales: Partial<PageScales>) => {
-        setSettings(prev => ({
-            ...prev,
-            pageScales: { ...prev.pageScales, ...scales }
-        }));
+        setSettings(prev => {
+            const deviceKey = getDeviceIdKey();
+            const newPageScales = { ...prev.pageScales, ...scales };
+            const updatedDeviceScales: DeviceScalesMap = {
+                ...prev.deviceScales,
+                [deviceKey]: {
+                    interfaceScale: prev.interfaceScale,
+                    pageScales: newPageScales
+                }
+            };
+            return {
+                ...prev,
+                pageScales: newPageScales,
+                deviceScales: updatedDeviceScales
+            };
+        });
         setActiveThemeId(null);
     };
     const setAppIcon = (appIcon: AppIconType) => setSettings(prev => ({ ...prev, appIcon }));

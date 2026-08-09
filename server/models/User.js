@@ -224,7 +224,8 @@ const userSchema = new mongoose.Schema({
       },
       customBackground: { type: String, default: '' },
       backgroundDim: { type: Number, default: 40 },
-      backgroundBlur: { type: Number, default: 0 }
+      backgroundBlur: { type: Number, default: 0 },
+      deviceScales: { type: mongoose.Schema.Types.Mixed, default: {} }
     },
     chat: {
       displayMode: { type: String, default: 'cozy' },
