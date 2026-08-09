@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Server, Invite } from '../../types';
 import { useDialog } from '../../contexts/DialogContext';
 import { CopyIcon, TrashIcon, PlusIcon } from '../../components/Icons';
+import { getInviteUrl } from '../../utils/inviteLinks';
 
 interface Props {
     server: Server;
@@ -72,7 +73,7 @@ const InvitesSettings: React.FC<Props> = ({ server }) => {
     };
 
     const copyLink = (code: string) => {
-        navigator.clipboard.writeText(`${window.location.origin}/invite/${code}`);
+        navigator.clipboard.writeText(getInviteUrl(code));
     };
 
     const formatExpiry = (invite: Invite) => {
@@ -126,7 +127,7 @@ const InvitesSettings: React.FC<Props> = ({ server }) => {
                 invites.map(invite => (
                     <div key={invite.code} className="server-settings-list-row">
                         <div className="server-settings-list-row-info">
-                            <strong>{window.location.origin}/invite/{invite.code}</strong>
+                            <strong>{getInviteUrl(invite.code)}</strong>
                             <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
                                 {formatExpiry(invite)} · Использований: {invite.uses}{invite.maxUses ? ` / ${invite.maxUses}` : ''} · Создал: {typeof invite.creator === 'object' ? invite.creator.username : ''}
                             </span>

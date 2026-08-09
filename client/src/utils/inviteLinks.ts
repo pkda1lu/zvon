@@ -1,3 +1,29 @@
+// Возвращает правильный домен для генерации ссылок-приглашений:
+// если открыто в браузере (наzvonserver.ru или maxcord.fun и т.д.) — использует текущий domain/origin.
+// если открыто в Electron / EXE (file://, app://) — определяет бренд (maxcord.fun для maxcord, иначе zvonserver.ru).
+export const getInviteBaseUrl = (): string => {
+    if (typeof window !== 'undefined') {
+        const origin = window.location.origin;
+        if (origin && !origin.includes('file://') && !origin.includes('app://') && !origin.includes('localhost:3000') && !origin.includes('127.0.0.1')) {
+            // Если в обычном браузере на реальном домене (например https://maxcord.fun или https://zvonserver.ru)
+            const host = window.location.hostname;
+            if (host.includes('maxcord.fun')) return 'https://maxcord.fun';
+            if (host.includes('zvonserver.ru')) return 'https://zvonserver.ru';
+            return origin.replace(/\/$/, '');
+        }
+
+        // Если в EXE (Electron, file://, app://, etc.) или на локале dev
+        const host = window.location.hostname;
+        if (host.includes('maxcord.fun')) return 'https://maxcord.fun';
+    }
+
+    return 'https://zvonserver.ru';
+};
+
+export const getInviteUrl = (code: string): string => {
+    return `${getInviteBaseUrl()}/invite/${code}`;
+};
+
 // Утилиты для обработки ссылок-приглашений на сервер внутри сообщений.
 // Ссылка имеет вид https://<host>/invite/<code> (или zvon://invite/<code>).
 
@@ -30,3 +56,4 @@ export const extractInviteCodes = (content: string): string[] => {
 export const openInviteInApp = (code: string) => {
     window.dispatchEvent(new CustomEvent('open-invite', { detail: { code } }));
 };
+
