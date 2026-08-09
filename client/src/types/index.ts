@@ -42,6 +42,7 @@ export interface User {
   banExpires?: string;
   banReason?: string;
   lastActiveAt?: string;
+  joinedVoiceAt?: number;
   settings?: {
     showActivityStatus: boolean;
     activityVisibility: 'everyone' | 'friends' | 'none';

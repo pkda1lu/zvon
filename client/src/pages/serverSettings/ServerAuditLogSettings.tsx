@@ -218,7 +218,7 @@ const ServerAuditLogSettings: React.FC<Props> = ({ server }) => {
 
             <div className="audit-logs-list">
                 {filteredLogs.map(log => (
-                    <div key={log._id} className="audit-log-item" style={{ padding: '14px', borderRadius: '8px', marginBottom: '10px', background: 'var(--bg-secondary, rgba(255,255,255,0.03))', border: '1px solid var(--glass-border, rgba(255,255,255,0.06))' }}>
+                    <div key={log._id} className="audit-log-item" style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--bg-secondary, rgba(255,255,255,0.03))', border: '1px solid var(--glass-border, rgba(255,255,255,0.06))' }}>
                         <div className="audit-log-header" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                             <div className="audit-log-avatar" style={{ width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: 'var(--primary-neon)' }}>
                                 {getAvatarUrl(log.executor?.avatar) ? (

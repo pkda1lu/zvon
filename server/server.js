@@ -180,9 +180,14 @@ app.get(/^(?!\/api).+/, (req, res) => {
   }
 });
 
+const channelVoiceStartTimes = new Map();
+
 const getVoiceChannelUsers = async (channelId) => {
   const room = io.sockets.adapter.rooms.get(`voice-channel-${channelId}`);
-  if (!room) return [];
+  if (!room || room.size === 0) {
+    channelVoiceStartTimes.delete(String(channelId));
+    return [];
+  }
   const users = [];
   const User = require('./models/User');
   // Build nickname map for this server's members
@@ -196,6 +201,7 @@ const getVoiceChannelUsers = async (channelId) => {
       });
     }
   } catch (e) { /* fall back to username */ }
+  let earliestJoinedAt = Infinity;
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.userId) {
@@ -208,10 +214,24 @@ const getVoiceChannelUsers = async (channelId) => {
         userData.isServerMuted = socket.isServerMuted || false;
         userData.isServerDeafened = socket.isServerDeafened || false;
         userData.nickname = nickByUserId.get(String(user._id)) || null;
+        userData.joinedVoiceAt = socket.joinedVoiceAt || Date.now();
+        if (socket.joinedVoiceAt && socket.joinedVoiceAt < earliestJoinedAt) {
+          earliestJoinedAt = socket.joinedVoiceAt;
+        }
         users.push(userData);
       }
     }
   }
+
+  const channelKey = String(channelId);
+  if (users.length > 0) {
+    if (!channelVoiceStartTimes.has(channelKey) || (earliestJoinedAt !== Infinity && earliestJoinedAt < channelVoiceStartTimes.get(channelKey))) {
+      channelVoiceStartTimes.set(channelKey, earliestJoinedAt !== Infinity ? earliestJoinedAt : Date.now());
+    }
+  } else {
+    channelVoiceStartTimes.delete(channelKey);
+  }
+
   return users;
 };
 
@@ -1001,6 +1021,7 @@ io.on('connection', (socket) => {
 
       const existingUsers = await getVoiceChannelUsers(channelId);
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
+      socket.joinedVoiceAt = Date.now();
       // Presence хранятся под ключом LiveKit-комнаты ('channel-<id>'), а не под сырым id —
       // иначе зашедший позже не получал снапшот presence (нет плитки мини-аппа).
       socket.emit('voice-presences-snapshot', { channelId, presences: getPresencesSnapshot('channel-' + channelId) });
@@ -1023,7 +1044,8 @@ io.on('connection', (socket) => {
           isDeafened: socket.isDeafened || false,
           isScreenSharing: socket.isScreenSharing || false,
           isServerMuted: socket.isServerMuted || false,
-          isServerDeafened: socket.isServerDeafened || false
+          isServerDeafened: socket.isServerDeafened || false,
+          joinedVoiceAt: socket.joinedVoiceAt
         }
       });
       socket.emit('voice-existing-users', existingUsers);
@@ -1163,6 +1185,7 @@ io.on('connection', (socket) => {
     endWatchIfHost(channelId, socket.userId, io);
     socket.leave(`voice-channel-${channelId}`);
     socket.voiceChannelId = null;
+    socket.joinedVoiceAt = null;
     io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
     removeRoomPosition(channelId, socket.userId);
     io.to(`voice-channel-${channelId}`).emit('room-position-removed', { channelId, userId: String(socket.userId) });

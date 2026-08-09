@@ -2712,8 +2712,8 @@ input[type=range]:disabled::-webkit-slider-thumb {
 .audit-logs-list {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    margin-top: 20px;
+    gap: 8px;
+    margin-top: 12px;
 }
 
 .audit-log-item {

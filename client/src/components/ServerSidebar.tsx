@@ -118,10 +118,16 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   // Voice start timers
   const voiceStartTimesRef = useRef<Record<string, number>>({});
   Object.keys(voiceStates).forEach(channelId => {
-    const count = voiceStates[channelId]?.length || 0;
-    if (count > 0 && !voiceStartTimesRef.current[channelId]) {
-      voiceStartTimesRef.current[channelId] = Date.now();
-    } else if (count === 0 && voiceStartTimesRef.current[channelId]) {
+    const users = voiceStates[channelId] || [];
+    if (users.length > 0) {
+      const serverJoinTimes = users.map(u => u.joinedVoiceAt).filter((t): t is number => typeof t === 'number' && t > 0);
+      if (serverJoinTimes.length > 0) {
+        const earliest = Math.min(...serverJoinTimes);
+        voiceStartTimesRef.current[channelId] = earliest;
+      } else if (!voiceStartTimesRef.current[channelId]) {
+        voiceStartTimesRef.current[channelId] = Date.now();
+      }
+    } else {
       delete voiceStartTimesRef.current[channelId];
     }
   });
