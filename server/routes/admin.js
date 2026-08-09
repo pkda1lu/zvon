@@ -110,30 +110,39 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     const totalServers = await Server.countDocuments();
     const totalMessages = await Message.countDocuments();
 
-    const MiniApp = require('../models/MiniApp');
-    const Bot = require('../models/Bot');
-    const totalMiniApps = MiniApp ? await MiniApp.countDocuments() : 0;
-    const totalBots = Bot ? await Bot.countDocuments() : 0;
+    let totalMiniApps = 0;
+    try {
+      const MiniApp = require('../models/MiniApp');
+      totalMiniApps = await MiniApp.countDocuments();
+    } catch (e) {}
+    const totalBots = await User.countDocuments({ isBot: true });
 
     let startDate, endDate;
     if (req.query.after || req.query.before) {
       if (req.query.after) {
-        startDate = new Date(req.query.after);
-        if (typeof req.query.after === 'string' && req.query.after.length === 10) startDate.setHours(0, 0, 0, 0);
+        const parts = String(req.query.after).split('T')[0].split('-').map(Number);
+        startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
       } else {
-        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const d = new Date();
+        d.setDate(d.getDate() - 29);
+        startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
       }
       if (req.query.before) {
-        endDate = new Date(req.query.before);
-        if (typeof req.query.before === 'string' && req.query.before.length === 10) endDate.setHours(23, 59, 59, 999);
+        const parts = String(req.query.before).split('T')[0].split('-').map(Number);
+        endDate = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
       } else {
         endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
       }
     } else {
       const range = req.query.range || '30d';
       const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
       endDate = new Date();
-      startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      endDate.setHours(23, 59, 59, 999);
+
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1));
+      startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
     }
 
     const dailyNewUsers = await User.aggregate([
@@ -170,27 +179,46 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
-    // Cumulative calculations starting from total before period
+    function buildDailyTimeline(startD, endD, aggList, isCumulative = false, initialValue = 0) {
+      const map = new Map();
+      (aggList || []).forEach(item => map.set(item._id, item.count || 0));
+
+      const result = [];
+      const cur = new Date(Date.UTC(startD.getFullYear(), startD.getMonth(), startD.getDate()));
+      const end = new Date(Date.UTC(endD.getFullYear(), endD.getMonth(), endD.getDate()));
+
+      let running = initialValue;
+
+      while (cur <= end) {
+        const y = cur.getUTCFullYear();
+        const m = String(cur.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(cur.getUTCDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+
+        const count = map.get(dateStr) || 0;
+        if (isCumulative) {
+          running += count;
+          result.push({ _id: dateStr, count: Math.max(0, running) });
+        } else {
+          result.push({ _id: dateStr, count });
+        }
+
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+      return result;
+    }
+
     const usersBeforePeriod = await User.countDocuments({ createdAt: { $lt: startDate } });
-    let cumulativeUserCount = usersBeforePeriod;
-    const cumulativeUsers = dailyNewUsers.map(d => {
-      cumulativeUserCount += d.count;
-      return { _id: d._id, count: cumulativeUserCount };
-    });
-
     const serversBeforePeriod = await Server.countDocuments({ createdAt: { $lt: startDate } });
-    let cumulativeServerCount = serversBeforePeriod;
-    const cumulativeServers = dailyNewServers.map(d => {
-      cumulativeServerCount += d.count;
-      return { _id: d._id, count: cumulativeServerCount };
-    });
-
     const messagesBeforePeriod = await Message.countDocuments({ createdAt: { $lt: startDate } });
-    let cumulativeMessageCount = messagesBeforePeriod;
-    const cumulativeMessages = dailyMessages.map(d => {
-      cumulativeMessageCount += d.count;
-      return { _id: d._id, count: cumulativeMessageCount };
-    });
+
+    const usersDaily = buildDailyTimeline(startDate, endDate, dailyNewUsers);
+    const usersCumulative = buildDailyTimeline(startDate, endDate, dailyNewUsers, true, usersBeforePeriod);
+    const serversDaily = buildDailyTimeline(startDate, endDate, dailyNewServers);
+    const serversCumulative = buildDailyTimeline(startDate, endDate, dailyNewServers, true, serversBeforePeriod);
+    const messagesDailyChart = buildDailyTimeline(startDate, endDate, dailyMessages);
+    const messagesCumulative = buildDailyTimeline(startDate, endDate, dailyMessages, true, messagesBeforePeriod);
+    const activeUsersDailyChart = buildDailyTimeline(startDate, endDate, activeUsersDaily);
 
     res.json({
       totals: {
@@ -202,13 +230,13 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         newUsersPeriod: dailyNewUsers.reduce((a, b) => a + b.count, 0)
       },
       charts: {
-        usersDaily: dailyNewUsers,
-        usersCumulative: cumulativeUsers.length > 0 ? cumulativeUsers : [{ _id: startDate.toISOString().slice(0, 10), count: totalUsers }],
-        serversDaily: dailyNewServers,
-        serversCumulative: cumulativeServers.length > 0 ? cumulativeServers : [{ _id: startDate.toISOString().slice(0, 10), count: totalServers }],
-        messagesDaily: dailyMessages,
-        messagesCumulative: cumulativeMessages,
-        activeUsersDaily
+        usersDaily,
+        usersCumulative,
+        serversDaily,
+        serversCumulative,
+        messagesDaily: messagesDailyChart,
+        messagesCumulative,
+        activeUsersDaily: activeUsersDailyChart
       }
     });
   } catch (err) {

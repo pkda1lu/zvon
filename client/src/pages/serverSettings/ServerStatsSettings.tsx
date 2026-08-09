@@ -31,14 +31,20 @@ const ServerStatsSettings: React.FC<Props> = ({ server }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        setLoading(true);
-        const params: any = {};
-        if (range === 'custom') {
-            if (after) params.after = after;
-            if (before) params.before = before;
-        } else {
-            params.range = range;
+        if (range !== 'custom') {
+            const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
+            const d = new Date();
+            d.setDate(d.getDate() - (days - 1));
+            setAfter(toLocalDateInputValue(d));
+            setBefore(toLocalDateInputValue(new Date()));
         }
+    }, [range]);
+
+    useEffect(() => {
+        setLoading(true);
+        const params: any = { range };
+        if (after) params.after = after;
+        if (before) params.before = before;
 
         axios.get(`/api/servers/${server._id}/stats`, { params })
             .then(res => setStats(res.data))

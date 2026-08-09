@@ -17,9 +17,53 @@ interface LineChartProps {
     unit?: string;
 }
 
+const fillMissingDays = (items: ChartDataItem[], isLine = false): ChartDataItem[] => {
+    if (!items || items.length === 0) return [];
+    
+    const isDateStr = (s: string) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+    if (!items.every(item => isDateStr(item._id))) return items;
+
+    const map = new Map<string, ChartDataItem>();
+    items.forEach(item => map.set(item._id, item));
+
+    // Используем точную первую и последнюю даты из пришедшего массива периода
+    const startStr = items[0]._id;
+    const endStr = items[items.length - 1]._id;
+
+    const startParts = startStr.split('-').map(Number);
+    const endParts = endStr.split('-').map(Number);
+
+    const start = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
+    const end = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+
+    const result: ChartDataItem[] = [];
+    let runningCount = 0;
+
+    const cur = new Date(start);
+    while (cur <= end) {
+        const y = cur.getUTCFullYear();
+        const m = String(cur.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(cur.getUTCDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+
+        if (map.has(dateStr)) {
+            const item = map.get(dateStr)!;
+            runningCount = item.count;
+            result.push(item);
+        } else {
+            // Для накопительной линии сохраняем предыдущее суммарное значение, для столбцов — 0
+            result.push({ _id: dateStr, count: isLine ? runningCount : 0 });
+        }
+
+        cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+
+    return result;
+};
+
 // Адаптивный график для статистики: динамика (линейная с градиентом) или действия по дням (столбчатый / ступенчатый).
 const LineChart: React.FC<LineChartProps> = ({
-    data,
+    data: rawData,
     color = 'var(--primary-neon, #5865f2)',
     secondaryColor = 'var(--accent-pink, #f472b6)',
     type = 'line',
@@ -30,6 +74,8 @@ const LineChart: React.FC<LineChartProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(600);
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+    const data = fillMissingDays(rawData, type === 'line');
 
     useEffect(() => {
         const el = containerRef.current;
@@ -141,10 +187,11 @@ const LineChart: React.FC<LineChartProps> = ({
                         ))}
                     </>
                 ) : (
-                    /* Столбчатый график для действий по дням */
+                    /* Столбчатый график для действий по дням: при 0 отображаем маленький столбик */
                     data.map((d, i) => {
+                        const isZero = !d.count || d.count === 0;
+                        const h = isZero ? 3 : Math.max(3, (d.count / maxVal) * innerH);
                         const x = xFor(i) - barWidth / 2;
-                        const h = Math.max(2, (d.count / maxVal) * innerH);
                         const y = pad.top + innerH - h;
                         const isHover = hoveredIdx === i;
 
@@ -157,7 +204,7 @@ const LineChart: React.FC<LineChartProps> = ({
                                     height={h}
                                     rx={barWidth > 4 ? 2 : 1}
                                     fill={isHover ? '#fff' : color}
-                                    opacity={isHover ? 1 : 0.8}
+                                    opacity={isHover ? 1 : (isZero ? 0.35 : 0.85)}
                                     style={{ transition: 'all 0.15s ease' }}
                                 />
                             </g>

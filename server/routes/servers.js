@@ -1158,34 +1158,42 @@ router.get('/:id/stats', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), asyn
     let startDate, endDate;
     if (req.query.after || req.query.before) {
       if (req.query.after) {
-        startDate = new Date(req.query.after);
-        if (typeof req.query.after === 'string' && req.query.after.length === 10) startDate.setHours(0, 0, 0, 0);
+        const parts = String(req.query.after).split('T')[0].split('-').map(Number);
+        startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
       } else {
-        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const d = new Date();
+        d.setDate(d.getDate() - 29);
+        startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
       }
       if (req.query.before) {
-        endDate = new Date(req.query.before);
-        if (typeof req.query.before === 'string' && req.query.before.length === 10) endDate.setHours(23, 59, 59, 999);
+        const parts = String(req.query.before).split('T')[0].split('-').map(Number);
+        endDate = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
       } else {
         endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
       }
     } else {
       const range = req.query.range || '30d';
       const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
       endDate = new Date();
-      startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      endDate.setHours(23, 59, 59, 999);
+
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1));
+      startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
     }
 
     const Message = require('../models/Message');
 
-    const messagesChart = await Message.aggregate([
+    const messagesRaw = await Message.aggregate([
       { $match: { channel: { $in: server.channels }, createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
     const totalMessages = await Message.countDocuments({ channel: { $in: server.channels } });
+    const messagesBeforePeriod = await Message.countDocuments({ channel: { $in: server.channels }, createdAt: { $lt: startDate } });
 
-    const activeUsersDaily = await Message.aggregate([
+    const activeUsersRaw = await Message.aggregate([
       { $match: { channel: { $in: server.channels }, createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, author: '$author' } } },
       { $group: { _id: '$_id.day', count: { $sum: 1 } } },
@@ -1207,26 +1215,50 @@ router.get('/:id/stats', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), asyn
       'attachments.0': { $exists: true }
     });
 
-    const deltaByDay = new Map();
-    joinEvents.forEach(e => deltaByDay.set(e._id, (deltaByDay.get(e._id) || 0) + e.count));
-    leaveEvents.forEach(e => deltaByDay.set(e._id, (deltaByDay.get(e._id) || 0) - e.count));
-    const sortedDays = Array.from(deltaByDay.keys()).sort();
-    let running = server.members.length;
-    const dayDeltas = sortedDays.map(day => ({ day, delta: deltaByDay.get(day) }));
-    for (let i = dayDeltas.length - 1; i >= 0; i--) running -= dayDeltas[i].delta;
-    const membersChart = [];
-    let cursor = running;
-    for (const { day, delta } of dayDeltas) {
-      cursor += delta;
-      membersChart.push({ _id: day, count: Math.max(1, cursor) });
+    // Member delta per day calculation
+    const deltaByDayMap = new Map();
+    joinEvents.forEach(e => deltaByDayMap.set(e._id, (deltaByDayMap.get(e._id) || 0) + e.count));
+    leaveEvents.forEach(e => deltaByDayMap.set(e._id, (deltaByDayMap.get(e._id) || 0) - e.count));
+    const dayDeltasMapList = Array.from(deltaByDayMap.entries()).map(([key, val]) => ({ _id: key, count: val }));
+
+    let runningMembers = server.members.length;
+    for (const item of dayDeltasMapList) runningMembers -= item.count;
+    const membersBeforePeriod = Math.max(1, runningMembers);
+
+    function buildDailyTimeline(startD, endD, aggList, isCumulative = false, initialValue = 0) {
+      const map = new Map();
+      (aggList || []).forEach(item => map.set(item._id, item.count || 0));
+
+      const result = [];
+      const cur = new Date(Date.UTC(startD.getFullYear(), startD.getMonth(), startD.getDate()));
+      const end = new Date(Date.UTC(endD.getFullYear(), endD.getMonth(), endD.getDate()));
+
+      let running = initialValue;
+
+      while (cur <= end) {
+        const y = cur.getUTCFullYear();
+        const m = String(cur.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(cur.getUTCDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+
+        const count = map.get(dateStr) || 0;
+        if (isCumulative) {
+          running += count;
+          result.push({ _id: dateStr, count: Math.max(0, running) });
+        } else {
+          result.push({ _id: dateStr, count });
+        }
+
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+      return result;
     }
 
-    // Cumulative messages path
-    let cumMsg = 0;
-    const cumulativeMessages = messagesChart.map(m => {
-      cumMsg += m.count;
-      return { _id: m._id, count: cumMsg };
-    });
+    const messagesChart = buildDailyTimeline(startDate, endDate, messagesRaw);
+    const cumulativeMessages = buildDailyTimeline(startDate, endDate, messagesRaw, true, messagesBeforePeriod);
+    const activeUsersDaily = buildDailyTimeline(startDate, endDate, activeUsersRaw);
+    const newMembersDaily = buildDailyTimeline(startDate, endDate, joinEvents);
+    const membersChart = buildDailyTimeline(startDate, endDate, dayDeltasMapList, true, membersBeforePeriod);
 
     res.json({
       totals: {
@@ -1236,11 +1268,11 @@ router.get('/:id/stats', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), asyn
         newMembersPeriod: joinEvents.reduce((acc, curr) => acc + curr.count, 0)
       },
       charts: {
-        messages: messagesChart.map(m => ({ _id: m._id, count: m.count })),
+        messages: messagesChart,
         cumulativeMessages,
-        members: membersChart.length > 0 ? membersChart : [{ _id: startDate.toISOString().slice(0, 10), count: server.members.length }],
-        newMembersDaily: joinEvents.map(j => ({ _id: j._id, count: j.count })),
-        activeUsersDaily: activeUsersDaily.map(a => ({ _id: a._id, count: a.count }))
+        members: membersChart,
+        newMembersDaily,
+        activeUsersDaily
       }
     });
   } catch (error) {
