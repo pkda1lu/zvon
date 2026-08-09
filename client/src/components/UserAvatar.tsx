@@ -104,7 +104,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    borderRadius: style?.borderRadius || '50%',
+                    borderRadius: style?.borderRadius,
                     flexShrink: 0,
                     ...style
                 }}
@@ -133,7 +133,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
             style={{ 
                 width: size, 
                 height: size,
-                borderRadius: style?.borderRadius || '50%',
+                borderRadius: style?.borderRadius,
                 ...style 
             }}
             onMouseEnter={() => setIsHovered(true)}

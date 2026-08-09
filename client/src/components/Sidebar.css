@@ -336,13 +336,13 @@
   right: 0;
   width: calc(14px * var(--interface-scale, 1));
   height: calc(14px * var(--interface-scale, 1));
-  border-radius: 50%;
+  border-radius: 50% !important;
   border: calc(3px * var(--interface-scale, 1)) solid #1a1a24;
   z-index: 10;
 }
 .status-indicator.online {
-  background: #43b581;
-  box-shadow: 0 0 10px #43b581;
+  background: #23a559;
+  box-shadow: 0 0 10px #23a559;
 }
 .status-indicator.away {
   background: #faa61a;

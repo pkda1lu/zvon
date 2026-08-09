@@ -77,15 +77,15 @@
   right: -2px;
   width: 14px;
   height: 14px;
-  border-radius: 50%;
+  border-radius: 50% !important;
   border: 3px solid rgba(20, 20, 30, 0.8);
   background: #747f8d;
   z-index: 10;
 }
 
 .status-indicator.online {
-  background: var(--primary-neon);
-  box-shadow: 0 0 10px var(--primary-neon);
+  background: #23a559;
+  box-shadow: 0 0 10px #23a559;
 }
 
 .status-indicator.away {

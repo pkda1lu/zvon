@@ -119,15 +119,16 @@
     right: calc(-3px * var(--interface-scale, 1));
     width: calc(12px * var(--interface-scale, 1));
     height: calc(12px * var(--interface-scale, 1));
-    border-radius: calc(5px * var(--interface-scale, 1));
-    /* Tiny squircle */
+    border-radius: 50% !important;
+    /* Circle indicator */
     border: calc(2px * var(--interface-scale, 1)) solid #1a1a1a;
     background: #747f8d;
     z-index: 10;
 }
 
 .status-indicator.online {
-    background: #43b581;
+    background: #23a559;
+    box-shadow: 0 0 10px #23a559;
 }
 
 .status-indicator.away {
