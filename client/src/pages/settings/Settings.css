@@ -272,6 +272,7 @@
     padding: 24px;
     margin-bottom: 24px;
     transition: background 0.3s ease;
+    overflow: visible;
 }
 
 .settings-card:hover {

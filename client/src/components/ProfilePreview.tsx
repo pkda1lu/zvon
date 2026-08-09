@@ -184,7 +184,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
             case 'streaming': return 'В ЭФИРЕ';
             case 'competing': return 'СОРЕВНУЕТСЯ В';
             case 'sitting': return 'СИДИТ В';
-            default: return 'ЗАНИМАЕТСЯ';
+            default: return 'ИГРАЕТ В';
         }
     };
 

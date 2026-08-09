@@ -32,7 +32,7 @@ interface WindowSettings {
     overlayIdleOpacity: number;
     overlayShowBackground: boolean;
     // User Apps
-    userApps: Record<string, { name: string; type: string }>;
+    userApps: Record<string, { name: string; type: string; icon?: string | null }>;
 }
 
 interface WindowSettingsContextType extends WindowSettings {
@@ -60,7 +60,7 @@ interface WindowSettingsContextType extends WindowSettings {
     setOverlayShowSpeakingRing: (value: boolean) => void;
     setOverlayIdleOpacity: (value: number) => void;
     setOverlayShowBackground: (value: boolean) => void;
-    setUserApps: (userApps: Record<string, { name: string; type: string }>) => void;
+    setUserApps: (userApps: Record<string, { name: string; type: string; icon?: string | null }>) => void;
 }
 
 const WindowSettingsContext = createContext<WindowSettingsContextType | undefined>(undefined);
@@ -316,7 +316,7 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
     const setOverlayShowSpeakingRing = (overlayShowSpeakingRing: boolean) => setSettings(prev => ({ ...prev, overlayShowSpeakingRing }));
     const setOverlayIdleOpacity = (overlayIdleOpacity: number) => setSettings(prev => ({ ...prev, overlayIdleOpacity }));
     const setOverlayShowBackground = (overlayShowBackground: boolean) => setSettings(prev => ({ ...prev, overlayShowBackground }));
-    const setUserApps = (userApps: Record<string, { name: string; type: string }>) => {
+    const setUserApps = (userApps: Record<string, { name: string; type: string; icon?: string | null }>) => {
         setSettings(prev => ({ ...prev, userApps }));
         // @ts-ignore
         if (window.electron?.ipc) {

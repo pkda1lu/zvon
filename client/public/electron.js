@@ -49,20 +49,136 @@ ipcMain.handle('get-pending-deep-link', () => {
     return link;
 });
 
-ipcMain.handle('get-running-processes', () => {
+ipcMain.handle('get-running-processes', async () => {
     return new Promise((resolve) => {
-        exec('tasklist /NH /FO CSV', (err, stdout) => {
-            if (err) { resolve([]); return; }
-            const lines = stdout.split(/\r?\n/);
-            const processes = [];
-            for (const line of lines) {
-                const parts = line.split('","');
-                if (parts.length > 0) {
-                    const name = parts[0].replace(/"/g, '').trim();
-                    if (name && !processes.includes(name)) processes.push(name);
+        if (process.platform !== 'win32') {
+            resolve([]);
+            return;
+        }
+        const psScript = `
+$ErrorActionPreference = 'SilentlyContinue'
+$procs = Get-Process | Where-Object { 
+    ($_.MainWindowHandle -and $_.MainWindowHandle -ne 0) -or 
+    ($_.Path -and 
+     $_.Path -notlike 'C:\\Windows\\System32*' -and 
+     $_.Path -notlike 'C:\\Windows\\SysWOW64*' -and 
+     $_.Path -notlike 'C:\\Windows\\SystemApps*' -and 
+     $_.Path -notlike 'C:\\Windows\\WinSxS*'
+    )
+}
+$res = foreach ($p in $procs) {
+    [PSCustomObject]@{
+        process = $p.ProcessName + '.exe'
+        name = if ($p.MainWindowTitle -and $p.MainWindowTitle.Trim() -ne '') { $p.MainWindowTitle } else { $p.ProcessName }
+        path = $p.Path
+    }
+}
+$res | ConvertTo-Json -Compress
+`;
+        const b64 = Buffer.from(psScript, 'utf16le').toString('base64');
+        exec(`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${b64}`, async (err, stdout) => {
+            if (err || !stdout) { resolve([]); return; }
+            try {
+                let parsed = JSON.parse(stdout);
+                if (!Array.isArray(parsed)) parsed = [parsed];
+
+                const EXCLUDED_SUBSTRINGS = [
+                    'service',
+                    'host',
+                    'edge',
+                    'amd',
+                    'onedrive',
+                    'software',
+                    'system',
+                    'gamebar',
+                    'helper',
+                    'proxy',
+                    'notifier'
+                ];
+
+                const EXCLUDED_EXES = new Set([
+                    'explorer.exe',
+                    'node.exe',
+                    'openconsole.exe',
+                    'widgets.exe',
+                    'widgetservice.exe',
+                    'zvon.exe',
+                    'electron.exe',
+                    'cmd.exe',
+                    'powershell.exe',
+                    'pwsh.exe',
+                    'taskmgr.exe',
+                    'ctfmon.exe',
+                    'conhost.exe',
+                    'dllhost.exe',
+                    'sihost.exe',
+                    'runtimebroker.exe',
+                    'searchhost.exe',
+                    'startmenuexperiencehost.exe',
+                    'shellexperiencehost.exe',
+                    'applicationframehost.exe',
+                    'textinputhost.exe',
+                    'lockapp.exe',
+                    'spoolsv.exe',
+                    'audiodg.exe',
+                    'smartscreen.exe',
+                    'cncmd.exe',
+                    'esbuild.exe',
+                    'filecoauth.exe',
+                    'git.exe',
+                    'jetbraimsd.exe',
+                    'jetbrainsd.exe',
+                    'lanuage_server.exe',
+                    'language_server.exe',
+                    'wstoastnotification.exe'
+                ]);
+
+                const uniqueApps = new Map();
+                for (const item of parsed) {
+                    if (!item || !item.process) continue;
+                    const procKey = item.process.toLowerCase();
+                    const nameKey = (item.name || '').toLowerCase();
+
+                    // Check exact exes
+                    if (EXCLUDED_EXES.has(procKey)) continue;
+
+                    // Check substring filters (service, host, edge, amd, onedrive, software, system, etc.)
+                    const isExcluded = EXCLUDED_SUBSTRINGS.some(sub => procKey.includes(sub) || nameKey.includes(sub));
+                    if (isExcluded) continue;
+
+                    if (!uniqueApps.has(procKey)) {
+                        uniqueApps.set(procKey, {
+                            process: item.process,
+                            name: item.name || item.process.replace(/\.exe$/i, ''),
+                            path: item.path || ''
+                        });
+                    }
                 }
+
+                const resultList = await Promise.all(
+                    Array.from(uniqueApps.values()).map(async (appInfo) => {
+                        let iconDataUrl = null;
+                        if (appInfo.path && fs.existsSync(appInfo.path)) {
+                            try {
+                                const nativeImg = await app.getFileIcon(appInfo.path, { size: 'normal' });
+                                if (nativeImg && !nativeImg.isEmpty()) {
+                                    iconDataUrl = nativeImg.toDataURL();
+                                }
+                            } catch (e) { }
+                        }
+                        return {
+                            process: appInfo.process,
+                            name: appInfo.name,
+                            icon: iconDataUrl
+                        };
+                    })
+                );
+
+                resultList.sort((a, b) => a.name.localeCompare(b.name));
+                resolve(resultList);
+            } catch (e) {
+                resolve([]);
             }
-            resolve(processes.sort());
         });
     });
 });
@@ -618,7 +734,7 @@ const KNOWN_APPS = {
 // Активностью (Rich Presence) считаем только приложения этих типов — игры, видео,
 // музыка. Всё остальное ('other', неизвестные процессы) активностью НЕ показываем.
 // Мини-приложения внутри Zvon ставят активность отдельно из рендера и здесь не участвуют.
-const ACTIVITY_TYPES = new Set(['game', 'music', 'video']);
+const ACTIVITY_TYPES = new Set(['game', 'music', 'video', 'other']);
 
 const SHARING_BLACKLIST = [
     'NVIDIA GeForce Experience',
@@ -923,13 +1039,13 @@ async function scanActivities() {
                 if (BROWSERS.has(fgExe)) {
                     if (/youtube/i.test(fgTitle)) {
                         updateActivity({ name: 'YouTube', icon: 'https://www.youtube.com/favicon.ico', type: 'video' }, true, fgExe);
-                    } else {
-                        updateActivity(null, false, fgExe);
+                        scanInProgress = false;
+                        adaptiveInterval = 3000;
+                        scheduleNextScan();
+                        return;
                     }
-                    scanInProgress = false;
-                    adaptiveInterval = 3000;
-                    scheduleNextScan();
-                    return;
+                    // Если в браузере не открыт YouTube, продолжаем сканирование фона,
+                    // чтобы не сбрасывать статус фоновых игр/музыки при фокусировке на браузере.
                 }
 
                 // Ищем переднее окно сначала среди пользовательских приложений
@@ -942,8 +1058,7 @@ async function scanActivities() {
 
                 if (foundKey) {
                     const metadata = await getGameMetadata(null, foundKey);
-                    // Показываем активностью только разрешённые типы (игры/видео/музыка);
-                    // приложения типа 'other' активностью не считаем.
+                    // Показываем активностью только разрешённые типы (игры/видео/музыка/другое);
                     updateActivity(metadata && ACTIVITY_TYPES.has(metadata.type) ? metadata : null, true, fgExe);
                     scanInProgress = false;
                     // Пока игра на переднем плане (оверлей показан) — чаще опрашиваем,
@@ -966,17 +1081,11 @@ async function scanActivities() {
                     scheduleNextScan();
                     return;
                 }
-
-                // Неизвестное приложение на переднем плане больше НЕ считаем игрой:
-                // активность показываем только для приложений, явно подходящих под
-                // настроенные типы (см. ветку foundKey выше) или Steam-игр (ниже).
             }
 
             if (steamMetadata) {
                 updateActivity(steamMetadata, false, fgExe);
                 scanInProgress = false;
-                // Steam-игра запущена, но свёрнута/не в фокусе — опрашиваем чаще,
-                // чтобы оверлей быстро вернулся, когда игра снова на переднем плане.
                 adaptiveInterval = 1200;
                 scheduleNextScan();
             } else {
@@ -1029,9 +1138,7 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
         // 3) Активное окно НЕ читается (fg пуст): у многих игр с античитом или
         //    запущенных от администратора PowerShell не может прочитать процесс
         //    переднего окна. Если игра при этом запущена (есть lastActivity) и её
-        //    категория разрешена — считаем, что игра по-прежнему на переднем плане,
-        //    иначе оверлей не показывался бы вовсе. Когда фокус уходит на обычное
-        //    окно (см. п.2), fg читается и оверлей корректно скрывается.
+        //    категория разрешена — считаем, что игра по-прежнему на переднем плане.
         const lastAllowed = !!lastActivity && lastActivity.type === 'game';
         const unreadableButGameRunning = !fg && lastAllowed;
 
@@ -1039,9 +1146,6 @@ function updateActivity(foundActivity, isForeground = false, currentForegroundEx
 
         if (shouldShow) {
             overlayWindow.showInactive();
-            // Игры (borderless/полноэкранные оконные) периодически перехватывают
-            // верхний z-порядок и заслоняют оверлей — поэтому каждый тик скана
-            // заново поднимаем окно на самый верх.
             try {
                 overlayWindow.setAlwaysOnTop(true, 'screen-saver');
                 overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -1062,7 +1166,7 @@ function performFullScan(fgExe = '') {
 
         const userApps = appSettings.userApps || {};
         const normalizedApps = [
-            ...Object.keys(userApps).map(k => ({ lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', ''), meta: { ...userApps[k], icon: null } })),
+            ...Object.keys(userApps).map(k => ({ lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', ''), meta: { ...userApps[k] } })),
             ...Object.keys(KNOWN_APPS).map(k => ({ lower: k.toLowerCase(), base: k.toLowerCase().replace('.exe', ''), meta: KNOWN_APPS[k] })),
         ];
 
@@ -1073,17 +1177,13 @@ function performFullScan(fgExe = '') {
                 const baseName = exeNameLower.endsWith('.exe') ? exeNameLower.slice(0, -4) : exeNameLower;
 
                 const match = normalizedApps.find(g => exeNameLower === g.lower || baseName === g.base);
-                // Учитываем только разрешённые типы (игры/видео/музыка), 'other' пропускаем.
                 if (match && ACTIVITY_TYPES.has(match.meta.type)) {
                     bestMatch = match.meta;
-                    // If multiple apps running, prefer games for activity
                     if (bestMatch.type === 'game') break;
                 }
             }
         }
         updateActivity(bestMatch, false, fgExe);
-        // Игра запущена, но не на переднем плане — держим частый опрос, чтобы оверлей
-        // быстро появился при возврате в игру; иначе можно опрашивать реже.
         adaptiveInterval = bestMatch ? 1200 : 5000;
         scheduleNextScan();
     });

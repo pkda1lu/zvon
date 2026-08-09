@@ -683,9 +683,17 @@ const Main: React.FC = () => {
     // @ts-ignore
     const electron = window.electron;
     if (electron && socket && user) {
+      const mapCategoryToActivityType = (catType?: string) => {
+        if (catType === 'music') return 'listening';
+        if (catType === 'video') return 'watching';
+        if (catType === 'other') return 'using';
+        return 'playing';
+      };
+
       electron.getCurrentActivity?.().then((activity: any) => {
         if (activity) setCurrentGameActivity({
-          name: activity.name, type: 'playing',
+          name: activity.name,
+          type: mapCategoryToActivityType(activity.type),
           assets: { largeImage: activity.icon },
           timestamps: { start: activity.startTime },
         });
@@ -693,7 +701,8 @@ const Main: React.FC = () => {
       const removeActivityListener = electron.onActivityChanged?.((activity: any) => {
         if (activity) {
           setCurrentGameActivity({
-            name: activity.name, type: 'playing',
+            name: activity.name,
+            type: mapCategoryToActivityType(activity.type),
             assets: { largeImage: activity.icon },
             timestamps: { start: activity.startTime },
           });

@@ -206,7 +206,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         const candidates: { text:string; icon: string | null; timestamp: number }[] = [];
 
         if (u.activity?.name) {
-            const verb = ACTIVITY_VERBS[u.activity.type as string] || 'Занимается:';
+            const verb = ACTIVITY_VERBS[u.activity.type as string] || 'Играет в';
             candidates.push({
                 text: `${verb} ${u.activity.name}`,
                 icon: u.activity.assets?.largeImage || null,
