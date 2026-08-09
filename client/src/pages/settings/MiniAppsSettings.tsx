@@ -3,11 +3,12 @@ import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import { getAvatarUrl, getFullUrl } from '../../utils/avatar';
-import { CustomSelect } from './SettingsUI';
+import { CustomSelect, ChoiceGroup } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
 import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { PlusIcon, LayoutGridIcon, MonitorIcon, TrashIcon, CheckIcon, ExternalLinkIcon, CloseIcon } from '../../components/Icons';
 import { motion, AnimatePresence } from 'framer-motion';
+import '../../components/ShowcaseView.css';
 
 const MiniAppsSettings: React.FC = () => {
     const { refreshUser } = useAuth();
@@ -19,6 +20,7 @@ const MiniAppsSettings: React.FC = () => {
     const [editName, setEditName] = useState('');
     const [editUrl, setEditUrl] = useState('');
     const [editDesc, setEditDesc] = useState('');
+    const [editActivityType, setEditActivityType] = useState<'playing' | 'listening' | 'watching' | 'using'>('playing');
     const [avatar, setAvatar] = useState<string | null>(null);
     const [banner, setBanner] = useState<string | null>(null);
 
@@ -56,12 +58,14 @@ const MiniAppsSettings: React.FC = () => {
             setEditName(selectedApp.name || '');
             setEditUrl(selectedApp.url || '');
             setEditDesc(selectedApp.description || '');
+            setEditActivityType(selectedApp.activityType || 'playing');
             setAvatar(selectedApp.avatar || null);
             setBanner(selectedApp.banner || null);
         } else {
             setEditName('');
             setEditUrl('');
             setEditDesc('');
+            setEditActivityType('playing');
             setAvatar(null);
             setBanner(null);
         }
@@ -117,6 +121,14 @@ const MiniAppsSettings: React.FC = () => {
         }, 1000);
         return () => clearTimeout(timer);
     }, [editDesc, selectedAppId, saveField, miniapps]);
+
+    useEffect(() => {
+        if (!selectedAppId) return;
+        const app = miniapps.find(a => a._id === selectedAppId);
+        if (!app || (app.activityType || 'playing') === editActivityType) return;
+
+        saveField('activityType', editActivityType);
+    }, [editActivityType, selectedAppId, saveField, miniapps]);
 
     const createApp = async () => {
         const name = await prompt('Введите название мини-приложения:', '');
@@ -332,6 +344,24 @@ const MiniAppsSettings: React.FC = () => {
                             />
                         </div>
 
+                        {/* 3.5. Статус активности пользователей */}
+                        <div className="settings-card">
+                            <h3 className="settings-section-title" style={{marginTop: 0}}>Статус активности</h3>
+                            <p className="settings-description" style={{ marginBottom: '12px' }}>
+                                Выберите, какой текст статуса будет отображаться в профиле пользователей, когда они находятся в вашем мини-приложении:
+                            </p>
+                            <ChoiceGroup 
+                                options={[
+                                    { value: 'playing', label: 'Играет в' },
+                                    { value: 'listening', label: 'Слушает в' },
+                                    { value: 'watching', label: 'Смотрит в' },
+                                    { value: 'using', label: 'Использует' }
+                                ]}
+                                value={editActivityType}
+                                onChange={(val) => setEditActivityType(val as any)}
+                            />
+                        </div>
+
                         {/* 4. Публикация */}
                         <div className="settings-card">
                             <h3 className="settings-section-title" style={{marginTop: 0}}>Публикация на витрине</h3>
@@ -414,7 +444,7 @@ const MiniAppsSettings: React.FC = () => {
                             className="profile-card-banner" 
                             style={{ backgroundImage: banner ? `url(${getFullUrl(banner)})` : 'none', backgroundColor: 'var(--secondary-neon)' }}
                         >
-                            <div className="profile-card-badge app">Мини-приложение</div>
+                            <div className="profile-card-badge app">Приложение</div>
                         </div>
                         <div className="profile-card-content">
                             <div className="profile-card-header">
@@ -423,13 +453,23 @@ const MiniAppsSettings: React.FC = () => {
                                 </div>
                                 <div className="profile-card-main-info">
                                     <div className="profile-card-name">{editName || selectedApp.name}</div>
-                                    <div className="profile-card-bio" style={{ minHeight: '3em' }}>
-                                        {editDesc || 'У этого мини-приложения пока нет описания.'}
+                                    <div className="profile-card-bio">
+                                        {editDesc || 'У этого приложения пока нет описания.'}
                                     </div>
                                 </div>
                             </div>
                             <div className="profile-card-actions">
-                                <button className="profile-action-btn secondary" style={{ width: '100%' }}>
+                                <button
+                                    className="report-icon-btn"
+                                    title="Пожаловаться"
+                                    type="button"
+                                >
+                                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                                        <line x1="4" y1="22" x2="4" y2="15"/>
+                                    </svg>
+                                </button>
+                                <button className="profile-action-btn secondary" type="button">
                                     <MonitorIcon size={18} />
                                     <span>Открыть</span>
                                 </button>

@@ -1,5 +1,5 @@
 export interface UserActivity {
-  type: 'playing' | 'streaming' | 'listening' | 'watching' | 'competing';
+  type: 'playing' | 'streaming' | 'listening' | 'watching' | 'using' | 'competing';
   name: string;
   details?: string;
   state?: string;
@@ -111,6 +111,7 @@ export interface MiniApp {
     avatar?: string;
     banner?: string;
     description?: string;
+    activityType?: 'playing' | 'listening' | 'watching' | 'using';
     createdAt: string;
 }
 

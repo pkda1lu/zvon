@@ -8,6 +8,7 @@ import ImageCropper from '../../components/ImageCropper';
 import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { PlusIcon, BotIcon, ShieldIcon, CopyIcon, TrashIcon, CheckIcon, ExternalLinkIcon, CloseIcon } from '../../components/Icons';
 import { motion, AnimatePresence } from 'framer-motion';
+import '../../components/ShowcaseView.css';
 
 const BotsSettings: React.FC = () => {
     const { refreshUser } = useAuth();
@@ -454,14 +455,24 @@ const BotsSettings: React.FC = () => {
                                 </div>
                                 <div className="profile-card-main-info">
                                     <div className="profile-card-name">{editName || selectedBot.username}</div>
-                                    <div className="profile-card-bio" style={{ minHeight: '3em' }}>
+                                    <div className="profile-card-bio">
                                         {editBio || 'У этого бота пока нет описания.'}
                                     </div>
                                 </div>
                             </div>
                             <div className="profile-card-actions">
-                                <div className="action-button-container" style={{ width: '100%' }}>
-                                    <button className="profile-action-btn primary" style={{ width: '100%' }}>
+                                <button
+                                    className="report-icon-btn"
+                                    title="Пожаловаться"
+                                    type="button"
+                                >
+                                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                                        <line x1="4" y1="22" x2="4" y2="15"/>
+                                    </svg>
+                                </button>
+                                <div className="action-button-container">
+                                    <button className="profile-action-btn primary" type="button">
                                         <PlusIcon size={18} />
                                         <span>Добавить</span>
                                     </button>

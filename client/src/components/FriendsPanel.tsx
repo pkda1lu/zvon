@@ -180,7 +180,17 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                         <UserBadges badges={f.badges} serverTag={resolveServerTag(f)} size={14 * interfaceScale} />
                         {userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}
                       </div>
-                      <div className="friend-status">{f.activity ? <span className="activity-status">Играет в {f.activity.name}</span> : f.status}</div>
+                      <div className="friend-status">
+                        {f.activity?.name ? (
+                          <span className="activity-status">
+                            {f.activity.type === 'listening' ? `Слушает в ${f.activity.name}`
+                              : f.activity.type === 'watching' ? `Смотрит в ${f.activity.name}`
+                              : f.activity.type === 'using' ? `Использует ${f.activity.name}`
+                              : f.activity.type === 'streaming' ? `В эфире: ${f.activity.name}`
+                              : `Играет в ${f.activity.name}`}
+                          </span>
+                        ) : f.status}
+                      </div>
                     </div>
                     <div className="friend-actions">
                       <button className="test-action-btn" onClick={() => onStartDM(f._id)} title="Написать сообщение">

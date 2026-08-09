@@ -54,7 +54,7 @@ router.get('/my', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
     try {
         const app = await MiniApp.findById(req.params.id)
-            .select('name url description avatar banner owner isSystem isPublished isBlocked');
+            .select('name url description avatar banner owner isSystem isPublished isBlocked activityType');
         if (!app) return res.status(404).json({ message: 'MiniApp not found' });
         const launchable = app.isSystem || (app.isPublished && !app.isBlocked) || String(app.owner) === String(req.user._id);
         if (!launchable) return res.status(403).json({ message: 'Not available' });
@@ -67,7 +67,7 @@ router.get('/:id', auth, async (req, res) => {
 // Update mini-app
 router.patch('/:id', auth, async (req, res) => {
     try {
-        const { name, url, description } = req.body;
+        const { name, url, description, activityType } = req.body;
         const miniApp = await MiniApp.findOne({ _id: req.params.id, owner: req.user._id });
         if (!miniApp) return res.status(404).json({ message: 'MiniApp not found' });
 
@@ -77,6 +77,9 @@ router.patch('/:id', auth, async (req, res) => {
         if (name) miniApp.name = name;
         if (url) miniApp.url = url;
         if (description !== undefined) miniApp.description = description;
+        if (activityType && ['playing', 'listening', 'watching', 'using'].includes(activityType)) {
+            miniApp.activityType = activityType;
+        }
 
         let message = 'Мини-приложение обновлено';
         // Смена названия или домена опубликованного/одобренного приложения → повторная

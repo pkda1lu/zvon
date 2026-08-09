@@ -146,13 +146,31 @@ const Register: React.FC = () => {
                 Завершить регистрацию
               </button>
 
-              <button 
-                type="button" 
-                onClick={() => setRequiresVerification(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '14px', cursor: 'pointer' }}
-              >
-                Вернуться назад
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setRequiresVerification(false)}
+                  style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    color: 'var(--primary-neon)', 
+                    fontSize: '14px', 
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Изменить почту
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={() => setRequiresVerification(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Вернуться назад
+                </button>
+              </div>
 
               <button 
                 type="button"

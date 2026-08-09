@@ -178,8 +178,9 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     const getActivityTitle = (type: string | null) => {
         switch (type) {
             case 'playing': return 'ИГРАЕТ В';
-            case 'listening': return 'СЛУШАЕТ';
-            case 'watching': return 'СМОТРИТ';
+            case 'listening': return 'СЛУШАЕТ В';
+            case 'watching': return 'СМОТРИТ В';
+            case 'using': return 'ИСПОЛЬЗУЕТ';
             case 'streaming': return 'В ЭФИРЕ';
             case 'competing': return 'СОРЕВНУЕТСЯ В';
             case 'sitting': return 'СИДИТ В';

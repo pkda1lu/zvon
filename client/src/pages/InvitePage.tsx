@@ -78,6 +78,40 @@ const InvitePage: React.FC = () => {
 
     const isElectron = (window as any).electron;
 
+    const getMemberCountText = (count: number) => {
+        const abs = Math.abs(count) % 100;
+        const lastDigit = abs % 10;
+        if (abs > 10 && abs < 20) return `${count} участников`;
+        if (lastDigit > 1 && lastDigit < 5) return `${count} участника`;
+        if (lastDigit === 1) return `${count} участник`;
+        return `${count} участников`;
+    };
+
+    const handleAcceptInvite = () => {
+        if (!isElectron) {
+            // Пытаемся открыть десктопное приложение через протокол
+            const timer = setTimeout(() => {
+                // Если приложение не перехватило переход (остались на веб-странице), заходим в веб-версии
+                handleJoin();
+            }, 1200);
+
+            const handleBlur = () => {
+                clearTimeout(timer);
+                window.removeEventListener('blur', handleBlur);
+            };
+            window.addEventListener('blur', handleBlur);
+
+            // Запускаем URI протокол через скрытый iframe или location
+            try {
+                window.location.href = `zvon://invite/${code}`;
+            } catch (e) {
+                // ignore
+            }
+        } else {
+            handleJoin();
+        }
+    };
+
     return (
         <div className="preview-container">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', position: 'relative', zIndex: 5, padding: '20px' }}>
@@ -147,22 +181,16 @@ const InvitePage: React.FC = () => {
 
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', marginBottom: '35px' }}>
                                 <span style={{ width: '8px', height: '8px', background: 'var(--primary-neon)', borderRadius: '50%', boxShadow: '0 0 10px var(--primary-neon)' }}></span>
-                                <span style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>{invite.server.memberCount} участников</span>
+                                <span style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>{getMemberCountText(invite.server.memberCount)}</span>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                {!isElectron ? (
-                                    <>
-                                        <button className="neon-btn" onClick={() => { window.location.href = `zvon://invite/${code}`; }}>
-                                            Открыть в приложении
-                                        </button>
-                                        <button style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
-                                            Установить {brand.name.toUpperCase()}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <button className="neon-btn" onClick={handleJoin} disabled={joining}>
-                                        {joining ? 'Выполняется вход...' : 'Принять приглашение'}
+                                <button className="neon-btn" onClick={handleAcceptInvite} disabled={joining}>
+                                    {joining ? 'Выполняется вход...' : 'Принять приглашение'}
+                                </button>
+                                {!isElectron && (
+                                    <button style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => window.open('https://github.com/pkda1lu/zvon/releases', '_blank')}>
+                                        Установить {brand.name.toUpperCase()}
                                     </button>
                                 )}
                             </div>

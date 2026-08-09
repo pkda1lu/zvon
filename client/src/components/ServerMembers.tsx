@@ -59,7 +59,7 @@ const ServerEventCard: React.FC<{ event: ServerEvent }> = ({ event }) => {
 };
 
 const ACTIVITY_VERBS: Record<string, string> = {
-    playing: 'Играет в', streaming: 'В эфире:', listening: 'Слушает', watching: 'Смотрит', competing: 'Соревнуется в', sitting: 'Сидит в'
+    playing: 'Играет в', streaming: 'В эфире:', listening: 'Слушает в', watching: 'Смотрит в', using: 'Использует', competing: 'Соревнуется в', sitting: 'Сидит в'
 };
 
 // Третье лицо — для общей ленты событий сервера (в отличие от ACTIVITY_VERBS, который читается
@@ -68,8 +68,9 @@ const ACTIVITY_VERBS: Record<string, string> = {
 const ACTIVITY_VERBS_FEED: Record<string, { one: string; many: string }> = {
     playing: { one: 'играет в', many: 'играют в' },
     streaming: { one: 'стримит в', many: 'стримят в' },
-    listening: { one: 'слушает', many: 'слушают' },
-    watching: { one: 'смотрит', many: 'смотрят' },
+    listening: { one: 'слушает в', many: 'слушают в' },
+    watching: { one: 'смотрит в', many: 'смотрят в' },
+    using: { one: 'использует', many: 'используют' },
     competing: { one: 'соревнуется в', many: 'соревнуются в' },
     sitting: { one: 'сидит в', many: 'сидят в' }
 };
@@ -234,7 +235,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         const streamEvents: ServerEvent[] = [];
         const groups = new Map<string, { type: string; name: string; image: string | null; timestamp: number; usernames: string[] }>();
 
-        server.members.map(m => m.user).filter(u => u?.activity?.name).forEach(u => {
+        server.members.map(m => m.user).filter(u => u?.activity?.name && u.status !== 'offline').forEach(u => {
             const a = u.activity!;
             if (a.type === 'streaming') {
                 // Без ссылки на стрим (площадка неизвестна) такое событие не показываем.

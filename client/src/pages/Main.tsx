@@ -729,7 +729,7 @@ const Main: React.FC = () => {
       const app = openMiniApps[openMiniApps.length - 1];
       socket.emit('activity-update', {
         name: app.name,
-        type: 'playing',
+        type: app.activityType || 'playing',
         state: 'В приложении',
         details: app.description ? app.description.slice(0, 100) : '',
         assets: { largeImage: app.avatar || null, largeText: app.name },

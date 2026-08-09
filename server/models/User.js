@@ -79,7 +79,7 @@ const userSchema = new mongoose.Schema({
     name: { type: String, default: null },
     type: {
       type: String,
-      enum: ['playing', 'streaming', 'listening', 'watching', 'competing', 'sitting', null],
+      enum: ['playing', 'streaming', 'listening', 'watching', 'using', 'competing', 'sitting', null],
       default: 'playing'
     },
     details: String,

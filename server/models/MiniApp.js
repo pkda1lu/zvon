@@ -33,6 +33,11 @@ const miniAppSchema = new mongoose.Schema({
     maxlength: 500,
     default: ''
   },
+  activityType: {
+    type: String,
+    enum: ['playing', 'listening', 'watching', 'using'],
+    default: 'playing'
+  },
   isSystem: {
     type: Boolean,
     default: false

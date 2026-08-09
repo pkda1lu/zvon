@@ -99,8 +99,14 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                         <span className="dm-name">{displayName}</span>
                         {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={12 * interfaceScale} />}
                     </div>
-                    {!isGroup && !maskModeration && otherUser?.activity && (
-                        <span className="dm-activity">Играет в {otherUser.activity.name}</span>
+                    {!isGroup && !maskModeration && otherUser?.activity?.name && (
+                        <span className="dm-activity">
+                            {otherUser.activity.type === 'listening' ? `Слушает в ${otherUser.activity.name}`
+                                : otherUser.activity.type === 'watching' ? `Смотрит в ${otherUser.activity.name}`
+                                : otherUser.activity.type === 'using' ? `Использует ${otherUser.activity.name}`
+                                : otherUser.activity.type === 'streaming' ? `В эфире: ${otherUser.activity.name}`
+                                : `Играет в ${otherUser.activity.name}`}
+                        </span>
                     )}
                     {isGroup && (
                         <span className="dm-activity">{dm.participants.length} участников</span>
