@@ -7,7 +7,7 @@ import { Channel, User, Server, Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, ChatIcon, CloseIcon, FullscreenIcon, MinimizeIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, ChatIcon, CloseIcon, FullscreenIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon } from './Icons';
 // См. VoiceCall — модалка выбора экрана грузится по требованию.
 const ScreenSourceSelector = React.lazy(() => import('./ScreenSourceSelector'));
 import axios from 'axios';
@@ -132,10 +132,13 @@ const VoiceStreamCard: React.FC<{
   isPrimary?: boolean;
   isExpanded: boolean;
   onToggleExpand: () => void;
-}> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isPrimary = false, isExpanded, onToggleExpand }) => {
+  screenVolumes: Map<string, number>;
+  setScreenVolume: (userId: string, volume: number) => void;
+}> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isPrimary = false, isExpanded, onToggleExpand, screenVolumes, setScreenVolume }) => {
   const isMe = item.isMe;
   const stream = isMe ? screenStream : remoteScreenStreams.get(item.userId);
   const isWatching = isMe || watchedScreenIds.has(item.userId);
+  const volume = screenVolumes.get(item.userId) ?? 1;
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const viewportRef = React.useRef<HTMLDivElement>(null);
 
@@ -147,8 +150,12 @@ const VoiceStreamCard: React.FC<{
     }
   }, [stream, isMe, isWatching, isExpanded]);
 
-  // Разворот синхронизируем с аппаратным полноэкранным режимом: карточка уходит
-  // в fullscreen, при сворачивании — выходим из него.
+  useEffect(() => {
+    if (videoRef.current) {
+        videoRef.current.volume = volume;
+    }
+  }, [volume]);
+
   useEffect(() => {
     if (isExpanded && viewportRef.current) {
       const target: any = viewportRef.current;
@@ -165,8 +172,6 @@ const VoiceStreamCard: React.FC<{
     }
   }, [isExpanded]);
 
-  // Выход из fullscreen по Esc/кнопке браузера должен сворачивать и карточку,
-  // иначе она осталась бы растянутой поверх интерфейса.
   useEffect(() => {
     if (!isExpanded) return;
     const onFsChange = () => {
@@ -190,7 +195,22 @@ const VoiceStreamCard: React.FC<{
             <video autoPlay playsInline ref={videoRef} className="stream-video" muted={isMe} />
             {isPrimary && (
               <div className="stream-controls-overlay top" onClick={e => e.stopPropagation()}>
-                <div className="stream-controls-left" />
+                <div className="stream-controls-left">
+                  {!isMe && (
+                    <div className="volume-control-wrapper">
+                      {volume === 0 ? <VolumeLowIcon size={18} /> : <VolumeHighIcon size={18} />}
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={volume}
+                        onChange={(e) => setScreenVolume(item.userId, parseFloat(e.target.value))}
+                        className="stream-volume-slider"
+                      />
+                    </div>
+                  )}
+                </div>
                 <div className="stream-controls-right">
                   <button
                     className="stream-control-btn"
@@ -215,8 +235,6 @@ const VoiceStreamCard: React.FC<{
     </div>
   );
 
-  // Развёрнутую карточку выносим порталом поверх интерфейса, иначе её обрезала
-  // бы сетка участников.
   return isExpanded ? createPortal(card, document.body) : card;
 };
 
@@ -243,7 +261,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     connectedUsers: activeConnectedUsers, userStates, isScreenSharing, startScreenShare, stopScreenShare,
     screenStream, remoteScreenStreams, watchedScreenIds, setWatchingScreen, remoteStreams, isVideoOn, toggleVideo,
     localCameraStream, voicePresences, presenceAudioStreams, presenceVideoStreams, sendPresenceControl,
-    presenceVolumes, setPresenceVolume,
+    presenceVolumes, setPresenceVolume, screenVolumes, setScreenVolume,
   } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
@@ -336,7 +354,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         const user = activeConnectedUsers.find(u => u._id === item.userId)
           || externalParticipants.find(u => u._id === item.userId)
           || (item.isMe ? currentUser : null);
-        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
+        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} screenVolumes={screenVolumes} setScreenVolume={setScreenVolume} />;
       }
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
