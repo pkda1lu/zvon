@@ -88,10 +88,29 @@ const LineChart: React.FC<LineChartProps> = ({
         return () => ro.disconnect();
     }, []);
 
-    if (!data || data.length === 0) {
+    const hasAnyData = data && data.length > 0 && data.some(d => (d.count && d.count > 0) || (d.secondaryCount && d.secondaryCount > 0));
+
+    if (!hasAnyData) {
         return (
-            <div style={{ height: `${height}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint, #666)' }}>
-                Нет данных за выбранный период
+            <div ref={containerRef} style={{ width: '100%' }}>
+                {title && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-normal)' }}>{title}</span>
+                    </div>
+                )}
+                <div style={{
+                    height: `${height}px`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-faint, #888)',
+                    fontSize: '13px',
+                    border: '1px dashed var(--glass-border, rgba(255, 255, 255, 0.1))',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.15)'
+                }}>
+                    Нет данных за выбранный период
+                </div>
             </div>
         );
     }
