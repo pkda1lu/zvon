@@ -86,90 +86,119 @@ const MouseNavGuard: React.FC = () => {
   return null;
 };
 
+// Сколько ждать без действий пользователя, прежде чем гасить декоративные
+// анимации. Достаточно долго, чтобы пауза не срабатывала во время чтения
+// переписки, и достаточно коротко, чтобы отошедший от компьютера человек не
+// грел процессор.
+const IDLE_AFTER_MS = 15000;
+
+/**
+ * Ставит декоративные анимации на паузу, когда смотреть на них некому: окно
+ * свёрнуто, потеряло фокус ИЛИ пользователь ничего не делает дольше
+ * IDLE_AFTER_MS. Вешает класс .app-idle на <html>, дальше всё делает CSS
+ * (animation-play-state: paused) — см. App.css и panel-hero.css.
+ *
+ * Зачем: в типичном экране одновременно анимируется два десятка декоративных
+ * слоёв — полноэкранный фон плюс по несколько «блобов» и орбов в каждой панели
+ * (сайдбар, список участников, чат, контакты). Даже полностью композитируемые
+ * transform-анимации — это непрерывная работа 60 раз в секунду, которая не даёт
+ * машине уйти в простой. Дискорд в простое статичен, поэтому и держит 1-2%.
+ */
+const useIdleAnimationPause = () => {
+  useEffect(() => {
+    const root = document.documentElement;
+    let lastInput = Date.now();
+    let idle = false;
+
+    const apply = (next: boolean) => {
+      if (next === idle) return;
+      idle = next;
+      root.classList.toggle('app-idle', next);
+    };
+
+    // Окно вне поля зрения — гасим немедленно, не дожидаясь таймаута.
+    const windowHidden = () => document.hidden || !document.hasFocus();
+    const evaluate = () => apply(windowHidden() || Date.now() - lastInput >= IDLE_AFTER_MS);
+
+    // Обработчик ввода должен быть максимально дешёвым: он срабатывает на
+    // каждое движение мыши, поэтому в общем случае это одна запись в переменную.
+    const onInput = () => {
+      lastInput = Date.now();
+      if (idle && !windowHidden()) apply(false);
+    };
+
+    const inputEvents = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    inputEvents.forEach(e => window.addEventListener(e, onInput, { passive: true }));
+
+    document.addEventListener('visibilitychange', evaluate);
+    window.addEventListener('focus', onInput);
+    window.addEventListener('blur', evaluate);
+
+    // Одна редкая проверка вместо пересоздания таймера на каждое движение мыши.
+    const poll = window.setInterval(evaluate, 5000);
+    evaluate();
+
+    return () => {
+      inputEvents.forEach(e => window.removeEventListener(e, onInput));
+      document.removeEventListener('visibilitychange', evaluate);
+      window.removeEventListener('focus', onInput);
+      window.removeEventListener('blur', evaluate);
+      window.clearInterval(poll);
+      root.classList.remove('app-idle');
+    };
+  }, []);
+};
+
 const AppBackground: React.FC = () => {
   const location = useLocation();
-  const { 
-    theme, 
-    performanceMode, 
-    customBackground, 
-    backgroundDim, 
-    backgroundBlur 
+  const {
+    theme,
+    performanceMode,
+    customBackground,
+    backgroundDim,
+    backgroundBlur
   } = useAppearance();
   const currentPath = (location.pathname + (location.hash || '')).toLowerCase();
 
-  // Checking for login, register, and invite. 
+  // Checking for login, register, and invite.
   // We use direct check to make it robust across all routing types.
   const isAuthPage = currentPath.includes('login') ||
     currentPath.includes('register') ||
     currentPath.includes('invite');
 
-  const getBaseBgColor = () => {
-    if (theme === 'amoled') return '#000000';
-    return '#020205';
-  };
+  const isOverlay = currentPath.includes('/overlay');
+  if (isOverlay) return null;
 
-  const getGradient = () => {
-    if (theme === 'amoled') {
-      // Deep Void Liquid (Subtle oil slick)
-      return 'linear-gradient(-45deg, #000000, #050010, #000810, #080005, #000000)';
-    }
-    // Standard Dark (Deep Space Liquid)
-    return 'linear-gradient(-45deg, #020204, #15082e, #0a1f38, #2e081c, #020204)';
-  };
+  const isAmoled = theme === 'amoled';
 
-   const isOverlay = currentPath.includes('/overlay');
-   if (isOverlay) return null;
-
-   return (
+  // Раскладка и анимации живут в App.css (#global-liquid-bg) — инлайн остаётся
+  // только то, что зависит от пользовательских настроек.
+  return (
     <div
       id="global-liquid-bg"
-      style={{
-        position: 'fixed',
-        inset: '-10%', // Oversized for liquidFloat animation
-        width: '120vw',
-        height: '120vh',
-        zIndex: 0,
-        backgroundColor: getBaseBgColor(),
-        overflow: 'hidden',
-        animation: performanceMode ? 'none' : 'liquidFloat 60s ease-in-out infinite',
-        pointerEvents: 'none'
-      }}
+      className={performanceMode ? 'perf-mode' : undefined}
+      style={{ backgroundColor: isAmoled ? '#000000' : '#020205' }}
     >
-      {/* Base Liquid Gradient - Always active for "life" */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundImage: getGradient(),
-        backgroundSize: '300% 300%',
-        animation: performanceMode ? 'none' : 'gradientMove 30s ease infinite',
-        opacity: isAuthPage ? 0.4 : 1, // More subtle when bg.png is active
-        transition: 'opacity 0.5s ease'
-      }} />
+      <div
+        className={`bg-gradient${isAmoled ? ' amoled' : ''}`}
+        style={{ opacity: isAuthPage ? 0.4 : 1 }}
+      />
 
-      {/* Custom User Background Layer */}
       {customBackground && !performanceMode && (
-        <div style={{
-          position: 'absolute',
-          inset: '10%', // Offset the -10% of parent to fill viewport exactly
-          backgroundImage: `url(${customBackground})`,
-          backgroundPosition: 'center center',
-          backgroundSize: 'cover',
-          filter: `blur(${backgroundBlur}px)`,
-          transform: 'scale(1.1)', // Prevents white edges when blurred
-          zIndex: 1,
-          transition: 'all 0.5s ease'
-        }} />
+        <div
+          className="bg-custom"
+          style={{
+            backgroundImage: `url(${customBackground})`,
+            filter: `blur(${backgroundBlur}px)`,
+          }}
+        />
       )}
 
-      {/* Custom User Background Dim Layer */}
       {customBackground && !performanceMode && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundColor: `rgba(0, 0, 0, ${backgroundDim / 100})`,
-          zIndex: 2,
-          transition: 'background-color 0.3s ease'
-        }} />
+        <div
+          className="bg-custom-dim"
+          style={{ backgroundColor: `rgba(0, 0, 0, ${backgroundDim / 100})` }}
+        />
       )}
 
       {/* Auth Background — живая 3D-сцена с планетой (в стиле лендинга) */}
@@ -177,27 +206,10 @@ const AppBackground: React.FC = () => {
         <Landing3D className="auth-bg-3d" />
       )}
 
-      {/* Decorative spheres - Always present and moving */}
       {!performanceMode && !customBackground && (
         <>
-          <div style={{
-            position: 'absolute',
-            top: '15%', left: '10%',
-            width: '300px', height: '300px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(0, 229, 255, 0.15), transparent 70%)',
-            filter: 'blur(60px)',
-            animation: 'float 15s infinite ease-in-out'
-          }}></div>
-          <div style={{
-            position: 'absolute',
-            bottom: '20%', right: '15%',
-            width: '400px', height: '400px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(161, 85, 255, 0.1), transparent 70%)',
-            filter: 'blur(80px)',
-            animation: 'float 22s infinite ease-in-out reverse'
-          }}></div>
+          <div className="bg-orb bg-orb-cyan" />
+          <div className="bg-orb bg-orb-violet" />
         </>
       )}
     </div>
@@ -270,6 +282,8 @@ const AnimatedRoutes: React.FC = () => {
 function App() {
   const isElectron = !!(window as any).electron;
   const Router = isElectron ? HashRouter : BrowserRouter;
+
+  useIdleAnimationPause();
 
   return (
     <Router>

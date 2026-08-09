@@ -564,7 +564,7 @@ ipcMain.on('open-external-url', (event, url) => {
     }
 });
 
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 let lastActivity = null;
 let activityStartTime = null;
 let scanInProgress = false;
@@ -685,27 +685,144 @@ function scheduleNextScan() {
     currentScanTimeout = setTimeout(scanActivities, adaptiveInterval);
 }
 
-// ВАЖНО: скрипт содержит двойные кавычки ("user32.dll"), поэтому его НЕЛЬЗЯ
-// передавать как `powershell -Command "<script>"` — внешние кавычки рвутся, Add-Type
-// не компилируется, GetForegroundWindow падает и powershell молча возвращает
-// «Idle.exe» (PID 0). Из-за этого определение переднего окна не работало вообще.
-// Передаём скрипт через -EncodedCommand (Base64 UTF-16LE) — это полностью убирает
-// проблемы экранирования. `$null =` гасит лишний вывод GetWindowThreadProcessId.
-// Возвращаем «процесс.exe|заголовок окна» — заголовок нужен, чтобы определять
-// YouTube в браузере по тайтлу (а не считать любой браузер «ютубом» бесконечно).
-const FG_SCRIPT = `$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId); [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);'; $t = Add-Type -MemberDefinition $code -Name 'W32' -Namespace 'W32' -PassThru; $hwnd = $t::GetForegroundWindow(); if($hwnd -ne 0){ $pidOut=0; $null = $t::GetWindowThreadProcessId($hwnd, [ref]$pidOut); if ($pidOut -ne $pid) { $name = (Get-Process -Id $pidOut -ErrorAction SilentlyContinue).ProcessName + '.exe'; $sb = New-Object System.Text.StringBuilder 512; $null = $t::GetWindowText($hwnd, $sb, 512); $name + '|' + $sb.ToString() } }`;
-const FG_SCRIPT_B64 = Buffer.from(FG_SCRIPT, 'utf16le').toString('base64');
+// --- Опрос состояния системы (переднее окно + запущенная Steam-игра) ----------
+//
+// Раньше на КАЖДЫЙ цикл сканирования (а он бывает раз в 800 мс) запускалось два
+// процесса powershell.exe:
+//   1) чтение RunningAppID из реестра — причём без -NoProfile, то есть ещё и с
+//      загрузкой профиля пользователя;
+//   2) определение переднего окна, где скрипт вызывал Add-Type -MemberDefinition.
+//
+// Add-Type компилирует C#-сборку компилятором csc.exe. То есть приложение,
+// просто будучи открытым и ничего не делая, раз в секunду-три запускало два
+// процесса PowerShell и заново компилировало C#. Это и давало постоянные
+// 15-25% CPU в простое.
+//
+// Теперь используется ОДИН долгоживущий процесс powershell: Add-Type в нём
+// выполняется ровно один раз при старте, дальше он висит в цикле, читает строку
+// из stdin как запрос и отдаёт в stdout строку «процесс.exe|заголовок|steamAppId».
+// Стоимость одного опроса — пара Win32-вызовов и чтение ключа реестра.
+//
+// Экранирование: скрипт содержит двойные кавычки ("user32.dll"), поэтому
+// передаётся через -EncodedCommand (Base64 UTF-16LE) — как и раньше.
+// `$null =` гасит лишний вывод GetWindowThreadProcessId. Заголовок окна нужен,
+// чтобы отличать YouTube в браузере по тайтлу.
+const PROBE_SCRIPT = `
+$ErrorActionPreference = 'SilentlyContinue'
+$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId); [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);'
+$t = Add-Type -MemberDefinition $code -Name 'W32' -Namespace 'W32' -PassThru
+$sb = New-Object System.Text.StringBuilder 512
+while ($true) {
+  $req = [Console]::In.ReadLine()
+  if ($req -eq $null) { break }
+  $fg = '|'
+  $hwnd = $t::GetForegroundWindow()
+  if ($hwnd -ne 0) {
+    $pidOut = 0
+    $null = $t::GetWindowThreadProcessId($hwnd, [ref]$pidOut)
+    if ($pidOut -ne $pid) {
+      $name = (Get-Process -Id $pidOut -ErrorAction SilentlyContinue).ProcessName + '.exe'
+      $null = $sb.Clear()
+      $null = $t::GetWindowText($hwnd, $sb, 512)
+      $fg = $name + '|' + $sb.ToString()
+    }
+  }
+  $steam = (Get-ItemProperty -Path 'HKCU:\\Software\\Valve\\Steam' -Name 'RunningAppID' -ErrorAction SilentlyContinue).RunningAppID
+  [Console]::Out.WriteLine($fg + '|' + $steam)
+  [Console]::Out.Flush()
+}
+`;
+const PROBE_SCRIPT_B64 = Buffer.from(PROBE_SCRIPT, 'utf16le').toString('base64');
 
-const STEAM_ID_SCRIPT = `Get-ItemProperty -Path 'HKCU:\\Software\\Valve\\Steam' -Name 'RunningAppID' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty RunningAppID`;
+let probeProc = null;          // долгоживущий powershell
+let probePending = null;       // { resolve, timer } текущего запроса
+let probeStdoutBuf = '';
 
-async function getSteamAppId() {
-    return new Promise((resolve) => {
-        exec(`powershell -Command "${STEAM_ID_SCRIPT}"`, (err, stdout) => {
-            if (err || !stdout.trim()) resolve(null);
-            else resolve(stdout.trim());
+function killProbe() {
+    if (probeProc) {
+        try { probeProc.kill(); } catch { }
+        probeProc = null;
+    }
+    probeStdoutBuf = '';
+}
+
+function ensureProbe() {
+    if (probeProc && !probeProc.killed) return probeProc;
+    try {
+        probeProc = spawn('powershell.exe',
+            ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', PROBE_SCRIPT_B64],
+            { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] }
+        );
+        probeProc.stdout.setEncoding('utf8');
+        probeProc.stdout.on('data', chunk => {
+            probeStdoutBuf += chunk;
+            let nl;
+            while ((nl = probeStdoutBuf.indexOf('\n')) >= 0) {
+                const line = probeStdoutBuf.slice(0, nl).replace(/\r$/, '');
+                probeStdoutBuf = probeStdoutBuf.slice(nl + 1);
+                if (probePending) {
+                    const p = probePending;
+                    probePending = null;
+                    clearTimeout(p.timer);
+                    p.resolve(line);
+                }
+            }
         });
+        const onGone = () => {
+            probeProc = null;
+            if (probePending) { const p = probePending; probePending = null; clearTimeout(p.timer); p.resolve(null); }
+        };
+        probeProc.on('exit', onGone);
+        probeProc.on('error', onGone);
+    } catch (e) {
+        log.error('[Activity] не удалось запустить powershell-опросчик:', e);
+        probeProc = null;
+    }
+    return probeProc;
+}
+
+/**
+ * Один опрос системы. Возвращает { ok, fgExe, fgTitle, steamAppId }.
+ * При зависании или смерти процесса — перезапускает его на следующем вызове.
+ */
+function probeSystemState() {
+    return new Promise(resolve => {
+        const empty = { ok: false, fgExe: '', fgTitle: '', steamAppId: null };
+        const proc = ensureProbe();
+        if (!proc || probePending) { resolve(empty); return; }
+
+        const timer = setTimeout(() => {
+            probePending = null;
+            killProbe(); // подвис — поднимем заново на следующем цикле
+            resolve(empty);
+        }, 4000);
+
+        probePending = {
+            timer,
+            resolve: line => {
+                if (line === null) { resolve(empty); return; }
+                const parts = line.split('|');
+                const fgExe = (parts[0] || '').trim().toLowerCase();
+                const fgTitle = parts.length > 2 ? parts.slice(1, -1).join('|') : '';
+                const steamAppId = (parts[parts.length - 1] || '').trim() || null;
+                resolve({ ok: true, fgExe, fgTitle, steamAppId });
+            },
+        };
+
+        try {
+            proc.stdin.write('\n');
+        } catch (e) {
+            clearTimeout(timer);
+            probePending = null;
+            killProbe();
+            resolve(empty);
+        }
     });
 }
+
+// getSteamAppId() удалён: RunningAppID теперь читает долгоживущий опросчик
+// (см. probeSystemState) тем же запросом, что и переднее окно, — без отдельного
+// запуска powershell на каждый цикл.
 
 async function getGameMetadata(appId, exeName = null) {
     const cacheKey = appId || exeName;
@@ -772,28 +889,31 @@ async function getGameMetadata(appId, exeName = null) {
 
 async function scanActivities() {
     if (process.platform !== 'win32' || scanInProgress) { scheduleNextScan(); return; }
-    if (!appSettings.activityDetectionEnabled) { 
-        updateActivity(null); 
-        scheduleNextScan(); 
-        return; 
+    if (!appSettings.activityDetectionEnabled) {
+        updateActivity(null);
+        killProbe(); // определение выключено — держать процесс-опросчик незачем
+        scheduleNextScan();
+        return;
     }
     scanInProgress = true;
 
     try {
-        const steamAppId = await getSteamAppId();
+        // Один запрос к долгоживущему опросчику отдаёт сразу и переднее окно,
+        // и RunningAppID — вместо двух запусков powershell на каждый цикл.
+        const probe = await probeSystemState();
+        const fgExe = probe.fgExe;
+        const fgTitle = probe.fgTitle;
+        const steamAppId = probe.steamAppId;
+
         let steamMetadata = null;
         if (steamAppId && steamAppId !== '0' && steamAppId !== 'null') {
             steamMetadata = await getGameMetadata(steamAppId);
         }
 
-        exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${FG_SCRIPT_B64}`, async (fgErr, fgStdout) => {
-            // Формат вывода: "процесс.exe|заголовок окна".
-            const fgRaw = (fgStdout || '').trim();
-            const sepIdx = fgRaw.indexOf('|');
-            const fgExe = (sepIdx >= 0 ? fgRaw.slice(0, sepIdx) : fgRaw).toLowerCase();
-            const fgTitle = sepIdx >= 0 ? fgRaw.slice(sepIdx + 1) : '';
-
-            if (!fgErr && fgExe) {
+        // Блок сохранён от прежнего колбэка exec(), чтобы не переотступать всю
+        // ветвящуюся логику ниже — на поведение не влияет.
+        {
+            if (probe.ok && fgExe) {
                 const fgBase = fgExe.endsWith('.exe') ? fgExe.slice(0, -4) : fgExe;
 
                 // Браузер на переднем плане: YouTube определяем ПО ЗАГОЛОВКУ ОКНА.
@@ -862,7 +982,7 @@ async function scanActivities() {
             } else {
                 performFullScan(fgExe);
             }
-        });
+        }
     } catch (err) {
         log.error("Activity scan error:", err);
         scanInProgress = false;
@@ -1199,6 +1319,12 @@ ipcMain.on('update-overlay-data', (event, data) => {
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+// Долгоживущий powershell-опросчик не должен пережить приложение.
+app.on('before-quit', () => {
+    if (currentScanTimeout) clearTimeout(currentScanTimeout);
+    killProbe();
+});
 
 ipcMain.on('update-overlay-config', (event, config) => {
     lastOverlayConfig = config;

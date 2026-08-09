@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useVoice, useVoiceLevels } from '../../contexts/VoiceContext';
+import { useVoice, useVoiceInputLevel } from '../../contexts/VoiceContext';
 import { CustomSelect, SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
 import { SpeakerIcon, MicIcon, CameraIcon, VideoIcon } from '../../components/Icons';
 import { getBrand } from '../../utils/branding';
@@ -9,7 +9,9 @@ const SensitivityVisualizer: React.FC<{
     inputSensitivity: number, 
     isAutomaticSensitivity: boolean 
 }> = ({ inputSensitivity, isAutomaticSensitivity }) => {
-    const { currentInputLevel = -100 } = useVoiceLevels() || {};
+    // Отдельный контекст уровня: обновляется 25 раз в секунду и теперь
+    // перерисовывает только этот индикатор, а не всё, что слушает голос.
+    const currentInputLevel = useVoiceInputLevel();
 
     const barColor = (currentInputLevel > (isAutomaticSensitivity ? -60 : inputSensitivity)) 
         ? '#00ffa3' 

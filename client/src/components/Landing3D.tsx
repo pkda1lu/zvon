@@ -20,6 +20,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
         let renderer: any = null;
         let disposed = false;
         let cleanup = () => { };
+        let stopVisibilitySync = () => { };
 
         (async () => {
             let THREE: any;
@@ -437,6 +438,31 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
             };
             animate();
 
+            // Пока окно свёрнуто или не в фокусе, сцену не рисуем: это 60 кадров
+            // в секунду с полноценным three.js-рендером. Браузер сам тормозит rAF
+            // только для скрытой вкладки — в Electron видимое, но неактивное окно
+            // продолжает считать на полной скорости.
+            let running = true;
+            const syncRunning = () => {
+                if (disposed) return;
+                const idle = document.hidden || !document.hasFocus();
+                if (idle && running) {
+                    running = false;
+                    cancelAnimationFrame(raf);
+                } else if (!idle && !running) {
+                    running = true;
+                    animate();
+                }
+            };
+            document.addEventListener('visibilitychange', syncRunning);
+            window.addEventListener('focus', syncRunning);
+            window.addEventListener('blur', syncRunning);
+            stopVisibilitySync = () => {
+                document.removeEventListener('visibilitychange', syncRunning);
+                window.removeEventListener('focus', syncRunning);
+                window.removeEventListener('blur', syncRunning);
+            };
+
             const onResize = () => {
                 if (!mountRef.current) return;
                 const w = mountRef.current.clientWidth, h = mountRef.current.clientHeight;
@@ -463,6 +489,7 @@ const Landing3D: React.FC<{ className?: string; avatars?: string[] }> = ({ class
         return () => {
             disposed = true;
             cancelAnimationFrame(raf);
+            stopVisibilitySync();
             cleanup();
             if (renderer) {
                 try { renderer.dispose(); renderer.domElement?.remove(); } catch { }

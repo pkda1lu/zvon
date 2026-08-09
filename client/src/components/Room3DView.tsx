@@ -544,11 +544,32 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             };
             animate();
 
+            // Не рисуем комнату, пока окно свёрнуто или не в фокусе — иначе
+            // сцена продолжает считаться в 60 fps, хотя на неё никто не смотрит.
+            let running = true;
+            const syncRunning = () => {
+                if (disposed) return;
+                const idle = document.hidden || !document.hasFocus();
+                if (idle && running) {
+                    running = false;
+                    cancelAnimationFrame(raf);
+                } else if (!idle && !running) {
+                    running = true;
+                    animate();
+                }
+            };
+            document.addEventListener('visibilitychange', syncRunning);
+            window.addEventListener('focus', syncRunning);
+            window.addEventListener('blur', syncRunning);
+
             sceneRef.current = { avatarGroups, addAvatar, removeAvatar, getDisplayName };
             setSceneReady(true);
 
             cleanupFn = () => {
                 cancelAnimationFrame(raf);
+                document.removeEventListener('visibilitychange', syncRunning);
+                window.removeEventListener('focus', syncRunning);
+                window.removeEventListener('blur', syncRunning);
                 resizeObserver.disconnect();
                 renderer.domElement.removeEventListener('pointerdown', onPointerDown);
                 renderer.domElement.removeEventListener('dblclick', onDblClick);

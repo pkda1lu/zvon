@@ -127,7 +127,6 @@ export interface VoicePresenceInfo {
 }
 
 interface VoiceLevelContextType {
-    currentInputLevel: number;
     speakingUsers: Set<string>;
 }
 
@@ -135,6 +134,19 @@ interface VoiceLevelContextType {
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
 const VoiceLevelContext = createContext<VoiceLevelContextType | undefined>(undefined);
+
+// Уровень микрофона вынесен в ОТДЕЛЬНЫЙ контекст намеренно.
+//
+// Он обновляется каждые 40 мс (25 раз в секунду) всё время, пока пользователь
+// в голосовом канале. Пока он лежал в одном значении со speakingUsers, каждое
+// такое обновление перерисовывало всех подписчиков useVoiceLevels — а это
+// ServerSidebar (всё дерево каналов), VoiceChannelView, VoiceCall,
+// ActiveVoiceOverlay и Room3DView. При этом сам уровень читает только
+// индикатор чувствительности в настройках голоса.
+//
+// Теперь 25 обновлений в секунду задевают лишь тех, кто реально подписан на
+// уровень, — то есть открытые настройки, и больше никого.
+const VoiceInputLevelContext = createContext<number>(-100);
 
 export const useVoice = () => {
     const context = useContext(VoiceContext);
@@ -147,6 +159,10 @@ export const useVoiceLevels = () => {
     if (!context) throw new Error('useVoiceLevels must be used within VoiceProvider');
     return context;
 };
+
+/** Текущий уровень входного сигнала в dB. Подписывайтесь только там, где он
+ *  действительно отображается — обновляется 25 раз в секунду. */
+export const useVoiceInputLevel = () => useContext(VoiceInputLevelContext);
 
 // Шлёт состав голосового канала и кто говорит в окно оверлея (Electron).
 // Без этого оверлей получал пустой список участников и показывал только заставку
@@ -312,8 +328,17 @@ registerProcessor('vad-processor', VADProcessor);
         setupLocalVAD();
     }, [vadStream, testStream, user?._id, getAudioContext]);
 
-    // Speaker status loop
+    // Speaker status loop.
+    // Крутится с частотой ~17 раз в секунду, поэтому запускаем его только когда
+    // пользователь реально в голосовом канале. Раньше таймер работал всегда —
+    // включая сессии, где голос вообще не трогали.
     useEffect(() => {
+        if (!isConnected) {
+            // Сбрасываем подсветку говорящих, иначе она застынет на последнем
+            // состоянии после выхода из канала.
+            setSpeakingUsers(prev => (prev.size ? new Set<string>() : prev));
+            return;
+        }
         const interval = setInterval(() => {
             const now = Date.now();
             const nowSpeaking = new Set<string>();
@@ -338,8 +363,18 @@ registerProcessor('vad-processor', VADProcessor);
         return () => clearInterval(interval);
     }, [isConnected, isMuted, isServerMuted, userStates, user?._id]);
 
-    const value = useMemo(() => ({ currentInputLevel, speakingUsers }), [currentInputLevel, speakingUsers]);
-    return <VoiceLevelContext.Provider value={value}>{children}</VoiceLevelContext.Provider>;
+    // Два независимых провайдера: обновление уровня микрофона (25 раз в секунду)
+    // не должно трогать подписчиков speakingUsers. Внутренний провайдер уровня
+    // держит children как есть — смена его value не перерисовывает поддерево,
+    // а только тех, кто вызвал useVoiceInputLevel.
+    const value = useMemo(() => ({ speakingUsers }), [speakingUsers]);
+    return (
+        <VoiceLevelContext.Provider value={value}>
+            <VoiceInputLevelContext.Provider value={currentInputLevel}>
+                {children}
+            </VoiceInputLevelContext.Provider>
+        </VoiceLevelContext.Provider>
+    );
 };
 
 // --- Remote audio playback ---
