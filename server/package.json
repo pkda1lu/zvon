@@ -23,6 +23,7 @@
     "nodemailer": "^7.0.12",
     "socket.io": "^4.6.1",
     "socket.io-client": "^4.8.3",
+    "web-push": "^3.6.7",
     "yandex-music-client": "^0.4.3"
   },
   "devDependencies": {

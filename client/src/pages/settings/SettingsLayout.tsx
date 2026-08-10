@@ -30,7 +30,8 @@ import {
     PhoneIcon,
     GestureIcon,
     InfoIcon,
-    HistoryIcon
+    HistoryIcon,
+    BellIcon
 } from '../../components/Icons';
 import ProfileSettings from './ProfileSettings';
 import ServerProfilesSettings from './ServerProfilesSettings';
@@ -39,6 +40,7 @@ import DevicesSettings from './DevicesSettings';
 import PrivacySettings from './PrivacySettings';
 import AppearanceSettings from './AppearanceSettings';
 import ChatSettings from './ChatSettings';
+import NotificationsSettings from './NotificationsSettings';
 import OptimizationSettings from './OptimizationSettings';
 import LanguageSettings from './LanguageSettings';
 import BotsSettings from './BotsSettings';
@@ -141,6 +143,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'privacy': return <PrivacySettings />;
             case 'appearance': return <AppearanceSettings />;
             case 'chat': return <ChatSettings />;
+            case 'notifications': return <NotificationsSettings />;
             case 'optimization': return <OptimizationSettings />;
             case 'language': return <LanguageSettings />;
             case 'bots': return <BotsSettings />;
@@ -258,6 +261,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <CategoryHeader>Интерфейс</CategoryHeader>
                 <NavItem id="appearance" label="Внешний вид" icon={PaletteIcon} />
                 <NavItem id="chat" label="Чаты" icon={ChatIcon} />
+                <NavItem id="notifications" label="Уведомления" icon={BellIcon} />
                 <NavItem id="calls" label="Звонки" icon={PhoneIcon} />
                 <NavItem id="optimization" label="Оптимизация" icon={SettingsIcon} />
                 <NavItem id="language" label="Язык и время" icon={GlobeIcon} />

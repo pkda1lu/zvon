@@ -14,6 +14,7 @@ const { computePermissions, hasPermission } = require('./utils/permissionCalcula
 const { Permissions } = require('./utils/permissions');
 const { logAction } = require('./utils/auditLogger');
 const { getBrand } = require('./utils/branding');
+const { sendPushToUser, previewText } = require('./utils/webPush');
 const fs = require('fs');
 
 const compression = require('compression');
@@ -63,6 +64,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/sessions', require('./routes/sessions'));
+app.use('/api/push', require('./routes/push'));
 app.use('/api/servers', require('./routes/servers'));
 app.use('/api/channels', require('./routes/channels'));
 app.use('/api/messages', require('./routes/messages'));
@@ -335,6 +337,28 @@ function cleanupUserPresencesEverywhere(userId, io) {
     if (m.size === 0) voicePresencesByChannel.delete(chId);
   }
 }
+
+/**
+ * Отправляет Web Push, только если у пользователя нет ни одного живого сокета.
+ *
+ * Смысл разделения: пока приложение открыто, человек и так видит внутреннее
+ * уведомление и слышит звук — системный push дал бы дубль. А когда вкладка
+ * закрыта (типичный случай PWA на телефоне в кармане), сокета нет, и push —
+ * единственный способ достучаться.
+ *
+ * Ещё одна причина решать это на сервере, а не в service worker: на iOS
+ * подписка обязана быть userVisibleOnly, то есть service worker не имеет права
+ * «проглотить» push молча — Safari покажет вместо него системную заглушку.
+ */
+const pushIfOffline = async (userId, payload) => {
+  try {
+    const connections = io.sockets.adapter.rooms.get(`user-${String(userId)}`);
+    if (connections && connections.size > 0) return;
+    await sendPushToUser(userId, payload);
+  } catch (err) {
+    console.error('[push] pushIfOffline error:', err.message);
+  }
+};
 
 // Как в Discord: когда пользователь заходит в голосовой канал с нового устройства,
 // все его прочие сессии, находящиеся в голосовом канале, принудительно отключаются.
@@ -680,17 +704,57 @@ io.on('connection', (socket) => {
           });
         io.to(`channel-${data.channelId}`).emit('new-message', fullMessage);
 
+        // Название канала для текста уведомления. Отдельным запросом, потому что
+        // в fullMessage поле channel не populate-ится (там ObjectId), а
+        // одноимённая переменная выше объявлена в другом блоке и сюда не видна.
+        // Ходим в базу только если есть кого уведомлять.
+        let pushChannelName = '';
+        if (message.mentions && message.mentions.length) {
+          try {
+            const ch = await Channel.findById(data.channelId).select('name');
+            pushChannelName = ch?.name || '';
+          } catch { /* название необязательно — уведомление уйдёт и без него */ }
+        }
+
         // Specifically notify mentioned users if they are not in the channel
         message.mentions.forEach(userId => {
           if (String(userId) !== String(socket.userId)) {
             io.to(`user-${userId}`).emit('mention', fullMessage);
+            // Упомянули, а приложение закрыто — доставим системным уведомлением.
+            const authorName = fullMessage.author?.username || 'Кто-то';
+            const channelName = pushChannelName;
+            pushIfOffline(userId, {
+              title: channelName ? `${authorName} в #${channelName}` : authorName,
+              body: previewText(fullMessage.content),
+              tag: `channel-${data.channelId}`,
+              url: `/?channel=${data.channelId}`,
+              data: { type: 'mention', channelId: String(data.channelId) }
+            });
           }
         });
       }
       else if (data.dmId) {
         const DirectMessage = require('./models/DirectMessage');
         const dm = await DirectMessage.findById(data.dmId).populate('participants');
-        if (dm) dm.participants.forEach(p => io.to(`user-${p._id}`).emit('new-message', message));
+        if (dm) {
+          dm.participants.forEach(p => io.to(`user-${p._id}`).emit('new-message', message));
+
+          // Личное сообщение — уведомляем всех участников, кроме автора.
+          // Имя берём из базы: при аутентификации сокета проставляется только
+          // socket.userId, объекта socket.user нет.
+          const sender = dm.participants.find(p => String(p._id) === String(socket.userId));
+          const authorName = sender?.username || 'Новое сообщение';
+          dm.participants.forEach(p => {
+            if (String(p._id) === String(socket.userId)) return;
+            pushIfOffline(p._id, {
+              title: dm.name ? `${authorName} · ${dm.name}` : authorName,
+              body: previewText(message.content),
+              tag: `dm-${data.dmId}`,
+              url: `/?dm=${data.dmId}`,
+              data: { type: 'dm', dmId: String(data.dmId) }
+            });
+          });
+        }
       }
         if (typeof callback === 'function') callback({ messageId: message._id });
       } catch (error) { socket.emit('error', { message: 'Failed to send message' }); }

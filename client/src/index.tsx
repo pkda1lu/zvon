@@ -20,9 +20,15 @@ root.render(
 // PWA: регистрируем service worker (только в браузере, не в Electron).
 const _isElectron = !!((window as any).electron?.isElectron || (navigator.userAgent || '').includes('Electron'));
 if ('serviceWorker' in navigator && !_isElectron) {
-  window.addEventListener('load', () => {
+  const registerSW = () => {
     navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('[PWA] SW registration failed:', e));
-  });
+  };
+  // Раньше регистрация висела только на событии load. Если оно уже успело
+  // произойти к моменту выполнения этого модуля, слушатель не срабатывал
+  // никогда и воркер не регистрировался — а без него не работают ни офлайн-
+  // кэш, ни push-уведомления.
+  if (document.readyState === 'complete') registerSW();
+  else window.addEventListener('load', registerSW, { once: true });
 }
 
 

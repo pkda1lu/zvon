@@ -20,6 +20,59 @@ self.addEventListener('activate', (e) => {
   })());
 });
 
+/* --- Web Push -------------------------------------------------------------
+ * Показ уведомлений живёт здесь, а не на странице, потому что service worker
+ * работает и когда приложение полностью закрыто. Для PWA на iPhone это вообще
+ * единственный путь: конструктор `new Notification()` в Safari не поддержан,
+ * показывать умеет только registration.showNotification() из воркера.
+ *
+ * Подписка оформлена с userVisibleOnly: true, то есть на каждый push мы ОБЯЗАНЫ
+ * показать уведомление. Молча проглотить нельзя — браузер покажет вместо нас
+ * системную заглушку вида «сайт обновился в фоне». Поэтому решение «слать или
+ * нет» принимает сервер: он шлёт push только когда у пользователя нет живого
+ * сокета (см. pushIfOffline в server.js). */
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { title: 'Zvon', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'Zvon';
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icon.png',
+    badge: '/icon.png',
+    // Уведомления из одного чата схлопываются в одно, чтобы активная переписка
+    // не заваливала экран блокировки.
+    tag: payload.tag || 'zvon',
+    renotify: true,
+    data: { url: payload.url || '/', ...(payload.data || {}) },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Если приложение уже открыто — фокусируем существующее окно, а не плодим
+    // новые вкладки. На iOS PWA окно всегда одно.
+    for (const client of all) {
+      if (client.url.includes(self.location.origin)) {
+        await client.focus();
+        try { client.postMessage({ type: 'notification-click', url: target }); } catch { }
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
+  })());
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
