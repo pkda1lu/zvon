@@ -105,6 +105,86 @@ const Main: React.FC = () => {
   const { streamerModeEnabled, changeStatusToStreaming } = useWindowSettings();
   const { settings: gestureSettings } = useGestureSettings();
 
+  // Канал, к которому надо перейти по уведомлению, но серверы ещё не загружены.
+  const pendingChannelRef = useRef<string | null>(null);
+
+  const applyPendingChannel = useCallback(() => {
+    const channelId = pendingChannelRef.current;
+    if (!channelId) return;
+    const srv = serversRef.current.find(s => s.channels?.some(c => c._id === channelId));
+    if (!srv) return; // серверы ещё не приехали — попробуем снова, когда приедут
+    pendingChannelRef.current = null;
+    const ch = srv.channels.find(c => c._id === channelId);
+    setSelectedServer(srv);
+    if (ch) setSelectedChannel(ch);
+    setSelectedDM(null);
+    setShowFriends(false);
+    setShowShowcase(false);
+    setMobileView('content');
+  }, []);
+
+  // --- Переходы по клику на push-уведомление ---
+  //
+  // Service worker при клике фокусирует существующее окно и присылает
+  // { type: 'notification-click', url }, а при холодном старте приложение просто
+  // открывается по этому url. Поэтому обрабатываем оба пути: сообщение от
+  // воркера и параметры запроса при монтировании.
+  //
+  // Без этого ссылки в уведомлениях были бы декоративными: клик открывал бы
+  // приложение, но не переход к нужному чату.
+  useEffect(() => {
+    const openTarget = (rawUrl: string) => {
+      let params: URLSearchParams;
+      try {
+        params = new URL(rawUrl, window.location.origin).searchParams;
+      } catch {
+        return;
+      }
+
+      const dmId = params.get('dm');
+      if (dmId) {
+        window.dispatchEvent(new CustomEvent('start-dm-by-id', { detail: { dmId } }));
+        return;
+      }
+
+      const channelId = params.get('channel');
+      if (channelId) {
+        // Сервер в уведомлении не передаём — его находим по каналу среди
+        // загруженных. Но при холодном старте по ссылке список серверов ещё
+        // едет с бэкенда, поэтому цель откладываем: её подхватит эффект ниже,
+        // как только серверы появятся.
+        pendingChannelRef.current = channelId;
+        applyPendingChannel();
+        return;
+      }
+
+      const settingsTab = params.get('settings');
+      if (settingsTab) {
+        setSettingsInitialTab(settingsTab);
+        setShowSettingsModal(true);
+      }
+    };
+
+    // Клик по уведомлению при уже открытом приложении.
+    const onSwMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'notification-click' && e.data.url) openTarget(e.data.url);
+    };
+    navigator.serviceWorker?.addEventListener('message', onSwMessage);
+
+    // Холодный старт: приложение открылось сразу по ссылке из уведомления.
+    // Параметры сразу вычищаем из адреса, чтобы обновление страницы не
+    // повторяло переход.
+    if (window.location.search) {
+      const search = window.location.search;
+      if (/[?&](dm|channel|settings)=/.test(search)) {
+        openTarget(window.location.pathname + search);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+
+    return () => { navigator.serviceWorker?.removeEventListener('message', onSwMessage); };
+  }, []);
+
   // Префетч чанка чата сразу на монтировании: он почти наверняка понадобится
   // (восстановление последнего канала), а скачать его надо параллельно с
   // запросом серверов, а не после него — иначе ленивая загрузка добавила бы
@@ -158,7 +238,12 @@ const Main: React.FC = () => {
 
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { selectedServerRef.current = selectedServer; }, [selectedServer]);
-  useEffect(() => { serversRef.current = servers; }, [servers]);
+  useEffect(() => {
+    serversRef.current = servers;
+    // Если приложение открыли по уведомлению о канале раньше, чем загрузился
+    // список серверов, — доводим переход теперь.
+    applyPendingChannel();
+  }, [servers, applyPendingChannel]);
   useEffect(() => { activeChannelIdRef.current = activeChannelId; }, [activeChannelId]);
 
   // Покидаем голосовой канал только если он принадлежит указанному серверу

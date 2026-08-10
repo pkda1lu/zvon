@@ -6,6 +6,7 @@ const DirectMessage = require('../models/DirectMessage');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { canDirectMessage } = require('../utils/privacy');
+const { pushIfOffline } = require('../utils/webPush');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -105,6 +106,26 @@ router.post('/group', auth, async (req, res) => {
 
     await dm.save();
     await dm.populate('participants', 'username avatar status activity');
+
+    // Сообщаем добавленным, что их куда-то позвали. Только для настоящих групп:
+    // при participants.length === 2 это обычный личный чат, и уведомлять не о
+    // чем — там сработает уведомление о первом сообщении.
+    if (dm.participants.length > 2) {
+      const io = req.app.get('io');
+      const creatorName = req.user.username || 'Кто-то';
+      const groupTitle = dm.name || 'Групповой чат';
+      dm.participants.forEach(p => {
+        if (String(p._id) === String(req.user._id)) return;
+        pushIfOffline(io, p._id, {
+          title: groupTitle,
+          body: `${creatorName} добавил вас в групповой чат`,
+          tag: `dm-${dm._id}`,
+          url: `/?dm=${dm._id}`,
+          data: { type: 'dm-group-added', dmId: String(dm._id) }
+        });
+      });
+    }
+
     res.status(201).json(dm);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });

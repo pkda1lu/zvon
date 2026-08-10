@@ -70,12 +70,18 @@ async function sendPushToUser(userId, payload) {
   let sent = 0;
   const stale = [];
 
+  // TTL — сколько push-сервис хранит уведомление, если устройство офлайн.
+  // Для звонка это должно быть десятками секунд: уведомление о вызове,
+  // прилетевшее через полчаса, только вводит в заблуждение. Для сообщений —
+  // сутки, там задержка не вредит.
+  const ttl = typeof payload.ttl === 'number' ? payload.ttl : 60 * 60 * 24;
+
   await Promise.all(subs.map(async (sub) => {
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } },
         body,
-        { TTL: 60 * 60 * 24, urgency: 'high' }
+        { TTL: ttl, urgency: payload.urgency || 'high' }
       );
       sent++;
     } catch (err) {
@@ -100,6 +106,58 @@ async function sendPushToUser(userId, payload) {
 }
 
 /**
+ * Есть ли у пользователя хоть одно живое соединение (открытое приложение).
+ * Комната `user-<id>` заводится при подключении сокета — см. server.js.
+ */
+function isUserOnline(io, userId) {
+  if (!io) return false;
+  const connections = io.sockets.adapter.rooms.get(`user-${String(userId)}`);
+  return !!(connections && connections.size > 0);
+}
+
+/**
+ * Шлёт push, только если приложение у пользователя закрыто.
+ *
+ * Пока приложение открыто, человек видит внутреннее уведомление и слышит звук —
+ * системный push дал бы дубль. А когда вкладка закрыта (типичный случай PWA на
+ * телефоне в кармане), сокета нет, и push — единственный способ достучаться.
+ *
+ * Решение принимается на сервере, а не в service worker, потому что на iOS
+ * подписка обязана быть userVisibleOnly: воркер не имеет права «проглотить»
+ * push молча, Safari покажет вместо него системную заглушку.
+ */
+async function pushIfOffline(io, userId, payload) {
+  try {
+    if (isUserOnline(io, userId)) return;
+    await sendPushToUser(userId, payload);
+  } catch (err) {
+    console.error('[push] pushIfOffline error:', err.message);
+  }
+}
+
+/**
+ * Уведомляет всех модераторов и администраторов (у кого приложение закрыто).
+ * Используется для жалоб — их разбирает вся команда, а не конкретный человек.
+ *
+ * @param {object} io
+ * @param {object} payload
+ * @param {string} [excludeUserId] — обычно автор события, чтобы не уведомлять его самого
+ */
+async function pushToModerators(io, payload, excludeUserId = null) {
+  if (!configured) return;
+  try {
+    const User = require('../models/User');
+    const staff = await User.find({ role: { $in: ['moderator', 'admin'] } }).select('_id');
+    await Promise.all(staff.map(u => {
+      if (excludeUserId && String(u._id) === String(excludeUserId)) return null;
+      return pushIfOffline(io, u._id, payload);
+    }));
+  } catch (err) {
+    console.error('[push] pushToModerators error:', err.message);
+  }
+}
+
+/**
  * Обрезает длинный текст сообщения до пригодного для уведомления вида.
  * Заодно убирает переводы строк — в системном уведомлении они выглядят рвано.
  */
@@ -109,4 +167,12 @@ function previewText(text, max = 140) {
   return clean.length > max ? clean.slice(0, max - 1) + '…' : clean;
 }
 
-module.exports = { sendPushToUser, isPushConfigured, getPublicKey, previewText };
+module.exports = {
+  sendPushToUser,
+  pushIfOffline,
+  pushToModerators,
+  isUserOnline,
+  isPushConfigured,
+  getPublicKey,
+  previewText
+};

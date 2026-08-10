@@ -14,7 +14,7 @@ const { computePermissions, hasPermission } = require('./utils/permissionCalcula
 const { Permissions } = require('./utils/permissions');
 const { logAction } = require('./utils/auditLogger');
 const { getBrand } = require('./utils/branding');
-const { sendPushToUser, previewText } = require('./utils/webPush');
+const { pushIfOffline: pushOfflineWithIo, previewText } = require('./utils/webPush');
 const fs = require('fs');
 
 const compression = require('compression');
@@ -338,27 +338,13 @@ function cleanupUserPresencesEverywhere(userId, io) {
   }
 }
 
-/**
- * Отправляет Web Push, только если у пользователя нет ни одного живого сокета.
- *
- * Смысл разделения: пока приложение открыто, человек и так видит внутреннее
- * уведомление и слышит звук — системный push дал бы дубль. А когда вкладка
- * закрыта (типичный случай PWA на телефоне в кармане), сокета нет, и push —
- * единственный способ достучаться.
- *
- * Ещё одна причина решать это на сервере, а не в service worker: на iOS
- * подписка обязана быть userVisibleOnly, то есть service worker не имеет права
- * «проглотить» push молча — Safari покажет вместо него системную заглушку.
- */
-const pushIfOffline = async (userId, payload) => {
-  try {
-    const connections = io.sockets.adapter.rooms.get(`user-${String(userId)}`);
-    if (connections && connections.size > 0) return;
-    await sendPushToUser(userId, payload);
-  } catch (err) {
-    console.error('[push] pushIfOffline error:', err.message);
-  }
-};
+// Сокращение, чтобы не таскать io в каждый вызов — реализация в utils/webPush.js.
+const pushIfOffline = (userId, payload) => pushOfflineWithIo(io, userId, payload);
+
+// Уведомление о звонке живёт недолго: если человек взял телефон через десять
+// минут, «вам звонят» уже неправда и только путает. 45 секунд примерно
+// соответствуют времени, пока звонящий ждёт ответа.
+const CALL_PUSH_OPTS = { ttl: 45, urgency: 'high' };
 
 // Как в Discord: когда пользователь заходит в голосовой канал с нового устройства,
 // все его прочие сессии, находящиеся в голосовом канале, принудительно отключаются.
@@ -744,10 +730,15 @@ io.on('connection', (socket) => {
           // socket.userId, объекта socket.user нет.
           const sender = dm.participants.find(p => String(p._id) === String(socket.userId));
           const authorName = sender?.username || 'Новое сообщение';
+          // Модерационные обращения помечаем явно: для модератора это рабочая
+          // очередь, и он должен отличать её от личной переписки, не открывая.
+          const dmTitle = dm.isModeration
+            ? `Модерация · ${authorName}`
+            : (dm.name ? `${authorName} · ${dm.name}` : authorName);
           dm.participants.forEach(p => {
             if (String(p._id) === String(socket.userId)) return;
             pushIfOffline(p._id, {
-              title: dm.name ? `${authorName} · ${dm.name}` : authorName,
+              title: dmTitle,
               body: previewText(message.content),
               tag: `dm-${data.dmId}`,
               url: `/?dm=${data.dmId}`,
@@ -913,6 +904,7 @@ io.on('connection', (socket) => {
         const dm = await DirectMessage.findById(data.dmId);
         if (dm) {
           console.log(`[Call] Group offer from ${socket.userId} in DM ${data.dmId}`);
+          const callerName = user?.username || 'Кто-то';
           dm.participants.forEach(p => {
             if (String(p) !== String(socket.userId)) {
               io.to(`user-${String(p)}`).emit('call-offer', {
@@ -921,6 +913,14 @@ io.on('connection', (socket) => {
                 dmId: data.dmId,
                 isGroup: true
               });
+              pushIfOffline(p, {
+                title: dm.name ? `Групповой звонок · ${dm.name}` : 'Групповой звонок',
+                body: `${callerName} звонит`,
+                ...CALL_PUSH_OPTS,
+                tag: `call-${data.dmId}`,
+                url: `/?dm=${data.dmId}`,
+                data: { type: 'call', dmId: String(data.dmId), isGroup: true }
+              });
             }
           });
         }
@@ -928,6 +928,14 @@ io.on('connection', (socket) => {
     } else {
       console.log(`[Call] Offer from ${socket.userId} to ${data.targetUserId}`);
       io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId });
+      pushIfOffline(data.targetUserId, {
+        title: 'Входящий звонок',
+        body: `${user?.username || 'Кто-то'} звонит вам`,
+        ...CALL_PUSH_OPTS,
+        tag: `call-${data.dmId || data.targetUserId}`,
+        url: data.dmId ? `/?dm=${data.dmId}` : '/',
+        data: { type: 'call', dmId: data.dmId ? String(data.dmId) : null }
+      });
     }
   });
 

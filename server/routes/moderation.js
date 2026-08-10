@@ -6,6 +6,7 @@ const Report = require('../models/Report');
 const ProblemReport = require('../models/ProblemReport');
 const Post = require('../models/Post');
 const { body, validationResult } = require('express-validator');
+const { pushToModerators, previewText } = require('../utils/webPush');
 
 // Middleware to check for moderator/admin roles
 const isModerator = async (req, res, next) => {
@@ -84,6 +85,22 @@ router.post('/report', auth, [
       contentSnapshot
     });
     await report.save();
+
+    // Оповещаем команду модерации. Жалобу разбирает любой свободный модератор,
+    // поэтому шлём всем, кроме самого жалобщика (он тоже может быть модератором).
+    // На кого жалуются — в заголовке, чтобы было видно с экрана блокировки.
+    const targetName = contentSnapshot?.username
+      || contentSnapshot?.authorName
+      || contentSnapshot?.appName
+      || null;
+    pushToModerators(req.app.get('io'), {
+      title: targetName ? `Новая жалоба: ${targetName}` : 'Новая жалоба',
+      body: previewText(description || reason),
+      tag: 'moderation-report',
+      url: '/?settings=moderation',
+      data: { type: 'report', reportId: String(report._id) }
+    }, req.user._id);
+
     res.status(201).json({ message: 'Жалоба успешно отправлена' });
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -451,6 +468,16 @@ router.post('/problem-report', auth, [
           timestamp: new Date()
         });
       }
+
+      // Сокет-уведомление выше долетит только до открытого приложения.
+      // Тем, у кого оно закрыто, отправляем системное.
+      pushToModerators(io, {
+        title: `Обращение: ${reporterName}`,
+        body: previewText(subject),
+        tag: 'moderation-problem',
+        url: '/?settings=moderation',
+        data: { type: 'problem_report', reportId: String(report._id) }
+      }, req.user._id);
     }
 
     res.status(201).json({ message: 'Жалоба отправлена. Спасибо!' });
