@@ -1158,9 +1158,24 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
         socket.on('voice-user-state-update', onUserState);
         socket.on('voice-server-state-update', onServerState);
+
+        const onConnect = () => {
+            if (activeChannelIdRef.current) {
+                console.log('[Voice] Socket reconnected, re-joining voice channel:', activeChannelIdRef.current);
+                socket.emit('join-voice-channel', { channelId: activeChannelIdRef.current });
+            }
+        };
+
+        socket.on('connect', onConnect);
+        if (socket.connected && activeChannelIdRef.current) {
+            // If already connected when effect runs or updates
+            onConnect();
+        }
+
         return () => {
             socket.off('voice-user-state-update', onUserState);
             socket.off('voice-server-state-update', onServerState);
+            socket.off('connect', onConnect);
         };
     }, [socket]);
 

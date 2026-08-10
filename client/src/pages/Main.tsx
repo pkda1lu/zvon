@@ -1004,10 +1004,20 @@ const Main: React.FC = () => {
   }, [fetchServers, fetchDMs, fetchFriends]);
 
   useEffect(() => {
-    if (socket && servers.length > 0) {
+    if (!socket) return;
+    const onConnect = () => {
+      if (servers.length > 0) {
+        servers.forEach((server: Server) => socket.emit('join-server', server._id));
+      }
+    };
+    socket.on('connect', onConnect);
+    if (socket.connected && servers.length > 0) {
       servers.forEach((server: Server) => socket.emit('join-server', server._id));
     }
-  }, [socket, servers.length]);
+    return () => {
+      socket.off('connect', onConnect);
+    };
+  }, [socket, servers]);
 
   const handleServerUpdate = useCallback((updatedServer: Server) => {
     setServers((prev: Server[]) => prev.map((s: Server) => s._id === updatedServer._id ? updatedServer : s));
