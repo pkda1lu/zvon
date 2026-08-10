@@ -383,6 +383,16 @@ const DMMessageItem = React.memo(function DMMessageItem({
       )}
     </>
   );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.msg === nextProps.msg &&
+    prevProps.grouped === nextProps.grouped &&
+    prevProps.isFresh === nextProps.isFresh &&
+    prevProps.showPreview === nextProps.showPreview &&
+    prevProps.showHoverBar === nextProps.showHoverBar &&
+    prevProps.highlightMentions === nextProps.highlightMentions &&
+    prevProps.user?._id === nextProps.user?._id
+  );
 });
 
 const DMView: React.FC<DMViewProps> = ({
@@ -474,20 +484,13 @@ const DMView: React.FC<DMViewProps> = ({
     setShowScrollBottom(false);
     const targetIdx = firstItemIndex + Math.max(0, messages.length - 1);
     v.scrollToIndex({ index: targetIdx, align: 'end', behavior: smooth ? 'smooth' : 'auto' });
-    let tries = 0;
     const settle = () => {
       const el = scrollerElRef.current;
       if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
-      const offset = el ? el.scrollHeight - el.scrollTop - el.clientHeight : 0;
-      if (offset > 2 && tries < 15) {
-        tries++;
-        virtuosoRef.current?.scrollToIndex({ index: targetIdx, align: 'end', behavior: 'auto' });
-        window.setTimeout(settle, 80);
+        el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
       }
     };
-    window.setTimeout(settle, smooth ? 300 : 30);
+    window.setTimeout(settle, smooth ? 150 : 20);
   }, [firstItemIndex, messages.length]);
 
   // Авто-прокрутка вниз при добавлении НОВОГО сообщения в конец списка.
@@ -608,7 +611,7 @@ const DMView: React.FC<DMViewProps> = ({
     if (!flashMessageId) return;
     const idx = messages.findIndex(m => m._id === flashMessageId);
     if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: firstItemIndex + idx, behavior: 'smooth', align: 'center' });
+      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
     }
     let cancelled = false;
     const attempt = (tries: number) => {
@@ -626,7 +629,7 @@ const DMView: React.FC<DMViewProps> = ({
     };
     attempt(15);
     return () => { cancelled = true; };
-  }, [flashMessageId, messages, firstItemIndex]);
+  }, [flashMessageId, messages]);
 
   const handleReact = useCallback((messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });
@@ -1110,7 +1113,7 @@ const DMView: React.FC<DMViewProps> = ({
   const scrollToMessage = useCallback((msgId: string) => {
     const idx = messages.findIndex(m => m._id === msgId);
     if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: firstItemIndex + idx, behavior: 'smooth', align: 'center' });
+      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
     }
     const tryFlash = (tries: number) => {
       const el = document.getElementById(`msg-${msgId}`);
@@ -1122,7 +1125,7 @@ const DMView: React.FC<DMViewProps> = ({
       }
     };
     tryFlash(15);
-  }, [messages, firstItemIndex]);
+  }, [messages]);
 
   return (
     <div
@@ -1281,13 +1284,13 @@ const DMView: React.FC<DMViewProps> = ({
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
             startReached={handleStartReached}
-            followOutput={false}
+            followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
             atBottomThreshold={120}
             atBottomStateChange={handleAtBottomStateChange}
-            increaseViewportBy={{ top: 600, bottom: 300 }}
+            increaseViewportBy={{ top: 1200, bottom: 800 }}
             components={{
               Header: () => (isLoadingMore ? <div className="loading-more">Загрузка...</div> : null),
-              Footer: () => <div style={{ height: 8 }} />,
+              Footer: () => <div style={{ height: 32 }} />,
             }}
             computeItemKey={(_i, item) => item._id}
             itemContent={(absoluteIndex, msg) => {

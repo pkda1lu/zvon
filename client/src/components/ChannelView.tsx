@@ -441,7 +441,7 @@ const MessageItem = React.memo<{
   const MessageBox: any = isFresh ? motion.div : 'div';
 
   return (
-    <>
+    <React.Fragment>
       {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
       <MessageBox
         id={`msg-${msg._id}`}
@@ -675,7 +675,19 @@ const MessageItem = React.memo<{
         </div>,
         document.body
       )}
-    </>
+    </React.Fragment>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.msg === nextProps.msg &&
+    prevProps.prev?._id === nextProps.prev?._id &&
+    prevProps.isFresh === nextProps.isFresh &&
+    prevProps.showPreview === nextProps.showPreview &&
+    prevProps.showHoverBar === nextProps.showHoverBar &&
+    prevProps.highlightMentions === nextProps.highlightMentions &&
+    prevProps.canPin === nextProps.canPin &&
+    prevProps.canReact === nextProps.canReact &&
+    prevProps.user?._id === nextProps.user?._id
   );
 });
 
@@ -776,15 +788,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_INDEX_START);
   const prevFirstMsgIdRef = useRef<string | null>(null);
 
-  // On channel switch — reset the virtual index baseline.
+  // On channel switch — reset base index
   useEffect(() => {
     setFirstItemIndex(FIRST_ITEM_INDEX_START);
     prevFirstMsgIdRef.current = null;
   }, [channel._id]);
 
-  // Detect prepended history pages and shift the index baseline by however many
-  // items were spliced onto the front. This keeps the visible row stable when
-  // older messages are loaded above.
+  // Adjust firstItemIndex when older history is loaded (prepended to top)
   useEffect(() => {
     const newFirstId = messages[0]?._id ?? null;
     const oldFirstId = prevFirstMsgIdRef.current;
@@ -814,20 +824,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     setShowScrollBottom(false);
     const targetIdx = firstItemIndex + Math.max(0, messages.length - 1);
     v.scrollToIndex({ index: targetIdx, align: 'end', behavior: smooth ? 'smooth' : 'auto' });
-    let tries = 0;
     const settle = () => {
       const el = scrollerElRef.current;
       if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
-      const offset = el ? el.scrollHeight - el.scrollTop - el.clientHeight : 0;
-      if (offset > 2 && tries < 15) {
-        tries++;
-        virtuosoRef.current?.scrollToIndex({ index: targetIdx, align: 'end', behavior: 'auto' });
-        window.setTimeout(settle, 80);
+        el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
       }
     };
-    window.setTimeout(settle, smooth ? 300 : 30);
+    window.setTimeout(settle, smooth ? 150 : 20);
   }, [firstItemIndex, messages.length]);
 
   // Авто-прокрутка вниз при добавлении НОВОГО сообщения в конец списка.
@@ -896,7 +899,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     if (!flashMessageId) return;
     const idx = messages.findIndex(m => m._id === flashMessageId);
     if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: firstItemIndex + idx, behavior: 'smooth', align: 'center' });
+      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
     }
     let cancelled = false;
     const attempt = (tries: number) => {
@@ -914,7 +917,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     };
     attempt(15);
     return () => { cancelled = true; };
-  }, [flashMessageId, messages, firstItemIndex]);
+  }, [flashMessageId, messages]);
 
   useEffect(() => {
     setHasScrolledToNew(false);
@@ -949,7 +952,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const scrollToMessage = useCallback((msgId: string) => {
     const idx = messages.findIndex(m => m._id === msgId);
     if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: firstItemIndex + idx, behavior: 'smooth', align: 'center' });
+      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
     }
     const tryFlash = (tries: number) => {
       const el = document.getElementById(`msg-${msgId}`);
@@ -961,7 +964,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       }
     };
     tryFlash(15);
-  }, [messages, firstItemIndex]);
+  }, [messages]);
 
   useEffect(() => {
     if (!socket) return;
@@ -1488,11 +1491,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
           startReached={handleStartReached}
-          followOutput={false}
+          followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
           atBottomThreshold={120}
           atBottomStateChange={handleAtBottomStateChange}
           computeItemKey={(_i, item) => item._id}
-          increaseViewportBy={{ top: 600, bottom: 300 }}
+          increaseViewportBy={{ top: 1200, bottom: 800 }}
           components={{
             Header: () => (
               isLoadingMore ? (
@@ -1507,9 +1510,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 .filter(Boolean)
                 .map(m => m?.nickname || (m?.user as any)?.username)
                 .filter(Boolean);
-              if (typingNames.length === 0) return <div style={{ height: 8 }} />;
+              if (typingNames.length === 0) return <div style={{ height: 32 }} />;
               return (
-                <div className="typing-indicator-new">
+                <div className="typing-indicator-new" style={{ marginBottom: 16 }}>
                   <div className="typing-dots">
                     <span className="dot"></span>
                     <span className="dot"></span>
