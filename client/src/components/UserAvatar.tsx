@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getAvatarUrl } from '../utils/avatar';
+import { useCachedAvatar } from '../utils/avatarCache';
 import { useAuth } from '../contexts/AuthContext';
 import { BotIcon } from './Icons';
 import './UserAvatar.css';
@@ -42,7 +43,8 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
     // Get the most up-to-date user data from global cache if available
     const activeUser = (user?._id && globalUsers[user._id]) ? { ...user, ...globalUsers[user._id] } : user;
 
-    const avatarUrl = getAvatarUrl(avatarOverride !== undefined ? avatarOverride : activeUser?.avatar);
+    const rawAvatar = avatarOverride !== undefined ? avatarOverride : activeUser?.avatar;
+    const avatarUrl = useCachedAvatar(rawAvatar);
     const username = activeUser?.username || '?';
     const firstLetter = username.charAt(0).toUpperCase();
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import axios from 'axios';
 import { Server, Channel, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
+import { useCachedAvatar } from '../utils/avatarCache';
 import { useSocket } from '../contexts/SocketContext';
 import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -98,6 +99,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 
   // Сворачивание категорий на клиенте
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+  const serverIconUrl = useCachedAvatar(server.icon);
 
   // Compute User Permissions
   const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
@@ -272,7 +274,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
       <div className="server-header">
         <div className="server-header-left" onClick={onServerClick} style={{ cursor: 'pointer' }}>
           {server.icon ? (
-            <div className="server-header-icon"><img src={getAvatarUrl(server.icon)!} alt="" /></div>
+            <div className="server-header-icon"><img src={serverIconUrl || getAvatarUrl(server.icon)!} alt="" /></div>
           ) : (
             <div className="server-header-icon-placeholder">{server.name.charAt(0).toUpperCase()}</div>
           )}

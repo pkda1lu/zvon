@@ -4,6 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
 import axios from 'axios';
 import { Server, Channel, Message, DirectMessage, User, MiniApp } from '../types';
+import { chatCache } from '../utils/chatCache';
 import Sidebar from '../components/Sidebar';
 import ServerSidebar from '../components/ServerSidebar';
 import ActiveVoiceOverlay from '../components/ActiveVoiceOverlay';
@@ -901,6 +902,7 @@ const Main: React.FC = () => {
       const response = await axios.get('/api/servers/me');
       const serversData = response.data;
       setServers(serversData);
+      chatCache.saveServers(serversData);
 
       if (!hasViewInitializedRef.current && serversData.length > 0 && !selectedServerRef.current) {
         hasViewInitializedRef.current = true;
@@ -931,6 +933,7 @@ const Main: React.FC = () => {
     try {
       const response = await axios.get('/api/direct-messages');
       setDms(response.data);
+      chatCache.saveDMs(response.data);
     } catch (error) { }
   }, []);
 
@@ -938,17 +941,28 @@ const Main: React.FC = () => {
     try {
       const response = await axios.get('/api/friends');
       setFriends(response.data);
+      chatCache.saveFriends(response.data);
     } catch (error) { }
   }, []);
 
   const fetchMessages = useCallback(async (channelId: string) => {
+    // Immediate display from cache
+    chatCache.getMessages(channelId).then((cachedMsgs) => {
+      if (cachedMsgs && cachedMsgs.length > 0) setMessages(cachedMsgs);
+    });
+    chatCache.getPins(channelId).then((cachedPins) => {
+      if (cachedPins) setPinnedMessages(cachedPins);
+    });
+
     try {
       const response = await axios.get(`/api/messages/channel/${channelId}`);
       setMessages(response.data);
+      chatCache.saveMessages(channelId, response.data);
       setHasMore(response.data.length === 50);
 
       const pinsRes = await axios.get(`/api/messages/channel/${channelId}/pins`);
       setPinnedMessages(pinsRes.data);
+      chatCache.savePins(channelId, pinsRes.data);
     } catch (error) { }
   }, []);
 
@@ -961,7 +975,11 @@ const Main: React.FC = () => {
         params: { before: lastMessage.createdAt }
       });
       if (response.data.length > 0) {
-        setMessages((prev: Message[]) => [...response.data, ...prev]);
+        setMessages((prev: Message[]) => {
+          const updated = [...response.data, ...prev];
+          chatCache.saveMessages(selectedChannel._id, updated);
+          return updated;
+        });
         setHasMore(response.data.length === 50);
       } else {
         setHasMore(false);
@@ -970,13 +988,23 @@ const Main: React.FC = () => {
   }, [selectedChannel, messages, isLoadingMore, hasMore]);
 
   const fetchDMMessages = useCallback(async (dmId: string) => {
+    const cacheKey = `dm_${dmId}`;
+    chatCache.getMessages(cacheKey).then((cachedMsgs) => {
+      if (cachedMsgs && cachedMsgs.length > 0) setDmMessages(cachedMsgs);
+    });
+    chatCache.getPins(cacheKey).then((cachedPins) => {
+      if (cachedPins) setPinnedMessages(cachedPins);
+    });
+
     try {
       const response = await axios.get(`/api/direct-messages/${dmId}/messages`);
       setDmMessages(response.data);
+      chatCache.saveMessages(cacheKey, response.data);
       setHasMore(response.data.length === 50);
 
       const pinsRes = await axios.get(`/api/direct-messages/${dmId}/pins`);
       setPinnedMessages(pinsRes.data);
+      chatCache.savePins(cacheKey, pinsRes.data);
     } catch (error) { }
   }, []);
 
@@ -984,12 +1012,17 @@ const Main: React.FC = () => {
     if (!selectedDM || isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
     try {
+      const cacheKey = `dm_${selectedDM._id}`;
       const lastMessage = dmMessages[0];
       const response = await axios.get(`/api/direct-messages/${selectedDM._id}/messages`, {
         params: { before: lastMessage.createdAt }
       });
       if (response.data.length > 0) {
-        setDmMessages((prev: Message[]) => [...response.data, ...prev]);
+        setDmMessages((prev: Message[]) => {
+          const updated = [...response.data, ...prev];
+          chatCache.saveMessages(cacheKey, updated);
+          return updated;
+        });
         setHasMore(response.data.length === 50);
       } else {
         setHasMore(false);
@@ -998,6 +1031,41 @@ const Main: React.FC = () => {
   }, [selectedDM, dmMessages, isLoadingMore, hasMore]);
 
   useEffect(() => {
+    // Restore cached data immediately upon startup
+    (async () => {
+      const [cachedServers, cachedDMs, cachedFriends] = await Promise.all([
+        chatCache.getServers(),
+        chatCache.getDMs(),
+        chatCache.getFriends()
+      ]);
+
+      if (cachedServers && cachedServers.length > 0) {
+        setServers(cachedServers);
+        if (!hasViewInitializedRef.current && !selectedServerRef.current) {
+          hasViewInitializedRef.current = true;
+          const lastServerId = localStorage.getItem('lastServerId');
+          const savedServer = lastServerId ? cachedServers.find((s: any) => s._id === lastServerId) : null;
+          const targetServer = savedServer || cachedServers[0];
+
+          setSelectedServer(targetServer);
+
+          const lastChannelId = localStorage.getItem('lastChannelId');
+          const savedChannel = lastChannelId ? targetServer.channels.find((c: any) => c._id === lastChannelId) : null;
+
+          if (savedChannel) {
+            setSelectedChannel(savedChannel);
+          } else {
+            const firstTextChannel = targetServer.channels.find((c: any) => c.type === 'text');
+            if (firstTextChannel) setSelectedChannel(firstTextChannel);
+            else if (targetServer.channels.length > 0) setSelectedChannel(targetServer.channels[0]);
+          }
+        }
+        setLoading(false);
+      }
+      if (cachedDMs) setDms(cachedDMs);
+      if (cachedFriends) setFriends(cachedFriends);
+    })();
+
     fetchServers();
     fetchDMs();
     fetchFriends();
@@ -1212,11 +1280,25 @@ const Main: React.FC = () => {
     if (!selectedChannel || !socket) return;
     const s = socket;
     if (selectedChannel.type === 'text' || selectedChannel.type === 'voice' || selectedChannel.type === 'room') {
-      setMessages([]); setSelectedDM(null);
+      setSelectedDM(null);
       s.emit('join-channel', selectedChannel._id);
       fetchMessages(selectedChannel._id);
-      const handleNewMessage = (message: Message) => { if (message.channel === selectedChannel._id) setMessages((prev: Message[]) => [...prev, message]); };
-      const handleMessageDeleted = (messageId: string) => setMessages((prev: Message[]) => prev.filter((m: Message) => m._id !== messageId));
+      const handleNewMessage = (message: Message) => {
+        if (message.channel === selectedChannel._id) {
+          setMessages((prev: Message[]) => {
+            const updated = [...prev, message];
+            chatCache.saveMessages(selectedChannel._id, updated);
+            return updated;
+          });
+        }
+      };
+      const handleMessageDeleted = (messageId: string) => {
+        setMessages((prev: Message[]) => {
+          const updated = prev.filter((m: Message) => m._id !== messageId);
+          chatCache.saveMessages(selectedChannel._id, updated);
+          return updated;
+        });
+      };
       s.on('new-message', handleNewMessage);
       s.on('message-deleted', handleMessageDeleted);
       return () => {
@@ -1230,10 +1312,24 @@ const Main: React.FC = () => {
   useEffect(() => {
     if (!selectedDM || !socket) return;
     const s = socket;
-    setDmMessages([]); setSelectedChannel(null);
+    setSelectedChannel(null);
     fetchDMMessages(selectedDM._id);
-    const handleNewMessage = (message: Message) => { if (message.directMessage === selectedDM._id) setDmMessages((prev: Message[]) => [...prev, message]); };
-    const handleMessageDeleted = (messageId: string) => setDmMessages((prev: Message[]) => prev.filter((m: Message) => m._id !== messageId));
+    const handleNewMessage = (message: Message) => {
+      if (message.directMessage === selectedDM._id) {
+        setDmMessages((prev: Message[]) => {
+          const updated = [...prev, message];
+          chatCache.saveMessages(`dm_${selectedDM._id}`, updated);
+          return updated;
+        });
+      }
+    };
+    const handleMessageDeleted = (messageId: string) => {
+      setDmMessages((prev: Message[]) => {
+        const updated = prev.filter((m: Message) => m._id !== messageId);
+        chatCache.saveMessages(`dm_${selectedDM._id}`, updated);
+        return updated;
+      });
+    };
     s.on('new-message', handleNewMessage);
     s.on('message-deleted', handleMessageDeleted);
     return () => { s.off('new-message', handleNewMessage); s.off('message-deleted', handleMessageDeleted); };

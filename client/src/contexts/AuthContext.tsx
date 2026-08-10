@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { User } from '../types';
+import { chatCache } from '../utils/chatCache';
 
 interface AuthContextType {
   user: User | null;
@@ -88,12 +89,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [globalUsers, setGlobalUsers] = useState<Record<string, Partial<User>>>({});
 
+  useEffect(() => {
+    chatCache.getGlobalUsers().then(cached => {
+      if (cached) setGlobalUsers(cached);
+    });
+  }, []);
+
   const updateGlobalUser = useCallback((userId: string, data: Partial<User>) => {
     if (!userId) return;
-    setGlobalUsers(prev => ({
-      ...prev,
-      [userId]: { ...prev[userId], ...data, _id: userId }
-    }));
+    setGlobalUsers(prev => {
+      const next = {
+        ...prev,
+        [userId]: { ...prev[userId], ...data, _id: userId }
+      };
+      chatCache.saveGlobalUsers(next);
+      return next;
+    });
   }, []);
 
   const fetchUser = async () => {
