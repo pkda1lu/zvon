@@ -6,6 +6,7 @@ import { ChoiceGroup, RangeSlider, SettingsToggle } from './SettingsUI';
 const ChatSettings: React.FC = () => {
     const { 
         displayMode, setDisplayMode,
+        sendHotkey, setSendHotkey,
         showPreview, setShowPreview,
         autoPlayGif, setAutoPlayGif,
         highlightMentions, setHighlightMentions,
@@ -25,6 +26,11 @@ const ChatSettings: React.FC = () => {
         { value: 'light', label: 'Легкий' }
     ];
 
+    const sendHotkeyOptions = [
+        { value: 'enter', label: 'Enter' },
+        { value: 'shiftEnter', label: 'Shift + Enter' }
+    ];
+
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Чаты</h2>
@@ -36,6 +42,16 @@ const ChatSettings: React.FC = () => {
                     options={displayOptions}
                     value={displayMode}
                     onChange={(val) => setDisplayMode(val as any)}
+                />
+            </div>
+
+            <div className="settings-card">
+                <h3 className="settings-section-title" style={{marginTop: 0}}>Отправка сообщений</h3>
+                <p className="settings-description">Выберите клавишу для отправки сообщения (противоположная комбинация используется для переноса строки).</p>
+                <ChoiceGroup 
+                    options={sendHotkeyOptions}
+                    value={sendHotkey}
+                    onChange={(val) => setSendHotkey(val as any)}
                 />
             </div>
 

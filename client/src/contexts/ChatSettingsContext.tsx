@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type ChatDisplayMode = 'cozy' | 'compact' | 'light';
+export type SendHotkeyMode = 'enter' | 'shiftEnter';
 
 interface ChatSettings {
     displayMode: ChatDisplayMode;
+    sendHotkey: SendHotkeyMode;
     showPreview: boolean;
     autoPlayGif: boolean;
     highlightMentions: boolean;
@@ -15,6 +17,7 @@ interface ChatSettings {
 
 interface ChatSettingsContextType extends ChatSettings {
     setDisplayMode: (value: ChatDisplayMode) => void;
+    setSendHotkey: (value: SendHotkeyMode) => void;
     setShowPreview: (value: boolean) => void;
     setAutoPlayGif: (value: boolean) => void;
     setHighlightMentions: (value: boolean) => void;
@@ -33,6 +36,7 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const parsed = JSON.parse(saved);
             return {
                 displayMode: parsed.displayMode || parsed.density || 'cozy',
+                sendHotkey: parsed.sendHotkey || 'enter',
                 showPreview: parsed.showPreview ?? parsed.displayEmbeds ?? true,
                 autoPlayGif: parsed.autoPlayGif ?? parsed.autoPlayGifs ?? true,
                 highlightMentions: parsed.highlightMentions ?? parsed.mentionHighlight ?? true,
@@ -44,6 +48,7 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
         return {
             displayMode: 'cozy',
+            sendHotkey: 'enter',
             showPreview: true,
             autoPlayGif: true,
             highlightMentions: true,
@@ -62,6 +67,7 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }, [settings]);
 
     const setDisplayMode = (displayMode: ChatDisplayMode) => setSettings(prev => ({ ...prev, displayMode }));
+    const setSendHotkey = (sendHotkey: SendHotkeyMode) => setSettings(prev => ({ ...prev, sendHotkey }));
     const setShowPreview = (showPreview: boolean) => setSettings(prev => ({ ...prev, showPreview }));
     const setAutoPlayGif = (autoPlayGif: boolean) => setSettings(prev => ({ ...prev, autoPlayGif }));
     const setHighlightMentions = (highlightMentions: boolean) => setSettings(prev => ({ ...prev, highlightMentions }));
@@ -74,6 +80,7 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         <ChatSettingsContext.Provider value={{
             ...settings,
             setDisplayMode,
+            setSendHotkey,
             setShowPreview,
             setAutoPlayGif,
             setHighlightMentions,

@@ -17,13 +17,14 @@
   display: flex;
   flex-direction: column;
   gap: calc(2px * var(--interface-scale, 1));
-  min-width: calc(200px * var(--interface-scale, 1));
+  min-width: calc(220px * var(--interface-scale, 1));
   padding: calc(6px * var(--interface-scale, 1));
   border-radius: calc(14px * var(--interface-scale, 1));
-  background: rgba(26, 26, 36, 0.72);
-  backdrop-filter: blur(28px) saturate(160%);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 calc(16px * var(--interface-scale, 1)) calc(44px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.4);
+  background: radial-gradient(circle at 50% -20%, rgba(0, 106, 255, 0.25), rgba(15, 15, 22, 0.95));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.15));
+  box-shadow: 0 calc(16px * var(--interface-scale, 1)) calc(44px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.5);
 }
 
 .composer-add-item {

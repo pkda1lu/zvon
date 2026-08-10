@@ -353,6 +353,7 @@ const MessageItem = React.memo<{
 
   const isGrouped = (current: Message, previous: Message | undefined) => {
     if (!previous) return false;
+    if (previous.type === 'server-join') return false;
     if (current.author._id !== previous.author._id) return false;
     if (shouldShowDate(current, previous)) return false;
     const timeDiff = new Date(current.createdAt).getTime() - new Date(previous.createdAt).getTime();
@@ -364,16 +365,61 @@ const MessageItem = React.memo<{
 
   // Системное сообщение (напр. вход на сервер) — не оформляется как обычное сообщение от автора.
   if (msg.type === 'server-join') {
+    const member = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id));
+    const displayName = member?.nickname || msg.author.displayName || msg.author.username;
+    
+    const mentionElement = (
+      <span
+        key="join-mention"
+        className="mention-tag user-mention"
+        style={{ cursor: server.showMembersList !== false ? 'pointer' : 'default' }}
+        onClick={(e) => {
+          if (server.showMembersList !== false) {
+            e.stopPropagation();
+            onUserClick(msg.author._id, e);
+          }
+        }}
+      >
+        @{displayName}
+      </span>
+    );
+
+    const rawAuthorName = msg.author.displayName || msg.author.username;
+    const searchNames = [displayName, rawAuthorName].filter(Boolean);
+
+    let renderedContent: React.ReactNode = msg.content;
+    let replaced = false;
+
+    for (const nameToSearch of searchNames) {
+      if (nameToSearch && msg.content.includes(nameToSearch)) {
+        const parts = msg.content.split(nameToSearch);
+        const elements: React.ReactNode[] = [];
+        parts.forEach((part, idx) => {
+          elements.push(part);
+          if (idx < parts.length - 1) {
+            elements.push(mentionElement);
+          }
+        });
+        renderedContent = elements;
+        replaced = true;
+        break;
+      }
+    }
+
+    if (!replaced) {
+      renderedContent = <>{mentionElement} {msg.content}</>;
+    }
+    
     return (
       <>
         {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
         <div className="system-message" id={`msg-${msg._id}`}>
           <div className="system-message-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </div>
-          <span className="system-message-text">{msg.content}</span>
+          <span className="system-message-text">{renderedContent}</span>
           <span className="system-message-time">{formatClockTime(msg.createdAt)}</span>
         </div>
       </>
@@ -654,7 +700,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     showHoverBar,
     highlightMentions,
     emojiAutocomplete,
-    textToSpeech
+    textToSpeech,
+    sendHotkey
   } = useChatSettings();
   const [message, setMessage] = useState('');
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
@@ -1441,9 +1488,10 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
           startReached={handleStartReached}
-          followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
+          followOutput={false}
           atBottomThreshold={120}
           atBottomStateChange={handleAtBottomStateChange}
+          computeItemKey={(_i, item) => item._id}
           increaseViewportBy={{ top: 600, bottom: 300 }}
           components={{
             Header: () => (
@@ -1523,7 +1571,6 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               </>
             );
           }}
-          computeItemKey={(_idx, item) => item._id}
         />
         )}
       </div>
@@ -1609,10 +1656,12 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 handleTyping(e);
                 const el = e.currentTarget;
                 el.style.height = 'auto';
-                el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                const maxHeight = window.innerHeight * 0.3 - 24;
+                el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
+                if (shouldSend) {
                   e.preventDefault();
                   handleSendMessage(e as any);
                   if (inputRef.current) inputRef.current.style.height = 'auto';
@@ -1623,7 +1672,6 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
             />
           </div>
-          <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>Отправить</button>
         </form>
         )}
       </div>

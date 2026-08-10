@@ -33,6 +33,7 @@ interface VoiceChannelViewProps {
 
 const VoiceParticipantCard: React.FC<{
   participant: any;
+  avatarOverride?: string;
   isSpeaking: boolean;
   onContextMenu: any;
   getDisplayName: any;
@@ -40,7 +41,7 @@ const VoiceParticipantCard: React.FC<{
   isPrimary?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
-}> = ({ participant, isSpeaking, onContextMenu, getDisplayName, onClick, isPrimary = false, isExpanded = false, onToggleExpand }) => {
+}> = ({ participant, avatarOverride, isSpeaking, onContextMenu, getDisplayName, onClick, isPrimary = false, isExpanded = false, onToggleExpand }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const cardRef = React.useRef<HTMLDivElement>(null);
 
@@ -93,7 +94,7 @@ const VoiceParticipantCard: React.FC<{
     >
       {hasVideo && <video ref={videoRef} autoPlay playsInline muted className="p-camera-video" />}
       {!hasVideo && participant.banner && <div className="p-bg" style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }} />}
-      {!hasVideo && <div className="p-avatar-wrap"><UserAvatar user={participant} avatarOverride={participant.avatar} size={64} animate={true} className="p-avatar" /></div>}
+      {!hasVideo && <div className="p-avatar-wrap"><UserAvatar user={participant} avatarOverride={avatarOverride} size={64} animate={true} className="p-avatar" /></div>}
       
       {showFullscreenBtn && (
         <div className="stream-controls-overlay top" onClick={e => e.stopPropagation()}>
@@ -360,7 +361,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
       default: {
         const member = server.members.find(m => String((m.user as any)._id || m.user) === String(item._id));
-        return <VoiceParticipantCard key={item._id} participant={{...item, avatar: member?.avatar || undefined}} isSpeaking={speakingUsers.has(item._id) && !item.isMuted} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
+        return <VoiceParticipantCard key={item._id} participant={item} avatarOverride={member?.avatar || undefined} isSpeaking={speakingUsers.has(item._id) && !item.isMuted} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
       }
     }
   };

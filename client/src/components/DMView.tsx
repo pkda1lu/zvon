@@ -405,7 +405,8 @@ const DMView: React.FC<DMViewProps> = ({
     showHoverBar,
     highlightMentions,
     emojiAutocomplete,
-    textToSpeech
+    textToSpeech,
+    sendHotkey
   } = useChatSettings();
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -1280,7 +1281,7 @@ const DMView: React.FC<DMViewProps> = ({
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
             startReached={handleStartReached}
-            followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
+            followOutput={false}
             atBottomThreshold={120}
             atBottomStateChange={handleAtBottomStateChange}
             increaseViewportBy={{ top: 600, bottom: 300 }}
@@ -1407,10 +1408,12 @@ const DMView: React.FC<DMViewProps> = ({
                   handleTyping(e);
                   const el = e.currentTarget;
                   el.style.height = 'auto';
-                  el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                  const maxHeight = window.innerHeight * 0.3 - 24;
+                  el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
+                  if (shouldSend) {
                     e.preventDefault();
                     handleSendMessage(e as any);
                     if (inputRef.current) inputRef.current.style.height = 'auto';
@@ -1421,9 +1424,6 @@ const DMView: React.FC<DMViewProps> = ({
                 style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
               />
             </div>
-            <button type="submit" className="send-button" disabled={!message.trim() && attachments.length === 0}>
-              Отправить
-            </button>
           </form>
         </div>
         <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />

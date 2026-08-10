@@ -77,11 +77,11 @@ const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPo
             </button>
             <button type="button" className="composer-add-item" onClick={handleGif}>
               <span className="composer-add-icon composer-add-gif">GIF</span>
-              <span>GIF</span>
+              <span>Найти GIF</span>
             </button>
             <button type="button" className="composer-add-item" onClick={() => run(onPoll)}>
               <span className="composer-add-icon"><PollGlyph size={18 * interfaceScale} /></span>
-              <span>Опрос</span>
+              <span>Создать опрос</span>
             </button>
           </motion.div>
         )}
