@@ -746,16 +746,57 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const canReact = hasPermission(userPermissions, Permissions.ADD_REACTIONS);
   const canMentionEveryone = hasPermission(userPermissions, Permissions.MENTION_EVERYONE);
 
-  // Мут на сервере — заменяем поле ввода баннером-предупреждением, пока он не истёк.
-  const muteUntil = useMemo(() => {
-    const member = (server.members || []).find(m => (m.user as any)?._id === user?._id);
-    if (!member?.communicationDisabledUntil) return null;
-    const until = new Date(member.communicationDisabledUntil);
-    return until > new Date() ? until : null;
-  }, [server.members, user]);
-  const isMuted = !!muteUntil;
-  // Мут "навсегда" хранится как дата на ~100 лет вперёд — не показываем нелепую дату.
-  const isMutePermanent = isMuted && muteUntil!.getTime() - Date.now() > 50 * 365 * 24 * 60 * 60 * 1000;
+  // Мут на сервере / Охлаждение новоприбывших — заменяем поле ввода баннером-предупреждением, пока он не истёк.
+  const [now, setNow] = useState(() => Date.now());
+
+  const { effectiveMuteUntil, isMuted, isMutePermanent, isNewcomerCooldownActive } = useMemo(() => {
+    if (!user || !server) return { effectiveMuteUntil: null, isMuted: false, isMutePermanent: false, isNewcomerCooldownActive: false };
+
+    const userIdStr = String(user._id);
+    const ownerIdStr = String(typeof server.owner === 'object' && server.owner ? (server.owner as any)._id : server.owner);
+    if (ownerIdStr === userIdStr) return { effectiveMuteUntil: null, isMuted: false, isMutePermanent: false, isNewcomerCooldownActive: false };
+
+    const member = (server.members || []).find(m => String(typeof m.user === 'object' && m.user ? (m.user as any)._id : m.user) === userIdStr);
+    if (!member) return { effectiveMuteUntil: null, isMuted: false, isMutePermanent: false, isNewcomerCooldownActive: false };
+
+    let regularMuteUntil: Date | null = null;
+    if (member.communicationDisabledUntil) {
+      const until = new Date(member.communicationDisabledUntil);
+      if (until.getTime() > now) {
+        regularMuteUntil = until;
+      }
+    }
+
+    let newcomerCooldownUntil: Date | null = null;
+    const cooldownSec = server.newcomerCooldownSeconds || 0;
+    if (cooldownSec > 0 && member.joinedAt) {
+      const joinedMs = new Date(member.joinedAt).getTime();
+      const cooldownEndMs = joinedMs + cooldownSec * 1000;
+      if (cooldownEndMs > now) {
+        newcomerCooldownUntil = new Date(cooldownEndMs);
+      }
+    }
+
+    const isNewcomer = !regularMuteUntil && !!newcomerCooldownUntil;
+    const effective = regularMuteUntil || newcomerCooldownUntil;
+    const muted = !!effective && effective.getTime() > now;
+    const perm = !isNewcomer && muted && (effective!.getTime() - now > 50 * 365 * 24 * 60 * 60 * 1000);
+
+    return {
+      effectiveMuteUntil: effective,
+      isMuted: muted,
+      isMutePermanent: perm,
+      isNewcomerCooldownActive: isNewcomer
+    };
+  }, [server, user, now]);
+
+  useEffect(() => {
+    if (!isMuted || !effectiveMuteUntil) return;
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isMuted, effectiveMuteUntil]);
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User, messageId?: string } | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1616,8 +1657,16 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           <div className="mute-composer-banner">
             <LockIcon size={18 * interfaceScale} color="var(--danger)" />
             <span>
-              Вы не можете отправлять сообщения на этом сервере — вы в муте{' '}
-              {isMutePermanent ? 'навсегда' : `до ${muteUntil!.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`}.
+              {isNewcomerCooldownActive ? (
+                <>
+                  Вы не можете отправлять сообщения на этом сервере — действует «охлаждение» новоприбывших до {effectiveMuteUntil!.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.
+                </>
+              ) : (
+                <>
+                  Вы не можете отправлять сообщения на этом сервере — вы в муте{' '}
+                  {isMutePermanent ? 'навсегда' : `до ${effectiveMuteUntil!.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`}.
+                </>
+              )}
             </span>
           </div>
         ) : (
