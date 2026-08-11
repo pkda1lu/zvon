@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import { ChatScrollEngine, ChatScrollEngineHandle } from './ChatScrollEngine';
 import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import { Channel, Message, Server, User } from '../types';
@@ -819,80 +819,18 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const lastScrollTopRef = useRef(0);
 
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const scrollerElRef = useRef<HTMLElement | null>(null);
+  const chatEngineRef = useRef<ChatScrollEngineHandle>(null);
   const atBottomRef = useRef(true);
   const justSentRef = useRef(false);
-  const prevMsgCountRef = useRef(messages.length);
-  const prevLastMsgIdRef = useRef<string | null>(messages[messages.length - 1]?._id ?? null);
-  const FIRST_ITEM_INDEX_START = 1_000_000;
-  const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_INDEX_START);
-  const prevFirstMsgIdRef = useRef<string | null>(null);
-
-  // On channel switch — reset base index
-  useEffect(() => {
-    setFirstItemIndex(FIRST_ITEM_INDEX_START);
-    prevFirstMsgIdRef.current = null;
-  }, [channel._id]);
-
-  // Adjust firstItemIndex when older history is loaded (prepended to top)
-  useEffect(() => {
-    const newFirstId = messages[0]?._id ?? null;
-    const oldFirstId = prevFirstMsgIdRef.current;
-    if (oldFirstId && newFirstId && oldFirstId !== newFirstId) {
-      const idxInNew = messages.findIndex(m => m._id === oldFirstId);
-      if (idxInNew > 0) setFirstItemIndex(fi => fi - idxInNew);
-    }
-    prevFirstMsgIdRef.current = newFirstId;
-  }, [messages]);
-
-  const handleStartReached = useCallback(() => {
-    if (hasMore && !isLoadingMore && onLoadMore) onLoadMore();
-  }, [hasMore, isLoadingMore, onLoadMore]);
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
     atBottomRef.current = atBottom;
     setShowScrollBottom(!atBottom);
   }, []);
 
-  // Надёжная прокрутка к самому последнему сообщению.
-  // Плавный скролл при динамической высоте сообщений может «не доезжать» до
-  // самого низа, поэтому после анимации точечно дотягиваем позицию до конца и
-  // повторяем, пока не упрёмся в дно (на случай поздней догрузки картинок/эмбедов).
   const scrollToBottom = useCallback((smooth = true) => {
-    const v = virtuosoRef.current;
-    if (!v) return;
-    setShowScrollBottom(false);
-    const targetIdx = firstItemIndex + Math.max(0, messages.length - 1);
-    v.scrollToIndex({ index: targetIdx, align: 'end', behavior: smooth ? 'smooth' : 'auto' });
-    const settle = () => {
-      const el = scrollerElRef.current;
-      if (el) {
-        el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
-      }
-    };
-    window.setTimeout(settle, smooth ? 150 : 20);
-  }, [firstItemIndex, messages.length]);
-
-  // Авто-прокрутка вниз при добавлении НОВОГО сообщения в конец списка.
-  // Скроллим, если это наше только что отправленное сообщение либо пользователь
-  // уже находился внизу. Догрузку истории и удаление сообщений не трогаем.
-  useEffect(() => {
-    const prevCount = prevMsgCountRef.current;
-    const prevLastId = prevLastMsgIdRef.current;
-    prevMsgCountRef.current = messages.length;
-    const lastId = messages[messages.length - 1]?._id ?? null;
-    prevLastMsgIdRef.current = lastId;
-
-    const isAppend = messages.length > prevCount && !!lastId && lastId !== prevLastId;
-    if (!isAppend) return;
-
-    const sentByMe = justSentRef.current;
-    justSentRef.current = false;
-    if (sentByMe || atBottomRef.current) {
-      scrollToBottom(true);
-    }
-  }, [messages.length, scrollToBottom]);
+    chatEngineRef.current?.scrollToBottom(smooth);
+  }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, user: User, messageId?: string) => {
     e.preventDefault();
@@ -938,27 +876,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
   useEffect(() => {
     if (!flashMessageId) return;
-    const idx = messages.findIndex(m => m._id === flashMessageId);
-    if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
-    }
-    let cancelled = false;
-    const attempt = (tries: number) => {
-      if (cancelled) return;
-      const el = document.getElementById(`msg-${flashMessageId}`);
-      if (el) {
-        el.classList.add('msg-search-message-flash');
-        window.setTimeout(() => el.classList.remove('msg-search-message-flash'), 1700);
-        setFlashMessageId(null);
-      } else if (tries > 0) {
-        window.setTimeout(() => attempt(tries - 1), 100);
-      } else {
-        setFlashMessageId(null);
-      }
-    };
-    attempt(15);
-    return () => { cancelled = true; };
-  }, [flashMessageId, messages]);
+    chatEngineRef.current?.scrollToMessage(flashMessageId);
+    setFlashMessageId(null);
+  }, [flashMessageId]);
 
   useEffect(() => {
     setHasScrolledToNew(false);
@@ -991,21 +911,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   }, []);
 
   const scrollToMessage = useCallback((msgId: string) => {
-    const idx = messages.findIndex(m => m._id === msgId);
-    if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
-    }
-    const tryFlash = (tries: number) => {
-      const el = document.getElementById(`msg-${msgId}`);
-      if (el) {
-        el.classList.add('highlight-flash');
-        window.setTimeout(() => el.classList.remove('highlight-flash'), 2000);
-      } else if (tries > 0) {
-        window.setTimeout(() => tryFlash(tries - 1), 80);
-      }
-    };
-    tryFlash(15);
-  }, [messages]);
+    chatEngineRef.current?.scrollToMessage(msgId);
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -1049,13 +956,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
     const handleScrollChat = (e: any) => {
       const { direction } = e.detail;
-      if (virtuosoRef.current) {
-        if (direction === 'up') {
-          virtuosoRef.current.scrollBy({ top: -300, behavior: 'smooth' });
-        } else {
-          virtuosoRef.current.scrollBy({ top: 300, behavior: 'smooth' });
-        }
-      }
+      chatEngineRef.current?.scrollBy({ top: direction === 'up' ? -300 : 300, behavior: 'smooth' });
     };
 
     const handleEditLast = () => {
@@ -1134,7 +1035,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
-    justSentRef.current = true;
+    chatEngineRef.current?.setJustSent();
     socket.emit('send-message', {
       content: message.trim(),
       channelId: channel._id,
@@ -1151,7 +1052,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
   const handleCreatePoll = (poll: ChatPoll) => {
     if (!socket) return;
-    justSentRef.current = true;
+    chatEngineRef.current?.setJustSent();
     socket.emit('send-message', {
       content: '',
       channelId: channel._id,
@@ -1165,7 +1066,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const handleGifSelect = (url: string) => {
     if (!socket) return;
     const attachment = { url, filename: 'tenor.gif', type: 'image/gif', size: 0 };
-    justSentRef.current = true;
+    chatEngineRef.current?.setJustSent();
     socket.emit('send-message', {
       content: '',
       channelId: channel._id,
@@ -1522,100 +1423,94 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
       <div className="messages-container">
         {messages.length > 0 && (
-        <Virtuoso
-          key={channel._id}
-          ref={virtuosoRef}
-          scrollerRef={(el) => { scrollerElRef.current = el as HTMLElement | null; }}
-          className="messages-list"
-          style={{ height: '100%', width: '100%' }}
-          data={messages}
-          firstItemIndex={firstItemIndex}
-          initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
-          startReached={handleStartReached}
-          followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
-          atBottomThreshold={120}
-          atBottomStateChange={handleAtBottomStateChange}
-          computeItemKey={(_i, item) => item._id}
-          increaseViewportBy={{ top: 1200, bottom: 800 }}
-          components={{
-            Header: () => (
+          <ChatScrollEngine
+            ref={chatEngineRef}
+            chatId={channel._id}
+            items={messages}
+            getItemKey={(item) => item._id}
+            interfaceScale={interfaceScale}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={onLoadMore}
+            initialUnreadCount={initialUnreadCount}
+            onAtBottomStateChange={handleAtBottomStateChange}
+            header={
               isLoadingMore ? (
                 <div className="loading-more">
                   <SkeletonList rows={3} avatarSize={36} lines={2} />
                 </div>
               ) : null
-            ),
-            Footer: () => {
-              const typingNames = Array.from(typingUsers)
-                .map(id => server.members.find(m => String((m.user as any)._id || m.user) === id))
-                .filter(Boolean)
-                .map(m => m?.nickname || (m?.user as any)?.username)
-                .filter(Boolean);
-              if (typingNames.length === 0) return <div style={{ height: 32 }} />;
+            }
+            footer={
+              (() => {
+                const typingNames = Array.from(typingUsers)
+                  .map(id => server.members.find(m => String((m.user as any)._id || m.user) === id))
+                  .filter(Boolean)
+                  .map(m => m?.nickname || (m?.user as any)?.username)
+                  .filter(Boolean);
+                if (typingNames.length === 0) return <div style={{ height: 32 }} />;
+                return (
+                  <div className="typing-indicator-new" style={{ marginBottom: 16 }}>
+                    <div className="typing-dots">
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                    </div>
+                    <span className="typing-text">
+                      {typingNames.length === 1 ? (
+                        <><strong>{typingNames[0]}</strong> печатает...</>
+                      ) : typingNames.length === 2 ? (
+                        <><strong>{typingNames[0]}</strong> и <strong>{typingNames[1]}</strong> печатают...</>
+                      ) : (
+                        <><strong>Несколько человек</strong> печатают...</>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()
+            }
+            renderItem={(msg, idx, prev) => {
+              const showUnread = initialUnreadCount > 0 && idx === messages.length - initialUnreadCount;
               return (
-                <div className="typing-indicator-new" style={{ marginBottom: 16 }}>
-                  <div className="typing-dots">
-                    <span className="dot"></span>
-                    <span className="dot"></span>
-                    <span className="dot"></span>
-                  </div>
-                  <span className="typing-text">
-                    {typingNames.length === 1 ? (
-                      <><strong>{typingNames[0]}</strong> печатает...</>
-                    ) : typingNames.length === 2 ? (
-                      <><strong>{typingNames[0]}</strong> и <strong>{typingNames[1]}</strong> печатают...</>
-                    ) : (
-                      <><strong>Несколько человек</strong> печатают...</>
-                    )}
-                  </span>
-                </div>
+                <React.Fragment key={msg._id}>
+                  {showUnread && (
+                    <div className="new-messages-marker" ref={unreadRef}>
+                      <div className="new-messages-line" />
+                      <span>Новые сообщения</span>
+                      <div className="new-messages-line" />
+                    </div>
+                  )}
+                  <MessageItem
+                    msg={msg}
+                    prev={prev}
+                    isFresh={hasBaseline && idx > lastSeenIdx}
+                    user={user}
+                    server={server}
+                    showPreview={showPreview}
+                    showHoverBar={showHoverBar}
+                    highlightMentions={highlightMentions}
+                    canPin={canPin}
+                    canReact={canReact}
+                    onUserClick={onUserClick}
+                    onContextMenu={handleContextMenu}
+                    onTogglePin={handleTogglePin}
+                    onDelete={handleDeleteMessage}
+                    formatDate={formatDate}
+                    renderMessageContent={renderMessageContent}
+                    handleDownload={handleDownload}
+                    setLightboxMedia={setLightboxMedia}
+                    setLightboxIndex={setLightboxIndex}
+                    setLightboxOpen={setLightboxOpen}
+                    allMessages={messages}
+                    onReact={handleReact}
+                    onReply={handleReply}
+                    scrollToMessage={scrollToMessage}
+                    onInteractiveButtonClick={handleInteractiveButtonClick}
+                  />
+                </React.Fragment>
               );
-            },
-          }}
-          itemContent={(absoluteIndex, msg) => {
-            const idx = absoluteIndex - firstItemIndex;
-            const prev = idx > 0 ? messages[idx - 1] : undefined;
-            const showUnread = initialUnreadCount > 0 && idx === messages.length - initialUnreadCount;
-            return (
-              <>
-                {showUnread && (
-                  <div className="new-messages-marker" ref={unreadRef}>
-                    <div className="new-messages-line" />
-                    <span>Новые сообщения</span>
-                    <div className="new-messages-line" />
-                  </div>
-                )}
-                <MessageItem
-                  msg={msg}
-                  prev={prev}
-                  isFresh={hasBaseline && idx > lastSeenIdx}
-                  user={user}
-                  server={server}
-                  showPreview={showPreview}
-                  showHoverBar={showHoverBar}
-                  highlightMentions={highlightMentions}
-                  canPin={canPin}
-                  canReact={canReact}
-                  onUserClick={onUserClick}
-                  onContextMenu={handleContextMenu}
-                  onTogglePin={handleTogglePin}
-                  onDelete={handleDeleteMessage}
-                  formatDate={formatDate}
-                  renderMessageContent={renderMessageContent}
-                  handleDownload={handleDownload}
-                  setLightboxMedia={setLightboxMedia}
-                  setLightboxIndex={setLightboxIndex}
-                  setLightboxOpen={setLightboxOpen}
-                  allMessages={messages}
-                  onReact={handleReact}
-                  onReply={handleReply}
-                  scrollToMessage={scrollToMessage}
-                  onInteractiveButtonClick={handleInteractiveButtonClick}
-                />
-              </>
-            );
-          }}
-        />
+            }}
+          />
         )}
       </div>
 

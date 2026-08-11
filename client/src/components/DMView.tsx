@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import { ChatScrollEngine, ChatScrollEngineHandle } from './ChatScrollEngine';
 import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import { DirectMessage, Message, User } from '../types';
@@ -440,78 +440,18 @@ const DMView: React.FC<DMViewProps> = ({
   const [flashMessageId, setFlashMessageId] = useState<string | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const scrollerElRef = useRef<HTMLElement | null>(null);
+  const chatEngineRef = useRef<ChatScrollEngineHandle>(null);
   const atBottomRef = useRef(true);
   const justSentRef = useRef(false);
-  const prevMsgCountRef = useRef(messages.length);
-  const prevLastMsgIdRef = useRef<string | null>(messages[messages.length - 1]?._id ?? null);
-  const FIRST_ITEM_INDEX_START = 1_000_000;
-  const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_INDEX_START);
-  const prevFirstMsgIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    setFirstItemIndex(FIRST_ITEM_INDEX_START);
-    prevFirstMsgIdRef.current = null;
-  }, [dm._id]);
-
-  useEffect(() => {
-    const newFirstId = messages[0]?._id ?? null;
-    const oldFirstId = prevFirstMsgIdRef.current;
-    if (oldFirstId && newFirstId && oldFirstId !== newFirstId) {
-      const idxInNew = messages.findIndex(m => m._id === oldFirstId);
-      if (idxInNew > 0) setFirstItemIndex(fi => fi - idxInNew);
-    }
-    prevFirstMsgIdRef.current = newFirstId;
-  }, [messages]);
-
-  const handleStartReached = useCallback(() => {
-    if (hasMore && !isLoadingMore && onLoadMore) onLoadMore();
-  }, [hasMore, isLoadingMore, onLoadMore]);
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
     atBottomRef.current = atBottom;
     setShowScrollBottom(!atBottom);
   }, []);
 
-  // Надёжная прокрутка к самому последнему сообщению.
-  // Плавный скролл при динамической высоте сообщений может «не доезжать» до
-  // самого низа, поэтому после анимации точечно дотягиваем позицию до конца и
-  // повторяем, пока не упрёмся в дно (на случай поздней догрузки картинок/эмбедов).
   const scrollToBottom = useCallback((smooth = true) => {
-    const v = virtuosoRef.current;
-    if (!v) return;
-    setShowScrollBottom(false);
-    const targetIdx = firstItemIndex + Math.max(0, messages.length - 1);
-    v.scrollToIndex({ index: targetIdx, align: 'end', behavior: smooth ? 'smooth' : 'auto' });
-    const settle = () => {
-      const el = scrollerElRef.current;
-      if (el) {
-        el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
-      }
-    };
-    window.setTimeout(settle, smooth ? 150 : 20);
-  }, [firstItemIndex, messages.length]);
-
-  // Авто-прокрутка вниз при добавлении НОВОГО сообщения в конец списка.
-  // Скроллим, если это наше только что отправленное сообщение либо пользователь
-  // уже находился внизу. Догрузку истории и удаление сообщений не трогаем.
-  useEffect(() => {
-    const prevCount = prevMsgCountRef.current;
-    const prevLastId = prevLastMsgIdRef.current;
-    prevMsgCountRef.current = messages.length;
-    const lastId = messages[messages.length - 1]?._id ?? null;
-    prevLastMsgIdRef.current = lastId;
-
-    const isAppend = messages.length > prevCount && !!lastId && lastId !== prevLastId;
-    if (!isAppend) return;
-
-    const sentByMe = justSentRef.current;
-    justSentRef.current = false;
-    if (sentByMe || atBottomRef.current) {
-      scrollToBottom(true);
-    }
-  }, [messages.length, scrollToBottom]);
+    chatEngineRef.current?.scrollToBottom(smooth);
+  }, []);
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
@@ -549,13 +489,7 @@ const DMView: React.FC<DMViewProps> = ({
 
     const handleScrollChat = (e: any) => {
       const { direction } = e.detail;
-      if (virtuosoRef.current) {
-        if (direction === 'up') {
-          virtuosoRef.current.scrollBy({ top: -300, behavior: 'smooth' });
-        } else {
-          virtuosoRef.current.scrollBy({ top: 300, behavior: 'smooth' });
-        }
-      }
+      chatEngineRef.current?.scrollBy({ top: direction === 'up' ? -300 : 300, behavior: 'smooth' });
     };
 
     const handleEditLast = () => {
@@ -609,27 +543,9 @@ const DMView: React.FC<DMViewProps> = ({
 
   useEffect(() => {
     if (!flashMessageId) return;
-    const idx = messages.findIndex(m => m._id === flashMessageId);
-    if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
-    }
-    let cancelled = false;
-    const attempt = (tries: number) => {
-      if (cancelled) return;
-      const el = document.getElementById(`msg-${flashMessageId}`);
-      if (el) {
-        el.classList.add('msg-search-message-flash');
-        window.setTimeout(() => el.classList.remove('msg-search-message-flash'), 1700);
-        setFlashMessageId(null);
-      } else if (tries > 0) {
-        window.setTimeout(() => attempt(tries - 1), 100);
-      } else {
-        setFlashMessageId(null);
-      }
-    };
-    attempt(15);
-    return () => { cancelled = true; };
-  }, [flashMessageId, messages]);
+    chatEngineRef.current?.scrollToMessage(flashMessageId);
+    setFlashMessageId(null);
+  }, [flashMessageId]);
 
   const handleReact = useCallback((messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });
@@ -684,7 +600,7 @@ const DMView: React.FC<DMViewProps> = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
-    justSentRef.current = true;
+    chatEngineRef.current?.setJustSent();
     socket.emit('send-message', {
       content: message.trim(),
       dmId: dm._id,
@@ -702,7 +618,7 @@ const DMView: React.FC<DMViewProps> = ({
 
   const handleCreatePoll = (poll: ChatPoll) => {
     if (!socket) return;
-    justSentRef.current = true;
+    chatEngineRef.current?.setJustSent();
     socket.emit('send-message', {
       content: '',
       dmId: dm._id,
@@ -1111,21 +1027,8 @@ const DMView: React.FC<DMViewProps> = ({
   }, []);
 
   const scrollToMessage = useCallback((msgId: string) => {
-    const idx = messages.findIndex(m => m._id === msgId);
-    if (idx >= 0 && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
-    }
-    const tryFlash = (tries: number) => {
-      const el = document.getElementById(`msg-${msgId}`);
-      if (el) {
-        el.classList.add('highlight-flash');
-        window.setTimeout(() => el.classList.remove('highlight-flash'), 2000);
-      } else if (tries > 0) {
-        window.setTimeout(() => tryFlash(tries - 1), 80);
-      }
-    };
-    tryFlash(15);
-  }, [messages]);
+    chatEngineRef.current?.scrollToMessage(msgId);
+  }, []);
 
   return (
     <div
@@ -1274,79 +1177,70 @@ const DMView: React.FC<DMViewProps> = ({
 
         <div className="messages-container">
           {messages.length > 0 && (
-          <Virtuoso
-            key={dm._id}
-            ref={virtuosoRef}
-            scrollerRef={(el) => { scrollerElRef.current = el as HTMLElement | null; }}
-            className="messages-list"
-            style={{ height: '100%', width: '100%' }}
-            data={messages}
-            firstItemIndex={firstItemIndex}
-            initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1 - (initialUnreadCount > 0 ? initialUnreadCount : 0))}
-            startReached={handleStartReached}
-            followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
-            atBottomThreshold={120}
-            atBottomStateChange={handleAtBottomStateChange}
-            increaseViewportBy={{ top: 1200, bottom: 800 }}
-            components={{
-              Header: () => (isLoadingMore ? <div className="loading-more">Загрузка...</div> : null),
-              Footer: () => <div style={{ height: 32 }} />,
-            }}
-            computeItemKey={(_i, item) => item._id}
-            itemContent={(absoluteIndex, msg) => {
-              const idx = absoluteIndex - firstItemIndex;
-              const prev = idx > 0 ? messages[idx - 1] : undefined;
-              const showDate = shouldShowDate(msg, prev);
-              const grouped = isGrouped(msg, prev);
-              const isFresh = hasBaseline && idx > lastSeenIdx;
+            <ChatScrollEngine
+              ref={chatEngineRef}
+              chatId={dm._id}
+              items={messages}
+              getItemKey={(item) => item._id}
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+              onLoadMore={onLoadMore}
+              initialUnreadCount={initialUnreadCount}
+              onAtBottomStateChange={handleAtBottomStateChange}
+              header={isLoadingMore ? <div className="loading-more">Загрузка...</div> : null}
+              footer={<div style={{ height: 32 }} />}
+              renderItem={(msg, idx, prev) => {
+                const showDate = shouldShowDate(msg, prev);
+                const grouped = isGrouped(msg, prev);
+                const isFresh = hasBaseline && idx > lastSeenIdx;
 
-              return (
-                <React.Fragment key={msg._id}>
-                  {showDate && (
-                    <div className="message-date-divider">
-                      <span>{formatDate(msg.createdAt)}</span>
-                    </div>
-                  )}
+                return (
+                  <React.Fragment key={msg._id}>
+                    {showDate && (
+                      <div className="message-date-divider">
+                        <span>{formatDate(msg.createdAt)}</span>
+                      </div>
+                    )}
 
-                  {initialUnreadCount > 0 && idx === messages.length - initialUnreadCount && (
-                    <div className="new-messages-marker" ref={unreadRef}>
-                      <div className="new-messages-line" />
-                      <span>Новые сообщения</span>
-                      <div className="new-messages-line" />
-                    </div>
-                  )}
+                    {initialUnreadCount > 0 && idx === messages.length - initialUnreadCount && (
+                      <div className="new-messages-marker" ref={unreadRef}>
+                        <div className="new-messages-line" />
+                        <span>Новые сообщения</span>
+                        <div className="new-messages-line" />
+                      </div>
+                    )}
 
-                  <DMMessageItem
-                    msg={msg}
-                    grouped={grouped}
-                    isFresh={isFresh}
-                    user={user}
-                    dmId={dm._id}
-                    socket={socket}
-                    showPreview={showPreview}
-                    showHoverBar={showHoverBar}
-                    highlightMentions={highlightMentions}
-                    dispAuthor={dispAuthor}
-                    formatDate={formatDate}
-                    renderMessageContent={renderMessageContent}
-                    renderEmbed={renderEmbed}
-                    handleReact={handleReact}
-                    handleDownload={handleDownload}
-                    handleTogglePin={handleTogglePin}
-                    scrollToMessage={scrollToMessage}
-                    onUserClick={onUserClick}
-                    setReplyToMessage={setReplyToMessage}
-                    inputRef={inputRef}
-                    setShowEmojiPicker={setShowEmojiPicker}
-                    setLightboxMedia={setLightboxMedia}
-                    setLightboxIndex={setLightboxIndex}
-                    setLightboxOpen={setLightboxOpen}
-                    allMessages={messages}
-                  />
-                </React.Fragment>
-              );
-            }}
-          />
+                    <DMMessageItem
+                      msg={msg}
+                      grouped={grouped}
+                      isFresh={isFresh}
+                      user={user}
+                      dmId={dm._id}
+                      socket={socket}
+                      showPreview={showPreview}
+                      showHoverBar={showHoverBar}
+                      highlightMentions={highlightMentions}
+                      dispAuthor={dispAuthor}
+                      formatDate={formatDate}
+                      renderMessageContent={renderMessageContent}
+                      renderEmbed={renderEmbed}
+                      handleReact={handleReact}
+                      handleDownload={handleDownload}
+                      handleTogglePin={handleTogglePin}
+                      scrollToMessage={scrollToMessage}
+                      onUserClick={onUserClick}
+                      setReplyToMessage={setReplyToMessage}
+                      inputRef={inputRef}
+                      setShowEmojiPicker={setShowEmojiPicker}
+                      setLightboxMedia={setLightboxMedia}
+                      setLightboxIndex={setLightboxIndex}
+                      setLightboxOpen={setLightboxOpen}
+                      allMessages={messages}
+                    />
+                  </React.Fragment>
+                );
+              }}
+            />
           )}
         </div>
 
