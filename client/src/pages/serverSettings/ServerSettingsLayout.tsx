@@ -11,17 +11,23 @@ import {
 } from '../../components/Icons';
 import '../settings/Settings.css';
 
-import ServerProfileSettings from './ServerProfileSettings';
-import ServerTagSettings from './ServerTagSettings';
-import EngagementSettings from './EngagementSettings';
-import ServerEmojisSettings from './ServerEmojisSettings';
-import MembersSettings from './MembersSettings';
-import RolesSettings from './RolesSettings';
-import InvitesSettings from './InvitesSettings';
-import PrivacySettings from './PrivacySettings';
-import BansSettings from './BansSettings';
-import ServerStatsSettings from './ServerStatsSettings';
-import ServerAuditLogSettings from './ServerAuditLogSettings';
+const ServerProfileSettings = React.lazy(() => import('./ServerProfileSettings'));
+const ServerTagSettings = React.lazy(() => import('./ServerTagSettings'));
+const EngagementSettings = React.lazy(() => import('./EngagementSettings'));
+const ServerEmojisSettings = React.lazy(() => import('./ServerEmojisSettings'));
+const MembersSettings = React.lazy(() => import('./MembersSettings'));
+const RolesSettings = React.lazy(() => import('./RolesSettings'));
+const InvitesSettings = React.lazy(() => import('./InvitesSettings'));
+const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
+const BansSettings = React.lazy(() => import('./BansSettings'));
+const ServerStatsSettings = React.lazy(() => import('./ServerStatsSettings'));
+const ServerAuditLogSettings = React.lazy(() => import('./ServerAuditLogSettings'));
+
+const SettingsTabFallback: React.FC = () => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', minHeight: '300px' }}>
+        <div className="loading-spinner-rings"><div></div><div></div><div></div><div></div></div>
+    </div>
+);
 
 type ServerSettingsTab =
     | 'profile' | 'tag'
@@ -208,7 +214,7 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                         </>
                     )}
 
-                    <div style={{ flex: 1 }} />
+                    <div style={{ flex: isMobile ? 0 : 1 }} />
                     {isOwner && (
                         <>
                             <Divider />
@@ -226,7 +232,9 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                     <button className="settings-close-btn" onClick={onClose} title="Закрыть">
                         <CloseIcon size={20} />
                     </button>
-                    {renderContent()}
+                    <React.Suspense fallback={<SettingsTabFallback />}>
+                        {renderContent()}
+                    </React.Suspense>
                 </div>
             </div>
 
@@ -237,7 +245,7 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        style={{ zIndex: 6000 }}
+                        style={{ zIndex: 20000 }}
                     >
                         <motion.div
                             className="custom-dialog-container"

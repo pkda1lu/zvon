@@ -319,9 +319,12 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             return String(catId) === String(category._id);
           });
 
+          const selectedCatId = selectedChannel ? (typeof selectedChannel.category === 'object' ? (selectedChannel.category as any)?._id : selectedChannel.category) : null;
+          const isSelectedCategory = !!selectedCatId && String(selectedCatId) === String(category._id);
+
           return (
             <div key={category._id} className="channel-category">
-              <div className="category-header">
+              <div className={`category-header ${isSelectedCategory ? 'has-selected-channel' : ''}`}>
                 <div className="category-header-title" onClick={() => toggleCategoryCollapse(category._id)}>
                   <span className={`category-collapse-icon ${isCollapsed ? 'collapsed' : ''}`}>▼</span>
                   <span>{category.name}</span>
@@ -357,9 +360,14 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
         {uncategorizedGroups.map(group => {
           if (group.channels.length === 0) return null;
           const isCollapsed = !!collapsedCategories[group.key];
+          const isSelectedGroup = !!selectedChannel && !selectedChannel.category && (
+            (group.type === 'text' && selectedChannel.type === 'text') ||
+            (group.type === 'voice' && selectedChannel.type === 'voice') ||
+            (group.type === 'room' && selectedChannel.type === 'room')
+          );
           return (
             <div key={group.key} className="channel-category">
-              <div className="category-header">
+              <div className={`category-header ${isSelectedGroup ? 'has-selected-channel' : ''}`}>
                 <div className="category-header-title" onClick={() => toggleCategoryCollapse(group.key)}>
                   <span className={`category-collapse-icon ${isCollapsed ? 'collapsed' : ''}`}>▼</span>
                   <span>{group.title}</span>

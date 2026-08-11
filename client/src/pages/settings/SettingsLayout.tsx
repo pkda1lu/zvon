@@ -33,36 +33,36 @@ import {
     HistoryIcon,
     BellIcon
 } from '../../components/Icons';
-import ProfileSettings from './ProfileSettings';
-import ServerProfilesSettings from './ServerProfilesSettings';
-import AccountSettings from './AccountSettings';
-import DevicesSettings from './DevicesSettings';
-import PrivacySettings from './PrivacySettings';
-import AppearanceSettings from './AppearanceSettings';
-import ChatSettings from './ChatSettings';
-import NotificationsSettings from './NotificationsSettings';
-import OptimizationSettings from './OptimizationSettings';
-import LanguageSettings from './LanguageSettings';
-import BotsSettings from './BotsSettings';
-import MiniAppsSettings from './MiniAppsSettings';
-import VoiceSettings from './VoiceSettings';
-import CallSettings from './CallSettings';
-import KeybindsSettings from './KeybindsSettings';
-import GestureSettings from './GestureSettings';
-import AccessibilitySettings from './AccessibilitySettings';
-import ScalingSettings from './ScalingSettings';
-import ActivitySettings from './ActivitySettings';
-import WindowsSettings from './WindowsSettings';
-import StreamerSettings from './StreamerSettings';
-import OverlaySettings from './OverlaySettings';
-import AdvancedSettings from './AdvancedSettings';
-import ModerationSettings from './ModerationSettings';
-import AdminUsersSettings from './AdminUsersSettings';
-import AdminStatsSettings from './AdminStatsSettings';
-import AdminInfraSettings from './AdminInfraSettings';
-import AdminActionsSettings from './AdminActionsSettings';
-import AppVersionSettings from './AppVersionSettings';
-import AppChangelogSettings from './AppChangelogSettings';
+const ProfileSettings = React.lazy(() => import('./ProfileSettings'));
+const ServerProfilesSettings = React.lazy(() => import('./ServerProfilesSettings'));
+const AccountSettings = React.lazy(() => import('./AccountSettings'));
+const DevicesSettings = React.lazy(() => import('./DevicesSettings'));
+const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
+const AppearanceSettings = React.lazy(() => import('./AppearanceSettings'));
+const ChatSettings = React.lazy(() => import('./ChatSettings'));
+const NotificationsSettings = React.lazy(() => import('./NotificationsSettings'));
+const OptimizationSettings = React.lazy(() => import('./OptimizationSettings'));
+const LanguageSettings = React.lazy(() => import('./LanguageSettings'));
+const BotsSettings = React.lazy(() => import('./BotsSettings'));
+const MiniAppsSettings = React.lazy(() => import('./MiniAppsSettings'));
+const VoiceSettings = React.lazy(() => import('./VoiceSettings'));
+const CallSettings = React.lazy(() => import('./CallSettings'));
+const KeybindsSettings = React.lazy(() => import('./KeybindsSettings'));
+const GestureSettings = React.lazy(() => import('./GestureSettings'));
+const AccessibilitySettings = React.lazy(() => import('./AccessibilitySettings'));
+const ScalingSettings = React.lazy(() => import('./ScalingSettings'));
+const ActivitySettings = React.lazy(() => import('./ActivitySettings'));
+const WindowsSettings = React.lazy(() => import('./WindowsSettings'));
+const StreamerSettings = React.lazy(() => import('./StreamerSettings'));
+const OverlaySettings = React.lazy(() => import('./OverlaySettings'));
+const AdvancedSettings = React.lazy(() => import('./AdvancedSettings'));
+const ModerationSettings = React.lazy(() => import('./ModerationSettings'));
+const AdminUsersSettings = React.lazy(() => import('./AdminUsersSettings'));
+const AdminStatsSettings = React.lazy(() => import('./AdminStatsSettings'));
+const AdminInfraSettings = React.lazy(() => import('./AdminInfraSettings'));
+const AdminActionsSettings = React.lazy(() => import('./AdminActionsSettings'));
+const AppVersionSettings = React.lazy(() => import('./AppVersionSettings'));
+const AppChangelogSettings = React.lazy(() => import('./AppChangelogSettings'));
 import { useAuth } from '../../contexts/AuthContext';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { useGestureSettings } from '../../contexts/GestureSettingsContext';
@@ -73,6 +73,12 @@ interface SettingsLayoutProps {
     initialTab?: string;
     initialData?: any;
 }
+
+const SettingsTabFallback: React.FC = () => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', minHeight: '300px' }}>
+        <div className="loading-spinner-rings"><div></div><div></div><div></div><div></div></div>
+    </div>
+);
 
 const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initialTab = 'profile', initialData }) => {
     const [activeTab, setActiveTab] = React.useState(initialTab);
@@ -326,7 +332,9 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <CloseIcon size={20} />
                     </button>
                 )}
-                {renderContent()}
+                <React.Suspense fallback={<SettingsTabFallback />}>
+                    {renderContent()}
+                </React.Suspense>
             </div>
 
             {pendingTab && (

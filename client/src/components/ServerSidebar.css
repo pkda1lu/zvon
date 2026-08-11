@@ -218,7 +218,8 @@
   transition: opacity 0.2s ease;
 }
 
-.category-header:hover .category-header-actions {
+.category-header:hover .category-header-actions,
+.category-header.has-selected-channel .category-header-actions {
   opacity: 1;
 }
 

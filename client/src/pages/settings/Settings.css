@@ -2225,8 +2225,8 @@ input[type=range]:disabled::-webkit-slider-thumb {
         left: 0 !important;
         right: 0 !important;
         bottom: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
+        width: 100% !important;
+        height: 100dvh !important;
         z-index: 11000 !important;
         display: flex !important;
         flex-direction: row !important;
@@ -2243,8 +2243,9 @@ input[type=range]:disabled::-webkit-slider-thumb {
         left: 0 !important;
         right: 0 !important;
         bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
-        width: 100vw !important;
-        height: calc(100vh - 56px - env(safe-area-inset-bottom, 0px)) !important;
+        width: 100% !important;
+        height: auto !important;
+        max-height: calc(100dvh - 56px - env(safe-area-inset-bottom, 0px)) !important;
         z-index: 10000 !important;
         display: flex !important;
         flex-direction: row !important;
@@ -2297,14 +2298,17 @@ input[type=range]:disabled::-webkit-slider-thumb {
         border-color: var(--primary-neon) !important;
     }
 
-    /* PC style logout button: NO BORDER in inactive format */
-    .settings-sidebar .settings-sidebar-item.logout {
+    /* PC style logout & danger buttons: NO BORDER in inactive format */
+    .settings-sidebar .settings-sidebar-item.logout,
+    .settings-sidebar .settings-sidebar-item.danger {
         color: var(--danger) !important;
         border: none !important;
         background: transparent !important;
+        margin-top: 12px !important;
     }
 
-    .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout {
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout,
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.danger {
         width: 48px !important;
         height: 48px !important;
         flex-shrink: 0 !important;
@@ -2312,13 +2316,16 @@ input[type=range]:disabled::-webkit-slider-thumb {
         padding: 0 !important;
         justify-content: center !important;
         margin: 12px 0 6px 0 !important;
+        margin-top: 12px !important;
         color: var(--danger) !important;
         border: none !important;
         background: transparent !important;
     }
 
     .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout:hover,
-    .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout:active {
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.logout:active,
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.danger:hover,
+    .settings-sidebar.mobile-collapsed .settings-sidebar-item.danger:active {
         background: rgba(255, 59, 48, 0.15) !important;
     }
 
@@ -2364,12 +2371,14 @@ input[type=range]:disabled::-webkit-slider-thumb {
         box-sizing: border-box !important;
     }
 
-    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout {
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout,
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.danger {
         width: 100% !important;
         height: auto !important;
         border-radius: 12px !important;
         padding: 12px 16px !important;
         margin: 12px 0 8px 0 !important;
+        margin-top: 12px !important;
         color: var(--danger) !important;
         border: none !important;
         background: transparent !important;
@@ -2379,11 +2388,14 @@ input[type=range]:disabled::-webkit-slider-thumb {
     }
 
     .settings-sidebar.mobile-expanded .settings-sidebar-item.logout:hover,
-    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout:active {
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout:active,
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.danger:hover,
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.danger:active {
         background: rgba(255, 59, 48, 0.15) !important;
     }
 
-    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout .sidebar-item-content {
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout .sidebar-item-content,
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.danger .sidebar-item-content {
         display: flex !important;
         align-items: center !important;
         gap: 12px !important;
@@ -2391,7 +2403,8 @@ input[type=range]:disabled::-webkit-slider-thumb {
         justify-content: flex-start !important;
     }
 
-    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout span {
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.logout span,
+    .settings-sidebar.mobile-expanded .settings-sidebar-item.danger span {
         display: inline-block !important;
         color: var(--danger) !important;
         font-weight: 600 !important;

@@ -510,6 +510,15 @@ const Main: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Фоновый предзагрузчик чанка настроек, чтобы первый клик открывал их мгновенно
+    const timer = setTimeout(() => {
+      import('../components/SettingsModal');
+      import('../pages/serverSettings/ServerSettingsLayout');
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (selectedServer) {
       localStorage.setItem('lastServerId', selectedServer._id);
     }
@@ -1497,9 +1506,15 @@ const Main: React.FC = () => {
   }, []);
 
   const handleOpenJoinModal = useCallback(() => setShowJoinModal(true), []);
-  const handleOpenSettingsModal = useCallback(() => setShowSettingsModal(true), []);
+  const handleOpenSettingsModal = useCallback(() => {
+    import('../components/SettingsModal');
+    setShowSettingsModal(true);
+  }, []);
   const handleToggleInbox = useCallback(() => setShowInbox(prev => !prev), []);
-  const handleOpenServerSettings = useCallback(() => setShowServerSettings(true), []);
+  const handleOpenServerSettings = useCallback(() => {
+    import('../pages/serverSettings/ServerSettingsLayout');
+    setShowServerSettings(true);
+  }, []);
   const handleBackToContent = useCallback(() => setMobileView('content'), []);
   const handleOpenCreateGroupModal = useCallback(() => setShowCreateGroupModal(true), []);
 
