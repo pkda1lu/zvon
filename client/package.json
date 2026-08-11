@@ -29,6 +29,11 @@
       "icon": "public/app_icon.ico",
       "requestedExecutionLevel": "asInvoker"
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "displayLanguageSelection": false
+    },
     "files": [
       "build/**/*"
     ],
