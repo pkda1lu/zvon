@@ -391,6 +391,17 @@ textarea,
   border-color: rgba(255, 255, 255, 0.1);
 }
 
+.mention-tag.channel-mention {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main, #fff);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.mention-tag.channel-mention:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--primary-neon, #00e5ff);
+}
+
 .message.mention-highlight {
   background: rgba(255, 174, 0, 0.05) !important;
   border-left: 3px solid #ffae00;

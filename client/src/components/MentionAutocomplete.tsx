@@ -35,22 +35,27 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({ query, items,
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
+                e.stopPropagation();
                 setSelectedIndex(prev => (prev + 1) % filteredItems.length);
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
+                e.stopPropagation();
                 setSelectedIndex(prev => (prev - 1 + filteredItems.length) % filteredItems.length);
             } else if (e.key === 'Enter' || e.key === 'Tab') {
                 e.preventDefault();
+                e.stopPropagation();
                 if (filteredItems[selectedIndex]) {
                     onSelect(filteredItems[selectedIndex]);
                 }
             } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
                 onClose();
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [filteredItems, selectedIndex, onSelect, onClose]);
 
     if (filteredItems.length === 0) return null;
@@ -75,7 +80,7 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({ query, items,
 
                     return (
                         <div
-                            key={'_id' in item ? item._id : (item as any).id || index}
+                            key={'_id' in item ? (item as any)._id : ('id' in item ? (item as any).id : index)}
                             className={`mention-item ${index === selectedIndex ? 'selected' : ''} ${!isUser ? 'role-item' : ''}`}
                             onClick={() => onSelect(item)}
                         >
@@ -88,11 +93,11 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({ query, items,
                                     )}
                                 </div>
                             ) : (
-                                <div className="mention-item-role-icon" style={{ backgroundColor: item.color }}>
+                                <div className="mention-item-role-icon" style={{ backgroundColor: (item as Role).color }}>
                                     @
                                 </div>
                             )}
-                            <div className="mention-item-name" style={{ color: !isUser ? item.color : 'inherit' }}>
+                            <div className="mention-item-name" style={{ color: !isUser ? (item as Role).color : 'inherit' }}>
                                 {name}
                                 {isUser && <UserBadges badges={item.badges} serverTag={resolveServerTag(item as any)} size={12} />}
                                 {!isUser && <span className="role-tag">Роль</span>}

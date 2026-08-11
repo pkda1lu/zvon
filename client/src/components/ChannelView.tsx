@@ -18,6 +18,8 @@ import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
+import ChannelAutocomplete from './ChannelAutocomplete';
+import EmojiAutocomplete from './EmojiAutocomplete';
 import { SkeletonList } from './Skeleton';
 import { Role } from '../types';
 import { computePermissions, hasPermission, Permissions } from '../utils/permissions';
@@ -156,7 +158,7 @@ const MessageItem = React.memo<{
   allMessages: Message[];
   onReact: (messageId: string, emoji: string) => void;
   onReply: (msg: Message) => void;
-  scrollToMessage: (msgId: string) => void;
+  scrollToMessage: (msgId: string, createdAt?: string) => void;
   onInteractiveButtonClick: (messageId: string, actionId: string) => void;
   isFresh?: boolean;
 }>(({
@@ -452,7 +454,7 @@ const MessageItem = React.memo<{
         {msg.replyTo && (() => {
           const replyMember = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.replyTo!.author._id));
           return (
-            <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)}>
+            <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id, msg.replyTo!.createdAt)}>
               <div className="reply-line" />
               <ReplyIcon size={12} className="reply-icon-mini" />
               <UserAvatar user={msg.replyTo.author} avatarOverride={replyMember?.avatar || undefined} size={16 * interfaceScale} className="reply-avatar" />
@@ -809,6 +811,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [hasScrolledToNew, setHasScrolledToNew] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+  const [autocompleteType, setAutocompleteType] = useState<'mention' | 'channel' | 'emoji'>('mention');
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
@@ -853,66 +856,79 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     return () => window.removeEventListener('zvon-mention-user', onMentionUser);
   }, []);
 
+  const pendingJumpIdRef = useRef<string | null>(null);
+
   const jumpToMessage = async (messageId: string, createdAt: string) => {
     setShowSearch(false);
-    const alreadyLoaded = messages.some(m => m._id === messageId);
-    if (!alreadyLoaded && setMessages) {
+    pendingJumpIdRef.current = messageId;
+    let currentList = messages;
+    const isTargetLoaded = () => currentList.some(m => m._id === messageId);
+
+    if (!isTargetLoaded() && setMessages) {
       try {
-        const beforeCursor = new Date(new Date(createdAt).getTime() + 1).toISOString();
-        const afterCursor = new Date(createdAt).toISOString();
-        const [olderRes, newerRes] = await Promise.all([
-          axios.get(`/api/messages/channel/${channel._id}`, { params: { before: beforeCursor, limit: 30 } }),
-          axios.get(`/api/messages/channel/${channel._id}`, { params: { after: afterCursor, limit: 30 } }),
-        ]);
-        const merged = [...olderRes.data, ...newerRes.data];
-        const seen = new Set<string>();
-        const dedup = merged.filter((m: Message) => seen.has(m._id) ? false : (seen.add(m._id), true));
-        dedup.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        setMessages(dedup);
-      } catch (e) { return; }
+        let fetched: Message[] = [...currentList];
+        let attempts = 0;
+        const maxAttempts = 15;
+
+        while (!fetched.some(m => m._id === messageId) && attempts < maxAttempts) {
+          attempts++;
+          const oldestMsg = fetched[0];
+          const beforeParam = oldestMsg ? oldestMsg.createdAt : new Date(new Date(createdAt).getTime() + 1000).toISOString();
+          const res = await axios.get(`/api/messages/channel/${channel._id}`, { params: { before: beforeParam, limit: 50 } });
+          const newBatch: Message[] = res.data;
+          if (!newBatch || newBatch.length === 0) break;
+
+          const seen = new Set(fetched.map(m => m._id));
+          const toAdd = newBatch.filter(m => !seen.has(m._id));
+          if (toAdd.length === 0) break;
+
+          fetched = [...toAdd, ...fetched];
+          fetched.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        }
+
+        setMessages(fetched);
+      } catch (e) {
+        pendingJumpIdRef.current = null;
+        return;
+      }
+    } else {
+      chatEngineRef.current?.scrollToMessage(messageId);
+      pendingJumpIdRef.current = null;
     }
-    setFlashMessageId(messageId);
   };
 
   useEffect(() => {
-    if (!flashMessageId) return;
-    chatEngineRef.current?.scrollToMessage(flashMessageId);
-    setFlashMessageId(null);
-  }, [flashMessageId]);
+    if (!pendingJumpIdRef.current) return;
+    const msgId = pendingJumpIdRef.current;
+    
+    // Give React time to layout new elements
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('highlight-flash');
+        setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+        pendingJumpIdRef.current = null;
+      }
+    }, 120);
 
-  useEffect(() => {
-    setHasScrolledToNew(false);
-  }, [channel._id]);
-
-  useEffect(() => {
-    // Virtuoso handles the initial scroll-to-bottom and "follow new messages" itself.
-    // We still flip hasScrolledToNew so downstream gates (TTS, etc.) know the list is settled.
-    if (messages.length > 0 && !hasScrolledToNew) {
-      const t = window.setTimeout(() => setHasScrolledToNew(true), 400);
-      return () => window.clearTimeout(t);
-    } else if (messages.length === 0 && hasScrolledToNew) {
-      setHasScrolledToNew(false);
-    }
-  }, [messages.length, hasScrolledToNew, channel._id]);
-
-  // TTS Effect
-  useEffect(() => {
-    if (!textToSpeech || messages.length === 0) return;
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg.author._id !== user?._id && hasScrolledToNew) {
-      const utterance = new SpeechSynthesisUtterance(`${lastMsg.author.username} сказал: ${lastMsg.content}`);
-      utterance.lang = 'ru-RU';
-      window.speechSynthesis.speak(utterance);
-    }
-  }, [messages.length, textToSpeech]);
+    return () => clearTimeout(timer);
+  }, [messages]);
 
   const handleTogglePin = useCallback((messageId: string) => {
     axios.patch(`/api/messages/${messageId}/pin`);
   }, []);
 
-  const scrollToMessage = useCallback((msgId: string) => {
-    chatEngineRef.current?.scrollToMessage(msgId);
-  }, []);
+  const scrollToMessage = useCallback(async (msgId: string, createdAt?: string) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      chatEngineRef.current?.scrollToMessage(msgId);
+      return;
+    }
+    if (createdAt) {
+      await jumpToMessage(msgId, createdAt);
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (!socket) return;
@@ -1106,14 +1122,26 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     const cursorPosition = e.target.selectionStart || 0;
     const textBeforeCursor = value.substring(0, cursorPosition);
     const lastAtSignIndex = textBeforeCursor.lastIndexOf('@');
+    const lastHashSignIndex = textBeforeCursor.lastIndexOf('#');
+    const lastColonSignIndex = textBeforeCursor.lastIndexOf(':');
 
-    if (lastAtSignIndex !== -1 && emojiAutocomplete) {
-      const query = textBeforeCursor.substring(lastAtSignIndex + 1);
-      // Valid query: no spaces between @ and cursor
-      if (!query.includes(' ')) {
+    // Find which trigger is closest to the cursor before cursor position
+    const triggers = [
+      { type: 'mention' as const, index: lastAtSignIndex },
+      { type: 'channel' as const, index: lastHashSignIndex },
+      { type: 'emoji' as const, index: lastColonSignIndex }
+    ].filter(t => t.index !== -1).sort((a, b) => b.index - a.index);
+
+    const activeTrigger = triggers[0];
+
+    if (activeTrigger && emojiAutocomplete) {
+      const query = textBeforeCursor.substring(activeTrigger.index + 1);
+      // Valid query: no spaces between trigger and cursor
+      if (!query.includes(' ') && !query.includes('\n')) {
+        setAutocompleteType(activeTrigger.type);
         setShowMentions(true);
         setMentionQuery(query);
-        setMentionStartIndex(lastAtSignIndex);
+        setMentionStartIndex(activeTrigger.index);
       } else {
         setShowMentions(false);
       }
@@ -1127,15 +1155,22 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     typingTimeoutRef.current = setTimeout(() => { socket.emit('typing-stop', { channelId: channel._id }); }, 3000);
   };
 
-  const handleMentionSelect = (item: User | Role) => {
-    const isUser = 'username' in item;
-    const name = isUser ? item.username : item.name;
+  const handleMentionSelect = (item: any) => {
     const before = message.substring(0, mentionStartIndex);
-
-    // Find where the mention query ends (at cursor or next space)
     const after = message.substring(mentionStartIndex + mentionQuery.length + 1);
+    let insertText = '';
 
-    const newMessage = `${before}@${name} ${after}`;
+    if (autocompleteType === 'channel') {
+      insertText = `#${item.name}`;
+    } else if (autocompleteType === 'emoji') {
+      insertText = `:${item.name}:`;
+    } else {
+      const isUser = 'username' in item;
+      const name = isUser ? item.username : item.name;
+      insertText = `@${name}`;
+    }
+
+    const newMessage = `${before}${insertText} ${after}`;
     setMessage(newMessage);
     setShowMentions(false);
 
@@ -1144,7 +1179,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
-    const parts = content.split(/(@\w+)|(```[\s\S]*?```)/g);
+    const parts = content.split(/(@\w+|#[\w-]+|:\w+:|```[\s\S]*?```)/g);
 
     return (
       <>
@@ -1180,6 +1215,52 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                     <code>{code.replace(/^\n/, '').replace(/\n$/, '')}</code>
                   </pre>
                 </div>
+              );
+            }
+          }
+
+          if (part.startsWith('#')) {
+            const channelName = part.substring(1);
+            const targetChannel = server.channels?.find(c => c.name === channelName);
+
+            if (targetChannel) {
+              return (
+                <span
+                  key={`channel-mention-${i}`}
+                  className="mention-tag channel-mention"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('select-server', {
+                      detail: { serverId: server._id, channelId: targetChannel._id }
+                    }));
+                  }}
+                >
+                  #{channelName}
+                </span>
+              );
+            }
+          }
+
+          if (part.startsWith(':') && part.endsWith(':')) {
+            const emojiName = part.slice(1, -1);
+            const serverEmoji = server.emojis?.find(e => e.name === emojiName);
+
+            if (serverEmoji) {
+              return (
+                <img
+                  key={`emoji-${i}`}
+                  src={getFullUrl(serverEmoji.url) || serverEmoji.url}
+                  alt={part}
+                  title={`:${emojiName}:`}
+                  style={{
+                    width: '1.3em',
+                    height: '1.3em',
+                    verticalAlign: 'middle',
+                    objectFit: 'contain',
+                    display: 'inline-block',
+                    margin: '0 2px'
+                  }}
+                />
               );
             }
           }
@@ -1580,19 +1661,35 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               </button>
             )}
             {showMentions && (
-              <MentionAutocomplete
-                query={mentionQuery}
-                items={[
-                  ...server.members.map(m => m.user),
-                  ...(server.roles || []).filter(r => canMentionEveryone || r.mentionable),
-                  ...(canMentionEveryone ? [
-                    { _id: 'everyone', name: 'everyone', color: 'var(--primary-neon)' } as any,
-                    { _id: 'here', name: 'here', color: 'var(--primary-neon)' } as any
-                  ] : [])
-                ]}
-                onSelect={handleMentionSelect}
-                onClose={() => setShowMentions(false)}
-              />
+              autocompleteType === 'channel' ? (
+                <ChannelAutocomplete
+                  query={mentionQuery}
+                  items={(server.channels || []).filter(c => c.type === 'text' || c.type === 'voice' || c.type === 'room')}
+                  onSelect={handleMentionSelect}
+                  onClose={() => setShowMentions(false)}
+                />
+              ) : autocompleteType === 'emoji' ? (
+                <EmojiAutocomplete
+                  query={mentionQuery}
+                  items={server.emojis || []}
+                  onSelect={handleMentionSelect}
+                  onClose={() => setShowMentions(false)}
+                />
+              ) : (
+                <MentionAutocomplete
+                  query={mentionQuery}
+                  items={[
+                    ...server.members.map(m => m.user),
+                    ...(server.roles || []).filter(r => canMentionEveryone || r.mentionable),
+                    ...(canMentionEveryone ? [
+                      { _id: 'everyone', name: 'everyone', color: 'var(--primary-neon)' } as any,
+                      { _id: 'here', name: 'here', color: 'var(--primary-neon)' } as any
+                    ] : [])
+                  ]}
+                  onSelect={handleMentionSelect}
+                  onClose={() => setShowMentions(false)}
+                />
+              )
             )}
             <textarea
               ref={inputRef}

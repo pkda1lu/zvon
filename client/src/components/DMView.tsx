@@ -15,6 +15,7 @@ import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
 import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
+import EmojiAutocomplete from './EmojiAutocomplete';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
 import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
@@ -71,7 +72,7 @@ interface DMMessageItemProps {
   handleReact: (messageId: string, emoji: string) => void;
   handleDownload: (e: React.MouseEvent, url: string, filename: string) => void;
   handleTogglePin: (messageId: string) => void;
-  scrollToMessage: (msgId: string) => void;
+  scrollToMessage: (msgId: string, createdAt?: string) => void;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   setReplyToMessage: React.Dispatch<React.SetStateAction<Message | null>>;
   inputRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement>;
@@ -127,7 +128,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
           {...messageMotionProps}
         >
           {msg.replyTo && (
-            <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id, msg.replyTo!.createdAt)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div className="reply-line" />
               <ReplyIcon size={12} className="reply-icon-mini" />
               <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16} className="reply-avatar" />
@@ -520,32 +521,63 @@ const DMView: React.FC<DMViewProps> = ({
   }, [socket, setMessages, messages, user?._id, dm._id]);
 
 
+  const pendingJumpIdRef = useRef<string | null>(null);
+
   const jumpToMessage = async (messageId: string, createdAt: string) => {
     setShowSearch(false);
-    const alreadyLoaded = messages.some(m => m._id === messageId);
-    if (!alreadyLoaded && setMessages) {
+    pendingJumpIdRef.current = messageId;
+    let currentList = messages;
+    const isTargetLoaded = () => currentList.some(m => m._id === messageId);
+
+    if (!isTargetLoaded() && setMessages) {
       try {
-        const beforeCursor = new Date(new Date(createdAt).getTime() + 1).toISOString();
-        const afterCursor = new Date(createdAt).toISOString();
-        const [olderRes, newerRes] = await Promise.all([
-          axios.get(`/api/direct-messages/${dm._id}/messages`, { params: { before: beforeCursor, limit: 30 } }),
-          axios.get(`/api/direct-messages/${dm._id}/messages`, { params: { after: afterCursor, limit: 30 } }),
-        ]);
-        const merged = [...olderRes.data, ...newerRes.data];
-        const seen = new Set<string>();
-        const dedup = merged.filter((m: Message) => seen.has(m._id) ? false : (seen.add(m._id), true));
-        dedup.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        setMessages(dedup);
-      } catch (e) { return; }
+        let fetched: Message[] = [...currentList];
+        let attempts = 0;
+        const maxAttempts = 15;
+
+        while (!fetched.some(m => m._id === messageId) && attempts < maxAttempts) {
+          attempts++;
+          const oldestMsg = fetched[0];
+          const beforeParam = oldestMsg ? oldestMsg.createdAt : new Date(new Date(createdAt).getTime() + 1000).toISOString();
+          const res = await axios.get(`/api/direct-messages/${dm._id}/messages`, { params: { before: beforeParam, limit: 50 } });
+          const newBatch: Message[] = res.data;
+          if (!newBatch || newBatch.length === 0) break;
+
+          const seen = new Set(fetched.map(m => m._id));
+          const toAdd = newBatch.filter(m => !seen.has(m._id));
+          if (toAdd.length === 0) break;
+
+          fetched = [...toAdd, ...fetched];
+          fetched.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        }
+
+        setMessages(fetched);
+      } catch (e) {
+        pendingJumpIdRef.current = null;
+        return;
+      }
+    } else {
+      chatEngineRef.current?.scrollToMessage(messageId);
+      pendingJumpIdRef.current = null;
     }
-    setFlashMessageId(messageId);
   };
 
   useEffect(() => {
-    if (!flashMessageId) return;
-    chatEngineRef.current?.scrollToMessage(flashMessageId);
-    setFlashMessageId(null);
-  }, [flashMessageId]);
+    if (!pendingJumpIdRef.current) return;
+    const msgId = pendingJumpIdRef.current;
+    
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('highlight-flash');
+        setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+        pendingJumpIdRef.current = null;
+      }
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [messages]);
 
   const handleReact = useCallback((messageId: string, emoji: string) => {
     axios.post(`/api/messages/${messageId}/reactions`, { emoji });
@@ -756,6 +788,8 @@ const DMView: React.FC<DMViewProps> = ({
     } catch (e) { }
   };
 
+  const [autocompleteType, setAutocompleteType] = useState<'mention' | 'emoji'>('mention');
+
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = e.target.value;
     setMessage(value);
@@ -763,13 +797,22 @@ const DMView: React.FC<DMViewProps> = ({
     const cursorPosition = e.target.selectionStart || 0;
     const textBeforeCursor = value.substring(0, cursorPosition);
     const lastAtSignIndex = textBeforeCursor.lastIndexOf('@');
+    const lastColonSignIndex = textBeforeCursor.lastIndexOf(':');
 
-    if (lastAtSignIndex !== -1 && emojiAutocomplete) {
-      const query = textBeforeCursor.substring(lastAtSignIndex + 1);
-      if (!query.includes(' ')) {
+    const triggers = [
+      { type: 'mention' as const, index: lastAtSignIndex },
+      { type: 'emoji' as const, index: lastColonSignIndex }
+    ].filter(t => t.index !== -1).sort((a, b) => b.index - a.index);
+
+    const activeTrigger = triggers[0];
+
+    if (activeTrigger && emojiAutocomplete) {
+      const query = textBeforeCursor.substring(activeTrigger.index + 1);
+      if (!query.includes(' ') && !query.includes('\n')) {
+        setAutocompleteType(activeTrigger.type);
         setShowMentions(true);
         setMentionQuery(query);
-        setMentionStartIndex(lastAtSignIndex);
+        setMentionStartIndex(activeTrigger.index);
       } else {
         setShowMentions(false);
       }
@@ -784,11 +827,18 @@ const DMView: React.FC<DMViewProps> = ({
   };
 
   const handleMentionSelect = (item: any) => {
-    const name = item.username;
     const before = message.substring(0, mentionStartIndex);
     const after = message.substring(mentionStartIndex + mentionQuery.length + 1);
+    let insertText = '';
 
-    const newMessage = `${before}@${name} ${after}`;
+    if (autocompleteType === 'emoji') {
+      insertText = `:${item.name}:`;
+    } else {
+      const name = item.username || item.name;
+      insertText = `@${name}`;
+    }
+
+    const newMessage = `${before}${insertText} ${after}`;
     setMessage(newMessage);
     setShowMentions(false);
 
@@ -797,7 +847,7 @@ const DMView: React.FC<DMViewProps> = ({
 
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
     if (!content) return null;
-    const parts = content.split(/(@\w+)|(```[\s\S]*?```)/g);
+    const parts = content.split(/(@\w+|:\w+:|```[\s\S]*?```)/g);
 
     return (
       <>
@@ -1026,9 +1076,16 @@ const DMView: React.FC<DMViewProps> = ({
     axios.patch(`/api/messages/${messageId}/pin`);
   }, []);
 
-  const scrollToMessage = useCallback((msgId: string) => {
-    chatEngineRef.current?.scrollToMessage(msgId);
-  }, []);
+  const scrollToMessage = useCallback(async (msgId: string, createdAt?: string) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      chatEngineRef.current?.scrollToMessage(msgId);
+      return;
+    }
+    if (createdAt) {
+      await jumpToMessage(msgId, createdAt);
+    }
+  }, [jumpToMessage]);
 
   return (
     <div
@@ -1289,12 +1346,21 @@ const DMView: React.FC<DMViewProps> = ({
                 </button>
               )}
               {showMentions && (
-                <MentionAutocomplete
-                  query={mentionQuery}
-                  items={friends}
-                  onSelect={handleMentionSelect}
-                  onClose={() => setShowMentions(false)}
-                />
+                autocompleteType === 'emoji' ? (
+                  <EmojiAutocomplete
+                    query={mentionQuery}
+                    items={[]}
+                    onSelect={handleMentionSelect}
+                    onClose={() => setShowMentions(false)}
+                  />
+                ) : (
+                  <MentionAutocomplete
+                    query={mentionQuery}
+                    items={friends}
+                    onSelect={handleMentionSelect}
+                    onClose={() => setShowMentions(false)}
+                  />
+                )
               )}
               <textarea
                 ref={inputRef}

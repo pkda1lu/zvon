@@ -187,8 +187,13 @@ function ChatScrollEngineInner<T>(
 
     if (isPrepend) {
       isPrependingRef.current = true;
-      const heightDiff = el.scrollHeight - prevScrollHeightRef.current;
-      el.scrollTop = prevScrollTopRef.current + heightDiff;
+      const targetMessageId = (containerRef.current as any)?.dataset?.flashId;
+      const isTargetInDom = targetMessageId && document.getElementById(`msg-${targetMessageId}`);
+      
+      if (!isTargetInDom) {
+        const heightDiff = el.scrollHeight - prevScrollHeightRef.current;
+        el.scrollTop = prevScrollTopRef.current + heightDiff;
+      }
       requestAnimationFrame(() => {
         isPrependingRef.current = false;
       });
@@ -256,23 +261,6 @@ function ChatScrollEngineInner<T>(
         {items.map((item, idx) => renderItem(item, idx, idx > 0 ? items[idx - 1] : undefined))}
         {footer}
       </div>
-
-      {showScrollBottom && (
-        <button
-          className="scroll-bottom-btn"
-          type="button"
-          onClick={() => scrollToBottom(true)}
-          style={{
-            position: 'absolute',
-            bottom: '20px',
-            right: '20px',
-            zIndex: 10,
-          }}
-        >
-          <ArrowDownIcon size={20 * interfaceScale} />
-          <span>Новые сообщения</span>
-        </button>
-      )}
     </div>
   );
 }

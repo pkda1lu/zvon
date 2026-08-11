@@ -100,6 +100,15 @@
     padding: 8px 12px !important;
   }
 
+  .message.has-reply {
+    padding-top: 32px !important;
+  }
+
+  .message-reply-preview {
+    left: 54px !important;
+    max-width: calc(100% - 66px) !important;
+  }
+
   .message-author-avatar-wrap {
     margin-right: 10px !important;
   }
