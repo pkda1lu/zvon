@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, LockIcon, UsersIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, LockIcon, UsersIcon, SendIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import './panel-hero.css';
 import './ChannelView.css';
@@ -1539,7 +1539,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 const typingNames = Array.from(typingUsers)
                   .map(id => memberMap.get(String(id)))
                   .filter(Boolean)
-                  .map(m => m?.nickname || (m?.user as any)?.username)
+                  .map(m => m?.nickname || (m?.user as any)?.displayName || (m?.user as any)?.username)
                   .filter(Boolean);
                 if (typingNames.length === 0) return <div style={{ height: 32 }} />;
                 return (
@@ -1612,10 +1612,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         {replyToMessage && (
           <div className="reply-input-preview">
             <div className="reply-input-content">
-              <ReplyIcon size={16 * interfaceScale} color="var(--primary-neon)" />
+              <ReplyIcon size={22 * interfaceScale} color="var(--primary-neon)" />
               <div className="reply-input-text">
-                <span>Ответ пользователю <strong>{replyToMessage.author.username}</strong></span>
-                <UserBadges badges={replyToMessage.author.badges} serverTag={resolveServerTag(replyToMessage.author)} size={12 * interfaceScale} />
+                <div className="reply-input-author">
+                  <span>Ответ пользователю <strong>{memberMap.get(String(replyToMessage.author._id))?.nickname || replyToMessage.author.displayName || replyToMessage.author.username}</strong></span>
+                </div>
                 <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
               </div>
             </div>
@@ -1717,6 +1718,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
               }}
               onKeyDown={(e) => {
+                const isMobileClient = isMobile || window.innerWidth <= 768;
+                if (isMobileClient) return;
                 const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
                 if (shouldSend) {
                   e.preventDefault();
@@ -1729,6 +1732,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
             />
           </div>
+          <button
+            type="submit"
+            className="send-button mobile-send-button"
+            disabled={!message.trim() && attachments.length === 0}
+            title="Отправить сообщение"
+            aria-label="Отправить сообщение"
+          >
+            <SendIcon size={18 * interfaceScale} />
+          </button>
         </form>
         )}
       </div>

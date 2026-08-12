@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon } from './Icons';
+import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
@@ -113,7 +113,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
               {dispAuthor(msg.author)._masked ? (
                 <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
               ) : (
-                <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
               )}
               {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
               <span className="message-time">{formatDate(msg.createdAt)}</span>
@@ -132,7 +132,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
               <div className="reply-line" />
               <ReplyIcon size={12} className="reply-icon-mini" />
               <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16} className="reply-avatar" />
-               <span className="reply-author" style={{ fontWeight: 600 }}>{dispAuthor(msg.replyTo.author).username}</span>
+               <span className="reply-author" style={{ fontWeight: 600 }}>{dispAuthor(msg.replyTo.author).displayName || dispAuthor(msg.replyTo.author).username}</span>
                {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />}
               <span className="reply-content" style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
             </div>
@@ -154,7 +154,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
                 {dispAuthor(msg.author)._masked ? (
                   <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
                 ) : (
-                  <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{msg.author.username}</span>
+                  <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
                 )}
                 {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
                 {!dispAuthor(msg.author)._masked && msg.author.isBot && <span className="bot-badge">БOТ</span>}
@@ -596,7 +596,7 @@ const DMView: React.FC<DMViewProps> = ({
     ? { ...a, username: 'Модерация', avatar: null, badges: [], isBot: false, _masked: true }
     : a, [maskModeration, moderatorId]);
   const displayName = maskModeration ? 'Модерация'
-    : (dm.name || (isGroup ? otherParticipants.map(p => p.username).join(', ') : otherUser?.username));
+    : (dm.name || (isGroup ? otherParticipants.map(p => p.displayName || p.username).join(', ') : (otherUser?.displayName || otherUser?.username)));
   const headerUser = maskModeration ? { username: 'Модерация', avatar: null } : otherUser;
 
   const formatDate = useCallback((dateString: string) => {
@@ -1070,7 +1070,7 @@ const DMView: React.FC<DMViewProps> = ({
     if (!textToSpeech || messages.length === 0) return;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.author._id !== user?._id && hasScrolledToNew) {
-      const utterance = new SpeechSynthesisUtterance(`${dispAuthor(lastMsg.author).username} сказал: ${lastMsg.content}`);
+      const utterance = new SpeechSynthesisUtterance(`${dispAuthor(lastMsg.author).displayName || dispAuthor(lastMsg.author).username} сказал: ${lastMsg.content}`);
       utterance.lang = 'ru-RU';
       window.speechSynthesis.speak(utterance);
     }
@@ -1191,7 +1191,7 @@ const DMView: React.FC<DMViewProps> = ({
                     <div key={msg._id} className="pin-item">
                       <div className="pin-author" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <UserAvatar user={dispAuthor(msg.author)} size={24} className="pin-avatar-comp" />
-                        <span className="pin-name" style={{ fontWeight: 600 }}>{dispAuthor(msg.author).username}</span>
+                        <span className="pin-name" style={{ fontWeight: 600 }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
                         {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12} />}
                         <span className="pin-date" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatDate(msg.createdAt)}</span>
                       </div>
@@ -1310,10 +1310,11 @@ const DMView: React.FC<DMViewProps> = ({
           {replyToMessage && (
             <div className="reply-input-preview">
               <div className="reply-input-content">
-                <ReplyIcon size={16} color="var(--primary-neon)" />
+                <ReplyIcon size={22} color="var(--primary-neon)" />
                 <div className="reply-input-text">
-                   <span>Ответ пользователю <strong>{dispAuthor(replyToMessage.author).username}</strong></span>
-                   {!dispAuthor(replyToMessage.author)._masked && <UserBadges badges={replyToMessage.author.badges} serverTag={resolveServerTag(replyToMessage.author)} size={12} />}
+                  <div className="reply-input-author">
+                    <span>Ответ пользователю <strong>{dispAuthor(replyToMessage.author).displayName || dispAuthor(replyToMessage.author).username}</strong></span>
+                  </div>
                   <div className="reply-input-snippet">{replyToMessage.content || (replyToMessage.attachments?.length ? 'Вложение' : '')}</div>
                 </div>
               </div>
@@ -1370,7 +1371,7 @@ const DMView: React.FC<DMViewProps> = ({
               <textarea
                 ref={inputRef}
                 rows={1}
-                placeholder={maskModeration ? 'Написать модерации...' : `Написать ${otherUser?.username}...`}
+                placeholder={maskModeration ? 'Написать модерации...' : `Написать ${otherUser?.displayName || otherUser?.username}...`}
                 value={message}
                 onChange={(e) => {
                   handleTyping(e);
@@ -1380,6 +1381,8 @@ const DMView: React.FC<DMViewProps> = ({
                   el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
                 }}
                 onKeyDown={(e) => {
+                  const isMobileClient = isMobile || window.innerWidth <= 768;
+                  if (isMobileClient) return;
                   const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
                   if (shouldSend) {
                     e.preventDefault();
@@ -1392,6 +1395,15 @@ const DMView: React.FC<DMViewProps> = ({
                 style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
               />
             </div>
+            <button
+              type="submit"
+              className="send-button mobile-send-button"
+              disabled={!message.trim() && attachments.length === 0}
+              title="Отправить сообщение"
+              aria-label="Отправить сообщение"
+            >
+              <SendIcon size={18} />
+            </button>
           </form>
         </div>
         <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />

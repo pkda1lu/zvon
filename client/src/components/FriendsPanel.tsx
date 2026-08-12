@@ -176,7 +176,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                     </div>
                     <div className="friend-info" onClick={(e) => onUserClick(f._id, e)} style={{ cursor: 'pointer' }}>
                       <div className="friend-name">
-                        {f.username}
+                        {f.displayName || f.username}
                         <UserBadges badges={f.badges} serverTag={resolveServerTag(f)} size={14 * interfaceScale} />
                         {userDMs[f._id] && unreadCounts[userDMs[f._id]] > 0 && <span className="unread-count-badge">{unreadCounts[userDMs[f._id]]}</span>}
                       </div>
@@ -216,7 +216,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                     />
                     <div className="request-info" onClick={(e) => onUserClick(r.requester._id, e)} style={{ cursor: 'pointer' }}>
                       <div className="request-name">
-                        {r.requester.username}
+                        {r.requester.displayName || r.requester.username}
                         <UserBadges badges={r.requester.badges} serverTag={resolveServerTag(r.requester)} size={14 * interfaceScale} />
                       </div>
                       <div className="request-text">хочет добавить вас в друзья</div>
@@ -241,7 +241,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                       />
                       <div className="result-info" onClick={(e) => onUserClick(u._id, e)} style={{ cursor: 'pointer' }}>
                         <div className="result-name">
-                          {u.username}
+                          {u.displayName || u.username}
                           <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={14 * interfaceScale} />
                         </div>
                       </div>

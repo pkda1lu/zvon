@@ -196,7 +196,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                                 </div>
                                 <div className="active-user-details">
                                     <span className="active-username">
-                                        {group.users.map(u => u.username).join(', ')}
+                                        {group.users.map(u => u.displayName || u.username).join(', ')}
                                     </span>
                                     <span className="active-activity-name">{group.server.name} · {group.channelName}</span>
                                 </div>
@@ -235,7 +235,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                             <div className="active-user-info">
                                 <UserAvatar user={friend} size={32 * interfaceScale} className="active-avatar" />
                                 <div className="active-user-details">
-                                    <span className="active-username">{friend.username}</span>
+                                    <span className="active-username">{friend.displayName || friend.username}</span>
                                     <span className="active-activity-name">
                                         {friend.activity?.name} — {friend.activity?.timestamps?.start ? formatTime(friend.activity.timestamps.start) : 'только что'}
                                     </span>

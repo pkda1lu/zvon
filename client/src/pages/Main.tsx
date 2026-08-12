@@ -483,10 +483,15 @@ const Main: React.FC = () => {
         }
       }
 
-      if (actionTriggered && gestureSettings.hapticFeedback && typeof navigator !== 'undefined' && navigator.vibrate) {
+      const hasUserActivation = typeof navigator !== 'undefined' && 
+        ('userActivation' in navigator ? (navigator as any).userActivation?.isActive : true);
+
+      if (actionTriggered && gestureSettings.hapticFeedback && hasUserActivation && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
         try {
           navigator.vibrate(15);
-        } catch (err) {}
+        } catch (err) {
+          // Игнорируем ошибки безопасности
+        }
       }
     };
 

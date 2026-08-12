@@ -1,5 +1,11 @@
 import React from 'react';
 
+export const SendIcon: React.FC<{ size?: number; color?: string; className?: string; style?: React.CSSProperties }> = ({ size = 20, color = 'currentColor', className = "", style }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} className={className} style={{ display: 'block', transform: 'translate(1px, 0px)', ...style }}>
+        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+    </svg>
+);
+
 export const LayoutGridIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <rect x="3" y="3" width="7" height="7" />

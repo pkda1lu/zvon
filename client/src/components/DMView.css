@@ -606,6 +606,7 @@
 }
 
 .send-button {
+  display: none;
   padding: 10px 22px;
   background: var(--primary-neon);
   color: black;
@@ -830,15 +831,29 @@
   min-width: 0;
 }
 
+.reply-input-content > svg {
+  flex-shrink: 0;
+}
+
 .reply-input-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
+.reply-input-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .reply-input-text span {
   font-size: 13px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .reply-input-snippet {

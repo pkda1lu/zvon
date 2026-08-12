@@ -228,7 +228,7 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
                                 <span className="file-name" title={att.filename}>{att.filename}</span>
                                 <div className="file-footer">
                                    <span className="file-size">{formatSize(att.size)}</span>
-                                   <span className="file-author">от {att.author.username}</span>
+                                   <span className="file-author">от {att.author.displayName || att.author.username}</span>
                                 </div>
                               </div>
                             </div>

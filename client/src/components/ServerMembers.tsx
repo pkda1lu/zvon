@@ -216,7 +216,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         const voiceChannelId = Object.keys(currentServerVoiceStates).find(cid => (currentServerVoiceStates[cid] || []).some(vu => vu._id === u._id));
         if (voiceChannelId) {
             const channel = (server.channels || []).find(c => c._id === voiceChannelId);
-            const others = (currentServerVoiceStates[voiceChannelId] || []).filter(vu => vu._id !== u._id).map(vu => vu.username);
+            const others = (currentServerVoiceStates[voiceChannelId] || []).filter(vu => vu._id !== u._id).map(vu => {
+                const mem = server.members.find(m => String(m.user?._id || m.user) === String(vu._id));
+                return mem?.nickname || vu.displayName || vu.username;
+            });
             const suffix = others.length > 0 ? ` с ${others.slice(0, 2).join(' и ')}` : '';
             candidates.push({ text: `Общается в #${channel?.name || 'войсе'}${suffix}`, icon: null, timestamp: 0 });
         }
@@ -235,7 +238,9 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
         const streamEvents: ServerEvent[] = [];
         const groups = new Map<string, { type: string; name: string; image: string | null; timestamp: number; usernames: string[] }>();
 
-        server.members.map(m => m.user).filter(u => u?.activity?.name && u.status !== 'offline').forEach(u => {
+        server.members.filter(m => m.user?.activity?.name && m.user.status !== 'offline').forEach(m => {
+            const u = m.user;
+            const uName = m.nickname || u.displayName || u.username;
             const a = u.activity!;
             if (a.type === 'streaming') {
                 // Без ссылки на стрим (площадка неизвестна) такое событие не показываем.
@@ -246,14 +251,14 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                     kind: 'stream',
                     image: getStreamPlatformIcon(streamLink),
                     timestamp: a.timestamps?.start || 0,
-                    text: `${u.username} стримит в ${a.name}`
+                    text: `${uName} стримит в ${a.name}`
                 });
                 return;
             }
             const groupKey = `${a.type}:${a.name}`;
             const existing = groups.get(groupKey);
             if (existing) {
-                existing.usernames.push(u.username);
+                existing.usernames.push(uName);
                 existing.timestamp = Math.max(existing.timestamp, a.timestamps?.start || 0);
                 if (!existing.image && a.assets?.largeImage) existing.image = a.assets.largeImage;
             } else {
@@ -262,7 +267,7 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
                     name: a.name!,
                     image: a.assets?.largeImage || null,
                     timestamp: a.timestamps?.start || 0,
-                    usernames: [u.username]
+                    usernames: [uName]
                 });
             }
         });
@@ -284,7 +289,10 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
             .filter(([, users]) => (users || []).length >= 2)
             .map(([channelId, users]) => {
                 const channel = (server.channels || []).find(c => c._id === channelId);
-                const names = users.map(u => u.username);
+                const names = users.map(vu => {
+                    const mem = server.members.find(m => String(m.user?._id || m.user) === String(vu._id));
+                    return mem?.nickname || vu.displayName || vu.username;
+                });
                 const namesText = formatEventNames(names);
                 return {
                     key: `voice-${channelId}`,

@@ -86,8 +86,23 @@
   }
 
   .send-button {
-    padding: 8px 12px !important;
-    font-size: 12px !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    background: var(--primary-neon) !important;
+    color: #000 !important;
+  }
+
+  .send-button:disabled {
+    opacity: 0.4 !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: var(--text-dim) !important;
   }
 
   .attachment-button {
@@ -111,11 +126,25 @@
 
   .message-author-avatar-wrap {
     margin-right: 10px !important;
+    width: 32px !important;
+    min-width: 32px !important;
+    max-width: 32px !important;
+    height: 32px !important;
   }
 
   .message-author-avatar {
     width: 32px !important;
     height: 32px !important;
+    min-width: 32px !important;
+    max-width: 32px !important;
+    box-sizing: border-box !important;
+  }
+
+  .message-author-avatar img,
+  .message-author-avatar canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
   }
 
   /* Overlays */

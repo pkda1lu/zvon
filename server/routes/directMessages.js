@@ -10,14 +10,14 @@ const { pushIfOffline } = require('../utils/webPush');
 
 router.get('/', auth, async (req, res) => {
   try {
-    const dms = await DirectMessage.find({ participants: req.user._id }).populate({ path: 'participants', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).sort({ updatedAt: -1 });
+    const dms = await DirectMessage.find({ participants: req.user._id }).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).sort({ updatedAt: -1 });
     res.json(dms);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const dm = await DirectMessage.findById(req.params.id).populate({ path: 'participants', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const dm = await DirectMessage.findById(req.params.id).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p._id.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
     res.json(dm);
@@ -29,7 +29,7 @@ router.get('/user/:userId', auth, async (req, res) => {
     const { userId } = req.params;
     if (!mongoose.isValidObjectId(userId)) return res.status(400).json({ message: 'Invalid user ID' });
     if (userId === req.user._id.toString()) return res.status(400).json({ message: 'Cannot create DM with yourself' });
-    let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: [req.user._id, userId] } }).populate({ path: 'participants', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: [req.user._id, userId] } }).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     if (!dm) {
       // Приватность: проверяем настройки получателя только при создании НОВОГО диалога
       // (существующую переписку никогда не блокируем).
@@ -40,7 +40,7 @@ router.get('/user/:userId', auth, async (req, res) => {
       }
       dm = new DirectMessage({ participants: [req.user._id, userId] });
       await dm.save();
-      await dm.populate({ path: 'participants', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      await dm.populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     }
     res.json(dm);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -60,7 +60,7 @@ router.post('/moderation/:userId', auth, async (req, res) => {
     let dm = await DirectMessage.findOne({
       isModeration: true,
       participants: { $size: 2, $all: [req.user._id, userId] },
-    }).populate({ path: 'participants', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    }).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
 
     if (!dm) {
       dm = new DirectMessage({
@@ -69,7 +69,7 @@ router.post('/moderation/:userId', auth, async (req, res) => {
         moderator: req.user._id,
       });
       await dm.save();
-      await dm.populate({ path: 'participants', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      await dm.populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     }
     res.json(dm);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -87,7 +87,7 @@ router.post('/group', auth, async (req, res) => {
 
     // If it's just 2 people total, check if a DM already exists
     if (participants.length === 2) {
-      let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate({ path: 'participants', select: 'username avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      let dm = await DirectMessage.findOne({ participants: { $size: 2, $all: participants } }).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       if (dm) return res.json(dm);
       // Создание 1:1 через групповой эндпоинт — применяем те же правила приватности,
       // что и для обычного ЛС, чтобы их нельзя было обойти.
@@ -143,8 +143,8 @@ router.get('/:id/messages', auth, async (req, res) => {
     const sort = after ? { createdAt: 1 } : { createdAt: -1 };
 
     const messages = await Message.find(query)
-      .populate({ path: 'author', select: 'username avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
-      .populate({ path: 'mentions', select: 'username avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+      .populate({ path: 'author', select: 'username displayName avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+      .populate({ path: 'mentions', select: 'username displayName avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
       .sort(sort)
       .limit(parseInt(limit))
       .exec();
@@ -191,7 +191,7 @@ router.post('/:id/messages', auth, async (req, res) => {
     if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
     const message = new Message({ content, author: req.user._id, channel: null, directMessage: dm._id, attachments: attachments || [], type: type || 'default' });
     await message.save();
-    await message.populate({ path: 'author', select: 'username avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    await message.populate({ path: 'author', select: 'username displayName avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     dm.updatedAt = new Date();
     await dm.save();
     const io = req.app.get('io');
@@ -223,8 +223,8 @@ router.get('/:id/pins', auth, async (req, res) => {
   try {
     const dmId = req.params.id;
     const pins = await Message.find({ directMessage: dmId, pinned: true })
-      .populate({ path: 'author', select: 'username avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
-      .populate({ path: 'mentions', select: 'username avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+      .populate({ path: 'author', select: 'username displayName avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+      .populate({ path: 'mentions', select: 'username displayName avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
       .sort({ pinnedAt: -1 });
     res.json(pins);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }

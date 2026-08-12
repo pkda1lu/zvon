@@ -4,6 +4,7 @@ import { useAppearance } from '../../contexts/AppearanceContext';
 import { ChoiceGroup, RangeSlider, SettingsToggle } from './SettingsUI';
 
 const ChatSettings: React.FC = () => {
+    const isMobile = window.innerWidth <= 768;
     const { 
         displayMode, setDisplayMode,
         sendHotkey, setSendHotkey,
@@ -45,15 +46,17 @@ const ChatSettings: React.FC = () => {
                 />
             </div>
 
-            <div className="settings-card">
-                <h3 className="settings-section-title" style={{marginTop: 0}}>Отправка сообщений</h3>
-                <p className="settings-description">Выберите клавишу для отправки сообщения (противоположная комбинация используется для переноса строки).</p>
-                <ChoiceGroup 
-                    options={sendHotkeyOptions}
-                    value={sendHotkey}
-                    onChange={(val) => setSendHotkey(val as any)}
-                />
-            </div>
+            {!isMobile && (
+                <div className="settings-card">
+                    <h3 className="settings-section-title" style={{marginTop: 0}}>Отправка сообщений</h3>
+                    <p className="settings-description">Выберите клавишу для отправки сообщения (противоположная комбинация используется для переноса строки).</p>
+                    <ChoiceGroup 
+                        options={sendHotkeyOptions}
+                        value={sendHotkey}
+                        onChange={(val) => setSendHotkey(val as any)}
+                    />
+                </div>
+            )}
 
             <div className="settings-card">
                 <h3 className="settings-section-title" style={{marginTop: 0}}>Размеры и отступы</h3>

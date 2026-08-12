@@ -58,7 +58,7 @@ router.post('/', auth, async (req, res) => {
       if (!user.servers) user.servers = [];
       if (!user.servers.includes(server._id)) { user.servers.push(server._id); await user.save(); }
     }
-    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     await logGlobalAction({
       executorId: req.user._id,
       action: 'SERVER_CREATE',
@@ -87,14 +87,14 @@ router.get('/me', auth, async (req, res) => {
       }
     }
 
-    const allServers = await Server.find({ _id: { $in: userServerIds } }).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).sort({ createdAt: -1 });
+    const allServers = await Server.find({ _id: { $in: userServerIds } }).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).sort({ createdAt: -1 });
     res.json(allServers);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const server = await Server.findById(req.params.id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const server = await Server.findById(req.params.id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     if (!server) return res.status(404).json({ message: 'Server not found' });
     res.json(server);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
@@ -108,7 +108,7 @@ router.post('/:id/join', auth, async (req, res) => {
     if (isMember) return res.status(400).json({ message: 'Already a member' });
     const io = req.app.get('io');
     await handleMemberJoin(server, req.user._id, io);
-    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     if (io) {
       const newMember = populatedServer.members.find(m => m.user._id.toString() === req.user._id.toString());
       io.to(`server-${server._id}`).emit('server-member-joined', { serverId: server._id, member: newMember, server: populatedServer });
@@ -172,7 +172,7 @@ router.put('/:id', auth, checkPermission(Permissions.MANAGE_GUILD), async (req, 
       ].filter(c => c.newValue !== undefined)
     });
 
-    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', populatedServer);
     res.json(populatedServer);
@@ -215,7 +215,7 @@ router.post('/:id/icon', auth, checkPermission(Permissions.MANAGE_GUILD), upload
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ icon: iconUrl });
@@ -232,7 +232,7 @@ router.post('/:id/banner', auth, checkPermission(Permissions.MANAGE_GUILD), uplo
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ banner: bannerUrl });
@@ -283,7 +283,7 @@ router.post('/:id/tag/icon', auth, checkPermission(Permissions.MANAGE_GUILD), up
     await server.save();
     const io = req.app.get('io');
     if (io) {
-      const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     }
     res.json({ icon: iconUrl });
@@ -353,7 +353,7 @@ router.patch('/:id/roles/positions', auth, checkPermission(Permissions.MANAGE_RO
     await server.save();
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
 
     res.json(server.roles);
   } catch (error) {
@@ -407,7 +407,7 @@ router.post('/:id/roles', auth, checkPermission(Permissions.MANAGE_ROLES), async
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
 
     res.status(201).json(server.roles[server.roles.length - 1]);
   } catch (error) {
@@ -477,7 +477,7 @@ router.patch('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROLE
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
 
     res.json(role);
   } catch (error) {
@@ -523,7 +523,7 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
 
       if (server.roles.length < initialLength) {
         await server.save();
-        const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+        const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
         const io = req.app.get('io');
         if (io) io.to(`server-${server._id}`).emit('server-updated', updatedServer);
         return res.json({ message: 'Role forcibly removed' });
@@ -556,7 +556,7 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
     });
 
     const io = req.app.get('io');
-    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
+    if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
 
     res.json({ message: 'Role deleted' });
   } catch (error) {
@@ -586,7 +586,7 @@ router.patch('/:id/update-member-roles', auth, checkPermission(Permissions.MANAG
       changes: [{ key: 'roles', newValue: roles }]
     });
 
-    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const populatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     const updatedMember = populatedServer.members.find(m => m.user._id.toString() === userId);
 
     const io = req.app.get('io');
@@ -680,7 +680,7 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
       changes: Object.keys(req.body).map(k => ({ key: k, newValue: req.body[k] }))
     });
 
-    const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-member-updated', { serverId: server._id, member: updatedServer.members[memberIndex] });
     res.json(updatedServer.members[memberIndex]);
@@ -812,7 +812,7 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.params.userId });
-      const updatedServer = await Server.findById(req.params.id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      const updatedServer = await Server.findById(req.params.id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
     }
     res.json({ message: 'Member removed' });
@@ -844,7 +844,7 @@ router.post('/:id/leave', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`server-${req.params.id}`).emit('server-member-left', { serverId: req.params.id, userId: req.user._id });
-      const updatedServer = await Server.findById(req.params.id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      const updatedServer = await Server.findById(req.params.id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
       io.to(`server-${req.params.id}`).emit('server-updated', updatedServer);
     }
 
@@ -936,7 +936,7 @@ router.patch('/:id/owner', auth, async (req, res) => {
       changes: [{ key: 'owner', oldValue: previousOwner, newValue: userId }]
     });
 
-    const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    const updatedServer = await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', updatedServer);
     res.json(updatedServer);

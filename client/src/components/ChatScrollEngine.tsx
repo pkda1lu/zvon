@@ -107,6 +107,8 @@ function ChatScrollEngineInner<T>(
       prevItemsLengthRef.current = items.length;
       prevFirstKeyRef.current = items[0] ? getItemKey(items[0], 0) : null;
       setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX);
+      isAtBottomRef.current = true;
+      onAtBottomStateChange?.(true);
       return;
     }
 
@@ -124,7 +126,18 @@ function ChatScrollEngineInner<T>(
 
     prevItemsLengthRef.current = items.length;
     prevFirstKeyRef.current = items[0] ? getItemKey(items[0], 0) : null;
-  }, [chatId, items, getItemKey]);
+
+    // Check if content height is less than container height
+    requestAnimationFrame(() => {
+      if (scrollerRef.current) {
+        const { scrollHeight, clientHeight } = scrollerRef.current;
+        if (scrollHeight <= clientHeight + 10) {
+          isAtBottomRef.current = true;
+          onAtBottomStateChange?.(true);
+        }
+      }
+    });
+  }, [chatId, items, getItemKey, onAtBottomStateChange]);
 
   // Imperative handle for parent components
   const scrollToBottom = useCallback(
@@ -270,6 +283,18 @@ function ChatScrollEngineInner<T>(
       components={VIRTUOSO_COMPONENTS}
       startReached={handleStartReached}
       atBottomStateChange={handleAtBottomStateChange}
+      atBottomThreshold={60}
+      onScroll={(e) => {
+        const target = e.target as HTMLElement;
+        if (!target) return;
+        // If content fits within viewport without scroll, or user is at bottom
+        const canScroll = target.scrollHeight > target.clientHeight + 10;
+        const isBottom = !canScroll || (target.scrollHeight - target.scrollTop - target.clientHeight <= 80);
+        if (isAtBottomRef.current !== isBottom) {
+          isAtBottomRef.current = isBottom;
+          onAtBottomStateChange?.(isBottom);
+        }
+      }}
       followOutput={followOutput}
       increaseViewportBy={{ top: 600, bottom: 600 }}
       skipAnimationFrameInResizeObserver={true}
