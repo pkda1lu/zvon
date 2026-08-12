@@ -1,13 +1,14 @@
 import React, {
   useRef,
-  useEffect,
   useLayoutEffect,
   useState,
   useCallback,
   useImperativeHandle,
   forwardRef,
+  useMemo,
+  useEffect,
 } from 'react';
-import { ArrowDownIcon } from './Icons';
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 
 export interface ChatScrollEngineHandle {
   scrollToBottom: (smooth?: boolean) => void;
@@ -34,7 +35,27 @@ export interface ChatScrollEngineProps<T> {
   onAtBottomStateChange?: (atBottom: boolean) => void;
 }
 
-const AT_BOTTOM_THRESHOLD = 120;
+const INITIAL_FIRST_ITEM_INDEX = 100000;
+
+interface VirtuosoContext {
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+}
+
+const StableHeader: React.FC<{ context?: VirtuosoContext }> = React.memo(({ context }) => {
+  if (!context?.header) return null;
+  return <div className="chat-scroll-header">{context.header}</div>;
+});
+
+const StableFooter: React.FC<{ context?: VirtuosoContext }> = React.memo(({ context }) => {
+  if (!context?.footer) return null;
+  return <div className="chat-scroll-footer">{context.footer}</div>;
+});
+
+const VIRTUOSO_COMPONENTS = {
+  Header: StableHeader,
+  Footer: StableFooter,
+};
 
 function ChatScrollEngineInner<T>(
   props: ChatScrollEngineProps<T>,
@@ -51,221 +72,211 @@ function ChatScrollEngineInner<T>(
     isLoadingMore = false,
     onLoadMore,
     initialUnreadCount = 0,
-    interfaceScale = 1,
     className = '',
     style = {},
     onAtBottomStateChange,
   } = props;
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerRef = useRef<HTMLElement | null>(null);
 
-  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const isAtBottomRef = useRef(true);
   const justSentRef = useRef(false);
+  const isFetchingMoreRef = useRef(false);
 
-  // Pagination / Prepend tracking state
-  const prevScrollHeightRef = useRef<number>(0);
-  const prevScrollTopRef = useRef<number>(0);
-  const prevItemsLengthRef = useRef<number>(items.length);
+  useEffect(() => {
+    if (!isLoadingMore) {
+      isFetchingMoreRef.current = false;
+    }
+  }, [isLoadingMore]);
+
+  // Maintain a stable firstItemIndex base that ONLY changes when older items are prepended
+  const [firstItemIndex, setFirstItemIndex] = useState(INITIAL_FIRST_ITEM_INDEX);
+  const firstItemIndexRef = useRef(firstItemIndex);
+  firstItemIndexRef.current = firstItemIndex;
+
+  const prevChatIdRef = useRef(chatId);
   const prevFirstKeyRef = useRef<string | null>(items[0] ? getItemKey(items[0], 0) : null);
-  const prevLastKeyRef = useRef<string | null>(
-    items[items.length - 1] ? getItemKey(items[items.length - 1], items.length - 1) : null
-  );
+  const prevItemsLengthRef = useRef<number>(items.length);
 
-  const isInitialScrollDoneRef = useRef(false);
-  const isPrependingRef = useRef(false);
+  // Synchronize firstItemIndex only on channel switch or history prepend
+  useLayoutEffect(() => {
+    // Channel switch: reset base index
+    if (prevChatIdRef.current !== chatId) {
+      prevChatIdRef.current = chatId;
+      prevItemsLengthRef.current = items.length;
+      prevFirstKeyRef.current = items[0] ? getItemKey(items[0], 0) : null;
+      setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX);
+      return;
+    }
 
-  // Helper to scroll strictly to the bottom of the container
-  const scrollToBottom = useCallback((smooth = true) => {
-    const el = containerRef.current;
-    if (!el) return;
-    setShowScrollBottom(false);
-    isAtBottomRef.current = true;
-    onAtBottomStateChange?.(true);
+    // Prepend check: older history prepended at top of list
+    if (items.length > prevItemsLengthRef.current) {
+      const currentFirstKey = items[0] ? getItemKey(items[0], 0) : null;
+      const isPrepend =
+        prevFirstKeyRef.current !== null && currentFirstKey !== prevFirstKeyRef.current;
 
-    const targetTop = el.scrollHeight - el.clientHeight;
-    el.scrollTo({
-      top: Math.max(0, targetTop),
-      behavior: smooth ? 'smooth' : 'auto',
-    });
-
-    // Double check after scroll/layout settle
-    requestAnimationFrame(() => {
-      if (containerRef.current) {
-        containerRef.current.scrollTop = containerRef.current.scrollHeight - containerRef.current.clientHeight;
+      if (isPrepend) {
+        const diff = items.length - prevItemsLengthRef.current;
+        setFirstItemIndex((prev) => prev - diff);
       }
-    });
-  }, [onAtBottomStateChange]);
+    }
+
+    prevItemsLengthRef.current = items.length;
+    prevFirstKeyRef.current = items[0] ? getItemKey(items[0], 0) : null;
+  }, [chatId, items, getItemKey]);
 
   // Imperative handle for parent components
-  useImperativeHandle(ref, () => ({
-    scrollToBottom,
-    scrollToMessage: (messageId: string) => {
-      const el = document.getElementById(`msg-${messageId}`);
-      if (el && containerRef.current) {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        el.classList.add('highlight-flash');
-        setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+  const scrollToBottom = useCallback(
+    (smooth = true) => {
+      isAtBottomRef.current = true;
+      onAtBottomStateChange?.(true);
+
+      if (items.length > 0 && virtuosoRef.current) {
+        virtuosoRef.current.scrollToIndex({
+          index: firstItemIndexRef.current + items.length - 1,
+          align: 'end',
+          behavior: smooth ? 'smooth' : 'auto',
+        });
       }
     },
-    scrollBy: ({ top, behavior = 'smooth' }) => {
-      if (containerRef.current) {
-        containerRef.current.scrollBy({ top, behavior });
-      }
-    },
-    getScrollerElement: () => containerRef.current,
-    setJustSent: () => {
-      justSentRef.current = true;
-    },
-  }), [scrollToBottom]);
+    [items.length, onAtBottomStateChange]
+  );
 
-  // Reset scroll state on channel switch
-  useEffect(() => {
-    isInitialScrollDoneRef.current = false;
-    isAtBottomRef.current = true;
-    justSentRef.current = false;
-    setShowScrollBottom(false);
-    prevFirstKeyRef.current = items[0] ? getItemKey(items[0], 0) : null;
-    prevLastKeyRef.current = items[items.length - 1] ? getItemKey(items[items.length - 1], items.length - 1) : null;
-    prevItemsLengthRef.current = items.length;
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToBottom,
+      scrollToMessage: (messageId: string) => {
+        const arrayIndex = items.findIndex((item, i) => getItemKey(item, i) === messageId);
+        if (arrayIndex !== -1 && virtuosoRef.current) {
+          virtuosoRef.current.scrollToIndex({
+            index: firstItemIndexRef.current + arrayIndex,
+            align: 'center',
+            behavior: 'smooth',
+          });
 
-    // Scroll to bottom or to unread marker on channel load
-    const timer = setTimeout(() => {
-      if (containerRef.current) {
-        containerRef.current.scrollTop = containerRef.current.scrollHeight - containerRef.current.clientHeight;
-        isInitialScrollDoneRef.current = true;
-      }
-    }, 30);
-    return () => clearTimeout(timer);
-  }, [chatId]);
+          // Wait for virtuoso to render target item in DOM, then apply highlight flash
+          setTimeout(() => {
+            const el = document.getElementById(`msg-${messageId}`);
+            if (el) {
+              el.classList.add('highlight-flash');
+              setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+            }
+          }, 200);
+        }
+      },
+      scrollBy: ({ top, behavior = 'smooth' }) => {
+        if (scrollerRef.current) {
+          scrollerRef.current.scrollBy({ top, behavior });
+        }
+      },
+      getScrollerElement: () => scrollerRef.current as HTMLElement | null,
+      setJustSent: () => {
+        justSentRef.current = true;
+      },
+    }),
+    [items, getItemKey, scrollToBottom]
+  );
 
-  // Scroll listener to update isAtBottom state & trigger onLoadMore
-  const handleScroll = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const initialTopMostItemIndex = useMemo(() => {
+    if (items.length === 0) return 0;
+    const targetIdx =
+      initialUnreadCount > 0
+        ? Math.max(0, items.length - initialUnreadCount)
+        : Math.max(0, items.length - 1);
+    return {
+      index: firstItemIndex + targetIdx,
+      align: 'end' as const,
+    };
+  }, [firstItemIndex, initialUnreadCount, items.length]);
 
-    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const isBottom = distanceToBottom <= AT_BOTTOM_THRESHOLD;
+  const virtuosoContext = useMemo<VirtuosoContext>(
+    () => ({ header, footer }),
+    [header, footer]
+  );
 
-    if (isAtBottomRef.current !== isBottom) {
-      isAtBottomRef.current = isBottom;
-      onAtBottomStateChange?.(isBottom);
-    }
-
-    if (isBottom && showScrollBottom) {
-      setShowScrollBottom(false);
-    } else if (!isBottom && !showScrollBottom && distanceToBottom > 250) {
-      setShowScrollBottom(true);
-    }
-
-    // Check if scrolled near top to load more history
-    if (el.scrollTop <= 150 && hasMore && !isLoadingMore && onLoadMore && isInitialScrollDoneRef.current) {
-      prevScrollHeightRef.current = el.scrollHeight;
-      prevScrollTopRef.current = el.scrollTop;
+  const handleStartReached = useCallback(() => {
+    if (hasMore && !isLoadingMore && !isFetchingMoreRef.current && onLoadMore) {
+      isFetchingMoreRef.current = true;
       onLoadMore();
     }
-  }, [hasMore, isLoadingMore, onLoadMore, onAtBottomStateChange, showScrollBottom]);
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
-  // LayoutEffect to handle prepending history (scroll restoration) & appending new messages
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el || items.length === 0) return;
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
+      isAtBottomRef.current = atBottom;
+      onAtBottomStateChange?.(atBottom);
+    },
+    [onAtBottomStateChange]
+  );
 
-    const currentFirstKey = getItemKey(items[0], 0);
-    const currentLastKey = getItemKey(items[items.length - 1], items.length - 1);
-
-    const isPrepend =
-      prevFirstKeyRef.current !== null &&
-      currentFirstKey !== prevFirstKeyRef.current &&
-      items.length > prevItemsLengthRef.current;
-
-    const isAppend =
-      prevLastKeyRef.current !== null &&
-      currentLastKey !== prevLastKeyRef.current &&
-      items.length > prevItemsLengthRef.current;
-
-    if (isPrepend) {
-      isPrependingRef.current = true;
-      const targetMessageId = (containerRef.current as any)?.dataset?.flashId;
-      const isTargetInDom = targetMessageId && document.getElementById(`msg-${targetMessageId}`);
-      
-      if (!isTargetInDom) {
-        const heightDiff = el.scrollHeight - prevScrollHeightRef.current;
-        el.scrollTop = prevScrollTopRef.current + heightDiff;
+  const followOutput = useCallback(
+    (isAtBottom: boolean) => {
+      if (justSentRef.current) {
+        justSentRef.current = false;
+        return 'smooth';
       }
-      requestAnimationFrame(() => {
-        isPrependingRef.current = false;
-      });
-    } else if (isAppend) {
-      const wasJustSent = justSentRef.current;
-      justSentRef.current = false;
+      return isAtBottom ? 'smooth' : false;
+    },
+    []
+  );
 
-      if (wasJustSent || isAtBottomRef.current) {
-        scrollToBottom(true);
-      } else {
-        setShowScrollBottom(true);
-      }
-    } else if (!isInitialScrollDoneRef.current) {
-      el.scrollTop = el.scrollHeight - el.clientHeight;
-      isInitialScrollDoneRef.current = true;
-    }
-
-    prevFirstKeyRef.current = currentFirstKey;
-    prevLastKeyRef.current = currentLastKey;
-    prevItemsLengthRef.current = items.length;
-  }, [items, getItemKey, scrollToBottom]);
-
-  // ResizeObserver to automatically adjust scroll position when images/media load
-  useEffect(() => {
-    const el = containerRef.current;
-    const content = contentRef.current;
-    if (!el || !content) return;
-
-    let lastHeight = content.scrollHeight;
-
-    const observer = new ResizeObserver(() => {
-      if (isPrependingRef.current) return;
-
-      const newHeight = content.scrollHeight;
-      if (newHeight !== lastHeight) {
-        lastHeight = newHeight;
-        // If user was at bottom, auto scroll down as images/embeds load
-        if (isAtBottomRef.current) {
-          el.scrollTop = el.scrollHeight - el.clientHeight;
-        }
-      }
-    });
-
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={containerRef}
-      onScroll={handleScroll}
-      className={`chat-scroll-engine custom-scrollbar ${className}`}
-      style={{
-        position: 'relative',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        height: '100%',
-        width: '100%',
-        WebkitOverflowScrolling: 'touch',
-        ...style,
-      }}
-    >
-      <div ref={contentRef} className="chat-scroll-content" style={{ display: 'flex', flexDirection: 'column' }}>
+  if (items.length === 0) {
+    return (
+      <div
+        className={`chat-scroll-engine custom-scrollbar ${className}`}
+        style={{
+          position: 'relative',
+          height: '100%',
+          width: '100%',
+          overflowY: 'auto',
+          ...style,
+        }}
+      >
         {header}
-        {items.map((item, idx) => renderItem(item, idx, idx > 0 ? items[idx - 1] : undefined))}
         {footer}
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <Virtuoso
+      key={chatId}
+      ref={virtuosoRef}
+      scrollerRef={(el) => {
+        scrollerRef.current = el as HTMLElement;
+      }}
+      className={`chat-scroll-engine custom-scrollbar ${className}`}
+      style={{
+        height: '100%',
+        width: '100%',
+        ...style,
+      }}
+      data={items}
+      context={virtuosoContext}
+      firstItemIndex={firstItemIndex}
+      initialTopMostItemIndex={initialTopMostItemIndex}
+      defaultItemHeight={85}
+      computeItemKey={(index, item) => {
+        const arrayIndex = index - firstItemIndex;
+        return getItemKey(item, arrayIndex >= 0 ? arrayIndex : 0);
+      }}
+      itemContent={(index, item) => {
+        const arrayIndex = index - firstItemIndex;
+        const prevItem = arrayIndex > 0 ? items[arrayIndex - 1] : undefined;
+        return renderItem(item, arrayIndex, prevItem);
+      }}
+      components={VIRTUOSO_COMPONENTS}
+      startReached={handleStartReached}
+      atBottomStateChange={handleAtBottomStateChange}
+      followOutput={followOutput}
+      increaseViewportBy={{ top: 600, bottom: 600 }}
+      skipAnimationFrameInResizeObserver={true}
+    />
   );
 }
 
 export const ChatScrollEngine = forwardRef(ChatScrollEngineInner) as <T>(
   props: ChatScrollEngineProps<T> & { ref?: React.Ref<ChatScrollEngineHandle> }
 ) => React.ReactElement;
-

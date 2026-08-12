@@ -32,7 +32,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "displayLanguageSelection": false
+      "displayLanguageSelector": false
     },
     "files": [
       "build/**/*"
