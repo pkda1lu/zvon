@@ -12,6 +12,7 @@ import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, 
 import MessageSearchPanel from './MessageSearchPanel';
 import './panel-hero.css';
 import './ChannelView.css';
+import { useServerMemberMap } from '../utils/serverMembers';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
 import CustomVideoPlayer from './CustomVideoPlayer';
@@ -161,11 +162,14 @@ const MessageItem = React.memo<{
   scrollToMessage: (msgId: string, createdAt?: string) => void;
   onInteractiveButtonClick: (messageId: string, actionId: string) => void;
   isFresh?: boolean;
+  // Индекс участников сервера — вместо линейного поиска по server.members
+  // на каждое сообщение (см. utils/serverMembers).
+  memberMap: Map<string, any>;
 }>(({
   msg, prev, user, server, showPreview, showHoverBar, highlightMentions, canPin, canReact,
   onUserClick, onContextMenu, onTogglePin, onDelete, formatDate, renderMessageContent,
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
-  onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh
+  onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh, memberMap
 }) => {
   const { confirm: customConfirm } = useDialog();
   const { interfaceScale } = useAppearance();
@@ -367,7 +371,7 @@ const MessageItem = React.memo<{
 
   // Системное сообщение (напр. вход на сервер) — не оформляется как обычное сообщение от автора.
   if (msg.type === 'server-join') {
-    const member = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id));
+    const member = memberMap.get(String(msg.author._id));
     const displayName = member?.nickname || msg.author.displayName || msg.author.username;
     
     const mentionElement = (
@@ -428,10 +432,7 @@ const MessageItem = React.memo<{
     );
   }
 
-  const member = useMemo(() =>
-    server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id)),
-    [server.members, msg.author._id]
-  );
+  const member = memberMap.get(String(msg.author._id));
 
   // Only animate genuinely new (incoming) messages; historical batches and
   // pagination loads render with no entrance animation to keep the chat snappy.
@@ -452,7 +453,7 @@ const MessageItem = React.memo<{
         {...messageProps}
       >
         {msg.replyTo && (() => {
-          const replyMember = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.replyTo!.author._id));
+          const replyMember = memberMap.get(String(msg.replyTo!.author._id));
           return (
             <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id, msg.replyTo!.createdAt)}>
               <div className="reply-line" />
@@ -717,6 +718,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     textToSpeech,
     sendHotkey
   } = useChatSettings();
+  // Индекс участников: строится один раз на изменение состава сервера и
+  // используется вместо линейного поиска в рендере списка сообщений.
+  const memberMap = useServerMemberMap(server);
   const [message, setMessage] = useState('');
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showAttachments, setShowAttachments] = useState(false);
@@ -1450,7 +1454,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 <div className="empty-pins">Нет закрепленных сообщений</div>
               ) : (
                 pinnedMessages.map(msg => {
-                  const member = server.members.find(m => String((m.user as any)._id || m.user) === String(msg.author._id));
+                  const member = memberMap.get(String(msg.author._id));
                   return (
                     <div key={msg._id} className="pin-item">
                       <div className="pin-author">
@@ -1525,7 +1529,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             footer={
               (() => {
                 const typingNames = Array.from(typingUsers)
-                  .map(id => server.members.find(m => String((m.user as any)._id || m.user) === id))
+                  .map(id => memberMap.get(String(id)))
                   .filter(Boolean)
                   .map(m => m?.nickname || (m?.user as any)?.username)
                   .filter(Boolean);
@@ -1567,6 +1571,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                     isFresh={hasBaseline && idx > lastSeenIdx}
                     user={user}
                     server={server}
+                    memberMap={memberMap}
                     showPreview={showPreview}
                     showHoverBar={showHoverBar}
                     highlightMentions={highlightMentions}

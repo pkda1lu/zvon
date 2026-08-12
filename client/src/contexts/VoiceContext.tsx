@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { User } from '../types';
@@ -148,6 +148,40 @@ const VoiceLevelContext = createContext<VoiceLevelContextType | undefined>(undef
 // уровень, — то есть открытые настройки, и больше никого.
 const VoiceInputLevelContext = createContext<number>(-100);
 
+/**
+ * Точечная подписка на «говорит ли конкретный пользователь».
+ *
+ * Индикатор говорящего — это переключение одного CSS-класса, но раньше он
+ * получался из общего Set в состоянии контекста. Любое изменение (а в живом
+ * разговоре они идут по нескольку раз в секунду) перерисовывало всех
+ * подписчиков целиком: дерево каналов, карточки участников, панель звонка.
+ *
+ * Здесь набор хранится в ref, а компоненты подписываются по userId — рендерится
+ * только тот элемент, у которого реально изменилось состояние.
+ */
+interface SpeakingStore {
+    isSpeaking: (userId: string) => boolean;
+    subscribe: (userId: string, cb: () => void) => () => void;
+}
+
+const SpeakingStoreContext = createContext<SpeakingStore | null>(null);
+
+export const useIsSpeaking = (userId: string | null | undefined): boolean => {
+    const store = useContext(SpeakingStoreContext);
+
+    const subscribe = useCallback((cb: () => void) => {
+        if (!store || !userId) return () => { };
+        return store.subscribe(userId, cb);
+    }, [store, userId]);
+
+    const getSnapshot = useCallback(
+        () => !!(store && userId && store.isSpeaking(userId)),
+        [store, userId]
+    );
+
+    return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+};
+
 export const useVoice = () => {
     const context = useContext(VoiceContext);
     if (!context) throw new Error('useVoice must be used within VoiceProvider');
@@ -238,6 +272,30 @@ const VoiceLevelProvider: React.FC<{
 }) => {
     const [currentInputLevel, setCurrentInputLevel] = useState(-100);
     const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
+
+    // Точечная подписка «говорит ли пользователь X»: набор живёт в ref, а
+    // слушатели зарегистрированы по userId. Благодаря этому смена состояния
+    // одного участника будит только его индикатор, а не всё дерево.
+    const speakingSetRef = useRef<Set<string>>(new Set());
+    const speakingListenersRef = useRef<Map<string, Set<() => void>>>(new Map());
+
+    const speakingStore = useMemo<SpeakingStore>(() => ({
+        isSpeaking: (userId: string) => speakingSetRef.current.has(userId),
+        subscribe: (userId: string, cb: () => void) => {
+            let set = speakingListenersRef.current.get(userId);
+            if (!set) {
+                set = new Set();
+                speakingListenersRef.current.set(userId, set);
+            }
+            set.add(cb);
+            return () => {
+                const current = speakingListenersRef.current.get(userId);
+                if (!current) return;
+                current.delete(cb);
+                if (current.size === 0) speakingListenersRef.current.delete(userId);
+            };
+        },
+    }), []);
     
     const lastSpeakingTimeRef = useRef<number>(0);
     const lastVadMessageTimeRef = useRef<number>(0);
@@ -336,6 +394,11 @@ registerProcessor('vad-processor', VADProcessor);
         if (!isConnected) {
             // Сбрасываем подсветку говорящих, иначе она застынет на последнем
             // состоянии после выхода из канала.
+            const stale = speakingSetRef.current;
+            if (stale.size) {
+                speakingSetRef.current = new Set();
+                stale.forEach(id => speakingListenersRef.current.get(id)?.forEach(cb => cb()));
+            }
             setSpeakingUsers(prev => (prev.size ? new Set<string>() : prev));
             return;
         }
@@ -354,11 +417,27 @@ registerProcessor('vad-processor', VADProcessor);
                 }
             });
 
-            setSpeakingUsers(prev => {
-                if (prev.size !== nowSpeaking.size) return nowSpeaking;
-                for (const id of nowSpeaking) if (!prev.has(id)) return nowSpeaking;
-                return prev;
+            // Считаем, у кого именно изменилось состояние, и дёргаем только их
+            // подписчиков. Раньше здесь обновлялось состояние с целым Set, и
+            // каждое чужое «начал/перестал говорить» перерисовывало ВСЕХ
+            // подписчиков useVoiceLevels: дерево каналов в ServerSidebar,
+            // VoiceChannelView со всеми карточками, VoiceCall, оверлей. В живом
+            // разговоре на несколько человек это происходит по нескольку раз в
+            // секунду — и всё ради переключения одного CSS-класса.
+            const prevSet = speakingSetRef.current;
+            const changed: string[] = [];
+            nowSpeaking.forEach(id => { if (!prevSet.has(id)) changed.push(id); });
+            prevSet.forEach(id => { if (!nowSpeaking.has(id)) changed.push(id); });
+            if (!changed.length) return;
+
+            speakingSetRef.current = nowSpeaking;
+            changed.forEach(id => {
+                const listeners = speakingListenersRef.current.get(id);
+                if (listeners) listeners.forEach(cb => cb());
             });
+            // Отдельно — состояние с полным набором: оно нужно тем, кто читает
+            // сразу всех (Room3DView строит по нему подсветку аватаров в сцене).
+            setSpeakingUsers(nowSpeaking);
         }, 60);
         return () => clearInterval(interval);
     }, [isConnected, isMuted, isServerMuted, userStates, user?._id]);
@@ -369,11 +448,13 @@ registerProcessor('vad-processor', VADProcessor);
     // а только тех, кто вызвал useVoiceInputLevel.
     const value = useMemo(() => ({ speakingUsers }), [speakingUsers]);
     return (
-        <VoiceLevelContext.Provider value={value}>
-            <VoiceInputLevelContext.Provider value={currentInputLevel}>
-                {children}
-            </VoiceInputLevelContext.Provider>
-        </VoiceLevelContext.Provider>
+        <SpeakingStoreContext.Provider value={speakingStore}>
+            <VoiceLevelContext.Provider value={value}>
+                <VoiceInputLevelContext.Provider value={currentInputLevel}>
+                    {children}
+                </VoiceInputLevelContext.Provider>
+            </VoiceLevelContext.Provider>
+        </SpeakingStoreContext.Provider>
     );
 };
 

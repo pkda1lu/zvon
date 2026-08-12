@@ -1,5 +1,5 @@
 import React from 'react';
-import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
+import { useVoice, useIsSpeaking } from '../contexts/VoiceContext';
 import { Channel } from '../types';
 import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MaximizeIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,8 +19,10 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel, onRetu
         toggleDeafen,
         connectedUsers,
     } = useVoice();
-    const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
     const { user } = useAuth();
+    // Точечная подписка вместо чтения всего набора говорящих — оверлей
+    // показывает только собственную активность.
+    const isSelfSpeaking = useIsSpeaking(user?._id);
 
     // Initial position: bottom right corner, approximate
     const [position, setPosition] = React.useState({ x: window.innerWidth - 420, y: window.innerHeight - 150 });
@@ -78,7 +80,7 @@ const ActiveVoiceOverlay: React.FC<ActiveVoiceOverlayProps> = ({ channel, onRetu
                 style={{ cursor: 'grab' }}
             >
                 <div className="call-user-info" style={{ pointerEvents: 'none' }}>
-                    <div className={`call-avatar ${user && speakingUsers.has(user._id) ? 'speaking' : ''}`}>
+                    <div className={`call-avatar ${isSelfSpeaking ? 'speaking' : ''}`}>
                         <SpeakerIcon size={24} />
                     </div>
                     <div className="call-user-details">

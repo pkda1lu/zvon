@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useIsPresent } from 'framer-motion';
-import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
+import { useVoice, useIsSpeaking } from '../contexts/VoiceContext';
 import { useCallSettings } from '../contexts/CallSettingsContext';
 import { Channel, User, Server, Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +17,7 @@ import PresenceTile from './PresenceTile';
 import ChannelView from './ChannelView';
 import './panel-hero.css';
 import './VoiceChannelView.css';
+import { useServerMemberMap } from '../utils/serverMembers';
 
 
 
@@ -34,14 +35,17 @@ interface VoiceChannelViewProps {
 const VoiceParticipantCard: React.FC<{
   participant: any;
   avatarOverride?: string;
-  isSpeaking: boolean;
   onContextMenu: any;
   getDisplayName: any;
   onClick: () => void;
   isPrimary?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
-}> = ({ participant, avatarOverride, isSpeaking, onContextMenu, getDisplayName, onClick, isPrimary = false, isExpanded = false, onToggleExpand }) => {
+}> = ({ participant, avatarOverride, onContextMenu, getDisplayName, onClick, isPrimary = false, isExpanded = false, onToggleExpand }) => {
+  // Подписка на говорящего — точечная, внутри карточки. Раньше признак
+  // приходил пропсом из общего Set, и любое чужое «начал говорить»
+  // перерисовывало весь VoiceChannelView со всеми карточками сразу.
+  const isSpeaking = useIsSpeaking(participant._id) && !participant.isMuted;
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const cardRef = React.useRef<HTMLDivElement>(null);
 
@@ -264,7 +268,10 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
     localCameraStream, voicePresences, presenceAudioStreams, presenceVideoStreams, sendPresenceControl,
     presenceVolumes, setPresenceVolume, screenVolumes, setScreenVolume,
   } = useVoice();
-  const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
+
+  // Индекс участников вместо линейного поиска по составу сервера на каждого
+  // участника канала (см. utils/serverMembers).
+  const memberMap = useServerMemberMap(server);
 
   const [externalParticipants, setExternalParticipants] = useState<User[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, userId: string } | null>(null);
@@ -279,7 +286,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   // с непопулированным m.user — обе ситуации раньше роняли рендер на чтении _id.
   const getDisplayName = (u?: User | null) => {
     if (!u) return 'Участник';
-    return server.members.find(m => String((m.user as any)?._id || m.user) === String(u._id))?.nickname
+    return memberMap.get(String(u._id))?.nickname
       || u.displayName || u.username;
   };
   const isConnectedToThisChannel = isConnected && activeChannelId === channel._id;
@@ -360,8 +367,8 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
       default: {
-        const member = server.members.find(m => String((m.user as any)._id || m.user) === String(item._id));
-        return <VoiceParticipantCard key={item._id} participant={item} avatarOverride={member?.avatar || undefined} isSpeaking={speakingUsers.has(item._id) && !item.isMuted} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
+        const member = memberMap.get(String(item._id));
+        return <VoiceParticipantCard key={item._id} participant={item} avatarOverride={member?.avatar || undefined} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
       }
     }
   };

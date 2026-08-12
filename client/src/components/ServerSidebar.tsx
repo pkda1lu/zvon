@@ -6,10 +6,11 @@ import { useCachedAvatar } from '../utils/avatarCache';
 import { useSocket } from '../contexts/SocketContext';
 import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
-import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
+import { useVoice, useIsSpeaking } from '../contexts/VoiceContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
 import './panel-hero.css';
 import './ServerSidebar.css';
+import { useServerMemberMap } from '../utils/serverMembers';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
@@ -40,6 +41,51 @@ const formatVoiceDuration = (seconds: number): string => {
   const ss = String(s).padStart(2, '0');
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 };
+
+/**
+ * Строка участника голосового канала в сайдбаре.
+ *
+ * Вынесена в отдельный memo-компонент ровно ради подсветки говорящего: раньше
+ * признак брался из общего Set в ServerSidebar, и любое «начал/перестал
+ * говорить» перерисовывало весь сайдбар — все категории, все каналы, панель
+ * управления голосом. В живом разговоре это происходит по нескольку раз в
+ * секунду. Теперь подписка точечная, и обновляется только эта строка.
+ */
+const VoiceUserItem = React.memo<{
+  user: User;
+  avatarOverride?: string;
+  displayName: string;
+  isScreenSharing: boolean;
+  onUserClick: (userId: string, event?: React.MouseEvent) => void;
+  onContextMenu: (e: React.MouseEvent, user: User) => void;
+}>(({ user, avatarOverride, displayName, isScreenSharing, onUserClick, onContextMenu }) => {
+  const isSpeaking = useIsSpeaking(user._id);
+  const anyUser = user as any;
+
+  return (
+    <div
+      className={`voice-user-item ${isSpeaking ? 'speaking' : ''}`}
+      onClick={(e) => { e.stopPropagation(); onUserClick(user._id, e); }}
+      onContextMenu={(e) => onContextMenu(e, user)}
+    >
+      <div className={`voice-user-avatar ${isSpeaking ? 'speaking' : ''}`}>
+        <UserAvatar user={user} avatarOverride={avatarOverride} size={24} />
+      </div>
+      <div className="voice-user-name-row">
+        <span className={`voice-user-name ${isSpeaking ? 'speaking' : ''}`}>{displayName}</span>
+        <UserBadges badges={user.badges} serverTag={resolveServerTag(user)} size={12} />
+      </div>
+      <div className="voice-user-icons">
+        {isScreenSharing && <div className="live-badge nano">ЭФИР</div>}
+        {(anyUser.isDeafened || anyUser.isServerDeafened) ? (
+          <DeafenedIcon size={14} color="#f23f42" />
+        ) : (anyUser.isMuted || anyUser.isServerMuted) ? (
+          <MicMutedIcon size={14} color="#f23f42" />
+        ) : null}
+      </div>
+    </div>
+  );
+});
 
 const VoiceChannelTimer: React.FC<{ startedAt: number }> = ({ startedAt }) => {
   const [, setTick] = useState(0);
@@ -86,7 +132,6 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
   const { joinChannel, userStates, activeChannelId, roomConnectionState } = useVoice();
-  const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalCategoryId, setCreateModalCategoryId] = useState<string | undefined>(undefined);
@@ -100,6 +145,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   // Сворачивание категорий на клиенте
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const serverIconUrl = useCachedAvatar(server.icon);
+  // Индекс участников — поиск профиля шёл дважды на каждого участника голосового
+  // канала, линейным проходом по всему составу сервера.
+  const memberMap = useServerMemberMap(server);
 
   // Compute User Permissions
   const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
@@ -226,36 +274,15 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
         {(channel.type === 'voice' || channel.type === 'room') && voiceStates[channel._id] && voiceStates[channel._id].length > 0 && (
           <div className="voice-channel-users">
             {voiceStates[channel._id].map(u => (
-              <div
+              <VoiceUserItem
                 key={u._id}
-                className={`voice-user-item ${speakingUsers.has(u._id) ? 'speaking' : ''}`}
-                onClick={(e) => { e.stopPropagation(); onUserClick(u._id, e); }}
-                onContextMenu={(e) => handleContextMenu(e, u)}
-              >
-                <div className={`voice-user-avatar ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                  <UserAvatar
-                    user={u}
-                    avatarOverride={server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.avatar || undefined}
-                    size={24}
-                  />
-                </div>
-                <div className="voice-user-name-row">
-                  <span className={`voice-user-name ${speakingUsers.has(u._id) ? 'speaking' : ''}`}>
-                    {server.members.find(m => String((m.user as any)._id || m.user) === String(u._id))?.nickname || u.displayName || u.username}
-                  </span>
-                  <UserBadges badges={u.badges} serverTag={resolveServerTag(u)} size={12} />
-                </div>
-                <div className="voice-user-icons">
-                  {userStates.get(u._id)?.isScreenSharing && (
-                    <div className="live-badge nano">ЭФИР</div>
-                  )}
-                  {((u as any).isDeafened || (u as any).isServerDeafened) ? (
-                    <DeafenedIcon size={14} color="#f23f42" />
-                  ) : ((u as any).isMuted || (u as any).isServerMuted) ? (
-                    <MicMutedIcon size={14} color="#f23f42" />
-                  ) : null}
-                </div>
-              </div>
+                user={u}
+                avatarOverride={memberMap.get(String(u._id))?.avatar || undefined}
+                displayName={memberMap.get(String(u._id))?.nickname || u.displayName || u.username}
+                isScreenSharing={!!userStates.get(u._id)?.isScreenSharing}
+                onUserClick={onUserClick}
+                onContextMenu={handleContextMenu}
+              />
             ))}
           </div>
         )}
