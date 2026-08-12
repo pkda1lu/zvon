@@ -889,9 +889,13 @@ const DMView: React.FC<DMViewProps> = ({
 
           if (part.startsWith('@')) {
             const name = part.substring(1);
-            const isUserMention = mentions.some(m => m.username === name);
-            if (isUserMention) {
-              const userMention = mentions.find(m => m.username === name);
+            const userMentionByName = mentions.find(m => m.username === name);
+            const userMentionIndex = userMentionByName ? -1 : mentions.findIndex((m, idx) => {
+              const prevUserMentions = parts.slice(0, i).filter(p => p.startsWith('@'));
+              return prevUserMentions.length === idx;
+            });
+            const userMention = userMentionByName || (userMentionIndex !== -1 ? mentions[userMentionIndex] : undefined);
+            if (userMention) {
               return (
                 <span
                   key={`mention-${i}`}
@@ -1077,15 +1081,16 @@ const DMView: React.FC<DMViewProps> = ({
   }, []);
 
   const scrollToMessage = useCallback(async (msgId: string, createdAt?: string) => {
-    const el = document.getElementById(`msg-${msgId}`);
-    if (el) {
+    if (!msgId) return;
+    const isLoaded = messages.some((m) => m._id === msgId);
+    if (isLoaded) {
       chatEngineRef.current?.scrollToMessage(msgId);
       return;
     }
     if (createdAt) {
       await jumpToMessage(msgId, createdAt);
     }
-  }, [jumpToMessage]);
+  }, [messages, jumpToMessage]);
 
   return (
     <div

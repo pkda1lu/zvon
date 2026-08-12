@@ -134,7 +134,7 @@ function ChatScrollEngineInner<T>(
 
       if (items.length > 0 && virtuosoRef.current) {
         virtuosoRef.current.scrollToIndex({
-          index: firstItemIndexRef.current + items.length - 1,
+          index: items.length - 1,
           align: 'end',
           behavior: smooth ? 'smooth' : 'auto',
         });
@@ -151,7 +151,7 @@ function ChatScrollEngineInner<T>(
         const arrayIndex = items.findIndex((item, i) => getItemKey(item, i) === messageId);
         if (arrayIndex !== -1 && virtuosoRef.current) {
           virtuosoRef.current.scrollToIndex({
-            index: firstItemIndexRef.current + arrayIndex,
+            index: arrayIndex,
             align: 'center',
             behavior: 'smooth',
           });
@@ -186,10 +186,10 @@ function ChatScrollEngineInner<T>(
         ? Math.max(0, items.length - initialUnreadCount)
         : Math.max(0, items.length - 1);
     return {
-      index: firstItemIndex + targetIdx,
+      index: targetIdx,
       align: 'end' as const,
     };
-  }, [firstItemIndex, initialUnreadCount, items.length]);
+  }, [initialUnreadCount, items.length]);
 
   const virtuosoContext = useMemo<VirtuosoContext>(
     () => ({ header, footer }),

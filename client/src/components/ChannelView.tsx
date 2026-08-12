@@ -924,15 +924,16 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   }, []);
 
   const scrollToMessage = useCallback(async (msgId: string, createdAt?: string) => {
-    const el = document.getElementById(`msg-${msgId}`);
-    if (el) {
+    if (!msgId) return;
+    const isLoaded = messages.some((m) => m._id === msgId);
+    if (isLoaded) {
       chatEngineRef.current?.scrollToMessage(msgId);
       return;
     }
     if (createdAt) {
       await jumpToMessage(msgId, createdAt);
     }
-  }, [messages]);
+  }, [messages, jumpToMessage]);
 
   useEffect(() => {
     if (!socket) return;
@@ -1271,12 +1272,19 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
           if (part.startsWith('@')) {
             const name = part.substring(1);
-            const isUserMention = mentions.some(m => m.username === name);
+            const userMentionByName = mentions.find(m => m.username === name);
             const role = server.roles?.find(r => r.name === name);
             const isSpecialMention = name === 'everyone' || name === 'here';
 
+            // Find mention by order/index if username changed
+            const userMentionIndex = userMentionByName ? -1 : mentions.findIndex((m, idx) => {
+              const prevUserMentions = parts.slice(0, i).filter(p => p.startsWith('@') && !server.roles?.some(r => r.name === p.substring(1)) && p.substring(1) !== 'everyone' && p.substring(1) !== 'here');
+              return prevUserMentions.length === idx;
+            });
+            const userMention = userMentionByName || (userMentionIndex !== -1 ? mentions[userMentionIndex] : undefined);
+            const isUserMention = !!userMention;
+
             if (isUserMention || role || isSpecialMention) {
-              const userMention = mentions.find(m => m.username === name);
               const color = role ? role.color : (isSpecialMention ? 'var(--primary-neon)' : 'inherit');
 
               return (

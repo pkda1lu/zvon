@@ -117,21 +117,29 @@ const RolesSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
 
     const handleMoveRole = async (roleId: string, direction: 'up' | 'down') => {
         const sorted = [...roles].sort((a, b) => b.position - a.position);
-        const idx = sorted.findIndex(r => r._id === roleId);
+        const idx = sorted.findIndex(r => String(r._id) === String(roleId));
         if (idx === -1) return;
         const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
         if (targetIdx < 0 || targetIdx >= sorted.length) return;
-        const target = sorted[targetIdx];
-        const updates = [{ id: roleId, position: target.position }, { id: target._id, position: sorted[idx].position }];
-        const newRoles = roles.map(r => {
-            if (r._id === roleId) return { ...r, position: target.position };
-            if (r._id === target._id) return { ...r, position: sorted[idx].position };
-            return r;
-        });
-        setRoles(newRoles);
+
+        // Переставляем элементы в массиве по новому порядку
+        const newSorted = [...sorted];
+        const [movedRole] = newSorted.splice(idx, 1);
+        newSorted.splice(targetIdx, 0, movedRole);
+
+        // Назначаем четкие позиции (от самой высокой вверху до 0 внизу)
+        const total = newSorted.length;
+        const updatedRolesWithPositions = newSorted.map((r, index) => ({
+            ...r,
+            position: total - 1 - index
+        }));
+
+        const updates = updatedRolesWithPositions.map(r => ({ id: r._id, position: r.position }));
+
+        setRoles(updatedRolesWithPositions);
         try {
             await axios.patch(`/api/servers/${server._id}/roles/positions`, { roles: updates });
-            onServerUpdate({ ...server, roles: newRoles });
+            onServerUpdate({ ...server, roles: updatedRolesWithPositions });
         } catch (err) {
             setRoles(roles);
             await alert('Не удалось переместить роль');

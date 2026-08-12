@@ -2696,11 +2696,14 @@ input[type=range]:disabled::-webkit-slider-thumb {
     backdrop-filter: blur(6px);
     box-shadow: -12px 0 12px 4px rgba(20, 20, 26, 0.9);
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.15s ease;
 }
 
-.server-role-row:hover .server-role-row-reorder {
+.server-role-row:hover .server-role-row-reorder,
+.server-role-row:focus-within .server-role-row-reorder {
     opacity: 1;
+    pointer-events: auto;
 }
 
 .server-role-row.active {

@@ -42,10 +42,11 @@ async function handleMemberJoin(server, userId, io) {
       const channel = await Channel.findById(server.welcomeChannel);
       if (channel && String(channel.server) === String(server._id)) {
         const template = server.welcomeMessages[Math.floor(Math.random() * server.welcomeMessages.length)];
-        const content = template.replace(/\{user\}/g, user.displayName || user.username);
+        const content = template.replace(/\{user\}/g, `@${user.username}`);
         const welcomeMsg = new Message({ content, author: userId, channel: channel._id, mentions: [userId], type: 'server-join' });
         await welcomeMsg.save();
-        await welcomeMsg.populate('author', 'username avatar badges');
+        await welcomeMsg.populate({ path: 'author', select: 'username avatar badges' });
+        await welcomeMsg.populate({ path: 'mentions', select: 'username avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
         if (io) io.to(`channel-${channel._id}`).emit('new-message', welcomeMsg);
       }
     } catch (e) {

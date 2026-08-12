@@ -26,6 +26,8 @@ const EmojiAutocomplete: React.FC<EmojiAutocompleteProps> = ({ query, items, onS
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (filteredItems.length === 0) return;
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 e.stopPropagation();

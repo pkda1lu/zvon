@@ -30,9 +30,9 @@ let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false 
 const isOpenedHidden = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
 
 let appSettings = {
-    minimizeToTray: true,
+    minimizeToTray: false,
     closeToTray: true,
-    startMinimized: false,
+    startMinimized: true,
     activityDetectionEnabled: true,
     overlayCategories: ['game', 'music', 'video'],
     userApps: {} // { 'process.exe': { name: '...', type: '...' } }

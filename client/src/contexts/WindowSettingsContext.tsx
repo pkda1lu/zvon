@@ -72,10 +72,10 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
         if (saved) {
             const parsed = JSON.parse(saved);
             return {
-                autoStart: false,
-                minimizeToTray: true,
+                autoStart: true,
+                minimizeToTray: false,
                 closeToTray: true,
-                startMinimized: false,
+                startMinimized: true,
                 hardwareAcceleration: true,
                 streamerModeEnabled: false,
                 autoEnableWithOBS: true,
@@ -101,10 +101,10 @@ export const WindowSettingsProvider: React.FC<{ children: React.ReactNode }> = (
             };
         }
         return {
-            autoStart: false,
-            minimizeToTray: true,
+            autoStart: true,
+            minimizeToTray: false,
             closeToTray: true,
-            startMinimized: false,
+            startMinimized: true,
             hardwareAcceleration: true,
             streamerModeEnabled: false,
             autoEnableWithOBS: true,
