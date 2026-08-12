@@ -122,15 +122,11 @@ const AppChangelogSettings: React.FC = () => {
             if (res.ok) {
                 const json = await res.json();
                 commitsData = json.commits || [];
-            }
-
-            if (commitsData.length === 0) {
-                const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/commits?per_page=15`);
-                if (res.ok) {
-                    const json = await res.json();
-                    if (Array.isArray(json)) {
-                        commitsData = json;
-                    }
+            } else {
+                const resMaster = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${latestTag}...master`);
+                if (resMaster.ok) {
+                    const json = await resMaster.json();
+                    commitsData = json.commits || [];
                 }
             }
 
@@ -144,7 +140,8 @@ const AppChangelogSettings: React.FC = () => {
                 htmlUrl: c.html_url || `https://github.com/pkda1lu/zvon/commit/${c.sha}`
             }));
 
-            // Reverse so newer commits appear higher (at the top)
+            // GitHub compare API returns commits in chronological order (oldest first).
+            // Reverse so newer commits appear higher (at the top).
             formattedCommits.reverse();
 
             setUnreleasedCommits(formattedCommits);
@@ -170,6 +167,7 @@ const AppChangelogSettings: React.FC = () => {
 
         try {
             let commitsData: any[] = [];
+            let isDirectCommitsEndpoint = false;
 
             if (prevReleaseTag) {
                 const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${prevReleaseTag}...${releaseTag}`);
@@ -180,11 +178,12 @@ const AppChangelogSettings: React.FC = () => {
             }
 
             if (commitsData.length === 0) {
-                const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/commits?sha=${releaseTag}&per_page=30`);
+                const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/commits?sha=${releaseTag}&per_page=100`);
                 if (res.ok) {
                     const json = await res.json();
                     if (Array.isArray(json)) {
                         commitsData = json;
+                        isDirectCommitsEndpoint = true;
                     }
                 }
             }
@@ -199,8 +198,11 @@ const AppChangelogSettings: React.FC = () => {
                 htmlUrl: c.html_url || `https://github.com/pkda1lu/zvon/commit/${c.sha}`
             }));
 
-            // Reverse so newer commits appear higher (at the top)
-            formattedCommits.reverse();
+            // Compare API returns commits in chronological order (oldest first).
+            // /commits endpoint returns commits in reverse-chronological order (newest first).
+            if (!isDirectCommitsEndpoint) {
+                formattedCommits.reverse();
+            }
 
             setCommitsCache(prev => ({ ...prev, [releaseTag]: formattedCommits }));
         } catch (e) {
