@@ -4,6 +4,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import { MonitorIcon, CloseIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { formatClockTime } from '../utils/time';
 import StreamerBlur from './StreamerBlur';
@@ -127,7 +128,9 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     mutualFriends = [], mutualServers = [], developments = { bots: [], miniApps: [] },
     actionButtons
 }) => {
-    const [activeTab, setActiveTab] = useState<'contacts' | 'activity' | 'developments'>('contacts');
+    const { user: currentUser } = useAuth();
+    const isSelf = !!currentUser && currentUser._id === user._id;
+    const [activeTab, setActiveTab] = useState<'contacts' | 'activity' | 'developments'>(() => isSelf ? 'activity' : 'contacts');
     const { streamerModeEnabled, censorInfo } = useWindowSettings();
 
     const isServerType = type.startsWith('server-');
@@ -291,7 +294,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     }
 
     return (
-        <div className="user-profile-card modal-style full-profile panel-hero" style={{ width: '1100px', flexDirection: 'row', height: '720px', maxWidth: '95vw' }}>
+        <div className="user-profile-card modal-style full-profile panel-hero">
             <div className="panel-hero-bg" aria-hidden="true">
                 <div className="blob cyan" />
                 <div className="blob purple" />
@@ -303,19 +306,20 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     <div className="profile-close-circle">
                         <CloseIcon />
                     </div>
-                    <span className="profile-close-text">ESC</span>
                 </div>
             )}
 
-            <div className="full-profile-left" style={{ width: '340px', borderRight: '1px solid var(--glass-border)', overflowY: 'auto' }}>
+            <div className="full-profile-left">
                 {compactProfileContent}
             </div>
             
-            <div className="full-profile-right" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px' }}>
+            <div className="full-profile-right">
                 <div className="profile-tabs-sidebar">
-                    <button className={`profile-tab-item ${activeTab === 'contacts' ? 'active' : ''}`} onClick={() => setActiveTab('contacts')}>
-                        <span>Общие контакты</span>
-                    </button>
+                    {!isSelf && (
+                        <button className={`profile-tab-item ${activeTab === 'contacts' ? 'active' : ''}`} onClick={() => setActiveTab('contacts')}>
+                            <span>Общие контакты</span>
+                        </button>
+                    )}
                     {!user.isBot && (
                         <>
                             <button className={`profile-tab-item ${activeTab === 'activity' ? 'active' : ''}`} onClick={() => setActiveTab('activity')}>
@@ -329,7 +333,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                 </div>
 
                 <div className="profile-tab-content-full">
-                    {activeTab === 'contacts' && (
+                    {activeTab === 'contacts' && !isSelf && (
                         <div className="contacts-tab">
                             <section>
                                 <h4 className="full-tab-section-title">ОБЩИЕ ДРУЗЬЯ ({mutualFriends.length})</h4>

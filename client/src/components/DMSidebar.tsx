@@ -76,6 +76,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
         // Чат «от имени модерации»: для пользователя (не модератора)
         // собеседник отображается как «Модерация».
         const moderatorId = getModeratorId(dm);
+        const maskModeration = !!moderatorId && moderatorId !== currentUser._id;
         const displayName = maskModeration ? 'Модерация' : (dm.name || (isGroup ? otherParticipants.map(p => p.displayName || p.username).join(', ') : (otherUser?.displayName || otherUser?.username)));
         const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? null : otherUser);
 
