@@ -19,6 +19,7 @@ interface AuthContextType {
   toggle2FA: (enabled: boolean) => Promise<void>;
   resendVerification: (email: string) => Promise<any>;
   verifyRegistration: (email: string, code: string) => Promise<any>;
+  updateRegistrationEmail: (oldEmail: string, newEmail: string) => Promise<any>;
   requestEmailChange: (newEmail: string) => Promise<void>;
   verifyEmailChange: (code: string) => Promise<void>;
   globalUsers: Record<string, Partial<User>>;
@@ -224,6 +225,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return response.data;
   };
 
+  const updateRegistrationEmail = async (oldEmail: string, newEmail: string) => {
+    const response = await axios.post('/api/auth/update-registration-email', { oldEmail, newEmail });
+    return response.data;
+  };
+
   const requestEmailChange = async (newEmail: string) => {
     await axios.post('/api/auth/email-change/request', { newEmail });
   };
@@ -237,7 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{ 
       user, token, login, loginWithToken, register, verifyLogin, logout, loading, 
       updateUser, refreshUser, forgotPassword, resetPassword, toggle2FA, 
-      resendVerification, verifyRegistration, requestEmailChange, 
+      resendVerification, verifyRegistration, updateRegistrationEmail, requestEmailChange, 
       verifyEmailChange, globalUsers, updateGlobalUser 
     }}>
       {children}

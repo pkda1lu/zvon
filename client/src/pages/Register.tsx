@@ -14,7 +14,10 @@ const Register: React.FC = () => {
   const [resendTimer, setResendTimer] = useState(0);
   const [requiresVerification, setRequiresVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
-  const { register, resendVerification, verifyRegistration } = useAuth();
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [newEmailInput, setNewEmailInput] = useState('');
+  const [updatingEmailLoading, setUpdatingEmailLoading] = useState(false);
+  const { register, resendVerification, verifyRegistration, updateRegistrationEmail } = useAuth();
   const navigate = useNavigate();
 
   React.useEffect(() => {
@@ -37,6 +40,32 @@ const Register: React.FC = () => {
       setResendTimer(60);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Ошибка отправки кода');
+    }
+  };
+
+  const handleUpdateEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    const trimmedNew = newEmailInput.trim().toLowerCase();
+    if (!trimmedNew) return;
+    if (trimmedNew === email.trim().toLowerCase()) {
+      setIsEditingEmail(false);
+      return;
+    }
+
+    setUpdatingEmailLoading(true);
+    try {
+      const res = await updateRegistrationEmail(email, trimmedNew);
+      setEmail(trimmedNew);
+      setIsEditingEmail(false);
+      setSuccess(res.message || 'Почта успешно изменена. Новый код отправлен на вашу почту.');
+      setResendTimer(60);
+      setVerificationCode('');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Ошибка при изменении почты');
+    } finally {
+      setUpdatingEmailLoading(false);
     }
   };
 
@@ -106,84 +135,150 @@ const Register: React.FC = () => {
               </svg>
             </div>
 
-            <h1 style={{ marginTop: '20px', fontSize: '32px', fontWeight: 800, marginBottom: '10px', color: 'white' }}>Подтвердите почту</h1>
-            <p style={{ color: 'var(--text-dim)', marginBottom: '40px', fontSize: '15px' }}>Мы отправили 6-значный код на {email}</p>
+            {isEditingEmail ? (
+              <>
+                <h1 style={{ marginTop: '20px', fontSize: '32px', fontWeight: 800, marginBottom: '10px', color: 'white' }}>Изменение почты</h1>
+                <p style={{ color: 'var(--text-dim)', marginBottom: '30px', fontSize: '15px' }}>Укажите новый адрес для получения кода подтверждения</p>
 
-            <form onSubmit={handleVerifyCode} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {error && (
-                <div style={{
-                  background: 'rgba(255, 59, 48, 0.1)', border: '1px solid rgba(255, 59, 48, 0.3)',
-                  color: '#ff3b30', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
-                }}>
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div style={{
-                  background: 'rgba(0, 255, 127, 0.1)', border: '1px solid rgba(0, 255, 127, 0.3)',
-                  color: '#00ff7f', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
-                }}>
-                  {success}
-                </div>
-              )}
+                <form onSubmit={handleUpdateEmailSubmit} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {error && (
+                    <div style={{
+                      background: 'rgba(255, 59, 48, 0.1)', border: '1px solid rgba(255, 59, 48, 0.3)',
+                      color: '#ff3b30', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
+                    }}>
+                      {error}
+                    </div>
+                  )}
 
-              <div>
-                <label className="auth-label-neon">КОД ИЗ ПИСЬМА</label>
-                <input
-                  type="text"
-                  className="auth-input-glass"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                  placeholder="123456"
-                  required
-                  maxLength={6}
-                  autoFocus
-                  style={{ textAlign: 'center', fontSize: '24px', letterSpacing: '8px' }}
-                />
-              </div>
+                  <div>
+                    <label className="auth-label-neon">НОВЫЙ ЭЛЕКТРОННЫЙ АДРЕС</label>
+                    <input
+                      type="email"
+                      className="auth-input-glass"
+                      value={newEmailInput}
+                      onChange={(e) => setNewEmailInput(e.target.value)}
+                      placeholder="new.email@example.com"
+                      required
+                      autoFocus
+                    />
+                  </div>
 
-              <button type="submit" className="neon-btn" style={{ padding: '18px' }}>
-                Завершить регистрацию
-              </button>
+                  <button type="submit" className="neon-btn" disabled={updatingEmailLoading} style={{ padding: '16px' }}>
+                    {updatingEmailLoading ? 'Сохранение...' : 'Сохранить и отправить новый код'}
+                  </button>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setRequiresVerification(false)}
-                  style={{ 
-                    background: 'none', 
-                    border: 'none', 
-                    color: 'var(--primary-neon)', 
-                    fontSize: '14px', 
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    textDecoration: 'underline'
-                  }}
-                >
-                  Изменить почту
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsEditingEmail(false); setError(''); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer', textAlign: 'center' }}
+                  >
+                    Отмена
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <h1 style={{ marginTop: '20px', fontSize: '32px', fontWeight: 800, marginBottom: '10px', color: 'white' }}>Подтвердите почту</h1>
+                <p style={{ color: 'var(--text-dim)', marginBottom: '30px', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                  <span>Мы отправили 6-значный код на</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <strong style={{ color: 'white' }}>{email}</strong>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setNewEmailInput(email);
+                        setIsEditingEmail(true);
+                        setError('');
+                        setSuccess('');
+                      }}
+                      title="Изменить почту"
+                      style={{ 
+                        background: 'rgba(255, 255, 255, 0.08)', 
+                        border: '1px solid rgba(255, 255, 255, 0.15)', 
+                        color: 'var(--primary-neon)', 
+                        borderRadius: '6px',
+                        padding: '4px 6px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                  </span>
+                </p>
 
-                <button 
-                  type="button" 
-                  onClick={() => setRequiresVerification(false)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer' }}
-                >
-                  Вернуться назад
-                </button>
-              </div>
+                <form onSubmit={handleVerifyCode} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  {error && (
+                    <div style={{
+                      background: 'rgba(255, 59, 48, 0.1)', border: '1px solid rgba(255, 59, 48, 0.3)',
+                      color: '#ff3b30', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
+                    }}>
+                      {error}
+                    </div>
+                  )}
+                  {success && (
+                    <div style={{
+                      background: 'rgba(0, 255, 127, 0.1)', border: '1px solid rgba(0, 255, 127, 0.3)',
+                      color: '#00ff7f', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center'
+                    }}>
+                      {success}
+                    </div>
+                  )}
 
-              <button 
-                type="button"
-                onClick={handleResendVerification}
-                disabled={resendTimer > 0}
-                style={{
-                  background: 'none', border: 'none', color: resendTimer > 0 ? 'var(--text-dim)' : 'var(--primary-neon)',
-                  fontSize: '12px', cursor: resendTimer > 0 ? 'default' : 'pointer', fontWeight: 600
-                }}
-              >
-                {resendTimer > 0 ? `Отправить повторно через ${resendTimer}с` : 'Отправить код повторно'}
-              </button>
-            </form>
+                  <div>
+                    <label className="auth-label-neon">КОД ИЗ ПИСЬМА</label>
+                    <input
+                      type="text"
+                      className="auth-input-glass"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      placeholder="123456"
+                      required
+                      maxLength={6}
+                      autoFocus
+                      style={{ textAlign: 'center', fontSize: '24px', letterSpacing: '8px' }}
+                    />
+                  </div>
+
+                  <button type="submit" className="neon-btn" style={{ padding: '18px' }}>
+                    Завершить регистрацию
+                  </button>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setRequiresVerification(false);
+                        setIsEditingEmail(false);
+                        setError('');
+                        setSuccess('');
+                      }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      Вернуться назад
+                    </button>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendTimer > 0}
+                    style={{
+                      background: 'none', border: 'none', color: resendTimer > 0 ? 'var(--text-dim)' : 'var(--primary-neon)',
+                      fontSize: '12px', cursor: resendTimer > 0 ? 'default' : 'pointer', fontWeight: 600
+                    }}
+                  >
+                    {resendTimer > 0 ? `Отправить повторно через ${resendTimer}с` : 'Отправить код повторно'}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </div>
       </div>

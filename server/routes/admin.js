@@ -286,7 +286,15 @@ router.patch('/users/:id', [auth, isModerator], async (req, res) => {
     }
 
     const oldData = user.toObject();
-    if (username) user.username = username;
+    if (username) {
+      const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const trimmedUsername = username.trim();
+      const existingUser = await User.findOne({ username: new RegExp(`^${escapeRegex(trimmedUsername)}$`, 'i') });
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+        return res.status(400).json({ message: 'Никнейм уже занят' });
+      }
+      user.username = trimmedUsername;
+    }
     if (displayName !== undefined) user.displayName = displayName;
     if (email) user.email = email;
     if (role) user.role = role;

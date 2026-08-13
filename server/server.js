@@ -598,11 +598,12 @@ io.on('connection', (socket) => {
         const foundMentions = [];
 
         // Handle User Mentions
+        const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const userMentionRegex = /@(\w+)/g;
         let userMatch;
         while ((userMatch = userMentionRegex.exec(message.content)) !== null) {
           const username = userMatch[1];
-          const mentionedUser = await User.findOne({ username });
+          const mentionedUser = await User.findOne({ username: new RegExp(`^${escapeRegex(username)}$`, 'i') });
           if (mentionedUser) {
             if (data.channelId) {
               const channel = await Channel.findById(data.channelId);

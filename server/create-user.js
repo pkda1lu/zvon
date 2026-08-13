@@ -21,7 +21,13 @@ async function createUser() {
     console.log('Creating user with:', { username, email, password: '***' });
 
     // Проверка существования пользователя
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existingUser = await User.findOne({
+      $or: [
+        { email: email.toLowerCase() },
+        { username: new RegExp(`^${escapeRegex(username.trim())}$`, 'i') }
+      ]
+    });
     if (existingUser) {
       console.log('User already exists:', {
         id: existingUser._id,

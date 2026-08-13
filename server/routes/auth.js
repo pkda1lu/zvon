@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
+const PendingRegistration = require('../models/PendingRegistration');
 const auth = require('../middleware/auth');
 const crypto = require('crypto');
 const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCode, sendEmailChangeCode } = require('../utils/mail');
@@ -55,41 +56,43 @@ router.post('/register', registerLimiter, [
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { username, email, password } = req.body;
+    const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
-    let user = await User.findOne({ $or: [{ email: email.toLowerCase() }, { username }] });
-    if (user) return res.status(400).json({ message: 'User already exists' });
+    let existingUser = await User.findOne({
+      $or: [
+        { email: trimmedEmail },
+        { username: new RegExp(`^${escapeRegex(trimmedUsername)}$`, 'i') }
+      ]
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Пользователь с такой почтой или никнеймом уже зарегистрирован' });
+    }
 
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const verificationCodeExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
+    const verificationCodeExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
-    user = new User({
-      username,
-      email: email.toLowerCase(),
-      password,
-      isVerified: false,
-      verificationCode,
-      verificationCodeExpires
-    });
-
-    await user.save();
-
-    await logGlobalAction({
-      executorId: user._id,
-      action: 'USER_REGISTER',
-      targetId: user._id,
-      targetModel: 'User',
-      details: { username: user.username }
-    });
+    await PendingRegistration.findOneAndUpdate(
+      { email: trimmedEmail },
+      {
+        username: trimmedUsername,
+        email: trimmedEmail,
+        password,
+        verificationCode,
+        verificationCodeExpires
+      },
+      { upsert: true, new: true }
+    );
 
     try {
-      await sendRegistrationCode(user.email, verificationCode, getBrand(req).name);
+      await sendRegistrationCode(trimmedEmail, verificationCode, getBrand(req).name);
     } catch (mailError) {
       console.error('Failed to send registration code:', mailError);
-      // We still created the user, but we should inform them email might have failed
       return res.status(201).json({
-        message: 'Аккаунт создан, но возникла ошибка при отправке кода на почту. Попробуйте запросить код повторно или обратитесь в поддержку.',
+        message: 'Возникла ошибка при отправке кода на почту. Попробуйте запросить код повторно.',
         requiresVerification: true,
-        email: user.email,
+        email: trimmedEmail,
         mailError: true
       });
     }
@@ -97,7 +100,7 @@ router.post('/register', registerLimiter, [
     return res.status(201).json({
       message: 'Код подтверждения отправлен на вашу почту.',
       requiresVerification: true,
-      email: user.email
+      email: trimmedEmail
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -116,10 +119,12 @@ router.post('/login', loginLimiter, [
     const { email, password } = req.body;
     console.log('[Login] Attempting login for:', email);
 
+    const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const trimmedInput = email.trim();
     const user = await User.findOne({
       $or: [
-        { email: email.toLowerCase() },
-        { username: email }
+        { email: trimmedInput.toLowerCase() },
+        { username: new RegExp(`^${escapeRegex(trimmedInput)}$`, 'i') }
       ]
     });
 
@@ -235,13 +240,25 @@ router.get('/verify-email', async (req, res) => {
 router.post('/resend-verification', async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const trimmedEmail = email.trim().toLowerCase();
 
+    let pending = await PendingRegistration.findOne({ email: trimmedEmail });
+    if (pending) {
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      pending.verificationCode = verificationCode;
+      pending.verificationCodeExpires = new Date(Date.now() + 30 * 60 * 1000);
+      await pending.save();
+
+      await sendRegistrationCode(pending.email, verificationCode, getBrand(req).name);
+      return res.json({ message: 'Код подтверждения отправлен повторно' });
+    }
+
+    const user = await User.findOne({ email: trimmedEmail });
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.isVerified) return res.status(400).json({ message: 'User already verified' });
 
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const verificationCodeExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
+    const verificationCodeExpires = Date.now() + 30 * 60 * 1000;
 
     user.verificationCode = verificationCode;
     user.verificationCodeExpires = verificationCodeExpires;
@@ -251,6 +268,72 @@ router.post('/resend-verification', async (req, res) => {
     res.json({ message: 'Код подтверждения отправлен повторно' });
   } catch (error) {
     console.error('Resend verification error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/update-registration-email', codeLimiter, [
+  body('oldEmail').trim().isEmail().withMessage('Укажите текущую почту'),
+  body('newEmail').trim().isEmail().withMessage('Укажите корректный новый адрес почты')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const { oldEmail, newEmail } = req.body;
+    const trimmedOld = oldEmail.trim().toLowerCase();
+    const trimmedNew = newEmail.trim().toLowerCase();
+
+    if (trimmedOld === trimmedNew) {
+      return res.status(400).json({ message: 'Новый адрес почты совпадает с текущим' });
+    }
+
+    const existingUser = await User.findOne({ email: trimmedNew });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Эта почта уже зарегистрирована' });
+    }
+
+    let pending = await PendingRegistration.findOne({ email: trimmedOld });
+    if (!pending) {
+      const legacyUser = await User.findOne({ email: trimmedOld, isVerified: false });
+      if (!legacyUser) {
+        return res.status(404).json({ message: 'Неподтвержденный аккаунт не найден' });
+      }
+      legacyUser.email = trimmedNew;
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      legacyUser.verificationCode = verificationCode;
+      legacyUser.verificationCodeExpires = Date.now() + 30 * 60 * 1000;
+      await legacyUser.save();
+      try {
+        await sendRegistrationCode(legacyUser.email, verificationCode, getBrand(req).name);
+      } catch (e) {}
+      return res.json({ message: 'Почта успешно изменена. Новый код отправлен на вашу почту.', email: legacyUser.email });
+    }
+
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCodeExpires = new Date(Date.now() + 30 * 60 * 1000);
+
+    await PendingRegistration.deleteOne({ email: trimmedNew });
+
+    pending.email = trimmedNew;
+    pending.verificationCode = verificationCode;
+    pending.verificationCodeExpires = verificationCodeExpires;
+    await pending.save();
+
+    try {
+      await sendRegistrationCode(pending.email, verificationCode, getBrand(req).name);
+    } catch (mailError) {
+      console.error('Failed to send registration code to updated email:', mailError);
+      return res.status(200).json({
+        message: 'Почта изменена, но возникла ошибка при отправке кода. Попробуйте отправить код повторно.',
+        email: pending.email,
+        mailError: true
+      });
+    }
+
+    res.json({ message: 'Почта успешно изменена. Новый код отправлен на вашу почту.', email: pending.email });
+  } catch (error) {
+    console.error('Update registration email error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -459,22 +542,64 @@ router.post('/verify-registration', codeLimiter, [
 ], async (req, res) => {
   try {
     const { email, code } = req.body;
-    const user = await User.findOne({
-      email: email.toLowerCase(),
+    const trimmedEmail = email.trim().toLowerCase();
+
+    let pending = await PendingRegistration.findOne({
+      email: trimmedEmail,
       verificationCode: code,
-      verificationCodeExpires: { $gt: Date.now() }
+      verificationCodeExpires: { $gt: new Date() }
     });
 
-    if (!user) {
-      return res.status(400).json({ message: 'Неверный или просроченный код' });
-    }
+    let user;
+    if (pending) {
+      const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const conflict = await User.findOne({
+        $or: [
+          { email: pending.email },
+          { username: new RegExp(`^${escapeRegex(pending.username)}$`, 'i') }
+        ]
+      });
+      if (conflict) {
+        await PendingRegistration.deleteOne({ _id: pending._id });
+        return res.status(400).json({ message: 'Пользователь с таким именем или почтой уже зарегистрирован' });
+      }
 
-    user.isVerified = true;
-    user.verificationCode = undefined;
-    user.verificationCodeExpires = undefined;
-    user.twoFactorCode = undefined;
-    user.twoFactorCodeExpires = undefined;
-    await user.save();
+      // Create the User in database only AFTER successful code verification
+      user = new User({
+        username: pending.username,
+        email: pending.email,
+        password: pending.password,
+        isVerified: true
+      });
+
+      await user.save();
+      await PendingRegistration.deleteOne({ _id: pending._id });
+
+      await logGlobalAction({
+        executorId: user._id,
+        action: 'USER_REGISTER',
+        targetId: user._id,
+        targetModel: 'User',
+        details: { username: user.username }
+      });
+    } else {
+      user = await User.findOne({
+        email: trimmedEmail,
+        verificationCode: code,
+        verificationCodeExpires: { $gt: Date.now() }
+      });
+
+      if (!user) {
+        return res.status(400).json({ message: 'Неверный или просроченный код' });
+      }
+
+      user.isVerified = true;
+      user.verificationCode = undefined;
+      user.verificationCodeExpires = undefined;
+      user.twoFactorCode = undefined;
+      user.twoFactorCodeExpires = undefined;
+      await user.save();
+    }
 
     const io = req.app.get('io');
     if (io) {
@@ -485,9 +610,10 @@ router.post('/verify-registration', codeLimiter, [
     res.json({
       token,
       message: 'Аккаунт успешно подтвержден',
-      user: { id: user._id, username: user.username, email: user.email, status: user.status }
+      user: { id: user._id, username: user.username, email: user.email, status: user.status, avatar: user.avatar, isVerified: true }
     });
   } catch (error) {
+    console.error('Verify registration error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

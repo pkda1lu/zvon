@@ -10,7 +10,8 @@ const { logGlobalAction } = require('../utils/globalAuditLogger');
 router.get('/check-username/:username', auth, async (req, res) => {
   try {
     const { username } = req.params;
-    const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
+    const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existingUser = await User.findOne({ username: new RegExp(`^${escapeRegex(username.trim())}$`, 'i') });
     if (existingUser && existingUser._id.toString() !== req.user._id.toString()) {
       return res.json({ available: false });
     }
@@ -119,9 +120,11 @@ router.put('/profile', auth, async (req, res) => {
   try {
     const { username, displayName, primaryServer, status, bio, badges, bannerColor, displayedTag } = req.body;
     if (username) {
-      const existingUser = await User.findOne({ username });
+      const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const trimmedUsername = username.trim();
+      const existingUser = await User.findOne({ username: new RegExp(`^${escapeRegex(trimmedUsername)}$`, 'i') });
       if (existingUser && existingUser._id.toString() !== req.user._id.toString()) return res.status(400).json({ message: 'Username already taken' });
-      req.user.username = username;
+      req.user.username = trimmedUsername;
     }
     if (displayName !== undefined) req.user.displayName = displayName;
     if (primaryServer !== undefined) {

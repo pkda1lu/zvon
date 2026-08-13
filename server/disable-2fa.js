@@ -14,7 +14,8 @@ async function disable2FA() {
     await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB');
 
-    const user = await User.findOne({ username });
+    const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const user = await User.findOne({ username: new RegExp(`^${escapeRegex(username.trim())}$`, 'i') });
     if (!user) {
       console.error(`User not found: ${username}`);
       await mongoose.disconnect();

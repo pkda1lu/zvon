@@ -12,12 +12,17 @@ router.post('/create', auth, async (req, res) => {
         const { name } = req.body;
         if (!name) return res.status(400).json({ message: 'Bot name is required' });
 
+        const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const trimmedName = name.trim();
+        const existingUser = await User.findOne({ username: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') });
+        if (existingUser) return res.status(400).json({ message: 'Пользователь или бот с таким именем уже существует' });
+
         // Generate a unique token
         const botToken = 'bot_' + crypto.randomBytes(32).toString('hex');
 
         // Create a new User object for the bot
         const botUser = new User({
-            username: name,
+            username: trimmedName,
             email: `${name.toLowerCase()}_${crypto.randomBytes(4).toString('hex')}@bot.zvon`,
             password: crypto.randomBytes(16).toString('hex'), // Random password, bots login by token
             isBot: true,
@@ -185,7 +190,15 @@ router.patch('/:id', auth, async (req, res) => {
         const bot = await User.findOne({ _id: req.params.id, owner: req.user._id, isBot: true });
         if (!bot) return res.status(404).json({ message: 'Bot not found' });
 
-        if (username) bot.username = username;
+        if (username) {
+            const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const trimmedUsername = username.trim();
+            const existingUser = await User.findOne({ username: new RegExp(`^${escapeRegex(trimmedUsername)}$`, 'i') });
+            if (existingUser && existingUser._id.toString() !== bot._id.toString()) {
+                return res.status(400).json({ message: 'Имя уже занято' });
+            }
+            bot.username = trimmedUsername;
+        }
         if (bio !== undefined) bot.bio = bio;
         if (primaryServer !== undefined) bot.primaryServer = primaryServer || null;
 
