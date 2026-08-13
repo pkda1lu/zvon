@@ -41,6 +41,7 @@ const auditLogSchema = new mongoose.Schema({
       'ROLE_CREATE',
       'ROLE_UPDATE',
       'ROLE_DELETE',
+      'ROLE_POSITIONS_UPDATE',
       'INVITE_CREATE',
       'INVITE_DELETE',
       'MESSAGE_DELETE',

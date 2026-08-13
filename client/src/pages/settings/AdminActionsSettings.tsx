@@ -25,7 +25,8 @@ const ACTION_MAP: Record<string, string> = {
     'BOT_DELETE': 'Удаление бота',
     'MINIAPP_CREATE': 'Создание мини-приложения',
     'MODERATION_REPORT_RESOLVE': 'Решение жалобы',
-    'MODERATION_BAN': 'Бан модератором'
+    'MODERATION_BAN': 'Бан модератором',
+    'MODERATION_NOTIFY': 'Предупреждение модератора'
 };
 
 const ACTION_OPTIONS: CustomSelectOption[] = Object.entries(ACTION_MAP).map(([val, label]) => ({
@@ -38,6 +39,17 @@ const toLocalDateInputValue = (d: Date) => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+};
+
+const translateKey = (key: string) => {
+    const keys: Record<string, string> = {
+        'name': 'Название', 'description': 'Описание', 'icon': 'Иконка', 'banner': 'Баннер',
+        'permissions': 'Права', 'color': 'Цвет', 'hoist': 'Отображение', 'topic': 'Тема',
+        'roles': 'Роли', 'nickname': 'Никнейм', 'expiresAt': 'Срок', 'owner': 'Владелец',
+        'communicationDisabledUntil': 'Мут до', 'username': 'Имя пользователя', 'email': 'Email',
+        'status': 'Статус', 'bio': 'О себе', 'isBanned': 'Бан', 'role': 'Системная роль'
+    };
+    return keys[key] || key;
 };
 
 const format24hDateTime = (dateInput: string | Date) => {
@@ -63,6 +75,11 @@ const AdminActionsSettings: React.FC = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+
+    const toggleLogCollapse = (id: string) => {
+        setExpandedLogs(prev => ({ ...prev, [id]: !prev[id] }));
+    };
 
     useEffect(() => {
         if (range !== 'custom') {
@@ -194,10 +211,16 @@ const AdminActionsSettings: React.FC = () => {
                 ) : (
                     logs.map(log => {
                         const target = getTargetLabel(log);
+                        const isExpanded = !!expandedLogs[log._id];
+                        const hasDetails = (Array.isArray(log.details?.changes) && log.details.changes.length > 0) || log.details?.serverName || log.details?.reason || (log.details?.changes && !Array.isArray(log.details.changes));
 
                         return (
                             <div key={log._id} className="audit-log-item" style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--bg-secondary, rgba(255,255,255,0.03))', border: '1px solid var(--glass-border, rgba(255,255,255,0.06))' }}>
-                                <div className="audit-log-header" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <div
+                                    className="audit-log-header"
+                                    onClick={() => hasDetails && toggleLogCollapse(log._id)}
+                                    style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', cursor: hasDetails ? 'pointer' : 'default' }}
+                                >
                                     <div className="audit-log-avatar" style={{ width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: 'var(--secondary-neon, #a855f7)' }}>
                                         {log.executor && getAvatarUrl(log.executor.avatar) ? (
                                             <img src={getAvatarUrl(log.executor.avatar)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -219,13 +242,60 @@ const AdminActionsSettings: React.FC = () => {
                                             {format24hDateTime(log.createdAt)}
                                         </div>
                                     </div>
+                                    {hasDetails && (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                padding: '4px'
+                                            }}
+                                            title={isExpanded ? 'Свернуть детали' : 'Развернуть детали'}
+                                        >
+                                            <svg
+                                                width="18"
+                                                height="18"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="var(--text-dim, #94a3b8)"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}
+                                            >
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {(log.details?.serverName || log.details?.reason || log.details?.changes) && (
+                                {isExpanded && Array.isArray(log.details?.changes) && log.details.changes.length > 0 && (
+                                    <div className="audit-log-changes" style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', fontSize: '12px' }}>
+                                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px', textTransform: 'uppercase' }}>Изменения:</div>
+                                        {log.details.changes.map((c: any, i: number) => (
+                                            <div key={i} className="audit-change-entry" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '4px' }}>
+                                                <span className="change-key" style={{ fontWeight: 600, color: 'var(--text-dim)', minWidth: '100px' }}>{translateKey(c.key)}:</span>
+                                                {c.oldValue !== undefined && (
+                                                    <span className="change-old" style={{ color: '#ef4444', textDecoration: 'line-through', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                        <span style={{ fontSize: '10px', opacity: 0.7, marginRight: '4px' }}>[До]:</span>
+                                                        {String(c.oldValue)}
+                                                    </span>
+                                                )}
+                                                <span className="change-arrow" style={{ color: 'var(--text-dim)', fontWeight: 700 }}>→</span>
+                                                <span className="change-new" style={{ color: '#22c55e', fontWeight: 600, background: 'rgba(34, 197, 94, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                    <span style={{ fontSize: '10px', opacity: 0.8, marginRight: '4px' }}>[После]:</span>
+                                                    {String(c.newValue)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {isExpanded && (log.details?.serverName || log.details?.reason || (log.details?.changes && !Array.isArray(log.details.changes))) && (
                                     <div className="audit-log-reason" style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-normal)', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '6px' }}>
                                         {log.details.serverName && <div><strong>Сервер:</strong> {log.details.serverName}</div>}
                                         {log.details.reason && <div><strong>Причина:</strong> {log.details.reason}</div>}
-                                        {log.details.changes && (
+                                        {log.details.changes && !Array.isArray(log.details.changes) && (
                                             <div style={{ marginTop: '4px' }}>
                                                 <strong>Детали:</strong> {JSON.stringify(log.details.changes)}
                                             </div>

@@ -352,6 +352,15 @@ router.patch('/:id/roles/positions', auth, checkPermission(Permissions.MANAGE_RO
 
     await server.save();
 
+    await logAction({
+      serverId: server._id,
+      executorId: req.user._id,
+      action: 'ROLE_POSITIONS_UPDATE',
+      targetId: server._id,
+      targetModel: 'Server',
+      reason: req.body.reason || 'Изменение порядка ролей'
+    });
+
     const io = req.app.get('io');
     if (io) io.to(`server-${server._id}`).emit('server-updated', await Server.findById(server._id).populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).populate('channels').populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } }));
 
