@@ -27,12 +27,15 @@
     "win": {
       "target": "nsis",
       "icon": "public/app_icon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "executableName": "Zvon",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "displayLanguageSelector": false
+      "displayLanguageSelector": false,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "files": [
       "build/**/*"
