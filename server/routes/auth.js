@@ -10,6 +10,8 @@ const { sendVerificationEmail, sendLoginCode, sendResetCode, sendRegistrationCod
 const { getBrand } = require('../utils/branding');
 const { createSession } = require('../utils/session');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
+const Consent = require('../models/Consent');
+const { getConsentMeta, getPolicyMeta } = require('../utils/pdDocuments');
 
 // ===== Простой in-memory rate limit (защита от перебора паролей/кодов) =====
 const _rlStore = new Map();
@@ -50,7 +52,13 @@ router.post('/register', registerLimiter, [
     .matches(/[A-Z]/)
     .withMessage('Пароль должен содержать хотя бы одну заглавную букву')
     .matches(/[\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/)
-    .withMessage('Пароль должен содержать хотя бы одну цифру или специальный символ')
+    .withMessage('Пароль должен содержать хотя бы одну цифру или специальный символ'),
+  // Согласие на обработку ПД — обязательное условие регистрации (152-ФЗ, ст. 9).
+  // Проверяется на сервере, а не только галочкой в интерфейсе: клиентскую
+  // проверку можно обойти, а доказывать получение согласия обязан оператор.
+  body('consentPersonalData')
+    .custom(v => v === true || v === 'true')
+    .withMessage('Без согласия на обработку персональных данных регистрация невозможна')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -574,6 +582,29 @@ router.post('/verify-registration', codeLimiter, [
 
       await user.save();
       await PendingRegistration.deleteOne({ _id: pending._id });
+
+      // Фиксируем согласие на обработку ПД (ст. 9). Пишем именно здесь, а не на
+      // шаге /register: до подтверждения почты пользователя ещё не существует,
+      // а согласие должно быть привязано к субъекту. Сам факт согласия проверен
+      // валидатором на /register — без него заявка не создаётся.
+      try {
+        const meta = getConsentMeta();
+        await Consent.create({
+          user: user._id,
+          email: user.email,
+          purpose: 'personal_data',
+          documentVersion: meta.version,
+          documentHash: meta.hash,
+          granted: true,
+          ip: req.ip || '',
+          userAgent: (req.header('User-Agent') || '').slice(0, 300)
+        });
+      } catch (consentErr) {
+        // Регистрацию не рвём: аккаунт уже создан, а несохранённое согласие —
+        // проблема, которую надо видеть в логах и починить, а не показывать
+        // пользователю ошибкой на ровном месте.
+        console.error('[pd] Не удалось сохранить запись о согласии:', consentErr.message);
+      }
 
       await logGlobalAction({
         executorId: user._id,

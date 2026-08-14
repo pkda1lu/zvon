@@ -65,6 +65,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/sessions', require('./routes/sessions'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/personal-data', require('./routes/personalData'));
 app.use('/api/servers', require('./routes/servers'));
 app.use('/api/channels', require('./routes/channels'));
 app.use('/api/messages', require('./routes/messages'));

@@ -8,7 +8,7 @@ interface AuthContextType {
   token: string | null;
   login: (email: string, password: string) => Promise<any>;
   loginWithToken: (token: string) => Promise<boolean>;
-  register: (username: string, email: string, password: string) => Promise<any>;
+  register: (username: string, email: string, password: string, consent: { personalData: boolean; marketing: boolean }) => Promise<any>;
   verifyLogin: (email: string, code: string) => Promise<any>;
   logout: () => void;
   loading: boolean;
@@ -164,8 +164,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (username: string, email: string, password: string) => {
-    const response = await axios.post('/api/auth/register', { username, email, password });
+  // Согласие на обработку ПД передаётся явным полем и проверяется на сервере
+  // (152-ФЗ, ст. 9). Клиентской галочки недостаточно: доказывать получение
+  // согласия обязан оператор, поэтому решение принимает серверная валидация.
+  const register = async (
+    username: string,
+    email: string,
+    password: string,
+    consent: { personalData: boolean; marketing: boolean }
+  ) => {
+    const response = await axios.post('/api/auth/register', {
+      username,
+      email,
+      password,
+      consentPersonalData: consent.personalData,
+      consentMarketing: consent.marketing,
+    });
     return response.data;
   };
 

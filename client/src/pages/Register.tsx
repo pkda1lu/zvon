@@ -17,6 +17,10 @@ const Register: React.FC = () => {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmailInput, setNewEmailInput] = useState('');
   const [updatingEmailLoading, setUpdatingEmailLoading] = useState(false);
+  // Оба флажка сняты по умолчанию: предустановленная галочка согласием по
+  // ст. 9 152-ФЗ не является.
+  const [consentPersonalData, setConsentPersonalData] = useState(false);
+  const [consentMarketing, setConsentMarketing] = useState(false);
   const { register, resendVerification, verifyRegistration, updateRegistrationEmail } = useAuth();
   const navigate = useNavigate();
 
@@ -100,7 +104,15 @@ const Register: React.FC = () => {
         return;
       }
 
-      const data = await register(username, email, password);
+      if (!consentPersonalData) {
+        setError('Без согласия на обработку персональных данных регистрация невозможна');
+        return;
+      }
+
+      const data = await register(username, email, password, {
+        personalData: consentPersonalData,
+        marketing: consentMarketing,
+      });
       if (data.requiresVerification) {
         setRequiresVerification(true);
         setSuccess('Код подтверждения отправлен на вашу почту.');
@@ -366,9 +378,42 @@ const Register: React.FC = () => {
               </p>
             </div>
 
-            <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: '1.4', margin: '5px 0' }}>
-              Продолжая, вы соглашаетесь с нашими <span style={{ color: '#ffffff', cursor: 'pointer', textDecoration: 'underline' }}>Условиями обслуживания</span> и <span style={{ color: '#ffffff', cursor: 'pointer', textDecoration: 'underline' }}>Политикой конфиденциальности</span>.
-            </p>
+            {/*
+              Согласие по ст. 9 152-ФЗ должно быть конкретным, информированным и
+              сознательным. Пассивная формулировка «продолжая, вы соглашаетесь»
+              этому не отвечает: требуется отдельное действие пользователя.
+              Поэтому здесь — флажки, снятые по умолчанию (предустановленная
+              галочка согласием не является), и настоящие ссылки на документы,
+              открывающиеся до принятия решения.
+
+              Согласие на рассылку намеренно отделено: объединять разные цели в
+              одном флажке нельзя, и отказ от рассылки не должен мешать
+              регистрации.
+            */}
+            <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '12px', color: 'var(--text-dim)', lineHeight: '1.5', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={consentPersonalData}
+                onChange={(e) => setConsentPersonalData(e.target.checked)}
+                style={{ marginTop: '2px', flexShrink: 0 }}
+              />
+              <span>
+                Я даю согласие на обработку моих персональных данных и ознакомлен с{' '}
+                <a href="/policy" target="_blank" rel="noopener noreferrer" style={{ color: '#ffffff', textDecoration: 'underline' }}>
+                  Политикой обработки персональных данных
+                </a>.
+              </span>
+            </label>
+
+            <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '12px', color: 'var(--text-dim)', lineHeight: '1.5', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={consentMarketing}
+                onChange={(e) => setConsentMarketing(e.target.checked)}
+                style={{ marginTop: '2px', flexShrink: 0 }}
+              />
+              <span>Я согласен получать информационные и рекламные сообщения (необязательно).</span>
+            </label>
 
             <button type="submit" className="neon-btn" style={{ padding: '18px' }}>
               Инициировать регистрацию

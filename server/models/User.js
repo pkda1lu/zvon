@@ -305,6 +305,19 @@ const userSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+
+  // Аккаунт обезличен по требованию пользователя (152-ФЗ, ст. 14 и 21).
+  // Сама запись остаётся, чтобы не рвать чужую переписку и историю обсуждений,
+  // но все данные, позволяющие определить человека, из неё удалены.
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  deletedAt: {
+    type: Date,
+    default: null
   }
 });
 
