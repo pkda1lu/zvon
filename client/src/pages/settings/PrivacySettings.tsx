@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import PersonalDataSection from '../../components/PersonalDataSection';
 
 const PrivacySettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
@@ -167,6 +168,9 @@ const PrivacySettings: React.FC = () => {
                     <strong>Неполный профиль:</strong> отображается только имя, никнейм, баннер, аватарка, статус, значок и "О себе". Скрывается активность, приложения, основной сервер и время последнего входа.
                 </div>
             </div>
+
+            {/* Права субъекта персональных данных: выгрузка, согласия, удаление. */}
+            <PersonalDataSection />
         </div>
     );
 };

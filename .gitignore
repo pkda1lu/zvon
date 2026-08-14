@@ -29,3 +29,7 @@ client/package-lock.json
 
 # git filter-branch temp dir
 .git-rewrite/
+
+# Локальная база GeoIP: генерируется скриптом server/scripts/prepareGeoData.js,
+# в репозитории не хранится (~6 МБ бинарных данных).
+server/data/geoip/

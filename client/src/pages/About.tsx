@@ -1,6 +1,9 @@
 import React from 'react';
 import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
+// Страница использует класс .docs-container из Docs.css (высота и прокрутка).
+// Без явного импорта стили не попадают в её чанк и страница не прокручивается.
+import './Docs.css';
 
 const containerStyle: React.CSSProperties = { padding: '0 20px', minHeight: '100vh', display: 'flex', flexDirection: 'column' };
 const panelStyle: React.CSSProperties = {

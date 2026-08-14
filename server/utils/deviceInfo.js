@@ -1,4 +1,3 @@
-const axios = require('axios');
 
 // Лёгкий парсер User-Agent без внешних зависимостей.
 // Возвращает { browser, os, deviceType, deviceName }.
@@ -89,19 +88,65 @@ function isPrivateIp(ip = '') {
   return false;
 }
 
-// Best-effort геолокация по IP. Никогда не бросает — при ошибке возвращает {}.
+/**
+ * Локальная база GeoIP.
+ *
+ * Раньше здесь стоял запрос к ip-api.com — то есть IP-адрес каждого
+ * пользователя отправлялся на иностранный сервис ради определения страны.
+ * По 152-ФЗ это трансграничная передача персональных данных (IP-адрес относится
+ * к ПД), причём совершенно необязательная: та же задача решается локальной
+ * базой без единого сетевого запроса.
+ *
+ * GEODATADIR указывает на каталог «только страны» (см.
+ * scripts/prepareGeoData.js): полная база с городами занимает +108 МБ в
+ * оперативной памяти, страновая — около 10 МБ, а города для большинства адресов
+ * всё равно пустые.
+ *
+ * Если каталог не подготовлен, geoip-lite возьмёт собственные данные пакета —
+ * работать будет, просто памяти уйдёт больше.
+ */
+const path = require('path');
+const fs = require('fs');
+
+const COUNTRY_ONLY_DIR = path.join(__dirname, '..', 'data', 'geoip');
+if (fs.existsSync(path.join(COUNTRY_ONLY_DIR, 'geoip-country.dat'))) {
+  // Переменная читается geoip-lite при загрузке модуля, поэтому задаём её до require.
+  process.env.GEODATADIR = COUNTRY_ONLY_DIR;
+}
+
+let geoip = null;
+try {
+  geoip = require('geoip-lite');
+} catch (err) {
+  console.warn('[geoip] Модуль geoip-lite недоступен, страна определяться не будет:', err.message);
+}
+
+// Человекочитаемое название страны средствами платформы — без словарей и
+// сторонних зависимостей.
+let regionNames = null;
+try {
+  regionNames = new Intl.DisplayNames(['ru'], { type: 'region' });
+} catch { /* на старых сборках Node — оставим код страны как есть */ }
+
+/**
+ * Геолокация по IP. Синхронная и офлайновая, но сигнатура оставлена
+ * асинхронной: вызывающий код (utils/session.js) ожидает промис.
+ * Никогда не бросает — при любой неудаче возвращает {}.
+ */
 async function lookupGeo(ip) {
   try {
-    if (isPrivateIp(ip)) return {};
-    const { data } = await axios.get(
-      `http://ip-api.com/json/${encodeURIComponent(ip)}`,
-      { params: { fields: 'status,country,countryCode,city' }, timeout: 2500 }
-    );
-    if (data && data.status === 'success') {
-      return { country: data.country || '', countryCode: data.countryCode || '', city: data.city || '' };
-    }
-    return {};
-  } catch (e) {
+    if (!geoip || !ip || isPrivateIp(ip)) return {};
+    const found = geoip.lookup(ip);
+    if (!found || !found.country) return {};
+
+    const countryCode = found.country;
+    let country = countryCode;
+    try {
+      country = regionNames ? (regionNames.of(countryCode) || countryCode) : countryCode;
+    } catch { /* неизвестный код — покажем сам код */ }
+
+    return { country, countryCode, city: found.city || '' };
+  } catch {
     return {};
   }
 }

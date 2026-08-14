@@ -1,16 +1,46 @@
 const nodemailer = require('nodemailer');
 
+/**
+ * Отправка почты.
+ *
+ * SMTP_HOST обязателен и НЕ имеет значения по умолчанию — намеренно.
+ * Раньше здесь стоял фолбэк на smtp.gmail.com: если переменную забывали задать,
+ * вся почта (адреса пользователей, коды подтверждения и входа) молча уходила
+ * через сервер в США. Для 152-ФЗ это необъявленная трансграничная передача, и
+ * самое неприятное в ней — незаметность: ничего не ломается, никто не узнаёт.
+ *
+ * Теперь при отсутствии настроек отправка падает с внятной ошибкой. Отказ
+ * лучше тихой утечки.
+ */
+const SMTP_HOST = process.env.SMTP_HOST || '';
+
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 587,
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+  host: SMTP_HOST,
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_SECURE === 'true', // true для 465, false для остальных портов
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
 
+// Предупреждаем на старте, а не в момент первой отправки: узнать о неверной
+// конфигурации почты лучше при запуске, чем когда пользователь не смог войти.
+if (!SMTP_HOST) {
+  console.warn('[mail] SMTP_HOST не задан — отправка почты работать не будет. Укажите почтовый сервер в .env.');
+} else if (/gmail\.com|googlemail\.com|outlook\.com|office365\.com|sendgrid\.net|mailgun\.org/i.test(SMTP_HOST)) {
+  console.warn(
+    `[mail] ВНИМАНИЕ: SMTP_HOST=${SMTP_HOST} — это иностранный почтовый сервис. ` +
+    'Адреса пользователей будут передаваться за пределы РФ, что требует уведомления ' +
+    'Роскомнадзора по ст. 12 152-ФЗ. Для обработки данных граждан РФ используйте ' +
+    'российский сервис или собственный почтовый сервер.'
+  );
+}
+
 const checkConfig = () => {
+  if (!SMTP_HOST) {
+    throw new Error('SMTP_HOST не настроен. Укажите почтовый сервер в .env — значения по умолчанию нет намеренно.');
+  }
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     throw new Error('SMTP credentials not configured. Please set SMTP_USER and SMTP_PASS in .env');
   }

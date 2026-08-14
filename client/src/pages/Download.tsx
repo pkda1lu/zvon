@@ -1,6 +1,9 @@
 import React from 'react';
 import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
+// Страница использует класс .docs-container из Docs.css (высота и прокрутка).
+// Без явного импорта стили не попадают в её чанк и страница не прокручивается.
+import './Docs.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zvonserver.ru';
 const downloadUrl = (platform: string) => `${API_URL}/api/download/latest?platform=${platform}`;
