@@ -33,8 +33,8 @@ const { logGlobalAction } = require('../utils/globalAuditLogger');
  */
 router.get('/documents/:name', (req, res) => {
   const FILES = {
-    policy: '02-politika-obrabotki-pd.md',
-    consent: '03-soglasie-na-obrabotku.md',
+    policy: 'politika-obrabotki-pd.md',
+    consent: 'soglasie-na-obrabotku.md',
   };
   const file = FILES[req.params.name];
   if (!file) return res.status(404).json({ message: 'Документ не найден' });
@@ -42,7 +42,7 @@ router.get('/documents/:name', (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
-    const full = path.join(__dirname, '..', '..', 'docs', '152-fz', file);
+    const full = path.join(__dirname, '..', 'legal', file);
     const text = fs.readFileSync(full, 'utf8');
     const meta = req.params.name === 'policy' ? getPolicyMeta() : getConsentMeta();
     res.json({ text, version: meta.version, hash: meta.hash });

@@ -19,7 +19,10 @@ const path = require('path');
 const POLICY_VERSION = '2026-08-15';
 const CONSENT_VERSION = '2026-08-15';
 
-const DOCS_DIR = path.join(__dirname, '..', '..', 'docs', '152-fz');
+// Документы лежат ВНУТРИ server/ намеренно. Раньше путь вёл в ../../docs —
+// то есть за пределы дерева сервера, и при развёртывании, копирующем только
+// server/, файлы бы не приехали, а страница политики отдавала бы ошибку.
+const DOCS_DIR = path.join(__dirname, '..', 'legal');
 
 const hashCache = new Map();
 
@@ -45,12 +48,12 @@ function documentHash(fileName) {
 
 const getPolicyMeta = () => ({
   version: POLICY_VERSION,
-  hash: documentHash('02-politika-obrabotki-pd.md'),
+  hash: documentHash('politika-obrabotki-pd.md'),
 });
 
 const getConsentMeta = () => ({
   version: CONSENT_VERSION,
-  hash: documentHash('03-soglasie-na-obrabotku.md'),
+  hash: documentHash('soglasie-na-obrabotku.md'),
 });
 
 module.exports = { POLICY_VERSION, CONSENT_VERSION, getPolicyMeta, getConsentMeta };
