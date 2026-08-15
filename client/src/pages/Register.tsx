@@ -398,7 +398,10 @@ const Register: React.FC = () => {
                 style={{ marginTop: '2px', flexShrink: 0 }}
               />
               <span>
-                Я даю согласие на обработку моих персональных данных и ознакомлен с{' '}
+                Я даю{' '}
+                <a href="/consent" target="_blank" rel="noopener noreferrer" style={{ color: '#ffffff', textDecoration: 'underline' }}>
+                  согласие на обработку персональных данных
+                </a>{' '}и ознакомлен с{' '}
                 <a href="/policy" target="_blank" rel="noopener noreferrer" style={{ color: '#ffffff', textDecoration: 'underline' }}>
                   Политикой обработки персональных данных
                 </a>.

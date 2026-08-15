@@ -23,6 +23,35 @@ const { logGlobalAction } = require('../utils/globalAuditLogger');
  * тела было бы прямой дырой: любой смог бы выгрузить или удалить чужой аккаунт.
  */
 
+/**
+ * Текст документа для показа на сайте.
+ *
+ * Отдаётся ровно тот файл, от которого считается контрольная сумма в записях о
+ * согласии (см. utils/pdDocuments.js). Это принципиально: если бы страница
+ * содержала свою копию текста, они со временем разошлись бы, и получилось бы,
+ * что пользователь согласился с одной формулировкой, а опубликована другая.
+ */
+router.get('/documents/:name', (req, res) => {
+  const FILES = {
+    policy: '02-politika-obrabotki-pd.md',
+    consent: '03-soglasie-na-obrabotku.md',
+  };
+  const file = FILES[req.params.name];
+  if (!file) return res.status(404).json({ message: 'Документ не найден' });
+
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const full = path.join(__dirname, '..', '..', 'docs', '152-fz', file);
+    const text = fs.readFileSync(full, 'utf8');
+    const meta = req.params.name === 'policy' ? getPolicyMeta() : getConsentMeta();
+    res.json({ text, version: meta.version, hash: meta.hash });
+  } catch (err) {
+    console.error('[pd] не удалось прочитать документ:', err.message);
+    res.status(500).json({ message: 'Не удалось загрузить документ' });
+  }
+});
+
 /** Действующие редакции документов — чтобы интерфейс показывал актуальные. */
 router.get('/documents', (req, res) => {
   res.json({ policy: getPolicyMeta(), consent: getConsentMeta() });

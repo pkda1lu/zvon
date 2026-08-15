@@ -16,8 +16,8 @@ const path = require('path');
  */
 
 // Формат: ГГГГ-ММ-ДД. Дата утверждения редакции.
-const POLICY_VERSION = '2026-08-14';
-const CONSENT_VERSION = '2026-08-14';
+const POLICY_VERSION = '2026-08-15';
+const CONSENT_VERSION = '2026-08-15';
 
 const DOCS_DIR = path.join(__dirname, '..', '..', 'docs', '152-fz');
 

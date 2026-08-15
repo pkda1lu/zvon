@@ -3,22 +3,20 @@ import { getIconBrand } from '../utils/branding';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import SimpleMarkdown from '../components/SimpleMarkdown';
-// Страница использует класс .docs-container из Docs.css (высота и прокрутка).
-// Без явного импорта стили не попадают в её чанк и страница не прокручивается.
 import './Docs.css';
 import './LegalDoc.css';
 
 /**
- * Публикация Политики обработки персональных данных (152-ФЗ, ст. 18.1 ч. 2 —
- * документ должен быть в свободном доступе).
+ * Текст согласия на обработку персональных данных.
  *
- * Текст не хранится в этом файле, а запрашивается с сервера. Так на странице
- * оказывается ровно тот документ, от которого считается контрольная сумма в
- * записях о согласии: иначе копия на сайте и копия в репозитории со временем
- * разойдутся, и выйдет, что пользователь согласился с одним текстом, а
- * опубликован другой.
+ * Отдельная страница нужна, чтобы человек мог прочитать, с чем именно
+ * соглашается, ДО регистрации: по ст. 9 152-ФЗ согласие должно быть
+ * информированным. Ссылка ведёт сюда с формы регистрации.
+ *
+ * Как и политика, текст берётся с сервера — из того же файла, от которого
+ * считается контрольная сумма в записи о согласии.
  */
-const Policy: React.FC = () => {
+const Consent: React.FC = () => {
     const navigate = useNavigate();
     const brand = getIconBrand();
 
@@ -28,7 +26,7 @@ const Policy: React.FC = () => {
 
     useEffect(() => {
         let cancelled = false;
-        axios.get('/api/personal-data/documents/policy')
+        axios.get('/api/personal-data/documents/consent')
             .then(({ data }) => {
                 if (cancelled) return;
                 setText(data.text);
@@ -57,4 +55,4 @@ const Policy: React.FC = () => {
     );
 };
 
-export default Policy;
+export default Consent;

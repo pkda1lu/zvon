@@ -11,6 +11,7 @@ import Home from './Home';
 // лениво, чтобы не утяжелять основной чанк.
 const Docs = React.lazy(() => import('./pages/Docs'));
 const Policy = React.lazy(() => import('./pages/Policy'));
+const Consent = React.lazy(() => import('./pages/Consent'));
 const Security = React.lazy(() => import('./pages/Security'));
 const Servers = React.lazy(() => import('./pages/Servers'));
 const About = React.lazy(() => import('./pages/About'));
@@ -55,7 +56,7 @@ import { useAuth } from './contexts/AuthContext';
 // авторизован и находится в самом приложении — чтобы случайно не «выйти»
 // историей на страницу авторизации. На публичных страницах (лендинг, логин,
 // докс и т.п.) навигация кнопками мыши работает как обычно.
-const PUBLIC_ROUTE_PREFIXES = ['/login', '/register', '/docs', '/policy', '/security', '/servers', '/about', '/download', '/invite'];
+const PUBLIC_ROUTE_PREFIXES = ['/login', '/register', '/docs', '/policy', '/consent', '/security', '/servers', '/about', '/download', '/invite'];
 
 const MouseNavGuard: React.FC = () => {
   const { user } = useAuth();
@@ -266,6 +267,7 @@ const AnimatedRoutes: React.FC = () => {
           <Route path="/invite/:code" element={<PageShell><InvitePage /></PageShell>} />
           <Route path="/docs"    element={<PageShell><Docs /></PageShell>} />
           <Route path="/policy"  element={<PageShell><Policy /></PageShell>} />
+          <Route path="/consent" element={<PageShell><Consent /></PageShell>} />
           <Route path="/security" element={<PageShell><Security /></PageShell>} />
           <Route path="/servers" element={<PageShell><Servers /></PageShell>} />
           <Route path="/about"   element={<PageShell><About /></PageShell>} />
