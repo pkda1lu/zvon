@@ -14,14 +14,22 @@ const nodemailer = require('nodemailer');
  */
 const SMTP_HOST = process.env.SMTP_HOST || '';
 
+// Свой почтовый сервер на той же машине — частый и правильный случай: Postfix
+// принимает почту с localhost без аутентификации (mynetworks), логина и пароля
+// просто нет. Поэтому auth подставляется только когда учётные данные заданы:
+// пустой блок auth заставил бы nodemailer пытаться авторизоваться и падать.
+const isLocalRelay = /^(localhost|127\.0\.0\.1|::1)$/i.test(SMTP_HOST);
+const hasCredentials = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+
 const transporter = nodemailer.createTransport({
   host: SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
+  port: Number(process.env.SMTP_PORT) || (isLocalRelay ? 25 : 587),
   secure: process.env.SMTP_SECURE === 'true', // true для 465, false для остальных портов
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
+  // Локальный релей обычно работает без TLS — соединение не покидает машину.
+  ignoreTLS: isLocalRelay && process.env.SMTP_SECURE !== 'true',
+  ...(hasCredentials
+    ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } }
+    : {}),
 });
 
 // Предупреждаем на старте, а не в момент первой отправки: узнать о неверной
@@ -41,8 +49,49 @@ const checkConfig = () => {
   if (!SMTP_HOST) {
     throw new Error('SMTP_HOST не настроен. Укажите почтовый сервер в .env — значения по умолчанию нет намеренно.');
   }
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  // Для локального релея логин с паролем не нужны — доверие настроено на
+  // уровне Postfix. Для внешнего сервера они обязательны.
+  if (!isLocalRelay && !hasCredentials) {
     throw new Error('SMTP credentials not configured. Please set SMTP_USER and SMTP_PASS in .env');
+  }
+  if (!process.env.MAIL_FROM && !process.env.SMTP_USER) {
+    throw new Error('Не задан адрес отправителя. Укажите MAIL_FROM в .env, например noreply@вашдомен.ru');
+  }
+};
+
+/**
+ * Адрес в поле From.
+ *
+ * Раньше сюда подставлялся SMTP_USER. Для внешних сервисов это работало,
+ * потому что там логин и есть адрес почты. На собственном почтовом сервере
+ * логин SASL — это обычно просто имя («noreply»), и заголовок получался вида
+ * `"Zvon" <noreply>`: невалидный адрес, письмо отклоняется принимающей стороной.
+ *
+ * Поэтому адрес отправителя задаётся отдельной переменной MAIL_FROM. Она же
+ * должна совпадать с доменом, для которого настроены SPF и DKIM, иначе проверки
+ * подписи не пройдут и письма уйдут в спам.
+ */
+const fromAddress = (brandName) => {
+  const addr = process.env.MAIL_FROM || process.env.SMTP_USER || '';
+  return `"${brandName}" <${addr}>`;
+};
+
+/**
+ * Проверка соединения с почтовым сервером.
+ *
+ * Вызывается при старте: через почту идут коды входа и двухфакторной
+ * аутентификации, и молчаливая поломка настроек означает, что люди не смогут
+ * войти вообще. Лучше увидеть это в логе при запуске, чем по жалобам.
+ */
+const verifyConnection = async () => {
+  if (!SMTP_HOST) return { ok: false, error: 'SMTP_HOST не задан' };
+  try {
+    await transporter.verify();
+    console.log(`[mail] Соединение с ${SMTP_HOST} установлено, отправитель: ${process.env.MAIL_FROM || process.env.SMTP_USER || '(не задан)'}`);
+    return { ok: true };
+  } catch (err) {
+    console.error(`[mail] Не удалось подключиться к ${SMTP_HOST}: ${err.message}`);
+    return { ok: false, error: err.message };
   }
 };
 
@@ -52,7 +101,7 @@ const sendVerificationEmail = async (email, token, brandName = 'Zvon') => {
   const url = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
   await transporter.sendMail({
-    from: `"${brandName}" <${process.env.SMTP_USER}>`,
+    from: fromAddress(brandName),
     to: email,
     subject: `Подтверждение регистрации в ${brandName}`,
     html: `
@@ -75,7 +124,7 @@ const sendLoginCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   try {
     await transporter.sendMail({
-      from: `"${brandName}" <${process.env.SMTP_USER}>`,
+      from: fromAddress(brandName),
       to: email,
       subject: `Код подтверждения входа ${brandName}`,
       html: `
@@ -100,7 +149,7 @@ const sendLoginCode = async (email, code, brandName = 'Zvon') => {
 const sendResetCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   await transporter.sendMail({
-    from: `"${brandName}" <${process.env.SMTP_USER}>`,
+    from: fromAddress(brandName),
     to: email,
     subject: `Код для сброса пароля ${brandName}`,
     html: `
@@ -121,7 +170,7 @@ const sendResetCode = async (email, code, brandName = 'Zvon') => {
 const sendRegistrationCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   await transporter.sendMail({
-    from: `"${brandName}" <${process.env.SMTP_USER}>`,
+    from: fromAddress(brandName),
     to: email,
     subject: `Код регистрации в ${brandName}`,
     html: `
@@ -141,7 +190,7 @@ const sendRegistrationCode = async (email, code, brandName = 'Zvon') => {
 const sendEmailChangeCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   await transporter.sendMail({
-    from: `"${brandName}" <${process.env.SMTP_USER}>`,
+    from: fromAddress(brandName),
     to: email,
     subject: `Код подтверждения смены почты ${brandName}`,
     html: `
@@ -162,6 +211,7 @@ const sendEmailChangeCode = async (email, code, brandName = 'Zvon') => {
 module.exports = {
   sendVerificationEmail,
   sendLoginCode,
+  verifyConnection,
   sendResetCode,
   sendRegistrationCode,
   sendEmailChangeCode,

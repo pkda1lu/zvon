@@ -1428,4 +1428,10 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').th
   try { await require('./bootstrap/storeProducts')(); }
   catch (e) { console.error('[Store] product seed failed:', e.message); }
 }).catch(err => { console.error('MongoDB connection error:', err); });
-server.listen(process.env.PORT || 5000, () => { console.log(`Server running on port ${process.env.PORT || 5000}`); });
+server.listen(process.env.PORT || 5000, () => {
+  console.log(`Server running on port ${process.env.PORT || 5000}`);
+  // Проверяем почту при старте: через неё идут коды входа и 2FA, и неверные
+  // настройки означают, что пользователи не смогут войти вообще. Результат
+  // только пишется в лог — падать из-за почты сервер не должен.
+  require('./utils/mail').verifyConnection().catch(() => { });
+});
