@@ -5,6 +5,7 @@ import { CallSettingsProvider } from './contexts/CallSettingsContext';
 import { InboxProvider } from './contexts/InboxContext';
 import { KeybindsProvider } from './contexts/KeybindsContext';
 import Main from './pages/Main';
+import ConsentGate from './components/ConsentGate';
 
 // Стек провайдеров авторизованной части вынесен из Home в отдельный модуль,
 // чтобы он целиком уезжал в ленивый чанк. Раньше Home импортировался из App
@@ -18,6 +19,10 @@ const AuthedApp: React.FC = () => (
             <VoiceProvider>
                 <KeybindsProvider>
                     <InboxProvider>
+                        {/* Запрос согласия у тех, кто регистрировался до
+                            появления документов или соглашался со старой
+                            редакцией. Само решает, показываться ли. */}
+                        <ConsentGate />
                         <Main />
                     </InboxProvider>
                 </KeybindsProvider>

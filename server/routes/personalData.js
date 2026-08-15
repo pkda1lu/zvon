@@ -58,6 +58,75 @@ router.get('/documents', (req, res) => {
 });
 
 /**
+ * Нужно ли запросить у пользователя согласие.
+ *
+ * Требуется, если действующей записи под ТЕКУЩЕЙ редакцией документа нет.
+ * Одним правилом накрываются оба случая: те, кто регистрировался до появления
+ * согласия вообще, и те, кто соглашался с прежней редакцией — по ст. 9 при
+ * изменении условий обработки согласие нужно получать заново.
+ */
+router.get('/consent-status', auth, async (req, res) => {
+  try {
+    const meta = getConsentMeta();
+    const actual = await Consent.findOne({
+      user: req.user._id,
+      purpose: 'personal_data',
+      documentVersion: meta.version,
+      granted: true,
+      revokedAt: null,
+    });
+
+    res.json({
+      needsConsent: !actual,
+      currentVersion: meta.version,
+      policyVersion: getPolicyMeta().version,
+    });
+  } catch (err) {
+    // При сбое НЕ требуем согласия: иначе ошибка базы заблокировала бы вход
+    // всем сразу. Пропущенный показ окна — меньшее зло, чем недоступный сервис.
+    console.error('[pd] consent-status error:', err.message);
+    res.json({ needsConsent: false });
+  }
+});
+
+/**
+ * Приём согласия из приложения — для тех, кто регистрировался раньше.
+ *
+ * Фиксируется так же, как при регистрации: редакция, контрольная сумма текста,
+ * адрес и браузер. Рекламное согласие принимается отдельной записью и только
+ * если пользователь его отметил.
+ */
+router.post('/consent', auth, async (req, res) => {
+  try {
+    const { personalData, marketing } = req.body || {};
+    if (personalData !== true) {
+      return res.status(400).json({ message: 'Согласие на обработку персональных данных обязательно' });
+    }
+
+    const meta = getConsentMeta();
+    const common = {
+      user: req.user._id,
+      email: req.user.email,
+      documentVersion: meta.version,
+      documentHash: meta.hash,
+      granted: true,
+      ip: req.ip || '',
+      userAgent: (req.header('User-Agent') || '').slice(0, 300),
+    };
+
+    await Consent.create({ ...common, purpose: 'personal_data' });
+    if (marketing === true) {
+      await Consent.create({ ...common, purpose: 'marketing' });
+    }
+
+    res.json({ ok: true, version: meta.version });
+  } catch (err) {
+    console.error('[pd] consent error:', err.message);
+    res.status(500).json({ message: 'Не удалось сохранить согласие' });
+  }
+});
+
+/**
  * Выгрузка своих данных (ст. 14 — право на доступ).
  *
  * Отдаём машиночитаемый JSON. Сообщения включены как содержимое, созданное
