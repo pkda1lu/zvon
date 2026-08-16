@@ -32,11 +32,53 @@ const isOpenedHidden = process.argv.includes('--hidden') || app.getLoginItemSett
 let appSettings = {
     minimizeToTray: false,
     closeToTray: true,
-    startMinimized: true,
+    // По умолчанию окно показывается. Запуск сразу в трей — не то, чего ждёт
+    // человек, который сам нажал на ярлык: приложение выглядит незапустившимся.
+    // Скрытый старт остаётся для автозапуска при входе в систему — его ловит
+    // отдельный признак isOpenedHidden.
+    startMinimized: false,
     activityDetectionEnabled: true,
     overlayCategories: ['game', 'music', 'video'],
     userApps: {} // { 'process.exe': { name: '...', type: '...' } }
 };
+
+/**
+ * Настройки окна на диске.
+ *
+ * Нужны потому, что раньше главный процесс знал только захардкоженные значения:
+ * настоящие приходили из интерфейса по IPC, а это происходит уже ПОСЛЕ события
+ * ready-to-show. То есть проверка startMinimized при запуске всегда видела
+ * умолчание, и переключатель в настройках не влиял на запуск вообще — ни
+ * включённый, ни выключенный.
+ *
+ * Теперь выбор пользователя сохраняется здесь и читается до создания окна.
+ */
+const settingsFile = () => path.join(app.getPath('userData'), 'window-settings.json');
+
+function loadPersistedSettings() {
+    try {
+        const raw = fs.readFileSync(settingsFile(), 'utf8');
+        const saved = JSON.parse(raw);
+        if (saved && typeof saved === 'object') {
+            appSettings = { ...appSettings, ...saved };
+        }
+    } catch {
+        // Файла ещё нет или он повреждён — работаем на умолчаниях.
+    }
+}
+
+function persistSettings() {
+    try {
+        fs.writeFileSync(settingsFile(), JSON.stringify({
+            minimizeToTray: appSettings.minimizeToTray,
+            closeToTray: appSettings.closeToTray,
+            startMinimized: appSettings.startMinimized,
+            activityDetectionEnabled: appSettings.activityDetectionEnabled,
+        }, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[settings] не удалось сохранить настройки окна:', e.message);
+    }
+}
 
 let isOverlayEnabled = true; // Default enabled
 
@@ -209,6 +251,7 @@ ipcMain.handle('get-autostart-status', () => app.getLoginItemSettings().openAtLo
 
 ipcMain.on('update-window-settings', (event, settings) => {
     appSettings = { ...appSettings, ...settings };
+    persistSettings(); // чтобы выбор был известен уже при следующем запуске
     scanActivities(); // Immediate scan with new settings
 });
 
@@ -316,6 +359,10 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     app.whenReady().then(() => {
+        // Читаем сохранённые настройки ДО создания окна: именно от них зависит,
+        // показывать окно или уводить в трей. app.getPath доступен только после
+        // whenReady, поэтому не раньше.
+        loadPersistedSettings();
         if (!tray) createTray();
         if (isDev) createWindow();
         else createUpdaterWindow();

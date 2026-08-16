@@ -861,6 +861,16 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isConnectedToThisRoom, channel._id, currentUser?._id]);
 
+    // --- Трансляция на экране комнаты ---
+    // Отдельным эффектом от синхронизации участников: смена трансляции не
+    // должна трогать аватары, и наоборот.
+    useEffect(() => {
+        const s = sceneRef.current;
+        if (!sceneReady || !s?.attachScreen) return;
+        // Звук СВОЕЙ трансляции не воспроизводим — иначе слышно себя эхом.
+        s.attachScreen(activeScreen?.stream ?? null, activeScreen ? !activeScreen.own : false);
+    }, [sceneReady, activeScreen]);
+
     // --- Синхронизация состава участников (кто в комнате сейчас) со сценой ---
     useEffect(() => {
         const s = sceneRef.current;
