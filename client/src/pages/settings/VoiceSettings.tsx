@@ -3,8 +3,14 @@ import { useVoice, useVoiceInputLevel } from '../../contexts/VoiceContext';
 import { CustomSelect, SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
 import { SpeakerIcon, MicIcon, CameraIcon, VideoIcon } from '../../components/Icons';
 import { getBrand } from '../../utils/branding';
+import { setSpatialEnabled } from '../../utils/spatialAudio';
 
 // Separate component for the sensitivity visualizer to isolate high-frequency re-renders
+// Настройка хранится локально: это свойство воспроизведения на конкретном
+// устройстве, а не часть профиля — на телефоне и в наушниках уместны разные
+// предпочтения.
+const SPATIAL_KEY = 'spatialAudioEnabled';
+
 const SensitivityVisualizer: React.FC<{ 
     inputSensitivity: number, 
     isAutomaticSensitivity: boolean 
@@ -113,6 +119,15 @@ const VoiceSettings: React.FC = () => {
         startTestStream, stopTestStream,
         isConnected
     } = useVoice();
+
+    // Пространственный звук. Значение применяется к уже работающим узлам сразу,
+    // без переподключения к комнате.
+    const [spatialAudio, setSpatialAudio] = useState(() => localStorage.getItem(SPATIAL_KEY) !== 'false');
+    useEffect(() => { setSpatialEnabled(spatialAudio); }, [spatialAudio]);
+    const handleSpatialChange = (on: boolean) => {
+        localStorage.setItem(SPATIAL_KEY, String(on));
+        setSpatialAudio(on);
+    };
 
     // Only start test stream if NOT already in a call
     useEffect(() => {
@@ -286,6 +301,19 @@ const VoiceSettings: React.FC = () => {
                         <p>Автоматически выравнивает громкость микрофона.</p>
                     </div>
                     <SettingsToggle checked={autoGainControl} onChange={setAutoGainControl} />
+                </div>
+
+                <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
+
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h3>Пространственный звук в 3D-комнатах</h3>
+                        <p>
+                            Голос собеседника звучит с той стороны, где он стоит, и тише на
+                            расстоянии. Выключите, если предпочитаете слышать всех одинаково.
+                        </p>
+                    </div>
+                    <SettingsToggle checked={spatialAudio} onChange={handleSpatialChange} />
                 </div>
             </div>
 

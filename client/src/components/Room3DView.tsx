@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
+import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio } from '../utils/spatialAudio';
 import { Channel, Server, User } from '../types';
 import { CubeIcon, ChatIcon } from './Icons';
 import './panel-hero.css';
@@ -420,6 +421,9 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
                 if (!a) return;
                 scene.remove(a.group);
                 avatarGroups.delete(userId);
+                // Иначе координаты ушедшего останутся в хранилище и применятся
+                // к следующему, кто получит тот же узел панорамирования.
+                removeSource(userId);
             };
             const setAvatarTarget = (userId: string, x: number, z: number) => {
                 const a = avatarGroups.get(userId);
@@ -533,12 +537,50 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             resizeObserver.observe(el);
 
             let raf = 0;
+            const myId = String(currentUser._id);
+
+            // Координаты в звук отдаём не каждый кадр: узлы WebAudio и так
+            // сглаживают переходы, а 60 обновлений в секунду на каждого
+            // участника — лишняя работа без слышимой разницы.
+            const SPATIAL_UPDATE_MS = 100;
+            let lastSpatialAt = 0;
+            const camForward = new THREE.Vector3();
+
+            const publishSpatial = () => {
+                avatarGroups.forEach((a, userId) => {
+                    if (userId === myId) return;
+                    setSourcePosition(userId, a.group.position.x, a.group.position.z);
+                });
+
+                const mine = avatarGroups.get(myId);
+                if (mine) {
+                    // Направление взгляда берём от камеры: именно оно решает,
+                    // слева или справа прозвучит собеседник. Проецируем на
+                    // плоскость пола — наклон камеры на звук влиять не должен.
+                    camera.getWorldDirection(camForward);
+                    const len = Math.hypot(camForward.x, camForward.z) || 1;
+                    setListenerPose(
+                        mine.group.position.x,
+                        mine.group.position.z,
+                        camForward.x / len,
+                        camForward.z / len
+                    );
+                }
+            };
+
             const animate = () => {
                 raf = requestAnimationFrame(animate);
                 avatarGroups.forEach((a) => {
                     a.group.position.x += (a.target.x - a.group.position.x) * 0.18;
                     a.group.position.z += (a.target.z - a.group.position.z) * 0.18;
                 });
+
+                const now = performance.now();
+                if (now - lastSpatialAt >= SPATIAL_UPDATE_MS) {
+                    lastSpatialAt = now;
+                    publishSpatial();
+                }
+
                 controls.update();
                 renderer.render(scene, camera);
             };
@@ -567,6 +609,8 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
 
             cleanupFn = () => {
                 cancelAnimationFrame(raf);
+                // Выходим из комнаты — позиции не должны пережить её.
+                resetSpatialAudio();
                 document.removeEventListener('visibilitychange', syncRunning);
                 window.removeEventListener('focus', syncRunning);
                 window.removeEventListener('blur', syncRunning);

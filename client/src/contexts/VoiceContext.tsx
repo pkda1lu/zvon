@@ -24,6 +24,7 @@ import type {
     ConnectionQuality,
 } from 'livekit-client';
 import { loadLiveKit, ConnectionStates, ConnectionQualities, TrackSources } from '../utils/livekitLazy';
+import { registerPanner, unregisterPanner } from '../utils/spatialAudio';
 
 import { useCallSettings } from './CallSettingsContext';
 
@@ -469,8 +470,8 @@ registerProcessor('vad-processor', VADProcessor);
 // вывода через setSinkId). Плюс скрытый muted <audio> с исходным потоком —
 // обходим баг Chromium, когда createMediaStreamSource от удалённого WebRTC молчит.
 const RemoteAudioElement: React.FC<{
-    stream: MediaStream; muted: boolean; volume: number; sinkId?: string;
-}> = ({ stream, muted, volume, sinkId }) => {
+    stream: MediaStream; muted: boolean; volume: number; sinkId?: string; userId: string;
+}> = ({ stream, muted, volume, sinkId, userId }) => {
     const ref = useRef<HTMLAudioElement>(null);
     const ctxRef = useRef<AudioContext | null>(null);
     const gainRef = useRef<GainNode | null>(null);
@@ -491,11 +492,18 @@ const RemoteAudioElement: React.FC<{
         keepAliveRef.current = keepAlive;
 
         const source = ctx.createMediaStreamSource(stream);
+        // Узел панорамирования между источником и громкостью: положение
+        // участника в 3D-комнате задаётся через utils/spatialAudio. Вне комнаты
+        // координаты не приходят, узел остаётся в центре и звук слышен как
+        // обычно — отдельной ветки для не-3D-каналов не требуется.
+        const panner = ctx.createPanner();
         const gain = ctx.createGain();
         const dest = ctx.createMediaStreamDestination();
-        source.connect(gain);
+        source.connect(panner);
+        panner.connect(gain);
         gain.connect(dest);
         gainRef.current = gain;
+        registerPanner(userId, panner, ctx);
 
         el.srcObject = dest.stream;
         if (ctx.state === 'suspended') ctx.resume().catch(() => {});
@@ -506,12 +514,13 @@ const RemoteAudioElement: React.FC<{
         tryPlay();
 
         return () => {
-            try { source.disconnect(); gain.disconnect(); } catch {}
+            unregisterPanner(userId);
+            try { source.disconnect(); panner.disconnect(); gain.disconnect(); } catch {}
             try { keepAlive.pause(); keepAlive.srcObject = null; } catch {}
             gainRef.current = null;
             ctx.close().catch(() => {});
         };
-    }, [stream]);
+    }, [stream, userId]);
 
     // Усиление: gain 0..2+ (muted → 0). Верхний предел с запасом, чтобы не «резать» 200%.
     useEffect(() => {
@@ -538,6 +547,7 @@ const RemoteAudioRenderer: React.FC<{
         {Array.from(streams.entries()).map(([uid, stream]) => (
             <RemoteAudioElement
                 key={uid}
+                userId={uid}
                 stream={stream}
                 muted={deafened || localMutes.has(uid)}
                 volume={outputVolume * (userVolumes.get(uid) ?? 1)}
