@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
-import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio } from '../utils/spatialAudio';
+import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio, registerPanner, unregisterPanner } from '../utils/spatialAudio';
 import { Channel, Server, User } from '../types';
 import { CubeIcon, ChatIcon } from './Icons';
 import './panel-hero.css';
@@ -50,7 +50,20 @@ const AVATAR_TARGET_HEIGHT = 1.7;
 const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, onToggleChat }) => {
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
-    const { isConnected, activeChannelId, joinChannel, connectedUsers } = useVoice();
+    const {
+        isConnected, activeChannelId, joinChannel, connectedUsers,
+        screenStream, isScreenSharing, remoteScreenStreams,
+    } = useVoice();
+
+    // Какую трансляцию показывать на экране комнаты. Чужая в приоритете: свою
+    // вы и так видите у себя, а вот увидеть, что показывает собеседник, —
+    // основной сценарий. Если транслируют несколько — берём первого.
+    const activeScreen = useMemo(() => {
+        const remote = Array.from(remoteScreenStreams.entries())[0];
+        if (remote) return { stream: remote[1], own: false };
+        if (isScreenSharing && screenStream) return { stream: screenStream, own: true };
+        return null;
+    }, [remoteScreenStreams, isScreenSharing, screenStream]);
     const { speakingUsers } = useVoiceLevels();
 
     const mountRef = useRef<HTMLDivElement>(null);
@@ -167,6 +180,37 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             wallWest.position.set(-ROOM_HALF, WALL_HEIGHT / 2, 0);
             wallWest.rotation.y = Math.PI / 2; // нормаль на +X, к центру
             scene.add(wallWest);
+
+            // ===== Экран для демонстрации =====
+            // Висит на северной стене. Пока никто не транслирует — скрыт вместе
+            // с рамкой, чтобы не занимать стену тёмным прямоугольником.
+            const SCREEN_W = 9, SCREEN_H = SCREEN_W * 9 / 16;
+            const SCREEN_Y = 1.1 + SCREEN_H / 2;
+            const SCREEN_Z = -ROOM_HALF + 0.12;
+
+            const screenGroup = new THREE.Group();
+            screenGroup.visible = false;
+            screenGroup.position.set(0, SCREEN_Y, SCREEN_Z);
+            scene.add(screenGroup);
+
+            // Рамка чуть больше полотна — даёт экрану вид объекта, а не дыры.
+            const screenFrame = new THREE.Mesh(
+                new THREE.PlaneGeometry(SCREEN_W + 0.3, SCREEN_H + 0.3),
+                new THREE.MeshBasicMaterial({ color: 0x05050a })
+            );
+            screenFrame.position.z = -0.02;
+            screenGroup.add(screenFrame);
+
+            // MeshBasicMaterial намеренно: изображение не должно зависеть от
+            // освещения комнаты, иначе трансляция выглядит тусклой.
+            const screenMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), screenMat);
+            screenGroup.add(screenMesh);
+
+            // Подсветка снизу — свет от экрана падает в зал.
+            const screenGlow = new THREE.PointLight(0x88bbff, 0, 14, 2);
+            screenGlow.position.set(0, SCREEN_Y, SCREEN_Z + 1.5);
+            scene.add(screenGlow);
 
             const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_HALF * 2, ROOM_HALF * 2), wallMat);
             ceiling.position.set(0, WALL_HEIGHT, 0);
@@ -487,6 +531,93 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
                 if (mine) emitPosition(mine.group.position.x, mine.group.position.z, true);
             };
 
+            // ===== Ходьба на WASD / стрелках =====
+            // Перетаскивание мышью оставлено: им удобно быстро переставить себя
+            // в дальний угол. Клавиатура нужна для другого — идти неспеша и
+            // слышать, как меняется звук. Ради этого всё и затевалось.
+            const pressed = new Set<string>();
+            const MOVE_SPEED = 4.2;          // единиц комнаты в секунду
+            const BOUND = ROOM_HALF - 0.5;   // не даём выйти сквозь стены
+
+            // Игнорируем клавиши, когда человек печатает в чате рядом с комнатой.
+            const typingInInput = () => {
+                const el = document.activeElement as HTMLElement | null;
+                if (!el) return false;
+                const tag = el.tagName;
+                return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+            };
+
+            const MOVE_KEYS: Record<string, [number, number]> = {
+                KeyW: [0, 1], ArrowUp: [0, 1],
+                KeyS: [0, -1], ArrowDown: [0, -1],
+                KeyA: [-1, 0], ArrowLeft: [-1, 0],
+                KeyD: [1, 0], ArrowRight: [1, 0],
+            };
+
+            const onKeyDown = (e: KeyboardEvent) => {
+                if (!MOVE_KEYS[e.code] || typingInInput()) return;
+                // Стрелки иначе прокручивают страницу под сценой.
+                e.preventDefault();
+                pressed.add(e.code);
+            };
+            const onKeyUp = (e: KeyboardEvent) => { pressed.delete(e.code); };
+            // При потере фокуса окна клавиша "залипла" бы нажатой навсегда.
+            const onBlurKeys = () => pressed.clear();
+
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+            window.addEventListener('blur', onBlurKeys);
+
+            const moveDir = new THREE.Vector3();
+            const camFlat = new THREE.Vector3();
+            const rightFlat = new THREE.Vector3();
+            const UP = new THREE.Vector3(0, 1, 0);
+
+            /** Шаг ходьбы за кадр. dt — секунды, чтобы скорость не зависела от fps. */
+            const stepMovement = (dt: number) => {
+                if (dragging || pressed.size === 0) return false;
+                const mine = avatarGroups.get(String(currentUser._id));
+                if (!mine) return false;
+
+                let fwd = 0, side = 0;
+                pressed.forEach(code => {
+                    const d = MOVE_KEYS[code];
+                    if (d) { side += d[0]; fwd += d[1]; }
+                });
+                if (fwd === 0 && side === 0) return false;
+
+                // Направление — относительно камеры: "вперёд" это туда, куда
+                // смотрит игрок, а не фиксированная сторона комнаты.
+                camera.getWorldDirection(camFlat);
+                camFlat.y = 0;
+                if (camFlat.lengthSq() < 1e-6) return false;
+                camFlat.normalize();
+                rightFlat.copy(camFlat).cross(UP).normalize();
+
+                moveDir.set(0, 0, 0)
+                    .addScaledVector(camFlat, fwd)
+                    .addScaledVector(rightFlat, side);
+                if (moveDir.lengthSq() < 1e-6) return false;
+                // Нормализуем, иначе по диагонали шли бы в 1.4 раза быстрее.
+                moveDir.normalize();
+
+                const nx = Math.max(-BOUND, Math.min(BOUND, mine.group.position.x + moveDir.x * MOVE_SPEED * dt));
+                const nz = Math.max(-BOUND, Math.min(BOUND, mine.group.position.z + moveDir.z * MOVE_SPEED * dt));
+
+                mine.group.position.x = nx;
+                mine.group.position.z = nz;
+                // Цель приравниваем к позиции, иначе лерп в animate потянет
+                // аватар обратно к последней точке перетаскивания.
+                mine.target.x = nx;
+                mine.target.z = nz;
+
+                // Разворачиваем фигуру по направлению шага — так видно, куда идёт.
+                mine.group.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+
+                emitPosition(nx, nz);
+                return true;
+            };
+
             // Двойной клик по чужой аватарке — открыть профиль пользователя.
             const onDblClick = (e: MouseEvent) => {
                 toNdc(e.clientX, e.clientY);
@@ -568,12 +699,39 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
                 }
             };
 
+            let lastFrameAt = performance.now();
+
             const animate = () => {
                 raf = requestAnimationFrame(animate);
+
+                const frameNow = performance.now();
+                // Ограничиваем шаг: после сворачивания окна dt может оказаться
+                // огромным, и аватар "телепортировался" бы через всю комнату.
+                const dt = Math.min((frameNow - lastFrameAt) / 1000, 0.1);
+                lastFrameAt = frameNow;
+
+                const walked = stepMovement(dt);
+
                 avatarGroups.forEach((a) => {
                     a.group.position.x += (a.target.x - a.group.position.x) * 0.18;
                     a.group.position.z += (a.target.z - a.group.position.z) * 0.18;
                 });
+
+                // Камера следует за игроком: цель орбиты держится на аватаре,
+                // поэтому вращение мышью крутится вокруг вас, а не вокруг центра
+                // комнаты. Смещение камеры сохраняем, иначе шаг "выдёргивал" бы
+                // обзор.
+                if (walked) {
+                    const mine = avatarGroups.get(String(currentUser._id));
+                    if (mine) {
+                        const dx = mine.group.position.x - controls.target.x;
+                        const dz = mine.group.position.z - controls.target.z;
+                        controls.target.x += dx;
+                        controls.target.z += dz;
+                        camera.position.x += dx;
+                        camera.position.z += dz;
+                    }
+                }
 
                 const now = performance.now();
                 if (now - lastSpatialAt >= SPATIAL_UPDATE_MS) {
@@ -604,11 +762,80 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             window.addEventListener('focus', syncRunning);
             window.addEventListener('blur', syncRunning);
 
-            sceneRef.current = { avatarGroups, addAvatar, removeAvatar, getDisplayName };
+            // ===== Привязка трансляции к экрану =====
+            // Видео идёт через отдельный <video>, не добавленный в документ:
+            // three.js нужен только сам элемент как источник кадров. Звук из
+            // этого элемента не берём — он приглушён ради автозапуска, поэтому
+            // звуковая дорожка воспроизводится своим графом и панорамируется из
+            // точки экрана.
+            let screenVideo: HTMLVideoElement | null = null;
+            let screenTexture: any = null;
+            let screenAudioCtx: AudioContext | null = null;
+            const SCREEN_AUDIO_ID = '__screen__';
+
+            const detachScreen = () => {
+                screenGroup.visible = false;
+                screenGlow.intensity = 0;
+                if (screenTexture) { screenTexture.dispose(); screenTexture = null; }
+                screenMat.map = null;
+                screenMat.color.setHex(0x000000);
+                screenMat.needsUpdate = true;
+                if (screenVideo) {
+                    try { screenVideo.pause(); screenVideo.srcObject = null; } catch { }
+                    screenVideo = null;
+                }
+                unregisterPanner(SCREEN_AUDIO_ID);
+                removeSource(SCREEN_AUDIO_ID);
+                if (screenAudioCtx) { screenAudioCtx.close().catch(() => { }); screenAudioCtx = null; }
+            };
+
+            const attachScreen = (stream: MediaStream | null, withAudio: boolean) => {
+                detachScreen();
+                if (!stream) return;
+
+                screenVideo = document.createElement('video');
+                screenVideo.srcObject = stream;
+                screenVideo.muted = true;      // иначе браузер не даст автозапуск
+                screenVideo.playsInline = true;
+                screenVideo.play().catch(() => { });
+
+                screenTexture = new THREE.VideoTexture(screenVideo);
+                screenTexture.colorSpace = THREE.SRGBColorSpace;
+                screenMat.map = screenTexture;
+                screenMat.color.setHex(0xffffff); // белый, чтобы не тонировать кадр
+                screenMat.needsUpdate = true;
+
+                screenGroup.visible = true;
+                screenGlow.intensity = 1.2;
+
+                // Звук трансляции — своим графом, чтобы он шёл "от экрана":
+                // отойдя в дальний угол, вы слышите его тише, как в зале.
+                const audioTracks = stream.getAudioTracks();
+                if (withAudio && audioTracks.length > 0) {
+                    try {
+                        const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+                        const ctx: AudioContext = new Ctx();
+                        screenAudioCtx = ctx;
+                        const src = ctx.createMediaStreamSource(new MediaStream(audioTracks));
+                        const panner = ctx.createPanner();
+                        const gain = ctx.createGain();
+                        src.connect(panner); panner.connect(gain); gain.connect(ctx.destination);
+                        registerPanner(SCREEN_AUDIO_ID, panner, ctx);
+                        setSourcePosition(SCREEN_AUDIO_ID, 0, SCREEN_Z);
+                        if (ctx.state === 'suspended') ctx.resume().catch(() => { });
+                    } catch { /* без звука трансляция всё равно видна */ }
+                }
+            };
+
+            sceneRef.current = { avatarGroups, addAvatar, removeAvatar, getDisplayName, attachScreen };
             setSceneReady(true);
 
             cleanupFn = () => {
+                detachScreen();
                 cancelAnimationFrame(raf);
+                window.removeEventListener('keydown', onKeyDown);
+                window.removeEventListener('keyup', onKeyUp);
+                window.removeEventListener('blur', onBlurKeys);
                 // Выходим из комнаты — позиции не должны пережить её.
                 resetSpatialAudio();
                 document.removeEventListener('visibilitychange', syncRunning);
