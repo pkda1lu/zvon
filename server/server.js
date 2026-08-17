@@ -1488,8 +1488,24 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').th
   try { await require('./bootstrap/storeProducts')(); }
   catch (e) { console.error('[Store] product seed failed:', e.message); }
 }).catch(err => { console.error('MongoDB connection error:', err); });
-server.listen(process.env.PORT || 5000, () => {
-  console.log(`Server running on port ${process.env.PORT || 5000}`);
+/**
+ * Слушаем ТОЛЬКО петлю: снаружи приложение доступно исключительно через nginx.
+ *
+ * Без указания адреса Node слушает все интерфейсы, и порт 5000 был открыт в
+ * интернет напрямую. Это обходило nginx целиком — а вместе с ним ограничения
+ * частоты запросов, журналы доступа и TLS.
+ *
+ * Отдельно важно для trust proxy (см. выше): при прямом подключении клиент сам
+ * подставляет X-Forwarded-For, и настройка «доверять одному прокси» начинает
+ * доверять злоумышленнику. То есть закрытый порт — не просто «ещё один рубеж»,
+ * а условие, без которого определение IP не работает вовсе.
+ *
+ * BIND_HOST оставлен на случай другой схемы развёртывания (например, nginx на
+ * отдельной машине). Менять его стоит, только когда порт закрыт фаерволом.
+ */
+const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
+server.listen(process.env.PORT || 5000, BIND_HOST, () => {
+  console.log(`Server running on ${BIND_HOST}:${process.env.PORT || 5000}`);
   // Проверяем почту при старте: через неё идут коды входа и 2FA, и неверные
   // настройки означают, что пользователи не смогут войти вообще. Результат
   // только пишется в лог — падать из-за почты сервер не должен.
