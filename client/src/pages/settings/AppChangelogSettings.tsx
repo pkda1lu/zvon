@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { 
     ChevronDownIcon, 
     RotateCcwIcon,
@@ -24,61 +25,10 @@ interface CommitItem {
     htmlUrl: string;
 }
 
-// Fallback release data if offline or GitHub API rate limit is reached
-const FALLBACK_RELEASES: GitHubRelease[] = [
-    {
-        id: 366375414,
-        tag_name: "v2.3.1",
-        name: "2.3.1 — Мобильный интерфейс и жесты",
-        published_at: "2026-08-06T19:12:54Z",
-        body: "Масштабируемость, категории каналов, горячие клавиши и жесты, улучшенная мобильная адаптация.",
-        html_url: "https://github.com/pkda1lu/zvon/releases/tag/v2.3.1"
-    },
-    {
-        id: 366249429,
-        tag_name: "v2.3.0",
-        name: "2.3.0 — Модерация и боты",
-        published_at: "2026-08-06T13:37:47Z",
-        body: "Добавлена система ботов, личные токены, расширенная панель модерации и профили серверов.",
-        html_url: "https://github.com/pkda1lu/zvon/releases/tag/v2.3.0"
-    },
-    {
-        id: 364035279,
-        tag_name: "v2.2.1",
-        name: "2.2.1 — Оптимизация шума и звука",
-        published_at: "2026-08-03T07:04:17Z",
-        body: "Интеграция DeepFilterNet 3 для подавления шума в реальном времени и исправления голоса.",
-        html_url: "https://github.com/pkda1lu/zvon/releases/tag/v2.2.1"
-    },
-    {
-        id: 359343043,
-        tag_name: "v2.1.4",
-        name: "2.1.4 — Стримерский режим и оверлей",
-        published_at: "2026-07-24T14:01:51Z",
-        body: "Игровой оверлей Windows, скрытие конфиденциальной информации во время трансляций.",
-        html_url: "https://github.com/pkda1lu/zvon/releases/tag/v2.1.4"
-    },
-    {
-        id: 347394943,
-        tag_name: "v2.1.0",
-        name: "2.1.0 — Демонстрация экрана 60 FPS",
-        published_at: "2026-07-01T10:58:11Z",
-        body: "Шеринг экрана высокой четкости, поддержка аудио из захватываемых окон.",
-        html_url: "https://github.com/pkda1lu/zvon/releases/tag/v2.1.0"
-    },
-    {
-        id: 344868133,
-        tag_name: "v2.0.0",
-        name: "2.0.0 — Большое обновление Zvon 2.0",
-        published_at: "2026-06-25T17:07:46Z",
-        body: "Переработка архитектуры интерфейса, кастомные темы оформления, мини-приложения.",
-        html_url: "https://github.com/pkda1lu/zvon/releases/tag/v2.0.0"
-    }
-];
-
 const AppChangelogSettings: React.FC = () => {
     const [releases, setReleases] = useState<GitHubRelease[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
     const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
     const [commitsCache, setCommitsCache] = useState<Record<string, CommitItem[]>>({});
     const [loadingCommits, setLoadingCommits] = useState<Record<string, boolean>>({});
@@ -88,21 +38,89 @@ const AppChangelogSettings: React.FC = () => {
     const [unreleasedCommits, setUnreleasedCommits] = useState<CommitItem[] | null>(null);
     const [loadingUnreleased, setLoadingUnreleased] = useState<boolean>(false);
 
+    const formatCommitList = (commitsData: any[], isDirectCommits = false): CommitItem[] => {
+        const formatted: CommitItem[] = (commitsData || []).map((c: any) => ({
+            sha: c.sha,
+            shortSha: (c.sha || '').substring(0, 7),
+            message: c.commit?.message?.split('\n')[0] || 'Без сообщения',
+            authorName: c.author?.login || c.commit?.author?.name || 'Developer',
+            authorAvatar: c.author?.avatar_url,
+            date: c.commit?.author?.date || '',
+            htmlUrl: c.html_url || `https://github.com/pkda1lu/zvon/commit/${c.sha}`
+        }));
+
+        // Compare API returns commits in chronological order (oldest first).
+        // Reverse so newer commits appear higher (at the top).
+        if (!isDirectCommits) {
+            formatted.reverse();
+        }
+
+        return formatted;
+    };
+
     const fetchReleases = async () => {
         setLoading(true);
+        setError(null);
         try {
-            const res = await fetch('https://api.github.com/repos/pkda1lu/zvon/releases');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data: GitHubRelease[] = await res.json();
+            let data: GitHubRelease[] = [];
+            try {
+                const res = await axios.get('/api/version/releases');
+                data = res.data;
+            } catch {
+                // Fallback direct request to GitHub if server endpoint is unavailable
+                const res = await fetch('https://api.github.com/repos/pkda1lu/zvon/releases');
+                if (res.ok) {
+                    data = await res.json();
+                }
+            }
+
             if (Array.isArray(data) && data.length > 0) {
                 setReleases(data);
+                // Check for unreleased commits right after getting the latest release tag
+                checkUnreleasedCommits(data[0].tag_name);
             } else {
-                setReleases(FALLBACK_RELEASES);
+                setReleases([]);
+                setError('Список релизов пуст.');
             }
-        } catch {
-            setReleases(FALLBACK_RELEASES);
+        } catch (err: any) {
+            console.error('Failed to fetch releases:', err);
+            setError('Не удалось загрузить историю обновлений с GitHub.');
+            setReleases([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const checkUnreleasedCommits = async (latestTag: string) => {
+        if (!latestTag) return;
+        setLoadingUnreleased(true);
+
+        try {
+            let commitsData: any[] = [];
+            try {
+                const res = await axios.get(`/api/version/compare?base=${encodeURIComponent(latestTag)}&head=main`);
+                commitsData = res.data?.commits || [];
+            } catch {
+                const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${latestTag}...main`);
+                if (res.ok) {
+                    const json = await res.json();
+                    commitsData = json.commits || [];
+                } else {
+                    const resMaster = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${latestTag}...master`);
+                    if (resMaster.ok) {
+                        const json = await resMaster.json();
+                        commitsData = json.commits || [];
+                    }
+                }
+            }
+
+            const formatted = formatCommitList(commitsData);
+            setUnreleasedCommits(formatted);
+        } catch (e) {
+            console.error('Failed to check unreleased commits:', e);
+            setUnreleasedCommits([]);
+        } finally {
+            setLoadingUnreleased(false);
         }
     };
 
@@ -110,53 +128,7 @@ const AppChangelogSettings: React.FC = () => {
         fetchReleases();
     }, []);
 
-    const fetchUnreleasedCommits = async () => {
-        if (unreleasedCommits !== null) return;
-        setLoadingUnreleased(true);
-
-        try {
-            let commitsData: any[] = [];
-            const latestTag = releases[0]?.tag_name || 'v2.3.1';
-
-            const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${latestTag}...main`);
-            if (res.ok) {
-                const json = await res.json();
-                commitsData = json.commits || [];
-            } else {
-                const resMaster = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${latestTag}...master`);
-                if (resMaster.ok) {
-                    const json = await resMaster.json();
-                    commitsData = json.commits || [];
-                }
-            }
-
-            const formattedCommits: CommitItem[] = commitsData.map((c: any) => ({
-                sha: c.sha,
-                shortSha: c.sha.substring(0, 7),
-                message: c.commit?.message?.split('\n')[0] || 'Без сообщения',
-                authorName: c.author?.login || c.commit?.author?.name || 'Developer',
-                authorAvatar: c.author?.avatar_url,
-                date: c.commit?.author?.date || '',
-                htmlUrl: c.html_url || `https://github.com/pkda1lu/zvon/commit/${c.sha}`
-            }));
-
-            // GitHub compare API returns commits in chronological order (oldest first).
-            // Reverse so newer commits appear higher (at the top).
-            formattedCommits.reverse();
-
-            setUnreleasedCommits(formattedCommits);
-        } catch (e) {
-            console.error('Failed to fetch unreleased commits:', e);
-            setUnreleasedCommits([]);
-        } finally {
-            setLoadingUnreleased(false);
-        }
-    };
-
     const toggleUnreleasedExpand = () => {
-        if (!isUnreleasedExpanded) {
-            fetchUnreleasedCommits();
-        }
         setIsUnreleasedExpanded(!isUnreleasedExpanded);
     };
 
@@ -167,43 +139,37 @@ const AppChangelogSettings: React.FC = () => {
 
         try {
             let commitsData: any[] = [];
-            let isDirectCommitsEndpoint = false;
+            let isDirect = false;
 
-            if (prevReleaseTag) {
-                const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${prevReleaseTag}...${releaseTag}`);
-                if (res.ok) {
-                    const json = await res.json();
-                    commitsData = json.commits || [];
+            try {
+                const url = prevReleaseTag 
+                    ? `/api/version/commits?tag=${encodeURIComponent(releaseTag)}&prevTag=${encodeURIComponent(prevReleaseTag)}`
+                    : `/api/version/commits?tag=${encodeURIComponent(releaseTag)}`;
+                const res = await axios.get(url);
+                commitsData = res.data?.commits || [];
+                isDirect = !res.data?.isCompare;
+            } catch {
+                if (prevReleaseTag) {
+                    const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/compare/${prevReleaseTag}...${releaseTag}`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        commitsData = json.commits || [];
+                    }
                 }
-            }
 
-            if (commitsData.length === 0) {
-                const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/commits?sha=${releaseTag}&per_page=100`);
-                if (res.ok) {
-                    const json = await res.json();
-                    if (Array.isArray(json)) {
-                        commitsData = json;
-                        isDirectCommitsEndpoint = true;
+                if (commitsData.length === 0) {
+                    const res = await fetch(`https://api.github.com/repos/pkda1lu/zvon/commits?sha=${releaseTag}&per_page=100`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (Array.isArray(json)) {
+                            commitsData = json;
+                            isDirect = true;
+                        }
                     }
                 }
             }
 
-            const formattedCommits: CommitItem[] = commitsData.map((c: any) => ({
-                sha: c.sha,
-                shortSha: c.sha.substring(0, 7),
-                message: c.commit?.message?.split('\n')[0] || 'Без сообщения',
-                authorName: c.author?.login || c.commit?.author?.name || 'Developer',
-                authorAvatar: c.author?.avatar_url,
-                date: c.commit?.author?.date || '',
-                htmlUrl: c.html_url || `https://github.com/pkda1lu/zvon/commit/${c.sha}`
-            }));
-
-            // Compare API returns commits in chronological order (oldest first).
-            // /commits endpoint returns commits in reverse-chronological order (newest first).
-            if (!isDirectCommitsEndpoint) {
-                formattedCommits.reverse();
-            }
-
+            const formattedCommits = formatCommitList(commitsData, isDirect);
             setCommitsCache(prev => ({ ...prev, [releaseTag]: formattedCommits }));
         } catch (e) {
             console.error(`Failed to fetch commits for ${releaseTag}:`, e);
@@ -255,6 +221,8 @@ const AppChangelogSettings: React.FC = () => {
         }
     };
 
+    const hasUnreleasedCommits = unreleasedCommits && unreleasedCommits.length > 0;
+
     return (
         <div className="settings-content-inner">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -271,7 +239,7 @@ const AppChangelogSettings: React.FC = () => {
                 </button>
             </div>
             <p className="settings-description">
-                Список релизов и коммитов с репозитория GitHub.
+                Список официальных релизов и коммитов репозитория на GitHub.
             </p>
 
             {loading ? (
@@ -283,93 +251,100 @@ const AppChangelogSettings: React.FC = () => {
                         </div>
                     ))}
                 </div>
+            ) : error && releases.length === 0 ? (
+                <div className="settings-card" style={{ textAlign: 'center', padding: '32px 16px' }}>
+                    <p style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '16px' }}>{error}</p>
+                    <button 
+                        className="settings-btn settings-btn-secondary"
+                        onClick={fetchReleases}
+                        style={{ margin: '0 auto' }}
+                    >
+                        Попробовать снова
+                    </button>
+                </div>
             ) : (
                 <div className="changelog-releases-list">
-                    {/* Collapsed Unreleased Commits Item (without accent) */}
-                    <div className={`changelog-release-card unreleased ${isUnreleasedExpanded ? 'expanded' : ''}`}>
-                        <div className="changelog-card-top" onClick={toggleUnreleasedExpand}>
-                            <div className="changelog-tag-badge-wrapper">
-                                <span className="changelog-tag-badge muted">main</span>
+                    {/* Unreleased Commits Item - only shown when there are actual unreleased commits */}
+                    {hasUnreleasedCommits && (
+                        <div className={`changelog-release-card unreleased ${isUnreleasedExpanded ? 'expanded' : ''}`}>
+                            <div className="changelog-card-top" onClick={toggleUnreleasedExpand}>
+                                <div className="changelog-tag-badge-wrapper">
+                                    <span className="changelog-tag-badge muted">main</span>
+                                </div>
+
+                                <div className="changelog-card-title-group">
+                                    <h3 className="changelog-release-name muted">
+                                        Коммиты без релиза
+                                    </h3>
+                                    <span className="changelog-release-date">в разработке</span>
+                                </div>
+
+                                <div className="changelog-expand-indicator">
+                                    <ChevronDownIcon size={20} className={isUnreleasedExpanded ? 'open' : ''} />
+                                </div>
                             </div>
 
-                            <div className="changelog-card-title-group">
-                                <h3 className="changelog-release-name muted">
-                                    Коммиты без релиза
-                                </h3>
-                                <span className="changelog-release-date">в разработке</span>
-                            </div>
-
-                            <div className="changelog-expand-indicator">
-                                <ChevronDownIcon size={20} className={isUnreleasedExpanded ? 'open' : ''} />
-                            </div>
-                        </div>
-
-                        {/* Expanded Unreleased Commits */}
-                        {isUnreleasedExpanded && (
-                            <div className="changelog-commits-section">
-                                <div className="changelog-commits-header">
-                                    <h4>Коммиты версии</h4>
-                                    {unreleasedCommits && unreleasedCommits.length > 0 && (
+                            {/* Expanded Unreleased Commits */}
+                            {isUnreleasedExpanded && (
+                                <div className="changelog-commits-section">
+                                    <div className="changelog-commits-header">
+                                        <h4>Коммиты версии</h4>
                                         <span className="changelog-commits-count-badge">
                                             {unreleasedCommits.length} {unreleasedCommits.length === 1 ? 'коммит' : unreleasedCommits.length < 5 ? 'коммита' : 'коммитов'}
                                         </span>
-                                    )}
-                                </div>
-
-                                {loadingUnreleased ? (
-                                    <div className="changelog-commits-loading">
-                                        <div className="spinner" />
-                                        <span>Загрузка коммитов...</span>
                                     </div>
-                                ) : unreleasedCommits && unreleasedCommits.length > 0 ? (
-                                    <div className="changelog-commits-timeline">
-                                        {unreleasedCommits.map((commit) => (
-                                            <div key={commit.sha} className="changelog-commit-row">
-                                                <a 
-                                                    href={commit.htmlUrl} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer" 
-                                                    className="changelog-commit-sha"
-                                                    title="Открыть коммит на GitHub"
-                                                >
-                                                    {commit.shortSha}
-                                                </a>
 
-                                                <div className="changelog-commit-info">
-                                                    <div className="changelog-commit-message">
-                                                        {commit.message}
-                                                    </div>
-                                                    <div className="changelog-commit-meta">
-                                                        {commit.authorAvatar ? (
-                                                            <img 
-                                                                src={commit.authorAvatar} 
-                                                                alt={commit.authorName} 
-                                                                className="changelog-commit-avatar" 
-                                                            />
-                                                        ) : (
-                                                            <div className="changelog-commit-avatar-fallback">
-                                                                {commit.authorName.charAt(0).toUpperCase()}
-                                                            </div>
-                                                        )}
-                                                        <span className="changelog-commit-author">{commit.authorName}</span>
-                                                        {commit.date && (
-                                                            <span className="changelog-commit-date">
-                                                                • {formatCommitDate(commit.date)}
-                                                            </span>
-                                                        )}
+                                    {loadingUnreleased ? (
+                                        <div className="changelog-commits-loading">
+                                            <div className="spinner" />
+                                            <span>Загрузка коммитов...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="changelog-commits-timeline">
+                                            {unreleasedCommits.map((commit) => (
+                                                <div key={commit.sha} className="changelog-commit-row">
+                                                    <a 
+                                                        href={commit.htmlUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        className="changelog-commit-sha"
+                                                        title="Открыть коммит на GitHub"
+                                                    >
+                                                        {commit.shortSha}
+                                                    </a>
+
+                                                    <div className="changelog-commit-info">
+                                                        <div className="changelog-commit-message">
+                                                            {commit.message}
+                                                        </div>
+                                                        <div className="changelog-commit-meta">
+                                                            {commit.authorAvatar ? (
+                                                                <img 
+                                                                    src={commit.authorAvatar} 
+                                                                    alt={commit.authorName} 
+                                                                    className="changelog-commit-avatar" 
+                                                                />
+                                                            ) : (
+                                                                <div className="changelog-commit-avatar-fallback">
+                                                                    {commit.authorName.charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <span className="changelog-commit-author">{commit.authorName}</span>
+                                                            {commit.date && (
+                                                                <span className="changelog-commit-date">
+                                                                    • {formatCommitDate(commit.date)}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="changelog-commits-empty">
-                                        <span>Все текущие изменения входят в опубликованный релиз.</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Official Releases List */}
                     {releases.map((release, index) => {
@@ -496,3 +471,4 @@ const AppChangelogSettings: React.FC = () => {
 };
 
 export default AppChangelogSettings;
+
