@@ -31,7 +31,8 @@ import {
     GestureIcon,
     InfoIcon,
     HistoryIcon,
-    BellIcon
+    BellIcon,
+    RoadmapIcon
 } from '../../components/Icons';
 const ProfileSettings = React.lazy(() => import('./ProfileSettings'));
 const ServerProfilesSettings = React.lazy(() => import('./ServerProfilesSettings'));
@@ -63,6 +64,7 @@ const AdminInfraSettings = React.lazy(() => import('./AdminInfraSettings'));
 const AdminActionsSettings = React.lazy(() => import('./AdminActionsSettings'));
 const AppVersionSettings = React.lazy(() => import('./AppVersionSettings'));
 const AppChangelogSettings = React.lazy(() => import('./AppChangelogSettings'));
+const AppRoadmapSettings = React.lazy(() => import('./AppRoadmapSettings'));
 import { useAuth } from '../../contexts/AuthContext';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { useGestureSettings } from '../../contexts/GestureSettingsContext';
@@ -172,6 +174,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'admin-actions': return <AdminActionsSettings />;
             case 'app-version': return <AppVersionSettings />;
             case 'app-changelog': return <AppChangelogSettings />;
+            case 'app-roadmap': return <AppRoadmapSettings />;
             default: return <ProfileSettings />;
         }
     };
@@ -323,6 +326,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <CategoryHeader>О приложении</CategoryHeader>
                 <NavItem id="app-version" label="Текущая версия" icon={InfoIcon} />
                 <NavItem id="app-changelog" label="История обновлений" icon={HistoryIcon} />
+                <NavItem id="app-roadmap" label="План разработки" icon={RoadmapIcon} />
 
                 <Divider />
                 <div className="settings-sidebar-item logout" onClick={logout} title="Выйти из аккаунта">

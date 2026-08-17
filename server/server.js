@@ -97,6 +97,7 @@ app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
 app.use('/api/moderation', require('./routes/moderation'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/version', require('./routes/version'));
+app.use('/api/roadmap', require('./routes/roadmap'));
 app.use('/api/themes', require('./routes/themes'));
 const { router: downloadRouter, latestRedirect: downloadLatestRedirect } = require('./routes/download');
 app.use('/api/download', downloadRouter);

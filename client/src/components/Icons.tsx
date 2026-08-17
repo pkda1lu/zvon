@@ -580,4 +580,38 @@ export const PaperclipIcon: React.FC<{ size?: number; color?: string; className?
     </svg>
 );
 
+export const ArrowUpIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="12" y1="19" x2="12" y2="5" />
+        <polyline points="5 12 12 5 19 12" />
+    </svg>
+);
+
+export const EditIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+);
+
+export const GripVerticalIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="9" cy="12" r="1" fill={color} />
+        <circle cx="9" cy="5" r="1" fill={color} />
+        <circle cx="9" cy="19" r="1" fill={color} />
+        <circle cx="15" cy="12" r="1" fill={color} />
+        <circle cx="15" cy="5" r="1" fill={color} />
+        <circle cx="15" cy="19" r="1" fill={color} />
+    </svg>
+);
+
+export const RoadmapIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+        <line x1="9" y1="3" x2="9" y2="18" />
+        <line x1="15" y1="6" x2="15" y2="21" />
+    </svg>
+);
+
+
 
