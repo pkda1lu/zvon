@@ -8,6 +8,8 @@ const User = require('../models/User');
 const Server = require('../models/Server');
 const Message = require('../models/Message');
 const Report = require('../models/Report');
+const Session = require('../models/Session');
+const VoiceSession = require('../models/VoiceSession');
 const GlobalAuditLog = require('../models/GlobalAuditLog');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 
@@ -172,12 +174,156 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
+    // Активность по отправке сообщений (DAU авторов сообщений)
     const activeUsersDaily = await Message.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: { day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, author: "$author" } } },
       { $group: { _id: "$_id.day", count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
+
+    // 1. Уникальные пользователи онлайн по дням (DAU Online)
+    let onlineUsersAgg = [];
+    try {
+      onlineUsersAgg = await Session.aggregate([
+        {
+          $match: {
+            $or: [
+              { lastActiveAt: { $gte: startDate, $lte: endDate } },
+              { createdAt: { $gte: startDate, $lte: endDate } }
+            ]
+          }
+        },
+        {
+          $project: {
+            user: 1,
+            activeDate: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $ne: ["$lastActiveAt", null] },
+                    { $gte: ["$lastActiveAt", startDate] },
+                    { $lte: ["$lastActiveAt", endDate] }
+                  ]
+                },
+                then: "$lastActiveAt",
+                else: "$createdAt"
+              }
+            }
+          }
+        },
+        {
+          $match: {
+            activeDate: { $ne: null }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              day: { $dateToString: { format: "%Y-%m-%d", date: "$activeDate" } },
+              user: "$user"
+            }
+          }
+        },
+        {
+          $group: {
+            _id: "$_id.day",
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+    } catch (e) {
+      console.error('Session DAU aggregate error:', e);
+      onlineUsersAgg = [];
+    }
+
+    // 2. Голосовая статистика (VoiceSession)
+    let voiceHoursAgg = [];
+    try {
+      voiceHoursAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $gte: startDate, $lte: endDate } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
+            totalSeconds: { $sum: "$durationSeconds" },
+            sessionsCount: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            count: { $round: [{ $divide: ["$totalSeconds", 3600] }, 1] },
+            sessionsCount: 1
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+    } catch (e) {
+      console.error('Voice hours aggregate error:', e);
+      voiceHoursAgg = [];
+    }
+
+    // б) Сеансы голосовых по дням
+    const voiceSessionsAgg = (voiceHoursAgg || []).map(v => ({ _id: v._id, count: v.sessionsCount || 0 }));
+
+    // в) Уникальные пользователи в голосовых по дням (Voice DAU)
+    let voiceUsersAgg = [];
+    try {
+      voiceUsersAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $gte: startDate, $lte: endDate } } },
+        {
+          $group: {
+            _id: {
+              day: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
+              user: "$user"
+            }
+          }
+        },
+        {
+          $group: {
+            _id: "$_id.day",
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+    } catch (e) {
+      console.error('Voice users aggregate error:', e);
+      voiceUsersAgg = [];
+    }
+
+    // Общее суммарное время во всех голосовых сессиях на платформе
+    let totalVoiceHours = 0;
+    let totalVoiceSessions = 0;
+    try {
+      const voiceTotalsAgg = await VoiceSession.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalSeconds: { $sum: "$durationSeconds" },
+            totalSessions: { $sum: 1 }
+          }
+        }
+      ]);
+      const totalVoiceSeconds = (voiceTotalsAgg[0] && voiceTotalsAgg[0].totalSeconds) || 0;
+      totalVoiceHours = Math.round((totalVoiceSeconds / 3600) * 10) / 10;
+      totalVoiceSessions = (voiceTotalsAgg[0] && voiceTotalsAgg[0].totalSessions) || 0;
+    } catch (e) {
+      console.error('Voice totals aggregate error:', e);
+    }
+
+    // Голосовые часы до начала периода (для накопительного графика)
+    let voiceHoursBeforePeriod = 0;
+    try {
+      const voiceBeforePeriodAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $lt: startDate } } },
+        { $group: { _id: null, totalSeconds: { $sum: "$durationSeconds" } } }
+      ]);
+      voiceHoursBeforePeriod = Math.round((((voiceBeforePeriodAgg[0] && voiceBeforePeriodAgg[0].totalSeconds) || 0) / 3600) * 10) / 10;
+    } catch (e) {
+      console.error('Voice before period aggregate error:', e);
+    }
 
     function buildDailyTimeline(startD, endD, aggList, isCumulative = false, initialValue = 0) {
       const map = new Map();
@@ -197,7 +343,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
 
         const count = map.get(dateStr) || 0;
         if (isCumulative) {
-          running += count;
+          running = Math.round((running + count) * 10) / 10;
           result.push({ _id: dateStr, count: Math.max(0, running) });
         } else {
           result.push({ _id: dateStr, count });
@@ -220,14 +366,113 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     const messagesCumulative = buildDailyTimeline(startDate, endDate, dailyMessages, true, messagesBeforePeriod);
     const activeUsersDailyChart = buildDailyTimeline(startDate, endDate, activeUsersDaily);
 
+    // Новые графики:
+    const onlineUsersDailyChart = buildDailyTimeline(startDate, endDate, onlineUsersAgg);
+    const voiceHoursDailyChart = buildDailyTimeline(startDate, endDate, voiceHoursAgg);
+    const voiceHoursCumulativeChart = buildDailyTimeline(startDate, endDate, voiceHoursAgg, true, voiceHoursBeforePeriod);
+    const voiceSessionsDailyChart = buildDailyTimeline(startDate, endDate, voiceSessionsAgg);
+    const voiceUsersDailyChart = buildDailyTimeline(startDate, endDate, voiceUsersAgg);
+
+    // Сумма часов за выбранный период
+    const voiceHoursPeriod = Math.round((voiceHoursAgg.reduce((sum, item) => sum + (item.count || 0), 0)) * 10) / 10;
+    const voiceSessionsPeriod = voiceSessionsAgg.reduce((sum, item) => sum + (item.count || 0), 0);
+    // Топ-5 пользователей по количеству сообщений за период
+    let topMessageUsersAgg = [];
+    try {
+      topMessageUsersAgg = await Message.aggregate([
+        { $match: { createdAt: { $gte: startDate, $lte: endDate }, author: { $ne: null } } },
+        {
+          $group: {
+            _id: "$author",
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'userInfo'
+          }
+        },
+        { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            count: 1,
+            username: { $ifNull: ['$userInfo.username', 'Удаленный пользователь'] },
+            displayName: { $ifNull: ['$userInfo.displayName', ''] },
+            avatar: { $ifNull: ['$userInfo.avatar', null] }
+          }
+        }
+      ]);
+    } catch (e) {
+      console.error('Top message users aggregate error:', e);
+      topMessageUsersAgg = [];
+    }
+
+    // Топ-5 пользователей по часам в голосовых комнатах за период
+    let topVoiceUsersAgg = [];
+    try {
+      topVoiceUsersAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $gte: startDate, $lte: endDate }, user: { $ne: null } } },
+        {
+          $group: {
+            _id: "$user",
+            totalSeconds: { $sum: "$durationSeconds" },
+            sessionsCount: { $sum: 1 }
+          }
+        },
+        { $sort: { totalSeconds: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'userInfo'
+          }
+        },
+        { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            totalSeconds: 1,
+            hours: { $round: [{ $divide: ["$totalSeconds", 3600] }, 1] },
+            sessionsCount: 1,
+            username: { $ifNull: ['$userInfo.username', 'Удаленный пользователь'] },
+            displayName: { $ifNull: ['$userInfo.displayName', ''] },
+            avatar: { $ifNull: ['$userInfo.avatar', null] }
+          }
+        }
+      ]);
+    } catch (e) {
+      console.error('Top voice users aggregate error:', e);
+      topVoiceUsersAgg = [];
+    }
+
+    // Сумма сообщений за выбранный период
+    const messagesPeriod = dailyMessages.reduce((sum, item) => sum + (item.count || 0), 0);
+
     res.json({
       totals: {
         users: totalUsers,
         servers: totalServers,
         messages: totalMessages,
+        messagesPeriod,
         miniApps: totalMiniApps,
         bots: totalBots,
-        newUsersPeriod: dailyNewUsers.reduce((a, b) => a + b.count, 0)
+        newUsersPeriod: dailyNewUsers.reduce((a, b) => a + b.count, 0),
+        totalVoiceHours,
+        totalVoiceSessions,
+        voiceHoursPeriod,
+        voiceSessionsPeriod
+      },
+      topUsers: {
+        byMessages: topMessageUsersAgg,
+        byVoice: topVoiceUsersAgg
       },
       charts: {
         usersDaily,
@@ -236,7 +481,12 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         serversCumulative,
         messagesDaily: messagesDailyChart,
         messagesCumulative,
-        activeUsersDaily: activeUsersDailyChart
+        activeUsersDaily: activeUsersDailyChart,
+        onlineUsersDaily: onlineUsersDailyChart,
+        voiceHoursDaily: voiceHoursDailyChart,
+        voiceHoursCumulative: voiceHoursCumulativeChart,
+        voiceSessionsDaily: voiceSessionsDailyChart,
+        voiceUsersDaily: voiceUsersDailyChart
       }
     });
   } catch (err) {
