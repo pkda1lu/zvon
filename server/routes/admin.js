@@ -375,6 +375,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
 
     // Сумма часов за выбранный период
     const voiceHoursPeriod = Math.round((voiceHoursAgg.reduce((sum, item) => sum + (item.count || 0), 0)) * 10) / 10;
+    const voiceSessionsPeriod = voiceSessionsAgg.reduce((sum, item) => sum + (item.count || 0), 0);
     // Топ-5 пользователей по количеству сообщений за период
     let topMessageUsersAgg = [];
     try {
