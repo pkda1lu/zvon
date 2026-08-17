@@ -21,8 +21,22 @@ const fs = require('fs');
 const compression = require('compression');
 
 const app = express();
-// За nginx/reverse-proxy — доверяем X-Forwarded-* для корректного IP клиента.
-app.set('trust proxy', true);
+/**
+ * Доверяем РОВНО одному прокси — nginx на этой же машине.
+ *
+ * Было `true`, то есть «доверять всем». В этом режиме Express берёт из
+ * X-Forwarded-For САМЫЙ ЛЕВЫЙ адрес, а левый — тот, что прислал клиент: nginx
+ * лишь дописывает настоящий адрес справа. Значит любой мог подставить чужой IP
+ * заголовком, и это не теория:
+ *   — ограничитель попыток входа считает по req.ip, то есть перебор паролей
+ *     обходился сменой заголовка на каждом запросе;
+ *   — в журналы по 152-ФЗ и в сведения об устройствах попадал вымышленный адрес.
+ *
+ * С числом 1 доверенным считается один переход, и req.ip — адрес, который
+ * подставил nginx, то есть настоящий. Если прокси станет больше (например,
+ * появится CDN), число нужно увеличить ровно на их количество.
+ */
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // Медленный режим: последний таймстемп отправки сообщения, ключ `${channelId}:${userId}`.
@@ -50,8 +64,15 @@ const corsOptions = {
       'https://maxcord.fun',
       'http://maxcord.fun'
     ];
-    if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) callback(null, true);
-    else callback(null, true);
+    // Сравнение строго по совпадению. Было `startsWith`, а это дыра:
+    // https://zvonserver.ru.example.com начинается с https://zvonserver.ru,
+    // то есть чужой домен проходил проверку.
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Раньше обе ветки возвращали `true` — список был декоративным, и запрос
+    // принимался с любого сайта. Теперь чужие источники отклоняются.
+    console.warn('[cors] отклонён источник:', origin);
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
