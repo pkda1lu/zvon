@@ -184,13 +184,16 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 
   useEffect(() => {
     if (socket) {
-      socket.emit('join-server', server._id);
+      const join = () => socket.emit('join-server', server._id);
+      join();
+      socket.on('connect', join);
       socket.on('server-voice-states', (states) => setVoiceStates(states));
       socket.on('voice-channel-users-update', (data) => {
         setVoiceStates(prev => ({ ...prev, [data.channelId]: data.users }));
       });
       return () => {
         socket.emit('leave-server', server._id);
+        socket.off('connect', join);
         socket.off('server-voice-states');
         socket.off('voice-channel-users-update');
       };

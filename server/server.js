@@ -512,7 +512,7 @@ io.on('connection', (socket) => {
       const server = await Server.findById(serverId).populate('channels');
       if (server) {
         const voiceStates = {};
-        for (const ch of server.channels) if (ch.type === 'voice') voiceStates[ch._id] = await getVoiceChannelUsers(ch._id);
+        for (const ch of server.channels) if (ch.type === 'voice' || ch.type === 'room') voiceStates[ch._id] = await getVoiceChannelUsers(ch._id);
         socket.emit('server-voice-states', voiceStates);
         io.to(`server-${serverId}`).emit('server-voice-states', voiceStates);
       }
@@ -1011,6 +1011,9 @@ io.on('connection', (socket) => {
     console.log(`[Call] User ${socket.userId} joined DM room ${data.dmId}`);
     socket.join(`dm-call-${data.dmId}`);
     socket.dmCallId = data.dmId;
+    const requestedJoinedAt = Number(data?.joinedVoiceAt);
+    const isValidJoinedAt = requestedJoinedAt && !isNaN(requestedJoinedAt) && requestedJoinedAt > 0 && requestedJoinedAt <= (Date.now() + 5000);
+    socket.joinedVoiceAt = isValidJoinedAt ? requestedJoinedAt : Date.now();
     socket.to(`dm-call-${data.dmId}`).emit('dm-call-user-joined', { userId: socket.userId });
     const room = io.sockets.adapter.rooms.get(`dm-call-${data.dmId}`);
     const existing = [];
@@ -1025,6 +1028,18 @@ io.on('connection', (socket) => {
       channelId: `call-${data.dmId}`,
       presences: getPresencesSnapshot(`call-${data.dmId}`),
     });
+  });
+
+  socket.on('leave-dm-call', (data) => {
+    const dmId = data?.dmId || socket.dmCallId;
+    if (dmId) {
+      finalizeVoiceSession(socket, null, dmId);
+      cleanupUserPresencesInChannel('call-' + dmId, socket.userId, io);
+      socket.leave(`dm-call-${dmId}`);
+      socket.to(`dm-call-${dmId}`).emit('dm-call-user-left', { userId: socket.userId });
+    }
+    socket.dmCallId = null;
+    socket.joinedVoiceAt = null;
   });
 
   // --- Voice presence lifecycle ---
@@ -1138,6 +1153,9 @@ io.on('connection', (socket) => {
       }
 
       if (socket.voiceChannelId && socket.voiceChannelId !== channelId) {
+        finalizeVoiceSession(socket, socket.voiceChannelId);
+        cleanupUserPresencesInChannel('channel-' + socket.voiceChannelId, socket.userId, io);
+        endWatchIfHost(socket.voiceChannelId, socket.userId, io);
         socket.leave(`voice-channel-${socket.voiceChannelId}`);
         io.to(`voice-channel-${socket.voiceChannelId}`).emit('voice-user-left', { userId: socket.userId });
         removeRoomPosition(socket.voiceChannelId, socket.userId);
@@ -1149,9 +1167,12 @@ io.on('connection', (socket) => {
       // чтобы активной осталась только новая сессия (поведение как в Discord).
       await disconnectOtherVoiceSessions(socket.userId, socket.id);
 
-      const existingUsers = await getVoiceChannelUsers(channelId);
+      const requestedJoinedAt = Number(data?.joinedVoiceAt);
+      const isValidJoinedAt = requestedJoinedAt && !isNaN(requestedJoinedAt) && requestedJoinedAt > 0 && requestedJoinedAt <= (Date.now() + 5000);
+
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
-      socket.joinedVoiceAt = Date.now();
+      socket.joinedVoiceAt = isValidJoinedAt ? requestedJoinedAt : Date.now();
+      const existingUsers = await getVoiceChannelUsers(channelId);
       // Presence хранятся под ключом LiveKit-комнаты ('channel-<id>'), а не под сырым id —
       // иначе зашедший позже не получал снапшот presence (нет плитки мини-аппа).
       socket.emit('voice-presences-snapshot', { channelId, presences: getPresencesSnapshot('channel-' + channelId) });

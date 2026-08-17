@@ -589,6 +589,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Refs
     const roomRef = useRef<Room | null>(null);
     const activeChannelIdRef = useRef<string | null>(null);
+    const joinedVoiceAtRef = useRef<number | null>(null);
     const isConnectedRef = useRef(false);
     const localStreamRef = useRef<MediaStream | null>(null);
     const vadStreamRef = useRef<MediaStream | null>(null);
@@ -889,6 +890,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setWatchedScreenIds(new Set());
         setIsConnected(false);
         setActiveChannelId(null);
+        joinedVoiceAtRef.current = null;
         setRoomConnectionState(ConnectionStates.Disconnected);
         if (socket && activeChannelIdRef.current) socket.emit('leave-voice-channel', { channelId: activeChannelIdRef.current });
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
@@ -985,7 +987,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             
             setIsConnected(true);
             setActiveChannelId(channelId);
-            if (socket) socket.emit('join-voice-channel', { channelId });
+            const now = Date.now();
+            joinedVoiceAtRef.current = now;
+            if (socket) socket.emit('join-voice-channel', { channelId, joinedVoiceAt: now });
             soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
         } catch (e) {
             await alert('Ошибка подключения');
@@ -1273,7 +1277,10 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const onConnect = () => {
             if (activeChannelIdRef.current) {
                 console.log('[Voice] Socket reconnected, re-joining voice channel:', activeChannelIdRef.current);
-                socket.emit('join-voice-channel', { channelId: activeChannelIdRef.current });
+                socket.emit('join-voice-channel', {
+                    channelId: activeChannelIdRef.current,
+                    joinedVoiceAt: joinedVoiceAtRef.current || Date.now()
+                });
             }
         };
 
