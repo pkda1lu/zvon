@@ -183,109 +183,147 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     ]);
 
     // 1. Уникальные пользователи онлайн по дням (DAU Online)
-    // Берём сессии, чья активность (lastActiveAt или createdAt) попала в выбранный период
-    const onlineUsersAgg = await Session.aggregate([
-      {
-        $match: {
-          $or: [
-            { lastActiveAt: { $gte: startDate, $lte: endDate } },
-            { createdAt: { $gte: startDate, $lte: endDate } }
-          ]
-        }
-      },
-      {
-        $project: {
-          user: 1,
-          activeDate: {
-            $cond: [
-              { $and: [{ $gte: ["$lastActiveAt", startDate] }, { $lte: ["$lastActiveAt", endDate] }] },
-              "$lastActiveAt",
-              "$createdAt"
+    let onlineUsersAgg = [];
+    try {
+      onlineUsersAgg = await Session.aggregate([
+        {
+          $match: {
+            $or: [
+              { lastActiveAt: { $gte: startDate, $lte: endDate } },
+              { createdAt: { $gte: startDate, $lte: endDate } }
             ]
           }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            day: { $dateToString: { format: "%Y-%m-%d", date: "$activeDate" } },
-            user: "$user"
+        },
+        {
+          $project: {
+            user: 1,
+            activeDate: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $ne: ["$lastActiveAt", null] },
+                    { $gte: ["$lastActiveAt", startDate] },
+                    { $lte: ["$lastActiveAt", endDate] }
+                  ]
+                },
+                then: "$lastActiveAt",
+                else: "$createdAt"
+              }
+            }
           }
-        }
-      },
-      {
-        $group: {
-          _id: "$_id.day",
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+        },
+        {
+          $match: {
+            activeDate: { $ne: null }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              day: { $dateToString: { format: "%Y-%m-%d", date: "$activeDate" } },
+              user: "$user"
+            }
+          }
+        },
+        {
+          $group: {
+            _id: "$_id.day",
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+    } catch (e) {
+      console.error('Session DAU aggregate error:', e);
+      onlineUsersAgg = [];
+    }
 
     // 2. Голосовая статистика (VoiceSession)
-    // а) Часы в голосовых по дням (переводим секунды в часы с 1 знаком после запятой)
-    const voiceHoursAgg = await VoiceSession.aggregate([
-      { $match: { joinedAt: { $gte: startDate, $lte: endDate } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
-          totalSeconds: { $sum: "$durationSeconds" },
-          sessionsCount: { $sum: 1 }
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          count: { $round: [{ $divide: ["$totalSeconds", 3600] }, 1] },
-          sessionsCount: 1
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+    let voiceHoursAgg = [];
+    try {
+      voiceHoursAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $gte: startDate, $lte: endDate } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
+            totalSeconds: { $sum: "$durationSeconds" },
+            sessionsCount: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            count: { $round: [{ $divide: ["$totalSeconds", 3600] }, 1] },
+            sessionsCount: 1
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+    } catch (e) {
+      console.error('Voice hours aggregate error:', e);
+      voiceHoursAgg = [];
+    }
 
     // б) Сеансы голосовых по дням
     const voiceSessionsAgg = (voiceHoursAgg || []).map(v => ({ _id: v._id, count: v.sessionsCount || 0 }));
 
     // в) Уникальные пользователи в голосовых по дням (Voice DAU)
-    const voiceUsersAgg = await VoiceSession.aggregate([
-      { $match: { joinedAt: { $gte: startDate, $lte: endDate } } },
-      {
-        $group: {
-          _id: {
-            day: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
-            user: "$user"
+    let voiceUsersAgg = [];
+    try {
+      voiceUsersAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $gte: startDate, $lte: endDate } } },
+        {
+          $group: {
+            _id: {
+              day: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
+              user: "$user"
+            }
           }
-        }
-      },
-      {
-        $group: {
-          _id: "$_id.day",
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+        },
+        {
+          $group: {
+            _id: "$_id.day",
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+    } catch (e) {
+      console.error('Voice users aggregate error:', e);
+      voiceUsersAgg = [];
+    }
 
     // Общее суммарное время во всех голосовых сессиях на платформе
-    const voiceTotalsAgg = await VoiceSession.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalSeconds: { $sum: "$durationSeconds" },
-          totalSessions: { $sum: 1 }
+    let totalVoiceHours = 0;
+    let totalVoiceSessions = 0;
+    try {
+      const voiceTotalsAgg = await VoiceSession.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalSeconds: { $sum: "$durationSeconds" },
+            totalSessions: { $sum: 1 }
+          }
         }
-      }
-    ]);
-    const totalVoiceSeconds = (voiceTotalsAgg[0] && voiceTotalsAgg[0].totalSeconds) || 0;
-    const totalVoiceHours = Math.round((totalVoiceSeconds / 3600) * 10) / 10;
-    const totalVoiceSessions = (voiceTotalsAgg[0] && voiceTotalsAgg[0].totalSessions) || 0;
+      ]);
+      const totalVoiceSeconds = (voiceTotalsAgg[0] && voiceTotalsAgg[0].totalSeconds) || 0;
+      totalVoiceHours = Math.round((totalVoiceSeconds / 3600) * 10) / 10;
+      totalVoiceSessions = (voiceTotalsAgg[0] && voiceTotalsAgg[0].totalSessions) || 0;
+    } catch (e) {
+      console.error('Voice totals aggregate error:', e);
+    }
 
     // Голосовые часы до начала периода (для накопительного графика)
-    const voiceBeforePeriodAgg = await VoiceSession.aggregate([
-      { $match: { joinedAt: { $lt: startDate } } },
-      { $group: { _id: null, totalSeconds: { $sum: "$durationSeconds" } } }
-    ]);
-    const voiceHoursBeforePeriod = Math.round((((voiceBeforePeriodAgg[0] && voiceBeforePeriodAgg[0].totalSeconds) || 0) / 3600) * 10) / 10;
+    let voiceHoursBeforePeriod = 0;
+    try {
+      const voiceBeforePeriodAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $lt: startDate } } },
+        { $group: { _id: null, totalSeconds: { $sum: "$durationSeconds" } } }
+      ]);
+      voiceHoursBeforePeriod = Math.round((((voiceBeforePeriodAgg[0] && voiceBeforePeriodAgg[0].totalSeconds) || 0) / 3600) * 10) / 10;
+    } catch (e) {
+      console.error('Voice before period aggregate error:', e);
+    }
 
     function buildDailyTimeline(startD, endD, aggList, isCumulative = false, initialValue = 0) {
       const map = new Map();
@@ -338,69 +376,81 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     // Сумма часов за выбранный период
     const voiceHoursPeriod = Math.round((voiceHoursAgg.reduce((sum, item) => sum + (item.count || 0), 0)) * 10) / 10;
     // Топ-5 пользователей по количеству сообщений за период
-    const topMessageUsersAgg = await Message.aggregate([
-      { $match: { createdAt: { $gte: startDate, $lte: endDate }, author: { $ne: null } } },
-      {
-        $group: {
-          _id: "$author",
-          count: { $sum: 1 }
+    let topMessageUsersAgg = [];
+    try {
+      topMessageUsersAgg = await Message.aggregate([
+        { $match: { createdAt: { $gte: startDate, $lte: endDate }, author: { $ne: null } } },
+        {
+          $group: {
+            _id: "$author",
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'userInfo'
+          }
+        },
+        { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            count: 1,
+            username: { $ifNull: ['$userInfo.username', 'Удаленный пользователь'] },
+            displayName: { $ifNull: ['$userInfo.displayName', ''] },
+            avatar: { $ifNull: ['$userInfo.avatar', null] }
+          }
         }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 5 },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'userInfo'
-        }
-      },
-      { $unwind: '$userInfo' },
-      {
-        $project: {
-          _id: 1,
-          count: 1,
-          username: '$userInfo.username',
-          displayName: '$userInfo.displayName',
-          avatar: '$userInfo.avatar'
-        }
-      }
-    ]);
+      ]);
+    } catch (e) {
+      console.error('Top message users aggregate error:', e);
+      topMessageUsersAgg = [];
+    }
 
     // Топ-5 пользователей по часам в голосовых комнатах за период
-    const topVoiceUsersAgg = await VoiceSession.aggregate([
-      { $match: { joinedAt: { $gte: startDate, $lte: endDate }, user: { $ne: null } } },
-      {
-        $group: {
-          _id: "$user",
-          totalSeconds: { $sum: "$durationSeconds" },
-          sessionsCount: { $sum: 1 }
+    let topVoiceUsersAgg = [];
+    try {
+      topVoiceUsersAgg = await VoiceSession.aggregate([
+        { $match: { joinedAt: { $gte: startDate, $lte: endDate }, user: { $ne: null } } },
+        {
+          $group: {
+            _id: "$user",
+            totalSeconds: { $sum: "$durationSeconds" },
+            sessionsCount: { $sum: 1 }
+          }
+        },
+        { $sort: { totalSeconds: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'userInfo'
+          }
+        },
+        { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            totalSeconds: 1,
+            hours: { $round: [{ $divide: ["$totalSeconds", 3600] }, 1] },
+            sessionsCount: 1,
+            username: { $ifNull: ['$userInfo.username', 'Удаленный пользователь'] },
+            displayName: { $ifNull: ['$userInfo.displayName', ''] },
+            avatar: { $ifNull: ['$userInfo.avatar', null] }
+          }
         }
-      },
-      { $sort: { totalSeconds: -1 } },
-      { $limit: 5 },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'userInfo'
-        }
-      },
-      { $unwind: '$userInfo' },
-      {
-        $project: {
-          _id: 1,
-          totalSeconds: 1,
-          hours: { $round: [{ $divide: ["$totalSeconds", 3600] }, 1] },
-          sessionsCount: 1,
-          username: '$userInfo.username',
-          displayName: '$userInfo.displayName',
-          avatar: '$userInfo.avatar'
-        }
-      }
-    ]);
+      ]);
+    } catch (e) {
+      console.error('Top voice users aggregate error:', e);
+      topVoiceUsersAgg = [];
+    }
 
     // Сумма сообщений за выбранный период
     const messagesPeriod = dailyMessages.reduce((sum, item) => sum + (item.count || 0), 0);
