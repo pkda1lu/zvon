@@ -24,7 +24,7 @@ import type {
     ConnectionQuality,
 } from 'livekit-client';
 import { loadLiveKit, ConnectionStates, ConnectionQualities, TrackSources } from '../utils/livekitLazy';
-import { registerPanner, unregisterPanner } from '../utils/spatialAudio';
+import { registerPanner, unregisterPanner, subscribeRouting } from '../utils/spatialAudio';
 
 import { useCallSettings } from './CallSettingsContext';
 
@@ -492,18 +492,37 @@ const RemoteAudioElement: React.FC<{
         keepAliveRef.current = keepAlive;
 
         const source = ctx.createMediaStreamSource(stream);
-        // Узел панорамирования между источником и громкостью: положение
-        // участника в 3D-комнате задаётся через utils/spatialAudio. Вне комнаты
-        // координаты не приходят, узел остаётся в центре и звук слышен как
-        // обычно — отдельной ветки для не-3D-каналов не требуется.
         const panner = ctx.createPanner();
         const gain = ctx.createGain();
         const dest = ctx.createMediaStreamDestination();
-        source.connect(panner);
-        panner.connect(gain);
         gain.connect(dest);
         gainRef.current = gain;
         registerPanner(userId, panner, ctx);
+
+        /**
+         * Панорамирование включаем в цепочку ТОЛЬКО в 3D-комнате.
+         *
+         * HRTF считает свёртку с импульсными характеристиками — это дорого, а в
+         * обычном голосовом канале бесполезно: координаты туда не приходят, все
+         * источники стоят в точке слушателя. Когда узел стоял в цепочке всегда,
+         * при трёх и более участниках звук начинал захлёбываться: у каждого
+         * участника свой AudioContext, и к трём аудиопотокам добавлялись три
+         * свёртки.
+         *
+         * Неподключённый PannerNode ничего не стоит, поэтому создаём его сразу,
+         * а в цепочку вставляем по флагу.
+         */
+        const applyRouting = (spatial: boolean) => {
+            try { source.disconnect(); } catch { }
+            try { panner.disconnect(); } catch { }
+            if (spatial) {
+                source.connect(panner);
+                panner.connect(gain);
+            } else {
+                source.connect(gain);
+            }
+        };
+        const unsubscribeRouting = subscribeRouting(applyRouting);
 
         el.srcObject = dest.stream;
         if (ctx.state === 'suspended') ctx.resume().catch(() => {});
@@ -514,6 +533,7 @@ const RemoteAudioElement: React.FC<{
         tryPlay();
 
         return () => {
+            unsubscribeRouting();
             unregisterPanner(userId);
             try { source.disconnect(); panner.disconnect(); gain.disconnect(); } catch {}
             try { keepAlive.pause(); keepAlive.srcObject = null; } catch {}

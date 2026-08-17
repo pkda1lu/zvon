@@ -21,8 +21,22 @@ const fs = require('fs');
 const compression = require('compression');
 
 const app = express();
-// За nginx/reverse-proxy — доверяем X-Forwarded-* для корректного IP клиента.
-app.set('trust proxy', true);
+/**
+ * Доверяем РОВНО одному прокси — nginx на этой же машине.
+ *
+ * Было `true`, то есть «доверять всем». В этом режиме Express берёт из
+ * X-Forwarded-For САМЫЙ ЛЕВЫЙ адрес, а левый — тот, что прислал клиент: nginx
+ * лишь дописывает настоящий адрес справа. Значит любой мог подставить чужой IP
+ * заголовком, и это не теория:
+ *   — ограничитель попыток входа считает по req.ip, то есть перебор паролей
+ *     обходился сменой заголовка на каждом запросе;
+ *   — в журналы по 152-ФЗ и в сведения об устройствах попадал вымышленный адрес.
+ *
+ * С числом 1 доверенным считается один переход, и req.ip — адрес, который
+ * подставил nginx, то есть настоящий. Если прокси станет больше (например,
+ * появится CDN), число нужно увеличить ровно на их количество.
+ */
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // Медленный режим: последний таймстемп отправки сообщения, ключ `${channelId}:${userId}`.
@@ -50,8 +64,15 @@ const corsOptions = {
       'https://maxcord.fun',
       'http://maxcord.fun'
     ];
-    if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) callback(null, true);
-    else callback(null, true);
+    // Сравнение строго по совпадению. Было `startsWith`, а это дыра:
+    // https://zvonserver.ru.example.com начинается с https://zvonserver.ru,
+    // то есть чужой домен проходил проверку.
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Раньше обе ветки возвращали `true` — список был декоративным, и запрос
+    // принимался с любого сайта. Теперь чужие источники отклоняются.
+    console.warn('[cors] отклонён источник:', origin);
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -1468,8 +1489,24 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').th
   try { await require('./bootstrap/storeProducts')(); }
   catch (e) { console.error('[Store] product seed failed:', e.message); }
 }).catch(err => { console.error('MongoDB connection error:', err); });
-server.listen(process.env.PORT || 5000, () => {
-  console.log(`Server running on port ${process.env.PORT || 5000}`);
+/**
+ * Слушаем ТОЛЬКО петлю: снаружи приложение доступно исключительно через nginx.
+ *
+ * Без указания адреса Node слушает все интерфейсы, и порт 5000 был открыт в
+ * интернет напрямую. Это обходило nginx целиком — а вместе с ним ограничения
+ * частоты запросов, журналы доступа и TLS.
+ *
+ * Отдельно важно для trust proxy (см. выше): при прямом подключении клиент сам
+ * подставляет X-Forwarded-For, и настройка «доверять одному прокси» начинает
+ * доверять злоумышленнику. То есть закрытый порт — не просто «ещё один рубеж»,
+ * а условие, без которого определение IP не работает вовсе.
+ *
+ * BIND_HOST оставлен на случай другой схемы развёртывания (например, nginx на
+ * отдельной машине). Менять его стоит, только когда порт закрыт фаерволом.
+ */
+const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
+server.listen(process.env.PORT || 5000, BIND_HOST, () => {
+  console.log(`Server running on ${BIND_HOST}:${process.env.PORT || 5000}`);
   // Проверяем почту при старте: через неё идут коды входа и 2FA, и неверные
   // настройки означают, что пользователи не смогут войти вообще. Результат
   // только пишется в лог — падать из-за почты сервер не должен.

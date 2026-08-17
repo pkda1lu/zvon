@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
-import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio, registerPanner, unregisterPanner } from '../utils/spatialAudio';
+import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio, registerPanner, unregisterPanner, setRoomActive } from '../utils/spatialAudio';
 import { Channel, Server, User } from '../types';
 import { CubeIcon, ChatIcon } from './Icons';
 import './panel-hero.css';
@@ -50,6 +50,19 @@ const AVATAR_TARGET_HEIGHT = 1.7;
 const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, onToggleChat }) => {
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
+
+    /**
+     * Пока открыта комната — аудиослой пропускает голос через панорамирование.
+     * Вне комнаты узел из цепочки убирается: HRTF стоит дорого, а без координат
+     * бесполезен (см. utils/spatialAudio).
+     *
+     * Отдельным эффектом, а не внутри инициализации сцены: там инициализация
+     * асинхронная и может оборваться, а флаг обязан выключаться всегда.
+     */
+    useEffect(() => {
+        setRoomActive(true);
+        return () => { setRoomActive(false); };
+    }, []);
     const {
         isConnected, activeChannelId, joinChannel, connectedUsers,
         screenStream, isScreenSharing, remoteScreenStreams,
