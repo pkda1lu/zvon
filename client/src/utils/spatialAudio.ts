@@ -55,6 +55,38 @@ let enabled = (() => {
     try { return localStorage.getItem(STORAGE_KEY) !== 'false'; } catch { return true; }
 })();
 
+/**
+ * Включён ли пространственный режим прямо сейчас, то есть находится ли
+ * пользователь в 3D-комнате.
+ *
+ * Зачем флаг: узел панорамирования с моделью HRTF считает свёртку с импульсными
+ * характеристиками — это дорого. А в обычном голосовом канале он бесполезен:
+ * координаты туда не приходят, все источники стоят в точке слушателя. Раньше
+ * узел был в цепочке всегда, и при трёх и более участниках звук начинал
+ * захлёбываться — каждый участник живёт в своём AudioContext, то есть к трём
+ * аудиопотокам добавлялись три свёртки.
+ *
+ * Теперь аудиослой перестраивает цепочку по этому флагу: в комнате звук идёт
+ * через панораму, вне комнаты — напрямую в громкость.
+ */
+let roomActive = false;
+const routingListeners = new Set<(active: boolean) => void>();
+
+export const setRoomActive = (on: boolean) => {
+    if (roomActive === on) return;
+    roomActive = on;
+    routingListeners.forEach(cb => cb(on));
+};
+
+export const isRoomActive = () => roomActive;
+
+/** Подписка аудиослоя на перестройку цепочки. Сразу сообщает текущее состояние. */
+export const subscribeRouting = (cb: (active: boolean) => void) => {
+    routingListeners.add(cb);
+    cb(roomActive);
+    return () => { routingListeners.delete(cb); };
+};
+
 /** Плавно ведёт AudioParam к значению — резкие скачки дают щелчки. */
 const glide = (param: AudioParam | undefined, value: number, ctx: AudioContext | null) => {
     if (!param) return;
