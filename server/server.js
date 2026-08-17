@@ -10,6 +10,7 @@ const Server = require('./models/Server');
 const Channel = require('./models/Channel');
 const Message = require('./models/Message');
 const User = require('./models/User');
+const VoiceSession = require('./models/VoiceSession');
 const { computePermissions, hasPermission } = require('./utils/permissionCalculator');
 const { Permissions } = require('./utils/permissions');
 const { logAction } = require('./utils/auditLogger');
@@ -347,6 +348,37 @@ const pushIfOffline = (userId, payload) => pushOfflineWithIo(io, userId, payload
 // соответствуют времени, пока звонящий ждёт ответа.
 const CALL_PUSH_OPTS = { ttl: 45, urgency: 'high' };
 
+// Запись завершённой голосовой сессии в базу для аналитики/статистики
+async function finalizeVoiceSession(socket, channelId, dmId = null) {
+  try {
+    const joinedAt = socket.joinedVoiceAt;
+    if (!joinedAt || !socket.userId) return;
+    const durationSeconds = Math.max(0, Math.floor((Date.now() - joinedAt) / 1000));
+    socket.joinedVoiceAt = null;
+
+    // Игнорируем сеансы меньше 3 секунд (случайный клик/промах)
+    if (durationSeconds < 3) return;
+
+    let serverId = null;
+    if (channelId) {
+      const channel = await Channel.findById(channelId).select('server');
+      serverId = channel?.server || null;
+    }
+
+    await VoiceSession.create({
+      user: socket.userId,
+      channel: channelId || null,
+      server: serverId,
+      dmId: dmId || null,
+      joinedAt: new Date(joinedAt),
+      leftAt: new Date(),
+      durationSeconds
+    });
+  } catch (e) {
+    console.error('Error finalizing voice session:', e);
+  }
+}
+
 // Как в Discord: когда пользователь заходит в голосовой канал с нового устройства,
 // все его прочие сессии, находящиеся в голосовом канале, принудительно отключаются.
 // Иначе на LiveKit возникает конфликт identity (одинаковый userId) — старое
@@ -359,6 +391,7 @@ const disconnectOtherVoiceSessions = async (userId, exceptSocketId) => {
     const s = io.sockets.sockets.get(sid);
     if (!s || !s.voiceChannelId) continue;
     const oldChannelId = s.voiceChannelId;
+    finalizeVoiceSession(s, oldChannelId);
     cleanupUserPresencesInChannel('channel-' + oldChannelId, userId, io);
     endWatchIfHost(oldChannelId, userId, io);
     s.emit('force-disconnect-voice', { reason: 'other-device' });
@@ -388,6 +421,7 @@ setInterval(async () => {
         const s = io.sockets.sockets.get(sid);
         if (!s || !s.connected) {
           if (s) {
+            finalizeVoiceSession(s, channelId);
             s.leave(roomName);
             s.voiceChannelId = null;
           } else {
@@ -1255,6 +1289,7 @@ io.on('connection', (socket) => {
     // переезде на другое устройство запоздалый leave со старого устройства
     // прислал бы лишний voice-user-left и убрал участника с нового устройства.
     if (String(socket.voiceChannelId || '') !== String(channelId)) return;
+    finalizeVoiceSession(socket, channelId);
     cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
     endWatchIfHost(channelId, socket.userId, io);
     socket.leave(`voice-channel-${channelId}`);
@@ -1393,6 +1428,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async () => {
     if (socket.voiceChannelId) {
       const channelId = socket.voiceChannelId;
+      finalizeVoiceSession(socket, channelId);
       cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
       endWatchIfHost(channelId, socket.userId, io);
       io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
@@ -1400,7 +1436,10 @@ io.on('connection', (socket) => {
       io.to(`voice-channel-${channelId}`).emit('room-position-removed', { channelId, userId: String(socket.userId) });
       await notifyVoiceChannelUpdate(channelId);
     }
-    if (socket.dmCallId) cleanupUserPresencesInChannel('call-' + socket.dmCallId, socket.userId, io);
+    if (socket.dmCallId) {
+      finalizeVoiceSession(socket, null, socket.dmCallId);
+      cleanupUserPresencesInChannel('call-' + socket.dmCallId, socket.userId, io);
+    }
     cleanupUserPresencesEverywhere(socket.userId, io);
     const connections = io.sockets.adapter.rooms.get(`user-${String(socket.userId)}`);
     if (!connections || connections.size === 0) {
