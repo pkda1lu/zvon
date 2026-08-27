@@ -248,8 +248,6 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                   <div className="pulse-ring"></div>
                   <div className="status-dot"></div>
                 </div>
-              ) : channel.type === 'text' ? (
-                '#'
               ) : (
                 <IconComponent size={18} />
               )}
