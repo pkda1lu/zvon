@@ -656,7 +656,7 @@ io.on('connection', (socket) => {
 
         // Handle User Mentions
         const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const userMentionRegex = /@(\w+)/g;
+        const userMentionRegex = /@([\p{L}\p{N}_.-]+)/gu;
         let userMatch;
         while ((userMatch = userMentionRegex.exec(message.content)) !== null) {
           const username = userMatch[1];

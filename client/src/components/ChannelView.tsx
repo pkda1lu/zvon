@@ -1139,7 +1139,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
     const activeTrigger = triggers[0];
 
-    if (activeTrigger && emojiAutocomplete) {
+    if (activeTrigger && (activeTrigger.type === 'emoji' ? emojiAutocomplete : true)) {
       const query = textBeforeCursor.substring(activeTrigger.index + 1);
       // Valid query: no spaces between trigger and cursor
       if (!query.includes(' ') && !query.includes('\n')) {
@@ -1184,7 +1184,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
-    const parts = content.split(/(@\w+|#[\w-]+|:\w+:|```[\s\S]*?```)/g);
+    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@[\p{L}\p{N}_.-]+|#[\p{L}\p{N}_-]+)/gu);
 
     return (
       <>
@@ -1226,7 +1226,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
           if (part.startsWith('#')) {
             const channelName = part.substring(1);
-            const targetChannel = server.channels?.find(c => c.name === channelName);
+            const targetChannel = server.channels?.find(
+              c => c.name.toLowerCase() === channelName.toLowerCase()
+            );
 
             if (targetChannel) {
               return (
@@ -1240,7 +1242,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                     }));
                   }}
                 >
-                  #{channelName}
+                  #{targetChannel.name}
                 </span>
               );
             }

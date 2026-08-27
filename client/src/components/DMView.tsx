@@ -806,7 +806,7 @@ const DMView: React.FC<DMViewProps> = ({
 
     const activeTrigger = triggers[0];
 
-    if (activeTrigger && emojiAutocomplete) {
+    if (activeTrigger && (activeTrigger.type === 'emoji' ? emojiAutocomplete : true)) {
       const query = textBeforeCursor.substring(activeTrigger.index + 1);
       if (!query.includes(' ') && !query.includes('\n')) {
         setAutocompleteType(activeTrigger.type);
@@ -847,7 +847,7 @@ const DMView: React.FC<DMViewProps> = ({
 
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
     if (!content) return null;
-    const parts = content.split(/(@\w+|:\w+:|```[\s\S]*?```)/g);
+    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@[\p{L}\p{N}_.-]+)/gu);
 
     return (
       <>
