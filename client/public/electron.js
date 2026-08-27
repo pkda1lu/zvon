@@ -325,11 +325,107 @@ function loadWindowState() {
     return { width: 1280, height: 800 };
 }
 
+function getTargetDisplay(savedState) {
+    const displays = screen.getAllDisplays();
+    if (!displays || displays.length === 0) {
+        return screen.getPrimaryDisplay();
+    }
+
+    // 1. Check by saved displayId
+    if (savedState && savedState.displayId !== undefined) {
+        const byId = displays.find(d => d.id === savedState.displayId);
+        if (byId) return byId;
+    }
+
+    // 2. Check which display contains the center of the saved bounds
+    if (savedState && savedState.x !== undefined && savedState.y !== undefined) {
+        const w = savedState.width || 1280;
+        const h = savedState.height || 800;
+        const centerX = savedState.x + w / 2;
+        const centerY = savedState.y + h / 2;
+
+        const byCenter = displays.find(d => {
+            const { x, y, width, height } = d.workArea;
+            return centerX >= x && centerX < x + width && centerY >= y && centerY < y + height;
+        });
+        if (byCenter) return byCenter;
+
+        // Check if top-left corner is inside
+        const byTopLeft = displays.find(d => {
+            const { x, y, width, height } = d.workArea;
+            return savedState.x >= x && savedState.x < x + width && savedState.y >= y && savedState.y < y + height;
+        });
+        if (byTopLeft) return byTopLeft;
+
+        // Check nearest display via screen.getDisplayMatching
+        try {
+            const matching = screen.getDisplayMatching({ x: savedState.x, y: savedState.y, width: w, height: h });
+            if (matching) return matching;
+        } catch (e) { }
+    }
+
+    return screen.getPrimaryDisplay();
+}
+
+function getValidatedBounds(savedState, defaultWidth = 1280, defaultHeight = 800) {
+    const targetDisplay = getTargetDisplay(savedState);
+    const workArea = targetDisplay.workArea;
+
+    let width = savedState && savedState.width ? savedState.width : defaultWidth;
+    let height = savedState && savedState.height ? savedState.height : defaultHeight;
+    let x = savedState ? savedState.x : undefined;
+    let y = savedState ? savedState.y : undefined;
+
+    if (!width || width < 800) width = defaultWidth;
+    if (!height || height < 600) height = defaultHeight;
+
+    if (width > workArea.width) width = workArea.width;
+    if (height > workArea.height) height = workArea.height;
+
+    const isOutOfBounds = (
+        x === undefined || y === undefined ||
+        x + 100 < workArea.x || x > workArea.x + workArea.width - 100 ||
+        y < workArea.y || y > workArea.y + workArea.height - 100
+    );
+
+    if (isOutOfBounds) {
+        x = Math.round(workArea.x + (workArea.width - width) / 2);
+        y = Math.round(workArea.y + (workArea.height - height) / 2);
+    } else if (!savedState?.isMaximized) {
+        if (x < workArea.x) x = workArea.x;
+        if (y < workArea.y) y = workArea.y;
+        if (x + width > workArea.x + workArea.width) x = workArea.x + workArea.width - width;
+        if (y + height > workArea.y + workArea.height) y = workArea.y + workArea.height - height;
+    }
+
+    return { x, y, width, height, isMaximized: !!savedState?.isMaximized, targetDisplay };
+}
+
 function saveWindowState() {
-    if (!mainWindow) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
     try {
-        const bounds = mainWindow.getBounds();
-        const state = { ...bounds, isMaximized: mainWindow.isMaximized() };
+        const isMaximized = mainWindow.isMaximized();
+        let bounds;
+        if (isMaximized && typeof mainWindow.getNormalBounds === 'function') {
+            bounds = mainWindow.getNormalBounds();
+        } else {
+            bounds = mainWindow.getBounds();
+        }
+
+        let displayId = null;
+        try {
+            const currentDisplay = screen.getDisplayMatching(mainWindow.getBounds());
+            if (currentDisplay) displayId = currentDisplay.id;
+        } catch (e) { }
+
+        const state = {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            isMaximized,
+            displayId
+        };
         fs.writeFileSync(stateFilePath, JSON.stringify(state));
     } catch (e) { }
 }
@@ -447,7 +543,25 @@ function unregisterGlobalShortcuts() {
 }
 
 function createUpdaterWindow() {
-    updaterWindow = new BrowserWindow({ width: 480, height: 600, resizable: false, frame: false, backgroundColor: '#04040a', show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+    const windowState = loadWindowState();
+    const targetDisplay = getTargetDisplay(windowState);
+    const workArea = targetDisplay.workArea;
+    const width = 480;
+    const height = 600;
+    const x = Math.round(workArea.x + (workArea.width - width) / 2);
+    const y = Math.round(workArea.y + (workArea.height - height) / 2);
+
+    updaterWindow = new BrowserWindow({
+        width,
+        height,
+        x,
+        y,
+        resizable: false,
+        frame: false,
+        backgroundColor: '#04040a',
+        show: false,
+        webPreferences: { nodeIntegration: true, contextIsolation: false }
+    });
     updaterWindow.loadFile(path.join(__dirname, 'updater.html'));
     updaterWindow.once('ready-to-show', () => {
         if (!isOpenedHidden) updaterWindow.show();
@@ -478,19 +592,7 @@ function createUpdaterWindow() {
 
 function createWindow() {
     const windowState = loadWindowState();
-    const display = screen.getPrimaryDisplay();
-    const workArea = display.workArea;
-    let { width, height, x, y } = windowState;
-    if (!width || width < 800) width = 1280;
-    if (!height || height < 600) height = 800;
-    if (x === undefined || y === undefined || x < workArea.x || x > workArea.x + workArea.width || y < workArea.y || y > workArea.y + workArea.height) {
-        x = workArea.x + (workArea.width - width) / 2;
-        y = workArea.y + (workArea.height - height) / 2;
-    } else if (!windowState.isMaximized) {
-        if (width > workArea.width) width = workArea.width;
-        if (height > workArea.height) height = workArea.height;
-        if (y + height > workArea.y + workArea.height) y = workArea.y + workArea.height - height;
-    }
+    const { width, height, x, y, isMaximized } = getValidatedBounds(windowState);
     mainWindow = new BrowserWindow({
         width, height, x, y, minWidth: 800, minHeight: 600,
         webPreferences: {
@@ -510,6 +612,11 @@ function createWindow() {
         icon: path.join(__dirname, 'app_icon.ico'),
         show: false // Performance: Use ready-to-show to prevent white flash
     });
+
+    if (isMaximized) {
+        mainWindow.maximize();
+    }
+
     mainWindow.once('ready-to-show', () => {
         if (!appSettings.startMinimized && !isOpenedHidden) {
             mainWindow.show();
@@ -680,8 +787,14 @@ function createWindow() {
         mainWindow.loadURL('app://index.html');
     }
 
-    mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
-    mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
+    mainWindow.on('maximize', () => {
+        mainWindow.webContents.send('window-maximized', true);
+        saveWindowState();
+    });
+    mainWindow.on('unmaximize', () => {
+        mainWindow.webContents.send('window-maximized', false);
+        debouncedSave();
+    });
 
     // Disable backward/forward navigation using mouse side buttons (App commands)
     mainWindow.on('app-command', (e, cmd) => {
