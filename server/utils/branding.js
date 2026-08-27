@@ -29,10 +29,6 @@ const getBrand = (req) => {
     return BRANDS.zvon;
   }
 
-  const brandHeader = (req.header?.('x-brand') || req.headers?.['x-brand'] || '').toLowerCase();
-  if (brandHeader === 'maxcord') return BRANDS.maxcord;
-  if (brandHeader === 'zvon') return BRANDS.zvon;
-  
   const host = (req.get ? req.get('host') : req.headers?.host) || '';
   const origin = (req.get ? req.get('origin') : req.headers?.origin) || '';
   const referer = (req.get ? req.get('referer') : req.headers?.referer) || '';
