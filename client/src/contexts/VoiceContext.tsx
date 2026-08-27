@@ -778,19 +778,96 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return audioContextRef.current;
     }, []);
 
+    const isRequestingPermissionRef = useRef(false);
+
     const refreshDevices = useCallback(async () => {
         try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            setInputDevices(devices.filter(d => d.kind === 'audioinput'));
-            setOutputDevices(devices.filter(d => d.kind === 'audiooutput'));
-            setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
+            if (!navigator.mediaDevices?.enumerateDevices) return;
+            let devices = await navigator.mediaDevices.enumerateDevices();
+
+            // Если список пуст или названия устройств (labels) ещё не доступны из-за отсутствия
+            // активного разрешения, делаем быстрый запрос getUserMedia для инициализации
+            // системного обработчика устройств Chromium и получения реальных имен микрофонов.
+            const hasAudioLabels = devices.some(d => d.kind === 'audioinput' && d.label);
+            if (!hasAudioLabels && navigator.mediaDevices.getUserMedia && !isRequestingPermissionRef.current) {
+                isRequestingPermissionRef.current = true;
+                try {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    tempStream.getTracks().forEach(t => t.stop());
+                    devices = await navigator.mediaDevices.enumerateDevices();
+                } catch {
+                    // Разрешение отклонено или микрофон временно недоступен
+                } finally {
+                    isRequestingPermissionRef.current = false;
+                }
+            }
+
+            const audioInputs = devices.filter(d => d.kind === 'audioinput');
+            const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+            const videoInputs = devices.filter(d => d.kind === 'videoinput');
+
+            setInputDevices(prev => {
+                const prevKey = prev.map(d => `${d.deviceId}:${d.label}`).join('|');
+                const nextKey = audioInputs.map(d => `${d.deviceId}:${d.label}`).join('|');
+                return prevKey === nextKey ? prev : audioInputs;
+            });
+            setOutputDevices(prev => {
+                const prevKey = prev.map(d => `${d.deviceId}:${d.label}`).join('|');
+                const nextKey = audioOutputs.map(d => `${d.deviceId}:${d.label}`).join('|');
+                return prevKey === nextKey ? prev : audioOutputs;
+            });
+            setVideoDevices(prev => {
+                const prevKey = prev.map(d => `${d.deviceId}:${d.label}`).join('|');
+                const nextKey = videoInputs.map(d => `${d.deviceId}:${d.label}`).join('|');
+                return prevKey === nextKey ? prev : videoInputs;
+            });
         } catch (err) { }
     }, []);
 
     useEffect(() => {
+        if (!navigator.mediaDevices) return;
+
+        // Первичное получение списка устройств
         refreshDevices();
-        navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
-        return () => navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
+
+        // При подключении физического микрофона (USB / 3.5mm / Bluetooth) ОС инициализирует
+        // аудиоустройство с небольшой задержкой (100–1500мс). Опрашиваем сразу и сериями.
+        const timers: NodeJS.Timeout[] = [];
+        const handleDeviceChange = () => {
+            refreshDevices();
+            timers.push(setTimeout(refreshDevices, 400));
+            timers.push(setTimeout(refreshDevices, 1200));
+            timers.push(setTimeout(refreshDevices, 2500));
+        };
+
+        navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+        if ('ondevicechange' in navigator.mediaDevices) {
+            navigator.mediaDevices.ondevicechange = handleDeviceChange;
+        }
+
+        // Обновление при возвращении фокуса в окно / разворачивании приложения
+        const handleFocus = () => refreshDevices();
+        const handleVisibility = () => {
+            if (!document.hidden) refreshDevices();
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        // Фоновый интервал для гарантированного обнаружения подключённых устройств
+        // на случай, если Chromium в Windows пропустил событие devicechange
+        const interval = setInterval(refreshDevices, 3000);
+
+        return () => {
+            timers.forEach(clearTimeout);
+            clearInterval(interval);
+            navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+            if ('ondevicechange' in navigator.mediaDevices) {
+                navigator.mediaDevices.ondevicechange = null;
+            }
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, [refreshDevices]);
 
     const handleLocalMicPublication = useCallback(async (publication: TrackPublication) => {
@@ -996,8 +1073,33 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [user?._id, selectedInputDeviceId, socket, handleLocalMicPublication, leaveChannel, echoCancellation, autoGainControl, noiseSuppressionMode]);
 
+    // Динамическое переключение микрофона в активной комнате без перезахода в канал
+    useEffect(() => {
+        if (!isConnectedRef.current || !roomRef.current) return;
+        const room = roomRef.current;
+        if (typeof (room as any).switchActiveDevice === 'function') {
+            (room as any).switchActiveDevice('audioinput', selectedInputDeviceId !== 'default' ? selectedInputDeviceId : 'default').catch((e: any) => {
+                console.warn('[Voice] switchActiveDevice audioinput error:', e);
+            });
+        }
+    }, [selectedInputDeviceId]);
+
+    // Динамическое переключение устройства вывода в активной комнате
+    useEffect(() => {
+        if (!isConnectedRef.current || !roomRef.current) return;
+        const room = roomRef.current;
+        if (typeof (room as any).switchActiveDevice === 'function') {
+            (room as any).switchActiveDevice('audiooutput', selectedOutputDeviceId !== 'default' ? selectedOutputDeviceId : 'default').catch((e: any) => {
+                console.warn('[Voice] switchActiveDevice audiooutput error:', e);
+            });
+        }
+    }, [selectedOutputDeviceId]);
+
     const startTestStream = useCallback(async () => {
-        if (testStreamRef.current) return;
+        if (testStreamRef.current) {
+            testStreamRef.current.getTracks().forEach(t => t.stop());
+            testStreamRef.current = null;
+        }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: selectedInputDeviceId !== 'default' ? { exact: selectedInputDeviceId } : undefined } });
             testStreamRef.current = stream;

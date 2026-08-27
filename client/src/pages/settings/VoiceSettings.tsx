@@ -117,8 +117,14 @@ const VoiceSettings: React.FC = () => {
         inputSensitivity, setInputSensitivity,
         isAutomaticSensitivity, setIsAutomaticSensitivity,
         startTestStream, stopTestStream,
+        refreshDevices,
         isConnected
     } = useVoice();
+
+    // При открытии настроек звука всегда запрашиваем актуальный список устройств
+    useEffect(() => {
+        refreshDevices();
+    }, [refreshDevices]);
 
     // Пространственный звук. Значение применяется к уже работающим узлам сразу,
     // без переподключения к комнате.
