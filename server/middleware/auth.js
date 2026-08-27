@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Session = require('../models/Session');
 const { findOrCreateSessionForToken } = require('../utils/session');
+const { getBrand } = require('../utils/branding');
 
 const auth = async (req, res, next) => {
   try {
@@ -50,10 +51,11 @@ const auth = async (req, res, next) => {
       }
 
       if (req.sessionId) {
+        const brand = getBrand(req).id;
         // Обновляем «последнюю активность» не чаще раза в 60 сек.
         Session.updateOne(
           { _id: req.sessionId, lastActiveAt: { $lt: new Date(Date.now() - 60 * 1000) } },
-          { $set: { lastActiveAt: new Date() } }
+          { $set: { lastActiveAt: new Date(), brand } }
         ).catch(() => {});
 
         // Дозаполняем deviceId для старых сессий без него — чтобы группировка

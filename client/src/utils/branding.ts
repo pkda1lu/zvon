@@ -48,6 +48,9 @@ export const getBrand = (): BrandConfig => {
     }
 
     const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+        return BRANDS.zvon;
+    }
     if (host.includes('maxcord.fun')) {
         return BRANDS.maxcord;
     }

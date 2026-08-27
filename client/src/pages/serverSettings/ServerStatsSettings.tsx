@@ -13,6 +13,7 @@ const RANGES = [
     { value: '7d', label: '7 дней' },
     { value: '30d', label: '30 дней' },
     { value: '90d', label: '90 дней' },
+    { value: 'all', label: 'Всё время' },
     { value: 'custom', label: 'Свой период' },
 ];
 
@@ -31,7 +32,7 @@ const ServerStatsSettings: React.FC<Props> = ({ server }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (range !== 'custom') {
+        if (range !== 'custom' && range !== 'all') {
             const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
             const d = new Date();
             d.setDate(d.getDate() - (days - 1));
@@ -43,8 +44,10 @@ const ServerStatsSettings: React.FC<Props> = ({ server }) => {
     useEffect(() => {
         setLoading(true);
         const params: any = { range };
-        if (after) params.after = after;
-        if (before) params.before = before;
+        if (range === 'custom') {
+            if (after) params.after = after;
+            if (before) params.before = before;
+        }
 
         axios.get(`/api/servers/${server._id}/stats`, { params })
             .then(res => setStats(res.data))

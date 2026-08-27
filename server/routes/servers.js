@@ -1183,13 +1183,18 @@ router.get('/:id/stats', auth, checkPermission(Permissions.VIEW_AUDIT_LOG), asyn
       }
     } else {
       const range = req.query.range || '30d';
-      const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
       endDate = new Date();
       endDate.setHours(23, 59, 59, 999);
 
-      const d = new Date();
-      d.setDate(d.getDate() - (days - 1));
-      startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      if (range === 'all') {
+        const d = server.createdAt ? new Date(server.createdAt) : new Date(server._id.getTimestamp ? server._id.getTimestamp() : Date.now());
+        startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      } else {
+        const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
+        const d = new Date();
+        d.setDate(d.getDate() - (days - 1));
+        startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      }
     }
 
     const Message = require('../models/Message');

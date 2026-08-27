@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { UsersIcon, LayoutGridIcon, ChatIcon, SparklesIcon, MicIcon, PhoneIcon } from '../../components/Icons';
+import { UsersIcon, LayoutGridIcon, ChatIcon, SparklesIcon, MicIcon, PhoneIcon, GlobeIcon } from '../../components/Icons';
 import LineChart from '../../components/LineChart';
 import { ChoiceGroup } from './SettingsUI';
 
@@ -8,6 +8,7 @@ const RANGES = [
     { value: '7d', label: '7 дней' },
     { value: '30d', label: '30 дней' },
     { value: '90d', label: '90 дней' },
+    { value: 'all', label: 'Всё время' },
     { value: 'custom', label: 'Свой период' },
 ];
 
@@ -18,6 +19,234 @@ const toLocalDateInputValue = (d: Date) => {
     return `${year}-${month}-${day}`;
 };
 
+interface BrandingChartItem {
+    _id: string;
+    zvon: number;
+    maxcord: number;
+    total: number;
+}
+
+const BrandingChart: React.FC<{ data: BrandingChartItem[]; height?: number }> = ({ data = [], height = 220 }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const svgRef = useRef<SVGSVGElement>(null);
+    const [width, setWidth] = useState(600);
+    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver(entries => {
+            for (const e of entries) setWidth(e.contentRect.width);
+        });
+        ro.observe(el);
+        setWidth(el.clientWidth || 600);
+        return () => ro.disconnect();
+    }, []);
+
+    const hasAnyData = data && data.length > 0 && data.some(d => (d.zvon && d.zvon > 0) || (d.maxcord && d.maxcord > 0));
+
+    if (!hasAnyData) {
+        return (
+            <div ref={containerRef} style={{ width: '100%' }}>
+                <div style={{
+                    height: `${height}px`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-faint, #888)',
+                    fontSize: '13px',
+                    border: '1px dashed var(--glass-border, rgba(255, 255, 255, 0.1))',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.15)'
+                }}>
+                    Нет данных по заходам за выбранный период
+                </div>
+            </div>
+        );
+    }
+
+    const pad = { top: 26, right: 16, bottom: 28, left: 36 };
+    const innerW = Math.max(width - pad.left - pad.right, 10);
+    const innerH = Math.max(height - pad.top - pad.bottom, 10);
+    const maxVal = Math.max(...data.map(d => Math.max(d.zvon || 0, d.maxcord || 0, (d.zvon || 0) + (d.maxcord || 0))), 1);
+    const n = data.length;
+
+    const xFor = (i: number) => pad.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+    const yFor = (v: number) => pad.top + innerH - (v / maxVal) * innerH;
+
+    const yTicks = [0, Math.round(maxVal / 2), maxVal];
+    const fmtDate = (s: string) => {
+        if (!s) return '';
+        const parts = s.split('-');
+        if (parts.length === 3) return `${parts[2]}.${parts[1]}`;
+        return s;
+    };
+
+    const labelIdx = n <= 1 ? [0] : [...new Set([0, Math.floor((n - 1) / 2), n - 1])];
+    const totalSlotWidth = (innerW / n) * 0.75;
+    const barWidth = Math.max(2, Math.min(16, totalSlotWidth / 2 - 1));
+
+    const getIndexFromX = (clientX: number) => {
+        const svgEl = svgRef.current;
+        if (!svgEl) return 0;
+        const rect = svgEl.getBoundingClientRect();
+        if (rect.width <= 0) return 0;
+        const scaleX = width / rect.width;
+        const localX = (clientX - rect.left) * scaleX;
+        const relX = Math.max(0, Math.min(innerW, localX - pad.left));
+        if (n <= 1) return 0;
+        const idx = Math.round((relX / innerW) * (n - 1));
+        return Math.max(0, Math.min(n - 1, idx));
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const idx = getIndexFromX(e.clientX);
+        setHoveredIdx(idx);
+    };
+
+    const hoveredItem = hoveredIdx !== null && data[hoveredIdx] ? data[hoveredIdx] : null;
+
+    return (
+        <div ref={containerRef} style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#5865f2' }} />
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>Zvon (zvonserver.ru / EXE)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#ff5722' }} />
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>MAXCORD (maxcord.fun)</span>
+                    </div>
+                </div>
+
+                {hoveredItem && (
+                    <div style={{ fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ color: 'var(--text-dim)' }}>{fmtDate(hoveredItem._id)}:</span>
+                        <span style={{ color: '#5865f2' }}>Zvon: {hoveredItem.zvon}</span>
+                        <span style={{ color: '#ff5722' }}>MAXCORD: {hoveredItem.maxcord}</span>
+                        <span style={{ color: 'var(--text-main)' }}>Всего: {hoveredItem.total}</span>
+                    </div>
+                )}
+            </div>
+
+            <svg
+                ref={svgRef}
+                width={width}
+                height={height}
+                style={{ display: 'block', overflow: 'visible', cursor: 'crosshair' }}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={() => setHoveredIdx(null)}
+            >
+                {/* Сетка Y */}
+                {yTicks.map((t, i) => {
+                    const y = yFor(t);
+                    return (
+                        <g key={i}>
+                            <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} stroke="var(--glass-border, rgba(255,255,255,0.08))" strokeWidth="1" strokeDasharray="3 4" />
+                            <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="var(--text-faint, #777)">{t}</text>
+                        </g>
+                    );
+                })}
+
+                {/* Столбцы для каждого дня */}
+                {data.map((d, i) => {
+                    const centerX = xFor(i);
+                    const isHover = hoveredIdx === i;
+
+                    const zvonH = (d.zvon && d.zvon > 0) ? Math.max(3, (d.zvon / maxVal) * innerH) : 0;
+                    const maxcordH = (d.maxcord && d.maxcord > 0) ? Math.max(3, (d.maxcord / maxVal) * innerH) : 0;
+
+                    const zvonX = centerX - barWidth - 1;
+                    const maxcordX = centerX + 1;
+
+                    const zvonY = pad.top + innerH - zvonH;
+                    const maxcordY = pad.top + innerH - maxcordH;
+
+                    return (
+                        <g key={i}>
+                            {/* Zvon Bar */}
+                            {zvonH > 0 ? (
+                                <rect
+                                    x={zvonX}
+                                    y={zvonY}
+                                    width={barWidth}
+                                    height={zvonH}
+                                    rx={barWidth > 4 ? 2 : 1}
+                                    fill="#5865f2"
+                                    opacity={isHover ? 1 : 0.85}
+                                    style={{ transition: 'all 0.15s ease' }}
+                                />
+                            ) : (
+                                <rect
+                                    x={zvonX}
+                                    y={pad.top + innerH - 2}
+                                    width={barWidth}
+                                    height={2}
+                                    rx={1}
+                                    fill="#5865f2"
+                                    opacity={0.3}
+                                />
+                            )}
+
+                            {/* MAXCORD Bar */}
+                            {maxcordH > 0 ? (
+                                <rect
+                                    x={maxcordX}
+                                    y={maxcordY}
+                                    width={barWidth}
+                                    height={maxcordH}
+                                    rx={barWidth > 4 ? 2 : 1}
+                                    fill="#ff5722"
+                                    opacity={isHover ? 1 : 0.85}
+                                    style={{ transition: 'all 0.15s ease' }}
+                                />
+                            ) : (
+                                <rect
+                                    x={maxcordX}
+                                    y={pad.top + innerH - 2}
+                                    width={barWidth}
+                                    height={2}
+                                    rx={1}
+                                    fill="#ff5722"
+                                    opacity={0.3}
+                                />
+                            )}
+                        </g>
+                    );
+                })}
+
+                {/* Ховер маркер */}
+                {hoveredIdx !== null && (
+                    <line
+                        x1={xFor(hoveredIdx)}
+                        y1={pad.top}
+                        x2={xFor(hoveredIdx)}
+                        y2={pad.top + innerH}
+                        stroke="var(--glass-border, rgba(255,255,255,0.4))"
+                        strokeWidth="1"
+                        strokeDasharray="2 2"
+                    />
+                )}
+
+                {/* Метки по оси X */}
+                {labelIdx.map(i => (
+                    <text
+                        key={i}
+                        x={xFor(i)}
+                        y={height - 6}
+                        textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                        fontSize="10"
+                        fill="var(--text-faint, #888)"
+                    >
+                        {fmtDate(data[i]._id)}
+                    </text>
+                ))}
+            </svg>
+        </div>
+    );
+};
+
 const AdminStatsSettings: React.FC = () => {
     const [range, setRange] = useState('30d');
     const [after, setAfter] = useState(() => toLocalDateInputValue(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
@@ -26,7 +255,7 @@ const AdminStatsSettings: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (range !== 'custom') {
+        if (range !== 'custom' && range !== 'all') {
             const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
             const d = new Date();
             d.setDate(d.getDate() - (days - 1));
@@ -38,8 +267,10 @@ const AdminStatsSettings: React.FC = () => {
     useEffect(() => {
         setLoading(true);
         const params: any = { range };
-        if (after) params.after = after;
-        if (before) params.before = before;
+        if (range === 'custom') {
+            if (after) params.after = after;
+            if (before) params.before = before;
+        }
 
         axios.get('/api/admin/stats', { params })
             .then(res => setStats(res.data))
@@ -177,6 +408,94 @@ const AdminStatsSettings: React.FC = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* Группа: Заходы по брендингам платформы */}
+                    <div style={{ marginTop: '32px', marginBottom: '16px' }}>
+                        <h3 className="settings-section-title" style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-main, #fff)' }}>
+                            Заходы по брендингам платформы
+                        </h3>
+                        <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: 'var(--text-dim)' }}>
+                            Соотношение посещений и активности пользователей через Zvon и MAXCORD за выбранный период (заходы через Desktop EXE классифицируются как Zvon).
+                        </p>
+
+                        {/* Шкала соотношения брендов */}
+                        {stats.totals?.branding && stats.totals.branding.total > 0 && (
+                            <div className="settings-card" style={{ margin: '0 0 16px 0', padding: '16px 20px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '13px', fontWeight: 700 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#5865f2' }}>
+                                        <span>Zvon</span>
+                                        <span style={{ fontSize: '12px', background: 'rgba(88, 101, 242, 0.15)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(88, 101, 242, 0.3)' }}>
+                                            {stats.totals.branding.zvonPercent}% ({stats.totals.branding.zvon})
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ff5722' }}>
+                                        <span style={{ fontSize: '12px', background: 'rgba(255, 87, 34, 0.15)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(255, 87, 34, 0.3)' }}>
+                                            {stats.totals.branding.maxcordPercent}% ({stats.totals.branding.maxcord})
+                                        </span>
+                                        <span>MAXCORD</span>
+                                    </div>
+                                </div>
+
+                                <div style={{ width: '100%', height: '14px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '8px', overflow: 'hidden', display: 'flex', border: '1px solid var(--glass-border)' }}>
+                                    <div
+                                        style={{
+                                            width: `${stats.totals.branding.zvonPercent}%`,
+                                            background: 'linear-gradient(90deg, #5865f2, #818cf8)',
+                                            transition: 'width 0.4s ease'
+                                        }}
+                                        title={`Zvon: ${stats.totals.branding.zvonPercent}%`}
+                                    />
+                                    <div
+                                        style={{
+                                            width: `${stats.totals.branding.maxcordPercent}%`,
+                                            background: 'linear-gradient(90deg, #ff7043, #ff5722)',
+                                            transition: 'width 0.4s ease'
+                                        }}
+                                        title={`MAXCORD: ${stats.totals.branding.maxcordPercent}%`}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="settings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+                            <div className="settings-card" style={{ margin: 0, padding: '18px 20px', textAlign: 'center' }}>
+                                <div style={{ color: '#5865f2', marginBottom: '6px', display: 'flex', justifyContent: 'center' }}><GlobeIcon size={26} /></div>
+                                <div style={{ fontSize: '26px', fontWeight: 800, color: '#5865f2' }}>{stats.totals?.branding?.zvon ?? 0}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>
+                                    Zvon ({stats.totals?.branding?.zvonPercent ?? 0}%)
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>zvonserver.ru + EXE</div>
+                            </div>
+
+                            <div className="settings-card" style={{ margin: 0, padding: '18px 20px', textAlign: 'center' }}>
+                                <div style={{ color: '#ff5722', marginBottom: '6px', display: 'flex', justifyContent: 'center' }}><GlobeIcon size={26} /></div>
+                                <div style={{ fontSize: '26px', fontWeight: 800, color: '#ff5722' }}>{stats.totals?.branding?.maxcord ?? 0}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>
+                                    MAXCORD ({stats.totals?.branding?.maxcordPercent ?? 0}%)
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>maxcord.fun</div>
+                            </div>
+
+                            <div className="settings-card" style={{ margin: 0, padding: '18px 20px', textAlign: 'center' }}>
+                                <div style={{ color: 'var(--primary-neon)', marginBottom: '6px', display: 'flex', justifyContent: 'center' }}><UsersIcon size={26} /></div>
+                                <div style={{ fontSize: '26px', fontWeight: 800 }}>{stats.totals?.branding?.total ?? 0}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>
+                                    Всего заходов
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>за выбранный период</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="settings-card" style={{ padding: '20px', marginBottom: '20px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', color: 'var(--text-main)' }}>
+                            Динамика соотношения заходов по дням
+                        </div>
+                        <BrandingChart
+                            data={stats.charts?.brandingDaily || []}
+                            height={220}
+                        />
+                    </div>
 
                     {/* Группа: Онлайн и активность */}
                     <div style={{ marginTop: '32px', marginBottom: '16px' }}>

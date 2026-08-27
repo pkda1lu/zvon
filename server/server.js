@@ -76,7 +76,22 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Device-Id', 'x-device-id'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-Device-Id',
+    'x-device-id',
+    'X-Brand',
+    'x-brand',
+    'X-Zvon-Client',
+    'x-zvon-client',
+    'X-Zvon-Platform',
+    'x-zvon-platform',
+    'X-Zvon-Version',
+    'x-zvon-version',
+    'Accept'
+  ],
   exposedHeaders: ['Content-Type', 'Authorization']
 };
 

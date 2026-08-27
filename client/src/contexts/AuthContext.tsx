@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, useCallback } fr
 import axios from 'axios';
 import { User } from '../types';
 import { chatCache } from '../utils/chatCache';
+import { getBrand } from '../utils/branding';
 
 interface AuthContextType {
   user: User | null;
@@ -51,6 +52,16 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 axios.defaults.baseURL = API_URL;
+
+// Передаем текущий брендинг (zvon / maxcord) в заголовках
+(() => {
+  try {
+    const brand = getBrand();
+    if (brand?.id) {
+      axios.defaults.headers.common['X-Brand'] = brand.id;
+    }
+  } catch (e) {}
+})();
 
 // Помечаем запросы из десктоп-клиента Zvon, чтобы сервер корректно называл
 // устройство («Zvon Desktop · Windows»), а не определял его как Chrome.

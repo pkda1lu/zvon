@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const Session = require('../models/Session');
 const { getClientInfo, getClientIp, lookupGeo } = require('./deviceInfo');
+const { getBrand } = require('./branding');
 
 // Срок жизни в днях → секунды для jwt expiresIn.
 function daysToExpiresIn(days) {
@@ -37,11 +38,13 @@ async function createSession(user, req, { days = 7 } = {}) {
   const ip = getClientIp(req);
   const info = getClientInfo(req);
   const deviceId = req.header?.('x-device-id') || req.headers?.['x-device-id'] || '';
+  const brand = getBrand(req).id;
 
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
   const session = await Session.create({
     user: user._id,
+    brand,
     userAgent: ua,
     browser: info.browser,
     os: info.os,
@@ -82,6 +85,7 @@ async function findOrCreateSessionForToken(user, req, token, expSeconds) {
   const ip = getClientIp(req);
   const info = getClientInfo(req);
   const deviceId = req.header?.('x-device-id') || req.headers?.['x-device-id'] || '';
+  const brand = getBrand(req).id;
   const expiresAt = expSeconds
     ? new Date(expSeconds * 1000)
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -93,6 +97,7 @@ async function findOrCreateSessionForToken(user, req, token, expSeconds) {
       $setOnInsert: {
         user: user._id,
         tokenHash,
+        brand,
         userAgent: ua,
         browser: info.browser,
         os: info.os,

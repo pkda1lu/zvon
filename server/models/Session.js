@@ -20,6 +20,9 @@ const sessionSchema = new mongoose.Schema({
   // Позволяет группировать входы с одного устройства даже при смене IP.
   deviceId: { type: String, default: '', index: true },
 
+  // Брендинг клиента (zvon / maxcord, где десктоп/exe всегда zvon)
+  brand: { type: String, enum: ['zvon', 'maxcord'], default: 'zvon', index: true },
+
   // Геолокация по IP (best-effort, может быть пустой).
   ip: { type: String, default: '' },
   country: { type: String, default: '' },
