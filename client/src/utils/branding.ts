@@ -6,19 +6,23 @@ export interface AppIconOption {
 }
 
 export interface BrandConfig {
-    id: 'zvon' | 'maxcord';
+    id: string;
     name: string;
     logo: string;
     favicon: string;
+    color?: string;
+    domain?: string;
     appIcons: AppIconOption[];
 }
 
-export const BRANDS: Record<'zvon' | 'maxcord', BrandConfig> = {
+export const BRANDS: Record<string, BrandConfig> = {
     zvon: {
         id: 'zvon',
         name: 'Zvon',
         logo: 'zvonlogonew.png',
         favicon: 'icon.png',
+        color: '#5865f2',
+        domain: 'zvonserver.ru',
         appIcons: [
             { id: 'default', label: 'Стандарт', img: 'icon.png' },
             { id: 'icon1', label: 'Неон', img: 'icon1.PNG' },
@@ -33,12 +37,20 @@ export const BRANDS: Record<'zvon' | 'maxcord', BrandConfig> = {
         name: 'MAXCORD',
         logo: 'maxcord/logo.png',
         favicon: 'maxcord/logo.png',
+        color: '#ff5722',
+        domain: 'maxcord.fun',
         appIcons: [
             { id: 'max_default', label: 'Градиент', img: 'maxcord/logo.png' },
             { id: 'max_white', label: 'Белый', img: 'maxcord/logo-trans.png' },
         ]
     }
+};
 
+export const BRAND_FALLBACK_COLORS = ['#5865f2', '#ff5722', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#3b82f6'];
+
+export const getBrandColor = (brandId: string, index = 0): string => {
+    if (BRANDS[brandId]?.color) return BRANDS[brandId].color!;
+    return BRAND_FALLBACK_COLORS[index % BRAND_FALLBACK_COLORS.length];
 };
 
 export const getBrand = (): BrandConfig => {
@@ -47,12 +59,15 @@ export const getBrand = (): BrandConfig => {
         return BRANDS.zvon;
     }
 
-    const host = window.location.hostname;
+    const host = window.location.hostname.toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1') {
         return BRANDS.zvon;
     }
-    if (host.includes('maxcord.fun')) {
-        return BRANDS.maxcord;
+
+    for (const [key, brand] of Object.entries(BRANDS)) {
+        if (key !== 'zvon' && brand.domain && host.includes(brand.domain.toLowerCase())) {
+            return brand;
+        }
     }
     return BRANDS.zvon;
 };

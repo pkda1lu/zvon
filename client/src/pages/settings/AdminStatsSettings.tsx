@@ -3,6 +3,7 @@ import axios from 'axios';
 import { UsersIcon, LayoutGridIcon, ChatIcon, SparklesIcon, MicIcon, PhoneIcon, GlobeIcon } from '../../components/Icons';
 import LineChart from '../../components/LineChart';
 import { ChoiceGroup } from './SettingsUI';
+import { BRANDS, getBrandColor } from '../../utils/branding';
 
 const RANGES = [
     { value: '7d', label: '7 дней' },
@@ -19,18 +20,245 @@ const toLocalDateInputValue = (d: Date) => {
     return `${year}-${month}-${day}`;
 };
 
-interface BrandingChartItem {
-    _id: string;
-    zvon: number;
-    maxcord: number;
-    total: number;
+export interface BrandStatItem {
+    id: string;
+    name: string;
+    count: number;
+    percent: number;
+    color: string;
 }
 
-const BrandingChart: React.FC<{ data: BrandingChartItem[]; height?: number }> = ({ data = [], height = 220 }) => {
+interface BrandingPieChartProps {
+    brands: BrandStatItem[];
+    total: number;
+    size?: number;
+}
+
+const BrandingPieChart: React.FC<BrandingPieChartProps> = ({ brands = [], total = 0, size = 190 }) => {
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+    const validBrands = brands.filter(b => b.count > 0);
+    const hasData = total > 0 && validBrands.length > 0;
+
+    if (!hasData) {
+        return (
+            <div style={{
+                height: `${size}px`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-faint, #888)',
+                fontSize: '13px',
+                border: '1px dashed var(--glass-border, rgba(255, 255, 255, 0.1))',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                width: '100%'
+            }}>
+                Нет данных по заходам за выбранный период
+            </div>
+        );
+    }
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const outerR = size * 0.42;
+    const innerR = size * 0.26;
+
+    let startAngle = -Math.PI / 2;
+    const slices = hasData ? validBrands.map((b) => {
+        const fraction = b.count / total;
+        const sweepAngle = fraction * 2 * Math.PI;
+        const endAngle = startAngle + sweepAngle;
+
+        const isFullCircle = fraction >= 0.9999;
+        let pathData = '';
+
+        if (isFullCircle) {
+            pathData = `
+                M ${cx} ${cy - outerR}
+                A ${outerR} ${outerR} 0 1 0 ${cx} ${cy + outerR}
+                A ${outerR} ${outerR} 0 1 0 ${cx} ${cy - outerR}
+                M ${cx} ${cy - innerR}
+                A ${innerR} ${innerR} 0 1 1 ${cx} ${cy + innerR}
+                A ${innerR} ${innerR} 0 1 1 ${cx} ${cy - innerR}
+                Z
+            `;
+        } else {
+            const x1Outer = cx + outerR * Math.cos(startAngle);
+            const y1Outer = cy + outerR * Math.sin(startAngle);
+            const x2Outer = cx + outerR * Math.cos(endAngle);
+            const y2Outer = cy + outerR * Math.sin(endAngle);
+
+            const x1Inner = cx + innerR * Math.cos(endAngle);
+            const y1Inner = cy + innerR * Math.sin(endAngle);
+            const x2Inner = cx + innerR * Math.cos(startAngle);
+            const y2Inner = cy + innerR * Math.sin(startAngle);
+
+            const largeArc = sweepAngle > Math.PI ? 1 : 0;
+
+            pathData = `
+                M ${x1Outer} ${y1Outer}
+                A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2Outer} ${y2Outer}
+                L ${x1Inner} ${y1Inner}
+                A ${innerR} ${innerR} 0 ${largeArc} 0 ${x2Inner} ${y2Inner}
+                Z
+            `;
+        }
+
+        const sliceObj = {
+            ...b,
+            pathData,
+            startAngle,
+            endAngle,
+            fraction
+        };
+        startAngle = endAngle;
+        return sliceObj;
+    }) : [];
+
+    const hoveredBrand = brands.find(b => b.id === hoveredId);
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '28px', flexWrap: 'wrap', width: '100%', padding: '6px 0' }}>
+            {/* SVG Donut / Pie */}
+            <div style={{ position: 'relative', width: `${size}px`, height: `${size}px`, flexShrink: 0 }}>
+                <svg width={size} height={size} style={{ display: 'block', overflow: 'visible' }}>
+                    {!hasData ? (
+                        <circle
+                            cx={cx}
+                            cy={cy}
+                            r={(outerR + innerR) / 2}
+                            fill="none"
+                            stroke="rgba(255, 255, 255, 0.08)"
+                            strokeWidth={outerR - innerR}
+                        />
+                    ) : (
+                        slices.map((slice) => {
+                            const isHovered = hoveredId === slice.id;
+                            return (
+                                <path
+                                    key={slice.id}
+                                    d={slice.pathData}
+                                    fill={slice.color}
+                                    opacity={hoveredId && !isHovered ? 0.35 : 1}
+                                    stroke="var(--bg-glass, #18181b)"
+                                    strokeWidth={validBrands.length > 1 ? 2 : 0}
+                                    style={{
+                                        transition: 'opacity 0.2s ease, transform 0.2s ease',
+                                        cursor: 'pointer',
+                                        transformOrigin: `${cx}px ${cy}px`,
+                                        transform: isHovered ? 'scale(1.04)' : 'scale(1)'
+                                    }}
+                                    onMouseEnter={() => setHoveredId(slice.id)}
+                                    onMouseLeave={() => setHoveredId(null)}
+                                />
+                            );
+                        })
+                    )}
+                </svg>
+
+                {/* Center text */}
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    pointerEvents: 'none',
+                    maxWidth: `${innerR * 1.8}px`
+                }}>
+                    {hoveredBrand ? (
+                        <>
+                            <div style={{ fontSize: '18px', fontWeight: 800, color: hoveredBrand.color, lineHeight: 1.1 }}>
+                                {hoveredBrand.percent}%
+                            </div>
+                            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {hoveredBrand.name}
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-faint)' }}>
+                                {hoveredBrand.count}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div style={{ fontSize: '19px', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1.1 }}>
+                                {total}
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '2px' }}>
+                                Всего
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Interactive Legend */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '180px', flex: '1 1 200px' }}>
+                {brands.map((b) => {
+                    const isHovered = hoveredId === b.id;
+                    return (
+                        <div
+                            key={b.id}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '12px',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                background: isHovered ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.02)',
+                                border: `1px solid ${isHovered ? b.color : 'var(--glass-border, rgba(255,255,255,0.06))'}`,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={() => setHoveredId(b.id)}
+                            onMouseLeave={() => setHoveredId(null)}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: b.color, flexShrink: 0 }} />
+                                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {b.name}
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 600 }}>
+                                    {b.count}
+                                </span>
+                                <span style={{
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    color: b.color,
+                                    background: `${b.color}1a`,
+                                    padding: '2px 6px',
+                                    borderRadius: '5px',
+                                    border: `1px solid ${b.color}40`,
+                                    minWidth: '38px',
+                                    textAlign: 'center'
+                                }}>
+                                    {b.percent}%
+                                </span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+interface BrandingTimelineChartProps {
+    data: any[];
+    brands: BrandStatItem[];
+    height?: number;
+}
+
+const BrandingTimelineChart: React.FC<BrandingTimelineChartProps> = ({ data = [], brands = [], height = 220 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const svgRef = useRef<SVGSVGElement>(null);
     const [width, setWidth] = useState(600);
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+    const [hiddenBrands, setHiddenBrands] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         const el = containerRef.current;
@@ -43,7 +271,15 @@ const BrandingChart: React.FC<{ data: BrandingChartItem[]; height?: number }> = 
         return () => ro.disconnect();
     }, []);
 
-    const hasAnyData = data && data.length > 0 && data.some(d => (d.zvon && d.zvon > 0) || (d.maxcord && d.maxcord > 0));
+    const toggleBrand = (brandId: string) => {
+        setHiddenBrands(prev => ({
+            ...prev,
+            [brandId]: !prev[brandId]
+        }));
+    };
+
+    const activeBrands = brands.filter(b => !hiddenBrands[b.id]);
+    const hasAnyData = data && data.length > 0 && data.some(d => brands.some(b => (d[b.id] || 0) > 0));
 
     if (!hasAnyData) {
         return (
@@ -68,8 +304,15 @@ const BrandingChart: React.FC<{ data: BrandingChartItem[]; height?: number }> = 
     const pad = { top: 26, right: 16, bottom: 28, left: 36 };
     const innerW = Math.max(width - pad.left - pad.right, 10);
     const innerH = Math.max(height - pad.top - pad.bottom, 10);
-    const maxVal = Math.max(...data.map(d => Math.max(d.zvon || 0, d.maxcord || 0, (d.zvon || 0) + (d.maxcord || 0))), 1);
     const n = data.length;
+
+    const maxVal = Math.max(
+        ...data.map(d => {
+            if (activeBrands.length === 0) return 1;
+            return Math.max(...activeBrands.map(b => d[b.id] || 0), 1);
+        }),
+        1
+    );
 
     const xFor = (i: number) => pad.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
     const yFor = (v: number) => pad.top + innerH - (v / maxVal) * innerH;
@@ -83,8 +326,11 @@ const BrandingChart: React.FC<{ data: BrandingChartItem[]; height?: number }> = 
     };
 
     const labelIdx = n <= 1 ? [0] : [...new Set([0, Math.floor((n - 1) / 2), n - 1])];
-    const totalSlotWidth = (innerW / n) * 0.75;
-    const barWidth = Math.max(2, Math.min(16, totalSlotWidth / 2 - 1));
+    
+    const totalSlotWidth = (innerW / Math.max(n, 1)) * 0.75;
+    const numBars = Math.max(activeBrands.length, 1);
+    const barWidth = Math.max(2, Math.min(14, (totalSlotWidth / numBars) - 1));
+    const totalGroupWidth = numBars * barWidth + (numBars - 1);
 
     const getIndexFromX = (clientX: number) => {
         const svgEl = svgRef.current;
@@ -108,141 +354,151 @@ const BrandingChart: React.FC<{ data: BrandingChartItem[]; height?: number }> = 
 
     return (
         <div ref={containerRef} style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#5865f2' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>Zvon (zvonserver.ru / EXE)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#ff5722' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>MAXCORD (maxcord.fun)</span>
-                    </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {brands.map(b => {
+                        const isHidden = !!hiddenBrands[b.id];
+                        return (
+                            <button
+                                key={b.id}
+                                type="button"
+                                onClick={() => toggleBrand(b.id)}
+                                title={isHidden ? `Показать ${b.name} на графике` : `Скрыть ${b.name} из графика`}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    background: isHidden ? 'rgba(255, 255, 255, 0.03)' : `${b.color}1f`,
+                                    border: `1px solid ${isHidden ? 'var(--glass-border, rgba(255,255,255,0.1))' : `${b.color}60`}`,
+                                    color: isHidden ? 'var(--text-faint, #666)' : 'var(--text-main)',
+                                    opacity: isHidden ? 0.5 : 1,
+                                    textDecoration: isHidden ? 'line-through' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <div style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '2px',
+                                    background: isHidden ? '#555' : b.color
+                                }} />
+                                <span>{b.name}</span>
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {hoveredItem && (
                     <div style={{ fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <span style={{ color: 'var(--text-dim)' }}>{fmtDate(hoveredItem._id)}:</span>
-                        <span style={{ color: '#5865f2' }}>Zvon: {hoveredItem.zvon}</span>
-                        <span style={{ color: '#ff5722' }}>MAXCORD: {hoveredItem.maxcord}</span>
-                        <span style={{ color: 'var(--text-main)' }}>Всего: {hoveredItem.total}</span>
+                        {activeBrands.map(b => (
+                            <span key={b.id} style={{ color: b.color }}>
+                                {b.name}: {hoveredItem[b.id] ?? 0}
+                            </span>
+                        ))}
                     </div>
                 )}
             </div>
 
-            <svg
-                ref={svgRef}
-                width={width}
-                height={height}
-                style={{ display: 'block', overflow: 'visible', cursor: 'crosshair' }}
-                onMouseMove={handleMouseMove}
-                onMouseLeave={() => setHoveredIdx(null)}
-            >
-                {/* Сетка Y */}
-                {yTicks.map((t, i) => {
-                    const y = yFor(t);
-                    return (
-                        <g key={i}>
-                            <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} stroke="var(--glass-border, rgba(255,255,255,0.08))" strokeWidth="1" strokeDasharray="3 4" />
-                            <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="var(--text-faint, #777)">{t}</text>
-                        </g>
-                    );
-                })}
+            {activeBrands.length === 0 ? (
+                <div style={{
+                    height: `${height}px`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-faint, #888)',
+                    fontSize: '13px',
+                    border: '1px dashed var(--glass-border, rgba(255, 255, 255, 0.1))',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.15)'
+                }}>
+                    Все бренды скрыты. Нажмите на бренд в панели выше, чтобы включить его отображение.
+                </div>
+            ) : (
+                <svg
+                    ref={svgRef}
+                    width={width}
+                    height={height}
+                    style={{ display: 'block', overflow: 'visible', cursor: 'crosshair' }}
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                >
+                    {/* Сетка Y */}
+                    {yTicks.map((t, i) => {
+                        const y = yFor(t);
+                        return (
+                            <g key={i}>
+                                <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} stroke="var(--glass-border, rgba(255,255,255,0.08))" strokeWidth="1" strokeDasharray="3 4" />
+                                <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="var(--text-faint, #777)">{t}</text>
+                            </g>
+                        );
+                    })}
 
-                {/* Столбцы для каждого дня */}
-                {data.map((d, i) => {
-                    const centerX = xFor(i);
-                    const isHover = hoveredIdx === i;
+                    {/* Столбцы для каждого дня */}
+                    {data.map((d, i) => {
+                        const centerX = xFor(i);
+                        const isHover = hoveredIdx === i;
+                        const startGroupX = centerX - totalGroupWidth / 2;
 
-                    const zvonH = (d.zvon && d.zvon > 0) ? Math.max(3, (d.zvon / maxVal) * innerH) : 0;
-                    const maxcordH = (d.maxcord && d.maxcord > 0) ? Math.max(3, (d.maxcord / maxVal) * innerH) : 0;
+                        return (
+                            <g key={i}>
+                                {activeBrands.map((b, bIdx) => {
+                                    const val = d[b.id] || 0;
+                                    const barH = val > 0 ? Math.max(3, (val / maxVal) * innerH) : 0;
+                                    const barX = startGroupX + bIdx * (barWidth + 1);
+                                    const barY = pad.top + innerH - (barH > 0 ? barH : 2);
 
-                    const zvonX = centerX - barWidth - 1;
-                    const maxcordX = centerX + 1;
+                                    return (
+                                        <rect
+                                            key={b.id}
+                                            x={barX}
+                                            y={barY}
+                                            width={barWidth}
+                                            height={barH > 0 ? barH : 2}
+                                            rx={barWidth > 4 ? 2 : 1}
+                                            fill={b.color}
+                                            opacity={val > 0 ? (isHover ? 1 : 0.85) : 0.25}
+                                            style={{ transition: 'all 0.15s ease' }}
+                                        />
+                                    );
+                                })}
+                            </g>
+                        );
+                    })}
 
-                    const zvonY = pad.top + innerH - zvonH;
-                    const maxcordY = pad.top + innerH - maxcordH;
+                    {/* Ховер маркер */}
+                    {hoveredIdx !== null && (
+                        <line
+                            x1={xFor(hoveredIdx)}
+                            y1={pad.top}
+                            x2={xFor(hoveredIdx)}
+                            y2={pad.top + innerH}
+                            stroke="var(--glass-border, rgba(255,255,255,0.4))"
+                            strokeWidth="1"
+                            strokeDasharray="2 2"
+                        />
+                    )}
 
-                    return (
-                        <g key={i}>
-                            {/* Zvon Bar */}
-                            {zvonH > 0 ? (
-                                <rect
-                                    x={zvonX}
-                                    y={zvonY}
-                                    width={barWidth}
-                                    height={zvonH}
-                                    rx={barWidth > 4 ? 2 : 1}
-                                    fill="#5865f2"
-                                    opacity={isHover ? 1 : 0.85}
-                                    style={{ transition: 'all 0.15s ease' }}
-                                />
-                            ) : (
-                                <rect
-                                    x={zvonX}
-                                    y={pad.top + innerH - 2}
-                                    width={barWidth}
-                                    height={2}
-                                    rx={1}
-                                    fill="#5865f2"
-                                    opacity={0.3}
-                                />
-                            )}
-
-                            {/* MAXCORD Bar */}
-                            {maxcordH > 0 ? (
-                                <rect
-                                    x={maxcordX}
-                                    y={maxcordY}
-                                    width={barWidth}
-                                    height={maxcordH}
-                                    rx={barWidth > 4 ? 2 : 1}
-                                    fill="#ff5722"
-                                    opacity={isHover ? 1 : 0.85}
-                                    style={{ transition: 'all 0.15s ease' }}
-                                />
-                            ) : (
-                                <rect
-                                    x={maxcordX}
-                                    y={pad.top + innerH - 2}
-                                    width={barWidth}
-                                    height={2}
-                                    rx={1}
-                                    fill="#ff5722"
-                                    opacity={0.3}
-                                />
-                            )}
-                        </g>
-                    );
-                })}
-
-                {/* Ховер маркер */}
-                {hoveredIdx !== null && (
-                    <line
-                        x1={xFor(hoveredIdx)}
-                        y1={pad.top}
-                        x2={xFor(hoveredIdx)}
-                        y2={pad.top + innerH}
-                        stroke="var(--glass-border, rgba(255,255,255,0.4))"
-                        strokeWidth="1"
-                        strokeDasharray="2 2"
-                    />
-                )}
-
-                {/* Метки по оси X */}
-                {labelIdx.map(i => (
-                    <text
-                        key={i}
-                        x={xFor(i)}
-                        y={height - 6}
-                        textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
-                        fontSize="10"
-                        fill="var(--text-faint, #888)"
-                    >
-                        {fmtDate(data[i]._id)}
-                    </text>
-                ))}
-            </svg>
+                    {/* Метки по оси X */}
+                    {labelIdx.map(i => (
+                        <text
+                            key={i}
+                            x={xFor(i)}
+                            y={height - 6}
+                            textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                            fontSize="10"
+                            fill="var(--text-faint, #888)"
+                        >
+                            {fmtDate(data[i]._id)}
+                        </text>
+                    ))}
+                </svg>
+            )}
         </div>
     );
 };
@@ -410,92 +666,50 @@ const AdminStatsSettings: React.FC = () => {
                     )}
 
                     {/* Группа: Заходы по брендингам платформы */}
-                    <div style={{ marginTop: '32px', marginBottom: '16px' }}>
-                        <h3 className="settings-section-title" style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-main, #fff)' }}>
-                            Заходы по брендингам платформы
-                        </h3>
-                        <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: 'var(--text-dim)' }}>
-                            Соотношение посещений и активности пользователей через Zvon и MAXCORD за выбранный период (заходы через Desktop EXE классифицируются как Zvon).
-                        </p>
+                    {(() => {
+                        const brandList: BrandStatItem[] = (stats.totals?.branding?.brands && stats.totals.branding.brands.length > 0)
+                            ? stats.totals.branding.brands
+                            : Object.keys(BRANDS).map((k, idx) => ({
+                                id: k,
+                                name: BRANDS[k]?.name || k,
+                                color: getBrandColor(k, idx),
+                                count: stats.totals?.branding?.byBrand?.[k] ?? 0,
+                                percent: 0
+                            }));
 
-                        {/* Шкала соотношения брендов */}
-                        {stats.totals?.branding && stats.totals.branding.total > 0 && (
-                            <div className="settings-card" style={{ margin: '0 0 16px 0', padding: '16px 20px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '13px', fontWeight: 700 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#5865f2' }}>
-                                        <span>Zvon</span>
-                                        <span style={{ fontSize: '12px', background: 'rgba(88, 101, 242, 0.15)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(88, 101, 242, 0.3)' }}>
-                                            {stats.totals.branding.zvonPercent}% ({stats.totals.branding.zvon})
-                                        </span>
+                        return (
+                            <div style={{ marginTop: '32px', marginBottom: '16px' }}>
+                                <h3 className="settings-section-title" style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-main, #fff)' }}>
+                                    Заходы по брендингам платформы
+                                </h3>
+                                <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-dim)' }}>
+                                    Соотношение посещений брендингов проекта за выбранный период.
+                                </p>
+
+                                <div className="settings-card" style={{ padding: '20px', marginBottom: '20px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-main)' }}>
+                                        Соотношение заходов
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ff5722' }}>
-                                        <span style={{ fontSize: '12px', background: 'rgba(255, 87, 34, 0.15)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(255, 87, 34, 0.3)' }}>
-                                            {stats.totals.branding.maxcordPercent}% ({stats.totals.branding.maxcord})
-                                        </span>
-                                        <span>MAXCORD</span>
-                                    </div>
+                                    <BrandingPieChart
+                                        brands={brandList}
+                                        total={stats.totals?.branding?.total ?? 0}
+                                        size={190}
+                                    />
                                 </div>
 
-                                <div style={{ width: '100%', height: '14px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '8px', overflow: 'hidden', display: 'flex', border: '1px solid var(--glass-border)' }}>
-                                    <div
-                                        style={{
-                                            width: `${stats.totals.branding.zvonPercent}%`,
-                                            background: 'linear-gradient(90deg, #5865f2, #818cf8)',
-                                            transition: 'width 0.4s ease'
-                                        }}
-                                        title={`Zvon: ${stats.totals.branding.zvonPercent}%`}
-                                    />
-                                    <div
-                                        style={{
-                                            width: `${stats.totals.branding.maxcordPercent}%`,
-                                            background: 'linear-gradient(90deg, #ff7043, #ff5722)',
-                                            transition: 'width 0.4s ease'
-                                        }}
-                                        title={`MAXCORD: ${stats.totals.branding.maxcordPercent}%`}
+                                <div className="settings-card" style={{ padding: '20px', marginBottom: '20px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', color: 'var(--text-main)' }}>
+                                        Динамика заходов по дням
+                                    </div>
+                                    <BrandingTimelineChart
+                                        data={stats.charts?.brandingDaily || []}
+                                        brands={brandList}
+                                        height={220}
                                     />
                                 </div>
                             </div>
-                        )}
-
-                        <div className="settings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '16px' }}>
-                            <div className="settings-card" style={{ margin: 0, padding: '18px 20px', textAlign: 'center' }}>
-                                <div style={{ color: '#5865f2', marginBottom: '6px', display: 'flex', justifyContent: 'center' }}><GlobeIcon size={26} /></div>
-                                <div style={{ fontSize: '26px', fontWeight: 800, color: '#5865f2' }}>{stats.totals?.branding?.zvon ?? 0}</div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>
-                                    Zvon ({stats.totals?.branding?.zvonPercent ?? 0}%)
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>zvonserver.ru + EXE</div>
-                            </div>
-
-                            <div className="settings-card" style={{ margin: 0, padding: '18px 20px', textAlign: 'center' }}>
-                                <div style={{ color: '#ff5722', marginBottom: '6px', display: 'flex', justifyContent: 'center' }}><GlobeIcon size={26} /></div>
-                                <div style={{ fontSize: '26px', fontWeight: 800, color: '#ff5722' }}>{stats.totals?.branding?.maxcord ?? 0}</div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>
-                                    MAXCORD ({stats.totals?.branding?.maxcordPercent ?? 0}%)
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>maxcord.fun</div>
-                            </div>
-
-                            <div className="settings-card" style={{ margin: 0, padding: '18px 20px', textAlign: 'center' }}>
-                                <div style={{ color: 'var(--primary-neon)', marginBottom: '6px', display: 'flex', justifyContent: 'center' }}><UsersIcon size={26} /></div>
-                                <div style={{ fontSize: '26px', fontWeight: 800 }}>{stats.totals?.branding?.total ?? 0}</div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>
-                                    Всего заходов
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>за выбранный период</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="settings-card" style={{ padding: '20px', marginBottom: '20px' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', color: 'var(--text-main)' }}>
-                            Динамика соотношения заходов по дням
-                        </div>
-                        <BrandingChart
-                            data={stats.charts?.brandingDaily || []}
-                            height={220}
-                        />
-                    </div>
+                        );
+                    })()}
 
                     {/* Группа: Онлайн и активность */}
                     <div style={{ marginTop: '32px', marginBottom: '16px' }}>

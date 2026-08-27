@@ -6,7 +6,8 @@ const BRANDS = {
     domain: 'zvonserver.ru',
     supportEmail: 'support@zvonserver.ru',
     logo: 'zvonlogonew.png',
-    favicon: 'icon.png'
+    favicon: 'icon.png',
+    color: '#5865f2'
   },
   maxcord: {
     id: 'maxcord',
@@ -14,7 +15,8 @@ const BRANDS = {
     domain: 'maxcord.fun',
     supportEmail: 'support@zvonserver.ru',
     logo: 'maxcord/logo.png',
-    favicon: 'maxcord/logo.png'
+    favicon: 'maxcord/logo.png',
+    color: '#ff5722'
   }
 };
 
@@ -42,12 +44,17 @@ const getBrand = (req) => {
   }
 
   const brandHeader = (req.header?.('x-brand') || req.headers?.['x-brand'] || '').toLowerCase();
-  if (brandHeader === 'maxcord') return BRANDS.maxcord;
-  if (brandHeader === 'zvon') return BRANDS.zvon;
-  
-  if (fullHeaderStr.includes('maxcord.fun')) {
-    return BRANDS.maxcord;
+  if (brandHeader && BRANDS[brandHeader]) {
+    return BRANDS[brandHeader];
   }
+  
+  // Проверяем все существующие бренды по домену
+  for (const [key, brand] of Object.entries(BRANDS)) {
+    if (key !== 'zvon' && brand.domain && fullHeaderStr.includes(brand.domain.toLowerCase())) {
+      return brand;
+    }
+  }
+
   return BRANDS.zvon;
 };
 

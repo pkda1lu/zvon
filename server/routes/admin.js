@@ -251,7 +251,11 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       onlineUsersAgg = [];
     }
 
-    // 1.1. Статистика заходов по брендингам (zvon vs maxcord)
+    // 1.1. Статистика заходов по брендингам (динамически из BRANDS)
+    const { BRANDS } = require('../utils/branding');
+    const knownBrandKeys = Object.keys(BRANDS).length > 0 ? Object.keys(BRANDS) : ['zvon'];
+    if (!knownBrandKeys.includes('zvon')) knownBrandKeys.unshift('zvon');
+
     let brandingAgg = [];
     try {
       brandingAgg = await Session.aggregate([
@@ -266,13 +270,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         {
           $project: {
             user: 1,
-            brand: {
-              $cond: {
-                if: { $eq: ["$brand", "maxcord"] },
-                then: "maxcord",
-                else: "zvon"
-              }
-            },
+            brand: { $ifNull: ["$brand", "zvon"] },
             activeDate: {
               $cond: {
                 if: {
@@ -316,6 +314,18 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     } catch (e) {
       console.error('Branding visits aggregate error:', e);
       brandingAgg = [];
+    }
+
+    // Если в brandingAgg пусто, но есть онлайн-пользователи в onlineUsersAgg,
+    // считаем эти существующие сессии как бренд zvon
+    if ((!brandingAgg || brandingAgg.length === 0) && (onlineUsersAgg && onlineUsersAgg.length > 0)) {
+      brandingAgg = onlineUsersAgg.map(item => ({
+        _id: {
+          day: item._id,
+          brand: 'zvon'
+        },
+        count: item.count
+      }));
     }
 
     // 2. Голосовая статистика (VoiceSession)
@@ -435,16 +445,18 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     }
 
     function buildBrandingTimeline(startD, endD, aggList) {
-      const mapZvon = new Map();
-      const mapMaxcord = new Map();
+      const dateBrandMap = new Map();
 
       (aggList || []).forEach(item => {
         if (item._id && item._id.day) {
-          if (item._id.brand === 'maxcord') {
-            mapMaxcord.set(item._id.day, item.count || 0);
-          } else {
-            mapZvon.set(item._id.day, item.count || 0);
+          const day = item._id.day;
+          const rawBrand = item._id.brand || 'zvon';
+          const brand = BRANDS[rawBrand] ? rawBrand : 'zvon';
+          if (!dateBrandMap.has(day)) {
+            dateBrandMap.set(day, {});
           }
+          const dayObj = dateBrandMap.get(day);
+          dayObj[brand] = (dayObj[brand] || 0) + (item.count || 0);
         }
       });
 
@@ -458,19 +470,18 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         const d = String(cur.getUTCDate()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
 
-        const zvonCount = mapZvon.get(dateStr) || 0;
-        const maxcordCount = mapMaxcord.get(dateStr) || 0;
-        const total = zvonCount + maxcordCount;
+        const dayCounts = dateBrandMap.get(dateStr) || {};
+        let dayTotal = 0;
+        const entry = { _id: dateStr, total: 0 };
 
-        result.push({
-          _id: dateStr,
-          zvon: zvonCount,
-          maxcord: maxcordCount,
-          count: zvonCount,
-          secondaryCount: maxcordCount,
-          total
+        knownBrandKeys.forEach(k => {
+          const cnt = dayCounts[k] || 0;
+          entry[k] = cnt;
+          dayTotal += cnt;
         });
+        entry.total = dayTotal;
 
+        result.push(entry);
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
       return result;
@@ -491,11 +502,26 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     // Новые графики:
     const onlineUsersDailyChart = buildDailyTimeline(startDate, endDate, onlineUsersAgg);
     const brandingDailyChart = buildBrandingTimeline(startDate, endDate, brandingAgg);
-    const totalZvonVisits = brandingDailyChart.reduce((sum, item) => sum + (item.zvon || 0), 0);
-    const totalMaxcordVisits = brandingDailyChart.reduce((sum, item) => sum + (item.maxcord || 0), 0);
-    const totalBrandVisits = totalZvonVisits + totalMaxcordVisits;
-    const zvonPercent = totalBrandVisits > 0 ? Math.round((totalZvonVisits / totalBrandVisits) * 100) : 100;
-    const maxcordPercent = totalBrandVisits > 0 ? Math.round((totalMaxcordVisits / totalBrandVisits) * 100) : 0;
+
+    const brandTotals = {};
+    let totalBrandVisits = 0;
+    knownBrandKeys.forEach(k => {
+      const sum = brandingDailyChart.reduce((acc, item) => acc + (item[k] || 0), 0);
+      brandTotals[k] = sum;
+      totalBrandVisits += sum;
+    });
+
+    const brandingList = knownBrandKeys.map(k => {
+      const count = brandTotals[k] || 0;
+      const percent = totalBrandVisits > 0 ? Math.round((count / totalBrandVisits) * 100) : (k === 'zvon' ? 100 : 0);
+      return {
+        id: k,
+        name: BRANDS[k]?.name || k,
+        color: BRANDS[k]?.color || '#5865f2',
+        count,
+        percent
+      };
+    });
 
     const voiceHoursDailyChart = buildDailyTimeline(startDate, endDate, voiceHoursAgg);
     const voiceHoursCumulativeChart = buildDailyTimeline(startDate, endDate, voiceHoursAgg, true, voiceHoursBeforePeriod);
@@ -599,11 +625,9 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         voiceHoursPeriod,
         voiceSessionsPeriod,
         branding: {
-          zvon: totalZvonVisits,
-          maxcord: totalMaxcordVisits,
           total: totalBrandVisits,
-          zvonPercent,
-          maxcordPercent
+          brands: brandingList,
+          byBrand: brandTotals
         }
       },
       topUsers: {
