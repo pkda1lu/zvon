@@ -106,7 +106,6 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    borderRadius: style?.borderRadius !== undefined ? style.borderRadius : 'inherit',
                     flexShrink: 0,
                     ...style
                 }}

@@ -1,6 +1,18 @@
+/*
+ * Радиус скругления аватарок задаётся здесь и только здесь.
+ * Раньше ветка с картинкой брала 14px отсюда, а буквенная заглушка —
+ * inherit от родителя. Родители про это не знали, и в тех местах, где у
+ * обёртки скругления нет (например, .inbox-item-avatar в уведомлениях),
+ * заглушка выходила квадратной. То есть форма зависела от того, загрузил
+ * человек аватарку или нет.
+ */
+:root {
+    --avatar-radius: 14px;
+}
+
 .user-avatar-container {
     position: relative;
-    border-radius: 14px;
+    border-radius: var(--avatar-radius);
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -58,7 +70,9 @@
 .avatar-placeholder {
     width: 100%;
     height: 100%;
-    border-radius: inherit;
+    /* Тот же радиус, что и у ветки с картинкой — см. комментарий выше.
+       Вызывающий код может переопределить его через style.borderRadius. */
+    border-radius: var(--avatar-radius);
     background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
     color: white;
     display: flex;
