@@ -684,6 +684,14 @@
   color: var(--voice-accent-solid);
 }
 
+/* Закрытие трансляции — действие отменяющее, поэтому подсветка красная,
+   а не акцентная: рядом стоит разворот, и перепутать их не должно быть легко. */
+.stream-control-btn--close:hover {
+  background: rgba(237, 66, 69, 0.16);
+  border-color: rgba(237, 66, 69, 0.45);
+  color: #ff6b6e;
+}
+
 .stop-stream-btn-red {
   background: rgba(0, 0, 0, 0.5);
   color: #fff;

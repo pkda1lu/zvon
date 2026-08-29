@@ -139,7 +139,8 @@ const VoiceStreamCard: React.FC<{
   onToggleExpand: () => void;
   screenVolumes: Map<string, number>;
   setScreenVolume: (userId: string, volume: number) => void;
-}> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isPrimary = false, isExpanded, onToggleExpand, screenVolumes, setScreenVolume }) => {
+  stopScreenShare: () => void;
+}> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isPrimary = false, isExpanded, onToggleExpand, screenVolumes, setScreenVolume, stopScreenShare }) => {
   const isMe = item.isMe;
   const stream = isMe ? screenStream : remoteScreenStreams.get(item.userId);
   const isWatching = isMe || watchedScreenIds.has(item.userId);
@@ -223,6 +224,28 @@ const VoiceStreamCard: React.FC<{
                     title={isExpanded ? 'Свернуть' : 'Развернуть'}
                   >
                     {isExpanded ? <MinimizeIcon size={18} /> : <FullscreenIcon size={18} />}
+                  </button>
+                  {/*
+                    Закрытие трансляции. Раньше отсюда выйти было нечем:
+                    setWatchingScreen вызывался только со значением true, и
+                    начатый просмотр прекращался лишь когда стример сам его
+                    останавливал. В личных звонках такая кнопка есть давно —
+                    в каналах сервера её просто не было.
+                  */}
+                  <button
+                    className="stream-control-btn stream-control-btn--close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Сначала выходим из полноэкранного режима: иначе карточка
+                      // исчезает из портала, не сняв фуллскрин, и остаётся
+                      // чёрный экран.
+                      if (isExpanded) onToggleExpand();
+                      if (isMe) stopScreenShare();
+                      else setWatchingScreen(item.userId, false);
+                    }}
+                    title={isMe ? 'Прекратить демонстрацию' : 'Прекратить просмотр'}
+                  >
+                    <CloseIcon size={18} />
                   </button>
                 </div>
               </div>
@@ -362,7 +385,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         const user = activeConnectedUsers.find(u => u._id === item.userId)
           || externalParticipants.find(u => u._id === item.userId)
           || (item.isMe ? currentUser : null);
-        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} screenVolumes={screenVolumes} setScreenVolume={setScreenVolume} />;
+        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} screenVolumes={screenVolumes} setScreenVolume={setScreenVolume} stopScreenShare={stopScreenShare} />;
       }
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;

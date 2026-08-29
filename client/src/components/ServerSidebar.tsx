@@ -280,7 +280,18 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                 user={u}
                 avatarOverride={memberMap.get(String(u._id))?.avatar || undefined}
                 displayName={memberMap.get(String(u._id))?.nickname || u.displayName || u.username}
-                isScreenSharing={!!userStates.get(u._id)?.isScreenSharing}
+                /*
+                  userStates заполняется событиями голосового канала и есть
+                  только у тех, кто сам в этом канале сидит. Снаружи он пуст,
+                  поэтому значок эфира не показывался — а именно снаружи он и
+                  нужен, чтобы понять, что человек что-то показывает.
+
+                  Список voiceStates приходит событием voice-channel-users-update
+                  на весь сервер и уже несёт isScreenSharing по каждому. Берём
+                  его как запасной источник, а состояние из канала оставляем
+                  главным: оно приходит мгновеннее.
+                */
+                isScreenSharing={!!(userStates.get(u._id)?.isScreenSharing ?? (u as any).isScreenSharing)}
                 onUserClick={onUserClick}
                 onContextMenu={handleContextMenu}
               />
