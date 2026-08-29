@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './Overlay.css';
+import { getAvatarUrl } from '../utils/avatar';
 
 interface OverlayUser {
     id: string;
@@ -161,7 +162,7 @@ const Overlay: React.FC = () => {
                             <div className="overlay-avatar-wrapper">
                                 {user.avatar ? (
                                     <StaticAvatar
-                                        src={user.avatar}
+                                        src={getAvatarUrl(user.avatar) || ''}
                                         isSpeaking={user.isSpeaking}
                                         className="overlay-avatar"
                                     />

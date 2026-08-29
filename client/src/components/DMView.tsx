@@ -113,9 +113,9 @@ const DMMessageItem = React.memo(function DMMessageItem({
               {dispAuthor(msg.author)._masked ? (
                 <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
               ) : (
-                <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
+                <span className="message-author" onClick={(e) => onUserClick(dispAuthor(msg.author)._id, e)} style={{ cursor: 'pointer' }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
               )}
-              {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
+              {!dispAuthor(msg.author)._masked && <UserBadges badges={dispAuthor(msg.author).badges} serverTag={resolveServerTag(dispAuthor(msg.author))} size={14} />}
               <span className="message-time">{formatDate(msg.createdAt)}</span>
             </div>
             <div className="system-message-text">Пропущенный звонок</div>
@@ -133,7 +133,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
               <ReplyIcon size={12} className="reply-icon-mini" />
               <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16} className="reply-avatar" />
                <span className="reply-author" style={{ fontWeight: 600 }}>{dispAuthor(msg.replyTo.author).displayName || dispAuthor(msg.replyTo.author).username}</span>
-               {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={msg.replyTo.author.badges} serverTag={resolveServerTag(msg.replyTo.author)} size={10} />}
+               {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={dispAuthor(msg.replyTo.author).badges} serverTag={resolveServerTag(dispAuthor(msg.replyTo.author))} size={10} />}
               <span className="reply-content" style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.content || (msg.replyTo.attachments?.length ? 'Вложение' : '')}</span>
             </div>
           )}
@@ -143,7 +143,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
                 user={dispAuthor(msg.author)}
                 size={40}
                 className="message-author-avatar"
-                onClick={(e) => { if (!dispAuthor(msg.author)._masked) onUserClick(msg.author._id, e); }}
+                onClick={(e) => { if (!dispAuthor(msg.author)._masked) onUserClick(dispAuthor(msg.author)._id, e); }}
               />
             </div>
           )}
@@ -154,10 +154,10 @@ const DMMessageItem = React.memo(function DMMessageItem({
                 {dispAuthor(msg.author)._masked ? (
                   <span className="message-author" style={{ color: 'var(--primary-neon)' }}>Модерация</span>
                 ) : (
-                  <span className="message-author" onClick={(e) => onUserClick(msg.author._id, e)} style={{ cursor: 'pointer' }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
+                  <span className="message-author" onClick={(e) => onUserClick(dispAuthor(msg.author)._id, e)} style={{ cursor: 'pointer' }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
                 )}
-                {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={14} />}
-                {!dispAuthor(msg.author)._masked && msg.author.isBot && <span className="bot-badge">БOТ</span>}
+                {!dispAuthor(msg.author)._masked && <UserBadges badges={dispAuthor(msg.author).badges} serverTag={resolveServerTag(dispAuthor(msg.author))} size={14} />}
+                {!dispAuthor(msg.author)._masked && dispAuthor(msg.author).isBot && <span className="bot-badge">БOТ</span>}
                 <span className="message-time">{formatDate(msg.createdAt)}</span>
                 {showHoverBar && (
                   <div className="message-actions-hover">
@@ -208,7 +208,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
                     >
                       <ForwardIcon size={16} />
                     </button>
-                    {msg.author._id === user?._id && (
+                    {dispAuthor(msg.author)._id === user?._id && (
                       <button
                         className="msg-action-btn danger"
                         onClick={() => {
@@ -270,7 +270,7 @@ const DMMessageItem = React.memo(function DMMessageItem({
                   >
                     <ForwardIcon size={14} />
                   </button>
-                  {msg.author._id === user?._id && (
+                  {dispAuthor(msg.author)._id === user?._id && (
                     <button
                       className="msg-action-btn mini danger"
                       onClick={() => {
@@ -395,6 +395,17 @@ const DMMessageItem = React.memo(function DMMessageItem({
     prevProps.user?._id === nextProps.user?._id
   );
 });
+
+/** Автор, которого не удалось получить. Вынесен из компонента: ссылка должна
+ *  быть стабильной, иначе каждый рендер давал бы новый объект. */
+const UNKNOWN_AUTHOR = {
+  _id: '',
+  username: 'Удалённый пользователь',
+  displayName: '',
+  avatar: null,
+  badges: [] as any[],
+  isBot: false,
+};
 
 const DMView: React.FC<DMViewProps> = ({
   dm, messages, socket, onClose, onStartCall, onStartGroupCall, onUserClick, initialUnreadCount = 0,
@@ -592,9 +603,21 @@ const DMView: React.FC<DMViewProps> = ({
   const maskModeration = !!moderatorId && moderatorId !== user?._id;
   const isModerationChat = !!dm.isModeration;
   // Подменяет автора сообщения на «Модерация», если нужно скрыть личность модератора.
-  const dispAuthor = useCallback((a: any) => (maskModeration && a && a._id === moderatorId)
-    ? { ...a, username: 'Модерация', avatar: null, badges: [], isBot: false, _masked: true }
-    : a, [maskModeration, moderatorId]);
+  /**
+   * Автор сообщения для отрисовки.
+   *
+   * Возвращает заглушку, если автора нет. Так бывает у ответов на сообщения,
+   * чей автор не подтянулся выборкой, и у сообщений от удалённых учётных
+   * записей. Раньше здесь возвращался undefined, и первое же обращение к полю
+   * бросало TypeError прямо в фазе отрисовки — а это снимает всё поддерево,
+   * то есть диалог переставал открываться целиком из-за одного сообщения.
+   */
+  const dispAuthor = useCallback((a: any) => {
+    if (!a) return UNKNOWN_AUTHOR;
+    return (maskModeration && a._id === moderatorId)
+      ? { ...a, username: 'Модерация', avatar: null, badges: [], isBot: false, _masked: true }
+      : a;
+  }, [maskModeration, moderatorId]);
   const displayName = maskModeration ? 'Модерация'
     : (dm.name || (isGroup ? otherParticipants.map(p => p.displayName || p.username).join(', ') : (otherUser?.displayName || otherUser?.username)));
   const headerUser = maskModeration ? { username: 'Модерация', avatar: null } : otherUser;
@@ -1192,7 +1215,7 @@ const DMView: React.FC<DMViewProps> = ({
                       <div className="pin-author" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <UserAvatar user={dispAuthor(msg.author)} size={24} className="pin-avatar-comp" />
                         <span className="pin-name" style={{ fontWeight: 600 }}>{dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}</span>
-                        {!dispAuthor(msg.author)._masked && <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12} />}
+                        {!dispAuthor(msg.author)._masked && <UserBadges badges={dispAuthor(msg.author).badges} serverTag={resolveServerTag(dispAuthor(msg.author))} size={12} />}
                         <span className="pin-date" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatDate(msg.createdAt)}</span>
                       </div>
                     <div className="pin-content">

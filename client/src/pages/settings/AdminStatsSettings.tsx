@@ -4,6 +4,7 @@ import { UsersIcon, LayoutGridIcon, ChatIcon, SparklesIcon, MicIcon, PhoneIcon, 
 import LineChart from '../../components/LineChart';
 import { ChoiceGroup } from './SettingsUI';
 import { BRANDS, getBrandColor } from '../../utils/branding';
+import { getAvatarUrl } from '../../utils/avatar';
 
 const RANGES = [
     { value: '7d', label: '7 дней' },
@@ -602,7 +603,7 @@ const AdminStatsSettings: React.FC = () => {
                                                             #{idx + 1}
                                                         </span>
                                                         <img
-                                                            src={u.avatar || '/default-avatar.png'}
+                                                            src={getAvatarUrl(u.avatar) || '/default-avatar.png'}
                                                             alt=""
                                                             style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                                                             onError={(e) => { (e.target as any).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="14" fill="%235865f2"/></svg>'; }}
@@ -638,7 +639,7 @@ const AdminStatsSettings: React.FC = () => {
                                                             #{idx + 1}
                                                         </span>
                                                         <img
-                                                            src={u.avatar || '/default-avatar.png'}
+                                                            src={getAvatarUrl(u.avatar) || '/default-avatar.png'}
                                                             alt=""
                                                             style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                                                             onError={(e) => { (e.target as any).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="14" fill="%235865f2"/></svg>'; }}

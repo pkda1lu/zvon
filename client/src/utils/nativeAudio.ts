@@ -110,21 +110,36 @@ export class NativeAudioManager {
         // Use the buffer directly with offset to avoid expensive slice/copy
         const float32Data = new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
 
-        // Debug packets
         if (!this.isPlaying) {
-            console.log('[NativeAudio] Received first audio packet. Samples:', float32Data.length);
             this.isPlaying = true;
-            (window as any).packetCounter = 0;
+            if (import.meta.env.DEV) {
+                console.log('[NativeAudio] Received first audio packet. Samples:', float32Data.length);
+                (window as any).packetCounter = 0;
+            }
         }
 
-        (window as any).packetCounter++;
-        if ((window as any).packetCounter % 100 === 0) {
-            let maxAmp = 0;
-            for (let i = 0; i < float32Data.length; i++) {
-                const amp = Math.abs(float32Data[i]);
-                if (amp > maxAmp) maxAmp = amp;
+        /*
+         * Отладочный счётчик — только в разработке.
+         *
+         * Метод вызывается на каждый пакет, то есть десятки раз в секунду всё
+         * время трансляции. Каждый сотый прогонял цикл по всем отсчётам ради
+         * поиска максимальной амплитуды и писал строку в консоль — примерно
+         * раз в две секунды, бесконечно. Работа в звуковом пути, которая
+         * пользователю ничего не даёт.
+         *
+         * import.meta.env.DEV — константа на сборке, поэтому весь блок
+         * вырезается из продакшен-бандла целиком.
+         */
+        if (import.meta.env.DEV) {
+            (window as any).packetCounter++;
+            if ((window as any).packetCounter % 100 === 0) {
+                let maxAmp = 0;
+                for (let i = 0; i < float32Data.length; i++) {
+                    const amp = Math.abs(float32Data[i]);
+                    if (amp > maxAmp) maxAmp = amp;
+                }
+                console.log(`[NativeAudio] Packets: ${(window as any).packetCounter} | Max Amp: ${maxAmp.toFixed(5)} | Context Time: ${this.audioCtx.currentTime.toFixed(2)}`);
             }
-            console.log(`[NativeAudio] Packets: ${(window as any).packetCounter} | Max Amp: ${maxAmp.toFixed(5)} | Context Time: ${this.audioCtx.currentTime.toFixed(2)}`);
         }
 
         // Create audio buffer

@@ -4,6 +4,7 @@ import { Server } from '../../types';
 import { UsersIcon, ChatIcon, SparklesIcon, MicIcon, PhoneIcon } from '../../components/Icons';
 import LineChart from '../../components/LineChart';
 import { ChoiceGroup } from '../settings/SettingsUI';
+import { getAvatarUrl } from '../../utils/avatar';
 
 interface Props {
     server: Server;
@@ -123,7 +124,7 @@ const ServerStatsSettings: React.FC<Props> = ({ server }) => {
                                                             #{idx + 1}
                                                         </span>
                                                         <img
-                                                            src={u.avatar || '/default-avatar.png'}
+                                                            src={getAvatarUrl(u.avatar) || '/default-avatar.png'}
                                                             alt=""
                                                             style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                                                             onError={(e) => { (e.target as any).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="14" fill="%235865f2"/></svg>'; }}
@@ -159,7 +160,7 @@ const ServerStatsSettings: React.FC<Props> = ({ server }) => {
                                                             #{idx + 1}
                                                         </span>
                                                         <img
-                                                            src={u.avatar || '/default-avatar.png'}
+                                                            src={getAvatarUrl(u.avatar) || '/default-avatar.png'}
                                                             alt=""
                                                             style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                                                             onError={(e) => { (e.target as any).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="14" fill="%235865f2"/></svg>'; }}

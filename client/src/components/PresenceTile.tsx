@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { VoicePresenceInfo } from '../contexts/VoiceContext';
 import './PresenceTile.css';
+import { getAvatarUrl } from '../utils/avatar';
 
 interface Props {
     presence: VoicePresenceInfo;
@@ -103,7 +104,7 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
             {/* Top row: brand chip + volume on hover */}
             <div className="presence-top-row">
                 <div className="presence-brand">
-                    {presence.avatar && <img src={presence.avatar} alt="" />}
+                    {presence.avatar && <img src={getAvatarUrl(presence.avatar) || undefined} alt="" />}
                     <span>{presence.displayName}</span>
                 </div>
 
