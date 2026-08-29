@@ -185,17 +185,27 @@ const AppBackground: React.FC = () => {
         style={{ opacity: isAuthPage ? 0.4 : 1 }}
       />
 
-      {customBackground && !performanceMode && (
+      {/*
+        Пользовательский фон показываем и в режиме производительности.
+        Переключатель называется «Отключить блюр» и обещает убрать только
+        размытие стекла — но раньше он выбрасывал и саму картинку. Человек
+        ставил свой фон, включал режим ради кадров и терял фон вовсе.
+        Дорого здесь именно размытие, а статичная картинка обходится дешевле,
+        чем анимированный градиент с пятнами, которые этот режим и так гасит.
+      */}
+      {customBackground && (
         <div
           className="bg-custom"
           style={{
             backgroundImage: `url(${customBackground})`,
-            filter: `blur(${backgroundBlur}px)`,
+            // Без размытия свойство не задаём вовсе: filter: blur(0px) всё
+            // равно заводит отдельный слой композитора и стоит памяти.
+            filter: performanceMode || !backgroundBlur ? undefined : `blur(${backgroundBlur}px)`,
           }}
         />
       )}
 
-      {customBackground && !performanceMode && (
+      {customBackground && (
         <div
           className="bg-custom-dim"
           style={{ backgroundColor: `rgba(0, 0, 0, ${backgroundDim / 100})` }}

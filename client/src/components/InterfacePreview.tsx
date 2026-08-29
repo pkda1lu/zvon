@@ -35,12 +35,23 @@ const InterfacePreview: React.FC<InterfacePreviewProps> = ({ settings, scale = 1
                 '--accent-pink': settings.customColors.accent,
                 background: isAmoled ? '#000' : '#0a0a0f',
             } as any}>
+                {/*
+                    Затемнение делается ровно так же, как в приложении (см. App.tsx):
+                    картинка в полную непрозрачность плюс чёрная плёнка поверх.
+                    Раньше предпросмотр вместо этого гасил непрозрачность самой
+                    картинки — она смешивалась с подложкой предпросмотра, а не
+                    затемнялась, и результат отличался от настоящего.
+                */}
                 {settings.customBackground && (
-                    <div className="preview-full-bg" style={{ 
-                        backgroundImage: `url(${settings.customBackground})`,
-                        opacity: 1 - ((settings.backgroundDim || 0) / 100),
-                        filter: `blur(${settings.backgroundBlur || 0}px)`
-                    }} />
+                    <>
+                        <div className="preview-full-bg" style={{
+                            backgroundImage: `url(${settings.customBackground})`,
+                            filter: settings.backgroundBlur ? `blur(${settings.backgroundBlur}px)` : undefined
+                        }} />
+                        <div className="preview-full-bg-dim" style={{
+                            backgroundColor: `rgba(0, 0, 0, ${(settings.backgroundDim || 0) / 100})`
+                        }} />
+                    </>
                 )}
                 
                 <div className="preview-layout-grid">

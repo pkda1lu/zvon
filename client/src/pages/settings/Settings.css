@@ -1704,12 +1704,27 @@ input[type=range]:disabled::-webkit-slider-thumb {
     background: #020205;
 }
 
+/*
+ * inset: -10%, как у .bg-custom в приложении: там слой фона на 10% больше
+ * экрана, поэтому видна его центральная часть, а не картинка целиком.
+ * С inset: 0 предпросмотр показывал заметно более общий план, чем выходило
+ * на деле. Соотношение сторон окна предпросмотра всё равно своё, так что
+ * кадрирование совпадает не буква в букву, но масштаб теперь тот же.
+ */
 .preview-full-bg {
     position: absolute;
-    inset: 0;
+    inset: -10%;
     background-size: cover;
     background-position: center;
     z-index: 0;
+}
+
+/* Чёрная плёнка затемнения — парная к .bg-custom-dim в приложении. */
+.preview-full-bg-dim {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    transition: background-color 0.3s ease;
 }
 
 .preview-layout-grid {

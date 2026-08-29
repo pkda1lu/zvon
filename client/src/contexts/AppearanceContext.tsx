@@ -311,10 +311,13 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         root.style.setProperty('--secondary-neon', s.customColors.secondary);
         root.style.setProperty('--accent-pink', s.customColors.accent);
 
-        if (s.customBackground && !s.performanceMode) {
+        // Режим производительности гасит размытие, но не сам фон — см. App.tsx.
+        // Раньше условие включало !performanceMode, и разметка с переменными
+        // расходились бы в том, показан фон или нет.
+        if (s.customBackground) {
             root.style.setProperty('--custom-bg-image', `url(${s.customBackground})`);
             root.style.setProperty('--custom-bg-dim', (s.backgroundDim / 100).toString());
-            root.style.setProperty('--custom-bg-blur', `${s.backgroundBlur}px`);
+            root.style.setProperty('--custom-bg-blur', s.performanceMode ? '0px' : `${s.backgroundBlur}px`);
             root.classList.add('has-custom-bg');
         } else {
             root.style.removeProperty('--custom-bg-image');
