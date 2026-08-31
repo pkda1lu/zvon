@@ -105,6 +105,7 @@ const ModerationSettings: React.FC = () => {
     // --- Витрина (модерация мини-приложений) ---
     const [mpTab, setMpTab] = useState<'pending' | 'reports' | 'approved' | 'blocked'>('pending');
     const [mpApps, setMpApps] = useState<any[]>([]);
+    const [mpThemes, setMpThemes] = useState<any[]>([]);
     const [mpReports, setMpReports] = useState<any[]>([]);
     const [mpLoading, setMpLoading] = useState(false);
 
@@ -124,9 +125,11 @@ const ModerationSettings: React.FC = () => {
                 const res = await axios.get('/api/moderation/marketplace/reports?status=pending');
                 setMpReports(res.data);
                 setMpApps([]);
+                setMpThemes([]);
             } else {
                 const res = await axios.get(`/api/moderation/marketplace?status=${tab}`);
                 setMpApps(res.data.miniApps || []);
+                setMpThemes(res.data.themes || []);
                 setMpReports([]);
             }
         } catch (err) { }
@@ -161,23 +164,36 @@ const ModerationSettings: React.FC = () => {
         } catch { }
     };
 
-    const approveApp = async (id: string) => {
-        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/approve`); fetchMarketplace(mpTab); } catch { }
+    /*
+     * Действия витрины принимают тип. Раньше он был вшит как 'miniapp' в
+     * каждый адрес, и добавить второй вид объекта было нельзя, хотя сервер
+     * работает по общей схеме /marketplace/:type/:id/...
+     */
+    type MpKind = 'miniapp' | 'theme';
+
+    const approveItem = async (kind: MpKind, id: string) => {
+        try { await axios.post(`/api/moderation/marketplace/${kind}/${id}/approve`); fetchMarketplace(mpTab); } catch { }
     };
-    const rejectApp = async (id: string) => {
-        const reason = await prompt('Причина отклонения:', 'Не соответствует правилам витрины');
+    const rejectItem = async (kind: MpKind, id: string) => {
+        const reason = await prompt('Причина отклонения:', kind === 'theme' ? 'Не соответствует правилам оформления' : 'Не соответствует правилам витрины');
         if (reason === null) return;
-        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/reject`, { reason }); fetchMarketplace(mpTab); } catch { }
+        try { await axios.post(`/api/moderation/marketplace/${kind}/${id}/reject`, { reason }); fetchMarketplace(mpTab); } catch { }
     };
-    const blockApp = async (id: string) => {
-        const reason = await prompt('Причина блокировки приложения:', 'Нарушение правил витрины');
+    const blockItem = async (kind: MpKind, id: string) => {
+        const reason = await prompt(kind === 'theme' ? 'Причина блокировки темы:' : 'Причина блокировки приложения:', 'Нарушение правил');
         if (reason === null) return;
-        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/block`, { reason }); fetchMarketplace(mpTab); } catch { }
+        try { await axios.post(`/api/moderation/marketplace/${kind}/${id}/block`, { reason }); fetchMarketplace(mpTab); } catch { }
     };
-    const unblockApp = async (id: string) => {
-        if (!(await confirm('Разблокировать приложение? Оно вернётся в черновики, владелец сможет подать его повторно.'))) return;
-        try { await axios.post(`/api/moderation/marketplace/miniapp/${id}/unblock`); fetchMarketplace(mpTab); } catch { }
+    const unblockItem = async (kind: MpKind, id: string) => {
+        if (!(await confirm('Разблокировать? Объект вернётся в черновики, автор сможет подать его повторно.'))) return;
+        try { await axios.post(`/api/moderation/marketplace/${kind}/${id}/unblock`); fetchMarketplace(mpTab); } catch { }
     };
+
+    // Прежние имена оставлены для мини-приложений — вызовы ниже не менялись.
+    const approveApp = (id: string) => approveItem('miniapp', id);
+    const rejectApp = (id: string) => rejectItem('miniapp', id);
+    const blockApp = (id: string) => blockItem('miniapp', id);
+    const unblockApp = (id: string) => unblockItem('miniapp', id);
     const resolveMpReport = async (id: string, status: 'resolved' | 'dismissed', note: string) => {
         try { await axios.post(`/api/moderation/reports/${id}/resolve`, { status, note }); fetchMarketplace(mpTab); } catch { }
     };
@@ -299,11 +315,66 @@ const ModerationSettings: React.FC = () => {
                                 </div>
                             ))
                         ) : (
-                            mpApps.length === 0 ? (
+                            /* Пусто — только когда нет ни приложений, ни тем:
+                               иначе при пустом списке приложений заглушка
+                               перекрывала бы темы, ждущие проверки. */
+                            mpApps.length === 0 && mpThemes.length === 0 ? (
                                 <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>
-                                    {mpTab === 'pending' ? 'Нет приложений на рассмотрении.' : mpTab === 'approved' ? 'Нет опубликованных приложений.' : 'Нет заблокированных приложений.'}
+                                    {mpTab === 'pending' ? 'Нет объектов на рассмотрении.' : mpTab === 'approved' ? 'Нет опубликованных объектов.' : 'Нет заблокированных объектов.'}
                                 </div>
-                            ) : mpApps.map(app => (
+                            ) : (<>
+                            {/* Темы оформления. Показываем не текст, а сами
+                                цвета и фон — проверять оформление по названию
+                                бессмысленно. */}
+                            {mpThemes.map(t => (
+                                <div key={t._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
+                                    <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginBottom: '16px' }}>
+                                        <div style={{
+                                            width: '52px', height: '52px', borderRadius: '14px', flexShrink: 0,
+                                            background: t.customBackground
+                                                ? `center / cover url(${getFullUrl(t.customBackground)})`
+                                                : (t.theme === 'amoled' ? '#000' : '#12121a'),
+                                            border: '1px solid var(--glass-border)',
+                                        }} />
+                                        <div style={{ minWidth: 0 }}>
+                                            <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '15px' }}>{t.name}</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                                                Автор: {t.creator?.username || '—'} · основа: {t.theme === 'amoled' ? 'AMOLED' : 'тёмная'}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+                                            {['primary', 'secondary', 'accent'].map(k => (
+                                                <div key={k} title={k} style={{
+                                                    width: '22px', height: '22px', borderRadius: '7px',
+                                                    background: t.customColors?.[k] || '#000',
+                                                    border: '1px solid var(--glass-border)',
+                                                }} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {t.customBackground && (
+                                        <div style={{ marginBottom: '16px', fontSize: '12px', color: 'var(--text-dim)', wordBreak: 'break-all' }}>
+                                            Фон: {t.customBackground}
+                                        </div>
+                                    )}
+                                    {t.blockReason && mpTab === 'blocked' && (
+                                        <div style={{ marginBottom: '16px', color: 'var(--danger)', fontSize: '13px' }}>Причина блокировки: {t.blockReason}</div>
+                                    )}
+                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                        {mpTab === 'pending' && (<>
+                                            <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => rejectItem('theme', t._id)}>Отклонить</button>
+                                            <button className="settings-btn success-glass" onClick={() => approveItem('theme', t._id)}>Одобрить</button>
+                                        </>)}
+                                        {mpTab === 'approved' && (
+                                            <button className="settings-btn danger-glass" onClick={() => blockItem('theme', t._id)}>Заблокировать</button>
+                                        )}
+                                        {mpTab === 'blocked' && (
+                                            <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => unblockItem('theme', t._id)}>Разблокировать</button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            {mpApps.map(app => (
                                 <div key={app._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
                                     <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginBottom: '16px' }}>
                                         {app.avatar
@@ -332,7 +403,8 @@ const ModerationSettings: React.FC = () => {
                                         )}
                                     </div>
                                 </div>
-                            ))
+                            ))}
+                            </>)
                         )}
                     </div>
                 </>

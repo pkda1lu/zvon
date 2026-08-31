@@ -52,6 +52,7 @@ router.post('/report', auth, [
     }
     if (!contentSnapshot && miniAppId) {
       const MiniApp = require('../models/MiniApp');
+const Theme = require('../models/Theme');
       const app = await MiniApp.findById(miniAppId);
       if (app) {
         contentSnapshot = {
@@ -249,7 +250,7 @@ const MiniApp = require('../models/MiniApp');
 router.get('/marketplace', auth, isModerator, async (req, res) => {
   try {
     const status = req.query.status || 'pending'; // pending | approved | rejected | blocked
-    const result = { bots: [], miniApps: [] };
+    const result = { bots: [], miniApps: [], themes: [] };
 
     if (status === 'pending') {
       result.bots = await User.find({ isBot: true, botModerationStatus: 'pending' })
@@ -257,24 +258,32 @@ router.get('/marketplace', auth, isModerator, async (req, res) => {
         .populate('owner', 'username avatar');
       result.miniApps = await MiniApp.find({ moderationStatus: 'pending', isSystem: { $ne: true } })
         .populate('owner', 'username avatar');
+      result.themes = await Theme.find({ moderationStatus: 'pending' })
+        .populate('creator', 'username avatar');
     } else if (status === 'approved') {
       result.bots = await User.find({ isBot: true, isPublished: true, botIsBlocked: { $ne: true } })
         .select('username avatar banner bio owner botModerationStatus')
         .populate('owner', 'username avatar');
       result.miniApps = await MiniApp.find({ isPublished: true, isBlocked: { $ne: true } })
         .populate('owner', 'username avatar');
+      result.themes = await Theme.find({ isPublished: true, isBlocked: { $ne: true } })
+        .populate('creator', 'username avatar');
     } else if (status === 'rejected') {
       result.bots = await User.find({ isBot: true, botModerationStatus: 'rejected' })
         .select('username avatar banner bio owner botModerationStatus botModerationReason')
         .populate('owner', 'username avatar');
       result.miniApps = await MiniApp.find({ moderationStatus: 'rejected' })
         .populate('owner', 'username avatar');
+      result.themes = await Theme.find({ moderationStatus: 'rejected' })
+        .populate('creator', 'username avatar');
     } else if (status === 'blocked') {
       result.bots = await User.find({ isBot: true, botIsBlocked: true })
         .select('username avatar banner bio owner botBlockReason')
         .populate('owner', 'username avatar');
       result.miniApps = await MiniApp.find({ isBlocked: true })
         .populate('owner', 'username avatar');
+      result.themes = await Theme.find({ isBlocked: true })
+        .populate('creator', 'username avatar');
     }
     res.json(result);
   } catch (e) {
@@ -320,6 +329,15 @@ router.post('/marketplace/:type/:id/approve', auth, isModerator, async (req, res
       app.moderatedAt = new Date();
       app.moderatedBy = req.user._id;
       await app.save();
+    } else if (type === 'theme') {
+      const theme = await Theme.findById(id);
+      if (!theme) return res.status(404).json({ message: 'Тема не найдена' });
+      theme.moderationStatus = 'approved';
+      theme.isPublished = true;
+      theme.moderationReason = null;
+      theme.moderatedAt = new Date();
+      theme.moderatedBy = req.user._id;
+      await theme.save();
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }
@@ -352,6 +370,15 @@ router.post('/marketplace/:type/:id/reject', auth, isModerator, async (req, res)
       app.moderatedAt = new Date();
       app.moderatedBy = req.user._id;
       await app.save();
+    } else if (type === 'theme') {
+      const theme = await Theme.findById(id);
+      if (!theme) return res.status(404).json({ message: 'Тема не найдена' });
+      theme.moderationStatus = 'rejected';
+      theme.isPublished = false;
+      theme.moderationReason = reason;
+      theme.moderatedAt = new Date();
+      theme.moderatedBy = req.user._id;
+      await theme.save();
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }
@@ -386,6 +413,16 @@ router.post('/marketplace/:type/:id/block', auth, isModerator, async (req, res) 
       app.moderatedAt = new Date();
       app.moderatedBy = req.user._id;
       await app.save();
+    } else if (type === 'theme') {
+      const theme = await Theme.findById(id);
+      if (!theme) return res.status(404).json({ message: 'Тема не найдена' });
+      theme.isBlocked = true;
+      theme.blockReason = reason;
+      theme.isPublished = false;
+      theme.moderationStatus = 'rejected';
+      theme.moderatedAt = new Date();
+      theme.moderatedBy = req.user._id;
+      await theme.save();
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }
@@ -413,6 +450,14 @@ router.post('/marketplace/:type/:id/unblock', auth, isModerator, async (req, res
       app.blockReason = null;
       app.moderationStatus = 'draft';
       await app.save();
+    } else if (type === 'theme') {
+      const theme = await Theme.findById(id);
+      if (!theme) return res.status(404).json({ message: 'Тема не найдена' });
+      theme.isBlocked = false;
+      theme.blockReason = null;
+      theme.moderationStatus = 'draft';
+      theme.isPublic = false;
+      await theme.save();
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }

@@ -25,7 +25,14 @@ export interface ThemeObject {
     groupSpacing: number;
     interfaceScale: number;
     isPublic?: boolean;
-    creator?: string;
+    creator?: string | { _id: string; username: string; displayName?: string; avatar?: string | null };
+    /** Состояние проверки. Публикацию даёт только модерация. */
+    moderationStatus?: 'draft' | 'pending' | 'approved' | 'rejected';
+    moderationReason?: string | null;
+    isPublished?: boolean;
+    isBlocked?: boolean;
+    installs?: number;
+    createdAt?: string;
 }
 
 export interface PageScales {
@@ -79,6 +86,13 @@ interface AppearanceContextType extends AppearanceSettings {
     saveTheme: (name: string, isPublic: boolean) => Promise<void>;
     applyTheme: (theme: ThemeObject) => void;
     deleteTheme: (id: string) => Promise<void>;
+
+    /** Общий список — только прошедшие проверку темы. */
+    publicThemes: ThemeObject[];
+    isLoadingPublic: boolean;
+    fetchPublicThemes: (query?: string) => Promise<void>;
+    /** Отправить свою тему на проверку или снять с публикации. */
+    setThemePublished: (id: string, publish: boolean) => Promise<void>;
 }
 
 const DEFAULT_CUSTOM_COLORS: CustomColors = {
@@ -137,6 +151,8 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const [savedThemes, setSavedThemes] = useState<ThemeObject[]>([]);
     const [isLoadingThemes, setIsLoadingThemes] = useState(false);
+    const [publicThemes, setPublicThemes] = useState<ThemeObject[]>([]);
+    const [isLoadingPublic, setIsLoadingPublic] = useState(false);
     const [activeThemeId, setActiveThemeId] = useState<string | null>(localStorage.getItem('active-theme-id'));
 
     const fetchSettings = useCallback(async () => {
@@ -225,6 +241,42 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             console.error('Failed to fetch themes', err);
         } finally {
             setIsLoadingThemes(false);
+        }
+    }, []);
+
+    /**
+     * Общий список тем. Отдельный запрос, а не часть своих: он нужен только
+     * когда человек открыл вкладку с чужими темами, и тянуть его при каждом
+     * входе в приложение незачем.
+     */
+    const fetchPublicThemes = useCallback(async (query?: string) => {
+        setIsLoadingPublic(true);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await axios.get('/api/themes/public', {
+                params: query ? { q: query } : undefined,
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setPublicThemes(res.data || []);
+        } catch (err) {
+            console.error('Не удалось загрузить общие темы', err);
+        } finally {
+            setIsLoadingPublic(false);
+        }
+    }, []);
+
+    const setThemePublished = useCallback(async (id: string, publish: boolean) => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await axios.post(`/api/themes/${id}/publish`, { publish }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setSavedThemes(prev => prev.map(t => t._id === id ? res.data : t));
+        } catch (err) {
+            console.error('Не удалось изменить публикацию темы', err);
+            throw err;
         }
     }, []);
 
@@ -485,6 +537,17 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     const applyTheme = (theme: ThemeObject) => {
+        // Счётчик применений у опубликованных тем — по нему строится порядок
+        // в общем списке. Ошибку глушим: не смогли посчитать — тема всё равно
+        // должна примениться.
+        if (theme._id && theme.isPublished) {
+            const token = localStorage.getItem('token');
+            if (token) {
+                axios.post(`/api/themes/${theme._id}/install`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }).catch(() => { });
+            }
+        }
         setSettings(prev => ({
             ...prev,
             theme: theme.theme,
@@ -537,6 +600,10 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             savedThemes,
             isLoadingThemes,
             activeThemeId,
+            publicThemes,
+            isLoadingPublic,
+            fetchPublicThemes,
+            setThemePublished,
             fetchThemes,
             saveTheme,
             applyTheme,

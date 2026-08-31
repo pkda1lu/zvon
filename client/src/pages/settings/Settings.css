@@ -4010,3 +4010,124 @@ input[type=range]:disabled::-webkit-slider-thumb {
 
 
 
+
+
+/* ==========================================================================
+   Общие темы и состояние проверки
+   ========================================================================== */
+
+.themes-gallery-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.themes-search {
+    margin-left: auto;
+    max-width: 260px;
+}
+
+.themes-empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+/* Автор чужой темы — подпись под названием. */
+.theme-author {
+    padding: 0 10px 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.theme-moderation {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 0 10px 10px;
+}
+
+.theme-badge {
+    padding: 2px 8px;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+/* На проверке — нейтрально: это ожидание, а не проблема. */
+.theme-badge.pending {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--text-dim);
+}
+
+.theme-badge.approved {
+    background: color-mix(in srgb, var(--primary-neon) 18%, transparent);
+    color: #fff;
+}
+
+.theme-badge.rejected {
+    background: rgba(242, 63, 66, 0.14);
+    color: #ff8f91;
+}
+
+/* Причина отклонения: одна строка, полностью — в подсказке при наведении. */
+.theme-reject-reason {
+    font-size: 10px;
+    line-height: 1.3;
+    color: var(--text-dim);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.theme-publish-btn {
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+    background: transparent;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.theme-publish-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: color-mix(in srgb, var(--primary-neon) 45%, transparent);
+}
+
+/* Выбор источника фона */
+.bg-source-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.settings-hint {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-dim);
+}
+
+.settings-error {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(242, 63, 66, 0.1);
+    border: 1px solid rgba(242, 63, 66, 0.24);
+    color: #ff8f91;
+    font-size: 12px;
+}
