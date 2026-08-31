@@ -62,6 +62,40 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+/**
+ * Включить или отключить уведомления по переписке.
+ *
+ * Хранится у пользователя, а не у чата: настройка личная, и участники одного
+ * и того же диалога решают за себя.
+ *
+ * Непрочитанные при этом продолжают считаться — глушится только оповещение.
+ * Иначе чат тихо уезжал бы вниз списка, и человек не понимал бы, что ему
+ * вообще писали.
+ */
+router.post('/:id/mute', auth, async (req, res) => {
+  try {
+    const { muted } = req.body || {};
+    const dm = await DirectMessage.findById(req.params.id).select('participants');
+    if (!dm) return res.status(404).json({ message: 'DM not found' });
+    if (!dm.participants.some(p => p.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const id = dm._id.toString();
+    const current = (req.user.mutedDMs || []).map(x => x.toString());
+    const next = muted
+      ? (current.includes(id) ? current : [...current, id])
+      : current.filter(x => x !== id);
+
+    req.user.mutedDMs = next;
+    await req.user.save();
+    res.json({ muted: !!muted });
+  } catch (error) {
+    console.error('[dm] переключение уведомлений:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.get('/:id', auth, async (req, res) => {
   try {
     const dm = await DirectMessage.findById(req.params.id).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });

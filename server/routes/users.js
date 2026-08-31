@@ -239,6 +239,25 @@ router.post('/block', auth, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+/**
+ * Чёрный список текущего пользователя.
+ *
+ * Отдаём минимум полей: список нужен, чтобы человека узнать и разблокировать,
+ * а не чтобы разглядывать профиль. Заблокированные записи могли быть удалены
+ * или обезличены — populate вернёт для них null, такие отсеиваем.
+ */
+router.get('/blocked', auth, async (req, res) => {
+  try {
+    const me = await User.findById(req.user._id)
+      .select('blockedUsers')
+      .populate({ path: 'blockedUsers', select: 'username displayName avatar' });
+    res.json((me?.blockedUsers || []).filter(Boolean));
+  } catch (error) {
+    console.error('[users] чёрный список:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post('/unblock', auth, async (req, res) => {
   try {
     const { userId } = req.body;

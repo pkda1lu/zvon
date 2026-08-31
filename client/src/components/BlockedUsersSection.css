@@ -1,0 +1,77 @@
+.blocked-section {
+    margin-top: 24px;
+}
+
+.blocked-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--header-primary, #fff);
+}
+
+.blocked-description {
+    margin: 0 0 16px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-dim);
+}
+
+.blocked-empty {
+    padding: 18px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+}
+
+.blocked-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.blocked-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+}
+
+.blocked-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.blocked-unblock {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.blocked-unblock:hover:not(:disabled) {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: color-mix(in srgb, var(--primary-neon) 45%, transparent);
+}
+
+.blocked-unblock:disabled {
+    opacity: 0.5;
+    cursor: default;
+}

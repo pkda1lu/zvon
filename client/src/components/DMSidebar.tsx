@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DirectMessage, User, Server } from '../types';
-import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, ChatIcon } from './Icons';
+import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, ChatIcon, BellOffIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import ActiveContacts from './ActiveContacts';
+import DMContextMenu from './DMContextMenu';
 import { useAppearance } from '../contexts/AppearanceContext';
 import './panel-hero.css';
 import './DMSidebar.css';
@@ -155,6 +156,27 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
         () => Object.values(unreadCounts).reduce((a, n) => a + (n || 0), 0),
         [unreadCounts]);
 
+    const [menu, setMenu] = useState<{ dm: DirectMessage; x: number; y: number } | null>(null);
+
+    /*
+     * Приглушённые переписки. Инициализируем из профиля, дальше держим локально:
+     * ответ сервера подтверждает запись, но перезапрашивать весь профиль ради
+     * одного переключателя незачем — галочка должна отзываться сразу.
+     */
+    const [mutedIds, setMutedIds] = useState<Set<string>>(
+        () => new Set((currentUser.mutedDMs || []).map(String)));
+    useEffect(() => {
+        setMutedIds(new Set((currentUser.mutedDMs || []).map(String)));
+    }, [currentUser.mutedDMs]);
+
+    const handleToggleMute = useCallback((dm: DirectMessage, muted: boolean) => {
+        setMutedIds(prev => {
+            const next = new Set(prev);
+            if (muted) next.add(dm._id); else next.delete(dm._id);
+            return next;
+        });
+    }, []);
+
     const [modExpanded, setModExpanded] = useState(false);
     // Авто-разворачиваем хаб, когда выбран один из чатов модерации.
     useEffect(() => { if (isModerationSelected) setModExpanded(true); }, [isModerationSelected]);
@@ -174,12 +196,14 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
         const displayName = maskModeration ? 'Модерация' : (dm.name || (isGroup ? otherParticipants.map(p => p.displayName || p.username).join(', ') : (otherUser?.displayName || otherUser?.username)));
         const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? null : otherUser);
         const preview = buildPreview(dm, currentUser._id, isGroup, maskModeration);
+        const isDmMuted = mutedIds.has(dm._id);
 
         return (
             <div
                 key={dm._id}
-                className={`dm-item ${sub ? 'dm-subitem' : ''} ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''} ${isGroup ? 'group-dm' : ''}`}
+                className={`dm-item ${sub ? 'dm-subitem' : ''} ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''} ${isGroup ? 'group-dm' : ''} ${isDmMuted ? 'muted' : ''}`}
                 onClick={() => onDMSelect(dm)}
+                onContextMenu={(e) => { e.preventDefault(); setMenu({ dm, x: e.clientX, y: e.clientY }); }}
             >
                 <div className="dm-avatar-wrap">
                     <UserAvatar
@@ -211,8 +235,13 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                             : <span className="dm-preview-empty">Нет сообщений</span>}
                     </span>
                 </div>
+                {/* У приглушённого чата счётчик приглушён же: непрочитанное
+                    видно, но не притягивает взгляд наравне с остальными. */}
                 {unreadCount > 0 && (
-                    <div className="dm-unread-badge">{unreadCount}</div>
+                    <div className={`dm-unread-badge ${isDmMuted ? 'muted' : ''}`}>{unreadCount}</div>
+                )}
+                {isDmMuted && unreadCount === 0 && (
+                    <BellOffIcon size={14 * interfaceScale} className="dm-muted-icon" />
                 )}
                 {onDeleteDM && (
                     <button
@@ -368,6 +397,30 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 )}
             </div>
             <VoiceControlPanel />
+
+            {menu && (() => {
+                // Собеседник для действий над человеком. У групп его нет, а у
+                // чата «от имени модерации» скрываем намеренно: блокировать
+                // модерацию — значит отрезать себе канал обращений.
+                const mid = getModeratorId(menu.dm);
+                const isGroup = menu.dm.participants.length > 2 || !!menu.dm.name;
+                const other = (isGroup || mid)
+                    ? null
+                    : menu.dm.participants.find(p => p._id !== currentUser._id) || null;
+                return (
+                    <DMContextMenu
+                        dm={menu.dm}
+                        x={menu.x}
+                        y={menu.y}
+                        otherUser={other}
+                        isMuted={mutedIds.has(menu.dm._id)}
+                        onToggleMute={handleToggleMute}
+                        onDelete={onDeleteDM}
+                        onOpenProfile={onUserClick}
+                        onClose={() => setMenu(null)}
+                    />
+                );
+            })()}
         </div>
     );
 };

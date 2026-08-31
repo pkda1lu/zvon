@@ -514,6 +514,39 @@
     opacity: 0.8;
 }
 
+/* --- Приглушённые переписки --- */
+
+/* Имя тусклее: чат на месте, но в списке не спорит за внимание. */
+.dm-item.muted .dm-name,
+.dm-item.muted .dm-preview {
+    opacity: 0.55;
+}
+
+.dm-muted-icon {
+    flex-shrink: 0;
+    color: var(--text-dim);
+    opacity: 0.6;
+}
+
+/* Непрочитанное в приглушённом чате не подсвечиваем полосой и подложкой —
+   иначе отключение уведомлений теряет смысл. Счётчик остаётся. */
+.dm-item.unread.muted {
+    background: none;
+}
+
+.dm-item.unread.muted::before {
+    display: none;
+}
+
+.dm-item.unread.muted .dm-preview,
+.dm-item.unread.muted .dm-preview-author {
+    font-weight: 400;
+}
+
+.dm-item.unread.muted .dm-time {
+    color: var(--text-dim);
+}
+
 .dm-unread-badge {
     background: var(--accent-pink);
     color: white;
@@ -526,6 +559,12 @@
     font-size: calc(10px * var(--interface-scale, 1));
     font-weight: 800;
     box-shadow: 0 0 10px var(--accent-pink);
+}
+
+.dm-unread-badge.muted {
+    background: rgba(255, 255, 255, 0.16);
+    color: var(--text-dim);
+    box-shadow: none;
 }
 
 .status-indicator {

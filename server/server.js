@@ -810,6 +810,10 @@ io.on('connection', (socket) => {
             : (dm.name ? `${authorName} · ${dm.name}` : authorName);
           dm.participants.forEach(p => {
             if (String(p._id) === String(socket.userId)) return;
+            // Уведомления по этой переписке отключены получателем — не шлём.
+            // Проверяем здесь, а не на клиенте: push доставляется системой, и
+            // до кода приложения он бы дошёл уже показанным.
+            if ((p.mutedDMs || []).some(id => String(id) === String(data.dmId))) return;
             pushIfOffline(p._id, {
               title: dmTitle,
               body: previewText(message.content),

@@ -70,6 +70,13 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  // Переписки с отключёнными уведомлениями. Непрочитанные в них по-прежнему
+  // считаются — глушится только оповещение: звук, всплывающее окно и push.
+  // Так чат остаётся видно в списке, но он не дёргает.
+  mutedDMs: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DirectMessage'
+  }],
   notes: {
     type: Map,
     of: String, // Key is target ID (user, etc.), value is the note
