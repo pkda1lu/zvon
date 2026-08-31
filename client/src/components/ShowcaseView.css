@@ -6,7 +6,10 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
-  background: linear-gradient(180deg, rgba(8, 8, 14, 0.45), rgba(4, 4, 10, 0.65));
+  /* Витрина использует ту же подложку, что и панели. */
+  background: linear-gradient(180deg,
+    var(--panel-overlay-top, rgba(8, 8, 14, 0.45)),
+    var(--panel-overlay-bottom, rgba(4, 4, 10, 0.65)));
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.06));
   border-radius: var(--corner-radius, calc(18px * var(--interface-scale, 1)));
 }

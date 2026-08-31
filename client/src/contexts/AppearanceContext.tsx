@@ -59,6 +59,12 @@ interface AppearanceSettings {
     customBackground: string;
     backgroundDim: number; // 0 to 100
     backgroundBlur: number; // 0 to 20
+    /**
+     * Плотность подложек интерфейса, проценты. 100 — вид по умолчанию.
+     * Не входит в тему: это личная настройка удобства, как масштаб, а не
+     * часть оформления, которым делятся.
+     */
+    glassOpacity: number;
 }
 
 interface AppearanceContextType extends AppearanceSettings {
@@ -75,6 +81,7 @@ interface AppearanceContextType extends AppearanceSettings {
     setCustomBackground: (url: string) => void;
     setBackgroundDim: (value: number) => void;
     setBackgroundBlur: (value: number) => void;
+    setGlassOpacity: (value: number) => void;
     setScreenReader: (enabled: boolean) => void;
     resetCustomTheme: () => void;
     
@@ -129,7 +136,8 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 customColors: parsed.customColors || { ...DEFAULT_CUSTOM_COLORS },
                 customBackground: parsed.customBackground || '',
                 backgroundDim: parsed.backgroundDim ?? 40,
-                backgroundBlur: parsed.backgroundBlur ?? 0
+                backgroundBlur: parsed.backgroundBlur ?? 0,
+                glassOpacity: parsed.glassOpacity ?? 100
             };
         }
         return {
@@ -148,6 +156,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             customBackground: '',
             backgroundDim: 40,
             backgroundBlur: 0,
+            glassOpacity: 100,
         };
     });
 
@@ -187,6 +196,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     customBackground: s.customBackground ?? prev.customBackground,
                     backgroundDim: s.backgroundDim ?? prev.backgroundDim,
                     backgroundBlur: s.backgroundBlur ?? prev.backgroundBlur,
+                    glassOpacity: s.glassOpacity ?? prev.glassOpacity,
                 }));
             }
         } catch (err) {
@@ -215,6 +225,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         customBackground: newSettings.customBackground,
                         backgroundDim: newSettings.backgroundDim,
                         backgroundBlur: newSettings.backgroundBlur,
+                        glassOpacity: newSettings.glassOpacity,
                     },
                     accessibility: {
                         screenReader: newSettings.screenReader,
@@ -335,31 +346,51 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const root = document.documentElement;
         root.dataset.theme = s.theme;
 
+        /*
+         * Плотность «стекла» — подложек панелей, карточек и строк.
+         *
+         * Множитель применяется к прозрачности разом: переменные --glass-*
+         * читают около двухсот правил по всему приложению, поэтому одна точка
+         * настройки достаёт до всего интерфейса, а не до отдельного экрана.
+         *
+         * 100 — вид по умолчанию. Меньше — панели растворяются в фоне (заметно
+         * при своей картинке), больше — становятся плотнее и читаемее.
+         * Верхний предел не даёт довести подложку до непрозрачной: интерфейс
+         * должен оставаться стеклянным.
+         */
+        const k = Math.max(0, Math.min(250, s.glassOpacity ?? 100)) / 100;
+        const glass = (base: number) => `rgba(255, 255, 255, ${(base * k).toFixed(4)})`;
+
         if (s.theme === 'dark') {
             root.style.setProperty('--bg-primary', '#36393f');
             root.style.setProperty('--bg-dark', '#020205');
-            root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.04)');
-            root.style.setProperty('--glass-bg-subtle', 'rgba(255, 255, 255, 0.02)');
-            root.style.setProperty('--glass-bg-active', 'rgba(255, 255, 255, 0.1)');
-            root.style.setProperty('--glass-bg-accent', 'rgba(255, 255, 255, 0.05)');
-            root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.08)');
+            root.style.setProperty('--glass-bg', glass(0.04));
+            root.style.setProperty('--glass-bg-subtle', glass(0.02));
+            root.style.setProperty('--glass-bg-active', glass(0.1));
+            root.style.setProperty('--glass-bg-accent', glass(0.05));
+            root.style.setProperty('--glass-border', glass(0.08));
             root.style.setProperty('--text-main', '#ffffff');
             root.style.setProperty('--text-dim', 'rgba(255, 255, 255, 0.45)');
             root.style.setProperty('--header-primary', '#ffffff');
-            root.style.setProperty('--border-divider', 'rgba(255, 255, 255, 0.06)');
+            root.style.setProperty('--border-divider', glass(0.06));
         } else if (s.theme === 'amoled') {
             root.style.setProperty('--bg-primary', '#000000');
             root.style.setProperty('--bg-dark', '#000000');
-            root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.04)');
-            root.style.setProperty('--glass-bg-subtle', 'rgba(255, 255, 255, 0.02)');
-            root.style.setProperty('--glass-bg-active', 'rgba(255, 255, 255, 0.08)');
-            root.style.setProperty('--glass-bg-accent', 'rgba(255, 255, 255, 0.04)');
-            root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.1)');
+            root.style.setProperty('--glass-bg', glass(0.04));
+            root.style.setProperty('--glass-bg-subtle', glass(0.02));
+            root.style.setProperty('--glass-bg-active', glass(0.08));
+            root.style.setProperty('--glass-bg-accent', glass(0.04));
+            root.style.setProperty('--glass-border', glass(0.1));
             root.style.setProperty('--text-main', '#ffffff');
             root.style.setProperty('--text-dim', 'rgba(255, 255, 255, 0.5)');
             root.style.setProperty('--header-primary', '#ffffff');
-            root.style.setProperty('--border-divider', 'rgba(255, 255, 255, 0.1)');
+            root.style.setProperty('--border-divider', glass(0.1));
         }
+
+        // Тёмная подложка панелей (.panel-hero) — та же настройка. Без неё
+        // ползунок не влиял бы на самое заметное: фон боковых панелей.
+        root.style.setProperty('--panel-overlay-top', `rgba(8, 8, 14, ${(0.45 * k).toFixed(4)})`);
+        root.style.setProperty('--panel-overlay-bottom', `rgba(4, 4, 10, ${(0.65 * k).toFixed(4)})`);
 
         root.style.setProperty('--primary-neon', s.customColors.primary);
         root.style.setProperty('--secondary-neon', s.customColors.secondary);
@@ -492,6 +523,8 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setSettings(prev => ({ ...prev, backgroundDim }));
         setActiveThemeId(null);
     };
+    const setGlassOpacity = (glassOpacity: number) => setSettings(prev => ({ ...prev, glassOpacity }));
+
     const setBackgroundBlur = (backgroundBlur: number) => {
         setSettings(prev => ({ ...prev, backgroundBlur }));
         setActiveThemeId(null);
@@ -651,6 +684,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setCustomBackground,
             setBackgroundDim,
             setBackgroundBlur,
+            setGlassOpacity,
             resetCustomTheme,
             
             savedThemes,

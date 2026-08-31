@@ -118,6 +118,7 @@ const AppearanceSettings: React.FC = () => {
         appIcon, setAppIcon,
         customColors, setCustomColors,
         customBackground, setCustomBackground,
+        glassOpacity, setGlassOpacity,
         backgroundDim, setBackgroundDim,
         backgroundBlur, setBackgroundBlur,
         resetCustomTheme,
@@ -489,6 +490,34 @@ const AppearanceSettings: React.FC = () => {
                         </div>
                     )}
                 </div>}
+
+                {/*
+                    Плотность подложек. Не входит в тему намеренно: это личная
+                    настройка удобства, как масштаб интерфейса, а не часть
+                    оформления, которым делятся. Поэтому доступна всегда, в том
+                    числе при системной теме.
+                */}
+                <div className="settings-card">
+                    <h3 className="settings-section-title" style={{ marginTop: 0 }}>Плотность интерфейса</h3>
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <h3>Непрозрачность панелей</h3>
+                            <p>
+                                Насколько плотными выглядят панели, карточки и строки.
+                                Меньше — сильнее просвечивает фон, больше — чётче видно содержимое.
+                                100% — вид по умолчанию.
+                            </p>
+                        </div>
+                        <RangeSlider
+                            value={glassOpacity}
+                            min={0}
+                            max={250}
+                            step={5}
+                            unit="%"
+                            onChange={setGlassOpacity}
+                        />
+                    </div>
+                </div>
 
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Иконка приложения</h3>

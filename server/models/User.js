@@ -239,6 +239,11 @@ const userSchema = new mongoose.Schema({
       customBackground: { type: String, default: '' },
       backgroundDim: { type: Number, default: 40 },
       backgroundBlur: { type: Number, default: 0 },
+      // Плотность подложек интерфейса, проценты. 100 — вид по умолчанию.
+      // Схема здесь строгая, поэтому поле обязано быть объявлено: иначе
+      // mongoose молча выбросил бы его, и настройка не переносилась бы
+      // между устройствами.
+      glassOpacity: { type: Number, default: 100, min: 0, max: 250 },
       deviceScales: { type: mongoose.Schema.Types.Mixed, default: {} }
     },
     chat: {

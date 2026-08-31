@@ -11,7 +11,11 @@
   /* Light overlay so the user's custom background (if any) reads through.
      Matches the FriendsPanel look. Don't add backdrop-filter here — the
      gradient alone is enough; doubling it with blur makes the panel opaque. */
-  background: linear-gradient(180deg, rgba(8, 8, 14, 0.45), rgba(4, 4, 10, 0.65));
+  /* Прозрачность подложки регулируется настройкой «Плотность интерфейса»
+     (см. AppearanceContext). Значения по умолчанию — прежние. */
+  background: linear-gradient(180deg,
+    var(--panel-overlay-top, rgba(8, 8, 14, 0.45)),
+    var(--panel-overlay-bottom, rgba(4, 4, 10, 0.65)));
 }
 
 .panel-hero-bg {

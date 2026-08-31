@@ -52,7 +52,6 @@ router.post('/report', auth, [
     }
     if (!contentSnapshot && miniAppId) {
       const MiniApp = require('../models/MiniApp');
-const Theme = require('../models/Theme');
       const app = await MiniApp.findById(miniAppId);
       if (app) {
         contentSnapshot = {
@@ -245,6 +244,7 @@ router.post('/reports/:id/unresolve', [auth, isModerator], async (req, res) => {
 
 // === Marketplace moderation: bots & mini-apps =============================
 const MiniApp = require('../models/MiniApp');
+const Theme = require('../models/Theme');
 
 // List all pending publication requests + currently approved (for blocking).
 router.get('/marketplace', auth, isModerator, async (req, res) => {
