@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
-import PersonalDataSection from '../../components/PersonalDataSection';
 import BlockedUsersSection from '../../components/BlockedUsersSection';
 
 const PrivacySettings: React.FC = () => {
@@ -172,9 +171,6 @@ const PrivacySettings: React.FC = () => {
 
             {/* Чёрный список: блокировка ставится из меню переписки, снимается здесь. */}
             <BlockedUsersSection />
-
-            {/* Права субъекта персональных данных: выгрузка, согласия, удаление. */}
-            <PersonalDataSection />
         </div>
     );
 };

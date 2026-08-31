@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { SettingsToggle } from './SettingsUI';
@@ -6,6 +6,21 @@ import { useDialog } from '../../contexts/DialogContext';
 import { MailIcon, LockIcon, TrashIcon, CheckIcon, CloseIcon } from '../../components/Icons';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { motion, AnimatePresence } from 'framer-motion';
+
+interface ConsentRecord {
+    _id: string;
+    purpose: string;
+    documentVersion: string;
+    granted: boolean;
+    grantedAt: string;
+    revokedAt: string | null;
+}
+
+const PURPOSE_LABELS: Record<string, string> = {
+    personal_data: 'Обработка персональных данных',
+    cross_border: 'Трансграничная передача',
+    marketing: 'Информационные и рекламные сообщения',
+};
 
 const AccountSettings: React.FC = () => {
     const { user, refreshUser, logout } = useAuth();
@@ -21,10 +36,67 @@ const AccountSettings: React.FC = () => {
     const [isPasswordLoading, setIsPasswordLoading] = useState(false);
     
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deletePassword, setDeletePassword] = useState('');
     const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    // Personal data state
+    const [consents, setConsents] = useState<ConsentRecord[]>([]);
+    const [personalDataBusy, setPersonalDataBusy] = useState(false);
+    const [personalDataMessage, setPersonalDataMessage] = useState<string | null>(null);
+    const [personalDataError, setPersonalDataError] = useState<string | null>(null);
 
     const shouldCensor = streamerModeEnabled && censorInfo;
+
+    const loadConsents = useCallback(async () => {
+        try {
+            const { data } = await axios.get('/api/personal-data/consents');
+            setConsents(Array.isArray(data) ? data : []);
+        } catch {
+            // Отсутствие истории согласий не повод показывать ошибку на всю страницу.
+        }
+    }, []);
+
+    useEffect(() => {
+        loadConsents();
+    }, [loadConsents]);
+
+    const handleExport = async () => {
+        setPersonalDataBusy(true);
+        setPersonalDataError(null);
+        setPersonalDataMessage(null);
+        try {
+            const res = await axios.get('/api/personal-data/export', { responseType: 'blob' });
+            const url = URL.createObjectURL(new Blob([res.data], { type: 'application/json' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'zvon-мои-данные.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            setPersonalDataMessage('Файл с вашими данными загружен.');
+        } catch {
+            setPersonalDataError('Не удалось сформировать выгрузку. Попробуйте позже.');
+        } finally {
+            setPersonalDataBusy(false);
+        }
+    };
+
+    const handleRevokeMarketing = async () => {
+        setPersonalDataBusy(true);
+        setPersonalDataError(null);
+        setPersonalDataMessage(null);
+        try {
+            await axios.post('/api/personal-data/consents/revoke', { purpose: 'marketing' });
+            setPersonalDataMessage('Согласие на рассылку отозвано.');
+            await loadConsents();
+        } catch {
+            setPersonalDataError('Не удалось отозвать согласие.');
+        } finally {
+            setPersonalDataBusy(false);
+        }
+    };
 
     // Check username availability as user types
     useEffect(() => {
@@ -123,19 +195,27 @@ const AccountSettings: React.FC = () => {
     };
 
     const handleDeleteAccountAction = async () => {
-        if (deleteConfirmText !== user?.username) {
-            setDeleteError('Введенный никнейм не совпадает');
+        if (!deletePassword) {
+            setDeleteError('Введите пароль');
             return;
         }
 
+        setIsDeleting(true);
+        setDeleteError(null);
         try {
-            await axios.delete('/api/users/me');
+            await axios.post('/api/personal-data/delete-account', {
+                password: deletePassword
+            });
             await logout();
             window.location.href = '/';
-        } catch (err) {
-            setDeleteError('Ошибка при удалении аккаунта');
+        } catch (err: any) {
+            setDeleteError(err?.response?.data?.message || 'Не удалось удалить учётную запись.');
+        } finally {
+            setIsDeleting(false);
         }
     };
+
+    const hasMarketing = consents.some(c => c.purpose === 'marketing' && c.granted && !c.revokedAt);
 
     return (
         <div className="settings-content-inner">
@@ -209,6 +289,54 @@ const AccountSettings: React.FC = () => {
                 </div>
             </div>
 
+            <div className="settings-card">
+                <h3 className="settings-section-title" style={{ marginTop: 0 }}>Мои персональные данные</h3>
+
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h3>Выгрузить мои данные</h3>
+                        <p>
+                            Файл со сведениями, которые о вас хранятся: профиль, сессии и устройства,
+                            согласия, ваши сообщения. Сообщения других пользователей в выгрузку не входят.
+                        </p>
+                    </div>
+                    <button className="settings-btn" disabled={personalDataBusy} onClick={handleExport}>
+                        Скачать
+                    </button>
+                </div>
+
+                {consents.length > 0 && (
+                    <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12, display: 'block' }}>
+                        <div className="settings-row-text">
+                            <h3>Выданные согласия</h3>
+                        </div>
+                        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-dim)' }}>
+                            {consents.map(c => (
+                                <div key={c._id} style={{ padding: '4px 0' }}>
+                                    {PURPOSE_LABELS[c.purpose] || c.purpose}
+                                    {' — редакция '}{c.documentVersion}
+                                    {', '}{new Date(c.grantedAt).toLocaleDateString('ru-RU')}
+                                    {c.revokedAt || !c.granted ? ' (отозвано)' : ''}
+                                </div>
+                            ))}
+                        </div>
+                        {hasMarketing && (
+                            <button className="settings-btn" disabled={personalDataBusy} onClick={handleRevokeMarketing} style={{ marginTop: 12 }}>
+                                Отозвать согласие на рассылку
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {(personalDataMessage || personalDataError) && (
+                    <div className="settings-row-text" style={{ marginTop: 12 }}>
+                        <p style={{ color: personalDataError ? 'var(--danger)' : 'var(--text-dim)' }}>
+                            {personalDataError || personalDataMessage}
+                        </p>
+                    </div>
+                )}
+            </div>
+
             <div className="settings-card" style={{ border: '1px solid rgba(255, 71, 87, 0.2)', background: 'rgba(255, 71, 87, 0.02)' }}>
                 <div className="settings-row">
                     <div className="settings-row-text">
@@ -246,15 +374,17 @@ const AccountSettings: React.FC = () => {
                                     <li>Ваш уникальный никнейм освободится</li>
                                     <li>Все сообщения, сервера и друзья будут удалены</li>
                                 </ul>
-                                <p style={{ fontSize: '13px', marginBottom: '8px' }}>Для подтверждения введите ваш никнейм <strong>{user?.username}</strong>:</p>
+                                <p style={{ fontSize: '13px', marginBottom: '8px' }}>Для подтверждения введите пароль от аккаунта:</p>
                                 <input 
+                                    type="password"
                                     className={`settings-input ${deleteError ? 'error' : ''}`}
-                                    value={deleteConfirmText}
+                                    value={deletePassword}
                                     onChange={e => {
-                                        setDeleteConfirmText(e.target.value);
+                                        setDeletePassword(e.target.value);
                                         setDeleteError(null);
                                     }}
-                                    placeholder="Введите никнейм..."
+                                    placeholder="Введите пароль..."
+                                    autoComplete="current-password"
                                     autoFocus
                                 />
                                 {deleteError && (
@@ -264,15 +394,24 @@ const AccountSettings: React.FC = () => {
                                 )}
                             </div>
                             <div className="custom-dialog-actions">
-                                <button className="custom-dialog-button cancel" onClick={() => setShowDeleteModal(false)}>
+                                <button 
+                                    className="custom-dialog-button cancel" 
+                                    disabled={isDeleting}
+                                    onClick={() => {
+                                        setShowDeleteModal(false);
+                                        setDeletePassword('');
+                                        setDeleteError(null);
+                                    }}
+                                >
                                     Отмена
                                 </button>
                                 <button 
                                     className="custom-dialog-button confirm" 
                                     style={{ background: 'var(--danger)' }}
+                                    disabled={isDeleting || !deletePassword}
                                     onClick={handleDeleteAccountAction}
                                 >
-                                    Удалить навсегда
+                                    {isDeleting ? 'Удаление...' : 'Удалить навсегда'}
                                 </button>
                             </div>
                         </motion.div>

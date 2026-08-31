@@ -231,11 +231,7 @@ router.post('/consents/revoke', auth, async (req, res) => {
  */
 router.post('/delete-account', auth, async (req, res) => {
   try {
-    const { password, confirm } = req.body || {};
-
-    if (confirm !== 'УДАЛИТЬ') {
-      return res.status(400).json({ message: 'Для подтверждения введите слово УДАЛИТЬ' });
-    }
+    const { password } = req.body || {};
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
