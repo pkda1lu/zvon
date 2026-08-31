@@ -1237,6 +1237,36 @@ const Main: React.FC = () => {
     if (!socket || !user) return;
     const s = socket;
     const handleGlobalMessage = (message: Message) => {
+      // Личный чат поднимается наверх при любом новом сообщении — включая своё:
+      // ответил человеку, и переписка встала первой, как и ожидаешь.
+      //
+      // Меняем только updatedAt, а порядок собирает DMSidebar. Так остаётся один
+      // источник правды: сервер тоже сортирует по этому полю и обновляет его при
+      // отправке. Раньше setDms при новом сообщении не вызывался вовсе, и список
+      // стоял в том порядке, в котором пришёл при загрузке, до перезахода.
+      if (message.directMessage) {
+        setDms((prev: DirectMessage[]) => {
+          const i = prev.findIndex((d: DirectMessage) => d._id === message.directMessage);
+          if (i === -1) return prev;
+          const next = [...prev];
+          next[i] = {
+            ...next[i],
+            updatedAt: message.createdAt || new Date().toISOString(),
+            // Превью обновляем здесь же: иначе в списке висел бы прошлый текст
+            // до перезагрузки, хотя чат уже поднялся наверх.
+            lastMessage: {
+              content: message.content || '',
+              createdAt: message.createdAt || new Date().toISOString(),
+              authorId: message.author?._id || null,
+              authorName: message.author?.displayName || message.author?.username || null,
+              attachmentCount: message.attachments?.length || 0,
+              type: (message as any).type || 'default',
+            },
+          };
+          return next;
+        });
+      }
+
       if (message.author._id !== user._id) {
         const isSelected = (selectedChannel && message.channel === selectedChannel._id) || (selectedDM && message.directMessage === selectedDM._id);
 
@@ -1645,6 +1675,7 @@ const Main: React.FC = () => {
                     friends={friends}
                     servers={servers}
                     onUserClick={handleUserClick}
+                    onStartDM={handleStartDM}
                   />
                 </motion.div>
               )}

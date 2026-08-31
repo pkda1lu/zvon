@@ -317,4 +317,13 @@ export interface DirectMessage {
   moderator?: string | { _id: string } | null;
   createdAt: string;
   updatedAt: string;
+  /** Превью последнего сообщения для списка переписок. Приходит с сервера. */
+  lastMessage?: {
+    content: string;
+    createdAt: string;
+    authorId: string | null;
+    authorName: string | null;
+    attachmentCount: number;
+    type: string;
+  } | null;
 }

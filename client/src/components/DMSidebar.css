@@ -75,6 +75,156 @@
     letter-spacing: 0.5px;
 }
 
+/* --- Вкладки «Чаты» / «Друзья» --- */
+
+.dm-tabs {
+    display: flex;
+    align-items: center;
+    gap: calc(4px * var(--interface-scale, 1));
+    padding: 0 calc(14px * var(--interface-scale, 1));
+    margin-bottom: calc(12px * var(--interface-scale, 1));
+}
+
+.dm-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(6px * var(--interface-scale, 1));
+    padding: calc(8px * var(--interface-scale, 1)) calc(10px * var(--interface-scale, 1));
+    border: 1px solid transparent;
+    border-radius: calc(11px * var(--interface-scale, 1));
+    background: transparent;
+    color: var(--text-dim);
+    font-size: calc(13px * var(--interface-scale, 1));
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.dm-tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.dm-tab.active {
+    background: color-mix(in srgb, var(--primary-neon) 16%, transparent);
+    border-color: color-mix(in srgb, var(--primary-neon) 35%, transparent);
+    color: #fff;
+}
+
+/* Непрочитанные — розовым, как счётчик у чата: один смысл, один цвет.
+   Число друзей — нейтральное, это просто количество. */
+.dm-tab-badge,
+.dm-tab-count {
+    min-width: calc(18px * var(--interface-scale, 1));
+    height: calc(18px * var(--interface-scale, 1));
+    padding: 0 calc(5px * var(--interface-scale, 1));
+    border-radius: calc(9px * var(--interface-scale, 1));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(10px * var(--interface-scale, 1));
+    font-weight: 800;
+}
+
+.dm-tab-badge {
+    background: var(--accent-pink);
+    color: #fff;
+}
+
+.dm-tab-count {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-dim);
+}
+
+.dm-tab.active .dm-tab-count {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
+
+/* --- Превью последнего сообщения --- */
+
+.dm-preview {
+    display: block;
+    font-size: calc(12px * var(--interface-scale, 1));
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-preview-author {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.dm-preview-empty {
+    font-style: italic;
+    opacity: 0.5;
+}
+
+/* У непрочитанного текст ярче — строка читается первой. */
+.dm-item.unread .dm-preview,
+.dm-item.unread .dm-preview-author {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 600;
+}
+
+.dm-time {
+    margin-left: auto;
+    padding-left: calc(8px * var(--interface-scale, 1));
+    flex-shrink: 0;
+    font-size: calc(10px * var(--interface-scale, 1));
+    color: var(--text-dim);
+    font-weight: 600;
+}
+
+.dm-item.unread .dm-time {
+    color: var(--primary-neon);
+}
+
+/* --- Вкладка друзей --- */
+
+.dm-friends-all {
+    width: 100%;
+    margin-bottom: calc(8px * var(--interface-scale, 1));
+    padding: calc(10px * var(--interface-scale, 1));
+    border: 1px dashed var(--glass-border, rgba(255, 255, 255, 0.12));
+    border-radius: calc(12px * var(--interface-scale, 1));
+    background: transparent;
+    color: var(--text-dim);
+    font-size: calc(12px * var(--interface-scale, 1));
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.dm-friends-all:hover {
+    color: #fff;
+    border-color: color-mix(in srgb, var(--primary-neon) 45%, transparent);
+}
+
+/* Подсказка, что строка ведёт в переписку. Появляется при наведении —
+   постоянно висящая иконка у каждого друга была бы шумом. */
+.friend-dm-hint {
+    flex-shrink: 0;
+    opacity: 0;
+    color: var(--primary-neon);
+    transition: opacity 0.15s ease;
+}
+
+.dm-item.friend-item:hover .friend-dm-hint {
+    opacity: 1;
+}
+
+.dm-empty {
+    padding: calc(28px * var(--interface-scale, 1)) calc(18px * var(--interface-scale, 1));
+    text-align: center;
+    color: var(--text-dim);
+    font-size: calc(12px * var(--interface-scale, 1));
+    line-height: 1.7;
+}
+
 .add-dm-button {
     background: transparent;
     border: none;
@@ -173,7 +323,16 @@
 
 .dm-name-row {
     display: flex;
-    align-.sidebar-user {
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+}
+
+/* Ниже — блок, случайно вклеенный сюда из Sidebar.css: он разрывал объявление
+   align-items в .dm-name-row прямо посередине, из-за чего правило теряло
+   оставшиеся свойства. Правила сохранены как есть, восстановлены только
+   границы. Их место — в Sidebar.css, перенос стоит сделать отдельно. */
+.sidebar-user {
   width: 100%;
   padding: calc(24px * var(--interface-scale, 1)) 0;
   display: flex;
@@ -297,19 +456,53 @@
   align-items: center;
   gap: calc(6px * var(--interface-scale, 1));
 }
-items: center;
-    gap: 0;
-    overflow: hidden;
-}
 
 .dm-item:hover .dm-name,
 .dm-item.active .dm-name {
     color: white;
 }
 
+/*
+ * Непрочитанное. Раньше отличалось только начертанием имени — на тёмном фоне
+ * в длинном списке это почти незаметно. Теперь работают три признака сразу:
+ * цветная полоса слева, подложка и счётчик. Полоса — самый дешёвый ориентир
+ * при беглом просмотре: она выстраивается в одну вертикаль.
+ */
 .dm-item.unread .dm-name {
-    color: white;
+    color: #fff;
     font-weight: 700;
+}
+
+.dm-item.unread {
+    /* Полоса стоит вплотную к краю, поэтому скругление нужно обрезать:
+       иначе она вылезает за угол карточки. */
+    overflow: hidden;
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--primary-neon) 14%, transparent),
+        transparent 65%);
+}
+
+.dm-item.unread::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    border-radius: 0 3px 3px 0;
+    background: var(--primary-neon);
+    box-shadow: 0 0 8px var(--primary-neon);
+}
+
+/* У выбранного чата своя подсветка — не наслаиваем на неё вторую. */
+.dm-item.unread.active {
+    background: none;
+}
+
+/* Свежие сообщения важнее, чем то, во что человек играет. */
+.dm-item.unread .dm-activity {
+    display: none;
 }
 
 .dm-activity {

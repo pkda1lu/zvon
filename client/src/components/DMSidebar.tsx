@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DirectMessage, User, Server } from '../types';
-import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon } from './Icons';
+import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, ChatIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
@@ -24,7 +24,61 @@ interface DMSidebarProps {
     friends?: User[];
     servers?: Server[];
     onUserClick?: (userId: string, event?: React.MouseEvent) => void;
+    /** Открыть (или создать) переписку с пользователем — из вкладки «Друзья». */
+    onStartDM?: (userId: string) => void;
 }
+
+/**
+ * Короткое время последнего сообщения: сегодня — часы, вчера — «вчера»,
+ * в пределах недели — день, дальше — дата. Ровно столько, сколько помещается
+ * в строку списка, не отвлекая от имени.
+ */
+const formatShortTime = (iso: string): string => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'вчера';
+    if (now.getTime() - d.getTime() < 7 * 24 * 3600 * 1000) {
+        return d.toLocaleDateString('ru-RU', { weekday: 'short' });
+    }
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+};
+
+/**
+ * Превью последнего сообщения.
+ *
+ * Имя автора показываем только там, где оно что-то добавляет: «Вы» в любом
+ * чате и имя собеседника в группе. В переписке один на один подписывать чужую
+ * реплику именем незачем — оно уже стоит заголовком строки.
+ */
+const buildPreview = (
+    dm: DirectMessage,
+    currentUserId: string,
+    isGroup: boolean,
+    maskModeration: boolean,
+): { prefix: string; text: string } | null => {
+    const last = dm.lastMessage;
+    if (!last) return null;
+
+    const isMine = last.authorId === currentUserId;
+    const prefix = isMine ? 'Вы: '
+        : (isGroup && !maskModeration && last.authorName) ? `${last.authorName}: `
+        : '';
+
+    // Вложение без подписи — показываем, что это вложение, а не пустую строку.
+    const text = last.content?.trim()
+        || (last.attachmentCount > 0
+            ? (last.attachmentCount === 1 ? 'Вложение' : `Вложения (${last.attachmentCount})`)
+            : (last.type === 'missed-call' ? 'Пропущенный звонок' : ''));
+
+    if (!text) return null;
+    return { prefix, text };
+};
 
 // ID модератора у чата «от имени модерации» (или null, если это обычный чат).
 const getModeratorId = (dm: DirectMessage): string | null =>
@@ -44,7 +98,8 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     isMobile = false,
     friends = [],
     servers = [],
-    onUserClick
+    onUserClick,
+    onStartDM
 }) => {
     const { interfaceScale } = useAppearance();
     // Чаты «от имени модерации», где текущий пользователь — модератор.
@@ -53,13 +108,52 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
         const mid = getModeratorId(dm);
         return !!mid && mid === currentUser._id;
     });
-    const regularDMs = dms.filter(dm => {
-        const mid = getModeratorId(dm);
-        return !(mid && mid === currentUser._id);
-    });
+    /*
+     * Порядок списка — строго по свежести, как в любом мессенджере.
+     *
+     * Непрочитанное выделяется оформлением, а не позицией: если поднимать
+     * непрочитанные выше всего, старый непрочитанный чат встанет над тем, куда
+     * вы только что написали, и список начнёт переставляться неочевидно.
+     *
+     * updatedAt — то же поле, по которому сортирует сервер и которое он
+     * обновляет при отправке. Main меняет его при новом сообщении, поэтому
+     * пересортировка происходит сразу, без перезагрузки.
+     */
+    const regularDMs = React.useMemo(() => dms
+        .filter(dm => {
+            const mid = getModeratorId(dm);
+            return !(mid && mid === currentUser._id);
+        })
+        .slice()
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+        [dms, currentUser._id]);
 
     const moderationUnread = myModerationDMs.reduce((acc, dm) => acc + (unreadCounts[dm._id] || 0), 0);
     const isModerationSelected = !!selectedDM && myModerationDMs.some(d => d._id === selectedDM._id);
+
+    /*
+     * Вкладка панели. Друзья и переписки — разные задачи: в одном случае вы
+     * ищете, кому написать, в другом продолжаете разговор. Раньше они делили
+     * одно место, а входа в друзей из этой панели не было вовсе — пропсы
+     * onShowFriends и showFriends принимались, но в разметке не использовались.
+     */
+    const [tab, setTab] = useState<'chats' | 'friends'>('chats');
+
+    // Друзья: сначала те, кто в сети, внутри — по имени. Офлайн внизу, потому
+    // что написать сейчас можно в основном тем, кто на месте.
+    const sortedFriends = React.useMemo(() => {
+        const rank = (u: User) => (u.status && u.status !== 'offline') ? 0 : 1;
+        return friends.slice().sort((a, b) => {
+            const r = rank(a) - rank(b);
+            if (r !== 0) return r;
+            return (a.displayName || a.username || '').localeCompare(b.displayName || b.username || '', 'ru');
+        });
+    }, [friends]);
+
+    // Счётчик на вкладке «Чаты»: непрочитанное видно, даже когда открыты друзья.
+    const totalUnread = React.useMemo(
+        () => Object.values(unreadCounts).reduce((a, n) => a + (n || 0), 0),
+        [unreadCounts]);
 
     const [modExpanded, setModExpanded] = useState(false);
     // Авто-разворачиваем хаб, когда выбран один из чатов модерации.
@@ -79,6 +173,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
         const maskModeration = !!moderatorId && moderatorId !== currentUser._id;
         const displayName = maskModeration ? 'Модерация' : (dm.name || (isGroup ? otherParticipants.map(p => p.displayName || p.username).join(', ') : (otherUser?.displayName || otherUser?.username)));
         const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? null : otherUser);
+        const preview = buildPreview(dm, currentUser._id, isGroup, maskModeration);
 
         return (
             <div
@@ -98,19 +193,23 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                     <div className="dm-name-row">
                         <span className="dm-name">{displayName}</span>
                         {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={12 * interfaceScale} />}
+                        {dm.lastMessage && <span className="dm-time">{formatShortTime(dm.lastMessage.createdAt)}</span>}
                     </div>
-                    {!isGroup && !maskModeration && otherUser?.activity?.name && (
-                        <span className="dm-activity">
-                            {otherUser.activity.type === 'listening' ? `Слушает в ${otherUser.activity.name}`
-                                : otherUser.activity.type === 'watching' ? `Смотрит в ${otherUser.activity.name}`
-                                : otherUser.activity.type === 'using' ? `Использует ${otherUser.activity.name}`
-                                : otherUser.activity.type === 'streaming' ? `В эфире: ${otherUser.activity.name}`
-                                : `Играет в ${otherUser.activity.name}`}
-                        </span>
-                    )}
-                    {isGroup && (
-                        <span className="dm-activity">{dm.participants.length} участников</span>
-                    )}
+                    {/*
+                        Под именем — последнее сообщение, как в любом мессенджере.
+                        Раньше здесь была активность собеседника («Играет в …»),
+                        а для списка переписок это подменяло главное: о чём и когда
+                        был разговор. Активность осталась в списке друзей, где она
+                        к месту.
+                    */}
+                    <span className="dm-preview">
+                        {preview
+                            ? <>
+                                {preview.prefix && <span className="dm-preview-author">{preview.prefix}</span>}
+                                <span className="dm-preview-text">{preview.text}</span>
+                              </>
+                            : <span className="dm-preview-empty">Нет сообщений</span>}
+                    </span>
                 </div>
                 {unreadCount > 0 && (
                     <div className="dm-unread-badge">{unreadCount}</div>
@@ -146,17 +245,84 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                         onUserClick={onUserClick}
                     />
                 )}
-                <div className="dm-list-title">
-                    <span>ЛИЧНЫЕ СООБЩЕНИЯ</span>
+                <div className="dm-tabs" role="tablist">
+                    <button
+                        role="tab"
+                        aria-selected={tab === 'chats'}
+                        className={`dm-tab ${tab === 'chats' ? 'active' : ''}`}
+                        onClick={() => setTab('chats')}
+                    >
+                        Чаты
+                        {totalUnread > 0 && <span className="dm-tab-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>}
+                    </button>
+                    <button
+                        role="tab"
+                        aria-selected={tab === 'friends'}
+                        className={`dm-tab ${tab === 'friends' ? 'active' : ''}`}
+                        onClick={() => setTab('friends')}
+                    >
+                        Друзья
+                        {friends.length > 0 && <span className="dm-tab-count">{friends.length}</span>}
+                    </button>
                     <button
                         className="add-dm-button"
-                        title="Начать переписку"
-                        onClick={onAddDM}
+                        title={tab === 'chats' ? 'Начать переписку' : 'Добавить друга'}
+                        onClick={() => { if (tab === 'chats') onAddDM?.(); else onShowFriends(); }}
                     >
                         <PlusIcon size={16 * interfaceScale} />
                     </button>
                 </div>
 
+                {tab === 'friends' ? (
+                    <div className="dm-list">
+                        {/* Заявки, поиск и удаление живут в полной панели друзей —
+                            здесь только быстрый доступ, чтобы написать. */}
+                        <button className="dm-friends-all" onClick={onShowFriends}>
+                            Все друзья и заявки
+                        </button>
+
+                        {sortedFriends.length === 0 ? (
+                            <div className="dm-empty">
+                                Друзей пока нет.<br />Добавьте — и переписки появятся здесь.
+                            </div>
+                        ) : sortedFriends.map(f => (
+                            <div
+                                key={f._id}
+                                className="dm-item friend-item"
+                                onClick={() => onStartDM?.(f._id)}
+                                title={`Написать ${f.displayName || f.username}`}
+                            >
+                                {/* Клик по аватарке — профиль, по строке — переписка.
+                                    Так же устроены остальные списки пользователей. */}
+                                <div className="dm-avatar-wrap">
+                                    <UserAvatar
+                                        user={f}
+                                        size={32 * interfaceScale}
+                                        className="dm-avatar"
+                                        onClick={(e) => { e.stopPropagation(); onUserClick?.(f._id, e); }}
+                                    />
+                                    <div className={`status-indicator ${f.status}`} />
+                                </div>
+                                <div className="dm-info">
+                                    <div className="dm-name-row">
+                                        <span className="dm-name">{f.displayName || f.username}</span>
+                                        <UserBadges badges={f.badges} serverTag={resolveServerTag(f)} size={12 * interfaceScale} />
+                                    </div>
+                                    {f.activity?.name && (
+                                        <span className="dm-activity">
+                                            {f.activity.type === 'listening' ? `Слушает в ${f.activity.name}`
+                                                : f.activity.type === 'watching' ? `Смотрит в ${f.activity.name}`
+                                                : f.activity.type === 'using' ? `Использует ${f.activity.name}`
+                                                : f.activity.type === 'streaming' ? `В эфире: ${f.activity.name}`
+                                                : `Играет в ${f.activity.name}`}
+                                        </span>
+                                    )}
+                                </div>
+                                <ChatIcon size={15 * interfaceScale} className="friend-dm-hint" />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
                 <div className="dm-list">
                     {/* Хаб «Модерация»: единый чат, внутри которого все переписки,
                         начатые модератором от имени модерации. */}
@@ -192,8 +358,14 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                         </>
                     )}
 
+                    {regularDMs.length === 0 && myModerationDMs.length === 0 && (
+                        <div className="dm-empty">
+                            Переписок пока нет.<br />Откройте вкладку «Друзья», чтобы начать.
+                        </div>
+                    )}
                     {regularDMs.map(dm => renderDMItem(dm))}
                 </div>
+                )}
             </div>
             <VoiceControlPanel />
         </div>

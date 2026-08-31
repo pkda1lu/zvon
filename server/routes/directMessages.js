@@ -8,11 +8,58 @@ const User = require('../models/User');
 const { canDirectMessage } = require('../utils/privacy');
 const { pushIfOffline } = require('../utils/webPush');
 
+/**
+ * Список личных переписок с превью последнего сообщения.
+ *
+ * Превью собирается одной агрегацией по всем чатам сразу, а не запросом на
+ * каждый: чатов у активного пользователя бывают десятки, и цикл запросов
+ * означал бы столько же обращений к базе. Индекс { directMessage: 1,
+ * createdAt: -1 } на сообщениях делает выборку последнего по каждому чату
+ * дешёвой — сортировка идёт по индексу.
+ *
+ * Имена авторов добираются одним запросом по списку идентификаторов: в превью
+ * нужно только имя, ради него populate на каждое сообщение избыточен.
+ */
 router.get('/', auth, async (req, res) => {
   try {
-    const dms = await DirectMessage.find({ participants: req.user._id }).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }).sort({ updatedAt: -1 });
-    res.json(dms);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+    const dms = await DirectMessage.find({ participants: req.user._id })
+      .populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    if (dms.length === 0) return res.json([]);
+
+    const lastByDm = await Message.aggregate([
+      { $match: { directMessage: { $in: dms.map(d => d._id) } } },
+      { $sort: { createdAt: -1 } },
+      { $group: {
+        _id: '$directMessage',
+        content: { $first: '$content' },
+        createdAt: { $first: '$createdAt' },
+        author: { $first: '$author' },
+        type: { $first: '$type' },
+        attachmentCount: { $first: { $size: { $ifNull: ['$attachments', []] } } },
+      } },
+    ]);
+
+    const authorIds = [...new Set(lastByDm.map(m => String(m.author)).filter(Boolean))];
+    const authors = await User.find({ _id: { $in: authorIds } }).select('username displayName').lean();
+    const nameById = new Map(authors.map(u => [String(u._id), u.displayName || u.username]));
+
+    const previewByDm = new Map(lastByDm.map(m => [String(m._id), {
+      content: m.content || '',
+      createdAt: m.createdAt,
+      authorId: m.author ? String(m.author) : null,
+      authorName: nameById.get(String(m.author)) || null,
+      attachmentCount: m.attachmentCount || 0,
+      type: m.type || 'default',
+    }]));
+
+    res.json(dms.map(dm => ({ ...dm, lastMessage: previewByDm.get(String(dm._id)) || null })));
+  } catch (error) {
+    console.error('[dm] список переписок:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.get('/:id', auth, async (req, res) => {
