@@ -138,12 +138,10 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
 
       <div className="friends-main-container">
         <div className="friends-left-section">
-          {isMobile && (
-            <div className="friends-mobile-header">
-              <h3>Друзья</h3>
-            </div>
-          )}
-
+          {/* Отдельной шапки для телефона больше нет: она содержала только
+              надпись «Друзья», а общий заголовок ниже даёт ту же надпись на
+              всех размерах — на телефоне выходило два одинаковых заголовка
+              подряд. */}
           {/*
             Заголовок панели, а не рекламная обложка. Прежний занимал четверть
             экрана: надзаголовок, крупный градиентный заголовок и слоган на

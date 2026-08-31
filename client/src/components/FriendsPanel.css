@@ -63,33 +63,6 @@
   color: var(--text-dim, rgba(255, 255, 255, 0.55));
 }
 
-/* Mobile header (Назад + Друзья) */
-.friends-mobile-header {
-  display: flex;
-  align-items: center;
-  padding: calc(12px * var(--interface-scale, 1)) calc(18px * var(--interface-scale, 1));
-  flex-shrink: 0;
-}
-.friends-mobile-header h3 {
-  margin: 0;
-  font-size: calc(17px * var(--interface-scale, 1));
-  font-weight: 700;
-  color: var(--text-main, #fff);
-}
-.back-button {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
-  color: var(--text-main, #fff);
-  width: calc(36px * var(--interface-scale, 1));
-  height: calc(36px * var(--interface-scale, 1));
-  border-radius: calc(12px * var(--interface-scale, 1));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  margin-right: calc(12px * var(--interface-scale, 1));
-}
-
 /* === Вкладки ===
    Тот же вид, что в панели личных сообщений: подложка одна и переезжает между
    вкладками. Прежние были яркими градиентными таблетками с цветной тенью —
