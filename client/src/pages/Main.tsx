@@ -1212,6 +1212,17 @@ const Main: React.FC = () => {
     socket.on('call-offer', handleCallOffer);
     socket.on('server-member-updated', handleServerMemberUpdate);
     socket.on('server-updated', handleServerUpdate);
+    /*
+     * Дружба разорвана — сейчас это происходит при блокировке (см.
+     * routes/users.js). Убираем человека из списка сразу: иначе он остаётся
+     * среди друзей до перезахода, хотя написать ему уже нельзя.
+     */
+    const handleFriendRemoved = (data: { userId: string }) => {
+      if (!data?.userId) return;
+      setFriends((prev: User[]) => prev.filter((f: User) => String(f._id) !== String(data.userId)));
+    };
+
+    socket.on('friend-removed', handleFriendRemoved);
     socket.on('user-updated', handleUserUpdate);
     socket.on('server-member-joined', handleServerMemberJoined);
     socket.on('server-member-left', handleServerMemberLeft);
@@ -1223,6 +1234,7 @@ const Main: React.FC = () => {
       socket.off('call-offer', handleCallOffer);
       socket.off('server-member-updated', handleServerMemberUpdate);
       socket.off('server-updated', handleServerUpdate);
+      socket.off('friend-removed', handleFriendRemoved);
       socket.off('user-updated', handleUserUpdate);
       socket.off('server-member-joined', handleServerMemberJoined);
       socket.off('server-member-left', handleServerMemberLeft);

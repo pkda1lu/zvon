@@ -319,7 +319,34 @@ router.post('/block', auth, async (req, res) => {
     }
 
     await User.updateOne({ _id: req.user._id }, { $addToSet: { blockedUsers: userId } });
-    res.json({ message: 'User blocked' });
+
+    /*
+     * Блокировка разрывает дружбу — в обе стороны, потому что запись о ней
+     * одна на двоих.
+     *
+     * Иначе получается противоречие: человек остаётся в списке друзей, его
+     * видно в сети, он попадает в общие подсказки, но написать ему нельзя.
+     * Заодно снимается неподтверждённая заявка, если она висела.
+     */
+    const removed = await Friendship.findOneAndDelete({
+      $or: [
+        { requester: req.user._id, recipient: userId },
+        { requester: userId, recipient: req.user._id },
+      ],
+    });
+
+    // Обеим сторонам сообщаем, чтобы списки обновились без перезахода.
+    // Заблокированному не говорим, что именно произошло: для него это просто
+    // исчезновение из друзей.
+    if (removed) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user-${req.user._id}`).emit('friend-removed', { userId: String(userId) });
+        io.to(`user-${userId}`).emit('friend-removed', { userId: String(req.user._id) });
+      }
+    }
+
+    res.json({ message: 'User blocked', friendshipRemoved: !!removed });
   } catch (error) {
     console.error('[users] блокировка:', error.message);
     res.status(500).json({ message: 'Server error' });

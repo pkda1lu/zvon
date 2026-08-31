@@ -835,32 +835,39 @@
     margin-top: 6px;
 }
 
-/* Пометка в профиле того, кого заблокировали мы. */
+/*
+ * Пометка о собственной блокировке. Стоит в теле карточки над именем —
+ * в ряду кнопок (.profile-actions-header) её быть не может: тот наложен
+ * на аватарку отрицательным отступом и рассчитан только на кнопки.
+ */
 .profile-blocked-note {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 7px;
-    width: 100%;
-    margin-bottom: 8px;
-    padding: 8px 12px;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 9px 12px;
     border-radius: 10px;
-    background: rgba(242, 63, 66, 0.1);
-    border: 1px solid rgba(242, 63, 66, 0.24);
-    color: #ff6b6e;
+    background: rgba(242, 63, 66, 0.09);
+    border: 1px solid rgba(242, 63, 66, 0.22);
+    color: #ff8f91;
     font-size: 12px;
     font-weight: 600;
+    line-height: 1.35;
 }
 
+.profile-blocked-note svg {
+    flex-shrink: 0;
+}
+
+/* Кнопка стоит в общем ряду, поэтому по ширине не растягивается. */
 .profile-action-btn.unblock {
-    width: 100%;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.14));
     color: var(--text-main, #fff);
+    white-space: nowrap;
 }
 
 .profile-action-btn.unblock:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.13);
     border-color: color-mix(in srgb, var(--primary-neon) 45%, transparent);
 }

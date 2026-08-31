@@ -63,9 +63,17 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
     if (!socket) return;
     const handleFriendRequest = () => { if (activeTab === 'pending') fetchPendingRequests(); };
     const handleFriendshipAccepted = () => { fetchFriends(); if (activeTab === 'pending') fetchPendingRequests(); };
+    // Дружба разорвана блокировкой — перечитываем список, чтобы человек
+    // не остался в панели до её повторного открытия.
+    const handleFriendRemoved = () => { fetchFriends(); };
     socket.on('friend-request', handleFriendRequest);
     socket.on('friend-request-accepted', handleFriendshipAccepted);
-    return () => { socket.off('friend-request', handleFriendRequest); socket.off('friend-request-accepted', handleFriendshipAccepted); };
+    socket.on('friend-removed', handleFriendRemoved);
+    return () => {
+      socket.off('friend-request', handleFriendRequest);
+      socket.off('friend-request-accepted', handleFriendshipAccepted);
+      socket.off('friend-removed', handleFriendRemoved);
+    };
   }, [socket, activeTab]);
 
   const showMessage = (text: string, type: 'success' | 'error') => { setPanelMessage({ text, type }); setTimeout(() => setPanelMessage(null), 3000); };

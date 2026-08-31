@@ -318,18 +318,22 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
      * «в друзья» и «написать» всё равно не сработают, пока стоит блокировка.
      * Вместо них — одна понятная кнопка снятия.
      */
+    /*
+     * Пометка идёт отдельным слотом в тело карточки, а не в ряд кнопок:
+     * тот ряд наложен на аватарку отрицательным отступом и рассчитан на
+     * компактные кнопки — текст в нём наезжал на изображение.
+     */
+    const blockedNotice = iBlockedThem && !isMe ? (
+        <div className="profile-blocked-note">
+            <BlockIcon size={14} />
+            <span>Вы заблокировали этого пользователя</span>
+        </div>
+    ) : null;
+
     const actionButtons = isMe ? null : iBlockedThem ? (
-        <>
-            {/* Пояснение над кнопкой: иначе непонятно, почему из всех действий
-                осталось одно. */}
-            <div className="profile-blocked-note">
-                <BlockIcon size={14} />
-                <span>Вы заблокировали этого пользователя</span>
-            </div>
-            <button className="profile-action-btn unblock" onClick={handleUnblock}>
-                <span>Разблокировать</span>
-            </button>
-        </>
+        <button className="profile-action-btn unblock" onClick={handleUnblock}>
+            <span>Разблокировать</span>
+        </button>
     ) : (
         <>
             {user.isBot ? (
@@ -407,6 +411,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     mutualServers={mutualServers}
                     developments={developments}
                     actionButtons={actionButtons}
+                    notice={blockedNotice}
                 />
             </motion.div>
         </div>

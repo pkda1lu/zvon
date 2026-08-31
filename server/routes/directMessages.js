@@ -9,6 +9,38 @@ const { canDirectMessage, isCommunicationBlocked, getBlockState, stripForBlocked
 const { pushIfOffline } = require('../utils/webPush');
 
 /**
+ * Добавляет к переписке состояние блокировки и убирает данные того, кто
+ * заблокировал смотрящего.
+ *
+ * Вынесено в общую функцию, потому что переписку отдают ТРИ обработчика:
+ * список, получение по идентификатору и открытие по пользователю (им
+ * пользуется вкладка «Друзья»). Пометку легко забыть в одном из них — так и
+ * вышло в первый раз: чат, открытый из друзей, приходил без блокировки, и
+ * поле ввода оставалось на месте.
+ *
+ * Групповые чаты возвращаются без изменений: блокировка одного участника не
+ * повод менять вид общей переписки.
+ */
+async function annotateBlockState(dmPlain, viewerId) {
+  if (!dmPlain || !Array.isArray(dmPlain.participants) || dmPlain.participants.length !== 2) {
+    return dmPlain;
+  }
+  const other = dmPlain.participants.find(p => String(p._id) !== String(viewerId));
+  if (!other) return dmPlain;
+
+  const { iBlocked, blockedMe } = await getBlockState(viewerId, other._id);
+  if (!iBlocked && !blockedMe) return dmPlain;
+
+  return {
+    ...dmPlain,
+    blockState: { iBlocked, blockedMe },
+    participants: blockedMe
+      ? dmPlain.participants.map(p => String(p._id) === String(other._id) ? stripForBlocked(p) : p)
+      : dmPlain.participants,
+  };
+}
+
+/**
  * Список личных переписок с превью последнего сообщения.
  *
  * Превью собирается одной агрегацией по всем чатам сразу, а не запросом на
@@ -78,12 +110,12 @@ router.get('/', auth, async (req, res) => {
       const blockedMe = blockedMeSet.has(String(other._id));
       if (!iBlocked && !blockedMe) return withPreview;
 
+      // Логика та же, что в annotateBlockState, но состояние здесь уже
+      // посчитано двумя запросами на весь список — второй раз ходить в базу
+      // на каждую переписку незачем.
       return {
         ...withPreview,
         blockState: { iBlocked, blockedMe },
-        // Кто меня заблокировал — того я не вижу: ни аватарки, ни статуса.
-        // Вырезаем на сервере, а не прячем на клиенте: иначе данные всё равно
-        // ушли бы по сети и достались бы любому, кто смотрит ответ.
         participants: blockedMe
           ? dm.participants.map(p => String(p._id) === String(other._id) ? stripForBlocked(p) : p)
           : dm.participants,
@@ -134,25 +166,7 @@ router.get('/:id', auth, async (req, res) => {
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p._id.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
 
-    // Та же обработка, что и в списке: состояние блокировки для интерфейса и
-    // вырезание аватарки со статусом у того, кто меня заблокировал.
-    if (dm.participants.length === 2) {
-      const other = dm.participants.find(p => String(p._id) !== String(req.user._id));
-      if (other) {
-        const { iBlocked, blockedMe } = await getBlockState(req.user._id, other._id);
-        if (iBlocked || blockedMe) {
-          const plain = dm.toObject();
-          plain.blockState = { iBlocked, blockedMe };
-          if (blockedMe) {
-            plain.participants = plain.participants.map(
-              p => String(p._id) === String(other._id) ? stripForBlocked(p) : p);
-          }
-          return res.json(plain);
-        }
-      }
-    }
-
-    res.json(dm);
+    res.json(await annotateBlockState(dm.toObject(), req.user._id));
   } catch (error) {
     console.error('[dm] получение переписки:', error.message);
     res.status(500).json({ message: 'Server error' });
@@ -177,8 +191,11 @@ router.get('/user/:userId', auth, async (req, res) => {
       await dm.save();
       await dm.populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     }
-    res.json(dm);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+    res.json(await annotateBlockState(dm.toObject(), req.user._id));
+  } catch (error) {
+    console.error('[dm] открытие переписки:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // Начать (или открыть существующий) чат «от имени модерации» с пользователем.

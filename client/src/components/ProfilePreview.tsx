@@ -44,6 +44,12 @@ interface ProfilePreviewProps {
     
     // For actions
     actionButtons?: React.ReactNode;
+    /**
+     * Строка-пояснение над именем (например, о блокировке).
+     * Отдельно от actionButtons: тот ряд наложен на аватарку и рассчитан
+     * только на компактные кнопки — текст в нём налезает на изображение.
+     */
+    notice?: React.ReactNode;
 }
 
 const ActivityTimer: React.FC<{ startTime: number }> = ({ startTime }) => {
@@ -126,7 +132,8 @@ const RolesSection: React.FC<{ roleIds: string[]; serverRoles: any[] }> = ({ rol
 const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     user, memberData, server, type, onClose, onAvatarClick, 
     mutualFriends = [], mutualServers = [], developments = { bots: [], miniApps: [] },
-    actionButtons
+    actionButtons,
+    notice
 }) => {
     const { user: currentUser } = useAuth();
     const isSelf = !!currentUser && currentUser._id === user._id;
@@ -228,6 +235,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
             </div>
 
             <div className="profile-body" style={{ marginTop: '40px' }}>
+                {notice}
                 <div className="profile-names">
                     <div className="profile-names-top">
                         <span className="profile-nickname" style={{ fontSize: '20px' }}>{displayName}</span>
