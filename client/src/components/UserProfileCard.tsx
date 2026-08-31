@@ -4,7 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import { motion } from 'framer-motion';
-import { PlusIcon, CheckIcon } from './Icons';
+import { PlusIcon, CheckIcon, BlockIcon, AlertIcon } from './Icons';
 import {
   popoverVariants,
   popoverTransition,
@@ -26,7 +26,7 @@ interface UserProfileCardProps {
 
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serverId, position, onUserClick }) => {
     const { socket } = useSocket();
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, refreshUser } = useAuth();
     const { alert, confirm } = useDialog();
     const { interfaceScale } = useAppearance();
     const [profileData, setProfileData] = useState<any>(null);
@@ -205,9 +205,14 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 } : undefined}
                 ref={cardRef}
             >
-                <div>
-                    <p>{error}</p>
-                    <button onClick={onClose}>Закрыть</button>
+                <div className="profile-state">
+                    <div className="profile-state-icon"><AlertIcon size={26} /></div>
+                    <div className="profile-state-title">{error}</div>
+                    <div className="profile-state-text">Проверьте соединение и попробуйте ещё раз.</div>
+                    <div className="profile-state-actions">
+                        <button className="profile-action-btn secondary" onClick={fetchProfile}>Повторить</button>
+                        <button className="profile-action-btn secondary" onClick={onClose}>Закрыть</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -239,6 +244,48 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const { user, mutualServers, mutualFriends, friendship, developments } = profileData;
     const isMe = currentUser?._id === userId;
 
+    /*
+     * Нас заблокировали. Полного профиля здесь нет и быть не может — сервер
+     * его не отдаёт (см. routes/users.js). Показываем спокойное объяснение
+     * вместо пустой карточки с пропавшими аватаркой и статусом.
+     *
+     * Формулировка нейтральная и без действий: предлагать «написать» или
+     * «в друзья» бессмысленно, а упрекать человека не наше дело.
+     */
+    if ((user as any).blockedYou) {
+        return (
+            <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose}>
+                <div
+                    className={`user-profile-card blocked-card ${isPopout ? 'popout' : ''}`}
+                    onClick={e => e.stopPropagation()}
+                    style={isPopout ? {
+                        position: 'absolute',
+                        top: adjustedPos.top,
+                        left: adjustedPos.left,
+                        visibility: isVisible ? 'visible' : 'hidden',
+                        opacity: isVisible ? 1 : 0
+                    } : undefined}
+                    ref={cardRef}
+                >
+                    <div className="profile-state">
+                        <div className="profile-state-icon blocked"><BlockIcon size={26} /></div>
+                        <div className="profile-state-title">{user.displayName || user.username}</div>
+                        <div className="profile-state-text">
+                            Профиль недоступен.
+                        </div>
+                        <div className="profile-state-actions">
+                            <button className="profile-action-btn secondary" onClick={onClose}>Закрыть</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Мы сами заблокировали этого человека: профиль показываем целиком, но с
+    // пометкой и возможностью снять блокировку прямо отсюда.
+    const iBlockedThem = !!currentUser?.blockedUsers?.some(id => String(id) === String(userId));
+
     let type: 'full' | 'compact' | 'server-full' | 'server-compact' = 'full';
     if (isPopout) {
         type = localServerId ? 'server-compact' : 'compact';
@@ -255,7 +302,35 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         }
     };
 
-    const actionButtons = !isMe ? (
+    const handleUnblock = async () => {
+        if (!await confirm(`Разблокировать ${user.displayName || user.username}?`)) return;
+        try {
+            await axios.post('/api/users/unblock', { userId });
+            await refreshUser?.();
+            fetchProfile();
+        } catch {
+            await alert('Не удалось снять блокировку.');
+        }
+    };
+
+    /*
+     * Для заблокированного нами человека прочие действия не показываем:
+     * «в друзья» и «написать» всё равно не сработают, пока стоит блокировка.
+     * Вместо них — одна понятная кнопка снятия.
+     */
+    const actionButtons = isMe ? null : iBlockedThem ? (
+        <>
+            {/* Пояснение над кнопкой: иначе непонятно, почему из всех действий
+                осталось одно. */}
+            <div className="profile-blocked-note">
+                <BlockIcon size={14} />
+                <span>Вы заблокировали этого пользователя</span>
+            </div>
+            <button className="profile-action-btn unblock" onClick={handleUnblock}>
+                <span>Разблокировать</span>
+            </button>
+        </>
+    ) : (
         <>
             {user.isBot ? (
                 <div className="bot-action-wrapper">
@@ -302,7 +377,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 </>
             )}
         </>
-    ) : null;
+    );
 
     return (
         <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose} style={{ zIndex: 4000 }}>

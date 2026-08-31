@@ -149,6 +149,15 @@ export const CameraIcon: React.FC<{ size?: number; color?: string; className?: s
         <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
 );
+/** Восклицательный знак в круге — предупреждение, сбой. */
+export const AlertIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'currentColor', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="9" />
+        <line x1="12" y1="7.5" x2="12" y2="13" />
+        <line x1="12" y1="16.5" x2="12" y2="16.5" />
+    </svg>
+);
+
 /** Перечёркнутый круг — запрет, блокировка. */
 export const BlockIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'currentColor', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>

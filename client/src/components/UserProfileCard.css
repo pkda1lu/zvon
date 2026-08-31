@@ -770,3 +770,97 @@
 }
 
 
+
+
+/* ==========================================================================
+   Особые состояния карточки: сбой загрузки и блокировка.
+
+   Раньше у состояния ошибки не было оформления вовсе — на карточке высотой
+   420px висели голый абзац и системная кнопка браузера. Теперь оба состояния
+   выглядят как часть приложения.
+   ========================================================================== */
+
+.user-profile-card.error,
+.user-profile-card.blocked-card {
+    /* Тексту здесь мало, растягивать карточку на полный рост незачем. */
+    min-height: 0;
+}
+
+.profile-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 36px 28px 28px;
+    text-align: center;
+}
+
+.profile-state-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    color: var(--text-dim);
+}
+
+/* Блокировка — не поломка, поэтому знак красный, но приглушённый. */
+.profile-state-icon.blocked {
+    background: rgba(242, 63, 66, 0.1);
+    border-color: rgba(242, 63, 66, 0.28);
+    color: #ff6b6e;
+}
+
+.profile-state-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--header-primary, #fff);
+    word-break: break-word;
+}
+
+.profile-state-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-dim);
+    max-width: 240px;
+}
+
+.profile-state-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+/* Пометка в профиле того, кого заблокировали мы. */
+.profile-blocked-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(242, 63, 66, 0.1);
+    border: 1px solid rgba(242, 63, 66, 0.24);
+    color: #ff6b6e;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.profile-action-btn.unblock {
+    width: 100%;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+    color: var(--text-main, #fff);
+}
+
+.profile-action-btn.unblock:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: color-mix(in srgb, var(--primary-neon) 45%, transparent);
+}

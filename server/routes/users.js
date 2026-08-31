@@ -72,12 +72,26 @@ router.get('/profile/:id', auth, async (req, res) => {
     if (String(targetUserId) !== String(currentUserId)) {
       const { blockedMe } = await getBlockState(currentUserId, targetUserId);
       if (blockedMe) {
+        // Форма ответа обязана совпадать с обычной веткой ниже: клиент читает
+        // response.data.user, и плоский объект ронял загрузку профиля целиком.
+        const hidden = stripForBlocked(user);
+        hidden.bio = '';
+        hidden.primaryServer = null;
+        hidden.developments = [];
+        hidden.topGames = [];
+        delete hidden.gameStats;
+        delete hidden.lastActiveAt;
+        delete hidden.settings;
+        delete hidden.email;
+
         return res.json({
-          ...stripForBlocked(user),
-          // Полного профиля тоже нет: смотреть там уже нечего.
-          bio: '',
-          primaryServer: null,
-          isFullProfile: false,
+          user: hidden,
+          // Общие серверы и друзья тоже скрываем: по ним восстанавливается
+          // круг общения человека, который от вас закрылся.
+          mutualServers: [],
+          mutualFriends: [],
+          developments: { bots: [], miniApps: [] },
+          friendship: null,
         });
       }
     }
