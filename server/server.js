@@ -937,8 +937,38 @@ io.on('connection', (socket) => {
     } catch (error) { }
   });
 
-  socket.on('typing-start', (data) => socket.to(`channel-${data.channelId}`).emit('user-typing', { userId: socket.userId, channelId: data.channelId }));
-  socket.on('typing-stop', (data) => socket.to(`channel-${data.channelId}`).emit('user-stopped-typing', { userId: socket.userId, channelId: data.channelId }));
+  socket.on('typing-start', async (data) => {
+    if (data.channelId) {
+      socket.to(`channel-${data.channelId}`).emit('user-typing', { userId: socket.userId, channelId: data.channelId });
+    } else if (data.dmId) {
+      try {
+        const dm = await DirectMessage.findById(data.dmId);
+        if (dm) {
+          dm.participants.forEach(p => {
+            if (String(p) !== String(socket.userId)) {
+              io.to(`user-${p}`).emit('user-typing', { userId: socket.userId, dmId: data.dmId });
+            }
+          });
+        }
+      } catch (e) {}
+    }
+  });
+  socket.on('typing-stop', async (data) => {
+    if (data.channelId) {
+      socket.to(`channel-${data.channelId}`).emit('user-stopped-typing', { userId: socket.userId, channelId: data.channelId });
+    } else if (data.dmId) {
+      try {
+        const dm = await DirectMessage.findById(data.dmId);
+        if (dm) {
+          dm.participants.forEach(p => {
+            if (String(p) !== String(socket.userId)) {
+              io.to(`user-${p}`).emit('user-stopped-typing', { userId: socket.userId, dmId: data.dmId });
+            }
+          });
+        }
+      } catch (e) {}
+    }
+  });
 
   socket.on('activity-update', async (activity) => {
     try {
