@@ -659,3 +659,17 @@
     background: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
 }
+
+/* Пометка заблокированного чата в списке. */
+.dm-blocked-icon {
+    flex-shrink: 0;
+    color: #f23f42;
+    opacity: 0.8;
+}
+
+/* Заблокированный чат гасим целиком: писать в него нельзя, и в списке он
+   не должен спорить за внимание с живыми переписками. */
+.dm-item:has(.dm-blocked-icon) .dm-name,
+.dm-item:has(.dm-blocked-icon) .dm-preview {
+    opacity: 0.5;
+}

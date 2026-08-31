@@ -7,6 +7,7 @@ const Friendship = require('../models/Friendship');
 const Server = require('../models/Server');
 const upload = require('../middleware/upload');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
+const { getBlockState, stripForBlocked } = require('../utils/privacy');
 
 router.get('/check-username/:username', auth, async (req, res) => {
   try {
@@ -59,7 +60,28 @@ router.get('/profile/:id', auth, async (req, res) => {
     const currentUserId = req.user._id;
     const user = await User.findById(targetUserId).select('-password').populate('primaryServer', 'name icon members').populate('displayedTag.server', 'name icon tag');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    
+
+    /*
+     * Заблокировавшего не показываем: ни аватарки, ни статуса, ни активности.
+     * Проверка стоит до всей логики видимости профиля, потому что блокировка
+     * сильнее любых настроек — какими бы открытыми они ни были.
+     *
+     * Иначе смысл прятать эти данные в переписке пропадал бы: достаточно
+     * открыть профиль и увидеть всё то же самое.
+     */
+    if (String(targetUserId) !== String(currentUserId)) {
+      const { blockedMe } = await getBlockState(currentUserId, targetUserId);
+      if (blockedMe) {
+        return res.json({
+          ...stripForBlocked(user),
+          // Полного профиля тоже нет: смотреть там уже нечего.
+          bio: '',
+          primaryServer: null,
+          isFullProfile: false,
+        });
+      }
+    }
+
     // Privacy logic
     const settings = user.settings || {};
     const whoCanSee = Array.isArray(settings.whoCanSeeFullProfile) 

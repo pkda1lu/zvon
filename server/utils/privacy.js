@@ -61,6 +61,53 @@ async function canDirectMessage(requesterId, target) {
     return false;
 }
 
+/**
+ * Состояние блокировки между двумя людьми.
+ *
+ * Возвращает обе стороны отдельно, потому что последствия у них разные:
+ * заблокировавший просто не пишет, а заблокированному нельзя ещё и показывать
+ * аватарку со статусом.
+ *
+ * Один запрос на двоих вместо двух: обе записи достаются разом.
+ */
+async function getBlockState(aId, bId) {
+    const a = aId.toString();
+    const b = bId.toString();
+    if (a === b) return { iBlocked: false, blockedMe: false };
+
+    const docs = await User.find({ _id: { $in: [a, b] } }).select('blockedUsers').lean();
+    const byId = new Map(docs.map(d => [d._id.toString(), (d.blockedUsers || []).map(x => x.toString())]));
+
+    return {
+        iBlocked: (byId.get(a) || []).includes(b),
+        blockedMe: (byId.get(b) || []).includes(a),
+    };
+}
+
+/** Запрещено ли общение между двумя — блокировка в любую сторону. */
+async function isCommunicationBlocked(aId, bId) {
+    const { iBlocked, blockedMe } = await getBlockState(aId, bId);
+    return iBlocked || blockedMe;
+}
+
+/**
+ * Убирает из данных пользователя то, что заблокированному видеть не следует:
+ * аватарку, оформление и присутствие в сети. Имя остаётся — иначе переписка
+ * превратится в разговор с пустотой, и человек не поймёт, чей это чат.
+ */
+function stripForBlocked(userObj) {
+    if (!userObj) return userObj;
+    const plain = typeof userObj.toObject === 'function' ? userObj.toObject() : { ...userObj };
+    plain.avatar = null;
+    plain.banner = null;
+    plain.status = 'offline';
+    plain.activity = null;
+    plain.badges = [];
+    plain.displayedTag = null;
+    plain.blockedYou = true;
+    return plain;
+}
+
 module.exports = {
     asList,
     areFriends,
@@ -68,4 +115,7 @@ module.exports = {
     hasBlocked,
     friendIdSet,
     canDirectMessage,
+    getBlockState,
+    isCommunicationBlocked,
+    stripForBlocked,
 };

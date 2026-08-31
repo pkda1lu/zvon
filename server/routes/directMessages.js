@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const DirectMessage = require('../models/DirectMessage');
 const Message = require('../models/Message');
 const User = require('../models/User');
-const { canDirectMessage } = require('../utils/privacy');
+const { canDirectMessage, isCommunicationBlocked, getBlockState, stripForBlocked } = require('../utils/privacy');
 const { pushIfOffline } = require('../utils/webPush');
 
 /**
@@ -55,7 +55,40 @@ router.get('/', auth, async (req, res) => {
       type: m.type || 'default',
     }]));
 
-    res.json(dms.map(dm => ({ ...dm, lastMessage: previewByDm.get(String(dm._id)) || null })));
+    /*
+     * Состояние блокировки по каждой переписке.
+     *
+     * Два запроса на весь список, а не по паре на чат: кого заблокировал я —
+     * из своей записи, кто заблокировал меня — обратным поиском по индексу
+     * blockedUsers (см. models/User.js).
+     */
+    const me = await User.findById(req.user._id).select('blockedUsers').lean();
+    const iBlockedSet = new Set((me?.blockedUsers || []).map(String));
+    const blockedMeDocs = await User.find({ blockedUsers: req.user._id }).select('_id').lean();
+    const blockedMeSet = new Set(blockedMeDocs.map(d => String(d._id)));
+
+    res.json(dms.map(dm => {
+      const withPreview = { ...dm, lastMessage: previewByDm.get(String(dm._id)) || null };
+      if (dm.participants.length !== 2) return withPreview;
+
+      const other = dm.participants.find(p => String(p._id) !== String(req.user._id));
+      if (!other) return withPreview;
+
+      const iBlocked = iBlockedSet.has(String(other._id));
+      const blockedMe = blockedMeSet.has(String(other._id));
+      if (!iBlocked && !blockedMe) return withPreview;
+
+      return {
+        ...withPreview,
+        blockState: { iBlocked, blockedMe },
+        // Кто меня заблокировал — того я не вижу: ни аватарки, ни статуса.
+        // Вырезаем на сервере, а не прячем на клиенте: иначе данные всё равно
+        // ушли бы по сети и достались бы любому, кто смотрит ответ.
+        participants: blockedMe
+          ? dm.participants.map(p => String(p._id) === String(other._id) ? stripForBlocked(p) : p)
+          : dm.participants,
+      };
+    }));
   } catch (error) {
     console.error('[dm] список переписок:', error.message);
     res.status(500).json({ message: 'Server error' });
@@ -100,8 +133,30 @@ router.get('/:id', auth, async (req, res) => {
     const dm = await DirectMessage.findById(req.params.id).populate({ path: 'participants', select: 'username displayName avatar status badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p._id.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
+
+    // Та же обработка, что и в списке: состояние блокировки для интерфейса и
+    // вырезание аватарки со статусом у того, кто меня заблокировал.
+    if (dm.participants.length === 2) {
+      const other = dm.participants.find(p => String(p._id) !== String(req.user._id));
+      if (other) {
+        const { iBlocked, blockedMe } = await getBlockState(req.user._id, other._id);
+        if (iBlocked || blockedMe) {
+          const plain = dm.toObject();
+          plain.blockState = { iBlocked, blockedMe };
+          if (blockedMe) {
+            plain.participants = plain.participants.map(
+              p => String(p._id) === String(other._id) ? stripForBlocked(p) : p);
+          }
+          return res.json(plain);
+        }
+      }
+    }
+
     res.json(dm);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('[dm] получение переписки:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.get('/user/:userId', auth, async (req, res) => {
@@ -269,6 +324,26 @@ router.post('/:id/messages', auth, async (req, res) => {
     const dm = await DirectMessage.findById(req.params.id);
     if (!dm) return res.status(404).json({ message: 'DM not found' });
     if (!dm.participants.some(p => p.toString() === req.user._id.toString())) return res.status(403).json({ message: 'Access denied' });
+
+    /*
+     * Блокировка проверялась только при СОЗДАНИИ переписки (canDirectMessage).
+     * В уже существующий чат сообщения шли свободно — то есть заблокированный
+     * продолжал писать, и чёрный список ничего не значил.
+     *
+     * Проверяем в обе стороны: заблокировавший тоже не пишет, пока не снимет
+     * блокировку. Иначе получается односторонний канал, где один говорит, а
+     * второй по своей же настройке ответить не может.
+     *
+     * Только для переписок один на один: в группе блокировка одного участника
+     * не повод отрезать человека от остальных.
+     */
+    if (dm.participants.length === 2) {
+      const other = dm.participants.find(p => p.toString() !== req.user._id.toString());
+      if (other && await isCommunicationBlocked(req.user._id, other)) {
+        return res.status(403).json({ message: 'Отправка сообщений недоступна', blocked: true });
+      }
+    }
+
     const message = new Message({ content, author: req.user._id, channel: null, directMessage: dm._id, attachments: attachments || [], type: type || 'default' });
     await message.save();
     await message.populate({ path: 'author', select: 'username displayName avatar badges activity displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });

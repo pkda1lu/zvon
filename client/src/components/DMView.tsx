@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon } from './Icons';
+import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import VoiceCall from './VoiceCall';
 import CustomVideoPlayer from './CustomVideoPlayer';
@@ -622,6 +622,19 @@ const DMView: React.FC<DMViewProps> = ({
     : (dm.name || (isGroup ? otherParticipants.map(p => p.displayName || p.username).join(', ') : (otherUser?.displayName || otherUser?.username)));
   const headerUser = maskModeration ? { username: 'Модерация', avatar: null } : otherUser;
 
+  /*
+   * Текст вместо поля ввода, когда переписка закрыта блокировкой.
+   * null — обычное поле ввода.
+   *
+   * Своя блокировка важнее: если люди заблокировали друг друга, человеку
+   * полезнее знать про собственное решение — его он может отменить.
+   */
+  const blockNotice = dm.blockState?.iBlocked
+    ? 'Вы заблокировали этого пользователя. Снять блокировку можно в настройках, раздел «Приватность».'
+    : dm.blockState?.blockedMe
+      ? 'Вы не можете писать этому пользователю.'
+      : null;
+
   const formatDate = useCallback((dateString: string) => {
     const d = new Date(dateString);
     const now = new Date();
@@ -1162,6 +1175,15 @@ const DMView: React.FC<DMViewProps> = ({
               <div className="dm-display-name-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3 className="dm-display-name" style={{ margin: 0, cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setShowAttachments(true); }}>{displayName}</h3>
                 {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={16} />}
+                {/* Пометка в шапке: понятно, почему нет поля ввода, ещё до
+                    прокрутки вниз. Показываем только собственную блокировку —
+                    сообщать человеку, что заблокировали его, ни к чему. */}
+                {dm.blockState?.iBlocked && (
+                    <span className="dm-blocked-tag" title="Вы заблокировали этого пользователя">
+                        <BlockIcon size={12} />
+                        Заблокирован
+                    </span>
+                )}
               </div>
               {maskModeration ? (
                 <div style={{ fontSize: '12px', color: 'var(--primary-neon)', fontWeight: 600, opacity: 0.8 }}>
@@ -1329,6 +1351,24 @@ const DMView: React.FC<DMViewProps> = ({
           )}
         </div>
 
+        {/*
+          Переписка закрыта блокировкой — поле ввода заменяется пояснением.
+          Показываем разный текст: заблокировавшему нужно знать, что писать
+          мешает его же решение и как его отменить, а заблокированному —
+          что дело не в сбое.
+
+          Это только оформление. Запрет держит сервер (см. routes/
+          directMessages.js и обработчик сокета): подпись в интерфейсе легко
+          обойти, отправив запрос напрямую.
+        */}
+        {blockNotice ? (
+          <div className="message-input-container">
+            <div className="dm-blocked-bar">
+              <BlockIcon size={18} />
+              <span>{blockNotice}</span>
+            </div>
+          </div>
+        ) : (
         <div className="message-input-container">
           {replyToMessage && (
             <div className="reply-input-preview">
@@ -1429,6 +1469,7 @@ const DMView: React.FC<DMViewProps> = ({
             </button>
           </form>
         </div>
+        )}
         <MediaLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} media={lightboxMedia} initialIndex={lightboxIndex} />
       </div >
       {showEmojiPicker && createPortal(

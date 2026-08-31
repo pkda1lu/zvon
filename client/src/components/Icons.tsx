@@ -149,6 +149,14 @@ export const CameraIcon: React.FC<{ size?: number; color?: string; className?: s
         <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
 );
+/** Перечёркнутый круг — запрет, блокировка. */
+export const BlockIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'currentColor', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="9" />
+        <line x1="5.6" y1="5.6" x2="18.4" y2="18.4" />
+    </svg>
+);
+
 export const ShieldIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

@@ -321,6 +321,11 @@ export interface DirectMessage {
   moderator?: string | { _id: string } | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Состояние блокировки в переписке один на один. Приходит с сервера и есть
+   * только когда блокировка действительно стоит — иначе поля нет вовсе.
+   */
+  blockState?: { iBlocked: boolean; blockedMe: boolean };
   /** Превью последнего сообщения для списка переписок. Приходит с сервера. */
   lastMessage?: {
     content: string;

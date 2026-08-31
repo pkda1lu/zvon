@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { iosSpring } from '../animations/transitions';
 import { DirectMessage, User, Server } from '../types';
-import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, ChatIcon, BellOffIcon } from './Icons';
+import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, ChatIcon, BellOffIcon, BlockIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
@@ -30,6 +30,8 @@ interface DMSidebarProps {
     onUserClick?: (userId: string, event?: React.MouseEvent) => void;
     /** Открыть (или создать) переписку с пользователем — из вкладки «Друзья». */
     onStartDM?: (userId: string) => void;
+    /** Пользователь заблокирован из меню чата — обновить состояние переписки. */
+    onUserBlocked?: (dm: DirectMessage) => void;
 }
 
 /**
@@ -103,7 +105,8 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     friends = [],
     servers = [],
     onUserClick,
-    onStartDM
+    onStartDM,
+    onUserBlocked
 }) => {
     const { interfaceScale, reduceMotion } = useAppearance();
     // Чаты «от имени модерации», где текущий пользователь — модератор.
@@ -233,6 +236,11 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                     <div className="dm-name-row">
                         <span className="dm-name">{displayName}</span>
                         {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={12 * interfaceScale} />}
+                        {/* Заблокированный чат помечаем и в списке: иначе непонятно,
+                            почему в него нельзя написать, пока не откроешь. */}
+                        {dm.blockState?.iBlocked && (
+                            <BlockIcon size={12 * interfaceScale} className="dm-blocked-icon" />
+                        )}
                         {dm.lastMessage && <span className="dm-time">{formatShortTime(dm.lastMessage.createdAt)}</span>}
                     </div>
                     {/*
@@ -438,6 +446,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                         onToggleMute={handleToggleMute}
                         onDelete={onDeleteDM}
                         onOpenProfile={onUserClick}
+                        onBlocked={() => onUserBlocked?.(menu.dm)}
                         onClose={() => setMenu(null)}
                     />
                 );

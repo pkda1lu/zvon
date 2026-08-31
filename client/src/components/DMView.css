@@ -930,3 +930,43 @@
   margin-bottom: 3px;
 }
 .forwarded-label b { font-style: normal; font-weight: 600; color: rgba(255,255,255,0.75); }
+
+
+/* --- Блокировка --- */
+
+/* Пометка в шапке чата. */
+.dm-blocked-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 8px;
+    background: rgba(242, 63, 66, 0.14);
+    border: 1px solid rgba(242, 63, 66, 0.3);
+    color: #ff6b6e;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* Заменяет поле ввода. Высота близка к полю, чтобы переписка не подпрыгивала
+   при снятии блокировки. */
+.dm-blocked-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.dm-blocked-bar svg {
+    flex-shrink: 0;
+    color: #f23f42;
+}

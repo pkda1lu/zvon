@@ -16,6 +16,7 @@ const { Permissions } = require('./utils/permissions');
 const { logAction } = require('./utils/auditLogger');
 const { getBrand } = require('./utils/branding');
 const { pushIfOffline: pushOfflineWithIo, previewText } = require('./utils/webPush');
+const { isCommunicationBlocked } = require('./utils/privacy');
 const fs = require('fs');
 
 const compression = require('compression');
@@ -641,6 +642,16 @@ io.on('connection', (socket) => {
         if (!dm) return socket.emit('error', { message: 'DM not found' });
         if (!dm.participants.some(p => String(p) === String(socket.userId))) {
           return socket.emit('error', { message: 'Нет доступа к этому чату' });
+        }
+        // Блокировка в любую сторону закрывает переписку один на один.
+        // Основной путь отправки идёт именно через сокет, поэтому без этой
+        // проверки чёрный список не работал бы вовсе (см. пояснение в
+        // routes/directMessages.js).
+        if (dm.participants.length === 2) {
+          const other = dm.participants.find(p => String(p) !== String(socket.userId));
+          if (other && await isCommunicationBlocked(socket.userId, other)) {
+            return socket.emit('error', { message: 'Отправка сообщений недоступна', blocked: true });
+          }
         }
       }
 

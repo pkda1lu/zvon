@@ -1406,6 +1406,22 @@ const Main: React.FC = () => {
     setMobileView('content');
 
   }, [unreadCounts]);
+  /*
+   * Блокировка из меню чата. Помечаем переписку сразу, не дожидаясь
+   * перезагрузки списка: иначе человек нажимает «Заблокировать», а поле ввода
+   * остаётся на месте — выглядит так, будто ничего не произошло.
+   *
+   * Сервер приходит к тому же состоянию при следующей загрузке списка, здесь
+   * мы лишь опережаем его.
+   */
+  const handleDMBlocked = useCallback((blockedDm: DirectMessage) => {
+    const patch = (d: DirectMessage) => d._id === blockedDm._id
+      ? { ...d, blockState: { iBlocked: true, blockedMe: d.blockState?.blockedMe ?? false } }
+      : d;
+    setDms((prev: DirectMessage[]) => prev.map(patch));
+    setSelectedDM((prev: DirectMessage | null) => (prev && prev._id === blockedDm._id) ? patch(prev) : prev);
+  }, []);
+
   const handleStartDM = async (userId: string) => {
     try {
       const response = await axios.get(`/api/direct-messages/user/${userId}`);
@@ -1684,6 +1700,7 @@ const Main: React.FC = () => {
                     servers={servers}
                     onUserClick={handleUserClick}
                     onStartDM={handleStartDM}
+                    onUserBlocked={handleDMBlocked}
                   />
                 </motion.div>
               )}

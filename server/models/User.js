@@ -335,6 +335,10 @@ const userSchema = new mongoose.Schema({
   }
 });
 
+// Обратный поиск «кто меня заблокировал»: без индекса это перебор всей
+// коллекции пользователей, а запрос нужен при каждой загрузке списка переписок.
+userSchema.index({ blockedUsers: 1 });
+
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
