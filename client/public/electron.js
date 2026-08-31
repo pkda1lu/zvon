@@ -586,7 +586,7 @@ function createUpdaterWindow() {
     autoUpdater.on('download-progress', (progressObj) => updaterWindow.webContents.send('updater-progress', progressObj.percent));
     autoUpdater.on('update-downloaded', () => {
         updaterWindow.webContents.send('updater-message', 'Обновление скачано. Установка...');
-        setTimeout(() => autoUpdater.quitAndInstall(), 1000);
+        setTimeout(() => autoUpdater.quitAndInstall(true, true), 1000);
     });
 }
 
