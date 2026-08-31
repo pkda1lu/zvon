@@ -18,12 +18,14 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({ query, items,
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Filter items based on query
+    const cleanQuery = query.replace(/^@+/, '').toLowerCase();
     const filteredItems = items.filter(item => {
-        const name = 'username' in item ? item.username : item.name;
-        return name.toLowerCase().includes(query.toLowerCase());
+        const rawName = 'username' in item ? item.username : item.name;
+        const name = (rawName || '').replace(/^@+/, '');
+        return name.toLowerCase().includes(cleanQuery);
     }).sort((a, b) => {
-        const nameA = 'username' in a ? a.username : a.name;
-        const nameB = 'username' in b ? b.username : b.name;
+        const nameA = ('username' in a ? a.username : a.name || '').replace(/^@+/, '');
+        const nameB = ('username' in b ? b.username : b.name || '').replace(/^@+/, '');
         return nameA.localeCompare(nameB);
     }).slice(0, 10); // Limit results
 
@@ -78,7 +80,8 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({ query, items,
             <div className="mention-autocomplete-list">
                 {filteredItems.map((item, index) => {
                     const isUser = 'username' in item;
-                    const name = isUser ? item.username : item.name;
+                    const rawName = isUser ? item.username : item.name;
+                    const name = (rawName || '').replace(/^@+/, '');
 
                     return (
                         <div

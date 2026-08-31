@@ -1171,7 +1171,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       insertText = `:${item.name}:`;
     } else {
       const isUser = 'username' in item;
-      const name = isUser ? item.username : item.name;
+      const rawName = isUser ? item.username : item.name;
+      const name = (rawName || '').replace(/^@+/, '');
       insertText = `@${name}`;
     }
 
@@ -1184,7 +1185,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
-    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@[\p{L}\p{N}_.-]+|#[\p{L}\p{N}_-]+)/gu);
+    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@+[\p{L}\p{N}_.-]+|#[\p{L}\p{N}_-]+)/gu);
 
     return (
       <>
@@ -1273,35 +1274,52 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           }
 
           if (part.startsWith('@')) {
-            const name = part.substring(1);
-            const userMentionByName = mentions.find(m => m.username === name);
-            const role = server.roles?.find(r => r.name === name);
-            const isSpecialMention = name === 'everyone' || name === 'here';
+            const rawName = part.replace(/^@+/, '');
+            const isSpecialMention = rawName === 'everyone' || rawName === 'here';
+            const role = !isSpecialMention
+              ? server.roles?.find(r => r.name === rawName || r.name.replace(/^@+/, '') === rawName)
+              : undefined;
+            const userMentionByName = (!isSpecialMention && !role)
+              ? mentions.find(m => m.username === rawName)
+              : undefined;
 
             // Find mention by order/index if username changed
-            const userMentionIndex = userMentionByName ? -1 : mentions.findIndex((m, idx) => {
-              const prevUserMentions = parts.slice(0, i).filter(p => p.startsWith('@') && !server.roles?.some(r => r.name === p.substring(1)) && p.substring(1) !== 'everyone' && p.substring(1) !== 'here');
-              return prevUserMentions.length === idx;
-            });
-            const userMention = userMentionByName || (userMentionIndex !== -1 ? mentions[userMentionIndex] : undefined);
+            let userMention = userMentionByName;
+            if (!isSpecialMention && !role && !userMentionByName) {
+              const prevUserMentions = parts.slice(0, i).filter(p => {
+                if (!p.startsWith('@')) return false;
+                const pName = p.replace(/^@+/, '');
+                if (pName === 'everyone' || pName === 'here') return false;
+                if (server.roles?.some(r => r.name === pName || r.name.replace(/^@+/, '') === pName)) return false;
+                return true;
+              });
+              const userMentionIndex = mentions.findIndex((_, idx) => prevUserMentions.length === idx);
+              if (userMentionIndex !== -1) {
+                userMention = mentions[userMentionIndex];
+              }
+            }
             const isUserMention = !!userMention;
 
             if (isUserMention || role || isSpecialMention) {
               const color = role ? role.color : (isSpecialMention ? 'var(--primary-neon)' : 'inherit');
+              const displayText = `@${role ? role.name.replace(/^@+/, '') : rawName}`;
 
               return (
                 <span
                   key={`mention-${i}`}
                   className={`mention-tag ${role ? 'role-mention' : (isSpecialMention ? 'special-mention' : 'user-mention')}`}
-                  style={color !== 'inherit' ? { color: color } : {}}
+                  style={{
+                    ...(color !== 'inherit' ? { color } : {}),
+                    ...((isSpecialMention || role) ? { cursor: 'default' } : {})
+                  }}
                   onClick={(e) => {
-                    if (userMention) {
+                    if (!isSpecialMention && !role && userMention) {
                       e.stopPropagation();
                       onUserClick(userMention._id, e);
                     }
                   }}
                 >
-                  {part}
+                  {displayText}
                 </span>
               );
             }
@@ -1703,7 +1721,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                   query={mentionQuery}
                   items={[
                     ...server.members.map(m => m.user),
-                    ...(server.roles || []).filter(r => canMentionEveryone || r.mentionable),
+                    ...(server.roles || []).filter(r => (canMentionEveryone || r.mentionable) && r.name !== '@everyone' && r.name !== 'everyone'),
                     ...(canMentionEveryone ? [
                       { _id: 'everyone', name: 'everyone', color: 'var(--primary-neon)' } as any,
                       { _id: 'here', name: 'here', color: 'var(--primary-neon)' } as any

@@ -709,7 +709,8 @@ io.on('connection', (socket) => {
             const canMentionEveryone = hasPermission(perms, Permissions.MENTION_EVERYONE);
 
             server.roles.forEach(role => {
-              if (message.content.includes(`@${role.name}`)) {
+              const cleanRoleName = (role.name || '').replace(/^@+/, '');
+              if (role.name !== '@everyone' && cleanRoleName !== 'everyone' && message.content.includes(`@${cleanRoleName}`)) {
                 // If it's a role mention, verify permission or if role is mentionable
                 if (canMentionEveryone || role.mentionable) {
                   server.members.forEach(member => {

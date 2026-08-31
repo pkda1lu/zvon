@@ -386,9 +386,17 @@ textarea,
   box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
 }
 
-.mention-tag.role-mention {
+.mention-tag.role-mention,
+.mention-tag.special-mention {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
+  cursor: default;
+}
+
+.mention-tag.special-mention:hover,
+.mention-tag.role-mention:hover {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
 }
 
 .mention-tag.channel-mention {

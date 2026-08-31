@@ -838,7 +838,7 @@ const DMView: React.FC<DMViewProps> = ({
     return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} в ${timeStr}`;
   }, []);
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
-    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@[\p{L}\p{N}_.-]+)/gu);
+    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@+[\p{L}\p{N}_.-]+)/gu);
 
     return (
       <>
@@ -878,7 +878,7 @@ const DMView: React.FC<DMViewProps> = ({
           }
 
           if (part.startsWith('@')) {
-            const name = part.substring(1);
+            const name = part.replace(/^@+/, '');
             const userMentionByName = mentions.find(m => m.username === name);
             const userMentionIndex = userMentionByName ? -1 : mentions.findIndex((m, idx) => {
               const prevUserMentions = parts.slice(0, i).filter(p => p.startsWith('@'));
@@ -897,7 +897,7 @@ const DMView: React.FC<DMViewProps> = ({
                     }
                   }}
                 >
-                  {part}
+                  @{name}
                 </span>
               );
             }
@@ -1057,7 +1057,8 @@ const DMView: React.FC<DMViewProps> = ({
       insertText = `:${item.name}:`;
     } else {
       const isUser = 'username' in item;
-      const name = isUser ? item.username : item.name;
+      const rawName = isUser ? item.username : item.name;
+      const name = (rawName || '').replace(/^@+/, '');
       insertText = `@${name}`;
     }
 
