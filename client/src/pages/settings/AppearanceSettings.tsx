@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAppearance, AppIconType, ThemeObject, CustomColors } from '../../contexts/AppearanceContext';
-import { ChoiceGroup, GridPicker, RangeSlider, SettingsToggle } from './SettingsUI';
+import { ChoiceGroup, GridPicker, RangeSlider } from './SettingsUI';
 import { getIconBrand } from '../../utils/branding';
-import { PlusIcon, TrashIcon, CheckIcon, GlobeIcon, LockIcon, BellIcon, PinIcon, UsersIcon, SmileIcon } from '../../components/Icons';
+import { PlusIcon, TrashIcon, CheckIcon, LockIcon, BellIcon, PinIcon, UsersIcon, SmileIcon, EditIcon } from '../../components/Icons';
 import InterfacePreview from '../../components/InterfacePreview';
 import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
+import ThemeEditorModal, { ThemeDraft } from '../../components/ThemeEditorModal';
 
 /** Состояние проверки — подпись и цвет метки на карточке своей темы. */
 const MODERATION_BADGE: Record<string, { label: string; cls: string }> = {
@@ -20,12 +21,16 @@ const ThemePreviewCard: React.FC<{
     onApply: () => void,
     onDelete?: () => void,
     isAddCard?: boolean,
+    /** Системная тема: менять нельзя, можно взять за основу. */
+    isSystem?: boolean,
+    onUseAsBase?: () => void,
+    onEdit?: () => void,
     /** Показать метку проверки и кнопку публикации (только для своих тем). */
     showModeration?: boolean,
     onTogglePublish?: () => void,
     /** Автор — подписывается у чужих тем в общем списке. */
     authorName?: string,
-}> = ({ theme, isActive, onApply, onDelete, isAddCard, showModeration, onTogglePublish, authorName }) => {
+}> = ({ theme, isActive, onApply, onDelete, isAddCard, isSystem, onUseAsBase, onEdit, showModeration, onTogglePublish, authorName }) => {
     if (isAddCard) {
         return (
             <div className="theme-preview-card add-theme-card" onClick={onApply}>
@@ -54,12 +59,28 @@ const ThemePreviewCard: React.FC<{
 
             <div className="theme-info">
                 <span className="theme-name">{theme.name}</span>
+                {/* Замок у системной темы: сразу видно, что менять её нельзя. */}
+                {isSystem && <LockIcon size={12} className="theme-lock" />}
+                {onEdit && (
+                    <button className="theme-edit-btn" title="Изменить тему" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                        <EditIcon size={12} />
+                    </button>
+                )}
                 {onDelete && (
                     <button className="theme-delete-btn" title="Удалить тему" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
                         <TrashIcon size={12} />
                     </button>
                 )}
             </div>
+
+            {/* Чужую и системную тему не правят — с них начинают свою. */}
+            {onUseAsBase && (
+                <div className="theme-moderation">
+                    <button className="theme-publish-btn" onClick={(e) => { e.stopPropagation(); onUseAsBase(); }}>
+                        Взять за основу
+                    </button>
+                </div>
+            )}
 
             {authorName && <div className="theme-author">{authorName}</div>}
 
@@ -103,7 +124,7 @@ const AppearanceSettings: React.FC = () => {
         
         savedThemes,
         activeThemeId,
-        saveTheme,
+        saveThemeDraft,
         applyTheme,
         deleteTheme,
         publicThemes,
@@ -112,8 +133,6 @@ const AppearanceSettings: React.FC = () => {
         setThemePublished
     } = appearance;
 
-    const [newThemeName, setNewThemeName] = useState('');
-    const [isPublic, setIsPublic] = useState(false);
 
     /*
      * Общий список тем. Загружаем при первом показе вкладки и при изменении
@@ -160,7 +179,6 @@ const AppearanceSettings: React.FC = () => {
             setBgUploading(false);
         }
     };
-    const [showSaveModal, setShowSaveModal] = useState(false);
 
     const brand = getIconBrand();
     const iconItems = brand.appIcons.map(icon => ({
@@ -169,11 +187,46 @@ const AppearanceSettings: React.FC = () => {
         image: icon.img.startsWith('http') || icon.img.startsWith('/') ? icon.img : '/' + icon.img
     }));
 
-    const handleSaveTheme = async () => {
-        if (!newThemeName.trim()) return;
-        await saveTheme(newThemeName, isPublic);
-        setNewThemeName('');
-        setShowSaveModal(false);
+    /*
+     * Окно правки темы. Держим в состоянии сам черновик и то, правим ли мы
+     * существующую тему — иначе после закрытия окна непонятно, куда сохранять.
+     */
+    const [editor, setEditor] = useState<{
+        draft: ThemeDraft;
+        existing: ThemeObject | null;
+        baseName?: string;
+    } | null>(null);
+
+    /** Собрать черновик из темы (или из текущего оформления). */
+    const draftFrom = (src: any, name: string): ThemeDraft => ({
+        name,
+        theme: src.theme,
+        customColors: { ...src.customColors },
+        customBackground: src.customBackground || '',
+        backgroundDim: src.backgroundDim ?? 40,
+        backgroundBlur: src.backgroundBlur ?? 0,
+        messageSpacing: src.messageSpacing ?? 2,
+        groupSpacing: src.groupSpacing ?? 16,
+        interfaceScale: src.interfaceScale ?? 1,
+    });
+
+    /*
+     * Своя тема выбрана или системная. Раньше цвета и фон правились всегда,
+     * из-за чего системная тема менялась «на месте»: выбрал тёмную, поменял
+     * цвет — и от исходной ничего не осталось, хотя в списке она значилась
+     * прежней. Теперь при системной теме правка закрыта, а вместо неё
+     * предлагается создать свою на её основе.
+     */
+    const editingOwnTheme = !!activeThemeId;
+
+    const openNewTheme = (base: any, baseName: string) =>
+        setEditor({ draft: draftFrom(base, ''), existing: null, baseName });
+
+    const openEditTheme = (t: ThemeObject) =>
+        setEditor({ draft: draftFrom(t, t.name), existing: t });
+
+    const handleEditorSave = async (draft: ThemeDraft, publish: boolean) => {
+        await saveThemeDraft(draft as any, publish, editor?.existing?._id);
     };
 
     const defaultTheme = {
@@ -221,16 +274,22 @@ const AppearanceSettings: React.FC = () => {
                     </div>
 
                     <div className="themes-horizontal-scroll">
+                        {/* Системные темы: применить можно, изменить — нет.
+                            «Взять за основу» открывает редактор с их значениями. */}
                         <ThemePreviewCard 
                             theme={defaultTheme}
                             isActive={!activeThemeId && theme === 'dark'}
                             onApply={resetCustomTheme}
+                            isSystem
+                            onUseAsBase={() => openNewTheme(defaultTheme, defaultTheme.name)}
                         />
                         
                         <ThemePreviewCard 
                             theme={amoledTheme}
                             isActive={!activeThemeId && theme === 'amoled'}
                             onApply={() => setTheme('amoled')}
+                            isSystem
+                            onUseAsBase={() => openNewTheme(amoledTheme, amoledTheme.name)}
                         />
 
                         {savedThemes.map(t => (
@@ -240,6 +299,7 @@ const AppearanceSettings: React.FC = () => {
                                 isActive={activeThemeId === t._id}
                                 onApply={() => applyTheme(t)}
                                 onDelete={() => deleteTheme(t._id!)}
+                                onEdit={() => openEditTheme(t)}
                                 showModeration
                                 onTogglePublish={() => handleTogglePublish(t)}
                             />
@@ -249,7 +309,7 @@ const AppearanceSettings: React.FC = () => {
                             isAddCard
                             theme={null}
                             isActive={false}
-                            onApply={() => setShowSaveModal(true)}
+                            onApply={() => openNewTheme(appearance, '')}
                         />
                     </div>
                 </div>
@@ -291,6 +351,7 @@ const AppearanceSettings: React.FC = () => {
                                     authorName={typeof t.creator === 'object' && t.creator
                                         ? ((t.creator as any).displayName || (t.creator as any).username)
                                         : undefined}
+                                    onUseAsBase={() => openNewTheme(t, t.name)}
                                 />
                             ))}
                         </div>
@@ -298,7 +359,33 @@ const AppearanceSettings: React.FC = () => {
                 </div>
 
                 {/* COLORS (Combined Schema and Tints) */}
-                <div className="settings-card colors-combined-card">
+                {/*
+                    Правка оформления доступна только для своей темы. При
+                    системной показываем, почему поля закрыты, и сразу даём
+                    выход — создать свою на её основе.
+                */}
+                {!editingOwnTheme && (
+                    <div className="settings-card theme-locked-card">
+                        <div className="theme-locked-head">
+                            <LockIcon size={16} />
+                            <h3 className="settings-section-title" style={{ margin: 0 }}>
+                                Системная тема — менять нельзя
+                            </h3>
+                        </div>
+                        <p className="settings-description">
+                            «Тёмная» и «AMOLED» одинаковы для всех. Чтобы настроить цвета,
+                            фон и отступы, создайте свою тему — за основу возьмётся текущая.
+                        </p>
+                        <button
+                            className="neon-btn"
+                            onClick={() => openNewTheme(appearance, theme === 'amoled' ? 'AMOLED' : 'Тёмная')}
+                        >
+                            Создать свою на этой основе
+                        </button>
+                    </div>
+                )}
+
+                {editingOwnTheme && <div className="settings-card colors-combined-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>ЦВЕТА</h3>
                     
                     <div className="settings-row">
@@ -331,9 +418,9 @@ const AppearanceSettings: React.FC = () => {
                             <input type="color" value={customColors.accent} onChange={(e) => setCustomColors({ accent: e.target.value })} />
                         </div>
                     </div>
-                </div>
+                </div>}
 
-                <div className="settings-card background-full-card">
+                {editingOwnTheme && <div className="settings-card background-full-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Фон приложения</h3>
 
                     {/*
@@ -401,7 +488,7 @@ const AppearanceSettings: React.FC = () => {
                             </div>
                         </div>
                     )}
-                </div>
+                </div>}
 
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Иконка приложения</h3>
@@ -419,35 +506,20 @@ const AppearanceSettings: React.FC = () => {
                 </div>
             </SettingsPreviewContainer>
 
-            {showSaveModal && (
-                <div className="settings-modal-overlay">
-                    <div className="settings-modal-glass">
-                        <h3>Сохранение темы</h3>
-                        <p className="settings-description">Введите название для вашей новой темы.</p>
-                        <input 
-                            type="text" 
-                            className="settings-input" 
-                            placeholder="Название темы..." 
-                            autoFocus
-                            value={newThemeName}
-                            onChange={(e) => setNewThemeName(e.target.value)}
-                        />
-                        <div className="settings-row" style={{marginTop: '15px'}}>
-                            <div className="settings-row-text">
-                                <h3>Опубликовать</h3>
-                                {/* Раньше подписи не было, и «сделать публичной»
-                                    выглядело как мгновенное действие. */}
-                                <p>Тема попадёт в общий список после проверки модератором.</p>
-                            </div>
-                            <SettingsToggle checked={isPublic} onChange={setIsPublic} />
-                        </div>
-                        <div className="modal-actions">
-                            <button className="settings-btn secondary" onClick={() => setShowSaveModal(false)}>Отмена</button>
-                            <button className="neon-btn" onClick={handleSaveTheme} disabled={!newThemeName.trim()}>Сохранить</button>
-                        </div>
-                    </div>
-                </div>
+            {/* Прежнее окно спрашивало только название и галочку публикации,
+                а оформление к тому моменту уже было применено ко всему
+                приложению. Теперь всё наоборот: сначала собираем тему в
+                черновике с предпросмотром, и лишь сохранение её применяет. */}
+            {editor && (
+                <ThemeEditorModal
+                    initial={editor.draft}
+                    existing={editor.existing}
+                    baseName={editor.baseName}
+                    onClose={() => setEditor(null)}
+                    onSave={handleEditorSave}
+                />
             )}
+
         </div>
     );
 };

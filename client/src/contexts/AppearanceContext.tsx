@@ -84,6 +84,8 @@ interface AppearanceContextType extends AppearanceSettings {
     activeThemeId: string | null;
     fetchThemes: () => Promise<void>;
     saveTheme: (name: string, isPublic: boolean) => Promise<void>;
+    /** Сохранить тему из черновика окна правки (создание или изменение). */
+    saveThemeDraft: (draft: Omit<ThemeObject, '_id'>, publish: boolean, existingId?: string) => Promise<ThemeObject>;
     applyTheme: (theme: ThemeObject) => void;
     deleteTheme: (id: string) => Promise<void>;
 
@@ -536,6 +538,60 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
     };
 
+    /**
+     * Сохранить тему из ЧЕРНОВИКА — того, что человек собрал в окне правки.
+     *
+     * Отдельно от saveTheme, который снимал слепок с текущего оформления
+     * приложения. Прежний порядок вынуждал сперва применить изменения ко
+     * всему приложению, а уже потом «сохранить как тему» — из-за чего
+     * системные темы и оказывались изменяемыми.
+     *
+     * Тема сразу применяется: человек только что видел её в предпросмотре и
+     * ждёт именно этого.
+     */
+    const saveThemeDraft = useCallback(async (
+        draft: Omit<ThemeObject, '_id'>,
+        publish: boolean,
+        existingId?: string,
+    ) => {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Нет токена');
+        const headers = { Authorization: `Bearer ${token}` };
+
+        let saved: ThemeObject;
+        if (existingId) {
+            const res = await axios.put(`/api/themes/${existingId}`, draft, { headers });
+            saved = res.data;
+            setSavedThemes(prev => prev.map(t => t._id === existingId ? saved : t));
+        } else {
+            const res = await axios.post('/api/themes', { ...draft, isPublic: publish }, { headers });
+            saved = res.data;
+            setSavedThemes(prev => [saved, ...prev]);
+        }
+
+        // Публикацию ставим отдельным запросом: при правке она не проходит
+        // через тело обновления (сервер намеренно не принимает там поля
+        // состояния проверки — см. routes/themes.js).
+        if (publish && saved._id) {
+            const res = await axios.post(`/api/themes/${saved._id}/publish`, { publish: true }, { headers });
+            saved = res.data;
+            setSavedThemes(prev => prev.map(t => t._id === saved._id ? saved : t));
+        }
+
+        setSettings(prev => ({
+            ...prev,
+            theme: draft.theme,
+            customColors: draft.customColors,
+            customBackground: draft.customBackground,
+            backgroundDim: draft.backgroundDim,
+            backgroundBlur: draft.backgroundBlur,
+            messageSpacing: draft.messageSpacing,
+            groupSpacing: draft.groupSpacing,
+        }));
+        if (saved._id) setActiveThemeId(saved._id);
+        return saved;
+    }, []);
+
     const applyTheme = (theme: ThemeObject) => {
         // Счётчик применений у опубликованных тем — по нему строится порядок
         // в общем списке. Ошибку глушим: не смогли посчитать — тема всё равно
@@ -606,6 +662,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setThemePublished,
             fetchThemes,
             saveTheme,
+            saveThemeDraft,
             applyTheme,
             deleteTheme
         }}>

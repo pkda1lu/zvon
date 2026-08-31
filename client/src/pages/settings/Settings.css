@@ -4131,3 +4131,38 @@ input[type=range]:disabled::-webkit-slider-thumb {
     color: #ff8f91;
     font-size: 12px;
 }
+
+
+/* Замок и правка у карточки темы */
+.theme-lock {
+    color: var(--text-dim);
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.theme-edit-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.theme-edit-btn:hover {
+    color: var(--primary-neon);
+}
+
+/* Пояснение, почему правка закрыта при системной теме */
+.theme-locked-card {
+    border-color: color-mix(in srgb, var(--primary-neon) 22%, var(--glass-border));
+}
+
+.theme-locked-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    color: var(--text-dim);
+}
