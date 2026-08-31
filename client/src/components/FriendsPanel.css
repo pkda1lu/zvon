@@ -1,4 +1,10 @@
-/* === Container === */
+/* === Container ===
+   Фон панели — общий .panel-hero (см. panel-hero.css). Собственная обложка
+   с волнами, кольцами и шаром убрана: она не встречалась больше нигде.
+
+   Рамка и скругление стояли в удалённом блоке .friends-panel--hero, поэтому
+   перенесены сюда. Значения те же, что у соседних панелей (DMSidebar,
+   ServerMembers): общая переменная --corner-radius, а не своё число. */
 .friends-panel {
   flex: 1;
   display: flex;
@@ -6,11 +12,10 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--corner-radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
-
-/* Фон панели — общий .panel-hero (см. panel-hero.css). Собственная обложка
-   с волнами, кольцами и шаром убрана: она не встречалась больше нигде.
-   Рамку и скругление задаёт .friends-panel ниже. */
 
 /* === Layout === */
 .friends-main-container {
