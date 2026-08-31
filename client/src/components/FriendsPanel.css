@@ -8,139 +8,9 @@
   position: relative;
 }
 
-/* === Hero background (neon waves + drifting blobs + central orb) === */
-.friends-panel--hero {
-  /* Same overlay alpha as .panel-hero so all panels match — see panel-hero.css */
-  background: linear-gradient(180deg, rgba(8, 8, 14, 0.45), rgba(4, 4, 10, 0.65));
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.06));
-  border-radius: var(--corner-radius, calc(18px * var(--interface-scale, 1)));
-}
-
-.friends-hero-bg {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-  border-radius: inherit;
-}
-
-.friends-hero-blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(calc(70px * var(--interface-scale, 1)));
-  opacity: 0.4;
-  will-change: transform;
-  animation: friendsBlobFloat 24s ease-in-out infinite;
-}
-.friends-hero-blob--cyan   { width: calc(480px * var(--interface-scale, 1)); height: calc(480px * var(--interface-scale, 1)); top: -12%;  left: -10%;
-  background: radial-gradient(circle, rgba(0, 242, 255, 0.7), transparent 65%); }
-.friends-hero-blob--purple { width: calc(520px * var(--interface-scale, 1)); height: calc(520px * var(--interface-scale, 1)); bottom: -15%; right: -10%;
-  background: radial-gradient(circle, rgba(112, 0, 255, 0.7), transparent 65%);
-  animation-delay: -8s; animation-duration: 28s; }
-.friends-hero-blob--pink   { width: calc(320px * var(--interface-scale, 1)); height: calc(320px * var(--interface-scale, 1)); top: 35%;    right: 38%;
-  background: radial-gradient(circle, rgba(255, 0, 200, 0.4), transparent 65%);
-  animation-delay: -14s; animation-duration: 32s; }
-
-@keyframes friendsBlobFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(calc(60px * var(--interface-scale, 1)), calc(-40px * var(--interface-scale, 1))) scale(1.1); }
-  66%      { transform: translate(calc(-50px * var(--interface-scale, 1)), calc(50px * var(--interface-scale, 1))) scale(0.95); }
-}
-
-.friends-hero-wave {
-  position: absolute;
-  left: 0;
-  right: 0;
-  width: 140%;
-  fill: none;
-  stroke-width: 1.2;
-  opacity: 0.3;
-}
-.friends-hero-wave--cyan {
-  top: 30%;
-  stroke: var(--primary-neon, #00f2ff);
-  filter: drop-shadow(0 0 calc(8px * var(--interface-scale, 1)) rgba(0, 242, 255, 0.5));
-  animation: friendsWaveDrift 32s linear infinite;
-}
-.friends-hero-wave--purple {
-  top: 60%;
-  stroke: var(--secondary-neon, #7000ff);
-  filter: drop-shadow(0 0 calc(8px * var(--interface-scale, 1)) rgba(112, 0, 255, 0.5));
-  animation: friendsWaveDrift 42s linear infinite reverse;
-  opacity: 0.22;
-}
-@keyframes friendsWaveDrift {
-  0%   { transform: translateX(-15%); }
-  100% { transform: translateX(15%); }
-}
-
-/* Central glass orb (decorative, sits behind content with very low opacity) */
-.friends-hero-orb {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: calc(360px * var(--interface-scale, 1));
-  height: calc(360px * var(--interface-scale, 1));
-  transform: translate(-50%, -50%);
-  opacity: 0.55;
-}
-.friends-hero-orb__ring {
-  position: absolute; inset: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  animation: friendsOrbRotate 50s linear infinite;
-}
-.friends-hero-orb__ring::before,
-.friends-hero-orb__ring::after {
-  content: '';
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-}
-.friends-hero-orb__ring::before { inset: calc(22px * var(--interface-scale, 1)); border-color: rgba(0, 242, 255, 0.1); }
-.friends-hero-orb__ring::after  { inset: calc(48px * var(--interface-scale, 1)); border-color: rgba(112, 0, 255, 0.08); }
-@keyframes friendsOrbRotate { to { transform: rotate(360deg); } }
-
-.friends-hero-orb__core {
-  position: absolute; top: 50%; left: 50%;
-  width: calc(150px * var(--interface-scale, 1)); height: calc(150px * var(--interface-scale, 1));
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.5), transparent 35%),
-    radial-gradient(circle at 70% 70%, rgba(112, 0, 255, 0.45), transparent 50%),
-    radial-gradient(circle at 30% 75%, rgba(0, 242, 255, 0.45), transparent 50%),
-    radial-gradient(circle, rgba(20, 20, 35, 0.85), rgba(8, 8, 18, 0.95));
-  box-shadow:
-    inset 0 calc(4px * var(--interface-scale, 1)) calc(30px * var(--interface-scale, 1)) rgba(0, 242, 255, 0.25),
-    inset 0 calc(-4px * var(--interface-scale, 1)) calc(30px * var(--interface-scale, 1)) rgba(112, 0, 255, 0.3),
-    0 0 calc(60px * var(--interface-scale, 1)) rgba(0, 242, 255, 0.2),
-    0 calc(20px * var(--interface-scale, 1)) calc(50px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.5);
-  animation: friendsOrbBreathe 7s ease-in-out infinite;
-}
-.friends-hero-orb__highlight {
-  position: absolute; top: 14%; left: 18%;
-  width: 38%; height: 28%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.5), transparent 65%);
-  filter: blur(calc(4px * var(--interface-scale, 1)));
-}
-.friends-hero-orb__glow {
-  position: absolute; inset: calc(-25px * var(--interface-scale, 1));
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 242, 255, 0.2), transparent 60%);
-  filter: blur(calc(30px * var(--interface-scale, 1)));
-  animation: friendsOrbGlowBreathe 7s ease-in-out infinite;
-}
-@keyframes friendsOrbBreathe {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  50%      { transform: translate(-50%, -50%) scale(1.05); }
-}
-@keyframes friendsOrbGlowBreathe {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50%      { opacity: 1;   transform: scale(1.1); }
-}
+/* Фон панели — общий .panel-hero (см. panel-hero.css). Собственная обложка
+   с волнами, кольцами и шаром убрана: она не встречалась больше нигде.
+   Рамку и скругление задаёт .friends-panel ниже. */
 
 /* === Layout === */
 .friends-main-container {
@@ -165,41 +35,27 @@
   box-shadow: none;
 }
 
-/* === Hero header === */
-.friends-hero-header {
-  padding: calc(36px * var(--interface-scale, 1)) calc(44px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
+/* === Заголовок панели ===
+   Раньше здесь была обложка: надзаголовок в разрядку, градиентный заголовок
+   36px и слоган. На четверть экрана ради списка из одной строки. */
+.friends-header {
+  padding: calc(24px * var(--interface-scale, 1)) calc(28px * var(--interface-scale, 1)) calc(4px * var(--interface-scale, 1));
   flex-shrink: 0;
-  text-align: left;
 }
-.friends-hero-eyebrow {
-  display: inline-block;
-  font-size: calc(10px * var(--interface-scale, 1));
+
+.friends-header-title {
+  margin: 0 0 calc(4px * var(--interface-scale, 1));
+  font-size: calc(20px * var(--interface-scale, 1));
   font-weight: 800;
-  letter-spacing: calc(3px * var(--interface-scale, 1));
-  text-transform: uppercase;
-  color: var(--text-dim, rgba(255, 255, 255, 0.5));
-  margin-bottom: calc(12px * var(--interface-scale, 1));
+  letter-spacing: calc(-0.3px * var(--interface-scale, 1));
+  color: var(--header-primary, #fff);
 }
-.friends-hero-title {
-  font-size: calc(36px * var(--interface-scale, 1));
-  font-weight: 800;
-  letter-spacing: calc(-1px * var(--interface-scale, 1));
-  margin: 0 0 calc(10px * var(--interface-scale, 1));
-  color: var(--text-main, #fff);
-  line-height: 1.05;
-}
-.friends-hero-title__accent {
-  background: linear-gradient(135deg, var(--primary-neon, #00f2ff), var(--secondary-neon, #7000ff));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.friends-hero-sub {
-  font-size: calc(14px * var(--interface-scale, 1));
-  color: var(--text-dim, rgba(255, 255, 255, 0.55));
+
+.friends-header-sub {
   margin: 0;
-  max-width: calc(540px * var(--interface-scale, 1));
-  line-height: 1.55;
+  font-size: calc(13px * var(--interface-scale, 1));
+  line-height: 1.5;
+  color: var(--text-dim, rgba(255, 255, 255, 0.55));
 }
 
 /* Mobile header (Назад + Друзья) */
@@ -229,69 +85,86 @@
   margin-right: calc(12px * var(--interface-scale, 1));
 }
 
-/* === Tabs (pill row) === */
+/* === Вкладки ===
+   Тот же вид, что в панели личных сообщений: подложка одна и переезжает между
+   вкладками. Прежние были яркими градиентными таблетками с цветной тенью —
+   ничего похожего в приложении больше нет. */
 .friends-tabs {
   display: flex;
-  padding: calc(8px * var(--interface-scale, 1)) calc(44px * var(--interface-scale, 1)) calc(18px * var(--interface-scale, 1));
-  gap: calc(10px * var(--interface-scale, 1));
+  gap: calc(4px * var(--interface-scale, 1));
+  padding: calc(14px * var(--interface-scale, 1)) calc(28px * var(--interface-scale, 1)) calc(14px * var(--interface-scale, 1));
   flex-shrink: 0;
-  flex-wrap: wrap;
 }
 
-.friends-tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(8px * var(--interface-scale, 1));
-  padding: calc(9px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+.friends-tab {
+  position: relative;
+  padding: calc(8px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
+  border: none;
+  border-radius: calc(12px * var(--interface-scale, 1));
+  background: transparent;
   color: var(--text-dim, rgba(255, 255, 255, 0.6));
-  cursor: pointer;
-  font-size: calc(12px * var(--interface-scale, 1));
-  font-weight: 700;
-  border-radius: 999px;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  text-transform: none;
-  letter-spacing: 0.2px;
   font-family: inherit;
+  font-size: calc(13px * var(--interface-scale, 1));
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.28s ease;
 }
-.friends-tabs button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.16);
-  transform: translateY(-1px);
+
+.friends-tab:hover { color: var(--text-main, #fff); }
+.friends-tab.active { color: #fff; }
+
+.friends-tab-label {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--interface-scale, 1));
 }
-.friends-tabs button.active {
-  color: #050510;
-  background: linear-gradient(135deg, var(--primary-neon, #00f2ff), var(--secondary-neon, #7000ff));
-  border-color: transparent;
-  box-shadow: 0 calc(6px * var(--interface-scale, 1)) calc(22px * var(--interface-scale, 1)) rgba(0, 242, 255, 0.3);
+
+.friends-tab-pill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--primary-neon) 20%, transparent),
+      color-mix(in srgb, var(--primary-neon) 11%, transparent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+    0 2px 12px color-mix(in srgb, var(--primary-neon) 18%, transparent);
 }
 
 .friends-tab-count {
+  min-width: calc(18px * var(--interface-scale, 1));
+  height: calc(18px * var(--interface-scale, 1));
+  padding: 0 calc(5px * var(--interface-scale, 1));
+  border-radius: calc(9px * var(--interface-scale, 1));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
   font-size: calc(10px * var(--interface-scale, 1));
   font-weight: 800;
-  padding: calc(1px * var(--interface-scale, 1)) calc(7px * var(--interface-scale, 1));
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: inherit;
-  line-height: 1.4;
-  letter-spacing: 0;
 }
-.friends-tabs button.active .friends-tab-count {
-  background: rgba(0, 0, 0, 0.18);
+
+.friends-tab.active .friends-tab-count {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
 }
-.friends-tab-count--accent {
+
+/* Непрочитанные заявки — тем же цветом, что счётчики в списке чатов. */
+.friends-tab-count.accent {
   background: var(--accent-pink, #ff3b30);
   color: #fff;
-  box-shadow: 0 0 calc(12px * var(--interface-scale, 1)) rgba(255, 59, 48, 0.5);
 }
 
 /* === Content area === */
 .friends-content {
   flex: 1;
   overflow-y: auto;
-  padding: calc(8px * var(--interface-scale, 1)) calc(44px * var(--interface-scale, 1)) calc(36px * var(--interface-scale, 1));
+  padding: 0 calc(28px * var(--interface-scale, 1)) calc(28px * var(--interface-scale, 1));
 }
 .friends-content::-webkit-scrollbar { width: calc(6px * var(--interface-scale, 1)); }
 .friends-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.07); border-radius: calc(10px * var(--interface-scale, 1)); }
@@ -302,12 +175,14 @@
 .search-result-item {
   display: flex;
   align-items: center;
-  gap: calc(16px * var(--interface-scale, 1));
-  padding: calc(14px * var(--interface-scale, 1)) calc(18px * var(--interface-scale, 1));
-  border-radius: calc(18px * var(--interface-scale, 1));
+  /* Размеры выровнены со строкой чата (.dm-item): те же скругление, отступы
+     и шаг между строками — списки в приложении должны читаться одинаково. */
+  gap: calc(12px * var(--interface-scale, 1));
+  padding: calc(9px * var(--interface-scale, 1)) calc(13px * var(--interface-scale, 1));
+  border-radius: calc(14px * var(--interface-scale, 1));
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid transparent;
-  margin-bottom: calc(8px * var(--interface-scale, 1));
+  margin-bottom: calc(4px * var(--interface-scale, 1));
   transition: background 0.25s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   backdrop-filter: blur(20px);
 }
@@ -403,9 +278,13 @@
   flex-shrink: 0;
 }
 
-.test-action-btn {
-  width: calc(36px * var(--interface-scale, 1));
-  height: calc(36px * var(--interface-scale, 1));
+/* Кнопки строки. Прежнее имя класса — .test-action-btn — осталось от отладки
+   и ничего не значило. */
+.friend-action-btn {
+  width: calc(32px * var(--interface-scale, 1));
+  height: calc(32px * var(--interface-scale, 1));
+  opacity: 0;
+  transition: opacity 0.15s ease;
   border-radius: calc(12px * var(--interface-scale, 1));
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
   background: rgba(255, 255, 255, 0.04);
@@ -416,13 +295,20 @@
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.test-action-btn:hover {
+/* Появляются при наведении на строку: постоянные иконки у каждого друга —
+   шум, а «удалить из друзей» под курсором ещё и легко нажать случайно. */
+.friend-item:hover .friend-action-btn,
+.friend-action-btn:focus-visible {
+  opacity: 1;
+}
+
+.friend-action-btn:hover {
   background: rgba(0, 242, 255, 0.08);
   border-color: rgba(0, 242, 255, 0.3);
   color: var(--primary-neon, #00f2ff);
   transform: translateY(-1px);
 }
-.test-action-btn.remove:hover {
+.friend-action-btn.remove:hover {
   background: rgba(255, 59, 48, 0.1);
   border-color: rgba(255, 59, 48, 0.3);
   color: #ff5570;
@@ -468,15 +354,14 @@
 }
 
 /* === Empty state === */
+/* Пустое состояние без рамки и подложки: пустоту не нужно обводить, чтобы
+   она была заметна. Оформление совпадает с .dm-empty в панели чатов. */
 .empty-state {
   text-align: center;
   color: var(--text-dim, rgba(255, 255, 255, 0.5));
-  padding: calc(60px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
-  font-size: calc(14px * var(--interface-scale, 1));
-  border: 1px dashed rgba(255, 255, 255, 0.08);
-  border-radius: calc(18px * var(--interface-scale, 1));
-  margin-top: calc(16px * var(--interface-scale, 1));
-  background: rgba(255, 255, 255, 0.015);
+  padding: calc(48px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
+  font-size: calc(13px * var(--interface-scale, 1));
+  line-height: 1.7;
 }
 
 /* === Buttons === */
@@ -547,10 +432,8 @@
 
 /* === Mobile tweaks === */
 @media (max-width: 768px) {
-  .friends-hero-header { padding: 18px 18px 12px; }
-  .friends-hero-title { font-size: 26px; }
-  .friends-hero-sub { font-size: 13px; }
+  .friends-header { padding: 16px 16px 4px; }
+  .friends-header-title { font-size: 18px; }
   .friends-tabs { padding: 6px 18px 14px; }
   .friends-content { padding: 6px 18px 24px; }
-  .friends-hero-orb { width: 240px; height: 240px; opacity: 0.4; }
 }

@@ -75,6 +75,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // 'notification' (сообщения модерации) обрабатываются в InboxContext —
       // там они сохраняются во «Входящих» и показывают тост. Здесь не дублируем.
 
+      /*
+       * Отказы сервера. Раньше событие 'error' не слушал никто, и любой отказ
+       * происходил молча: человек нажимал «отправить» или «позвонить», а в
+       * ответ — ничего. Именно так выглядела блокировка до этой правки.
+       *
+       * Показываем только то, что предназначено человеку: у сообщения есть
+       * текст. Служебные ошибки без текста в лицо не суём.
+       */
+      newSocket.on('error', (data: any) => {
+        const text = typeof data === 'string' ? data : data?.message;
+        if (!text) return;
+        addNotification({
+          title: data?.blocked ? 'Недоступно' : 'Не удалось выполнить',
+          content: text,
+          type: 'error'
+        });
+      });
+
       newSocket.on('account-banned', (data: any) => {
         addNotification({
           title: 'Блокировка аккаунта',

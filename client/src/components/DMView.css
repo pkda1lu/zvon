@@ -124,6 +124,13 @@
   transition: all 0.3s ease;
 }
 
+/* Звонок при блокировке недоступен — кнопка на месте, но неактивна. */
+.voice-call-button:disabled {
+    opacity: 0.35;
+    cursor: default;
+    pointer-events: none;
+}
+
 .voice-call-button:hover {
   background: var(--primary-neon);
   color: black;

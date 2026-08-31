@@ -991,6 +991,19 @@ io.on('connection', (socket) => {
         const DirectMessage = require('./models/DirectMessage');
         const dm = await DirectMessage.findById(data.dmId);
         if (dm) {
+          /*
+           * «Групповой» звонок в переписке на двоих — это обычный личный
+           * звонок, и блокировка на него распространяется. Интерфейс сюда не
+           * приводит, но проверка на клиенте ничего не стоит обойти: запрос
+           * можно отправить и напрямую.
+           */
+          if (dm.participants.length === 2) {
+            const other = dm.participants.find(p => String(p) !== String(socket.userId));
+            if (other && await isCommunicationBlocked(socket.userId, other)) {
+              return socket.emit('error', { message: 'Звонок недоступен', blocked: true });
+            }
+          }
+
           console.log(`[Call] Group offer from ${socket.userId} in DM ${data.dmId}`);
           const callerName = user?.username || 'Кто-то';
           dm.participants.forEach(p => {
@@ -1014,6 +1027,21 @@ io.on('connection', (socket) => {
         }
       } catch (err) { }
     } else {
+      /*
+       * Личный звонок при блокировке не проходит — в любую сторону.
+       *
+       * Проверка была только на переписке, и звонок оставался обходным путём:
+       * заблокированный не мог написать, но мог позвонить, а у собеседника
+       * ещё и звенел вызов. Для чёрного списка это дыра того же рода, что и
+       * доставка сообщений.
+       *
+       * Групповые звонки не трогаем: блокировка одного участника не повод
+       * отрезать человека от общей беседы (так же, как с сообщениями).
+       */
+      if (data.targetUserId && await isCommunicationBlocked(socket.userId, data.targetUserId)) {
+        return socket.emit('error', { message: 'Звонок недоступен', blocked: true });
+      }
+
       console.log(`[Call] Offer from ${socket.userId} to ${data.targetUserId}`);
       io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId });
       pushIfOffline(data.targetUserId, {

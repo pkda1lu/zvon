@@ -9,8 +9,9 @@ import { useDialog } from '../contexts/DialogContext';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import ActiveContacts from './ActiveContacts';
-import { getBrand } from '../utils/branding';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { motion } from 'framer-motion';
+import { iosSpring } from '../animations/transitions';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
@@ -24,14 +25,21 @@ interface FriendsPanelProps {
   servers?: Server[];
 }
 
+/** Подписи статусов. В списке стояло сырое значение из базы — «offline». */
+const STATUS_LABELS: Record<string, string> = {
+  online: 'В сети',
+  away: 'Отошёл',
+  busy: 'Не беспокоить',
+  offline: 'Не в сети',
+};
+
 interface DMDict { [userId: string]: string; }
 
 const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStartDM, onUserClick, unreadCounts, onBack, isMobile, servers = [] }) => {
   const { socket } = useSocket();
   const { user: currentUser } = useAuth();
   const { confirm } = useDialog();
-  const { interfaceScale } = useAppearance();
-  const brand = getBrand();
+  const { interfaceScale, reduceMotion } = useAppearance();
   const [userDMs, setUserDMs] = useState<DMDict>({});
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,23 +122,18 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
   };
 
   return (
-    <div className="friends-panel friends-panel--hero">
-      {/* Decorative background — drifting neon blobs + waves + central orb */}
-      <div className="friends-hero-bg" aria-hidden="true">
-        <div className="friends-hero-blob friends-hero-blob--cyan" />
-        <div className="friends-hero-blob friends-hero-blob--purple" />
-        <div className="friends-hero-blob friends-hero-blob--pink" />
-        <svg className="friends-hero-wave friends-hero-wave--cyan" viewBox="0 0 1200 400" preserveAspectRatio="none">
-          <path d="M0,200 C200,80 400,320 600,200 C800,80 1000,320 1200,200" />
-        </svg>
-        <svg className="friends-hero-wave friends-hero-wave--purple" viewBox="0 0 1200 400" preserveAspectRatio="none">
-          <path d="M0,220 C300,140 500,280 700,180 C900,100 1100,260 1200,220" />
-        </svg>
-        <div className="friends-hero-orb">
-          <div className="friends-hero-orb__ring" />
-          <div className="friends-hero-orb__core"><div className="friends-hero-orb__highlight" /></div>
-          <div className="friends-hero-orb__glow" />
-        </div>
+    /*
+     * Фон — общий для всех панелей приложения (panel-hero). Раньше здесь был
+     * свой: волны, кольца и крупный шар в центре. Он занимал весь экран под
+     * коротким списком и не встречался больше нигде, из-за чего раздел
+     * выпадал из приложения. Комментарий в panel-hero.css прямо говорит, что
+     * общий фон и был выделен отсюда — осталось им же и воспользоваться.
+     */
+    <div className="friends-panel panel-hero">
+      <div className="panel-hero-bg" aria-hidden="true">
+        <div className="blob cyan" />
+        <div className="blob purple" />
+        <div className="blob pink" />
       </div>
 
       <div className="friends-main-container">
@@ -141,32 +144,51 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
             </div>
           )}
 
-          <header className="friends-hero-header">
-            <span className="friends-hero-eyebrow">{brand.name} · Социальное</span>
-            <h1 className="friends-hero-title">
-              {activeTab === 'pending' ? <>Входящие <span className="friends-hero-title__accent">запросы</span></>
-                : activeTab === 'add' ? <>Найти <span className="friends-hero-title__accent">новых друзей</span></>
-                : <>Твоё <span className="friends-hero-title__accent">сообщество</span></>}
-            </h1>
-            <p className="friends-hero-sub">
-              {activeTab === 'pending' ? 'Принимай запросы или отклоняй — на твоё усмотрение.'
-                : activeTab === 'add' ? 'Ищи людей по имени и добавляй в друзья. Запрос придёт мгновенно.'
-                : 'Здесь все, с кем ты на связи. Кликни — открой профиль, или начни чат.'}
+          {/*
+            Заголовок панели, а не рекламная обложка. Прежний занимал четверть
+            экрана: надзаголовок, крупный градиентный заголовок и слоган на
+            «ты» — так говорит посадочная страница, а не раздел приложения,
+            куда заходят по десять раз в день.
+          */}
+          <header className="friends-header">
+            <h2 className="friends-header-title">Друзья</h2>
+            <p className="friends-header-sub">
+              {activeTab === 'pending' ? 'Входящие заявки в друзья.'
+                : activeTab === 'add' ? 'Найдите человека по имени и отправьте заявку.'
+                : 'Нажмите на строку, чтобы открыть профиль.'}
             </p>
           </header>
 
-          <div className="friends-tabs">
-            <button className={activeTab === 'friends' ? 'active' : ''} onClick={() => setActiveTab('friends')}>
-              <span>Друзья</span>
-              <span className="friends-tab-count">{tabCounts.friends}</span>
-            </button>
-            <button className={activeTab === 'pending' ? 'active' : ''} onClick={() => setActiveTab('pending')}>
-              <span>Запросы</span>
-              {tabCounts.pending > 0 && <span className="friends-tab-count friends-tab-count--accent">{tabCounts.pending}</span>}
-            </button>
-            <button className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}>
-              <span>Добавить</span>
-            </button>
+          {/* Вкладки того же вида, что в панели личных сообщений: подложка
+              одна и переезжает между ними. */}
+          <div className="friends-tabs" role="tablist">
+            {([
+              { id: 'friends', label: 'Друзья', count: tabCounts.friends, accent: false },
+              { id: 'pending', label: 'Заявки', count: tabCounts.pending, accent: true },
+              { id: 'add', label: 'Добавить', count: 0, accent: false },
+            ] as const).map(t => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={activeTab === t.id}
+                className={`friends-tab ${activeTab === t.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(t.id as any)}
+              >
+                {activeTab === t.id && (
+                  <motion.span
+                    layoutId="friends-tab-pill"
+                    className="friends-tab-pill"
+                    transition={reduceMotion ? { duration: 0 } : iosSpring}
+                  />
+                )}
+                <span className="friends-tab-label">
+                  {t.label}
+                  {t.count > 0 && (
+                    <span className={`friends-tab-count${t.accent ? ' accent' : ''}`}>{t.count}</span>
+                  )}
+                </span>
+              </button>
+            ))}
           </div>
           <div className="friends-content custom-scrollbar">
             {activeTab === 'friends' && (
@@ -197,15 +219,18 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                               : f.activity.type === 'streaming' ? `В эфире: ${f.activity.name}`
                               : `Играет в ${f.activity.name}`}
                           </span>
-                        ) : f.status}
+                        ) : STATUS_LABELS[f.status] || STATUS_LABELS.offline}
                       </div>
                     </div>
+                    {/* Кнопки проявляются при наведении: постоянно висящие
+                        иконки у каждой строки — шум, а «удалить из друзей»
+                        рядом с курсором ещё и опасно нажать случайно. */}
                     <div className="friend-actions">
-                      <button className="test-action-btn" onClick={() => onStartDM(f._id)} title="Написать сообщение">
-                        <svg width={16 * interfaceScale} height={16 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                      <button className="friend-action-btn" onClick={() => onStartDM(f._id)} title="Написать сообщение">
+                        <ChatIcon size={16 * interfaceScale} />
                       </button>
-                      <button className="test-action-btn remove" onClick={() => removeFriend((f as any).friendshipId)} title="Удалить из друзей">
-                        <svg width={16 * interfaceScale} height={16 * interfaceScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      <button className="friend-action-btn remove" onClick={() => removeFriend((f as any).friendshipId)} title="Удалить из друзей">
+                        <CloseIcon size={16 * interfaceScale} />
                       </button>
                     </div>
                   </div>

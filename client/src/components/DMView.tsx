@@ -1206,10 +1206,17 @@ const DMView: React.FC<DMViewProps> = ({
             </div>
           </div>
 
+          {/* При блокировке звонок недоступен так же, как и переписка.
+              Кнопку не прячем, а гасим: исчезнувший элемент выглядит сбоем,
+              а подпись объясняет причину. Запрет держит сервер. */}
           <button
             className="voice-call-button"
-            onClick={() => isGroup ? onStartGroupCall() : (otherUser && onStartCall(otherUser, dm._id))}
-            title={isGroup ? "Начать групповой звонок" : "Начать голосовой звонок"}
+            disabled={!!blockNotice}
+            onClick={() => {
+              if (blockNotice) return;
+              isGroup ? onStartGroupCall() : (otherUser && onStartCall(otherUser, dm._id));
+            }}
+            title={blockNotice ? 'Звонок недоступен' : (isGroup ? 'Начать групповой звонок' : 'Начать голосовой звонок')}
           >
             <PhoneIcon />
           </button>
