@@ -396,9 +396,19 @@ const MessageItem = React.memo<{
     let renderedContent: React.ReactNode = msg.content;
     let replaced = false;
 
-    for (const nameToSearch of searchNames) {
-      if (nameToSearch && msg.content.includes(nameToSearch)) {
-        const parts = msg.content.split(nameToSearch);
+    // Prioritize patterns with '@' first so that existing '@' in msg.content
+    // is replaced along with the name instead of leaving an extra literal '@'.
+    const searchPatterns: string[] = [];
+    for (const name of searchNames) {
+      if (name) {
+        searchPatterns.push(`@${name}`);
+        searchPatterns.push(name);
+      }
+    }
+
+    for (const patternToSearch of searchPatterns) {
+      if (patternToSearch && msg.content.includes(patternToSearch)) {
+        const parts = msg.content.split(patternToSearch);
         const elements: React.ReactNode[] = [];
         parts.forEach((part, idx) => {
           elements.push(part);
@@ -413,7 +423,8 @@ const MessageItem = React.memo<{
     }
 
     if (!replaced) {
-      renderedContent = <>{mentionElement} {msg.content}</>;
+      const cleanContent = msg.content.replace(/^@/, '');
+      renderedContent = <>{mentionElement} {cleanContent}</>;
     }
     
     return (
