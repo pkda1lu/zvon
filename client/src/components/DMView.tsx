@@ -9,7 +9,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon } from './Icons';
+import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon, PaperclipIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -282,7 +282,7 @@ const DMMessageItem = React.memo<{
               {dispAuthor(msg.author)._masked ? (
                 <strong style={{ color: 'var(--primary-neon)' }}>Модерация</strong>
               ) : (
-                <strong style={{ color: 'var(--text-primary)', cursor: 'pointer' }} onClick={(e) => onUserClick(dispAuthor(msg.author)._id, e)}>
+                <strong style={{ color: 'var(--text-primary)', cursor: 'pointer' }} onClick={() => onUserClick(dispAuthor(msg.author)._id)}>
                   {dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}
                 </strong>
               )}: Пропущенный звонок
@@ -312,7 +312,7 @@ const DMMessageItem = React.memo<{
         {msg.replyTo && (
           <div className="message-reply-preview" onClick={() => scrollToMessage(msg.replyTo!._id, msg.replyTo!.createdAt)}>
             <div className="reply-line" />
-            <ReplyIcon size={12} className="reply-icon-mini" />
+            <ReplyIcon size={12 * interfaceScale} className="reply-icon-mini" />
             <UserAvatar user={dispAuthor(msg.replyTo.author)} size={16 * interfaceScale} className="reply-avatar" />
             <span className="reply-author">{dispAuthor(msg.replyTo.author).displayName || dispAuthor(msg.replyTo.author).username}</span>
             {!dispAuthor(msg.replyTo.author)._masked && <UserBadges badges={dispAuthor(msg.replyTo.author).badges} serverTag={resolveServerTag(dispAuthor(msg.replyTo.author))} size={10 * interfaceScale} />}
@@ -325,7 +325,7 @@ const DMMessageItem = React.memo<{
               user={dispAuthor(msg.author)}
               size={42 * interfaceScale}
               className="message-author-avatar"
-              onClick={(e) => { if (!dispAuthor(msg.author)._masked) onUserClick(dispAuthor(msg.author)._id, e); }}
+              onClick={() => { if (!dispAuthor(msg.author)._masked) onUserClick(dispAuthor(msg.author)._id); }}
             />
           </div>
         )}
@@ -340,7 +340,7 @@ const DMMessageItem = React.memo<{
                 ) : (
                   <span
                     className="message-author"
-                    onClick={(e) => onUserClick(dispAuthor(msg.author)._id, e)}
+                    onClick={() => onUserClick(dispAuthor(msg.author)._id)}
                     style={{ cursor: 'pointer' }}
                   >
                     {dispAuthor(msg.author).displayName || dispAuthor(msg.author).username}
@@ -359,21 +359,21 @@ const DMMessageItem = React.memo<{
                   onClick={() => onTogglePin(msg._id)}
                   title={msg.pinned ? "Открепить" : "Закрепить"}
                 >
-                  <PinIcon size={grouped ? 14 : 16} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
+                  <PinIcon size={(grouped ? 14 : 16) * interfaceScale} fill={msg.pinned ? "var(--primary-neon)" : "none"} color={msg.pinned ? "var(--primary-neon)" : "currentColor"} />
                 </button>
                 <button
                   className={`msg-action-btn ${grouped ? 'mini' : ''}`}
                   onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY })}
                   title="Добавить реакцию"
                 >
-                  <SmileIcon size={grouped ? 14 : 16} />
+                  <SmileIcon size={(grouped ? 14 : 16) * interfaceScale} />
                 </button>
                 <button
                   className={`msg-action-btn ${grouped ? 'mini' : ''}`}
                   onClick={() => onReply(msg)}
                   title="Ответить"
                 >
-                  <ReplyIcon size={grouped ? 14 : 16} />
+                  <ReplyIcon size={(grouped ? 14 : 16) * interfaceScale} />
                 </button>
                 <button
                   className={`msg-action-btn ${grouped ? 'mini' : ''}`}
@@ -389,29 +389,29 @@ const DMMessageItem = React.memo<{
                   }}
                   title="Копировать текст"
                 >
-                  <CopyIcon size={grouped ? 14 : 16} />
+                  <CopyIcon size={(grouped ? 14 : 16) * interfaceScale} />
                 </button>
                 <button
                   className={`msg-action-btn ${grouped ? 'mini' : ''}`}
                   onClick={() => window.dispatchEvent(new CustomEvent('open-forward', { detail: { message: msg } }))}
                   title="Переслать"
                 >
-                  <ForwardIcon size={grouped ? 14 : 16} />
+                  <ForwardIcon size={(grouped ? 14 : 16) * interfaceScale} />
                 </button>
                 {dispAuthor(msg.author)._id === user?._id && (
                   <button className={`msg-action-btn danger ${grouped ? 'mini' : ''}`} onClick={() => onDelete(msg._id)} title="Удалить">
-                    <TrashIcon size={grouped ? 14 : 16} />
+                    <TrashIcon size={(grouped ? 14 : 16) * interfaceScale} />
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
+          {msg.pinned && !grouped && <div className="pinned-indicator"><PinIcon size={12 * interfaceScale} fill="var(--primary-neon)" color="var(--primary-neon)" /> Закреплено</div>}
 
           {msg.forwardedFrom && (
             <div className="forwarded-label">
-              <ForwardIcon size={13} />
+              <ForwardIcon size={13 * interfaceScale} />
               <span>Переслано от <b>{msg.forwardedFrom.authorUsername || 'пользователя'}</b></span>
             </div>
           )}
@@ -435,7 +435,7 @@ const DMMessageItem = React.memo<{
                         setLightboxOpen(true);
                       }} />
                       <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
-                        <DownloadIcon size={16} />
+                        <DownloadIcon size={16 * interfaceScale} />
                       </button>
                     </div>
                   ) : att.type.startsWith('video/') ? (
@@ -449,24 +449,24 @@ const DMMessageItem = React.memo<{
                         setLightboxOpen(true);
                       }} />
                       <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
-                        <DownloadIcon size={16} />
+                        <DownloadIcon size={16 * interfaceScale} />
                       </button>
                     </div>
                   ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
                     <div className="attachment-audio-container">
                       <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
                       <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
-                        <DownloadIcon size={16} />
+                        <DownloadIcon size={16 * interfaceScale} />
                       </button>
                     </div>
                   ) : (
                     <div className="attachment-file-container">
                       <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                        <DocumentIcon size={18} />
+                        <DocumentIcon size={18 * interfaceScale} />
                         <span>{att.filename}</span>
                       </a>
                       <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
-                        <DownloadIcon size={16} />
+                        <DownloadIcon size={16 * interfaceScale} />
                       </button>
                     </div>
                   )}
@@ -893,7 +893,7 @@ const DMView: React.FC<DMViewProps> = ({
                   onClick={(e) => {
                     if (userMention) {
                       e.stopPropagation();
-                      onUserClick(userMention._id, e);
+                      onUserClick(userMention._id);
                     }
                   }}
                 >
@@ -1196,8 +1196,9 @@ const DMView: React.FC<DMViewProps> = ({
 
         <div
           className="channel-header-info dm-header-info"
-          onClick={(e) => !isGroup && !maskModeration && otherUser && onUserClick(otherUser._id)}
+          onClick={() => !isGroup && !maskModeration && otherUser && onUserClick(otherUser._id)}
           style={{ cursor: (isGroup || maskModeration) ? 'default' : 'pointer' }}
+          title={isGroup || maskModeration ? undefined : "Открыть профиль пользователя"}
         >
           <UserAvatar
             user={maskModeration ? headerUser : (isGroup ? null : otherUser)}
@@ -1213,8 +1214,13 @@ const DMView: React.FC<DMViewProps> = ({
             <div className="dm-display-name-row">
               <h3
                 className="dm-display-name"
-                onClick={(e) => { e.stopPropagation(); setShowAttachments(true); }}
-                title="Посмотреть медиа"
+                onClick={(e) => {
+                  if (isGroup || maskModeration) return;
+                  e.stopPropagation();
+                  otherUser && onUserClick(otherUser._id);
+                }}
+                style={{ cursor: (isGroup || maskModeration) ? 'default' : 'pointer' }}
+                title={isGroup || maskModeration ? undefined : "Открыть профиль пользователя"}
               >
                 {displayName}
               </h3>
@@ -1252,6 +1258,13 @@ const DMView: React.FC<DMViewProps> = ({
           title={blockNotice ? 'Звонок недоступен' : (isGroup ? 'Начать групповой звонок' : 'Начать голосовой звонок')}
         >
           <PhoneIcon size={20 * interfaceScale} />
+        </button>
+        <button
+          className="header-action-btn"
+          onClick={() => setShowAttachments(true)}
+          title="Вложения диалога"
+        >
+          <PaperclipIcon size={20 * interfaceScale} color={showAttachments ? "var(--primary-neon)" : "var(--text-dim)"} />
         </button>
         <button
           className="header-action-btn"

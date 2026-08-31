@@ -8,7 +8,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime } from '../utils/time';
-import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, LockIcon, UsersIcon, SendIcon } from './Icons';
+import { HashtagIcon, DocumentIcon, PlusIcon, TrashIcon, DownloadIcon, PinIcon, ArrowDownIcon, ReplyIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, LockIcon, UsersIcon, SendIcon, PaperclipIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import './panel-hero.css';
 import './ChannelView.css';
@@ -1427,6 +1427,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         </div>
         {channel.topic && !isMobile && <div className="channel-topic">{channel.topic}</div>}
         <div style={{ flex: 1 }} />
+        <button
+          className="header-action-btn"
+          onClick={() => setShowAttachments(true)}
+          title="Вложения канала"
+        >
+          <PaperclipIcon size={20 * interfaceScale} color={showAttachments ? "var(--primary-neon)" : "var(--text-dim)"} />
+        </button>
         <button
           className="header-action-btn"
           onClick={() => setShowSearch(s => !s)}

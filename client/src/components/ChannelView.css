@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   /* Background provided by .panel-hero gradient + animated blobs.
-     No backdrop-filter — would double-blur over custom user bg. */
+     Matches the standard panel-hero background of other panels. */
   border: 1px solid var(--glass-border);
   border-radius: var(--corner-radius);
   overflow: hidden;
@@ -167,8 +167,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
   z-index: 1000;
   display: flex;
   align-items: flex-start;
@@ -177,12 +177,12 @@
 }
 
 .pins-modal {
-  width: calc(400px * var(--interface-scale, 1));
+  width: calc(420px * var(--interface-scale, 1));
   max-width: 90%;
   max-height: 70%;
   background: rgba(20, 20, 25, 0.95);
   border: 1px solid var(--glass-border);
-  border-radius: calc(16px * var(--interface-scale, 1));
+  border-radius: calc(20px * var(--interface-scale, 1));
   box-shadow: 0 calc(20px * var(--interface-scale, 1)) calc(50px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
@@ -316,7 +316,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(8px * var(--interface-scale, 1)) 0;
+  padding: calc(15px * var(--interface-scale, 1)) 0;
   margin: 0;
   position: relative;
 }
@@ -363,31 +363,31 @@
   left: 0;
   right: 0;
   height: calc(1px * var(--interface-scale, 1));
-  background: var(--border-divider);
+  background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
 }
 
 .message-date-divider span {
-  background: var(--glass-bg-accent);
-  backdrop-filter: blur(10px);
-  padding: calc(4px * var(--interface-scale, 1)) calc(12px * var(--interface-scale, 1));
-  border-radius: calc(20px * var(--interface-scale, 1));
-  border: calc(1px * var(--interface-scale, 1)) solid var(--glass-border);
-  color: var(--text-muted);
-  font-size: calc(11px * var(--interface-scale, 1));
-  font-weight: 800;
+  background: rgba(0, 229, 255, 0.03);
+  backdrop-filter: blur(15px);
+  padding: calc(8px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
+  border-radius: calc(14px * var(--interface-scale, 1));
+  border: calc(1px * var(--interface-scale, 1)) solid rgba(0, 229, 255, 0.15);
+  color: var(--primary-neon);
+  font-size: calc(10px * var(--interface-scale, 1));
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: calc(0.5px * var(--interface-scale, 1));
+  letter-spacing: calc(2.5px * var(--interface-scale, 1));
   position: relative;
   z-index: 1;
-  box-shadow: 0 calc(2px * var(--interface-scale, 1)) calc(8px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.15);
+  box-shadow: 0 calc(4px * var(--interface-scale, 1)) calc(15px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.2);
 }
 
 .message {
   display: flex;
-  padding: var(--message-padding-v) calc(24px * var(--interface-scale, 1));
+  padding: calc(12px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
   margin: 0;
+  border-radius: calc(16px * var(--interface-scale, 1));
   transition: all 0.2s ease;
-  border-left: calc(2px * var(--interface-scale, 1)) solid transparent;
   position: relative;
 }
 
@@ -399,9 +399,8 @@
 }
 
 [data-chat-layout="light"] .message {
-  padding: calc(4px * var(--interface-scale, 1)) calc(24px * var(--interface-scale, 1));
+  padding: calc(4px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
   margin-top: 0;
-  border-left: none;
 }
 [data-chat-layout="light"] .message-author-avatar-wrap {
   display: none;
@@ -415,12 +414,11 @@
 
 .message:hover {
   background: rgba(255, 255, 255, 0.03);
-  border-left-color: rgba(255, 255, 255, 0.1);
 }
 
 .message.grouped {
-  padding-top: calc(1px * var(--interface-scale, 1));
-  padding-bottom: calc(1px * var(--interface-scale, 1));
+  padding-top: calc(2px * var(--interface-scale, 1));
+  padding-bottom: calc(2px * var(--interface-scale, 1));
 }
 
 .message-author-avatar-wrap,
@@ -618,10 +616,10 @@
 }
 
 .message-input-container {
-  padding: 0 calc(24px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
+  padding: 0 calc(30px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
   position: relative;
   z-index: 200;
-  margin-top: calc(-24px * var(--interface-scale, 1));
+  margin-top: calc(-26px * var(--interface-scale, 1));
   pointer-events: none;
 }
 
@@ -632,16 +630,15 @@
 .message-form {
   display: flex;
   align-items: center;
-  gap: calc(16px * var(--interface-scale, 1));
-  background: var(--glass-bg-subtle);
+  gap: calc(15px * var(--interface-scale, 1));
+  background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(20px);
-  border-radius: calc(16px * var(--interface-scale, 1));
-  padding: calc(10px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
-  min-height: calc(54px * var(--interface-scale, 1));
+  border-radius: calc(20px * var(--interface-scale, 1));
+  padding: calc(8px * var(--interface-scale, 1)) calc(12px * var(--interface-scale, 1));
   max-height: 30vh;
   border: 1px solid var(--glass-border);
   box-shadow: 0 calc(8px * var(--interface-scale, 1)) calc(32px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.2);
-  transition: background 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s ease;
 }
 
 /* Баннер вместо поля ввода, пока участник в муте на сервере */
@@ -662,11 +659,9 @@
 }
 
 .message-form:focus-within {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(0, 229, 255, 0.3);
-  box-shadow:
-    0 calc(12px * var(--interface-scale, 1)) calc(40px * var(--interface-scale, 1)) rgba(0, 229, 255, 0.1),
-    0 0 0 1px rgba(0, 229, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--primary-neon);
+  box-shadow: 0 0 calc(20px * var(--interface-scale, 1)) rgba(0, 229, 255, 0.1);
   transform: translateY(-2px);
 }
 
