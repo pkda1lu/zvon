@@ -1278,7 +1278,15 @@ const Main: React.FC = () => {
           // DMs and Mentions are now handled by InboxContext (persistent + new toast).
           const isMentioned = message.mentions?.some(m => m._id === user._id);
 
-          if (!message.directMessage && !isMentioned) {
+          // Сервер заглушён — не отвлекаем. Упоминания сюда не попадают
+          // (их отсекает isMentioned выше) и доходят по-прежнему: они
+          // адресованы лично, и глушить их вместе с общим потоком значило бы
+          // терять обращения к себе.
+          const msgServerMuted = !!message.channel && (user.mutedServers || []).some(
+            (sid: string) => servers.some(sv => String(sv._id) === String(sid)
+              && sv.channels.some(c => c._id === message.channel)));
+
+          if (!message.directMessage && !isMentioned && !msgServerMuted) {
             soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
             addNotification({
               title: message.author.username, content: message.content, type: 'message', avatar: message.author.avatar || undefined,

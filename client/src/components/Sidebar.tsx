@@ -8,6 +8,7 @@ import { UsersIcon, PlusIcon, SettingsIcon, BellIcon, LayoutGridIcon, FlagIcon }
 import ServerContextMenu from './ServerContextMenu';
 import ProblemReportModal from './ProblemReportModal';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useLongPress } from '../utils/useLongPress';
 import { iosSpringSnappy } from '../animations/transitions';
 import './panel-hero.css';
 import './Sidebar.css';
@@ -69,6 +70,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   isMobile = false,
 }) => {
   const { interfaceScale } = useAppearance();
+  const mutedServerIds = React.useMemo(
+    () => new Set((user?.mutedServers || []).map(String)),
+    [user?.mutedServers]);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, server: Server } | null>(null);
   const [showReport, setShowReport] = useState(false);
 
@@ -76,6 +80,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, server });
   };
+
+  /*
+   * На телефоне правого щелчка нет — то же меню открывается удержанием.
+   * Сервер под пальцем запоминаем в touchstart: хук один на весь список.
+   */
+  const pressTargetRef = React.useRef<Server | null>(null);
+  const longPress = useLongPress(({ x, y }) => {
+    const server = pressTargetRef.current;
+    if (server) setContextMenu({ x, y, server });
+  });
 
   return (
     <div className="sidebar panel-hero">
@@ -165,18 +179,22 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div key={server._id} className={`server-item ${selectedServer?._id === server._id ? 'active' : ''}`}>
             <div className="pill"><span /></div>
             <motion.div
-              className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''}`}
+              {...pressFeedback}
+              {...longPress}
+              className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''} ${longPress.className}`}
               onClick={() => onServerSelect(server)}
               onContextMenu={(e) => handleContextMenu(e, server)}
               title={server.name}
-              {...pressFeedback}
+              onTouchStart={(e) => { pressTargetRef.current = server; longPress.onTouchStart(e); }}
             >
               <UserAvatar
                 user={{ username: server.name, avatar: server.icon }}
                 size={48 * interfaceScale}
-                className="server-icon-avatar"
+                className={`server-icon-avatar${mutedServerIds.has(String(server._id)) ? ' is-muted' : ''}`}
               />
-              {server.channels.some(c => unreadCounts[c._id] > 0) && (
+              {/* У заглушённого сервера индикатор не показываем — в этом и смысл
+                  заглушения. Сам сервер остаётся на месте, только тусклее. */}
+              {!mutedServerIds.has(String(server._id)) && server.channels.some(c => unreadCounts[c._id] > 0) && (
                 <div className="unread-badge"></div>
               )}
             </motion.div>

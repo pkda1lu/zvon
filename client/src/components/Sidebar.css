@@ -487,3 +487,16 @@
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
+
+/* Заглушённый сервер: остаётся на месте, но не притягивает взгляд.
+   При наведении возвращается к обычному виду — чтобы разглядеть иконку. */
+.server-icon-avatar.is-muted {
+  opacity: 0.45;
+  filter: saturate(0.6);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.server-icon-avatar.is-muted:hover {
+  opacity: 1;
+  filter: none;
+}

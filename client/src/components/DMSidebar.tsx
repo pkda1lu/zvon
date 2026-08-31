@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { iosSpring } from '../animations/transitions';
 import { DirectMessage, User, Server } from '../types';
-import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, ChatIcon, BellOffIcon } from './Icons';
+import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, ChatIcon, BellOffIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import ActiveContacts from './ActiveContacts';
 import DMContextMenu from './DMContextMenu';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useLongPress } from '../utils/useLongPress';
 import './panel-hero.css';
 import './DMSidebar.css';
 
@@ -102,7 +105,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     onUserClick,
     onStartDM
 }) => {
-    const { interfaceScale } = useAppearance();
+    const { interfaceScale, reduceMotion } = useAppearance();
     // Чаты «от имени модерации», где текущий пользователь — модератор.
     // Их прячем из общего списка и собираем в один хаб «Модерация».
     const myModerationDMs = dms.filter(dm => {
@@ -159,6 +162,17 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     const [menu, setMenu] = useState<{ dm: DirectMessage; x: number; y: number } | null>(null);
 
     /*
+     * Долгое нажатие открывает то же меню, что и правый щелчок. Хук один на всю
+     * панель, а чат под пальцем запоминается в touchstart: заводить по хуку на
+     * каждую строку значило бы столько же таймеров и обработчиков.
+     */
+    const pressTargetRef = React.useRef<DirectMessage | null>(null);
+    const longPress = useLongPress(({ x, y }) => {
+        const dm = pressTargetRef.current;
+        if (dm) setMenu({ dm, x, y });
+    });
+
+    /*
      * Приглушённые переписки. Инициализируем из профиля, дальше держим локально:
      * ответ сервера подтверждает запись, но перезапрашивать весь профиль ради
      * одного переключателя незачем — галочка должна отзываться сразу.
@@ -201,9 +215,11 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
         return (
             <div
                 key={dm._id}
-                className={`dm-item ${sub ? 'dm-subitem' : ''} ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''} ${isGroup ? 'group-dm' : ''} ${isDmMuted ? 'muted' : ''}`}
+                {...longPress}
+                className={`dm-item ${sub ? 'dm-subitem' : ''} ${isSelected ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''} ${isGroup ? 'group-dm' : ''} ${isDmMuted ? 'muted' : ''} ${longPress.className}`}
                 onClick={() => onDMSelect(dm)}
                 onContextMenu={(e) => { e.preventDefault(); setMenu({ dm, x: e.clientX, y: e.clientY }); }}
+                onTouchStart={(e) => { pressTargetRef.current = dm; longPress.onTouchStart(e); }}
             >
                 <div className="dm-avatar-wrap">
                     <UserAvatar
@@ -243,15 +259,6 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 {isDmMuted && unreadCount === 0 && (
                     <BellOffIcon size={14 * interfaceScale} className="dm-muted-icon" />
                 )}
-                {onDeleteDM && (
-                    <button
-                        className="dm-delete-button"
-                        title="Удалить чат"
-                        onClick={(e) => { e.stopPropagation(); onDeleteDM(dm); }}
-                    >
-                        <TrashIcon size={15 * interfaceScale} />
-                    </button>
-                )}
             </div>
         );
     };
@@ -275,24 +282,38 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                     />
                 )}
                 <div className="dm-tabs" role="tablist">
-                    <button
-                        role="tab"
-                        aria-selected={tab === 'chats'}
-                        className={`dm-tab ${tab === 'chats' ? 'active' : ''}`}
-                        onClick={() => setTab('chats')}
-                    >
-                        Чаты
-                        {totalUnread > 0 && <span className="dm-tab-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>}
-                    </button>
-                    <button
-                        role="tab"
-                        aria-selected={tab === 'friends'}
-                        className={`dm-tab ${tab === 'friends' ? 'active' : ''}`}
-                        onClick={() => setTab('friends')}
-                    >
-                        Друзья
-                        {friends.length > 0 && <span className="dm-tab-count">{friends.length}</span>}
-                    </button>
+                    {/*
+                        Подложка одна на обе вкладки и переезжает между ними
+                        (общий layoutId). Так выделение не мигает сменой рамки,
+                        а перетекает — глазу проще уследить, что именно выбрано.
+                        При отключённых анимациях переезд мгновенный.
+                    */}
+                    {(['chats', 'friends'] as const).map(id => (
+                        <button
+                            key={id}
+                            role="tab"
+                            aria-selected={tab === id}
+                            className={`dm-tab ${tab === id ? 'active' : ''}`}
+                            onClick={() => setTab(id)}
+                        >
+                            {tab === id && (
+                                <motion.span
+                                    layoutId="dm-tab-pill"
+                                    className="dm-tab-pill"
+                                    transition={reduceMotion ? { duration: 0 } : iosSpring}
+                                />
+                            )}
+                            <span className="dm-tab-label">
+                                {id === 'chats' ? 'Чаты' : 'Друзья'}
+                                {id === 'chats' && totalUnread > 0 && (
+                                    <span className="dm-tab-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
+                                )}
+                                {id === 'friends' && friends.length > 0 && (
+                                    <span className="dm-tab-count">{friends.length}</span>
+                                )}
+                            </span>
+                        </button>
+                    ))}
                     <button
                         className="add-dm-button"
                         title={tab === 'chats' ? 'Начать переписку' : 'Добавить друга'}

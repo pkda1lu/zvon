@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Server } from '../types';
 import axios from 'axios';
 import { useDialog } from '../contexts/DialogContext';
+import { useAuth } from '../contexts/AuthContext';
 import { popoverVariants, popoverTransition } from '../animations/transitions';
 import './MemberContextMenu.css'; // Reusing context menu styles
 
@@ -18,6 +19,25 @@ interface ServerContextMenuProps {
 const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ server, x, y, onClose, onLeave }) => {
     const menuRef = useRef<HTMLDivElement>(null);
     const { confirm, alert } = useDialog();
+    const { user, refreshUser } = useAuth();
+
+    // Состояние держим локально, чтобы пункт менялся сразу по нажатию:
+    // перезапрос профиля идёт следом и уточняет, но ждать его незачем.
+    const [isMuted, setIsMuted] = useState(
+        () => (user?.mutedServers || []).map(String).includes(String(server._id)));
+
+    const handleMute = async () => {
+        const next = !isMuted;
+        setIsMuted(next);
+        try {
+            await axios.post(`/api/servers/${server._id}/mute`, { muted: next });
+            await refreshUser?.();
+        } catch {
+            setIsMuted(!next);
+            await alert('Не удалось изменить уведомления.');
+        }
+        onClose();
+    };
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -57,6 +77,12 @@ const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ server, x, y, onC
             initial="initial" animate="animate"
             transition={popoverTransition}
         >
+            <div className="menu-group">
+                <div className="menu-item" onClick={handleMute}>
+                    {isMuted ? 'Включить уведомления' : 'Заглушить сервер'}
+                </div>
+            </div>
+            <div className="menu-separator" />
             <div className="menu-group">
                 <div className="menu-item destructive" onClick={handleLeaveServer}>
                     Покинуть сервер

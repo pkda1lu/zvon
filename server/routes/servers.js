@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Server = require('../models/Server');
 const Channel = require('../models/Channel');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const upload = require('../middleware/upload');
@@ -826,6 +827,32 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
     }
     res.json({ message: 'Member removed' });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
+});
+
+/**
+ * Заглушить сервер или снять заглушение.
+ *
+ * Хранится у пользователя: настройка личная, участники одного сервера решают
+ * за себя. Проверять членство не нужно — заглушить чужой сервер безвредно,
+ * запись просто ни на что не повлияет.
+ */
+router.post('/:id/mute', auth, async (req, res) => {
+  try {
+    const { muted } = req.body || {};
+    const id = req.params.id;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Неверный идентификатор сервера' });
+    }
+    // Точечная операция: см. пояснение у блокировки в routes/users.js.
+    await User.updateOne(
+      { _id: req.user._id },
+      muted ? { $addToSet: { mutedServers: id } } : { $pull: { mutedServers: id } }
+    );
+    res.json({ muted: !!muted });
+  } catch (error) {
+    console.error('[servers] заглушение:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.post('/:id/leave', auth, async (req, res) => {

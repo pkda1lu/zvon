@@ -32,6 +32,8 @@ export interface User {
   blockedUsers?: string[];
   /** Переписки с отключёнными уведомлениями. Приходит с /api/auth/me. */
   mutedDMs?: string[];
+  /** Заглушённые серверы. Приходит с /api/auth/me. */
+  mutedServers?: string[];
   notes?: Record<string, string>;
   isBot?: boolean;
     isPublished?: boolean;

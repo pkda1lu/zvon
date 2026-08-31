@@ -77,6 +77,13 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'DirectMessage'
   }],
+  // Заглушённые серверы: не показываем индикатор непрочитанного и не оповещаем
+  // о новых сообщениях. Упоминания при этом доходят — они адресованы лично,
+  // и глушить их вместе с общим потоком значило бы терять обращения к себе.
+  mutedServers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Server'
+  }],
   notes: {
     type: Map,
     of: String, // Key is target ID (user, etc.), value is the note

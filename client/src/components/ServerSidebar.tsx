@@ -16,6 +16,7 @@ import UserBadges, { resolveServerTag } from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
 import { ConnectionStates } from '../utils/livekitLazy';
 import { useAppearance } from "../contexts/AppearanceContext";
+import { useLongPress } from '../utils/useLongPress';
 
 // Модалки сайдбара открываются по действию пользователя, поэтому грузятся
 // лениво — вместе со своими стилями (ChannelSettingsModal ~19 КБ CSS,
@@ -62,9 +63,18 @@ const VoiceUserItem = React.memo<{
   const isSpeaking = useIsSpeaking(user._id);
   const anyUser = user as any;
 
+  // Удержание вместо правого щелчка — на телефоне его нет. Обработчик ждёт
+  // событие мыши, поэтому подставляем объект с нужными ему полями.
+  const longPress = useLongPress(({ x, y }) => {
+    onContextMenu({
+      preventDefault: () => { }, stopPropagation: () => { }, clientX: x, clientY: y,
+    } as React.MouseEvent, user);
+  });
+
   return (
     <div
-      className={`voice-user-item ${isSpeaking ? 'speaking' : ''}`}
+      {...longPress}
+      className={`voice-user-item ${isSpeaking ? 'speaking' : ''} ${longPress.className}`}
       onClick={(e) => { e.stopPropagation(); onUserClick(user._id, e); }}
       onContextMenu={(e) => onContextMenu(e, user)}
     >

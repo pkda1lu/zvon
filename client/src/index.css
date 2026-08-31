@@ -460,3 +460,21 @@ body { overscroll-behavior: none; }                 /* без pull-to-refresh/б
 @media (display-mode: standalone) {
   body { padding-left: var(--safe-left); padding-right: var(--safe-right); }
 }
+
+
+/*
+ * Элементы, у которых контекстное меню вызывается удержанием (см.
+ * utils/useLongPress). Собственное меню системы и выделение текста здесь
+ * мешают: на iOS удержание иначе запускает выделение и всплывающую панель
+ * «Копировать / Поделиться» поверх нашего меню.
+ *
+ * Отключаем только на сенсорных экранах: на настольном браузере выделять
+ * текст в списках по-прежнему можно.
+ */
+@media (hover: none) and (pointer: coarse) {
+  .long-pressable {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

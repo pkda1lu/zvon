@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const User = require('../models/User');
@@ -17,6 +18,29 @@ router.get('/check-username/:username', auth, async (req, res) => {
     }
     res.json({ available: true });
   } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * Чёрный список текущего пользователя.
+ *
+ * ВАЖНО: маршрут обязан стоять ВЫШЕ '/:id'. Express подбирает первый
+ * подходящий, и ниже слово blocked попадало бы в обработчик профиля как
+ * идентификатор — с ошибкой приведения типа вместо списка.
+ *
+ * Отдаём минимум полей: список нужен, чтобы человека узнать и разблокировать,
+ * а не чтобы разглядывать профиль. Заблокированные записи могли быть удалены
+ * или обезличены — populate вернёт для них null, такие отсеиваем.
+ */
+router.get('/blocked', auth, async (req, res) => {
+  try {
+    const me = await User.findById(req.user._id)
+      .select('blockedUsers')
+      .populate({ path: 'blockedUsers', select: 'username displayName avatar' });
+    res.json((me?.blockedUsers || []).filter(Boolean));
+  } catch (error) {
+    console.error('[users] чёрный список:', error.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -229,42 +253,56 @@ router.post('/banner', auth, (req, res, next) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
 
+/**
+ * Заблокировать пользователя.
+ *
+ * Пишем точечной операцией, а не через save() всего документа. Причины:
+ *
+ *  1. save() прогоняет валидацию по всей записи пользователя. Одно испорченное
+ *     или устаревшее поле где-то в профиле роняло бы блокировку, хотя к ней
+ *     отношения не имеет.
+ *  2. $addToSet сам не допускает повторов. Прежняя проверка includes(userId)
+ *     сравнивала строку из тела запроса с ObjectId в массиве и **никогда** не
+ *     совпадала, поэтому один и тот же человек добавлялся в список снова при
+ *     каждом нажатии.
+ *  3. Между чтением и записью документ мог измениться в другом запросе — save()
+ *     затёр бы те правки целиком.
+ *
+ * Идентификатор проверяем заранее: без этого негодная строка доходит до
+ * приведения типов и превращается в ошибку 500 вместо внятного ответа.
+ */
 router.post('/block', auth, async (req, res) => {
   try {
     const { userId } = req.body;
-    if (!userId) return res.status(400).json({ message: 'User ID required' });
-    if (userId === req.user._id.toString()) return res.status(400).json({ message: 'Cannot block yourself' });
-    if (!req.user.blockedUsers.includes(userId)) { req.user.blockedUsers.push(userId); await req.user.save(); }
-    res.json({ message: 'User blocked' });
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
-});
+    if (!userId) return res.status(400).json({ message: 'Не указан пользователь' });
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ message: 'Неверный идентификатор пользователя' });
+    }
+    if (userId === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Нельзя заблокировать самого себя' });
+    }
 
-/**
- * Чёрный список текущего пользователя.
- *
- * Отдаём минимум полей: список нужен, чтобы человека узнать и разблокировать,
- * а не чтобы разглядывать профиль. Заблокированные записи могли быть удалены
- * или обезличены — populate вернёт для них null, такие отсеиваем.
- */
-router.get('/blocked', auth, async (req, res) => {
-  try {
-    const me = await User.findById(req.user._id)
-      .select('blockedUsers')
-      .populate({ path: 'blockedUsers', select: 'username displayName avatar' });
-    res.json((me?.blockedUsers || []).filter(Boolean));
+    await User.updateOne({ _id: req.user._id }, { $addToSet: { blockedUsers: userId } });
+    res.json({ message: 'User blocked' });
   } catch (error) {
-    console.error('[users] чёрный список:', error.message);
+    console.error('[users] блокировка:', error.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
+/** Снять блокировку. Точечно, по тем же причинам, что и блокировка выше. */
 router.post('/unblock', auth, async (req, res) => {
   try {
     const { userId } = req.body;
-    req.user.blockedUsers = req.user.blockedUsers.filter(id => id.toString() !== userId);
-    await req.user.save();
+    if (!userId || !mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ message: 'Неверный идентификатор пользователя' });
+    }
+    await User.updateOne({ _id: req.user._id }, { $pull: { blockedUsers: userId } });
     res.json({ message: 'User unblocked' });
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error('[users] снятие блокировки:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 router.post('/note', auth, async (req, res) => {

@@ -81,14 +81,13 @@ router.post('/:id/mute', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const id = dm._id.toString();
-    const current = (req.user.mutedDMs || []).map(x => x.toString());
-    const next = muted
-      ? (current.includes(id) ? current : [...current, id])
-      : current.filter(x => x !== id);
-
-    req.user.mutedDMs = next;
-    await req.user.save();
+    // Точечная операция вместо save(): та не только прогоняет валидацию всей
+    // записи пользователя, но и затирает изменения, сделанные параллельным
+    // запросом. Для одного поля-массива это лишний риск.
+    await User.updateOne(
+      { _id: req.user._id },
+      muted ? { $addToSet: { mutedDMs: dm._id } } : { $pull: { mutedDMs: dm._id } }
+    );
     res.json({ muted: !!muted });
   } catch (error) {
     console.error('[dm] переключение уведомлений:', error.message);
