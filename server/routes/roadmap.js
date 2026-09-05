@@ -48,7 +48,7 @@ router.get('/', optionalAuth, async (req, res) => {
 // POST /api/roadmap - Admin/Moderator: Create new roadmap item
 router.post('/', auth, isModerator, async (req, res) => {
   try {
-    const { idea, description, targetDate, priority, adminOnly } = req.body;
+    const { idea, description, targetDate, priority, adminOnly, isCompleted, completed } = req.body;
 
     if (!idea || typeof idea !== 'string' || !idea.trim()) {
       return res.status(400).json({ message: 'Поле "Идея" обязательно для заполнения' });
@@ -57,12 +57,15 @@ router.post('/', auth, isModerator, async (req, res) => {
     const lastItem = await RoadmapItem.findOne().sort({ order: -1 }).select('order');
     const nextOrder = lastItem && typeof lastItem.order === 'number' ? lastItem.order + 1 : 0;
 
+    const isCompletedVal = Boolean(isCompleted !== undefined ? isCompleted : completed);
+
     const newItem = new RoadmapItem({
       idea: idea.trim(),
       description: typeof description === 'string' ? description.trim() : '',
       targetDate: typeof targetDate === 'string' ? targetDate.trim() : '',
       priority: ['regular', 'major', 'massive', 'low', 'medium', 'high'].includes(priority) ? priority : '',
       adminOnly: Boolean(adminOnly),
+      isCompleted: isCompletedVal,
       order: nextOrder,
       createdBy: req.user._id
     });
@@ -115,7 +118,7 @@ router.put('/reorder', auth, isModerator, async (req, res) => {
 // PUT /api/roadmap/:id - Admin/Moderator: Update existing item
 router.put('/:id', auth, isModerator, async (req, res) => {
   try {
-    const { idea, description, targetDate, priority, adminOnly, order } = req.body;
+    const { idea, description, targetDate, priority, adminOnly, order, isCompleted, completed } = req.body;
 
     const item = await RoadmapItem.findById(req.params.id);
     if (!item) {
@@ -143,6 +146,10 @@ router.put('/:id', auth, isModerator, async (req, res) => {
 
     if (adminOnly !== undefined) {
       item.adminOnly = Boolean(adminOnly);
+    }
+
+    if (isCompleted !== undefined || completed !== undefined) {
+      item.isCompleted = Boolean(isCompleted !== undefined ? isCompleted : completed);
     }
 
     if (typeof order === 'number') {

@@ -5,12 +5,12 @@ import { useDialog } from '../../contexts/DialogContext';
 import { 
     PlusIcon, 
     EditIcon, 
-    TrashIcon, 
     ArrowUpIcon, 
     ArrowDownIcon, 
-    CloseIcon,
-    RoadmapIcon,
-    LockIcon
+    CloseIcon, 
+    RoadmapIcon, 
+    LockIcon,
+    CheckIcon
 } from '../../components/Icons';
 
 export interface RoadmapItem {
@@ -20,6 +20,7 @@ export interface RoadmapItem {
     targetDate?: string;
     priority?: 'regular' | 'major' | 'massive' | 'low' | 'medium' | 'high' | '';
     adminOnly?: boolean;
+    isCompleted?: boolean;
     order: number;
     createdAt?: string;
     updatedAt?: string;
@@ -51,6 +52,7 @@ const AppRoadmapSettings: React.FC = () => {
     const [modalTargetDate, setModalTargetDate] = useState<string>('');
     const [modalPriority, setModalPriority] = useState<string>('');
     const [modalAdminOnly, setModalAdminOnly] = useState<boolean>(false);
+    const [modalIsCompleted, setModalIsCompleted] = useState<boolean>(false);
     const [modalSaving, setModalSaving] = useState<boolean>(false);
     const [modalError, setModalError] = useState<string>('');
 
@@ -82,6 +84,7 @@ const AppRoadmapSettings: React.FC = () => {
         setModalTargetDate('');
         setModalPriority('');
         setModalAdminOnly(false);
+        setModalIsCompleted(false);
         setModalError('');
         setIsModalOpen(true);
     };
@@ -93,6 +96,7 @@ const AppRoadmapSettings: React.FC = () => {
         setModalTargetDate(item.targetDate || '');
         setModalPriority(item.priority || '');
         setModalAdminOnly(Boolean(item.adminOnly));
+        setModalIsCompleted(Boolean(item.isCompleted));
         setModalError('');
         setIsModalOpen(true);
     };
@@ -120,7 +124,8 @@ const AppRoadmapSettings: React.FC = () => {
                 description: modalDescription.trim(),
                 targetDate: modalTargetDate.trim(),
                 priority: modalPriority,
-                adminOnly: modalAdminOnly
+                adminOnly: modalAdminOnly,
+                isCompleted: modalIsCompleted
             };
 
             if (editingItem) {
@@ -152,6 +157,7 @@ const AppRoadmapSettings: React.FC = () => {
             const res = await axios.delete(`/api/roadmap/${item._id}`);
             if (res.data?.success) {
                 setItems(prev => prev.filter(i => i._id !== item._id));
+                closeModal();
             }
         } catch (err: any) {
             console.error('Error deleting roadmap item:', err);
@@ -161,12 +167,19 @@ const AppRoadmapSettings: React.FC = () => {
 
     const handleMoveItem = async (index: number, direction: 'up' | 'down') => {
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
-        if (targetIndex < 0 || targetIndex >= items.length) return;
+        if (targetIndex < 0 || targetIndex >= visibleItems.length) return;
+
+        const currentItem = visibleItems[index];
+        const targetItem = visibleItems[targetIndex];
+
+        const itemAIndex = items.findIndex(i => i._id === currentItem._id);
+        const itemBIndex = items.findIndex(i => i._id === targetItem._id);
+        if (itemAIndex === -1 || itemBIndex === -1) return;
 
         const newItems = [...items];
-        const temp = newItems[index];
-        newItems[index] = newItems[targetIndex];
-        newItems[targetIndex] = temp;
+        const temp = newItems[itemAIndex];
+        newItems[itemAIndex] = newItems[itemBIndex];
+        newItems[itemBIndex] = temp;
 
         const orderedItems = newItems.map((item, idx) => ({ ...item, order: idx }));
         setItems(orderedItems);
@@ -184,13 +197,17 @@ const AppRoadmapSettings: React.FC = () => {
     // Filter items if standard user view
     const visibleItems = isAdmin ? items : items.filter(i => !i.adminOnly);
 
+    // Identify the last completed item so only it pulses
+    const completedItems = visibleItems.filter(i => i.isCompleted);
+    const lastCompletedId = completedItems.length > 0 ? completedItems[completedItems.length - 1]._id : null;
+
     return (
         <div className="settings-content-inner roadmap-wrapper">
             <div className="roadmap-page-header">
                 <div>
                     <h2 className="settings-page-title">План разработки</h2>
                     <p className="settings-description">
-                        Дорожная карта развития проекта и запланированные идеи.
+                        Дорожная карта развития проекта, запланированные идеи и реализованные функции.
                     </p>
                 </div>
                 {isAdmin && (
@@ -228,23 +245,50 @@ const AppRoadmapSettings: React.FC = () => {
                             const priorityInfo = item.priority ? PRIORITY_CONFIG[item.priority] : null;
                             const priorityClass = priorityInfo ? priorityInfo.className : '';
                             const adminOnlyClass = item.adminOnly ? 'is-admin-only' : '';
+                            const completedClass = item.isCompleted ? 'is-completed' : '';
+                            const isLastCompleted = item._id === lastCompletedId;
                             const isCardActive = activeCardId === item._id;
 
                             return (
                                 <div 
                                     key={item._id} 
-                                    className={`roadmap-node-row ${priorityClass} ${adminOnlyClass} ${isCardActive ? 'is-active-card' : ''}`}
+                                    className={`roadmap-node-row ${priorityClass} ${adminOnlyClass} ${completedClass} ${isCardActive ? 'is-active-card' : ''}`}
                                     onClick={() => setActiveCardId(prev => prev === item._id ? null : item._id)}
                                 >
                                     {/* Central vertical line connector point */}
                                     <div className="roadmap-node-point-wrap">
-                                        <div className="roadmap-node-dot" />
+                                        <div className={`roadmap-node-dot ${item.isCompleted ? 'is-completed' : ''} ${isLastCompleted ? 'is-last-completed' : ''}`}>
+                                            {item.isCompleted && (
+                                                <svg 
+                                                    className="roadmap-dot-check-icon"
+                                                    viewBox="0 0 16 16" 
+                                                    fill="none" 
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                >
+                                                    <path 
+                                                        d="M3.5 8.5L6.5 11.5L12.5 4.5" 
+                                                        stroke="#fff" 
+                                                        strokeWidth="2.4" 
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                    />
+                                                </svg>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Idea card attached to dot */}
-                                    <div className="roadmap-node-card">
+                                    <div className={`roadmap-node-card ${item.isCompleted ? 'is-completed' : ''}`}>
                                         <div className="roadmap-node-card-header">
                                             <div className="roadmap-node-meta">
+                                                {/* Completed badge */}
+                                                {item.isCompleted ? (
+                                                    <span className="roadmap-tag-completed" title="Идея успешно реализована!">
+                                                        <CheckIcon size={12} color="#10b981" />
+                                                        <span>Реализовано</span>
+                                                    </span>
+                                                ) : null}
+
                                                 {item.adminOnly && (
                                                     <span className="roadmap-tag-admin-only" title="Эта идея видна только администраторам">
                                                         <LockIcon size={12} />
@@ -294,19 +338,13 @@ const AppRoadmapSettings: React.FC = () => {
                                                     >
                                                         <EditIcon size={15} />
                                                     </button>
-                                                    <button
-                                                        type="button"
-                                                        className="roadmap-btn-tool danger"
-                                                        title="Удалить"
-                                                        onClick={() => handleDeleteItem(item)}
-                                                    >
-                                                        <TrashIcon size={15} />
-                                                    </button>
                                                 </div>
                                             )}
                                         </div>
 
-                                        <h3 className="roadmap-node-idea">{item.idea}</h3>
+                                        <h3 className={`roadmap-node-idea ${item.isCompleted ? 'is-completed' : ''}`}>
+                                            {item.idea}
+                                        </h3>
 
                                         {item.description && (
                                             <p className="roadmap-node-desc">{item.description}</p>
@@ -374,11 +412,11 @@ const AppRoadmapSettings: React.FC = () => {
                                 />
                             </div>
 
-                            {/* Target Date & Priority in row (Both optional) */}
+                            {/* Target Date / Version & Priority in row (Both optional) */}
                             <div className="roadmap-form-row">
                                 <div className="roadmap-form-group">
                                     <label className="roadmap-form-label">
-                                        Срок реализации <span className="optional-tag">(необязательно)</span>
+                                        {modalIsCompleted ? 'Версия реализации' : 'Срок реализации'} <span className="optional-tag">(необязательно)</span>
                                     </label>
                                     <input
                                         type="text"
@@ -405,6 +443,20 @@ const AppRoadmapSettings: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Completed status toggle */}
+                            <div className="roadmap-form-checkbox-row" onClick={() => setModalIsCompleted(!modalIsCompleted)}>
+                                <input
+                                    type="checkbox"
+                                    id="roadmap-completed-cb"
+                                    className="roadmap-checkbox"
+                                    checked={modalIsCompleted}
+                                    onChange={(e) => setModalIsCompleted(e.target.checked)}
+                                />
+                                <label htmlFor="roadmap-completed-cb" className="roadmap-checkbox-label">
+                                    Отметить идею реализованной
+                                </label>
+                            </div>
+
                             {/* Admin only toggle */}
                             <div className="roadmap-form-checkbox-row" onClick={() => setModalAdminOnly(!modalAdminOnly)}>
                                 <input
@@ -414,27 +466,42 @@ const AppRoadmapSettings: React.FC = () => {
                                     checked={modalAdminOnly}
                                     onChange={(e) => setModalAdminOnly(e.target.checked)}
                                 />
-                                <label htmlFor="roadmap-admin-only-cb" className="roadmap-checkbox-label">
-                                    Показывать идею только администраторам
-                                </label>
+                                <div className="roadmap-checkbox-info">
+                                    <label htmlFor="roadmap-admin-only-cb" className="roadmap-checkbox-label">
+                                        Показывать идею только администраторам
+                                    </label>
+                                </div>
                             </div>
 
-                            <div className="modal-actions" style={{ marginTop: '16px' }}>
-                                <button
-                                    type="button"
-                                    className="settings-btn secondary"
-                                    onClick={closeModal}
-                                    disabled={modalSaving}
-                                >
-                                    Отмена
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="settings-btn primary"
-                                    disabled={modalSaving || !modalIdea.trim()}
-                                >
-                                    {modalSaving ? 'Сохранение...' : editingItem ? 'Сохранить' : 'Добавить'}
-                                </button>
+                            <div className="modal-actions roadmap-modal-actions" style={{ marginTop: '16px' }}>
+                                {editingItem ? (
+                                    <button
+                                        type="button"
+                                        className="settings-btn danger"
+                                        onClick={() => handleDeleteItem(editingItem)}
+                                        disabled={modalSaving}
+                                    >
+                                        Удалить
+                                    </button>
+                                ) : <div />}
+
+                                <div className="roadmap-modal-btns-right">
+                                    <button
+                                        type="button"
+                                        className="settings-btn secondary"
+                                        onClick={closeModal}
+                                        disabled={modalSaving}
+                                    >
+                                        Отмена
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="settings-btn primary"
+                                        disabled={modalSaving || !modalIdea.trim()}
+                                    >
+                                        {modalSaving ? 'Сохранение...' : editingItem ? 'Сохранить' : 'Добавить'}
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
