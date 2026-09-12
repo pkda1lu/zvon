@@ -43,6 +43,12 @@
   let waveBatchId = null;
   let waveLoading = false;
 
+  // Куда возвращает «Назад» с вложенной страницы (альбом, исполнитель).
+  // Ставится экранами верхнего уровня. Объявлено здесь, а не рядом с
+  // openArtistPage: renderVibeScreen пишет сюда уже при старте приложения и
+  // с объявлением ниже по файлу попадал в TDZ (как и VIBE_STATIONS выше).
+  let backTarget = null;
+
   // Станции-настроения для домашнего экрана My Vibe (rotor).
   // Объявлено здесь (до первого renderVibeScreen при старте), чтобы не попасть в TDZ.
   const VIBE_STATIONS = [
@@ -1486,14 +1492,10 @@
   }
 
   // ---------- Страница исполнителя (§30–31) ----------
-  // Куда возвращает «Назад» с вложенной страницы. Ставится экранами верхнего
-  // уровня, чтобы с исполнителя не выкидывало всегда в поиск.
-  let backTarget = renderSearchScreen;
-
   async function openArtistPage(artistId, fallbackName) {
     if (!artistId) return;
     closeSheet();
-    const back = backTarget;
+    const back = backTarget || renderSearchScreen;
     $('#search-bar-host').innerHTML = '';
     main.innerHTML = `
       <div class="page-header">
