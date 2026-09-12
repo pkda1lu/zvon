@@ -114,9 +114,22 @@ a { color: inherit; }
   width: var(--sidebar-w); flex-shrink: 0;
   background: var(--bg-primary);
   display: flex; flex-direction: column; gap: var(--s4);
-  padding: var(--s20) var(--s12) var(--s16); overflow-y: auto;
+  padding: var(--s20) var(--s12) var(--s16);
+  /* Сайдбар целиком не прокручивается — иначе рядом с полосой основного списка
+     появлялась вторая и «мини-аппку окружал скролл», а аккаунт уезжал за край.
+     Вместо этого навигация видна всегда, а тянется и прокручивается список
+     плейлистов; свои полосы они не показывают. */
+  overflow: hidden;
 }
-.side-logo { display: flex; align-items: center; gap: var(--s12); padding: var(--s4) var(--s8) var(--s24); }
+.side-nav, .side-playlists { min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.side-nav::-webkit-scrollbar, .side-playlists::-webkit-scrollbar { display: none; }
+/* Пункты навигации важнее списка плейлистов: при нехватке высоты сжимается
+   он, а меню остаётся видимым целиком. */
+.side-nav { flex-shrink: 0; }
+.account { flex-shrink: 0; }
+/* Клик по логотипу сворачивает и разворачивает сайдбар: в свёрнутом виде
+   маленькая стрелка почти не попадается под курсор. */
+.side-logo { display: flex; align-items: center; gap: var(--s12); padding: var(--s4) var(--s8) var(--s24); cursor: pointer; user-select: none; }
 .side-logo .logo-star { width: 32px; height: 32px; color: var(--accent); flex-shrink: 0; transition: color var(--t-page); }
 .side-logo .wm { line-height: 1.05; }
 .side-logo .wm .y { display: block; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); }
@@ -143,7 +156,7 @@ a { color: inherit; }
 .nav-item:active { transform: scale(.97); }
 .nav-item.active { background: rgba(255,255,255,.1); color: var(--text-primary); font-weight: 600; }
 
-.side-playlists { display: flex; flex-direction: column; gap: 2px; margin-top: var(--s16); padding-top: var(--s16); border-top: 1px solid var(--line); }
+.side-playlists { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; margin-top: var(--s16); padding-top: var(--s16); border-top: 1px solid var(--line); }
 .side-playlists:empty { display: none; }
 .side-pl { display: flex; align-items: center; gap: var(--s12); padding: var(--s8); border-radius: var(--r12); cursor: pointer; transition: background var(--t-fast); }
 .side-pl:hover { background: rgba(255,255,255,.05); }
@@ -173,6 +186,10 @@ a { color: inherit; }
 #app.sidebar-collapsed .account .login,
 #app.sidebar-collapsed .account .plus-badge { display: none; }
 #app.sidebar-collapsed .nav-item { justify-content: center; padding: var(--s12); }
+#app.sidebar-collapsed .side-logo { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+#app.sidebar-collapsed .side-collapse { display: none; }
+.side-collapse svg { transition: transform var(--t-base); }
+#app.sidebar-collapsed .side-collapse svg { transform: rotate(180deg); }
 
 /* === Content =============================================================== */
 .content {
@@ -311,7 +328,10 @@ details input[type="password"]:focus { box-shadow: inset 0 0 0 2px var(--accent-
 .library-show-more:active { transform: scale(.96); }
 
 /* === TrackRow (§24) ======================================================== */
-.track-list, .queue { display: flex; flex-direction: column; gap: 2px; }
+/* Контейнерный контекст: набор кнопок в строке зависит от ширины САМОГО списка,
+   а не окна. В узком окне десктопа контент-колонка бывает уже 500px, и
+   медиазапрос по вьюпорту там не срабатывал — кнопки выдавливали название. */
+.track-list, .queue { display: flex; flex-direction: column; gap: 2px; container-type: inline-size; }
 .track {
   display: flex; align-items: center; gap: var(--s12);
   min-height: 68px; padding: var(--s8) var(--s12);
@@ -347,8 +367,13 @@ details input[type="password"]:focus { box-shadow: inset 0 0 0 2px var(--accent-
 .track-meta { flex: 1; min-width: 0; }
 .track-name { font-size: 16px; line-height: 22px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track-artist { font-size: 14px; line-height: 18px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-.track-actions { display: flex; gap: var(--s8); opacity: 0; transition: opacity var(--t-fast); }
+.track-actions { display: flex; gap: var(--s8); flex-shrink: 0; opacity: 0; transition: opacity var(--t-fast); }
 .track:hover .track-actions, .track:focus-within .track-actions { opacity: 1; }
+/* Узкий список — оставляем только «⋯»: играть и в очередь есть в меню. */
+@container (max-width: 560px) {
+  .track-actions { opacity: 1; }
+  .track-actions button:not(.track-more) { display: none; }
+}
 .track-actions button {
   height: 40px; padding: 0 var(--s16); border-radius: var(--r16); border: none;
   background: var(--surface-secondary); color: var(--text-primary);
@@ -542,13 +567,17 @@ body.player-fs .app-body { filter: none; }
 
 /* === Playlist / Album page (§36–37) ======================================== */
 .page-header { display: flex; align-items: center; gap: var(--s12); margin-bottom: var(--s20); }
+/* Таблетка с иконкой и подписью: раньше кнопка была кругом 48×48, а внутри
+   лежало слово «Назад» — текст не помещался и вылезал за края. */
 .page-back-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 48px; height: 48px; padding: 0; border-radius: 50%; border: none;
-  background: var(--surface-secondary); color: var(--text-primary); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s8);
+  height: 48px; min-width: 48px; padding: 0 var(--s20); border: none;
+  border-radius: var(--r-pill); background: var(--surface-secondary);
+  color: var(--text-primary); cursor: pointer;
+  font-size: 16px; line-height: 22px; font-weight: 500; white-space: nowrap;
   transition: background var(--t-fast), transform var(--t-fast);
 }
-.page-back-btn svg { margin: 0; }
+.page-back-btn svg { margin: 0; flex-shrink: 0; }
 .page-back-btn:hover { background: var(--surface-elevated); }
 .page-back-btn:active { transform: scale(.94); }
 
@@ -749,6 +778,20 @@ body.player-fs .app-body { filter: none; }
 .lyrics-body.synced .lyrics-line.active {
   font-size: 32px; line-height: 38px; font-weight: 700; letter-spacing: -.6px;
   opacity: 1; transform: translateY(-2px) scale(1.02);
+}
+/* Караоке: строка заливается акцентом слева направо за своё время звучания.
+   --k (0…1) обновляется в requestAnimationFrame, поэтому переход не нужен —
+   он бы только добавил задержку. Мягкий край в 2% убирает резкую границу. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .lyrics-body.synced .lyrics-line.active {
+    background-image: linear-gradient(90deg,
+      var(--accent) 0%,
+      var(--accent) calc(var(--k, 0) * 100%),
+      rgba(255, 255, 255, .42) calc(var(--k, 0) * 100% + 2%),
+      rgba(255, 255, 255, .42) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+  }
 }
 /* Без таймкодов подсвечивать нечего — показываем текст ровным читаемым блоком */
 .lyrics-body.plain .lyrics-line { opacity: .82; font-size: 20px; line-height: 28px; font-weight: 400; }
@@ -967,8 +1010,6 @@ body.player-fs .app-body { filter: none; }
   /* §24: на телефоне в строке остаётся только «⋯» — текстовые кнопки
      съедали всю ширину и от названия трека оставалась одна буква.
      Играть/в очередь никуда не делись: они в контекстном меню. */
-  .track-actions { opacity: 1; }
-  .track-actions button:not(.track-more) { display: none; }
   .track-duration { min-width: 40px; }
 }
 

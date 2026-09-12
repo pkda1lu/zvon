@@ -309,8 +309,13 @@
         fn();
       });
     });
-    document.getElementById('side-collapse')?.addEventListener('click', () => {
-      document.getElementById('app')?.classList.toggle('sidebar-collapsed');
+    const toggleSidebar = () => document.getElementById('app')?.classList.toggle('sidebar-collapsed');
+    // Логотип — основная мишень: в свёрнутом сайдбаре стрелка скрыта, и иначе
+    // развернуть его обратно было бы почти нечем.
+    document.querySelector('.side-logo')?.addEventListener('click', toggleSidebar);
+    document.getElementById('side-collapse')?.addEventListener('click', (e) => {
+      e.stopPropagation();   // иначе клик дойдёт до .side-logo и тоггл сработает дважды
+      toggleSidebar();
     });
   }
 
@@ -517,9 +522,22 @@
   async function loadArtistBrief(artistId) {
     const r = await yaCall(`/artists/${encodeURIComponent(artistId)}/brief-info`);
     const artist = r?.result?.artist;
-    const text = artist?.description?.text?.trim();
-    if (!text) return null;
-    return { name: artist.name || '', text, listeners: r?.result?.stats?.lastMonthListeners };
+    if (!artist) return null;
+    return {
+      name: artist.name || '',
+      text: artist.description?.text?.trim() || '',
+      listeners: r?.result?.stats?.lastMonthListeners,
+      genres: artist.genres || [],
+      albums: (r?.result?.albums || []).length,
+      tracks: artist.counts?.tracks,
+    };
+  }
+
+  function plural(n, one, few, many) {
+    const m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
   }
 
   async function renderAiInsight(track) {
@@ -541,12 +559,23 @@
     if (my !== aiInsightToken || !card.isConnected) return;
     if (!brief) { card.hidden = true; return; }
 
-    const meta = [brief.name, brief.listeners ? fmtListeners(brief.listeners) : null]
-      .filter(Boolean).join(' · ');
+    // Описание есть далеко не у каждого исполнителя. Раньше карточка в таком
+    // случае просто пряталась — и её почти никто не видел. Теперь без описания
+    // показываем то, что сервис знает точно: слушатели, релизы, жанры.
+    // Ничего не сочиняем, только меняем заголовок на честный.
+    const facts = [];
+    if (brief.listeners) facts.push(fmtListeners(brief.listeners));
+    if (brief.albums) facts.push(`${brief.albums} ${plural(brief.albums, 'альбом', 'альбома', 'альбомов')}`);
+    if (brief.tracks) facts.push(`${brief.tracks} ${plural(brief.tracks, 'трек', 'трека', 'треков')}`);
+    if (brief.genres.length) facts.push(brief.genres.slice(0, 3).join(', '));
+
+    const body = brief.text || facts.join(' · ');
+    if (!body) { card.hidden = true; return; }
+
     card.innerHTML = `
-      <div class="ai-insight-head"><span class="ai-mark">✦</span>Интересный факт</div>
-      ${meta ? `<div class="ai-insight-who">${escape(meta)}</div>` : ''}
-      <p class="ai-insight-body">${escape(brief.text)}</p>
+      <div class="ai-insight-head"><span class="ai-mark">✦</span>${brief.text ? 'Интересный факт' : 'Об исполнителе'}</div>
+      ${brief.name ? `<div class="ai-insight-who">${escape(brief.name)}</div>` : ''}
+      <p class="ai-insight-body">${escape(body)}</p>
       <button class="ai-insight-cta">Подробнее →</button>`;
 
     // «Подробнее» ведёт на страницу исполнителя — там тот же текст целиком
@@ -1470,6 +1499,7 @@
       <div class="page-header">
         <button id="artist-back" class="page-back-btn" title="Назад">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Назад
         </button>
       </div>
       <div class="page-hero">
@@ -2035,7 +2065,44 @@
   // синхронизации.
   const lyricsCache = new Map();
 
+  // Тайм-коды живут за отдельной подписанной ручкой приватного API — той же,
+  // которой пользуется официальный клиент (подпись тут делается так же, как для
+  // download-info выше). Ручка может отдать ошибку или не знать этот трек —
+  // тогда молча откатываемся на обычный текст из supplement.
+  const LYRICS_SIGN_KEY = 'p93jhgh689SBReK6ghtw62';
+
+  async function hmacSha256Base64(key, msg) {
+    const enc = new TextEncoder();
+    const k = await crypto.subtle.importKey('raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(msg)));
+    let bin = '';
+    sig.forEach(b => { bin += String.fromCharCode(b); });
+    return btoa(bin);
+  }
+
+  async function loadTimedLyrics(trackId) {
+    const ts = Math.floor(Date.now() / 1000);
+    const sign = await hmacSha256Base64(LYRICS_SIGN_KEY, `${trackId}${ts}`);
+    const r = await yaCall(`/tracks/${trackId}/lyrics?format=LRC&timeStamp=${ts}&sign=${encodeURIComponent(sign)}`);
+    const url = r?.result?.downloadUrl;
+    if (!url) return null;
+    const f = await sdk.fetch(url, { responseType: 'text' });
+    if (f.status >= 400) return null;
+    const raw = (typeof f.data === 'string' ? f.data : f.text || '').trim();
+    return raw || null;
+  }
+
   async function loadLyrics(trackId) {
+    // 1. Пробуем текст с таймкодами — только на нём возможно караоке.
+    try {
+      const lrc = await loadTimedLyrics(trackId);
+      if (lrc) {
+        const lines = parseLyrics(lrc);
+        if (lines.synced) return { lines };
+      }
+    } catch (e) { console.warn('[YM] timed lyrics unavailable:', e.message); }
+
+    // 2. Иначе — обычный текст из supplement, без подсветки.
     const sup = await yaCall(`/tracks/${trackId}/supplement`);
     const l = sup.result?.lyrics;
     const raw = (l?.fullLyrics || l?.lyrics || '').trim();
@@ -2110,34 +2177,65 @@
         lineEls.push(p);
       });
       note.textContent = parsed.synced
-        ? 'Строки подсвечиваются по ходу трека'
+        ? 'Караоке: строка заливается в такт треку'
         : 'У этого текста нет таймкодов — показан целиком';
     };
 
-    // Один таймер вместо слушателя на <audio>: элемент пересоздаётся на каждом
-    // треке, и подписка на него протухла бы после первого же переключения.
-    const tick = () => {
-      const cur = queue[currentIndex];
-      if (cur && cur.id !== shownTrackId) { paint(cur); return; }
-      if (!parsed?.synced || !audio || !isFinite(audio.currentTime)) return;
-      const ms = audio.currentTime * 1000;
-      let idx = -1;
-      for (let i = 0; i < parsed.items.length; i++) {
-        const t = parsed.items[i].time;
-        if (t !== null && t <= ms) idx = i; else if (t !== null) break;
+    // Время начала следующей размеченной строки: им ограничена заливка текущей.
+    const nextTime = (i) => {
+      for (let j = i + 1; j < parsed.items.length; j++) {
+        if (parsed.items[j].time !== null) return parsed.items[j].time;
       }
-      if (idx === activeIdx) return;
-      if (lineEls[activeIdx]) { lineEls[activeIdx].classList.remove('active'); lineEls[activeIdx].classList.add('past'); }
-      activeIdx = idx;
-      const el = lineEls[activeIdx];
-      if (el) {
-        el.classList.add('active'); el.classList.remove('past');
-        body.scrollTo({ top: el.offsetTop - body.clientHeight * 0.4, behavior: 'smooth' });
-      }
+      return isFinite(audio?.duration) && audio.duration
+        ? audio.duration * 1000
+        : parsed.items[i].time + 4000;
     };
 
-    const timer = setInterval(tick, 250);
-    h.onClose(() => clearInterval(timer));
+    // requestAnimationFrame, а не таймер: заливка строки должна идти плавно, а
+    // не рывками. Слушатель на <audio> тут не годится — элемент пересоздаётся
+    // на каждом треке, и подписка протухла бы после первого переключения.
+    let raf = 0;
+    let lastTrackCheck = 0;
+
+    const frame = (now) => {
+      raf = requestAnimationFrame(frame);
+
+      if (now - lastTrackCheck > 400) {
+        lastTrackCheck = now;
+        const cur = queue[currentIndex];
+        if (cur && cur.id !== shownTrackId) { paint(cur); return; }
+      }
+      if (!parsed?.synced || !audio || !isFinite(audio.currentTime)) return;
+
+      const ms = audio.currentTime * 1000;
+      const items = parsed.items;
+      let idx = -1;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].time === null) continue;
+        if (items[i].time <= ms) idx = i; else break;
+      }
+
+      if (idx !== activeIdx) {
+        const prev = lineEls[activeIdx];
+        if (prev) { prev.classList.remove('active'); prev.classList.add('past'); prev.style.removeProperty('--k'); }
+        activeIdx = idx;
+        const el = lineEls[activeIdx];
+        if (el) {
+          el.classList.add('active'); el.classList.remove('past');
+          body.scrollTo({ top: el.offsetTop - body.clientHeight * 0.4, behavior: 'smooth' });
+        }
+      }
+
+      const el = lineEls[activeIdx];
+      if (!el) return;
+      const start = items[activeIdx].time;
+      const end = nextTime(activeIdx);
+      const k = end > start ? Math.min(1, Math.max(0, (ms - start) / (end - start))) : 1;
+      el.style.setProperty('--k', k.toFixed(4));
+    };
+
+    raf = requestAnimationFrame(frame);
+    h.onClose(() => cancelAnimationFrame(raf));
     paint(track);
   }
 
