@@ -110,6 +110,14 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
         videoSid?: string;
         audioTrack?: MediaStreamTrack;
         videoTrack?: MediaStreamTrack;
+        // Трек приезжает из iframe как transferable, поэтому в нашем контексте
+        // при каждой передаче создаётся НОВЫЙ объект. Сравнение по ссылке не
+        // совпадёт никогда — сверяемся по id, он у переданного трека тот же.
+        audioTrackId?: string;
+        // Очередь публикаций: два параллельных publishAudio успевали оба
+        // увидеть пустой audioSid и публиковали один трек дважды, на что
+        // LiveKit отвечал TrackInvalidError.
+        audioLock?: Promise<unknown>;
     }>>(new Map());
 
     /** Resolve the LiveKit-style channel id for the user's current voice context. */
@@ -297,26 +305,53 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                         }
                         const slot = presencesRef.current.get(sessionId);
                         if (!track || !slot) { respond(id, { ok: false, error: 'no track received' }); break; }
-                        // Same track ref — no-op.
-                        if (slot.audioSid && slot.audioTrack === track && track.readyState === 'live') {
-                            respond(id, { ok: true, result: slot.audioSid });
-                            break;
-                        }
-                        // Different track but same slot — try replaceTrack first. Keeps
-                        // the LiveKit publication intact, so receivers don't lose audio.
-                        if (slot.audioSid) {
-                            const replaced = await replaceExternalTrack(slot.audioSid, track);
-                            if (replaced) {
-                                slot.audioTrack = track;
-                                respond(id, { ok: true, result: slot.audioSid });
-                                break;
+                        const audioTrack = track;
+
+                        const publish = async (): Promise<string | undefined> => {
+                            // Тот же трек уже опубликован — сверяемся по id, а не по
+                            // ссылке: transferable приезжает новым объектом каждый раз.
+                            if (slot.audioSid && slot.audioTrackId === audioTrack.id && audioTrack.readyState === 'live') {
+                                return slot.audioSid;
                             }
-                            // replaceTrack failed — fall back to unpublish+publish
-                            await unpublishExternalAudioTrack(slot.audioSid);
+                            // Другой трек в том же слоте — сначала replaceTrack. Публикация
+                            // LiveKit остаётся живой, и слушатели не теряют звук.
+                            if (slot.audioSid) {
+                                const replaced = await replaceExternalTrack(slot.audioSid, audioTrack);
+                                if (replaced) {
+                                    slot.audioTrack = audioTrack;
+                                    slot.audioTrackId = audioTrack.id;
+                                    return slot.audioSid;
+                                }
+                                // replaceTrack не смог — снимаем и публикуем заново
+                                await unpublishExternalAudioTrack(slot.audioSid);
+                                slot.audioSid = undefined;
+                                slot.audioTrackId = undefined;
+                            }
+                            // publishExternalAudioTrack отдаёт string | null, а в слоте
+                            // хранится string | undefined — приводим сразу.
+                            const sid = (await publishExternalAudioTrack(audioTrack, 'zvon-presence:' + sessionId)) ?? undefined;
+                            if (sid) {
+                                slot.audioSid = sid;
+                                slot.audioTrack = audioTrack;
+                                slot.audioTrackId = audioTrack.id;
+                                publishedSidsRef.current.add(sid);
+                            }
+                            return sid;
+                        };
+
+                        // Публикации по сессии идут строго по очереди. Раньше два
+                        // параллельных вызова успевали оба увидеть пустой audioSid и
+                        // публиковали один трек дважды → TrackInvalidError.
+                        // .then(publish, publish) — упавшая предыдущая попытка очередь
+                        // не блокирует.
+                        const task = (slot.audioLock ?? Promise.resolve()).then(publish, publish);
+                        slot.audioLock = task.catch(() => { });
+                        try {
+                            const sid = await task;
+                            respond(id, { ok: !!sid, result: sid });
+                        } catch (e: any) {
+                            respond(id, { ok: false, error: e?.message || 'publish failed' });
                         }
-                        const sid = await publishExternalAudioTrack(track, 'zvon-presence:' + sessionId);
-                        if (sid) { slot.audioSid = sid; slot.audioTrack = track; publishedSidsRef.current.add(sid); }
-                        respond(id, { ok: !!sid, result: sid });
                         break;
                     }
                     case 'voicePresence.publishVideo': {
@@ -340,6 +375,10 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                             await unpublishExternalAudioTrack(slot.audioSid);
                             publishedSidsRef.current.delete(slot.audioSid);
                             slot.audioSid = undefined;
+                            // Иначе слот продолжит считать трек опубликованным и
+                            // следующий publishAudio вернёт мёртвый sid.
+                            slot.audioTrack = undefined;
+                            slot.audioTrackId = undefined;
                         }
                         respond(id, { ok: true });
                         break;

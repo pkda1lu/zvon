@@ -1552,7 +1552,29 @@
     }
   }
 
-  async function reattachPresenceMedia() {
+  // Повторный вход возможен при быстрых перемотках: playIndex зовёт эту
+  // функцию на каждый трек, а внутри несколько await. Параллельные проходы
+  // дублировали запрос видеошота и публикацию трека — держим один в работе,
+  // остальные ждут его, а не запускают второй проход.
+  let _reattachInFlight = null;
+  let _reattachPending = false;
+
+  function reattachPresenceMedia() {
+    // Просто вернуть текущий промис нельзя: он считался для ПРЕДЫДУЩЕГО трека,
+    // и метаданные нового так и не обновились бы. Поэтому помечаем, что нужен
+    // ещё проход, и повторяем его после текущего — выигрывает последний трек.
+    if (_reattachInFlight) { _reattachPending = true; return _reattachInFlight; }
+    const run = async () => {
+      do {
+        _reattachPending = false;
+        await doReattachPresenceMedia();
+      } while (_reattachPending);
+    };
+    _reattachInFlight = run().finally(() => { _reattachInFlight = null; });
+    return _reattachInFlight;
+  }
+
+  async function doReattachPresenceMedia() {
     if (!presence) return;
     const track = queue[currentIndex];
 
