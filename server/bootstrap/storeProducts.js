@@ -1,22 +1,21 @@
 const StoreProduct = require('../models/StoreProduct');
 
-// Сидим базовые VPN-тарифы как товары, если каталог ещё пуст.
+// Сидим стартовый каталог, если он ещё пуст. VPN здесь намеренно нет:
+// подписка одна на человека и живёт в телеграм-аккаунте Vlyne, а тарифы
+// (пакеты трафика) магазин берёт из бота — см. utils/vlyneBot.js.
 // Дальше всё редактируется через админку магазина.
 const SEED = [
-  { type: 'vpn', title: 'VPN — Пробный доступ', price: 0, sortOrder: 1,
-    description: '24 часа бесплатно. Доступно один раз.',
-    vpn: { days: 1, whitelist: true, trialOnce: true } },
-  { type: 'vpn', title: 'VPN — 1 месяц', price: 189, sortOrder: 2,
-    description: '30 дней полного доступа к VLESS VPN.',
-    vpn: { days: 30, whitelist: false, trialOnce: false } },
-  { type: 'vpn', title: 'VPN — Месяц + белые списки', price: 289, sortOrder: 3,
-    description: '30 дней + белые списки (обход блокировок).',
-    vpn: { days: 30, whitelist: true, trialOnce: false } },
+  { type: 'merch', title: 'Футболка Zvon', price: 1490, sortOrder: 1,
+    description: 'Хлопок, чёрная, принт на груди.',
+    merch: { stock: null, requiresShipping: true, options: ['S', 'M', 'L', 'XL'] } },
+  { type: 'merch', title: 'Стикерпак Vlyne', price: 190, sortOrder: 2,
+    description: 'Набор виниловых стикеров.',
+    merch: { stock: null, requiresShipping: true, options: [] } },
 ];
 
 module.exports = async function seedStoreProducts() {
   const count = await StoreProduct.countDocuments();
   if (count > 0) return;
   await StoreProduct.insertMany(SEED);
-  console.log(`[Store] Seeded ${SEED.length} VPN products`);
+  console.log(`[Store] Seeded ${SEED.length} products`);
 };

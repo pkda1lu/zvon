@@ -20,7 +20,6 @@
   --blood:#c8102e;
   --blood-hot:#e11d34;
   --line:#2b2b2b;
-  --ok:#f4f2ee;
   --warn:#d98324;
   --display:'Anton',Impact,'Haettenschweiler','Arial Narrow',sans-serif;
   --ui:'Oswald','Segoe UI',system-ui,sans-serif;
@@ -52,7 +51,6 @@ h2{font-family:var(--display);font-size:19px;text-transform:uppercase;letter-spa
 h2::before{content:"";width:5px;height:19px;background:var(--blood);flex:none}
 .eyebrow{text-transform:uppercase;letter-spacing:.26em;font-size:10px;color:var(--paper-dim);font-weight:500}
 .dim{color:var(--paper-dim)}
-.faint{color:#6e6a66}
 .sub{color:var(--paper-dim);font-size:13.5px;line-height:1.55;margin:6px 0 16px}
 .center{text-align:center}
 .hidden{display:none !important}
@@ -78,13 +76,16 @@ header .inner{max-width:640px;margin:0 auto;display:flex;align-items:flex-end;ju
 
 /* ---------- Карточки ---------- */
 .card{background:var(--ink-2);border:2px solid var(--line);padding:16px;margin-bottom:14px;position:relative}
+/* Заголовок вплотную к карточке: у Anton длинные выносные элементы задевают рамку. */
+h1+.card,h1+.grid,h1+.chips{margin-top:16px}
 .card.hi{border-color:var(--paper)}
 .card.danger{border-color:var(--blood)}
 .card h2{margin-top:0}
 .warn{border-left:5px solid var(--blood);background:#160a0d;padding:11px 13px;font-size:12.5px;line-height:1.55;margin-top:12px;color:#e8e4de}
+.warn b{color:#fff}
 .demo-note{border-left:5px solid var(--warn);background:#161208;padding:11px 13px;font-size:12.5px;line-height:1.55;margin-top:14px;color:#e8e4de}
 
-/* ---------- Категории ---------- */
+/* ---------- Категории / табы ---------- */
 .chips{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 18px}
 .chip{
   background:transparent;border:2px solid var(--line);color:var(--paper-dim);
@@ -96,18 +97,15 @@ header .inner{max-width:640px;margin:0 auto;display:flex;align-items:flex-end;ju
 /* ---------- Сетка товаров ---------- */
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(min-width:560px){.grid{grid-template-columns:1fr 1fr 1fr}}
-.pcard{background:var(--ink-2);border:2px solid var(--line);cursor:pointer;display:flex;flex-direction:column;position:relative;transition:border-color .15s ease}
+.pcard{background:var(--ink-2);border:2px solid var(--line);cursor:pointer;display:flex;flex-direction:column;position:relative}
 .pcard:active{background:var(--ink-3)}
-.pcard.best{border-color:var(--blood)}
-.pcard .mark{position:absolute;top:-2px;right:-2px;background:var(--blood);color:#fff;font-size:9px;letter-spacing:.14em;padding:3px 7px;text-transform:uppercase;z-index:3}
-.pcard .imgwrap{width:100%;aspect-ratio:1/1;overflow:hidden;background:#000;border-bottom:2px solid var(--line);position:relative}
+.pcard .imgwrap{width:100%;aspect-ratio:1/1;overflow:hidden;background:#000;border-bottom:2px solid var(--line)}
 .pcard .imgwrap img{width:100%;height:100%;object-fit:cover;filter:grayscale(.25) contrast(1.05);transition:transform .5s cubic-bezier(.2,.7,.2,1)}
 .pcard:hover .imgwrap img{transform:scale(1.06)}
 .imgwrap.placeholder,.hero-img.placeholder{
   display:grid;place-items:center;
   background:repeating-linear-gradient(135deg,#0d0d0d 0 10px,#111 10px 20px);
-  font-family:var(--display);text-transform:uppercase;letter-spacing:.14em;
-  color:#3f3c39;font-size:26px;
+  font-family:var(--display);text-transform:uppercase;letter-spacing:.14em;color:#3f3c39;font-size:26px;
 }
 .hero-img.placeholder{font-size:46px}
 .pbody{padding:11px 12px 12px;display:flex;flex-direction:column;gap:7px;flex:1}
@@ -115,7 +113,6 @@ header .inner{max-width:640px;margin:0 auto;display:flex;align-items:flex-end;ju
 .pbottom{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:auto}
 .pprice{font-family:var(--display);font-size:19px;line-height:1}
 .tag{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-dim);font-weight:500}
-.perday{font-size:10.5px;letter-spacing:.06em;color:var(--paper-dim)}
 
 /* ---------- Кнопки ---------- */
 .btn{
@@ -134,7 +131,6 @@ header .inner{max-width:640px;margin:0 auto;display:flex;align-items:flex-end;ju
 .btn.small{font-size:13px;padding:11px 12px}
 .btn.auto{width:auto;padding:0 18px;margin-top:0;font-size:14px}
 .row{display:flex;gap:10px}
-.row.wrap{flex-wrap:wrap}
 
 /* ---------- Формы ---------- */
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}
@@ -157,12 +153,29 @@ input[type=file]{padding:9px;font-size:12px}
 .qty{display:flex;align-items:center;gap:14px;margin-top:10px}
 .qty button{width:44px;height:44px;border:2px solid var(--line);background:transparent;color:var(--paper);font-size:22px;cursor:pointer;line-height:1}
 .qty span{font-family:var(--display);font-size:22px;min-width:28px;text-align:center}
+.code-in{letter-spacing:.3em;text-transform:uppercase;font-family:var(--display);font-size:22px;text-align:center}
 
-/* ---------- Итог / промокод ---------- */
+/* ---------- Итог ---------- */
 .total{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;padding-top:12px;border-top:2px solid var(--line)}
 .total span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim)}
 .total b{font-family:var(--display);font-size:30px;font-weight:400}
 .total b s{color:var(--paper-dim);font-size:17px;margin-right:9px;font-weight:400}
+
+/* ---------- Пакеты трафика ---------- */
+.pack{
+  display:flex;align-items:center;gap:14px;padding:14px;margin-bottom:11px;
+  background:var(--ink-2);border:2px solid var(--line);cursor:pointer;position:relative;
+  transition:border-color .15s ease,background .15s ease;
+}
+.pack:active{background:var(--ink-3)}
+.pack.sel{border-color:var(--blood);background:#160a0d}
+.pack .vol{font-family:var(--display);font-size:30px;line-height:1;min-width:82px}
+.pack .vol em{font-style:normal;font-size:13px;color:var(--paper-dim);display:block;letter-spacing:.14em}
+.pack .mid{flex:1;font-size:12px;color:var(--paper-dim);line-height:1.5}
+.pack .price{font-family:var(--display);font-size:22px;white-space:nowrap}
+.pack.sel .price{color:var(--blood)}
+.pack .mark{position:absolute;top:-2px;right:-2px;background:var(--blood);color:#fff;font-size:9px;letter-spacing:.14em;padding:3px 7px;text-transform:uppercase;display:none}
+.pack.best .mark{display:block}
 
 /* ---------- Ключ / QR ---------- */
 .code-box{
@@ -172,9 +185,8 @@ input[type=file]{padding:9px;font-size:12px}
 }
 .qr{display:flex;justify-content:center;margin:14px 0 4px}
 .qr img{width:190px;height:190px;image-rendering:pixelated;border:8px solid var(--paper);background:var(--paper)}
-pre.instr{white-space:pre-wrap;font-family:var(--ui);font-size:13px;margin:0;color:var(--paper-dim);line-height:1.6}
 
-/* ---------- Счётчик подписки ---------- */
+/* ---------- Счётчик трафика ---------- */
 .meter-top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:9px;gap:12px}
 .meter-big{font-family:var(--display);font-size:38px;line-height:.95}
 .meter-big small{font-size:13px;color:var(--paper-dim);font-family:var(--ui);font-weight:400;display:block;margin-top:4px}
@@ -190,12 +202,49 @@ pre.instr{white-space:pre-wrap;font-family:var(--ui);font-size:13px;margin:0;col
 .stat b{display:block;font-family:var(--display);font-size:20px;line-height:1.15;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stat span{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--paper-dim)}
 
+/* ---------- Рефералы ---------- */
+.ref-hero{text-align:center;padding:6px 0 2px}
+.ref-hero .pct{font-family:var(--display);font-size:64px;line-height:.9;color:var(--blood)}
+.ref-hero .sub{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--paper-dim);margin:3px 0 0}
+.ref-grid{display:flex;gap:10px;margin:14px 0}
+.ref-grid .stat{text-align:center}
+.tier{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.tier:last-child{border-bottom:none}
+.tier b{color:var(--blood);font-weight:600}
+.why{padding-left:18px;margin:2px 0 0}
+.why li{margin-bottom:9px;font-size:13px;line-height:1.55;color:var(--paper-dim)}
+.why li b{color:var(--paper);font-weight:600}
+
+/* ---------- Состояние нод ----------
+   Цвет никогда не единственный признак — рядом всегда значок и подпись. */
+:root{--up:#f4f2ee;--deg:#d98324;--down:#c8102e;--nodata:#2b2b2b}
+.hero{text-align:center;padding:6px 0 2px}
+.hero .num{font-family:var(--display);font-size:56px;line-height:.95}
+.hero .cap{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim);margin-top:4px}
+.hero .sum{font-size:13px;color:#ddd9d4;margin-top:10px}
+.hero .sum b{color:var(--paper)}
+.legend-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;padding-top:12px;border-top:2px solid var(--line)}
+.legend-row span{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-dim)}
+.sw{width:11px;height:11px;flex:none;background:var(--nodata)}
+.sw.up{background:var(--up)}.sw.deg{background:var(--deg)}.sw.down{background:var(--down)}
+.node{border:2px solid var(--line);background:#000;padding:12px;margin-bottom:10px}
+.node-top{display:flex;align-items:center;gap:10px}
+.node-name{font-family:var(--display);font-size:17px;line-height:1.1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ntag{display:flex;align-items:center;gap:5px;flex:none;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:500;border:2px solid var(--line);padding:4px 8px;color:var(--paper-dim)}
+.ntag.up{border-color:var(--up);color:var(--paper)}
+.ntag.deg{border-color:var(--deg);color:var(--deg)}
+.ntag.down{border-color:var(--down);color:var(--down)}
+.node-sub{font-size:11.5px;color:var(--paper-dim);margin-top:6px;letter-spacing:.04em}
+.node-sub b{color:var(--paper);font-weight:500}
+.strip{display:flex;gap:2px;height:26px;margin-top:9px}
+.strip i{flex:1;background:var(--nodata);cursor:pointer;transition:opacity .15s}
+.strip i.up{background:var(--up)}.strip i.deg{background:var(--deg)}.strip i.down{background:var(--down)}
+.strip i:active{opacity:.55}
+.strip-ax{display:flex;justify-content:space-between;margin-top:5px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-dim)}
+
 /* ---------- Списки / статусы ---------- */
 .flex-between{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.pill{
-  font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;
-  border:2px solid var(--line);color:var(--paper-dim);font-weight:500;flex:none;
-}
+.pill{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border:2px solid var(--line);color:var(--paper-dim);font-weight:500;flex:none}
 .pill.active,.pill.shipped{color:var(--paper);border-color:var(--paper)}
 .pill.exp,.pill.canceled{color:var(--blood);border-color:var(--blood)}
 .pill.new,.pill.processing{color:var(--warn);border-color:var(--warn)}
@@ -214,9 +263,6 @@ pre.instr{white-space:pre-wrap;font-family:var(--ui);font-size:13px;margin:0;col
 .applink b{font-size:14px;font-weight:600}
 .applink span{font-size:11px;color:var(--paper-dim);letter-spacing:.05em}
 .applink .go{font-family:var(--display);color:var(--blood);font-size:18px}
-.why{padding-left:18px;margin:2px 0 0}
-.why li{margin-bottom:9px;font-size:13px;line-height:1.55;color:var(--paper-dim)}
-.why li b{color:var(--paper);font-weight:600}
 
 /* ---------- Галерея товара ---------- */
 .hero-img{width:100%;aspect-ratio:1/1;object-fit:cover;border:2px solid var(--line);background:#000;filter:grayscale(.2) contrast(1.05)}
@@ -233,13 +279,12 @@ nav.bottom{
 }
 nav.bottom button{
   flex:1;background:transparent;border:none;color:var(--paper-dim);cursor:pointer;
-  padding:11px 3px 10px;font-family:var(--ui);font-weight:500;
-  font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;position:relative;
+  padding:11px 2px 10px;font-family:var(--ui);font-weight:500;
+  font-size:9px;letter-spacing:.06em;text-transform:uppercase;position:relative;
 }
-nav.bottom button .ic{display:block;font-size:17px;margin-bottom:3px;line-height:1}
+nav.bottom button .ic{display:block;font-size:16px;margin-bottom:3px;line-height:1}
 nav.bottom button.on{color:var(--paper)}
-nav.bottom button.on::before{content:"";position:absolute;top:0;left:12%;right:12%;height:3px;background:var(--blood)}
-
+nav.bottom button.on::before{content:"";position:absolute;top:0;left:10%;right:10%;height:3px;background:var(--blood)}
 .back{background:none;border:none;color:var(--paper-dim);font-size:11px;cursor:pointer;padding:6px 0;font-family:var(--ui);font-weight:500;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px}
 .back:active{color:var(--paper)}
 
@@ -288,27 +333,28 @@ nav.bottom button.on::before{content:"";position:absolute;top:0;left:12%;right:1
   <p>Подключение</p>
 </div>
 
-<div id="app">
-  <div id="content" class="hidden"></div>
-</div>
+<div id="app"><div id="content" class="hidden"></div></div>
 
 <nav class="bottom hidden" id="tabbar"></nav>
 <div id="toast"></div>
 
 <script>
-/* Магазин Zvon — мини-апп. Оплата и выдача идут через store-бэкенд Zvon
- * (zvon.store.*): сервер сам обращается к YooKassa/CryptoBot и провижинеру. */
+/* Магазин Zvon — мини-апп экосистемы Vlyne.
+ *
+ * Два контура данных, и это важно понимать при чтении:
+ *
+ *  1. VPN (подписка, трафик, рефералка, ноды) принадлежит Telegram-аккаунту
+ *     Vlyne. Zvon сюда ничего не дублирует: сервер проксирует запросы в бота
+ *     через zvon.store.vpn.*, поэтому покупка из Telegram и покупка отсюда
+ *     меняют одно и то же состояние, а ключ у человека ровно один.
+ *     Доступно после привязки аккаунта кодом из команды /link в боте.
+ *
+ *  2. Мерч — собственный контур Zvon (MongoDB), в боте его нет:
+ *     zvon.store.catalog/order/cabinet + админка.
+ */
 
 const OS_LIST = [["windows","Windows"],["macos","macOS"],["linux","Linux"],["android","Android"],["ios","iOS"]];
 const OS_NAMES = Object.fromEntries(OS_LIST);
-const OS_INSTRUCTIONS = {
-  windows:"Windows\n• Скачайте Vlyne Client: github.com/pkda1lu/vlyne-client/releases\n• Запустите, импортируйте конфигурацию ниже\n• Подключитесь",
-  macos:"macOS\n• Установите V2rayU\n• Импортируйте конфигурацию ниже\n• Подключитесь",
-  android:"Android\n• Установите v2raytun из Google Play\n• Импортируйте конфигурацию ниже",
-  ios:"iOS\n• Установите v2raytun из App Store\n• Импортируйте конфигурацию ниже",
-  linux:"Linux\n• v2ray-core: github.com/v2fly/v2ray-core/releases\n• Настройте конфигурацию ниже",
-};
-/* Каталог клиентов — перенесён из оригинального VPN-магазина. */
 const APPS = {
   windows:[{n:"Vlyne Client",d:"Рекомендуем",u:"https://github.com/pkda1lu/vlyne-client/releases"}],
   macos:[{n:"V2rayU",d:"GitHub — рекомендуем",u:"https://github.com/yanue/V2rayU/releases"},
@@ -317,18 +363,22 @@ const APPS = {
            {n:"Happ — APK",d:"Если Google Play недоступен",u:"https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk"},
            {n:"v2raytun",d:"Google Play",u:"https://play.google.com/store/apps/details?id=com.v2raytun.android"}],
   ios:[{n:"Happ",d:"App Store — Россия",u:"https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"},
-       {n:"Happ",d:"App Store — глобальный",u:"https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"},
-       {n:"v2raytun",d:"App Store",u:"https://apps.apple.com/app/v2raytun/id6476628951"}],
+       {n:"Happ",d:"App Store — глобальный",u:"https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"}],
   linux:[{n:"v2ray-core",d:"GitHub",u:"https://github.com/v2fly/v2ray-core/releases"},
          {n:"Clash",d:"GitHub",u:"https://github.com/Dreamacro/clash/releases"}],
 };
-const SUPPORT_URL = "https://t.me/tpoutline";
-
+const SUPPORT_FALLBACK = "https://t.me/tpoutline";
 const FULFILL_LABEL = { new:"Новый", processing:"В работе", shipped:"Отправлен", done:"Завершён" };
 const FULFILL_NEXT = { new:"processing", processing:"shipped", shipped:"done", done:"done" };
+const NODE_ST = {
+  up:      { cls:"up",   ic:"●", label:"Работает"   },
+  degraded:{ cls:"deg",  ic:"▲", label:"Сбои"       },
+  down:    { cls:"down", ic:"✕", label:"Недоступна" },
+  unknown: { cls:"",     ic:"?", label:"Нет данных" },
+};
 
 function detectOS(){
-  const p = (navigator.userAgent || "").toLowerCase();
+  const p=(navigator.userAgent||"").toLowerCase();
   if(/android/.test(p)) return "android";
   if(/iphone|ipad|ipod/.test(p)) return "ios";
   if(/mac os x|macintosh/.test(p)) return "macos";
@@ -338,14 +388,18 @@ function detectOS(){
 const MY_OS = detectOS();
 
 const STATE = {
-  user:null, isAdmin:false, tab:"shop", screen:"catalog",
-  cat:"all", products:[], paymentMethods:[{id:"yookassa",label:"Карта"}],
-  product:null,
-  buy:{ os:MY_OS, promo:null, promoPct:0, method:"yookassa", qty:1, shipping:{} },
-  pay:null, result:null,
-  adminEdit:null,
+  user:null, isAdmin:false, tab:"sub", screen:"main",
+  // VPN-контур (данные принадлежат Telegram-аккаунту)
+  vpn:{ available:false, linked:false, data:null, error:null },
+  traffic:{ pack:null, promo:null, promoPct:0, method:"yookassa", order:null },
+  nodes:{ loaded:false, data:null, error:null },
   installOS:MY_OS,
-  cabinet:null,          // кэш ответа кабинета — нужен и для счётчика подписки
+  // Контур мерча (собственный для Zvon)
+  products:[], paymentMethods:[{id:"yookassa",label:"Карта"}],
+  product:null,
+  merch:{ qty:1, option:"", shipping:{}, promo:null, promoPct:0, method:"yookassa" },
+  pay:null, result:null, cabinet:null,
+  adminEdit:null,
 };
 const STORE = !!(window.zvon && window.zvon.store);
 
@@ -354,7 +408,7 @@ const $ = (s,r=document)=>r.querySelector(s);
 function el(html){ const d=document.createElement("div"); d.innerHTML=html.trim(); return d.firstChild; }
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); clearTimeout(window.__tt); window.__tt=setTimeout(()=>t.classList.remove("on"),3200); }
 function copy(t){
-  if(navigator.clipboard){ navigator.clipboard.writeText(t).then(()=>toast("Скопировано")).catch(()=>fallbackCopy(t)); }
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>toast("Скопировано")).catch(()=>fallbackCopy(t));
   else fallbackCopy(t);
 }
 function fallbackCopy(t){
@@ -365,46 +419,35 @@ function fallbackCopy(t){
 }
 function openUrl(u){ try{ window.open(u,"_blank","noopener"); }catch(e){ location.href=u; } }
 function fmtDate(ts){ if(!ts) return "—"; const d=new Date(ts); return d.toLocaleDateString("ru-RU")+" "+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}); }
-function fmtDay(ts){ if(!ts) return "—"; return new Date(ts).toLocaleDateString("ru-RU",{day:"2-digit",month:"short"}); }
 function qrUrl(d){ return "https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=0&data="+encodeURIComponent(d); }
-function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function money(n){ return (n===0?"Бесплатно":n+" ₽"); }
-// Склонение дней — счётчик подписки показывает их крупно, «5 дней»/«1 день».
-function plural(n, one, few, many){
-  const a=Math.abs(n)%100, b=a%10;
-  if(a>10&&a<20) return many; if(b>1&&b<5) return few; if(b===1) return one; return many;
-}
-function days(n){ return n+" "+plural(n,"день","дня","дней"); }
+function hourLabel(ts){ const d=new Date(ts*1000); return ("0"+d.getHours()).slice(-2)+":00"; }
 async function S(p){ const d=await p; if(!d) throw new Error("Пустой ответ"); if(d.ok===false) throw new Error(d.error||"Ошибка"); return d; }
-
-/* Лучшая цена за день среди платных VPN-тарифов — отмечаем значком «Выгодно»,
- * как в оригинальном магазине отмечался самый выгодный пакет трафика. */
-function bestVpnId(list){
-  const paid = list.filter(p=>p.type==="vpn" && p.price>0 && (p.vpn?.days||0)>0);
-  if(paid.length<2) return null;
-  return paid.reduce((a,b)=> (b.price/b.vpn.days < a.price/a.vpn.days ? b : a), paid[0]).id;
-}
+function supportUrl(){ return (STATE.vpn.data && STATE.vpn.data.support) || SUPPORT_FALLBACK; }
 
 // ---------- bootstrap ----------
 async function boot(){
   try { if(window.zvon){ const info=await zvon.init().catch(()=>null); STATE.user=(info&&info.user)||await zvon.getUser().catch(()=>null); } } catch(e){}
   if(!STATE.user) STATE.user={ _id:"guest", username:"Гость", avatar:null };
+
   if(STORE){
     try {
       const cat=await S(zvon.store.catalog());
       STATE.products=cat.products||[];
       STATE.isAdmin=!!cat.isAdmin;
       if(Array.isArray(cat.paymentMethods)&&cat.paymentMethods.length) STATE.paymentMethods=cat.paymentMethods;
-      STATE.buy.method=(STATE.paymentMethods[0]||{}).id||"yookassa";
-    } catch(e){}
+      STATE.merch.method=(STATE.paymentMethods[0]||{}).id||"yookassa";
+      if(cat.vpn){ STATE.vpn.available=!!cat.vpn.available; STATE.vpn.linked=!!cat.vpn.linked; STATE.vpn.error=cat.vpn.error||null; }
+    } catch(e){ STATE.vpn.error=e.message; }
+    if(STATE.vpn.linked) await loadVpn();
   } else {
-    STATE.products=[
-      { id:"demo0", type:"vpn", title:"Пробный доступ", description:"Демо", price:0, images:[], vpn:{days:1,trialOnce:true} },
-      { id:"demo1", type:"vpn", title:"VPN — 1 месяц", description:"Демо", price:189, images:[], vpn:{days:30} },
-      { id:"demo2", type:"vpn", title:"VPN — 3 месяца", description:"Демо", price:449, images:[], vpn:{days:90} },
-      { id:"demo3", type:"merch", title:"Футболка Zvon", description:"Демо-мерч", price:1490, images:[], merch:{options:["S","M","L"],requiresShipping:true} },
-    ];
+    STATE.products=[{ id:"demo", type:"merch", title:"Футболка Zvon", description:"Демо-мерч", price:1490, images:[], merch:{options:["S","M","L"],requiresShipping:true} }];
   }
+
+  // Без VPN-контура соответствующие вкладки не показываем вовсе.
+  if(!STATE.vpn.available) STATE.tab="shop";
+
   $("#loading").classList.add("hidden");
   $("#head").classList.remove("hidden");
   $("#content").classList.remove("hidden");
@@ -412,15 +455,29 @@ async function boot(){
   renderWho(); renderTabs(); render();
 }
 
+/** Состояние подписки из бота: ключ, трафик, рефералка, пакеты. */
+async function loadVpn(){
+  try {
+    const st=await S(zvon.store.vpn.state());
+    STATE.vpn.data=st; STATE.vpn.error=null;
+    if(!STATE.traffic.pack && st.packs && st.packs.length){
+      const best=st.packs.reduce((a,b)=> (b.gb/b.price > a.gb/a.price ? b : a), st.packs[0]);
+      STATE.traffic.pack=best.code;
+    }
+    if(!st.cryptobot) STATE.traffic.method="yookassa";
+  } catch(e){ STATE.vpn.data=null; STATE.vpn.error=e.message; }
+}
+
 function renderWho(){
   const u=STATE.user;
   const av=u.avatar?`<img src="${esc(u.avatar)}" alt="">`:`<div class="ava">${(u.username||'?')[0].toUpperCase()}</div>`;
-  $("#who").innerHTML = av+`<span>${esc(u.username||'Гость')}</span>`;
+  $("#who").innerHTML=av+`<span>${esc(u.username||'Гость')}</span>`;
 }
 
 function renderTabs(){
-  const tabs=[["shop","▣","Магазин"],["cabinet","✦","Кабинет"],["install","⌁","Подключение"]];
-  if(STATE.isAdmin) tabs.push(["admin","⚙","Админка"]);
+  const tabs=[];
+  if(STATE.vpn.available) tabs.push(["sub","▣","Ключ"],["buy","▲","Трафик"],["ref","✷","Друзья"],["nodes","◉","Серверы"]);
+  tabs.push(["shop","◧","Мерч"],["install","⌁","Установка"]);
   const bar=$("#tabbar"); bar.innerHTML="";
   tabs.forEach(([id,ic,label])=>{
     const b=el(`<button class="${STATE.tab===id?'on':''}"><span class="ic">${ic}</span>${label}</button>`);
@@ -429,393 +486,393 @@ function renderTabs(){
   });
 }
 function go(tab, screen){
-  STATE.tab=tab; STATE.screen=screen||"catalog"; STATE.adminEdit=null;
+  STATE.tab=tab; STATE.screen=screen||"main"; STATE.adminEdit=null;
   renderTabs(); render();
 }
 
 function render(){
   const c=$("#content"); c.innerHTML="";
-  const wrap=el(`<div class="screen"></div>`); c.appendChild(wrap);
-  if(STATE.tab==="shop"){
-    if(STATE.screen==="catalog") renderCatalog(wrap);
-    else if(STATE.screen==="product") renderProduct(wrap);
-    else if(STATE.screen==="pay") renderPay(wrap);
-    else if(STATE.screen==="result") renderResult(wrap);
+  const w=el(`<div class="screen"></div>`); c.appendChild(w);
+  if(STATE.tab==="sub") renderSub(w);
+  else if(STATE.tab==="buy") renderTraffic(w);
+  else if(STATE.tab==="ref") renderRef(w);
+  else if(STATE.tab==="nodes") renderNodes(w);
+  else if(STATE.tab==="install") renderInstall(w);
+  else if(STATE.tab==="shop"){
+    if(STATE.screen==="admin") renderAdmin(w);
+    else if(STATE.screen==="product") renderProduct(w);
+    else if(STATE.screen==="pay") renderPay(w);
+    else if(STATE.screen==="result") renderResult(w);
+    else if(STATE.screen==="orders") renderCabinet(w);
+    else renderCatalog(w);
   }
-  else if(STATE.tab==="cabinet") renderCabinet(wrap);
-  else if(STATE.tab==="install") renderInstall(wrap);
-  else if(STATE.tab==="admin") renderAdmin(wrap);
-  if(STATE.tab!=="admin") wrap.appendChild(footerLinks());
+  if(STATE.screen!=="admin") w.appendChild(footerLinks());
   window.scrollTo(0,0);
 }
 
 function footerLinks(){
   const f=el(`<div class="footer-links"></div>`);
-  const sup=el(`<a>Поддержка</a>`); sup.onclick=()=>openUrl(SUPPORT_URL);
+  const sup=el(`<a>Поддержка</a>`); sup.onclick=()=>openUrl(supportUrl());
   const inst=el(`<a>Как подключить</a>`); inst.onclick=()=>go("install");
   f.append(sup, inst);
   return f;
 }
 
-// ---------- CATALOG ----------
-function productImg(p){
-  if(p.images && p.images[0]) return `<div class="imgwrap"><img src="${esc(p.images[0])}" alt=""></div>`;
-  return `<div class="imgwrap placeholder">${p.type==='vpn'?'VPN':'Мерч'}</div>`;
-}
-function renderCatalog(c){
-  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Каталог</div>`));
-  c.appendChild(el(`<h1>Витрина</h1>`));
-  c.appendChild(el(`<div class="sub">VPN-доступ и мерч. Ключ выдаётся сразу после оплаты — ссылка постоянная, настраивать клиент нужно один раз.</div>`));
+/* ==================== ПРИВЯЗКА АККАУНТА ====================
+ * Подписка принадлежит Telegram-аккаунту, поэтому Zvon сначала должен узнать,
+ * кто перед ним. Доказательством владения служит код из команды /link: взять
+ * его можно только внутри бота. */
+function renderLinkScreen(c){
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Аккаунт</div>`));
+  c.appendChild(el(`<h1>Связать с Telegram</h1>`));
+  c.appendChild(el(`<div class="sub">VPN-подписка Vlyne одна на человека: ключ, трафик и приглашённые друзья живут в вашем Telegram-аккаунте. Свяжите его с Zvon — и управлять всем этим можно будет из обоих мест.</div>`));
 
-  const types=new Set(STATE.products.map(p=>p.type));
-  const cats=[["all","Все"]];
-  if(types.has("vpn")) cats.push(["vpn","VPN"]);
-  if(types.has("merch")) cats.push(["merch","Мерч"]);
-  if(cats.length>1){
-    const chips=el(`<div class="chips"></div>`);
-    cats.forEach(([id,label])=>{ const b=el(`<button class="chip ${STATE.cat===id?'active':''}">${label}</button>`); b.onclick=()=>{ STATE.cat=id; render(); }; chips.appendChild(b); });
-    c.appendChild(chips);
-  }
+  const box=el(`<div class="card hi"></div>`);
+  box.appendChild(el(`<h2>Код привязки</h2>`));
+  box.appendChild(el(`<ol class="steps">
+    <li>Откройте бота Vlyne в Telegram.</li>
+    <li>Отправьте команду <b>/link</b>.</li>
+    <li>Введите полученный код сюда — он живёт 10 минут.</li>
+  </ol>`));
+  const inp=el(`<input class="code-in" placeholder="000000" inputmode="numeric" maxlength="6" autocomplete="one-time-code">`);
+  box.appendChild(inp);
+  const btn=el(`<button class="btn">Связать</button>`);
+  btn.onclick=async ()=>{
+    const code=(inp.value||"").replace(/\D/g,"");
+    if(code.length<4){ toast("Введите код из бота"); return; }
+    btn.disabled=true; btn.textContent="Связываем…";
+    try {
+      const r=await S(zvon.store.vpn.link(code));
+      STATE.vpn.linked=true;
+      await loadVpn();
+      toast("Аккаунт связан"+(r.telegram&&r.telegram.name?(": "+r.telegram.name):""));
+      renderTabs(); render();
+    } catch(e){ toast(e.message); btn.disabled=false; btn.textContent="Связать"; }
+  };
+  box.appendChild(btn);
+  c.appendChild(box);
 
-  const list=STATE.products.filter(p=>STATE.cat==="all"||p.type===STATE.cat);
-  if(!list.length){ c.appendChild(el(`<div class="card"><div class="empty">Товаров пока нет.</div></div>`)); return; }
-  const best=bestVpnId(list);
-  const grid=el(`<div class="grid"></div>`);
-  list.forEach(p=>{
-    const d=p.vpn?.days||0;
-    const perDay = (p.type==="vpn" && p.price>0 && d>0) ? `<div class="perday">${Math.round(p.price/d)} ₽/день · ${days(d)}</div>` : "";
-    const label = p.type==='vpn' ? (p.vpn?.trialOnce?'Пробный':(p.vpn?.whitelist?'Whitelist':'VPN')) : 'Мерч';
-    const card=el(`<div class="pcard ${p.id===best?'best':''}">
-      ${p.id===best?'<span class="mark">Выгодно</span>':''}
-      ${productImg(p)}
-      <div class="pbody">
-        <div class="ptitle">${esc(p.title)}</div>
-        ${perDay}
-        <div class="pbottom"><span class="pprice">${money(p.price)}</span><span class="tag">${label}</span></div>
-      </div>
-    </div>`);
-    card.onclick=()=>openProduct(p);
-    grid.appendChild(card);
-  });
-  c.appendChild(grid);
-
-  /* Блок преимуществ — перенесён из оригинального магазина. */
-  c.appendChild(el(`<div class="card" style="margin-top:18px">
-    <h2>Почему это удобно</h2>
+  c.appendChild(el(`<div class="card">
+    <h2>Что это даёт</h2>
     <ul class="why">
-      <li><b>Ссылка постоянная.</b> Настроили клиент один раз — при продлении ничего менять не нужно.</li>
-      <li><b>Выдача мгновенная.</b> Ключ и QR появляются сразу после подтверждения оплаты.</li>
-      <li><b>Оплата картой или криптой.</b> Способ выбирается на странице товара.</li>
-      <li><b>Все покупки в кабинете.</b> Ключи, сроки и статусы заказов мерча — в одном месте.</li>
+      <li><b>Один ключ, а не два.</b> Ссылка подписки та же, что в боте — клиент настраивается один раз.</li>
+      <li><b>Общий трафик.</b> Купили пакет здесь — он виден в Telegram, и наоборот.</li>
+      <li><b>Общая рефералка.</b> Приглашённые друзья и заработанные ГБ считаются в одном месте.</li>
+      <li><b>Отвязать можно в любой момент</b> — здесь или командой /unlink в боте. Подписка при этом остаётся.</li>
     </ul>
   </div>`));
 
-  if(!STORE) c.appendChild(el(`<div class="demo-note">Демо-режим (вне Zvon): оплата и выдача недоступны.</div>`));
+  const sup=el(`<button class="btn dim">Написать в поддержку</button>`); sup.onclick=()=>openUrl(supportUrl()); c.appendChild(sup);
 }
 
-function openProduct(p){
-  STATE.product=p;
-  STATE.buy={ os:MY_OS, promo:null, promoPct:0, method:(STATE.paymentMethods[0]||{}).id||"yookassa", qty:1, shipping:{}, option:(p.merch?.options||[])[0]||"" };
-  STATE.screen="product"; render();
-}
-
-// ---------- PRODUCT DETAIL ----------
-function renderProduct(c){
-  const p=STATE.product;
-  const back=el(`<button class="back">← Каталог</button>`); back.onclick=()=>{ STATE.screen="catalog"; render(); }; c.appendChild(back);
-
-  const media=el(`<div></div>`);
-  if(p.images && p.images.length){
-    media.appendChild(el(`<img class="hero-img" src="${esc(p.images[0])}" alt="">`));
-    if(p.images.length>1){
-      const row=el(`<div class="thumbs"></div>`);
-      p.images.forEach(u=>{ const t=el(`<div class="thumb"><img src="${esc(u)}"></div>`); t.onclick=()=>{ media.firstChild.src=u; }; row.appendChild(t); });
-      media.appendChild(row);
-    }
-  } else {
-    media.appendChild(el(`<div class="hero-img placeholder">${p.type==='vpn'?'VPN':'Мерч'}</div>`));
+/** true, если экран занят заглушкой: нет привязки либо состояние не загрузилось. */
+function vpnGate(c){
+  if(!STATE.vpn.linked){ renderLinkScreen(c); return true; }
+  if(!STATE.vpn.data){
+    c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Подписка</div>`));
+    c.appendChild(el(`<h1>Не загрузилось</h1>`));
+    c.appendChild(el(`<div class="card danger"><div class="empty">${esc(STATE.vpn.error||"Не удалось получить состояние подписки")}</div></div>`));
+    const again=el(`<button class="btn ghost">Повторить</button>`);
+    again.onclick=async ()=>{ again.disabled=true; again.textContent="Загружаем…"; await loadVpn(); render(); };
+    c.appendChild(again);
+    return true;
   }
-  c.appendChild(media);
-
-  c.appendChild(el(`<div class="eyebrow" style="margin-top:18px">${p.type==='vpn'?'Подписка':'Товар'}</div>`));
-  c.appendChild(el(`<h1>${esc(p.title)}</h1>`));
-  const d=p.vpn?.days||0;
-  if(p.type==="vpn" && d>0){
-    c.appendChild(el(`<div class="muted" style="margin-top:6px">Срок доступа — ${days(d)}${p.price>0?` · ${Math.round(p.price/d)} ₽ в день`:""}${p.vpn?.trialOnce?" · доступен один раз":""}</div>`));
-  }
-  if(p.description) c.appendChild(el(`<div class="muted" style="white-space:pre-wrap;margin-top:10px">${esc(p.description)}</div>`));
-
-  if(p.type==="vpn") renderVpnBuy(c, p); else renderMerchBuy(c, p);
+  return false;
 }
 
-function promoBlock(box, p){
-  if(p.price<=0) return;
+// ==================== КЛЮЧ И ТРАФИК ====================
+function renderSub(c){
+  if(vpnGate(c)) return;
+  const s=STATE.vpn.data.subscription;
+  const name=(STATE.vpn.data.user&&STATE.vpn.data.user.name)||"";
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Подписка Vlyne</div>`));
+  c.appendChild(el(`<h1>Ваш доступ</h1>`));
+  if(name) c.appendChild(el(`<div class="sub">Telegram: <b style="color:var(--paper)">${esc(name)}</b> — данные общие с ботом.</div>`));
+
+  const empty = s.left<=0;
+  const meter=el(`<div class="card hi"></div>`);
+  meter.appendChild(el(`<h2>Ваш трафик</h2>`));
+  meter.appendChild(el(`<div class="meter-top">
+    <div class="meter-big">${esc(s.left_h)}<small>осталось из ${esc(s.limit_h)}</small></div>
+    <div class="meter-right">${s.percent}%<br>израсходовано</div>
+  </div>`));
+  meter.appendChild(el(`<div class="bar ${empty?'full':''}"><i style="width:${s.percent}%"></i></div>`));
+  meter.appendChild(el(`<div class="bar-legend"><span>${esc(s.used_h)} использовано</span><span>до ${esc(s.period_end)}</span></div>`));
+  meter.appendChild(el(`<div class="stat-row">
+    <div class="stat"><b>${s.free_gb} ГБ</b><span>Бесплатно в месяц</span></div>
+    <div class="stat"><b>${esc(s.extra_h)}</b><span>Докуплено</span></div>
+  </div>`));
+  if(empty){
+    meter.appendChild(el(`<div class="warn"><b>Лимит исчерпан.</b> Докупите трафик, чтобы продолжить пользоваться VPN.</div>`));
+    const b=el(`<button class="btn">Докупить трафик</button>`); b.onclick=()=>go("buy"); meter.appendChild(b);
+  }
+  c.appendChild(meter);
+
+  const key=el(`<div class="card"></div>`);
+  key.appendChild(el(`<h2>Ваш ключ</h2>`));
+  key.appendChild(el(`<p class="muted" style="margin:0 0 11px">Ссылка постоянная — она никогда не меняется и совпадает с той, что выдал бот. Настройте клиент один раз.</p>`));
+  if(s.qr) key.appendChild(el(`<div class="qr"><img src="${esc(s.qr)}" alt="QR"></div>`));
+  else if(s.url) key.appendChild(el(`<div class="qr"><img src="${qrUrl(s.url)}" alt="QR"></div>`));
+  key.appendChild(el(`<div class="code-box">${esc(s.url||'')}</div>`));
+  const cp=el(`<button class="btn">Скопировать ссылку</button>`); cp.onclick=()=>copy(s.url||""); key.appendChild(cp);
+  const how=el(`<button class="btn ghost">Как подключить</button>`); how.onclick=()=>go("install"); key.appendChild(how);
+  c.appendChild(key);
+
+  const acc=el(`<div class="card"></div>`);
+  acc.appendChild(el(`<h2>Аккаунт Telegram</h2>`));
+  acc.appendChild(el(`<p class="muted" style="margin:0">Ключ, трафик и рефералка общие с ботом. После отвязки подписка никуда не денется — просто перестанет быть видна из Zvon.</p>`));
+  const un=el(`<button class="btn dim">Отвязать Telegram</button>`);
+  un.onclick=async ()=>{
+    if(!confirm("Отвязать аккаунт Telegram? Подписка сохранится и останется доступной в боте.")) return;
+    un.disabled=true; un.textContent="Отвязываем…";
+    try {
+      await S(zvon.store.vpn.unlink());
+      STATE.vpn.linked=false; STATE.vpn.data=null; STATE.nodes={loaded:false,data:null,error:null};
+      toast("Аккаунт отвязан"); renderTabs(); render();
+    } catch(e){ toast(e.message); un.disabled=false; un.textContent="Отвязать Telegram"; }
+  };
+  acc.appendChild(un);
+  c.appendChild(acc);
+}
+
+// ==================== ПОКУПКА ТРАФИКА ====================
+function renderTraffic(c){
+  if(vpnGate(c)) return;
+  const d=STATE.vpn.data, packs=d.packs||[];
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Пополнение</div>`));
+  c.appendChild(el(`<h1>Докупить трафик</h1>`));
+  c.appendChild(el(`<div class="sub">Трафик добавится к текущей подписке. Ссылка не изменится, а неизрасходованный остаток перейдёт на следующий месяц. Покупка видна и здесь, и в боте.</div>`));
+
+  const box=el(`<div class="card"></div>`);
+  const best=packs.length?packs.reduce((a,b)=> (b.gb/b.price > a.gb/a.price ? b : a), packs[0]):null;
+  packs.forEach(p=>{
+    const node=el(`<div class="pack ${best&&p.code===best.code?'best':''} ${STATE.traffic.pack===p.code?'sel':''}">
+      <span class="mark">Выгодно</span>
+      <div class="vol">${p.gb}<em>ГБ</em></div>
+      <div class="mid">Купит такой же друг по вашей ссылке — вам +${p.bonus_gb} ГБ</div>
+      <div class="price">${p.price} ₽</div>
+    </div>`);
+    node.onclick=()=>{
+      STATE.traffic.pack=p.code; STATE.traffic.promo=null; STATE.traffic.promoPct=0; STATE.traffic.order=null;
+      render();
+    };
+    box.appendChild(node);
+  });
+  if(!packs.length) box.appendChild(el(`<div class="empty">Пакеты трафика недоступны.</div>`));
+
   box.appendChild(el(`<label>Промокод</label>`));
-  const wrap=el(`<div class="row" style="margin-top:8px"></div>`);
-  const inp=el(`<input placeholder="WELCOME" value="${esc(STATE.buy.promo||'')}" autocomplete="off" spellcheck="false" style="margin-top:0;letter-spacing:.1em;text-transform:uppercase">`);
-  const ok=el(`<button class="btn ghost auto">OK</button>`);
-  ok.onclick=async ()=>{
-    const code=(inp.value||"").trim().toUpperCase();
-    if(!code){ STATE.buy.promo=null; STATE.buy.promoPct=0; render(); return; }
-    if(STORE){
-      try{ const r=await S(zvon.store.promoCheck(code,p.id)); STATE.buy.promo=code; STATE.buy.promoPct=r.discountPercent||0; toast("Промокод применён: −"+r.discountPercent+"%"); }
-      catch(e){ STATE.buy.promo=null; STATE.buy.promoPct=0; toast(e.message); }
-    } else toast("Промокоды доступны внутри Zvon");
+  const prow=el(`<div class="row" style="margin-top:8px"></div>`);
+  const pin=el(`<input placeholder="Промокод" value="${esc(STATE.traffic.promo||'')}" autocomplete="off" spellcheck="false" style="margin-top:0;letter-spacing:.1em;text-transform:uppercase">`);
+  const pok=el(`<button class="btn ghost auto">OK</button>`);
+  pok.onclick=async ()=>{
+    const code=(pin.value||"").trim().toUpperCase();
+    if(!code || !STATE.traffic.pack){ STATE.traffic.promo=null; STATE.traffic.promoPct=0; render(); return; }
+    try {
+      const r=await S(zvon.store.vpn.promo(STATE.traffic.pack, code));
+      STATE.traffic.promo=code; STATE.traffic.promoPct=r.percent||0;
+      toast("Промокод применён: −"+r.percent+"%");
+    } catch(e){ STATE.traffic.promo=null; STATE.traffic.promoPct=0; toast(e.message); }
     render();
   };
-  wrap.append(inp, ok); box.appendChild(wrap);
-}
-function paymentBlock(box){
-  if(STATE.paymentMethods.length<=1) return;
-  box.appendChild(el(`<label>Способ оплаты</label>`));
-  const pm=el(`<div class="seg" style="grid-template-columns:1fr 1fr"></div>`);
-  STATE.paymentMethods.forEach(m=>{ const b=el(`<button class="${STATE.buy.method===m.id?'active':''}">${esc(m.label)}</button>`); b.onclick=()=>{ STATE.buy.method=m.id; render(); }; pm.appendChild(b); });
-  box.appendChild(pm);
-}
-function unitPrice(p){ return Math.max(0, p.price-Math.floor(p.price*STATE.buy.promoPct/100)); }
-function finalPrice(p){ return p.type==="merch" ? unitPrice(p)*STATE.buy.qty : unitPrice(p); }
+  prow.append(pin, pok); box.appendChild(prow);
 
-function totalBlock(box, p){
-  const fp=finalPrice(p);
-  const base=p.type==="merch" ? p.price*STATE.buy.qty : p.price;
-  const t=el(`<div class="total"><span>К оплате</span><b></b></div>`);
-  if(STATE.buy.promoPct>0 && base>0) t.querySelector("b").innerHTML=`<s>${base} ₽</s>${fp} ₽`;
-  else t.querySelector("b").textContent = fp===0 ? "Бесплатно" : fp+" ₽";
-  box.appendChild(t);
-}
-
-function renderVpnBuy(c, p){
-  const box=el(`<div class="card" style="margin-top:16px"></div>`);
-  box.appendChild(el(`<h2>Оформление</h2>`));
-  box.appendChild(el(`<label style="margin-top:0">Операционная система</label>`));
-  const seg=el(`<div class="seg"></div>`);
-  OS_LIST.forEach(([id,label])=>{ const b=el(`<button class="${STATE.buy.os===id?'active':''}">${label}</button>`); b.onclick=()=>{ STATE.buy.os=id; render(); }; seg.appendChild(b); });
-  box.appendChild(seg);
-  box.appendChild(el(`<div class="muted" style="margin-top:8px;font-size:12px">Инструкция под выбранную систему придёт вместе с ключом.</div>`));
-  paymentBlock(box);
-  promoBlock(box, p);
-  totalBlock(box, p);
-  c.appendChild(box);
-
-  const fp=finalPrice(p);
-  const btn=el(`<button class="btn">${fp===0?'Получить доступ':('Оплатить '+fp+' ₽')}</button>`);
-  btn.onclick=()=>checkout(btn,p);
-  c.appendChild(btn);
-  const how=el(`<button class="btn ghost">Как подключить</button>`); how.onclick=()=>go("install"); c.appendChild(how);
-}
-
-function renderMerchBuy(c, p){
-  const box=el(`<div class="card" style="margin-top:16px"></div>`);
-  box.appendChild(el(`<h2>Оформление</h2>`));
-  const opts=p.merch?.options||[];
-  if(opts.length){
-    box.appendChild(el(`<label style="margin-top:0">Вариант</label>`));
-    const seg=el(`<div class="seg"></div>`);
-    opts.forEach(o=>{ const b=el(`<button class="${STATE.buy.option===o?'active':''}">${esc(o)}</button>`); b.onclick=()=>{ STATE.buy.option=o; render(); }; seg.appendChild(b); });
+  // Крипта показывается только если включена на стороне бота.
+  if(d.cryptobot){
+    box.appendChild(el(`<label>Способ оплаты</label>`));
+    const seg=el(`<div class="seg" style="grid-template-columns:1fr 1fr"></div>`);
+    [["yookassa","Карта"],["cryptobot","Крипта"]].forEach(([id,label])=>{
+      const b=el(`<button class="${STATE.traffic.method===id?'active':''}">${label}</button>`);
+      b.onclick=()=>{ STATE.traffic.method=id; render(); }; seg.appendChild(b);
+    });
     box.appendChild(seg);
   }
-  if(typeof p.merch?.stock === "number"){
-    box.appendChild(el(`<div class="muted" style="margin-top:10px;font-size:12px">На складе: ${p.merch.stock} шт.</div>`));
-  }
-  box.appendChild(el(`<label>Количество</label>`));
-  const qty=el(`<div class="qty"></div>`);
-  const minus=el(`<button>−</button>`); minus.onclick=()=>{ STATE.buy.qty=Math.max(1,STATE.buy.qty-1); render(); };
-  const plus=el(`<button>+</button>`); plus.onclick=()=>{ STATE.buy.qty++; render(); };
-  qty.append(minus, el(`<span>${STATE.buy.qty}</span>`), plus); box.appendChild(qty);
 
-  if(p.merch?.requiresShipping!==false){
-    box.appendChild(el(`<label>Получатель</label>`));
-    const name=el(`<input placeholder="Имя и фамилия" value="${esc(STATE.buy.shipping.name||'')}">`); name.oninput=e=>STATE.buy.shipping.name=e.target.value;
-    const phone=el(`<input placeholder="Телефон" inputmode="tel" value="${esc(STATE.buy.shipping.phone||'')}" style="margin-top:8px">`); phone.oninput=e=>STATE.buy.shipping.phone=e.target.value;
-    const addr=el(`<textarea placeholder="Адрес доставки (город, улица, индекс)" style="margin-top:8px">${esc(STATE.buy.shipping.address||'')}</textarea>`); addr.oninput=e=>STATE.buy.shipping.address=e.target.value;
-    const com=el(`<input placeholder="Комментарий (необязательно)" value="${esc(STATE.buy.shipping.comment||'')}" style="margin-top:8px">`); com.oninput=e=>STATE.buy.shipping.comment=e.target.value;
-    box.append(name, phone, addr, com);
+  const pack=packs.find(p=>p.code===STATE.traffic.pack);
+  const t=el(`<div class="total"><span>К оплате</span><b>—</b></div>`);
+  if(pack){
+    const now=Math.max(0, pack.price-Math.round(pack.price*STATE.traffic.promoPct/100));
+    t.querySelector("b").innerHTML = STATE.traffic.promoPct>0 ? `<s>${pack.price} ₽</s>${now} ₽` : (pack.price+" ₽");
   }
-  paymentBlock(box);
-  promoBlock(box, p);
-  totalBlock(box, p);
+  box.appendChild(t);
   c.appendChild(box);
 
-  const btn=el(`<button class="btn">Оплатить ${finalPrice(p)} ₽</button>`);
-  btn.onclick=()=>checkout(btn,p);
-  c.appendChild(btn);
+  const pay=el(`<button class="btn">${STATE.traffic.method==='cryptobot'?'Оплатить криптой':'Оплатить картой'}</button>`);
+  pay.onclick=()=>payTraffic(pay);
+  c.appendChild(pay);
+
+  if(STATE.traffic.order){
+    c.appendChild(el(`<div class="warn">Оплатили? Вернитесь сюда и нажмите кнопку ниже — трафик зачислится сразу.</div>`));
+    const chk=el(`<button class="btn ghost">Я оплатил — проверить</button>`);
+    chk.onclick=async ()=>{
+      chk.disabled=true; chk.textContent="Проверяем…";
+      try {
+        const r=await S(zvon.store.vpn.check(STATE.traffic.order));
+        if(r.paid){
+          toast(r.already?"Этот платёж уже зачислен":("Оплачено! +"+r.gb+" ГБ"));
+          STATE.traffic.order=null; await loadVpn(); go("sub"); return;
+        }
+        toast(r.pending?"Платёж ещё не подтверждён. Подождите минуту.":"Платёж не прошёл. Оформите заказ заново.");
+      } catch(e){ toast(e.message); }
+      chk.disabled=false; chk.textContent="Я оплатил — проверить";
+    };
+    c.appendChild(chk);
+  }
 }
 
-async function checkout(btn, p){
-  if(!STORE){ toast("Доступно только внутри Zvon"); return; }
+async function payTraffic(btn){
+  if(!STATE.traffic.pack){ toast("Выберите пакет"); return; }
   btn.disabled=true; const orig=btn.textContent; btn.textContent="Оформляем…";
   try {
-    const body={ productId:p.id, os:STATE.buy.os, promo:STATE.buy.promo, paymentMethod:STATE.buy.method, qty:STATE.buy.qty };
-    if(p.type==="merch") body.shipping={ ...STATE.buy.shipping, option:STATE.buy.option||"" };
-    const data=await S(zvon.store.order(body));
-    STATE.cabinet=null; // покупка меняет кабинет — сбрасываем кэш
-    if(data.status==="pending" && data.payUrl){ STATE.pay={ ...data, product:p }; STATE.screen="pay"; render(); return; }
-    STATE.result=orderResult(p, data); STATE.screen="result"; render();
+    const r=await S(zvon.store.vpn.buy(STATE.traffic.pack, STATE.traffic.method, STATE.traffic.promo));
+    if(r.free){ toast("Трафик начислен!"); await loadVpn(); go("sub"); return; }
+    STATE.traffic.order=r.order_id;
+    render();
+    openUrl(r.url);
   } catch(e){ toast(e.message); btn.disabled=false; btn.textContent=orig; }
 }
-function orderResult(p, data){
-  return { type:p.type, title:p.title, subUrl:data.subUrl||null, expiryMs:data.expiryMs, instructions:data.instructions||OS_INSTRUCTIONS[STATE.buy.os] };
-}
 
-// ---------- PAY ----------
-function renderPay(c){
-  const d=STATE.pay;
-  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Оплата</div>`));
-  c.appendChild(el(`<h1>${d.amount} ₽</h1>`));
-  if(d.amountUsd) c.appendChild(el(`<div class="muted" style="margin-top:4px">≈ ${d.amountUsd} USDT</div>`));
-  c.appendChild(el(`<div class="sub">${esc(d.product.title)}</div>`));
+// ==================== РЕФЕРАЛЫ ====================
+function renderRef(c){
+  if(vpnGate(c)) return;
+  const d=STATE.vpn.data, r=d.referral||{}, packs=d.packs||[];
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Приглашения</div>`));
+  c.appendChild(el(`<h1>Зовите друзей</h1>`));
 
-  const pay=el(`<button class="btn">Перейти к оплате</button>`); pay.onclick=()=>openUrl(d.payUrl); c.appendChild(pay);
-
-  const zone=el(`<div></div>`);
-  zone.appendChild(el(`<div class="warn">Оплатили? Вернитесь сюда и нажмите кнопку ниже — доступ выдастся сразу.</div>`));
-  const check=el(`<button class="btn ghost">Я оплатил — проверить</button>`);
-  check.onclick=async ()=>{
-    check.disabled=true; check.textContent="Проверяем…";
-    try {
-      const res=await S(zvon.store.orderCheck(d.orderId));
-      if(res.status==="paid"){ STATE.cabinet=null; STATE.result=orderResult(d.product,res); STATE.screen="result"; render(); return; }
-      if(res.status==="pending") toast("Платёж ещё не подтверждён. Подождите минуту.");
-      else if(res.status==="canceled") toast("Платёж отменён. Оформите заказ заново.");
-      else toast("Статус: "+res.status);
-    } catch(e){ toast(e.message); }
-    check.disabled=false; check.textContent="Я оплатил — проверить";
+  const hero=el(`<div class="card danger"></div>`);
+  hero.appendChild(el(`<div class="ref-hero">
+    <div class="pct">${r.percent}%</div>
+    <p class="sub">от покупок ваших друзей</p>
+  </div>`));
+  hero.appendChild(el(`<div class="ref-grid">
+    <div class="stat"><b>${r.invited||0}</b><span>Приглашено</span></div>
+    <div class="stat"><b>${r.purchases||0}</b><span>Покупок</span></div>
+    <div class="stat"><b>${r.earned_gb||0}</b><span>Заработано ГБ</span></div>
+  </div>`));
+  const share=el(`<button class="btn">Позвать друзей</button>`);
+  share.onclick=()=>{
+    if(!r.link){ toast("Ссылка появится после первого запуска бота"); return; }
+    const text="Бесплатный VPN — "+d.subscription.free_gb+" ГБ каждый месяц, без ограничений по скорости. "
+      +"По моей ссылке сразу дадут ещё +"+r.signup_gb+" ГБ.";
+    openUrl("https://t.me/share/url?url="+encodeURIComponent(r.link)+"&text="+encodeURIComponent(text));
   };
-  zone.appendChild(check);
-  c.appendChild(zone);
+  hero.appendChild(share);
+  const cp=el(`<button class="btn ghost">Скопировать ссылку</button>`);
+  cp.onclick=()=>{ if(r.link) copy(r.link); else toast("Ссылка недоступна"); };
+  hero.appendChild(cp);
+  hero.appendChild(el(`<div class="code-box">${esc(r.link||'Ссылка появится после первого запуска бота')}</div>`));
+  c.appendChild(hero);
 
-  const back=el(`<button class="btn dim">← В каталог</button>`); back.onclick=()=>{ STATE.screen="catalog"; render(); }; c.appendChild(back);
-}
+  const tiers=el(`<div class="card"><h2>Сколько дают</h2></div>`);
+  packs.forEach(p=>tiers.appendChild(el(`<div class="tier"><span>Друг купил ${p.gb} ГБ</span><b>вам +${p.bonus_gb} ГБ</b></div>`)));
+  if(!packs.length) tiers.appendChild(el(`<div class="empty">Пакеты недоступны.</div>`));
+  c.appendChild(tiers);
 
-// ---------- RESULT ----------
-function keyCard(subUrl, note){
-  const card=el(`<div class="card hi"></div>`);
-  card.appendChild(el(`<h2>Ваш ключ</h2>`));
-  if(note) card.appendChild(el(`<p class="muted" style="margin:0 0 4px">${note}</p>`));
-  card.appendChild(el(`<div class="qr"><img src="${qrUrl(subUrl)}" alt="QR"></div>`));
-  card.appendChild(el(`<div class="code-box">${esc(subUrl)}</div>`));
-  const cp=el(`<button class="btn">Скопировать ссылку</button>`); cp.onclick=()=>copy(subUrl); card.appendChild(cp);
-  const how=el(`<button class="btn ghost">Как подключить</button>`); how.onclick=()=>go("install"); card.appendChild(how);
-  return card;
-}
-
-function renderResult(c){
-  const r=STATE.result;
-  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Готово</div>`));
-  if(r.type==="vpn"){
-    c.appendChild(el(`<h1>Подписка активна</h1>`));
-    c.appendChild(el(`<div class="sub">${esc(r.title)}${r.expiryMs?` · до ${fmtDay(r.expiryMs)}`:""}</div>`));
-    if(r.subUrl) c.appendChild(keyCard(r.subUrl, "Ссылка постоянная — она не меняется при продлении. Настройте клиент один раз."));
-    if(r.instructions) c.appendChild(el(`<div class="card"><h2>Инструкция</h2><pre class="instr">${esc(r.instructions)}</pre></div>`));
-  } else {
-    c.appendChild(el(`<h1>Заказ оформлен</h1>`));
-    c.appendChild(el(`<div class="sub">${esc(r.title)}</div>`));
-    c.appendChild(el(`<div class="card"><p class="muted" style="margin:0">Мы получили заказ и свяжемся по доставке. Статус — во вкладке «Кабинет».</p></div>`));
-  }
-  const ok=el(`<button class="btn">${r.type==='vpn'?'В кабинет':'Мои заказы'}</button>`); ok.onclick=()=>go("cabinet"); c.appendChild(ok);
-  const more=el(`<button class="btn ghost">Продолжить покупки</button>`); more.onclick=()=>go("shop"); c.appendChild(more);
-}
-
-// ---------- CABINET ----------
-/* Счётчик подписки — аналог счётчика трафика оригинального магазина: крупная
- * цифра остатка, полосатая шкала израсходованного срока и сводка. */
-function subMeter(subs){
-  const now=Date.now();
-  const active=subs.filter(s=>s.expiryMs && s.expiryMs>now).sort((a,b)=>b.expiryMs-a.expiryMs);
-  const box=el(`<div class="card hi"></div>`);
-  box.appendChild(el(`<h2>Ваш доступ</h2>`));
-
-  if(!active.length){
-    box.appendChild(el(`<div class="meter-top"><div class="meter-big">0<small>активных подписок</small></div></div>`));
-    box.appendChild(el(`<div class="bar full"><i style="width:100%"></i></div>`));
-    box.appendChild(el(`<div class="warn"><b>Подписка не активна.</b> Оформите тариф в каталоге — ключ выдастся сразу.</div>`));
-    const b=el(`<button class="btn">В каталог</button>`); b.onclick=()=>go("shop"); box.appendChild(b);
-    return box;
-  }
-
-  const s=active[0];
-  const left=Math.max(1, Math.ceil((s.expiryMs-now)/86400000));
-  const start=s.createdAt||(s.expiryMs-left*86400000);
-  const total=Math.max(1, Math.round((s.expiryMs-start)/86400000));
-  const pct=Math.min(100, Math.max(0, Math.round((total-left)/total*100)));
-
-  box.appendChild(el(`<div class="meter-top">
-    <div class="meter-big">${left}<small>${plural(left,"день","дня","дней")} до ${fmtDay(s.expiryMs)}</small></div>
-    <div class="meter-right">${pct}%<br>срока прошло</div>
+  c.appendChild(el(`<div class="card">
+    <h2>Почему это выгодно</h2>
+    <ul class="why">
+      <li><b>Награда с каждой покупки, а не один раз.</b> Друг покупает каждый месяц — вы получаете каждый месяц.</li>
+      <li><b>Ограничений по числу друзей нет.</b> Пятеро с пакетом 100 ГБ — это 100 ГБ вам.</li>
+      <li><b>Трафик не сгорает.</b> Остаток переносится на следующий месяц и копится.</li>
+      <li><b>Друг получает бонус сразу.</b> +${r.signup_gb} ГБ в момент перехода по ссылке — ещё до всякой покупки.</li>
+      <li><b>И ещё раз при первой покупке</b> — дополнительно +${r.welcome_gb} ГБ.</li>
+    </ul>
   </div>`));
-  box.appendChild(el(`<div class="bar"><i style="width:${pct}%"></i></div>`));
-  box.appendChild(el(`<div class="bar-legend"><span>${esc(s.title)}</span><span>всего ${days(total)}</span></div>`));
-  box.appendChild(el(`<div class="stat-row">
-    <div class="stat"><b>${active.length}</b><span>Активных подписок</span></div>
-    <div class="stat"><b>${fmtDay(s.expiryMs)}</b><span>Действует до</span></div>
-  </div>`));
-  if(left<=3) box.appendChild(el(`<div class="warn"><b>Срок заканчивается.</b> Продлите доступ, чтобы не потерять подключение — ссылка останется прежней.</div>`));
-  const b=el(`<button class="btn ${left<=3?'':'ghost'}">Продлить доступ</button>`); b.onclick=()=>go("shop"); box.appendChild(b);
-  return box;
-}
 
-async function renderCabinet(c){
-  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Личный кабинет</div>`));
-  c.appendChild(el(`<h1>Мои покупки</h1>`));
-  if(!STORE){ c.appendChild(el(`<div class="card"><div class="empty">Доступно внутри Zvon.</div></div>`)); return; }
-
-  const holder=el(`<div><div class="spinner"></div></div>`); c.appendChild(holder);
-  try {
-    const r = STATE.cabinet || await S(zvon.store.cabinet());
-    STATE.cabinet = r;
-    holder.innerHTML="";
-    const subs=r.subscriptions||[], merch=r.merch||[];
-
-    holder.appendChild(subMeter(subs));
-
-    /* Ключ активной подписки — сразу на виду, как экран «Подписка» в оригинале. */
-    const live=subs.filter(s=>s.expiryMs && s.expiryMs>Date.now() && s.subUrl).sort((a,b)=>b.expiryMs-a.expiryMs)[0];
-    if(live) holder.appendChild(keyCard(live.subUrl, "Ссылка постоянная — она не меняется при продлении."));
-
-    if(subs.length){
-      holder.appendChild(el(`<h2>История подписок</h2>`));
-      subs.forEach(s=>{
-        const active=s.expiryMs && s.expiryMs>Date.now();
-        const left=active?Math.max(1,Math.ceil((s.expiryMs-Date.now())/86400000)):0;
-        const card=el(`<div class="card">
-          <div class="flex-between"><div class="ptitle">${esc(s.title)}</div><span class="pill ${active?'active':'exp'}">${active?days(left):'истекла'}</span></div>
-          <div class="muted" style="font-size:12.5px;margin-top:8px">${fmtDate(s.createdAt)} → ${s.expiryMs?fmtDate(s.expiryMs):'—'}</div>
-        </div>`);
-        if(s.subUrl && (!live || live.orderId!==s.orderId)){
-          const b=el(`<button class="btn dim small">Ключ и QR</button>`);
-          b.onclick=()=>{
-            if(card.querySelector(".qr")) return;
-            card.appendChild(el(`<div class="qr"><img src="${qrUrl(s.subUrl)}" alt="QR"></div>`));
-            card.appendChild(el(`<div class="code-box">${esc(s.subUrl)}</div>`));
-            const cp=el(`<button class="btn small">Скопировать</button>`); cp.onclick=()=>copy(s.subUrl); card.appendChild(cp);
-          };
-          card.appendChild(b);
-        }
-        holder.appendChild(card);
-      });
-    }
-
-    if(merch.length){
-      holder.appendChild(el(`<h2>Заказы мерча</h2>`));
-      merch.forEach(m=>{
-        holder.appendChild(el(`<div class="card">
-          <div class="flex-between"><div class="ptitle">${esc(m.title)} ×${m.qty}</div><span class="pill ${m.fulfillment}">${FULFILL_LABEL[m.fulfillment]||m.fulfillment}</span></div>
-          <div class="muted" style="font-size:12.5px;margin-top:8px">${fmtDate(m.createdAt)} · ${m.amount} ₽</div>
-          ${m.shipping&&m.shipping.address?`<div class="muted" style="font-size:12px;margin-top:4px">${esc(m.shipping.address)}${m.shipping.option?(' · '+esc(m.shipping.option)):''}</div>`:''}
-        </div>`));
-      });
-    }
-
-    if(!subs.length && !merch.length) holder.appendChild(el(`<div class="card"><div class="empty">Пока нет покупок.</div></div>`));
-  } catch(e){
-    holder.innerHTML="";
-    holder.appendChild(el(`<div class="card"><div class="empty">${esc(e.message)}</div></div>`));
+  if(r.legacy_balance>0){
+    c.appendChild(el(`<div class="card"><h2>Старый баланс</h2>
+      <p class="muted" style="margin:0">Вознаграждение теперь начисляется трафиком, но у вас остался денежный баланс
+      <b style="color:var(--paper)">${r.legacy_balance} ₽</b> по старой программе. Вывести его можно в боте:
+      «Реферальная система» → «Вывести остаток».</p></div>`));
   }
 }
 
-// ---------- INSTALL ----------
-/* Вкладка подключения — перенесена из оригинального VPN-магазина:
- * выбор системы, ссылки на клиенты и пронумерованные шаги. */
+// ==================== СЕРВЕРЫ ====================
+// Порог тот же, что на бэкенде (DEGRADED_PCT).
+function segClass(pct){
+  if(pct===null||pct===undefined) return "";
+  if(pct>=99) return "up";
+  if(pct>0) return "deg";
+  return "down";
+}
+function renderNodes(c){
+  if(vpnGate(c)) return;
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Сеть</div>`));
+  c.appendChild(el(`<h1>Доступность</h1>`));
+
+  const hero=el(`<div class="card hi"><h2>Состояние сети</h2><div class="empty">Загружаю…</div></div>`);
+  c.appendChild(hero);
+  const listCard=el(`<div class="card hidden"><h2>Серверы</h2></div>`);
+  c.appendChild(listCard);
+
+  function setHero(html){ hero.innerHTML=`<h2>Состояние сети</h2>`+html; }
+
+  function paint(data){
+    const o=data.overall||{};
+    if(!data.nodes || !data.nodes.length || !o.checks){
+      setHero(`<div class="empty">Статистика собирается.<br>Первые данные появятся в течение нескольких минут после запуска мониторинга.</div>`);
+      listCard.classList.add("hidden");
+      return;
+    }
+    const days=Math.round((data.window_hours||168)/24);
+    setHero(`<div class="hero">
+      <div class="num">${o.uptime!==null?o.uptime+'%':'—'}</div>
+      <div class="cap">общий аптайм за ${days} дн.</div>
+      <div class="sum"><b>${o.up}</b> из <b>${o.total}</b> серверов работают</div>
+    </div>`);
+
+    listCard.innerHTML=`<h2>Серверы</h2>`;
+    data.nodes.forEach(n=>{
+      const st=NODE_ST[n.status]||NODE_ST.unknown;
+      const bits=[];
+      if(n.ms!==null&&n.ms!==undefined) bits.push(`<b>${n.ms} мс</b>`);
+      if(n.uptime!==null&&n.uptime!==undefined) bits.push(`аптайм <b>${n.uptime}%</b>`);
+      if(!bits.length) bits.push("данных пока нет");
+      const hist=n.history||[];
+      const segs=hist.map(h=>`<i class="${segClass(h.pct)}" data-ts="${h.ts}" data-pct="${h.pct===null?'':h.pct}" data-ms="${h.ms==null?'':h.ms}"></i>`).join("");
+      const first=hist[0], last=hist[hist.length-1];
+      listCard.appendChild(el(`<div class="node">
+        <div class="node-top"><div class="node-name">${esc(n.name)}</div><div class="ntag ${st.cls}">${st.ic} ${st.label}</div></div>
+        <div class="node-sub">${bits.join(" · ")}</div>
+        <div class="strip">${segs}</div>
+        ${first&&last?`<div class="strip-ax"><span>${hourLabel(first.ts)}</span><span>за ${data.chart_hours} ч</span><span>${hourLabel(last.ts)}</span></div>`:''}
+      </div>`));
+    });
+    listCard.appendChild(el(`<div class="legend-row">
+      <span><i class="sw up"></i>● Работает</span>
+      <span><i class="sw deg"></i>▲ Сбои</span>
+      <span><i class="sw down"></i>✕ Недоступна</span>
+      <span><i class="sw"></i>? Нет данных</span>
+    </div>`));
+    const rf=el(`<button class="btn dim">Обновить</button>`);
+    rf.onclick=()=>load(true);
+    listCard.appendChild(rf);
+    listCard.classList.remove("hidden");
+  }
+
+  async function load(force){
+    if(STATE.nodes.loaded && !force){ paint(STATE.nodes.data); return; }
+    try {
+      const data=await S(zvon.store.vpn.nodes());
+      STATE.nodes={ loaded:true, data, error:null };
+      paint(data);
+    } catch(e){
+      STATE.nodes={ loaded:false, data:null, error:e.message };
+      setHero(`<div class="empty">${esc(e.message)}</div>`);
+      listCard.classList.add("hidden");
+    }
+  }
+  load(false);
+}
+
+// Тултип по тапу: на мобильном hover не существует, а данные под сегментом нужны.
+document.addEventListener("click", e=>{
+  const seg=e.target.closest(".strip i"); if(!seg) return;
+  const pct=seg.dataset.pct, ms=seg.dataset.ms, t=hourLabel(parseInt(seg.dataset.ts,10));
+  if(pct===""){ toast(t+" — нет данных"); return; }
+  toast(t+" — доступность "+pct+"%"+(ms?(", отклик "+ms+" мс"):""));
+});
+
+// ==================== УСТАНОВКА ====================
 function renderInstall(c){
   c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Подключение</div>`));
   c.appendChild(el(`<h1>Установка</h1>`));
@@ -829,34 +886,249 @@ function renderInstall(c){
     tabs.appendChild(b);
   });
   box.appendChild(tabs);
-
   (APPS[STATE.installOS]||[]).forEach(a=>{
     const link=el(`<div class="applink"><div><b>${esc(a.n)}</b><br><span>${esc(a.d)}</span></div><span class="go">↗</span></div>`);
     link.onclick=()=>openUrl(a.u);
     box.appendChild(link);
   });
-
   box.appendChild(el(`<ol class="steps">
     <li>Установите приложение для ${esc(OS_NAMES[STATE.installOS])}.</li>
-    <li>Скопируйте ссылку подписки во вкладке «Кабинет».</li>
+    <li>Скопируйте ссылку подписки на вкладке «Ключ».</li>
     <li>В приложении выберите «Добавить подписку» или «Импорт из буфера обмена».</li>
     <li>Обновите подписку и подключайтесь.</li>
   </ol>`));
   c.appendChild(box);
 
-  const key=el(`<button class="btn">Открыть мой ключ</button>`); key.onclick=()=>go("cabinet"); c.appendChild(key);
-  const shop=el(`<button class="btn ghost">В каталог</button>`); shop.onclick=()=>go("shop"); c.appendChild(shop);
-  const sup=el(`<button class="btn dim">Написать в поддержку</button>`); sup.onclick=()=>openUrl(SUPPORT_URL); c.appendChild(sup);
+  if(STATE.vpn.available){ const k=el(`<button class="btn">Открыть мой ключ</button>`); k.onclick=()=>go("sub"); c.appendChild(k); }
+  const sup=el(`<button class="btn dim">Написать в поддержку</button>`); sup.onclick=()=>openUrl(supportUrl()); c.appendChild(sup);
 }
 
-// ---------- ADMIN ----------
+// ==================== МЕРЧ: ВИТРИНА ====================
+function productImg(p){
+  if(p.images && p.images[0]) return `<div class="imgwrap"><img src="${esc(p.images[0])}" alt=""></div>`;
+  return `<div class="imgwrap placeholder">Мерч</div>`;
+}
+function renderCatalog(c){
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Витрина</div>`));
+  c.appendChild(el(`<h1>Мерч Zvon</h1>`));
+  c.appendChild(el(`<div class="sub">Вещи и мелочи экосистемы. Доставка по России, статус заказа — в «Моих заказах».</div>`));
+
+  const nav=el(`<div class="chips"></div>`);
+  const orders=el(`<button class="chip">Мои заказы</button>`); orders.onclick=()=>go("shop","orders"); nav.appendChild(orders);
+  if(STATE.isAdmin){ const ad=el(`<button class="chip">Админка</button>`); ad.onclick=()=>go("shop","admin"); nav.appendChild(ad); }
+  c.appendChild(nav);
+
+  if(!STATE.products.length){
+    c.appendChild(el(`<div class="card"><div class="empty">Товаров пока нет.</div></div>`));
+  } else {
+    const grid=el(`<div class="grid"></div>`);
+    STATE.products.forEach(p=>{
+      const card=el(`<div class="pcard">${productImg(p)}<div class="pbody">
+        <div class="ptitle">${esc(p.title)}</div>
+        <div class="pbottom"><span class="pprice">${money(p.price)}</span><span class="tag">Мерч</span></div>
+      </div></div>`);
+      card.onclick=()=>{
+        STATE.product=p;
+        STATE.merch={ qty:1, option:(p.merch?.options||[])[0]||"", shipping:{}, promo:null, promoPct:0, method:(STATE.paymentMethods[0]||{}).id||"yookassa" };
+        go("shop","product");
+      };
+      grid.appendChild(card);
+    });
+    c.appendChild(grid);
+  }
+
+  if(STATE.vpn.available && !STATE.vpn.linked){
+    const hint=el(`<div class="card hi"><h2>VPN Vlyne</h2>
+      <p class="muted" style="margin:0">Подписка, трафик и рефералка живут в вашем Telegram-аккаунте. Свяжите его — и управляйте ими прямо отсюда.</p></div>`);
+    const b=el(`<button class="btn">Связать с Telegram</button>`); b.onclick=()=>go("sub"); hint.appendChild(b);
+    c.appendChild(hint);
+  }
+  if(!STORE) c.appendChild(el(`<div class="demo-note">Демо-режим (вне Zvon): оплата и выдача недоступны.</div>`));
+}
+
+// ==================== МЕРЧ: ТОВАР ====================
+function renderProduct(c){
+  const p=STATE.product;
+  const back=el(`<button class="back">← Витрина</button>`); back.onclick=()=>go("shop"); c.appendChild(back);
+
+  const media=el(`<div></div>`);
+  if(p.images && p.images.length){
+    media.appendChild(el(`<img class="hero-img" src="${esc(p.images[0])}" alt="">`));
+    if(p.images.length>1){
+      const row=el(`<div class="thumbs"></div>`);
+      p.images.forEach(u=>{ const t=el(`<div class="thumb"><img src="${esc(u)}"></div>`); t.onclick=()=>{ media.firstChild.src=u; }; row.appendChild(t); });
+      media.appendChild(row);
+    }
+  } else media.appendChild(el(`<div class="hero-img placeholder">Мерч</div>`));
+  c.appendChild(media);
+
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:18px">Товар</div>`));
+  c.appendChild(el(`<h1>${esc(p.title)}</h1>`));
+  if(p.description) c.appendChild(el(`<div class="muted" style="white-space:pre-wrap;margin-top:10px">${esc(p.description)}</div>`));
+
+  const box=el(`<div class="card" style="margin-top:16px"></div>`);
+  box.appendChild(el(`<h2>Оформление</h2>`));
+  const opts=p.merch?.options||[];
+  if(opts.length){
+    box.appendChild(el(`<label style="margin-top:0">Вариант</label>`));
+    const seg=el(`<div class="seg"></div>`);
+    opts.forEach(o=>{ const b=el(`<button class="${STATE.merch.option===o?'active':''}">${esc(o)}</button>`); b.onclick=()=>{ STATE.merch.option=o; render(); }; seg.appendChild(b); });
+    box.appendChild(seg);
+  }
+  if(typeof p.merch?.stock === "number") box.appendChild(el(`<div class="muted" style="margin-top:10px;font-size:12px">На складе: ${p.merch.stock} шт.</div>`));
+
+  box.appendChild(el(`<label>Количество</label>`));
+  const qty=el(`<div class="qty"></div>`);
+  const minus=el(`<button>−</button>`); minus.onclick=()=>{ STATE.merch.qty=Math.max(1,STATE.merch.qty-1); render(); };
+  const plus=el(`<button>+</button>`); plus.onclick=()=>{ STATE.merch.qty++; render(); };
+  qty.append(minus, el(`<span>${STATE.merch.qty}</span>`), plus); box.appendChild(qty);
+
+  if(p.merch?.requiresShipping!==false){
+    box.appendChild(el(`<label>Получатель</label>`));
+    const name=el(`<input placeholder="Имя и фамилия" value="${esc(STATE.merch.shipping.name||'')}">`); name.oninput=e=>STATE.merch.shipping.name=e.target.value;
+    const phone=el(`<input placeholder="Телефон" inputmode="tel" value="${esc(STATE.merch.shipping.phone||'')}" style="margin-top:8px">`); phone.oninput=e=>STATE.merch.shipping.phone=e.target.value;
+    const addr=el(`<textarea placeholder="Адрес доставки (город, улица, индекс)" style="margin-top:8px">${esc(STATE.merch.shipping.address||'')}</textarea>`); addr.oninput=e=>STATE.merch.shipping.address=e.target.value;
+    const com=el(`<input placeholder="Комментарий (необязательно)" value="${esc(STATE.merch.shipping.comment||'')}" style="margin-top:8px">`); com.oninput=e=>STATE.merch.shipping.comment=e.target.value;
+    box.append(name, phone, addr, com);
+  }
+  if(STATE.paymentMethods.length>1){
+    box.appendChild(el(`<label>Способ оплаты</label>`));
+    const pm=el(`<div class="seg" style="grid-template-columns:1fr 1fr"></div>`);
+    STATE.paymentMethods.forEach(m=>{ const b=el(`<button class="${STATE.merch.method===m.id?'active':''}">${esc(m.label)}</button>`); b.onclick=()=>{ STATE.merch.method=m.id; render(); }; pm.appendChild(b); });
+    box.appendChild(pm);
+  }
+  if(p.price>0){
+    box.appendChild(el(`<label>Промокод</label>`));
+    const row=el(`<div class="row" style="margin-top:8px"></div>`);
+    const inp=el(`<input placeholder="WELCOME" value="${esc(STATE.merch.promo||'')}" style="margin-top:0;letter-spacing:.1em;text-transform:uppercase">`);
+    const ok=el(`<button class="btn ghost auto">OK</button>`);
+    ok.onclick=async ()=>{
+      const code=(inp.value||"").trim().toUpperCase();
+      if(!code){ STATE.merch.promo=null; STATE.merch.promoPct=0; render(); return; }
+      if(!STORE){ toast("Промокоды доступны внутри Zvon"); return; }
+      try{ const r=await S(zvon.store.promoCheck(code,p.id)); STATE.merch.promo=code; STATE.merch.promoPct=r.discountPercent||0; toast("Промокод применён: −"+r.discountPercent+"%"); }
+      catch(e){ STATE.merch.promo=null; STATE.merch.promoPct=0; toast(e.message); }
+      render();
+    };
+    row.append(inp, ok); box.appendChild(row);
+  }
+  const unit=Math.max(0, p.price-Math.floor(p.price*STATE.merch.promoPct/100));
+  const fp=unit*STATE.merch.qty, base=p.price*STATE.merch.qty;
+  const t=el(`<div class="total"><span>К оплате</span><b></b></div>`);
+  t.querySelector("b").innerHTML = (STATE.merch.promoPct>0 && base>0) ? `<s>${base} ₽</s>${fp} ₽` : (fp===0?"Бесплатно":fp+" ₽");
+  box.appendChild(t);
+  c.appendChild(box);
+
+  const btn=el(`<button class="btn">Оплатить ${fp} ₽</button>`);
+  btn.onclick=()=>checkout(btn,p);
+  c.appendChild(btn);
+}
+
+async function checkout(btn, p){
+  if(!STORE){ toast("Доступно только внутри Zvon"); return; }
+  btn.disabled=true; const orig=btn.textContent; btn.textContent="Оформляем…";
+  try {
+    const data=await S(zvon.store.order({
+      productId:p.id, promo:STATE.merch.promo, paymentMethod:STATE.merch.method, qty:STATE.merch.qty,
+      shipping:{ ...STATE.merch.shipping, option:STATE.merch.option||"" },
+    }));
+    STATE.cabinet=null;
+    if(data.status==="pending" && data.payUrl){ STATE.pay={ ...data, product:p }; go("shop","pay"); return; }
+    STATE.result={ title:p.title }; go("shop","result");
+  } catch(e){ toast(e.message); btn.disabled=false; btn.textContent=orig; }
+}
+
+function renderPay(c){
+  const d=STATE.pay;
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Оплата</div>`));
+  c.appendChild(el(`<h1>${d.amount} ₽</h1>`));
+  if(d.amountUsd) c.appendChild(el(`<div class="muted" style="margin-top:4px">≈ ${d.amountUsd} USDT</div>`));
+  c.appendChild(el(`<div class="sub">${esc(d.product.title)}</div>`));
+  const pay=el(`<button class="btn">Перейти к оплате</button>`); pay.onclick=()=>openUrl(d.payUrl); c.appendChild(pay);
+  c.appendChild(el(`<div class="warn">Оплатили? Вернитесь сюда и нажмите кнопку ниже.</div>`));
+  const check=el(`<button class="btn ghost">Я оплатил — проверить</button>`);
+  check.onclick=async ()=>{
+    check.disabled=true; check.textContent="Проверяем…";
+    try {
+      const res=await S(zvon.store.orderCheck(d.orderId));
+      if(res.status==="paid"){ STATE.cabinet=null; STATE.result={ title:d.product.title }; go("shop","result"); return; }
+      toast(res.status==="pending"?"Платёж ещё не подтверждён":(res.status==="canceled"?"Платёж отменён":"Статус: "+res.status));
+    } catch(e){ toast(e.message); }
+    check.disabled=false; check.textContent="Я оплатил — проверить";
+  };
+  c.appendChild(check);
+  const back=el(`<button class="btn dim">← В витрину</button>`); back.onclick=()=>go("shop"); c.appendChild(back);
+}
+
+function renderResult(c){
+  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Готово</div>`));
+  c.appendChild(el(`<h1>Заказ оформлен</h1>`));
+  c.appendChild(el(`<div class="sub">${esc(STATE.result.title)}</div>`));
+  c.appendChild(el(`<div class="card"><p class="muted" style="margin:0">Мы получили заказ и свяжемся по доставке. Статус — в «Моих заказах».</p></div>`));
+  const ok=el(`<button class="btn">Мои заказы</button>`); ok.onclick=()=>go("shop","orders"); c.appendChild(ok);
+  const more=el(`<button class="btn ghost">Продолжить покупки</button>`); more.onclick=()=>go("shop"); c.appendChild(more);
+}
+
+// ==================== МЕРЧ: МОИ ЗАКАЗЫ ====================
+async function renderCabinet(c){
+  const back=el(`<button class="back">← Витрина</button>`); back.onclick=()=>go("shop"); c.appendChild(back);
+  c.appendChild(el(`<div class="eyebrow">Личный кабинет</div>`));
+  c.appendChild(el(`<h1>Мои заказы</h1>`));
+  if(!STORE){ c.appendChild(el(`<div class="card"><div class="empty">Доступно внутри Zvon.</div></div>`)); return; }
+
+  const holder=el(`<div><div class="spinner"></div></div>`); c.appendChild(holder);
+  try {
+    const r=STATE.cabinet || await S(zvon.store.cabinet());
+    STATE.cabinet=r;
+    holder.innerHTML="";
+    const merch=r.merch||[];
+    if(!merch.length) holder.appendChild(el(`<div class="card"><div class="empty">Пока нет заказов мерча.</div></div>`));
+    merch.forEach(m=>{
+      holder.appendChild(el(`<div class="card">
+        <div class="flex-between"><div class="ptitle">${esc(m.title)} ×${m.qty}</div><span class="pill ${m.fulfillment}">${FULFILL_LABEL[m.fulfillment]||m.fulfillment}</span></div>
+        <div class="muted" style="font-size:12.5px;margin-top:8px">${fmtDate(m.createdAt)} · ${m.amount} ₽</div>
+        ${m.shipping&&m.shipping.address?`<div class="muted" style="font-size:12px;margin-top:4px">${esc(m.shipping.address)}${m.shipping.option?(' · '+esc(m.shipping.option)):''}</div>`:''}
+      </div>`));
+    });
+
+    // Прежние VPN-заказы Zvon: ключи, выданные до объединения с Telegram,
+    // работают до истечения срока — показываем их архивом, чтобы человек
+    // не потерял доступ, но новые пакеты покупались уже на вкладке «Трафик».
+    const subs=r.subscriptions||[];
+    if(subs.length){
+      holder.appendChild(el(`<h2>Прежние ключи Zvon</h2>`));
+      holder.appendChild(el(`<p class="muted" style="margin:-4px 0 12px">Выданы до объединения с Telegram. Работают до истечения срока; новые пакеты покупаются на вкладке «Трафик».</p>`));
+      subs.forEach(s=>{
+        const active=s.expiryMs && s.expiryMs>Date.now();
+        const card=el(`<div class="card">
+          <div class="flex-between"><div class="ptitle">${esc(s.title)}</div><span class="pill ${active?'active':'exp'}">${active?'активен':'истёк'}</span></div>
+          <div class="muted" style="font-size:12.5px;margin-top:8px">${fmtDate(s.createdAt)} → ${s.expiryMs?fmtDate(s.expiryMs):'—'}</div>
+        </div>`);
+        if(s.subUrl && active){
+          const b=el(`<button class="btn dim small">Ключ и QR</button>`);
+          b.onclick=()=>{
+            if(card.querySelector(".qr")) return;
+            card.appendChild(el(`<div class="qr"><img src="${qrUrl(s.subUrl)}" alt="QR"></div>`));
+            card.appendChild(el(`<div class="code-box">${esc(s.subUrl)}</div>`));
+            const cp=el(`<button class="btn small">Скопировать</button>`); cp.onclick=()=>copy(s.subUrl); card.appendChild(cp);
+          };
+          card.appendChild(b);
+        }
+        holder.appendChild(card);
+      });
+    }
+  } catch(e){ holder.innerHTML=""; holder.appendChild(el(`<div class="card"><div class="empty">${esc(e.message)}</div></div>`)); }
+}
+
+// ==================== АДМИНКА ====================
 async function renderAdmin(c){
-  c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Управление</div>`));
+  const back=el(`<button class="back">← Витрина</button>`); back.onclick=()=>go("shop"); c.appendChild(back);
+  c.appendChild(el(`<div class="eyebrow">Управление</div>`));
   c.appendChild(el(`<h1>Админка</h1>`));
   if(STATE.adminEdit!==null){ renderProductForm(c, STATE.adminEdit); return; }
 
   const addBtn=el(`<button class="btn">+ Добавить товар</button>`);
-  addBtn.onclick=()=>{ STATE.adminEdit={ type:"merch", title:"", description:"", price:0, images:[], active:true, sortOrder:0, vpn:{days:30,whitelist:false,trialOnce:false}, merch:{stock:"",requiresShipping:true,options:""} }; render(); };
+  addBtn.onclick=()=>{ STATE.adminEdit={ type:"merch", title:"", description:"", price:0, images:[], active:true, sortOrder:0, merch:{stock:"",requiresShipping:true,options:""} }; render(); };
   c.appendChild(addBtn);
 
   c.appendChild(el(`<h2>Товары</h2>`));
@@ -864,23 +1136,30 @@ async function renderAdmin(c){
   try {
     const r=await S(zvon.store.admin.products());
     holder.innerHTML="";
-    if(!(r.products||[]).length) holder.appendChild(el(`<div class="card"><div class="empty">Товаров нет.</div></div>`));
-    (r.products||[]).forEach(p=>{
-      const thumb = p.images&&p.images[0]
-        ? `<img src="${esc(p.images[0])}" style="width:100%;height:100%;object-fit:cover">`
-        : (p.type==='vpn'?'🛡':'👕');
+    const list=r.products||[];
+    if(!list.length) holder.appendChild(el(`<div class="card"><div class="empty">Товаров нет.</div></div>`));
+    list.forEach(p=>{
+      const legacy = p.type==="vpn";
+      const thumb = p.images&&p.images[0] ? `<img src="${esc(p.images[0])}" style="width:100%;height:100%;object-fit:cover">` : (legacy?"VPN":"Мерч");
       const item=el(`<div class="card"><div class="row" style="align-items:center;gap:14px">
-        <div style="width:54px;height:54px;overflow:hidden;flex:none;background:#000;border:2px solid var(--line);display:grid;place-items:center;font-size:22px">${thumb}</div>
+        <div style="width:54px;height:54px;overflow:hidden;flex:none;background:#000;border:2px solid var(--line);display:grid;place-items:center;font-family:var(--display);font-size:12px;color:#3f3c39">${thumb}</div>
         <div style="flex:1;min-width:0">
           <div class="ptitle">${esc(p.title)} ${p.active?'':'<span class="pill exp">скрыт</span>'}</div>
-          <div class="tag" style="margin-top:4px">${p.type} · ${money(p.price)}${p.type==='vpn'&&p.vpn?.days?(' · '+days(p.vpn.days)):''}</div>
+          <div class="tag" style="margin-top:4px">${p.type} · ${money(p.price)}</div>
         </div>
       </div></div>`);
+      if(legacy){
+        item.appendChild(el(`<div class="warn">Устаревший тариф. В витрину не попадает: VPN теперь общий с Telegram, тарифы и цены редактируются в боте.</div>`));
+      }
       const row=el(`<div class="row" style="margin-top:12px"></div>`);
-      const edit=el(`<button class="btn ghost small" style="flex:1;margin-top:0">Изменить</button>`); edit.onclick=()=>{ STATE.adminEdit=adminToForm(p); render(); };
+      if(!legacy){
+        const edit=el(`<button class="btn ghost small" style="flex:1;margin-top:0">Изменить</button>`);
+        edit.onclick=()=>{ STATE.adminEdit=adminToForm(p); render(); };
+        row.appendChild(edit);
+      }
       const del=el(`<button class="btn danger small" style="flex:1;margin-top:0">Удалить</button>`);
       del.onclick=async ()=>{ if(!confirm("Удалить товар?")) return; try{ await S(zvon.store.admin.remove(p.id)); toast("Удалено"); render(); }catch(e){ toast(e.message); } };
-      row.append(edit, del); item.appendChild(row);
+      row.appendChild(del); item.appendChild(row);
       holder.appendChild(item);
     });
   } catch(e){ holder.innerHTML=""; holder.appendChild(el(`<div class="card"><div class="empty">${esc(e.message)}</div></div>`)); }
@@ -892,9 +1171,9 @@ async function renderAdmin(c){
     oh.innerHTML="";
     if(!(r.orders||[]).length) oh.appendChild(el(`<div class="card"><div class="empty">Заказов нет.</div></div>`));
     (r.orders||[]).forEach(o=>{
-      const statusCls = o.status==='paid' ? 'active' : (o.status==='canceled' ? 'canceled' : 'new');
+      const cls=o.status==='paid'?'active':(o.status==='canceled'?'canceled':'new');
       const card=el(`<div class="card">
-        <div class="flex-between"><div class="ptitle">${esc(o.title)} ${o.type==='merch'?('×'+o.qty):''}</div><span class="pill ${statusCls}">${esc(o.status)}</span></div>
+        <div class="flex-between"><div class="ptitle">${esc(o.title)} ${o.type==='merch'?('×'+o.qty):''}</div><span class="pill ${cls}">${esc(o.status)}</span></div>
         <div class="muted" style="font-size:12px;margin-top:8px">@${esc(o.username||'?')} · ${o.amount} ₽ · ${esc(o.provider||'')} · ${fmtDate(o.createdAt)}</div>
         ${o.type==='merch'&&o.shipping?`<div class="muted" style="font-size:12px;margin-top:8px">${esc(o.shipping.name||'')} · ${esc(o.shipping.phone||'')}<br>${esc(o.shipping.address||'')}${o.shipping.option?(' · '+esc(o.shipping.option)):''}${o.shipping.comment?('<br>'+esc(o.shipping.comment)):''}</div>`:''}
       </div>`);
@@ -913,8 +1192,8 @@ async function renderAdmin(c){
 }
 
 function adminToForm(p){
-  return { id:p.id, type:p.type, title:p.title, description:p.description||"", price:p.price, images:[...(p.images||[])], active:p.active!==false, sortOrder:p.sortOrder||0,
-    vpn:{ days:p.vpn?.days||30, whitelist:!!p.vpn?.whitelist, trialOnce:!!p.vpn?.trialOnce },
+  return { id:p.id, type:"merch", title:p.title, description:p.description||"", price:p.price,
+    images:[...(p.images||[])], active:p.active!==false, sortOrder:p.sortOrder||0,
     merch:{ stock:(p.merch&&p.merch.stock!=null)?p.merch.stock:"", requiresShipping:p.merch?p.merch.requiresShipping!==false:true, options:(p.merch?.options||[]).join(", ") } };
 }
 
@@ -923,13 +1202,8 @@ function renderProductForm(c, f){
   c.appendChild(el(`<h1>${f.id?'Изменить товар':'Новый товар'}</h1>`));
   const box=el(`<div class="card" style="margin-top:10px"></div>`);
 
-  box.appendChild(el(`<label style="margin-top:0">Тип товара</label>`));
-  const typeSeg=el(`<div class="seg" style="grid-template-columns:1fr 1fr"></div>`);
-  [["vpn","🛡 VPN"],["merch","👕 Мерч"]].forEach(([id,label])=>{ const b=el(`<button class="${f.type===id?'active':''}">${label}</button>`); b.onclick=()=>{ f.type=id; STATE.adminEdit=f; render(); }; typeSeg.appendChild(b); });
-  box.appendChild(typeSeg);
-
   const title=el(`<input placeholder="Название" value="${esc(f.title)}">`); title.oninput=e=>f.title=e.target.value;
-  box.appendChild(el(`<label>Название</label>`)); box.appendChild(title);
+  box.appendChild(el(`<label style="margin-top:0">Название</label>`)); box.appendChild(title);
   const desc=el(`<textarea placeholder="Описание">${esc(f.description)}</textarea>`); desc.oninput=e=>f.description=e.target.value;
   box.appendChild(el(`<label>Описание</label>`)); box.appendChild(desc);
   const price=el(`<input type="number" inputmode="numeric" value="${f.price}">`); price.oninput=e=>f.price=parseInt(e.target.value,10)||0;
@@ -946,21 +1220,20 @@ function renderProductForm(c, f){
   const addUrl=el(`<button class="btn ghost auto">+ URL</button>`); addUrl.onclick=()=>{ const u=(urlInp.value||"").trim(); if(u){ f.images.push(u); urlInp.value=""; redrawThumbs(); } };
   imgRow.append(urlInp, addUrl); box.appendChild(imgRow);
   const fileInp=el(`<input type="file" accept="image/*" style="margin-top:10px">`);
-  fileInp.onchange=async ()=>{ const file=fileInp.files[0]; if(!file) return; if(!STORE){ toast("Загрузка только внутри Zvon"); return; } const reader=new FileReader(); reader.onload=async ()=>{ try{ const r=await S(zvon.store.admin.upload(reader.result)); f.images.push(r.url); redrawThumbs(); toast("Картинка загружена"); }catch(e){ toast(e.message); } }; reader.readAsDataURL(file); fileInp.value=""; };
+  fileInp.onchange=async ()=>{
+    const file=fileInp.files[0]; if(!file) return;
+    if(!STORE){ toast("Загрузка только внутри Zvon"); return; }
+    const reader=new FileReader();
+    reader.onload=async ()=>{ try{ const r=await S(zvon.store.admin.upload(reader.result)); f.images.push(r.url); redrawThumbs(); toast("Картинка загружена"); }catch(e){ toast(e.message); } };
+    reader.readAsDataURL(file); fileInp.value="";
+  };
   box.appendChild(el(`<div class="muted" style="font-size:12px;margin-top:8px">или загрузите файл:</div>`)); box.appendChild(fileInp);
 
-  if(f.type==="vpn"){
-    const d=el(`<input type="number" inputmode="numeric" value="${f.vpn.days}">`); d.oninput=e=>f.vpn.days=parseInt(e.target.value,10)||1;
-    box.appendChild(el(`<label>Дней доступа</label>`)); box.appendChild(d);
-    const wl=el(`<label class="check"><input type="checkbox" ${f.vpn.whitelist?'checked':''}> Использовать whitelist-инбаунды</label>`); wl.querySelector("input").onchange=e=>f.vpn.whitelist=e.target.checked; box.appendChild(wl);
-    const tr=el(`<label class="check"><input type="checkbox" ${f.vpn.trialOnce?'checked':''}> Пробный (один раз на пользователя)</label>`); tr.querySelector("input").onchange=e=>f.vpn.trialOnce=e.target.checked; box.appendChild(tr);
-  } else {
-    const stock=el(`<input placeholder="пусто = без ограничения" inputmode="numeric" value="${f.merch.stock}">`); stock.oninput=e=>f.merch.stock=e.target.value;
-    box.appendChild(el(`<label>Остаток на складе</label>`)); box.appendChild(stock);
-    const opts=el(`<input placeholder="через запятую: S, M, L" value="${esc(f.merch.options)}">`); opts.oninput=e=>f.merch.options=e.target.value;
-    box.appendChild(el(`<label>Варианты (размеры и т.п.)</label>`)); box.appendChild(opts);
-    const sh=el(`<label class="check"><input type="checkbox" ${f.merch.requiresShipping?'checked':''}> Требуется адрес доставки</label>`); sh.querySelector("input").onchange=e=>f.merch.requiresShipping=e.target.checked; box.appendChild(sh);
-  }
+  const stock=el(`<input placeholder="пусто = без ограничения" inputmode="numeric" value="${esc(f.merch.stock)}">`); stock.oninput=e=>f.merch.stock=e.target.value;
+  box.appendChild(el(`<label>Остаток на складе</label>`)); box.appendChild(stock);
+  const opts=el(`<input placeholder="через запятую: S, M, L" value="${esc(f.merch.options)}">`); opts.oninput=e=>f.merch.options=e.target.value;
+  box.appendChild(el(`<label>Варианты (размеры и т.п.)</label>`)); box.appendChild(opts);
+  const sh=el(`<label class="check"><input type="checkbox" ${f.merch.requiresShipping?'checked':''}> Требуется адрес доставки</label>`); sh.querySelector("input").onchange=e=>f.merch.requiresShipping=e.target.checked; box.appendChild(sh);
   const act=el(`<label class="check"><input type="checkbox" ${f.active?'checked':''}> Показывать в каталоге</label>`); act.querySelector("input").onchange=e=>f.active=e.target.checked; box.appendChild(act);
   c.appendChild(box);
 
@@ -968,8 +1241,7 @@ function renderProductForm(c, f){
   save.onclick=async ()=>{
     if(!f.title.trim()){ toast("Укажите название"); return; }
     save.disabled=true; save.textContent="Сохраняем…";
-    const payload={ type:f.type, title:f.title, description:f.description, price:f.price, images:f.images, active:f.active, sortOrder:f.sortOrder,
-      vpn:{ days:f.vpn.days, whitelist:f.vpn.whitelist, trialOnce:f.vpn.trialOnce },
+    const payload={ type:"merch", title:f.title, description:f.description, price:f.price, images:f.images, active:f.active, sortOrder:f.sortOrder,
       merch:{ stock:f.merch.stock===""?null:f.merch.stock, requiresShipping:f.merch.requiresShipping, options:f.merch.options } };
     try {
       if(f.id) await S(zvon.store.admin.update(f.id, payload)); else await S(zvon.store.admin.create(payload));
@@ -985,7 +1257,7 @@ function renderProductForm(c, f){
   }
 }
 
-// старт
+// ---------- старт ----------
 function safeBoot(){
   boot().catch(e=>{
     $("#loading").innerHTML =

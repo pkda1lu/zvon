@@ -52,6 +52,15 @@ const userSchema = new mongoose.Schema({
     maxlength: 300,
     default: ''
   },
+  // Привязка к аккаунту Telegram экосистемы Vlyne. VPN-подписка (ключ, трафик,
+  // рефералка) живёт в боте и принадлежит телеграм-аккаунту; Zvon — второй
+  // интерфейс к ней. Уникальность telegram.id не даёт двум пользователям Zvon
+  // распоряжаться одной и той же подпиской.
+  telegram: {
+    id:       { type: Number, default: null, index: { unique: true, sparse: true } },
+    username: { type: String, default: '' },
+    linkedAt: { type: Date, default: null },
+  },
   status: {
     type: String,
     enum: ['online', 'offline', 'away', 'busy'],

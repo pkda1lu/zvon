@@ -458,15 +458,23 @@
           </div>
         </div>
 
+        <article class="ai-insight" id="ai-insight" hidden></article>
+
         <section class="wave-section">
           <div class="library-section-title">
             Сегодня для тебя
             <button class="library-show-more" id="wave-show-all" hidden>Все</button>
           </div>
-          <div class="wave-rail" id="wave-rail"></div>
+          <div class="wave-rail-wrap">
+            <button class="rail-nav prev" id="wave-prev" aria-label="Назад" hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <div class="wave-rail" id="wave-rail"></div>
+            <button class="rail-nav next" id="wave-next" aria-label="Вперёд" hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
         </section>
-
-        <article class="ai-insight" id="ai-insight" hidden></article>
       </div>`;
     renderVoiceJoinButton();
 
@@ -494,11 +502,43 @@
   // §18: на первом экране — 5–6 категорий, остальные прячутся за «Все».
   const WAVE_RAIL_VISIBLE = 6;
 
+  // Прокрутка рельсы: колесом и стрелками. Без этого на десктопе с обычной
+  // мышью карусель не листалась вообще — своей полосы у неё нет, а вертикальное
+  // колесо горизонтальные ленты по умолчанию не двигает.
+  function setupRailControls(rail) {
+    const prev = $('#wave-prev'), next = $('#wave-next');
+
+    rail.addEventListener('wheel', (e) => {
+      if (e.deltaX) return;                                  // трекпад листает вбок сам
+      if (rail.scrollWidth <= rail.clientWidth) return;       // листать нечего
+      e.preventDefault();
+      rail.scrollLeft += e.deltaY;
+    }, { passive: false });
+
+    const step = () => {
+      const card = rail.querySelector('.wave-tile');
+      return card ? card.getBoundingClientRect().width + 12 : rail.clientWidth * 0.8;
+    };
+    prev?.addEventListener('click', () => rail.scrollBy({ left: -step(), behavior: 'smooth' }));
+    next?.addEventListener('click', () => rail.scrollBy({ left: step(), behavior: 'smooth' }));
+
+    // Стрелка прячется, когда в её сторону листать уже некуда.
+    const sync = () => {
+      const max = rail.scrollWidth - rail.clientWidth;
+      if (prev) prev.hidden = max <= 4 || rail.scrollLeft <= 4;
+      if (next) next.hidden = max <= 4 || rail.scrollLeft >= max - 4;
+    };
+    rail.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    return sync;
+  }
+
   function renderWaveRail() {
     const rail = $('#wave-rail');
     const showAll = $('#wave-show-all');
     if (!rail) return;
     rail.innerHTML = '<div class="skeleton"></div>'.repeat(3);
+    const syncRail = setupRailControls(rail);
 
     const fill = (stations) => {
       if (!rail.isConnected) return;
@@ -507,6 +547,7 @@
         rail.innerHTML = '';
         (expanded ? stations : stations.slice(0, WAVE_RAIL_VISIBLE))
           .forEach(s => rail.appendChild(makeWaveTile(s)));
+        syncRail();
       };
       paint();
       if (showAll && stations.length > WAVE_RAIL_VISIBLE) {

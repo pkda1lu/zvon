@@ -236,6 +236,23 @@
       order: (data) => call('store', { action: 'order', data }),
       orderCheck: (orderId) => call('store', { action: 'orderCheck', data: { orderId } }),
       cabinet: () => call('store', { action: 'cabinet' }),
+
+      /**
+       * VPN: подписка общая с Telegram-аккаунтом экосистемы Vlyne. Ключ,
+       * трафик и рефералка принадлежат телеграм-аккаунту; магазин — второй
+       * интерфейс к ним, поэтому покупка отсюда и покупка в боте меняют
+       * одно и то же состояние. Работает только после привязки (link).
+       */
+      vpn: {
+        linkStatus: () => call('store', { action: 'vpnLinkStatus' }),
+        link: (code) => call('store', { action: 'vpnLink', data: { code } }),
+        unlink: () => call('store', { action: 'vpnUnlink' }),
+        state: () => call('store', { action: 'vpnState' }),
+        promo: (pack, promo) => call('store', { action: 'vpnPromo', data: { pack, promo } }),
+        buy: (pack, method, promo) => call('store', { action: 'vpnBuy', data: { pack, method, promo } }),
+        check: (orderId) => call('store', { action: 'vpnCheck', data: { orderId } }),
+        nodes: () => call('store', { action: 'vpnNodes' }),
+      },
       admin: {
         products: () => call('store', { action: 'adminProducts' }),
         create: (product) => call('store', { action: 'adminCreate', data: product }),

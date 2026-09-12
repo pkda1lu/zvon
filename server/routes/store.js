@@ -14,6 +14,8 @@ const StoreOrder = require('../models/StoreOrder');
 const { config, paymentMethods } = require('../utils/vpnConfig');
 const payments = require('../utils/vpnPayments');
 const { provision } = require('../utils/vpnProvisioner');
+const User = require('../models/User');
+const vlyne = require('../utils/vlyneBot');
 
 const uploadsDir = path.join(__dirname, '../uploads');
 
@@ -61,13 +63,26 @@ async function fulfill(order, product) {
 
 // ===================== Каталог =====================
 router.get('/catalog', auth, async (req, res) => {
-  const products = await StoreProduct.find({ active: true }).sort({ sortOrder: 1, createdAt: 1 }).lean();
+  // VPN больше не продаётся отдельными товарами Zvon: подписка одна на человека
+  // и живёт в телеграм-аккаунте, а тарифы (пакеты трафика) приходят из бота.
+  // Прежние товары с type:'vpn' остаются в базе и видны в админке, но в витрину
+  // не попадают — ранее выданные по ним ключи продолжают работать до истечения.
+  const products = await StoreProduct.find({ active: true, type: 'merch' }).sort({ sortOrder: 1, createdAt: 1 }).lean();
+
+  let vpn = { available: false, linked: false };
+  if (vlyne.enabled()) {
+    vpn.available = true;
+    try { vpn.linked = !!(await vlyne.linkStatus(req.user._id)).linked; }
+    catch (e) { vpn.error = e.message; }
+  }
+
   res.json({
     ok: true,
     products: products.map(publicProduct),
     paymentMethods: paymentMethods(),
     currency: config.currency,
     isAdmin: req.user.role === 'admin',
+    vpn,
   });
 });
 
@@ -87,6 +102,11 @@ router.post('/order', auth, async (req, res) => {
     const { productId, os = 'windows', promo, paymentMethod = 'yookassa', qty = 1, shipping } = req.body || {};
     const product = await StoreProduct.findById(productId);
     if (!product || !product.active) return res.status(404).json({ ok: false, error: 'Товар недоступен' });
+    // Отсекаем устаревший клиент, который ещё помнит старую витрину: иначе он
+    // создал бы заказ на ключ, параллельный телеграм-подписке.
+    if (product.type === 'vpn') {
+      return res.status(410).json({ ok: false, error: 'Тарифы VPN переехали: откройте вкладку «Трафик» — подписка теперь общая с Telegram' });
+    }
 
     const quantity = Math.max(1, parseInt(qty, 10) || 1);
 
@@ -204,6 +224,76 @@ router.get('/cabinet', auth, async (req, res) => {
       fulfillment: o.fulfillment, shipping: o.shipping,
     })),
   });
+});
+
+// ===================== VPN: общий аккаунт с Telegram =====================
+// Подписка принадлежит телеграм-аккаунту (см. utils/vlyneBot.js). Здесь только
+// привязка и проксирование — своего состояния Zvon по VPN не хранит, поэтому
+// расхождений между ботом и магазином быть не может в принципе.
+
+// Ошибку интеграции отдаём 502, а не 500: сбой внешнего сервиса и ошибка
+// самого Zvon лечатся по-разному, и клиенту полезно их различать.
+function vpnError(res, e) {
+  const linkIssue = /не привязан/i.test(e.message);
+  return res.status(linkIssue ? 409 : 502).json({ ok: false, error: e.message });
+}
+
+router.get('/vpn/link', auth, async (req, res) => {
+  if (!vlyne.enabled()) return res.json({ ok: true, available: false, linked: false });
+  try {
+    const st = await vlyne.linkStatus(req.user._id);
+    // Реестр бота — источник правды: если там привязки нет (например, человек
+    // отвязался командой /unlink), снимаем и локальную отметку.
+    if (!st.linked && req.user.telegram?.id) {
+      await User.updateOne({ _id: req.user._id }, { $set: { 'telegram.id': null, 'telegram.username': '', 'telegram.linkedAt': null } });
+    }
+    res.json({ ok: true, available: true, linked: !!st.linked, telegram: st.linked ? { id: st.tgUserId, username: st.username, name: st.name, linkedAt: st.linkedAt } : null });
+  } catch (e) { vpnError(res, e); }
+});
+
+router.post('/vpn/link', auth, async (req, res) => {
+  try {
+    const code = String(req.body?.code || '').trim();
+    if (!code) return res.status(400).json({ ok: false, error: 'Введите код из бота' });
+    const r = await vlyne.link(req.user._id, code, req.user.username);
+    await User.updateOne({ _id: req.user._id }, { $set: {
+      'telegram.id': r.tgUserId, 'telegram.username': r.username || '', 'telegram.linkedAt': new Date(),
+    } });
+    res.json({ ok: true, telegram: { id: r.tgUserId, username: r.username, name: r.name } });
+  } catch (e) { vpnError(res, e); }
+});
+
+router.post('/vpn/unlink', auth, async (req, res) => {
+  try {
+    await vlyne.unlink(req.user._id);
+    await User.updateOne({ _id: req.user._id }, { $set: { 'telegram.id': null, 'telegram.username': '', 'telegram.linkedAt': null } });
+    res.json({ ok: true });
+  } catch (e) { vpnError(res, e); }
+});
+
+router.get('/vpn/state', auth, async (req, res) => {
+  try { res.json({ ok: true, ...(await vlyne.state(req.user._id)) }); }
+  catch (e) { vpnError(res, e); }
+});
+
+router.post('/vpn/promo', auth, async (req, res) => {
+  try { res.json({ ok: true, ...(await vlyne.promo(req.user._id, req.body?.pack, req.body?.promo)) }); }
+  catch (e) { vpnError(res, e); }
+});
+
+router.post('/vpn/buy', auth, async (req, res) => {
+  try { res.json({ ok: true, ...(await vlyne.buy(req.user._id, req.body?.pack, req.body?.method, req.body?.promo)) }); }
+  catch (e) { vpnError(res, e); }
+});
+
+router.post('/vpn/check', auth, async (req, res) => {
+  try { res.json({ ok: true, ...(await vlyne.check(req.user._id, req.body?.orderId)) }); }
+  catch (e) { vpnError(res, e); }
+});
+
+router.get('/vpn/nodes', auth, async (req, res) => {
+  try { res.json({ ok: true, ...(await vlyne.nodes(req.user._id)) }); }
+  catch (e) { vpnError(res, e); }
 });
 
 // ===================== Админка =====================

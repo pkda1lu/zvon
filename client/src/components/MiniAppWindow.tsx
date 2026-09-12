@@ -213,6 +213,15 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                             adminUpload:   { method: 'POST',   path: '/api/store/admin/upload' },
                             adminOrders:   { method: 'GET',    path: '/api/store/admin/orders' },
                             adminFulfill:  { method: 'POST',   path: '/api/store/admin/order/fulfill' },
+                            // VPN: единая с Telegram подписка (см. server/utils/vlyneBot.js)
+                            vpnLinkStatus: { method: 'GET',    path: '/api/store/vpn/link' },
+                            vpnLink:       { method: 'POST',   path: '/api/store/vpn/link' },
+                            vpnUnlink:     { method: 'POST',   path: '/api/store/vpn/unlink' },
+                            vpnState:      { method: 'GET',    path: '/api/store/vpn/state' },
+                            vpnPromo:      { method: 'POST',   path: '/api/store/vpn/promo' },
+                            vpnBuy:        { method: 'POST',   path: '/api/store/vpn/buy' },
+                            vpnCheck:      { method: 'POST',   path: '/api/store/vpn/check' },
+                            vpnNodes:      { method: 'GET',    path: '/api/store/vpn/nodes' },
                         };
                         const route = STORE_ROUTES[payload?.action];
                         if (!route) { respond(id, { ok: false, error: 'unknown store action' }); break; }
