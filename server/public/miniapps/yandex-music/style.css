@@ -559,6 +559,8 @@ body.player-fs .app-body { filter: none; }
   box-shadow: var(--shadow-lift); position: relative; overflow: hidden;
 }
 .page-cover-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 104px; color: #fff; }
+/* §30: фото исполнителя — круглое, обложки альбомов остаются квадратными */
+.page-hero-cover.round, .library-cover.round { border-radius: 50%; }
 .page-hero-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s8); padding-bottom: var(--s4); }
 .page-hero-kind { font-size: 14px; line-height: 18px; font-weight: 500; color: var(--text-secondary); }
 .page-hero-title { font-size: 36px; line-height: 40px; font-weight: 700; letter-spacing: -1px; margin: 0; color: var(--text-primary); word-break: break-word; }
@@ -909,7 +911,7 @@ body.player-fs .app-body { filter: none; }
 @media (max-width: 768px) {
   .app-body { flex-direction: column; }
   .content { order: 0; }
-  .main { padding: var(--s20) var(--s16) 152px; }
+  .main { padding: var(--s20) var(--s16) calc(160px + env(safe-area-inset-bottom, 0px)); }
   /* Поле поиска занимает всю ширину, кнопки переносятся на строку ниже */
   .search-box { padding: var(--s16) var(--s16) 0; flex-wrap: wrap; gap: var(--s8); }
   .search-box input { flex: 1 1 100%; }
@@ -918,9 +920,12 @@ body.player-fs .app-body { filter: none; }
 
   .sidebar {
     order: 1; position: fixed; left: 0; right: 0; bottom: 0; z-index: 120;
-    width: auto; height: 80px; flex-direction: row; align-items: center;
+    width: auto; flex-direction: row; align-items: center;
     justify-content: space-around; gap: 0; overflow: visible;
-    padding: var(--s8) var(--s8) var(--s12);
+    /* Нижний inset — под «домашнюю» полосу телефона, иначе подписи
+       пунктов прижимаются к самому краю экрана. */
+    height: calc(80px + env(safe-area-inset-bottom, 0px));
+    padding: var(--s8) var(--s8) calc(var(--s12) + env(safe-area-inset-bottom, 0px));
     background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border-top: 1px solid var(--glass-border);
@@ -938,7 +943,8 @@ body.player-fs .app-body { filter: none; }
 
   /* MiniPlayer садится над bottom-nav */
   .player {
-    position: fixed; left: var(--s8); right: var(--s8); bottom: 88px; z-index: 130;
+    position: fixed; left: var(--s8); right: var(--s8); z-index: 130;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     margin: 0; gap: var(--s12);
   }
   .player-info { max-width: none; }
@@ -958,12 +964,16 @@ body.player-fs .app-body { filter: none; }
   .library-row { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--s16) var(--s12); }
   /* §16: показываем 1.1 карточки — обрезанный край подсказывает свайп */
   .wave-tile { flex-basis: 82vw; height: 300px; }
+  /* §24: на телефоне в строке остаётся только «⋯» — текстовые кнопки
+     съедали всю ширину и от названия трека оставалась одна буква.
+     Играть/в очередь никуда не делись: они в контекстном меню. */
   .track-actions { opacity: 1; }
-  .track-actions button { padding: 0 var(--s12); }
+  .track-actions button:not(.track-more) { display: none; }
+  .track-duration { min-width: 40px; }
 }
 
 @media (max-width: 400px) {
-  .main { padding: var(--s16) var(--s12) 152px; }
+  .main { padding: var(--s16) var(--s12) calc(160px + env(safe-area-inset-bottom, 0px)); }
   .search-box { padding: var(--s12) var(--s12) 0; gap: var(--s8); }
   .search-box button { padding: 0 var(--s16); }
 }

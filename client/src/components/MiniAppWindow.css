@@ -20,7 +20,11 @@
         right: 0 !important;
         bottom: 0 !important;
         width: 100vw !important;
+        /* 100vh на телефоне — «большой» вьюпорт: он включает область под
+           свёрнутой панелью браузера, и низ окна уезжает за край экрана.
+           dvh считает по видимой части; 100vh остаётся фолбэком. */
         height: 100vh !important;
+        height: 100dvh !important;
         min-width: 0 !important;
         min-height: 0 !important;
         border-radius: 0 !important;

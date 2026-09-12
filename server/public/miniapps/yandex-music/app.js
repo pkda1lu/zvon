@@ -422,6 +422,7 @@
 
   function renderVibeScreen() {
     setSidebarActive('nav-vibe');
+    backTarget = renderVibeScreen;
     $('#search-bar-host').innerHTML = '';
     if (!token) { renderConnectScreen(); return; }
     main.innerHTML = `
@@ -542,18 +543,16 @@
 
     const meta = [brief.name, brief.listeners ? fmtListeners(brief.listeners) : null]
       .filter(Boolean).join(' · ');
-    const long = brief.text.length > 280;
     card.innerHTML = `
       <div class="ai-insight-head"><span class="ai-mark">✦</span>Интересный факт</div>
       ${meta ? `<div class="ai-insight-who">${escape(meta)}</div>` : ''}
       <p class="ai-insight-body">${escape(brief.text)}</p>
-      ${long ? '<button class="ai-insight-cta">Подробнее →</button>' : ''}`;
+      <button class="ai-insight-cta">Подробнее →</button>`;
 
-    const cta = card.querySelector('.ai-insight-cta');
-    if (cta) cta.addEventListener('click', () => {
-      const open = card.classList.toggle('expanded');
-      cta.textContent = open ? 'Свернуть' : 'Подробнее →';
-    });
+    // «Подробнее» ведёт на страницу исполнителя — там тот же текст целиком
+    // плюс популярные треки, альбомы и похожие.
+    card.querySelector('.ai-insight-cta')
+      .addEventListener('click', () => openArtistPage(artistId, brief.name));
   }
 
   function fmtListeners(n) {
@@ -682,6 +681,7 @@
   }
 
   function renderSearchScreen() {
+    backTarget = renderSearchScreen;
     // Search box lives OUTSIDE the scrollable .main so it stays put.
     const host = $('#search-bar-host');
     host.innerHTML = `
@@ -1049,6 +1049,7 @@
       if (!filtered.length) { list.innerHTML = '<div class="empty">Ничего не найдено.</div>'; return; }
       filtered.forEach((t, i) => {
         const row = renderTrackRow(t, false);
+        row.dataset.rowHandled = '1';
         // Click row → play this single track immediately
         row.addEventListener('click', (e) => {
           if (e.target.closest('button')) return;
@@ -1455,6 +1456,152 @@
     if ($('#queue-page-tracks')) renderQueuePageTracks();
   }
 
+  // ---------- Страница исполнителя (§30–31) ----------
+  // Куда возвращает «Назад» с вложенной страницы. Ставится экранами верхнего
+  // уровня, чтобы с исполнителя не выкидывало всегда в поиск.
+  let backTarget = renderSearchScreen;
+
+  async function openArtistPage(artistId, fallbackName) {
+    if (!artistId) return;
+    closeSheet();
+    const back = backTarget;
+    $('#search-bar-host').innerHTML = '';
+    main.innerHTML = `
+      <div class="page-header">
+        <button id="artist-back" class="page-back-btn" title="Назад">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+      </div>
+      <div class="page-hero">
+        <div class="page-hero-cover round" id="artist-cover"></div>
+        <div class="page-hero-body">
+          <div class="page-hero-kind">Исполнитель</div>
+          <h1 class="page-hero-title" id="artist-name">${escape(fallbackName || '')}</h1>
+          <div class="page-hero-subtitle" id="artist-stats"></div>
+          <div class="page-hero-actions">
+            <button id="artist-play" class="page-play-btn" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Слушать
+            </button>
+            <button id="artist-queue" class="page-secondary-btn" disabled>+ В очередь</button>
+          </div>
+        </div>
+      </div>
+      <div id="artist-sections"><div class="loading">Загружаю исполнителя…</div></div>`;
+    $('#artist-back').addEventListener('click', () => back());
+
+    let r;
+    try { r = (await yaCall(`/artists/${encodeURIComponent(artistId)}/brief-info`))?.result; }
+    catch (e) {
+      $('#artist-sections').innerHTML = `<div class="banner error">Не удалось загрузить исполнителя: ${escape(e.message)}</div>`;
+      return;
+    }
+    if (!r?.artist) { $('#artist-sections').innerHTML = '<div class="empty">Исполнитель не найден.</div>'; return; }
+
+    const a = r.artist;
+    $('#artist-name').textContent = a.name || fallbackName || '';
+    const photo = a.cover?.uri || a.ogImage;
+    if (photo) $('#artist-cover').style.backgroundImage = `url('https://${photo.replace('%%', '400x400')}')`;
+
+    const stats = [];
+    if (r.stats?.lastMonthListeners) stats.push(fmtListeners(r.stats.lastMonthListeners));
+    if (a.genres?.length) stats.push(a.genres.slice(0, 3).join(', '));
+    $('#artist-stats').textContent = stats.join(' · ');
+
+    const popular = (r.popularTracks || []).map(normalizeTrack);
+    if (popular.length) {
+      const playBtn = $('#artist-play'), queueBtn = $('#artist-queue');
+      playBtn.disabled = queueBtn.disabled = false;
+      playBtn.addEventListener('click', () => {
+        exitWave();
+        const start = queue.length;
+        popular.forEach(t => queue.push(t));
+        renderQueue();
+        playIndex(start);
+      });
+      queueBtn.addEventListener('click', () => popular.forEach(t => addToQueue(t)));
+    }
+
+    const host = $('#artist-sections');
+    host.innerHTML = '';
+
+    if (popular.length) {
+      host.appendChild(sectionTitle('Популярные треки'));
+      const list = document.createElement('div');
+      list.className = 'track-list';
+      popular.slice(0, 10).forEach(t => list.appendChild(renderTrackRow(t, false)));
+      host.appendChild(list);
+    }
+
+    const albums = [...(r.albums || []), ...(r.alsoAlbums || [])];
+    if (albums.length) {
+      host.appendChild(sectionTitle('Альбомы'));
+      host.appendChild(cardRow(albums.slice(0, 12).map(al => ({
+        title: al.title || '',
+        sub: [al.year, al.trackCount ? al.trackCount + ' треков' : null].filter(Boolean).join(' · '),
+        cover: al.coverUri,
+        onClick: () => openItemPage({
+          kind: 'album', title: al.title || '', subtitle: a.name || '', cover: al.coverUri,
+          loader: () => loadByUrl({ kind: 'album', id: al.id }),
+        }),
+      }))));
+    }
+
+    const similar = r.similarArtists || r.similar || [];
+    if (similar.length) {
+      host.appendChild(sectionTitle('Похожие исполнители'));
+      host.appendChild(cardRow(similar.slice(0, 12).map(s => ({
+        title: s.name || '',
+        sub: 'Исполнитель',
+        cover: s.cover?.uri || s.ogImage,
+        round: true,
+        onClick: () => openArtistPage(s.id, s.name),
+      }))));
+    }
+
+    // «Интересный факт» здесь показываем целиком — это конечная точка, с
+    // которой уже некуда вести «Подробнее».
+    const about = a.description?.text?.trim();
+    if (about) {
+      const card = document.createElement('article');
+      card.className = 'ai-insight expanded';
+      card.innerHTML = `
+        <div class="ai-insight-head"><span class="ai-mark">✦</span>Интересный факт</div>
+        <p class="ai-insight-body">${escape(about)}</p>`;
+      host.appendChild(sectionTitle('Об исполнителе'));
+      host.appendChild(card);
+    }
+
+    if (!host.children.length) host.innerHTML = '<div class="empty">Об этом исполнителе пока нечего показать.</div>';
+  }
+
+  function sectionTitle(text) {
+    const el = document.createElement('div');
+    el.className = 'library-section-title';
+    el.textContent = text;
+    return el;
+  }
+
+  // Ряд карточек (альбомы, похожие исполнители) — та же сетка, что в медиатеке.
+  function cardRow(items) {
+    const row = document.createElement('div');
+    row.className = 'library-row';
+    items.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'library-card';
+      const cover = it.cover ? `https://${it.cover.replace('%%', '200x200')}` : '';
+      card.innerHTML = `
+        <div class="library-cover${it.round ? ' round' : ''}"${cover ? ` style="background-image:url('${cover}')"` : ''}></div>
+        <div class="library-meta">
+          <div class="library-title">${escape(it.title)}</div>
+          <div class="library-count">${escape(it.sub || '')}</div>
+        </div>`;
+      card.addEventListener('click', it.onClick);
+      row.appendChild(card);
+    });
+    return row;
+  }
+
   function renderTrackRow(track, inQueue, queueIndex) {
     const div = document.createElement('div');
     div.className = 'track' + (inQueue && queueIndex === currentIndex ? ' current' : '');
@@ -1488,6 +1635,13 @@
       addBtn.textContent = '+ В очередь';
       addBtn.addEventListener('click', (e) => { e.stopPropagation(); addToQueue(track); });
       actions.appendChild(playNow); actions.appendChild(addBtn);
+      // Тап по строке играет трек. На телефоне текстовых кнопок в строке нет,
+      // поэтому без этого трек было бы не запустить одним касанием.
+      div.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        if (div.dataset.rowHandled) return;   // страница вешает свой обработчик
+        addAndPlay(track);
+      });
     }
     // «⋯» — контекстное меню трека (§38)
     const moreBtn = document.createElement('button');
@@ -1782,6 +1936,7 @@
     lyrics: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="17" x2="12" y2="17"/></svg>',
     album:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>',
     share:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/><polyline points="14 4 20 4 20 10"/><line x1="10" y1="14" x2="20" y2="4"/></svg>',
+    artist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>',
   };
 
   // ---------- ContextMenu (§38) ----------
@@ -1809,6 +1964,13 @@
       action: () => toggleLikeFor(track.id),
     });
     items.push({ icon: MENU_ICONS.lyrics, label: 'Текст песни', action: () => openLyricsSheet(track), keepOpen: true });
+    if (track.artistIds?.length) {
+      items.push({
+        icon: MENU_ICONS.artist,
+        label: 'Открыть исполнителя',
+        action: () => openArtistPage(track.artistIds[0], track.artists[0]),
+      });
+    }
     if (track.albumId) {
       items.push({
         icon: MENU_ICONS.album,
