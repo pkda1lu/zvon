@@ -531,15 +531,23 @@ function renderLinkScreen(c){
   box.appendChild(el(`<h2>Код привязки</h2>`));
   box.appendChild(el(`<ol class="steps">
     <li>Откройте бота Vlyne в Telegram.</li>
-    <li>Отправьте команду <b>/link</b>.</li>
-    <li>Введите полученный код сюда — он живёт 10 минут.</li>
+    <li>«Подписка» → <b>«Связать с Zvon»</b> (или команда <b>/link</b>).</li>
+    <li>Введите шестизначный код сюда — он живёт 10 минут.</li>
   </ol>`));
   const inp=el(`<input class="code-in" placeholder="000000" inputmode="numeric" maxlength="6" autocomplete="one-time-code">`);
   box.appendChild(inp);
   const btn=el(`<button class="btn">Связать</button>`);
   btn.onclick=async ()=>{
-    const code=(inp.value||"").replace(/\D/g,"");
-    if(code.length<4){ toast("Введите код из бота"); return; }
+    const raw=(inp.value||"").trim();
+    // Код входа в настольное приложение Vlyne — 8 символов с буквами через
+    // дефис. Он выдаётся другой кнопкой и сюда не подойдёт, но перепутать их
+    // легко, поэтому говорим об этом прямо, а не «код неверен».
+    if(/[a-zA-Zа-яА-Я]/.test(raw)){
+      toast("Это код для приложения Vlyne. Для Zvon нужен код из «Связать с Zvon» или /link");
+      return;
+    }
+    const code=raw.replace(/\D/g,"");
+    if(code.length!==6){ toast("Код состоит из 6 цифр"); return; }
     btn.disabled=true; btn.textContent="Связываем…";
     try {
       const r=await S(zvon.store.vpn.link(code));
