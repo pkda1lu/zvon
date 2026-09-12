@@ -459,6 +459,13 @@ async function boot(){
 async function loadVpn(){
   try {
     const st=await S(zvon.store.vpn.state());
+    // Бот обязан прислать подписку. Если её нет — значит ответил не тот
+    // эндпоинт или запрос не дошёл до /api/state; падать на s.left с
+    // невнятным TypeError в этом случае бессмысленно.
+    if(!st || !st.subscription){
+      console.error("[vpn] неожиданный ответ /vpn/state:", st);
+      throw new Error("Ответ без подписки (получено: "+Object.keys(st||{}).join(", ")+")");
+    }
     STATE.vpn.data=st; STATE.vpn.error=null;
     if(!STATE.traffic.pack && st.packs && st.packs.length){
       const best=st.packs.reduce((a,b)=> (b.gb/b.price > a.gb/a.price ? b : a), st.packs[0]);
