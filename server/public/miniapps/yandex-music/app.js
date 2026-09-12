@@ -49,6 +49,10 @@
   // с объявлением ниже по файлу попадал в TDZ (как и VIBE_STATIONS выше).
   let backTarget = null;
 
+  // Сколько треков потерялось при последней загрузке плейлиста (см.
+  // materializeTracks). Объявлено здесь по той же причине, что и backTarget.
+  let _lastPlaylistLoss = 0;
+
   // Станции-настроения для домашнего экрана My Vibe (rotor).
   // Объявлено здесь (до первого renderVibeScreen при старте), чтобы не попасть в TDZ.
   const VIBE_STATIONS = [
@@ -1062,6 +1066,7 @@
     $('#page-back').addEventListener('click', renderSearchScreen);
 
     let tracks = [];
+    _lastPlaylistLoss = 0;
     try {
       tracks = await p.loader();
     } catch (e) {
@@ -1071,6 +1076,21 @@
     if (!tracks.length) {
       $('#page-tracks').innerHTML = '<div class="empty">Пусто.</div>';
       return;
+    }
+
+    // Плейлист догрузился не полностью — раньше это проходило незаметно, и
+    // воспроизведение просто обрывалось на последнем загруженном треке.
+    if (_lastPlaylistLoss) {
+      const lost = _lastPlaylistLoss;
+      const warn = document.createElement('div');
+      warn.className = 'banner warn';
+      warn.innerHTML = `<span>Загрузилось ${tracks.length} треков, ещё ${lost} Яндекс не отдал — они не попадут в очередь.</span>`;
+      const retry = document.createElement('button');
+      retry.className = 'primary';
+      retry.textContent = 'Повторить';
+      retry.addEventListener('click', () => openItemPage(p));
+      warn.appendChild(retry);
+      $('#page-tracks').before(warn);
     }
 
     const renderTracks = (filter) => {
@@ -1090,7 +1110,7 @@
           if (e.target.closest('button')) return;
           exitWave();
           const idx = tracks.indexOf(t);
-          const startIdx = queue.length;
+          const startIdx = trimQueueToCurrent();
           tracks.slice(idx).forEach(tr => queue.push(tr));
           renderQueue();
           playIndex(startIdx);
@@ -1106,7 +1126,7 @@
 
     $('#page-play-all').addEventListener('click', () => {
       exitWave();
-      const startIdx = queue.length;
+      const startIdx = trimQueueToCurrent();
       tracks.forEach(t => queue.push(t));
       renderQueue();
       playIndex(startIdx);
@@ -1351,7 +1371,7 @@
         playAllBtn.className = 'primary';
         playAllBtn.textContent = `▶ Играть всё`;
         playAllBtn.onclick = async () => {
-          const startIdx = queue.length;
+          const startIdx = trimQueueToCurrent();
           tracks.forEach(t => queue.push(t));
           renderQueue();
           await playIndex(startIdx);
@@ -1472,16 +1492,32 @@
     const ids = raw.map(it => String(it.id || it.trackId).split(':')[0]);
     const chunks = [];
     for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+
     const all = [];
+    let lost = 0;
     for (const c of chunks) {
-      const r = await sdk.fetch(YA_API + '/tracks', {
-        method: 'POST',
-        headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'track-ids=' + c.join(','),
-        responseType: 'json',
-      });
-      if (r.status < 400) (r.data?.result || []).forEach(t => all.push(normalizeTrack(t)));
+      let ok = false;
+      // Яндекс троттлит /tracks, когда по нему часто бьют, — а бьют по нему как
+      // раз при активном листании плейлистов. Раньше упавший чанк просто
+      // пропускался, плейлист молча приходил короче, и «дальше» упиралось в
+      // конец: следующих треков в очереди действительно не было.
+      for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+        if (attempt) await new Promise(r => setTimeout(r, 400 * attempt));
+        const r = await sdk.fetch(YA_API + '/tracks', {
+          method: 'POST',
+          headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'track-ids=' + c.join(','),
+          responseType: 'json',
+        });
+        if (r.status < 400) { (r.data?.result || []).forEach(t => all.push(normalizeTrack(t))); ok = true; }
+        else if (r.status !== 429 && r.status < 500) break;   // осмысленный отказ — повтор не поможет
+      }
+      if (!ok) lost += c.length;
     }
+
+    // Недогруз больше не замалчиваем: страница покажет предупреждение.
+    _lastPlaylistLoss = lost;
+    if (lost) console.warn(`[YM] плейлист: не загрузилось ${lost} из ${ids.length} треков`);
     return all;
   }
 
@@ -1546,7 +1582,7 @@
       playBtn.disabled = queueBtn.disabled = false;
       playBtn.addEventListener('click', () => {
         exitWave();
-        const start = queue.length;
+        const start = trimQueueToCurrent();
         popular.forEach(t => queue.push(t));
         renderQueue();
         playIndex(start);
@@ -1713,6 +1749,20 @@
     }
     renderQueue();
   }
+  // Обрезает очередь по текущий трек включительно и возвращает индекс, с
+  // которого начнётся новая подборка. Без этого каждый клик по треку в
+  // плейлисте дописывал в очередь весь его хвост заново: за несколько кликов
+  // там накапливались сотни дубликатов одних и тех же треков.
+  function trimQueueToCurrent() {
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      queue.length = currentIndex + 1;
+      return currentIndex + 1;
+    }
+    queue.length = 0;
+    currentIndex = -1;
+    return 0;
+  }
+
   async function addAndPlay(track) {
     exitWave();
     queue.push(track);

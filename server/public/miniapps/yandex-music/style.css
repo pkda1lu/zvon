@@ -747,7 +747,14 @@ body.player-fs .app-body { filter: none; }
 .menu-item[disabled]:hover { background: none; }
 
 /* Троеточие в строке трека и в плеере */
-.track-more { padding: 0 !important; width: 40px; justify-content: center; }
+/* Селектор с .track-actions, а не просто .track-more: у базового правила
+   кнопок специфичность выше, и без этого приходилось бы бить !important.
+   Флекс тут обязателен — svg внутри блочный, и без него иконка прижималась
+   к левому краю кнопки, а justify-content ни на что не влиял. */
+.track-actions button.track-more {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; padding: 0;
+}
 .track-more svg { display: block; }
 
 /* === Lyrics (§29) ==========================================================
