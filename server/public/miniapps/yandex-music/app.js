@@ -335,7 +335,12 @@
         if (!st?.id?.type || !st?.id?.tag) return;
         const id = `${st.id.type}:${st.id.tag}`;
         if (id === 'user:onyourwave') return;
-        out.push({ id, title: st.name || id, color: st.icon?.backgroundColor || null, icon: st.icon?.imageUrl || null });
+        out.push({
+          id, title: st.name || id,
+          color: st.icon?.backgroundColor || null,
+          icon: st.icon?.imageUrl || null,
+          image: st.fullImageUrl || st.mtsFullImageUrl || null,
+        });
       });
     } catch (e) {
       console.warn('[YM] stations list failed:', e.message);
@@ -344,18 +349,61 @@
     return out;
   }
 
-  function makeStationTile(s) {
-    const item = document.createElement('button');
-    item.className = 'vibe-item' + (s.id === waveStation && waveMode ? ' active' : '');
-    const bg = s.grad || s.color || '#3a3a44';
-    const img = s.icon ? `https://${s.icon.replace('%%', '100x100')}` : '';
-    item.innerHTML = `<span class="vibe-ic" style="background:${bg}">${img ? `<img src="${img}" alt="">` : ''}</span><span class="vibe-it-title">${escape(s.title)}</span>`;
-    item.addEventListener('click', () => {
-      document.querySelectorAll('.vibe-item').forEach(n => n.classList.remove('active'));
-      item.classList.add('active');
+  // Подписи к станциям (§18). Rotor отдаёт только название, поэтому короткий
+  // разъясняющий текст — свой, по тегу станции; для незнакомых тегов не
+  // выдумываем ничего и оставляем карточку без подписи.
+  const STATION_SUBTITLES = {
+    'user:onyourwave':   'Бесконечный поток, собранный под тебя',
+    'personal:collection': 'То, что ты уже отметил как любимое',
+    'mood:energetic':    'Разогнаться и не сбавлять',
+    'mood:calm':         'Тише, медленнее, спокойнее',
+    'mood:happy':        'Когда всё идёт как надо',
+    'mood:sad':          'Для вечеров, когда хочется грустить',
+    'activity:party':    'Громко и до утра',
+    'activity:workout':  'Темп, который тянет вперёд',
+    'activity:driving':  'В дорогу — длинную и ночную',
+    'activity:study':    'Фоном, чтобы не отвлекало',
+    'activity:relax':    'Выдохнуть и ничего не делать',
+    'genre:pop':         'Главное на слуху прямо сейчас',
+    'genre:rock':        'Гитары, которые никуда не делись',
+    'genre:rusrap':      'Русский рэп — от классики до новых имён',
+    'genre:electronics': 'Электроника для длинной ночи',
+    'genre:indie':       'Небольшие имена с большим звуком',
+    'genre:jazz':        'Живой звук и импровизация',
+    'genre:classical':   'Академическая музыка на любой час',
+  };
+
+  function makeWaveTile(s) {
+    const tile = document.createElement('button');
+    tile.className = 'wave-tile' + (s.id === waveStation && waveMode ? ' active' : '');
+    tile.dataset.station = s.id;
+
+    // Фон: крупная картинка станции, иначе градиент из её фирменного цвета.
+    if (s.image) {
+      tile.style.backgroundImage = `url('https://${s.image.replace('%%', '400x400')}')`;
+    } else if (s.grad) {
+      tile.style.background = s.grad;
+    } else if (s.color) {
+      tile.style.background = `linear-gradient(150deg, ${s.color} 0%, ${s.color} 40%, rgba(0,0,0,.65) 100%)`;
+    }
+
+    const sub = STATION_SUBTITLES[s.id] || '';
+    const icon = (!s.image && s.icon) ? `https://${s.icon.replace('%%', '100x100')}` : '';
+    tile.innerHTML = `
+      <span class="wave-tile-eq"><span></span><span></span><span></span></span>
+      ${icon ? `<img class="wave-tile-icon" src="${icon}" alt="" />` : ''}
+      <span class="wave-tile-text">
+        <span class="wave-tile-title">${escape(s.title)}</span>
+        ${sub ? `<span class="wave-tile-sub">${escape(sub)}</span>` : ''}
+      </span>
+      <span class="wave-tile-play"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>`;
+
+    tile.addEventListener('click', () => {
+      document.querySelectorAll('.wave-tile').forEach(n => n.classList.remove('active'));
+      tile.classList.add('active');
       startWave(s.id);
     });
-    return item;
+    return tile;
   }
 
   function renderVibeScreen() {
@@ -365,7 +413,6 @@
     main.innerHTML = `
       <div id="voice-banner"></div>
       <div class="vibe-screen">
-        <div class="vibe-list" id="vibe-list"></div>
         <div class="vibe-hero">
           <div class="vibe-bg"></div>
           <div class="vibe-hero-inner">
@@ -380,18 +427,21 @@
             </div>
           </div>
         </div>
+
+        <section class="wave-section">
+          <div class="library-section-title">
+            Сегодня для тебя
+            <button class="library-show-more" id="wave-show-all" hidden>Все</button>
+          </div>
+          <div class="wave-rail" id="wave-rail"></div>
+        </section>
+
+        <article class="ai-insight" id="ai-insight" hidden></article>
       </div>`;
     renderVoiceJoinButton();
 
-    const list = $('#vibe-list');
-    list.innerHTML = '<div class="loading">Загружаю станции…</div>';
-    loadStations().then(stations => {
-      list.innerHTML = '';
-      stations.forEach(s => list.appendChild(makeStationTile(s)));
-    }).catch(() => {
-      list.innerHTML = '';
-      VIBE_STATIONS.forEach(s => list.appendChild(makeStationTile(s)));
-    });
+    renderWaveRail();
+    renderAiInsight(queue[currentIndex]);
 
     $('#vibe-play').addEventListener('click', () => {
       if (audio && audio.src && currentIndex >= 0) { audio.paused ? audio.play() : audio.pause(); }
@@ -411,6 +461,93 @@
     }
   }
 
+  // §18: на первом экране — 5–6 категорий, остальные прячутся за «Все».
+  const WAVE_RAIL_VISIBLE = 6;
+
+  function renderWaveRail() {
+    const rail = $('#wave-rail');
+    const showAll = $('#wave-show-all');
+    if (!rail) return;
+    rail.innerHTML = '<div class="skeleton"></div>'.repeat(3);
+
+    const fill = (stations) => {
+      if (!rail.isConnected) return;
+      let expanded = false;
+      const paint = () => {
+        rail.innerHTML = '';
+        (expanded ? stations : stations.slice(0, WAVE_RAIL_VISIBLE))
+          .forEach(s => rail.appendChild(makeWaveTile(s)));
+      };
+      paint();
+      if (showAll && stations.length > WAVE_RAIL_VISIBLE) {
+        showAll.hidden = false;
+        showAll.onclick = () => {
+          expanded = !expanded;
+          showAll.textContent = expanded ? 'Свернуть' : 'Все';
+          paint();
+          if (!expanded) rail.scrollTo({ left: 0, behavior: 'smooth' });
+        };
+      }
+    };
+    loadStations().then(fill).catch(() => fill(VIBE_STATIONS));
+  }
+
+  // ---------- AI Insight (§32) ----------
+  // Редакционная карточка о текущем исполнителе. Текст — реальное описание с
+  // Я.Музыки; если его нет, карточка просто не показывается: придумывать
+  // «интересный факт» за сервис мы не станем.
+  const artistBriefCache = new Map();
+  let aiInsightToken = 0;
+
+  async function loadArtistBrief(artistId) {
+    const r = await yaCall(`/artists/${encodeURIComponent(artistId)}/brief-info`);
+    const artist = r?.result?.artist;
+    const text = artist?.description?.text?.trim();
+    if (!text) return null;
+    return { name: artist.name || '', text, listeners: r?.result?.stats?.lastMonthListeners };
+  }
+
+  async function renderAiInsight(track) {
+    const card = $('#ai-insight');
+    if (!card) return;
+    const artistId = track?.artistIds?.[0];
+    if (!artistId) { card.hidden = true; return; }
+
+    const my = ++aiInsightToken;
+    card.hidden = false;
+    card.classList.remove('expanded');
+    card.innerHTML = '<div class="skeleton ai-insight-skeleton"></div>';
+
+    let brief = artistBriefCache.get(artistId);
+    if (brief === undefined) {
+      try { brief = await loadArtistBrief(artistId); } catch { brief = null; }
+      artistBriefCache.set(artistId, brief);
+    }
+    if (my !== aiInsightToken || !card.isConnected) return;
+    if (!brief) { card.hidden = true; return; }
+
+    const meta = [brief.name, brief.listeners ? fmtListeners(brief.listeners) : null]
+      .filter(Boolean).join(' · ');
+    const long = brief.text.length > 280;
+    card.innerHTML = `
+      <div class="ai-insight-head"><span class="ai-mark">✦</span>Интересный факт</div>
+      ${meta ? `<div class="ai-insight-who">${escape(meta)}</div>` : ''}
+      <p class="ai-insight-body">${escape(brief.text)}</p>
+      ${long ? '<button class="ai-insight-cta">Подробнее →</button>' : ''}`;
+
+    const cta = card.querySelector('.ai-insight-cta');
+    if (cta) cta.addEventListener('click', () => {
+      const open = card.classList.toggle('expanded');
+      cta.textContent = open ? 'Свернуть' : 'Подробнее →';
+    });
+  }
+
+  function fmtListeners(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace('.', ',') + ' млн слушателей в месяц';
+    if (n >= 1e3) return Math.round(n / 1e3) + ' тыс. слушателей в месяц';
+    return n + ' слушателей в месяц';
+  }
+
   function updateVibeNowPlaying(track) {
     const t = $('#vibe-title'); const pill = $('#vibe-track');
     const coverEl = $('#vibe-cover'); const bgEl = document.querySelector('.vibe-bg');
@@ -422,11 +559,13 @@
       if (coverEl) { coverEl.style.backgroundImage = cover ? `url('${cover}')` : ''; coverEl.style.display = cover ? '' : 'none'; }
       // «Аура» позади — размытая обложка трека (как в оригинале My Vibe).
       if (bgEl) bgEl.style.backgroundImage = cover ? `url('${cover}')` : '';
+      renderAiInsight(track);
     } else {
       t.textContent = 'My Vibe';
       if (pill) pill.style.display = 'none';
       if (coverEl) { coverEl.style.backgroundImage = ''; coverEl.style.display = 'none'; }
       if (bgEl) bgEl.style.backgroundImage = '';
+      renderAiInsight(null);
     }
   }
 
@@ -1344,6 +1483,7 @@
       id: String(t.id).split(':')[0],
       title: t.title || '',
       artists: (t.artists || []).map(a => a.name),
+      artistIds: (t.artists || []).map(a => a.id).filter(Boolean),
       durationMs: t.durationMs || 0,
       coverUri: t.coverUri || t.albums?.[0]?.coverUri,
       albumId: t.albums?.[0]?.id,
