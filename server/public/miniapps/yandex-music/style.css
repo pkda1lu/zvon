@@ -634,7 +634,20 @@ body.player-fs .app-body { filter: none; }
   min-height: 400px; display: flex; align-items: center; justify-content: center;
   background: var(--bg-primary);
 }
-/* Фон «Моей волны»: краска, растекающаяся в воде.
+/* Шейдерный фон героя. Буфер рисуется маленьким (320px по ширине) и
+   растягивается — лёгкий блюр прячет апскейл, а картинка всё равно
+   низкочастотная. scale берёт запас, чтобы блюр не оголял края. */
+.vibe-canvas {
+  position: absolute; inset: 0; z-index: 0;
+  width: 100%; height: 100%; display: none;
+  filter: blur(16px) saturate(1.15);
+  transform: scale(1.1);
+}
+.vibe-hero.shader-on .vibe-canvas { display: block; }
+.vibe-hero.shader-on .vibe-bg { display: none; }
+
+/* Фон «Моей волны» на CSS — запасной вариант, когда WebGL недоступен.
+   Краска, растекающаяся в воде.
    Три слоя, каждый со своим дрейфом и длительностью — из-за разной скорости
    они никогда не совпадают по фазе, и рисунок не выглядит зациклённым.
    Слой 1 (сам элемент) — размытая обложка текущего трека: её backgroundImage

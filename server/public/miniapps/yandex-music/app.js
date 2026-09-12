@@ -53,6 +53,197 @@
   // materializeTracks). Объявлено здесь по той же причине, что и backTarget.
   let _lastPlaylistLoss = 0;
 
+  // ---------- Фон «Моей волны»: шейдер ----------
+  // Краска в воде = FBM-шум с доменным искажением (fbm внутри fbm внутри fbm).
+  // Цвета берутся из палитры обложки, так что фон остаётся привязан к контенту.
+  // Если WebGL недоступен или шейдер не собрался — молча остаёмся на CSS-слоях
+  // из .vibe-bg, они никуда не делись.
+  const VIBE_VERT = `
+    attribute vec2 a_pos;
+    void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }`;
+
+  const VIBE_FRAG = `
+    precision mediump float;
+    uniform vec2  u_res;
+    uniform float u_time;
+    uniform vec3  u_c1, u_c2, u_c3, u_c4;
+
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+
+    float noise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+                 mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+    }
+
+    float fbm(vec2 p) {
+      float v = 0.0, a = 0.5;
+      mat2 rot = mat2(0.80, 0.60, -0.60, 0.80);
+      for (int i = 0; i < 4; i++) {
+        v += a * noise(p);
+        p = rot * p * 2.0 + 100.0;
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 uv = gl_FragCoord.xy / u_res.xy;
+      vec2 p = uv * 3.0;
+      p.x *= u_res.x / u_res.y;
+      // Скорость подобрана по замеру расхождения кадров: рисунок полностью
+      // обновляется примерно за 9 секунд. Быстрее — фон суетится под текстом,
+      // медленнее — выглядит статичным.
+      float t = u_time * 0.08;
+
+      // Доменное искажение: каждый следующий слой шума смещает координаты
+      // предыдущего — отсюда завихрения и жилки, как у краски в воде.
+      vec2 q = vec2(fbm(p + vec2(0.0, t)),
+                    fbm(p + vec2(5.2, 1.3 - t)));
+      vec2 r = vec2(fbm(p + 4.0 * q + vec2(1.7, 9.2) + 0.15 * t),
+                    fbm(p + 4.0 * q + vec2(8.3, 2.8) - 0.13 * t));
+      float f = fbm(p + 4.0 * r);
+
+      vec3 col = mix(u_c1, u_c2, clamp(f * f * 2.4, 0.0, 1.0));
+      col = mix(col, u_c3, clamp(length(q) * 0.85, 0.0, 1.0));
+      col = mix(col, u_c4, clamp(r.x * 0.45, 0.0, 1.0));  // акцент — лёгким касанием
+      col *= 0.55 + 0.65 * f;
+
+      float vig = smoothstep(1.3, 0.3, length(uv - 0.5));
+      col *= mix(0.5, 1.0, vig);
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const vibeShader = (() => {
+    // Рендерим в маленький буфер и растягиваем по CSS: картинка сплошь
+    // низкочастотная, деталей терять нечему, зато шейдер считает десятки тысяч
+    // пикселей вместо миллиона.
+    const RENDER_W = 320;
+    const FPS = 30;
+
+    let gl = null, prog = null, canvas = null, raf = 0, startTs = 0, lastDraw = 0;
+    let uni = {};
+    let cur = null, target = null;
+
+    function hexToRgb(hex) {
+      const m = String(hex).trim().replace('#', '');
+      const full = m.length === 3 ? m.split('').map(c => c + c).join('') : m;
+      const n = parseInt(full, 16);
+      if (!isFinite(n) || full.length !== 6) return [0.1, 0.1, 0.12];
+      return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+    }
+
+    function palette() {
+      const cs = getComputedStyle(document.documentElement);
+      const v = (name, fb) => cs.getPropertyValue(name).trim() || fb;
+      return [
+        hexToRgb(v('--art-2', '#17171A')),
+        hexToRgb(v('--art-1', '#2A2A31')),
+        hexToRgb(v('--art-wave', '#8B3BFF')),
+        hexToRgb(v('--accent-dynamic', '#FFFFFF')),
+      ];
+    }
+
+    function compile(type, src) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        console.warn('[YM] shader compile failed:', gl.getShaderInfoLog(sh));
+        return null;
+      }
+      return sh;
+    }
+
+    function init(el) {
+      gl = el.getContext('webgl', { antialias: false, depth: false, alpha: false })
+        || el.getContext('experimental-webgl');
+      if (!gl) return false;
+
+      const vs = compile(gl.VERTEX_SHADER, VIBE_VERT);
+      const fs = compile(gl.FRAGMENT_SHADER, VIBE_FRAG);
+      if (!vs || !fs) return false;
+
+      prog = gl.createProgram();
+      gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.warn('[YM] shader link failed:', gl.getProgramInfoLog(prog));
+        return false;
+      }
+      gl.useProgram(prog);
+
+      // Один треугольник с запасом перекрывает экран — дешевле двух.
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, 'a_pos');
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+      uni = {
+        res: gl.getUniformLocation(prog, 'u_res'),
+        time: gl.getUniformLocation(prog, 'u_time'),
+        c: ['u_c1', 'u_c2', 'u_c3', 'u_c4'].map(n => gl.getUniformLocation(prog, n)),
+      };
+      return true;
+    }
+
+    function resize() {
+      if (!canvas || !gl) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const w = RENDER_W;
+      const h = Math.max(1, Math.round(RENDER_W * rect.height / rect.width));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w; canvas.height = h;
+        gl.viewport(0, 0, w, h);
+      }
+    }
+
+    function frame(ts) {
+      if (!canvas || !canvas.isConnected) return stop();   // экран сменился
+      raf = requestAnimationFrame(frame);
+      if (ts - lastDraw < 1000 / FPS) return;
+      lastDraw = ts;
+
+      resize();
+      // Плавный переход палитры при смене трека, без рывка.
+      for (let i = 0; i < 4; i++) {
+        for (let k = 0; k < 3; k++) cur[i][k] += (target[i][k] - cur[i][k]) * 0.04;
+        gl.uniform3f(uni.c[i], cur[i][0], cur[i][1], cur[i][2]);
+      }
+      gl.uniform2f(uni.res, canvas.width, canvas.height);
+      gl.uniform1f(uni.time, (ts - startTs) / 1000);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+
+    function stop() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    }
+
+    function attach(el) {
+      stop();
+      canvas = el;
+      if (!canvas) return false;
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return false;
+      if (!init(canvas)) { gl = null; canvas = null; return false; }
+      target = palette();
+      cur = target.map(c => c.slice());
+      startTs = performance.now();
+      lastDraw = 0;
+      resize();
+      raf = requestAnimationFrame(frame);
+      return true;
+    }
+
+    // Палитра сменилась (новый трек) — доедем до неё плавно.
+    function refresh() { if (gl) target = palette(); }
+
+    return { attach, stop, refresh };
+  })();
+
   // Станции-настроения для домашнего экрана My Vibe (rotor).
   // Объявлено здесь (до первого renderVibeScreen при старте), чтобы не попасть в TDZ.
   const VIBE_STATIONS = [
@@ -443,7 +634,8 @@
     main.innerHTML = `
       <div id="voice-banner"></div>
       <div class="vibe-screen">
-        <div class="vibe-hero">
+        <div class="vibe-hero" id="vibe-hero">
+          <canvas class="vibe-canvas" id="vibe-canvas"></canvas>
           <div class="vibe-bg"></div>
           <div class="vibe-hero-inner">
             <div class="vibe-eyebrow">Моя волна</div>
@@ -477,6 +669,10 @@
         </section>
       </div>`;
     renderVoiceJoinButton();
+
+    // Шейдерный фон героя. Не завёлся (нет WebGL, reduced-motion) — остаются
+    // CSS-слои .vibe-bg, поэтому фон пустым не будет никогда.
+    if (vibeShader.attach($('#vibe-canvas'))) $('#vibe-hero')?.classList.add('shader-on');
 
     renderWaveRail();
     renderAiInsight(queue[currentIndex]);
@@ -2332,6 +2528,7 @@
     paint(track);
   }
 
+
   // ---------- Dynamic artwork colors ----------
   // Обложка → доминантный цвет → CSS-переменные. В дизайн-системе нет
   // зашитого акцента: --accent-dynamic, --accent-ink и фоновые --art-1/--art-2
@@ -2358,12 +2555,14 @@
     root.setProperty('--art-1', pal.art1);
     root.setProperty('--art-2', pal.art2);
     root.setProperty('--art-wave', pal.wave);
+    vibeShader.refresh();
   }
 
   function resetDynamicAccent() {
     paletteToken++;
     const root = document.documentElement.style;
     ACCENT_VARS.forEach(v => root.removeProperty(v));
+    vibeShader.refresh();
   }
 
   async function extractPalette(url) {
