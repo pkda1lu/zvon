@@ -667,6 +667,105 @@ body.player-fs .app-body { filter: none; }
 .vibe-play:hover { filter: brightness(1.08); transform: scale(1.04); }
 .vibe-play:active { transform: scale(.94); }
 
+/* === BottomSheet (основа для §29 и §38) ==================================== */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background: rgba(0, 0, 0, .55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  animation: sheet-fade var(--t-base) both;
+}
+@keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.sheet {
+  position: relative; width: 100%; max-width: 560px; margin: 0 auto;
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--bg-secondary);
+  border-radius: var(--r28) var(--r28) 0 0;
+  padding: var(--s12) var(--s8) var(--s24);
+  animation: sheet-rise var(--t-page) both;
+}
+@keyframes sheet-rise { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-handle {
+  width: 40px; height: 4px; border-radius: var(--r4); flex-shrink: 0;
+  background: var(--surface-elevated); margin: 0 auto var(--s8);
+}
+.sheet-title {
+  padding: var(--s8) var(--s16) var(--s12); flex-shrink: 0;
+  font-size: 16px; line-height: 22px; font-weight: 600; color: var(--text-primary);
+}
+.sheet-subtitle { font-size: 14px; line-height: 18px; font-weight: 400; color: var(--text-secondary); margin-top: 2px; }
+
+/* === ContextMenu (§38) ===================================================== */
+.menu-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; }
+.menu-item {
+  display: flex; align-items: center; gap: var(--s16);
+  min-height: 52px; padding: var(--s8) var(--s16); border: none; border-radius: var(--r16);
+  background: none; color: var(--text-primary); text-align: left; width: 100%;
+  font-size: 16px; line-height: 22px; font-weight: 400; cursor: pointer;
+  transition: background var(--t-fast), transform var(--t-fast);
+}
+.menu-item:hover { background: rgba(255,255,255,.06); }
+.menu-item:active { transform: scale(.98); }
+.menu-item svg { width: var(--icon-md); height: var(--icon-md); flex-shrink: 0; color: var(--text-secondary); }
+.menu-item.active { color: var(--accent); }
+.menu-item.active svg { color: var(--accent); }
+.menu-item.danger { color: var(--error); }
+.menu-item.danger svg { color: var(--error); }
+.menu-item[disabled] { color: var(--text-disabled); cursor: default; }
+.menu-item[disabled] svg { color: var(--text-disabled); }
+.menu-item[disabled]:hover { background: none; }
+
+/* Троеточие в строке трека и в плеере */
+.track-more { padding: 0 !important; width: 40px; justify-content: center; }
+.track-more svg { display: block; }
+
+/* === Lyrics (§29) ==========================================================
+   Шторка на 85% высоты, фон — тот же динамический градиент от обложки. */
+.sheet.lyrics-sheet {
+  height: 85vh; max-width: 720px;
+  border-radius: var(--r32) var(--r32) 0 0;
+  background: linear-gradient(180deg, var(--art-1) 0%, var(--art-2) 55%, var(--art-3) 100%);
+  padding-bottom: var(--s16);
+}
+.lyrics-sheet .sheet-title { padding-bottom: var(--s16); }
+.lyrics-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0 var(--s24) 45vh;   /* хвост снизу, чтобы активная строка вставала по центру */
+  scrollbar-width: none;
+}
+.lyrics-body::-webkit-scrollbar { display: none; }
+
+.lyrics-line {
+  font-size: 24px; line-height: 30px; font-weight: 500; letter-spacing: -.3px;
+  color: var(--text-primary); opacity: .38; margin: 0 0 var(--s16);
+  transform-origin: left center;
+  transition: opacity var(--t-base), transform var(--t-base), font-size var(--t-base);
+}
+.lyrics-line:empty { height: var(--s12); margin: 0; }
+/* Синхронный режим: активная строка крупнее и ярче остальных */
+.lyrics-body.synced .lyrics-line.past { opacity: .32; }
+.lyrics-body.synced .lyrics-line.active {
+  font-size: 32px; line-height: 38px; font-weight: 700; letter-spacing: -.6px;
+  opacity: 1; transform: translateY(-2px) scale(1.02);
+}
+/* Без таймкодов подсвечивать нечего — показываем текст ровным читаемым блоком */
+.lyrics-body.plain .lyrics-line { opacity: .82; font-size: 20px; line-height: 28px; font-weight: 400; }
+
+.lyrics-note {
+  flex-shrink: 0; padding: var(--s12) var(--s24) 0;
+  font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-tertiary);
+}
+.lyrics-empty { padding: var(--s48) var(--s24); text-align: center; color: var(--text-secondary); }
+.lyrics-skeleton { margin: 0 var(--s24); height: 24px; }
+.lyrics-skeleton + .lyrics-skeleton { margin-top: var(--s16); }
+
+@media (max-width: 768px) {
+  .sheet { max-width: none; }
+  .sheet.lyrics-sheet { height: 90vh; }
+  .lyrics-body { padding-left: var(--s16); padding-right: var(--s16); }
+  .lyrics-sheet .sheet-title { padding-left: var(--s16); padding-right: var(--s16); }
+}
+
 /* === Wave carousel (§16–18) ================================================
    Горизонтальная рельса категорий. Карточка обрезается по краю вьюпорта —
    видно 1.1–1.2 карточки, что само по себе сообщает «здесь свайпают». */
@@ -845,10 +944,13 @@ body.player-fs .app-body { filter: none; }
   .player-info { max-width: none; }
   .player-progress { display: none; }
   /* §25: в мини-плеере на телефоне остаются только ♥, ▶ и разворот */
-  .player-volume, #btn-shuffle, #btn-stop, #btn-prev, #btn-next { display: none; }
+  .player-volume, #btn-shuffle, #btn-stop, #btn-prev, #btn-next, #btn-fullscreen { display: none; }
+  .player-cover, .player-info { cursor: pointer; }
   .player.expanded { position: fixed; inset: 0; left: 0; right: 0; bottom: 0; }
   .player.expanded .player-progress { display: flex; }
-  .player.expanded #btn-prev, .player.expanded #btn-next { display: flex; }
+  .player.expanded #btn-prev, .player.expanded #btn-next,
+  .player.expanded #btn-fullscreen { display: flex; }
+  .player.expanded .player-cover, .player.expanded .player-info { cursor: default; }
 
   .page-hero { flex-direction: column; align-items: flex-start; gap: var(--s20); }
   .page-hero-cover { width: 100%; max-width: 280px; height: auto; aspect-ratio: 1/1; }

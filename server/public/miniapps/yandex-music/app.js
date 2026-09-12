@@ -197,11 +197,13 @@
     if (svg) svg.setAttribute('fill', liked ? 'currentColor' : 'none');
   }
 
-  async function toggleLike() {
-    const track = queue[currentIndex];
-    if (!track?.id) return;
+  function isLiked(trackId) { return !!(trackId && likedTrackIds.has(String(trackId))); }
+  function toggleLike() { return toggleLikeFor(queue[currentIndex]?.id); }
+
+  async function toggleLikeFor(trackId) {
+    if (!trackId) return;
     if (!ymAccount?.uid || !token) { console.warn('[YM] like: не авторизован'); return; }
-    const id = String(track.id);
+    const id = String(trackId);
     const wasLiked = likedTrackIds.has(id);
     // Оптимистично обновляем UI.
     if (wasLiked) likedTrackIds.delete(id); else likedTrackIds.add(id);
@@ -225,6 +227,18 @@
     document.body.classList.toggle('player-fs', expanded);
   }
   $('#btn-fullscreen')?.addEventListener('click', toggleFullscreen);
+  // Тап по обложке/названию разворачивает плеер — на телефоне кнопки «на весь
+  // экран» в свёрнутом виде нет, места на неё не хватает.
+  ['#player-cover', '.player-info'].forEach(sel => {
+    $(sel)?.addEventListener('click', (e) => {
+      if (e.target.closest('#player-bar')) return;   // клик по прогрессу — это перемотка
+      if (!player.classList.contains('expanded')) toggleFullscreen();
+    });
+  });
+  $('#btn-more')?.addEventListener('click', () => {
+    const track = queue[currentIndex];
+    if (track) openTrackMenu(track, { inQueue: true, queueIndex: currentIndex });
+  });
 
   // Click on player progress bar to seek.
   $('#player-bar')?.addEventListener('click', (e) => {
@@ -1475,6 +1489,16 @@
       addBtn.addEventListener('click', (e) => { e.stopPropagation(); addToQueue(track); });
       actions.appendChild(playNow); actions.appendChild(addBtn);
     }
+    // «⋯» — контекстное меню трека (§38)
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'track-more';
+    moreBtn.title = 'Ещё';
+    moreBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+    moreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTrackMenu(track, { inQueue, queueIndex });
+    });
+    actions.appendChild(moreBtn);
     return div;
   }
 
@@ -1487,6 +1511,7 @@
       durationMs: t.durationMs || 0,
       coverUri: t.coverUri || t.albums?.[0]?.coverUri,
       albumId: t.albums?.[0]?.id,
+      albumTitle: t.albums?.[0]?.title || '',
     };
   }
 
@@ -1712,6 +1737,246 @@
     const { host, path, ts, s } = dl.data;
     const sign = await md5('XGRwNC9wZnduYm9n' + path.substring(1) + s);
     return `https://${host}/get-mp3/${sign}/${ts}${path}`;
+  }
+
+  // ---------- BottomSheet ----------
+  // Общая шторка для контекстного меню (§38) и текста песни (§29).
+  // Одновременно открыта только одна: вторая вытесняет первую.
+  let openSheetHandle = null;
+
+  function openSheetEl(sheetClass) {
+    closeSheet();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'sheet-backdrop';
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet' + (sheetClass ? ' ' + sheetClass : '');
+    sheet.innerHTML = '<div class="sheet-handle"></div>';
+    backdrop.appendChild(sheet);
+
+    const onKey = (e) => { if (e.key === 'Escape') closeSheet(); };
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSheet(); });
+    document.addEventListener('keydown', onKey);
+
+    const cleanups = [() => document.removeEventListener('keydown', onKey)];
+    openSheetHandle = {
+      sheet,
+      close: () => {
+        cleanups.forEach(fn => { try { fn(); } catch { } });
+        backdrop.remove();
+        openSheetHandle = null;
+      },
+      onClose: (fn) => cleanups.push(fn),
+    };
+    document.body.appendChild(backdrop);
+    return openSheetHandle;
+  }
+
+  function closeSheet() { openSheetHandle?.close(); }
+
+  const MENU_ICONS = {
+    play:   '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+    queue:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="11" y2="18"/><line x1="19" y1="8" x2="19" y2="16"/><line x1="15" y1="12" x2="23" y2="12"/></svg>',
+    remove: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    heart:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    heartOn:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9A5.4 5.4 0 0 1 12 6.2 5.4 5.4 0 0 1 22 12c-2.5 4.4-10 9-10 9z"/></svg>',
+    lyrics: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="17" x2="12" y2="17"/></svg>',
+    album:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>',
+    share:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/><polyline points="14 4 20 4 20 10"/><line x1="10" y1="14" x2="20" y2="4"/></svg>',
+  };
+
+  // ---------- ContextMenu (§38) ----------
+  function openTrackMenu(track, ctx = {}) {
+    if (!track) return;
+    const h = openSheetEl('menu-sheet');
+    const liked = isLiked(track.id);
+    const canLike = !!(ymAccount?.uid && token);
+
+    const items = ctx.inQueue
+      ? [
+          { icon: MENU_ICONS.play, label: 'Играть', action: () => playIndex(ctx.queueIndex) },
+          { icon: MENU_ICONS.remove, label: 'Убрать из очереди', action: () => removeFromQueue(ctx.queueIndex) },
+        ]
+      : [
+          { icon: MENU_ICONS.play, label: 'Играть сейчас', action: () => addAndPlay(track) },
+          { icon: MENU_ICONS.queue, label: 'Добавить в очередь', action: () => addToQueue(track) },
+        ];
+
+    items.push({
+      icon: liked ? MENU_ICONS.heartOn : MENU_ICONS.heart,
+      label: liked ? 'Убрать из «Мне нравится»' : 'Добавить в «Мне нравится»',
+      active: liked,
+      disabled: !canLike,
+      action: () => toggleLikeFor(track.id),
+    });
+    items.push({ icon: MENU_ICONS.lyrics, label: 'Текст песни', action: () => openLyricsSheet(track), keepOpen: true });
+    if (track.albumId) {
+      items.push({
+        icon: MENU_ICONS.album,
+        label: 'Открыть альбом',
+        action: () => openItemPage({
+          kind: 'album',
+          title: track.albumTitle || track.title,
+          subtitle: track.artists.join(', '),
+          cover: track.coverUri,
+          loader: () => loadByUrl({ kind: 'album', id: track.albumId }),
+        }),
+      });
+    }
+    items.push({ icon: MENU_ICONS.share, label: 'Скопировать ссылку', action: (btn) => shareTrack(track, btn), keepOpen: true });
+
+    h.sheet.insertAdjacentHTML('beforeend', `
+      <div class="sheet-title">
+        ${escape(track.title)}
+        <div class="sheet-subtitle">${escape(track.artists.join(', '))}</div>
+      </div>
+      <div class="menu-list"></div>`);
+
+    const list = h.sheet.querySelector('.menu-list');
+    items.forEach(it => {
+      const btn = document.createElement('button');
+      btn.className = 'menu-item' + (it.active ? ' active' : '');
+      if (it.disabled) btn.disabled = true;
+      btn.innerHTML = `${it.icon}<span>${escape(it.label)}</span>`;
+      btn.addEventListener('click', () => {
+        it.action(btn);
+        if (!it.keepOpen) closeSheet();
+      });
+      list.appendChild(btn);
+    });
+  }
+
+  async function shareTrack(track, btn) {
+    const url = `https://music.yandex.ru/track/${track.id}`;
+    let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; }
+    catch {
+      // В iframe доступ к буферу может быть запрещён политикой — старый способ.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        ok = document.execCommand('copy');
+        ta.remove();
+      } catch { ok = false; }
+    }
+    const label = btn?.querySelector('span');
+    if (label) {
+      label.textContent = ok ? 'Ссылка скопирована' : 'Не удалось скопировать';
+      setTimeout(() => closeSheet(), 900);
+    }
+  }
+
+  // ---------- Lyrics (§29) ----------
+  // Текст берём из /tracks/{id}/supplement — это тот же ответ, из которого уже
+  // достаются видеошоты. Если в нём есть таймкоды LRC, строки подсвечиваются по
+  // времени; если таймкодов нет, показываем ровный читаемый текст без фальшивой
+  // синхронизации.
+  const lyricsCache = new Map();
+
+  async function loadLyrics(trackId) {
+    const sup = await yaCall(`/tracks/${trackId}/supplement`);
+    const l = sup.result?.lyrics;
+    const raw = (l?.fullLyrics || l?.lyrics || '').trim();
+    if (!raw) return null;
+    return { lines: parseLyrics(raw), hasRights: l?.hasRights !== false };
+  }
+
+  // Строки вида «[01:23.45] ...». Считаем текст синхронным, только если
+  // таймкоды есть хотя бы у двух строк.
+  function parseLyrics(raw) {
+    const out = [];
+    let timed = 0;
+    raw.split(/\r?\n/).forEach(line => {
+      const m = line.match(/^\s*\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]\s*(.*)$/);
+      if (m) {
+        const ms = (+m[1] * 60 + +m[2]) * 1000 + (m[3] ? +String(m[3]).padEnd(3, '0') : 0);
+        out.push({ time: ms, text: m[4].trim() });
+        timed++;
+      } else {
+        out.push({ time: null, text: line.trim() });
+      }
+    });
+    return { items: out, synced: timed >= 2 };
+  }
+
+  function openLyricsSheet(track) {
+    if (!track) return;
+    const h = openSheetEl('lyrics-sheet');
+    h.sheet.insertAdjacentHTML('beforeend', `
+      <div class="sheet-title">
+        ${escape(track.title)}
+        <div class="sheet-subtitle">${escape(track.artists.join(', '))}</div>
+      </div>
+      <div class="lyrics-body" id="lyrics-body">
+        ${'<div class="skeleton lyrics-skeleton"></div>'.repeat(5)}
+      </div>
+      <div class="lyrics-note" id="lyrics-note"></div>`);
+
+    const body = h.sheet.querySelector('#lyrics-body');
+    const note = h.sheet.querySelector('#lyrics-note');
+    let shownTrackId = null;
+    let lineEls = [];
+    let parsed = null;
+    let activeIdx = -1;
+
+    const paint = async (t) => {
+      shownTrackId = t.id;
+      lineEls = []; parsed = null; activeIdx = -1;
+      body.className = 'lyrics-body';
+      body.innerHTML = '<div class="skeleton lyrics-skeleton"></div>'.repeat(5);
+      note.textContent = '';
+
+      let data = lyricsCache.get(t.id);
+      if (data === undefined) {
+        try { data = await loadLyrics(t.id); } catch { data = null; }
+        lyricsCache.set(t.id, data);
+      }
+      if (shownTrackId !== t.id || !body.isConnected) return;
+
+      if (!data) {
+        body.innerHTML = '<div class="lyrics-empty">Для этого трека текста нет.</div>';
+        return;
+      }
+      parsed = data.lines;
+      body.classList.add(parsed.synced ? 'synced' : 'plain');
+      body.innerHTML = '';
+      parsed.items.forEach(item => {
+        const p = document.createElement('p');
+        p.className = 'lyrics-line';
+        p.textContent = item.text;
+        body.appendChild(p);
+        lineEls.push(p);
+      });
+      note.textContent = parsed.synced
+        ? 'Строки подсвечиваются по ходу трека'
+        : 'У этого текста нет таймкодов — показан целиком';
+    };
+
+    // Один таймер вместо слушателя на <audio>: элемент пересоздаётся на каждом
+    // треке, и подписка на него протухла бы после первого же переключения.
+    const tick = () => {
+      const cur = queue[currentIndex];
+      if (cur && cur.id !== shownTrackId) { paint(cur); return; }
+      if (!parsed?.synced || !audio || !isFinite(audio.currentTime)) return;
+      const ms = audio.currentTime * 1000;
+      let idx = -1;
+      for (let i = 0; i < parsed.items.length; i++) {
+        const t = parsed.items[i].time;
+        if (t !== null && t <= ms) idx = i; else if (t !== null) break;
+      }
+      if (idx === activeIdx) return;
+      if (lineEls[activeIdx]) { lineEls[activeIdx].classList.remove('active'); lineEls[activeIdx].classList.add('past'); }
+      activeIdx = idx;
+      const el = lineEls[activeIdx];
+      if (el) {
+        el.classList.add('active'); el.classList.remove('past');
+        body.scrollTo({ top: el.offsetTop - body.clientHeight * 0.4, behavior: 'smooth' });
+      }
+    };
+
+    const timer = setInterval(tick, 250);
+    h.onClose(() => clearInterval(timer));
+    paint(track);
   }
 
   // ---------- Dynamic artwork colors ----------
