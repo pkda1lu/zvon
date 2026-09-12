@@ -1504,6 +1504,7 @@
     currentIndex = -1;
     renderQueue();
     player.classList.add('hidden');
+    resetDynamicAccent();
     // When playback ends (queue exhausted or user pressed stop), leave the
     // voice channel — no point in keeping an idle presence tile around.
     if (presence) {
@@ -1518,6 +1519,8 @@
     player.classList.remove('hidden');
     const cover = track.coverUri ? `https://${track.coverUri.replace('%%', '200x200')}` : '';
     $('#player-cover').style.backgroundImage = `url('${cover}')`;
+    // Обложка перекрашивает интерфейс — см. applyDynamicAccent.
+    applyDynamicAccent(cover);
     // Видео-клип трека (если есть на Я.Музыке) — показываем поверх обложки в плеере.
     applyPlayerVideo(track);
     updateLikeButton();
@@ -1569,6 +1572,151 @@
     const { host, path, ts, s } = dl.data;
     const sign = await md5('XGRwNC9wZnduYm9n' + path.substring(1) + s);
     return `https://${host}/get-mp3/${sign}/${ts}${path}`;
+  }
+
+  // ---------- Dynamic artwork colors ----------
+  // Обложка → доминантный цвет → CSS-переменные. В дизайн-системе нет
+  // зашитого акцента: --accent-dynamic, --accent-ink и фоновые --art-1/--art-2
+  // пересчитываются на каждом треке, и от них красится весь интерфейс —
+  // кнопки, прогресс, фон контента, «аура» My Vibe и карточка волны.
+  const paletteCache = new Map();
+  const ACCENT_VARS = ['--accent-dynamic', '--accent-ink', '--accent-soft', '--art-1', '--art-2', '--art-wave'];
+  let paletteToken = 0;
+
+  async function applyDynamicAccent(coverUrl) {
+    if (!coverUrl) return resetDynamicAccent();
+    const my = ++paletteToken;
+    let pal = paletteCache.get(coverUrl);
+    if (pal === undefined) {
+      try { pal = await extractPalette(coverUrl); } catch { pal = null; }
+      paletteCache.set(coverUrl, pal);
+    }
+    if (my !== paletteToken) return;          // трек успел смениться
+    if (!pal) return resetDynamicAccent();
+    const root = document.documentElement.style;
+    root.setProperty('--accent-dynamic', pal.accent);
+    root.setProperty('--accent-ink', pal.ink);
+    root.setProperty('--accent-soft', pal.soft);
+    root.setProperty('--art-1', pal.art1);
+    root.setProperty('--art-2', pal.art2);
+    root.setProperty('--art-wave', pal.wave);
+  }
+
+  function resetDynamicAccent() {
+    paletteToken++;
+    const root = document.documentElement.style;
+    ACCENT_VARS.forEach(v => root.removeProperty(v));
+  }
+
+  async function extractPalette(url) {
+    const img = await loadCoverImage(url);
+    const N = 48;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = N;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, N, N);
+    const { data } = ctx.getImageData(0, 0, N, N);
+
+    // Бакеты по HSL. Побеждает не самый частый цвет, а самый «звучащий»:
+    // вес = частота × насыщенность × близость яркости к середине. Иначе
+    // акцентом почти всегда становится чёрный или белый фон обложки.
+    const buckets = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue;
+      const [h, s, l] = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+      if (l < 0.12 || l > 0.95) continue;
+      const key = `${Math.round(h * 12)}|${Math.round(s * 3)}|${Math.round(l * 4)}`;
+      const b = buckets.get(key) || { h: 0, s: 0, l: 0, n: 0 };
+      b.h += h; b.s += s; b.l += l; b.n++;
+      buckets.set(key, b);
+    }
+    if (!buckets.size) return null;
+
+    let best = null, bestScore = -1;
+    for (const b of buckets.values()) {
+      const s = b.s / b.n, l = b.l / b.n;
+      const score = b.n * (0.35 + s) * (1 - Math.abs(l - 0.5));
+      if (score > bestScore) { bestScore = score; best = { h: b.h / b.n, s, l }; }
+    }
+
+    // Приводим к читаемому диапазону: акцент должен работать и как фон кнопки.
+    const h = best.h;
+    const s = Math.min(0.92, Math.max(0.42, best.s));
+    const l = Math.min(0.72, Math.max(0.56, best.l));
+    const accent = hslToHex(h, s, l);
+    return {
+      accent,
+      ink: pickInk(h, s, l),
+      soft: hslToCss(h, s, l, 0.18),
+      art1: hslToHex(h, s * 0.55, 0.21),
+      art2: hslToHex(h, s * 0.4, 0.1),
+      wave: hslToHex(h, Math.max(0.6, s), 0.5),
+    };
+  }
+
+  function loadCoverImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      // Без CORS-заголовков canvas будет «испорчен» — тогда тянем байты через
+      // прокси SDK и читаем картинку из blob (blob всегда same-origin).
+      img.onerror = () => {
+        sdk.fetch(url, { responseType: 'arraybuffer' }).then(r => {
+          if (!r || !r.base64) return reject(new Error('cover fetch failed'));
+          const bytes = Uint8Array.from(atob(r.base64), c => c.charCodeAt(0));
+          const blobUrl = URL.createObjectURL(new Blob([bytes]));
+          const proxied = new Image();
+          proxied.onload = () => { URL.revokeObjectURL(blobUrl); resolve(proxied); };
+          proxied.onerror = () => { URL.revokeObjectURL(blobUrl); reject(new Error('cover decode failed')); };
+          proxied.src = blobUrl;
+        }).catch(reject);
+      };
+      img.src = url;
+    });
+  }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min) return [0, 0, l];
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    return [h, s, l];
+  }
+
+  function hslToRgb(h, s, l) {
+    if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const ch = (t) => {
+      t = (t + 1) % 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    return [ch(h + 1 / 3), ch(h), ch(h - 1 / 3)].map(v => Math.round(v * 255));
+  }
+
+  function hslToHex(h, s, l) {
+    return '#' + hslToRgb(h, s, l).map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  function hslToCss(h, s, l, a) {
+    const [r, g, b] = hslToRgb(h, s, l);
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  // Текст на акцентной плашке: чёрный или белый — что контрастнее.
+  function pickInk(h, s, l) {
+    const [r, g, b] = hslToRgb(h, s, l);
+    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    return (lum + 0.05) / 0.05 >= 1.05 / (lum + 0.05) ? '#000000' : '#ffffff';
   }
 
   // ---------- Utils ----------
