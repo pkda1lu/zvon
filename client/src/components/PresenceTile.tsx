@@ -41,6 +41,9 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
     const cover = !videoStream && !videoUrl && bg?.type === 'image' && bg.url ? bg.url : null;
     const solidBg = !videoStream && !videoUrl && bg?.type === 'color' && bg.color ? bg.color : null;
     const accent = presence.accentColor || 'var(--accent-pink, #ff00c8)';
+    // Есть видео — картинку не трогаем, оформляем только кнопки.
+    // Нет видео — карточка сама отвечает за фон: обложка, разлив цвета, виньетка.
+    const hasVideo = !!(videoStream || videoUrl);
 
     useEffect(() => {
         const el = bgVideoRef.current;
@@ -67,7 +70,7 @@ const PresenceTile: React.FC<Props> = ({ presence, videoStream, volume, onVolume
 
     return (
         <div
-            className={`p-card presence-card${presence.appId ? ' is-launchable' : ''}`}
+            className={`p-card presence-card${hasVideo ? ' has-video' : ' no-video'}${presence.appId ? ' is-launchable' : ''}`}
             style={tileStyle}
             title={presence.appId ? 'Открыть окно мини-приложения' : undefined}
             onClick={(e) => { e.stopPropagation(); openApp(); }}
