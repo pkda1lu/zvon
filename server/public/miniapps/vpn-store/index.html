@@ -453,6 +453,24 @@ async function boot(){
   $("#content").classList.remove("hidden");
   $("#tabbar").classList.remove("hidden");
   renderWho(); renderTabs(); render();
+
+  // Платёж мог остаться неподтверждённым: зачисление происходит только по
+  // запросу, а номер заказа теряется, если приложение перерисовалось, пока
+  // человек платил в другом окне. Догоняем молча — без висящих заказов это
+  // просто ничего не делает.
+  autoCheckPending();
+}
+
+async function autoCheckPending(){
+  if(!STATE.vpn.linked) return;
+  try {
+    const r=await S(zvon.store.vpn.check(null));
+    if(r.paid && !r.already){
+      await loadVpn();
+      toast("Оплата подтверждена: +"+r.gb+" ГБ");
+      render();
+    }
+  } catch(e){ /* нечего подтверждать — обычное состояние, молчим */ }
 }
 
 /** Состояние подписки из бота: ключ, трафик, рефералка, пакеты. */

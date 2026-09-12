@@ -77,6 +77,7 @@ module.exports = {
   state: (zvonId) => asUser('/api/state', zvonId),
   promo: (zvonId, pack, promo) => asUser('/api/promo', zvonId, { pack, promo }),
   buy: (zvonId, pack, method, promo) => asUser('/api/buy', zvonId, { pack, method, promo }),
-  check: (zvonId, orderId) => asUser('/api/check', zvonId, { order_id: orderId }),
+  // orderId необязателен: без него бот сам находит последний неоплаченный заказ.
+  check: (zvonId, orderId) => asUser('/api/check', zvonId, { order_id: orderId || null }),
   nodes: (zvonId) => asUser('/api/nodes', zvonId),
 };
