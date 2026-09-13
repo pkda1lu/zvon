@@ -1,0 +1,538 @@
+/* Публичная страница Vlyne ID (vlyneid.zvonserver.ru).
+
+   Собственная палитра, а не тема Zvon: Vlyne ID — отдельный продукт, на эту
+   страницу приходят разработчики чужих сервисов. Родство с экосистемой
+   держится на том же индиго-фиолетовом градиенте, что и на экране согласия. */
+
+.vidoc {
+    --vid-bg: #0a0b0f;
+    --vid-surface: rgba(255, 255, 255, 0.028);
+    --vid-border: rgba(255, 255, 255, 0.08);
+    --vid-text: #e8eaf2;
+    --vid-dim: #9195a8;
+    --vid-faint: #6b6f80;
+    --vid-accent: #7c8cff;
+    --vid-accent-2: #a855f7;
+
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--vid-bg);
+    color: var(--vid-text);
+    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    scroll-behavior: smooth;
+    line-height: 1.65;
+}
+
+/* ===== Навигация ===== */
+
+.vidoc-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 40px;
+    background: rgba(10, 11, 15, 0.82);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--vid-border);
+}
+
+.vidoc-logo { display: flex; align-items: center; gap: 10px; }
+
+.vidoc-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--vid-accent), var(--vid-accent-2));
+    color: #fff;
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.vidoc-name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+
+.vidoc-nav-actions { display: flex; align-items: center; gap: 18px; }
+
+.vidoc-nav-link {
+    color: var(--vid-dim);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.15s;
+}
+
+.vidoc-nav-link:hover { color: var(--vid-text); }
+
+/* ===== Кнопки ===== */
+
+.vidoc-btn {
+    padding: 10px 18px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: background 0.15s, transform 0.1s, border-color 0.15s;
+}
+
+.vidoc-btn:active { transform: translateY(1px); }
+
+.vidoc-btn-primary {
+    background: linear-gradient(135deg, var(--vid-accent), var(--vid-accent-2));
+    color: #fff;
+}
+
+.vidoc-btn-primary:hover { filter: brightness(1.08); }
+
+.vidoc-btn-ghost {
+    background: transparent;
+    color: var(--vid-text);
+    border-color: var(--vid-border);
+}
+
+.vidoc-btn-ghost:hover { background: rgba(255, 255, 255, 0.05); }
+
+/* ===== Первый экран ===== */
+
+.vidoc-hero {
+    position: relative;
+    padding: 96px 40px 80px;
+    text-align: center;
+    overflow: hidden;
+    border-bottom: 1px solid var(--vid-border);
+}
+
+.vidoc-hero-glow {
+    position: absolute;
+    top: -320px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 640px;
+    background: radial-gradient(circle, rgba(124, 140, 255, 0.22), transparent 62%);
+    filter: blur(40px);
+    pointer-events: none;
+}
+
+.vidoc-hero-inner { position: relative; max-width: 760px; margin: 0 auto; }
+
+.vidoc-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--vid-accent);
+    background: rgba(124, 140, 255, 0.1);
+    border: 1px solid rgba(124, 140, 255, 0.22);
+    border-radius: 999px;
+}
+
+.vidoc-hero h1 {
+    margin: 0 0 20px;
+    font-size: clamp(34px, 6vw, 56px);
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    background: linear-gradient(135deg, #fff 30%, #9aa3c7);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.vidoc-hero-text {
+    margin: 0 auto 32px;
+    max-width: 620px;
+    font-size: 17px;
+    color: var(--vid-dim);
+}
+
+.vidoc-hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+.vidoc-hero-meta {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 40px;
+    font-size: 13px;
+    color: var(--vid-faint);
+}
+
+.vidoc-hero-meta span { position: relative; padding-left: 18px; }
+
+.vidoc-hero-meta span::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    border-radius: 50%;
+    background: var(--vid-accent);
+}
+
+/* ===== Раскладка ===== */
+
+.vidoc-layout {
+    display: flex;
+    gap: 56px;
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 56px 40px 80px;
+}
+
+.vidoc-side {
+    position: sticky;
+    top: 76px;
+    align-self: flex-start;
+    width: 210px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vidoc-side-item {
+    padding: 9px 14px;
+    text-align: left;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--vid-dim);
+    background: transparent;
+    border: none;
+    border-left: 2px solid transparent;
+    border-radius: 0 8px 8px 0;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.vidoc-side-item:hover { color: var(--vid-text); background: rgba(255, 255, 255, 0.03); }
+
+.vidoc-side-item.active {
+    color: var(--vid-accent);
+    border-left-color: var(--vid-accent);
+    background: rgba(124, 140, 255, 0.07);
+}
+
+.vidoc-main { flex: 1; min-width: 0; }
+
+/* ===== Разделы ===== */
+
+.vidoc-section { margin-bottom: 72px; scroll-margin-top: 80px; }
+
+.vidoc-section h2 {
+    margin: 0 0 12px;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.vidoc-lead { margin: 0 0 28px; color: var(--vid-dim); font-size: 16px; }
+
+.vidoc-sub {
+    margin: 40px 0 14px;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--vid-text);
+}
+
+.vidoc-main p { color: #c2c6d6; margin: 0 0 16px; }
+.vidoc-muted { color: var(--vid-faint) !important; font-size: 14px; }
+
+.vidoc-main code {
+    padding: 2px 6px;
+    font-family: 'Fira Code', 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.88em;
+    color: #b6c0ff;
+    background: rgba(124, 140, 255, 0.1);
+    border-radius: 5px;
+}
+
+.vidoc-main a { color: var(--vid-accent); }
+
+.vidoc-inline-link {
+    padding: 0;
+    font: inherit;
+    color: var(--vid-accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* ===== Карточки ===== */
+
+.vidoc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+}
+
+.vidoc-cards-two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+.vidoc-card {
+    padding: 20px;
+    background: var(--vid-surface);
+    border: 1px solid var(--vid-border);
+    border-radius: 14px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.vidoc-card:hover { border-color: rgba(124, 140, 255, 0.3); background: rgba(124, 140, 255, 0.04); }
+
+.vidoc-card h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.vidoc-card p { margin: 0; font-size: 14px; color: var(--vid-dim); line-height: 1.6; }
+
+/* ===== Шаги ===== */
+
+.vidoc-steps { list-style: none; margin: 0 0 28px; padding: 0; }
+
+.vidoc-steps li { display: flex; gap: 16px; margin-bottom: 24px; }
+
+.vidoc-step-n {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--vid-accent);
+    background: rgba(124, 140, 255, 0.12);
+    border: 1px solid rgba(124, 140, 255, 0.24);
+}
+
+.vidoc-steps h4 { margin: 3px 0 6px; font-size: 15px; font-weight: 600; }
+.vidoc-steps p { margin: 0; font-size: 14px; color: var(--vid-dim); }
+
+/* ===== Врезки ===== */
+
+.vidoc-note {
+    padding: 16px 18px;
+    margin: 24px 0;
+    font-size: 14px;
+    color: var(--vid-dim);
+    background: rgba(124, 140, 255, 0.06);
+    border: 1px solid rgba(124, 140, 255, 0.18);
+    border-radius: 12px;
+}
+
+.vidoc-note strong { color: var(--vid-text); }
+
+.vidoc-note-warn {
+    background: rgba(245, 158, 11, 0.06);
+    border-color: rgba(245, 158, 11, 0.22);
+}
+
+.vidoc-note-warn code { color: #f0c274; background: rgba(245, 158, 11, 0.12); }
+
+.vidoc-list { list-style: none; padding: 0; margin: 0 0 16px; }
+
+.vidoc-list li {
+    position: relative;
+    padding-left: 22px;
+    margin-bottom: 8px;
+    color: #c2c6d6;
+    font-size: 15px;
+}
+
+.vidoc-list li::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 11px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--vid-accent);
+}
+
+/* ===== Вкладки и код ===== */
+
+.vidoc-tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+
+.vidoc-tabs button {
+    padding: 7px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--vid-dim);
+    background: transparent;
+    border: 1px solid var(--vid-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.vidoc-tabs button:hover { color: var(--vid-text); }
+
+.vidoc-tabs button.active {
+    color: var(--vid-accent);
+    background: rgba(124, 140, 255, 0.1);
+    border-color: rgba(124, 140, 255, 0.3);
+}
+
+.vidoc-code {
+    margin: 0 0 20px;
+    background: #12141c;
+    border: 1px solid var(--vid-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.vidoc-code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--vid-border);
+}
+
+.vidoc-code-lang {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--vid-faint);
+}
+
+.vidoc-code-copy {
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--vid-dim);
+    background: transparent;
+    border: 1px solid var(--vid-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.vidoc-code-copy:hover { color: var(--vid-text); background: rgba(255, 255, 255, 0.05); }
+
+.vidoc-code pre {
+    margin: 0;
+    padding: 18px;
+    overflow-x: auto;
+    font-family: 'Fira Code', 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #b9c0d4;
+}
+
+.vidoc-code code { padding: 0; background: none; color: inherit; font-size: inherit; }
+
+/* ===== Таблицы ===== */
+
+/* Обёртка со своей прокруткой: страница целиком не должна ездить вбок
+   из-за длинного адреса эндпоинта на узком экране. */
+.vidoc-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--vid-border);
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.vidoc-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+.vidoc-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--vid-faint);
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--vid-border);
+    white-space: nowrap;
+}
+
+.vidoc-table td {
+    padding: 12px 16px;
+    color: var(--vid-dim);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: top;
+}
+
+.vidoc-table tr:last-child td { border-bottom: none; }
+.vidoc-table td:first-child { white-space: nowrap; }
+
+.vidoc-method {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #8be8b0;
+    background: rgba(16, 185, 129, 0.12);
+    border-radius: 5px;
+}
+
+/* ===== Подвал ===== */
+
+.vidoc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 28px 40px 40px;
+    max-width: 1140px;
+    margin: 0 auto;
+    font-size: 13px;
+    color: var(--vid-faint);
+    border-top: 1px solid var(--vid-border);
+}
+
+.vidoc-footer-links { display: flex; gap: 20px; }
+.vidoc-footer-links a { color: var(--vid-faint); text-decoration: none; }
+.vidoc-footer-links a:hover { color: var(--vid-text); }
+
+/* ===== Узкие экраны ===== */
+
+@media (max-width: 900px) {
+    .vidoc-layout { flex-direction: column; gap: 24px; padding: 40px 20px 60px; }
+
+    /* Меню превращается в горизонтальную ленту: sticky-колонка на телефоне
+       съела бы половину экрана. */
+    .vidoc-side {
+        position: static;
+        width: 100%;
+        flex-direction: row;
+        overflow-x: auto;
+        gap: 6px;
+        padding-bottom: 6px;
+    }
+
+    .vidoc-side-item {
+        white-space: nowrap;
+        border-left: none;
+        border-bottom: 2px solid transparent;
+        border-radius: 8px;
+    }
+
+    .vidoc-side-item.active { border-left: none; border-bottom-color: var(--vid-accent); }
+
+    .vidoc-nav { padding: 12px 20px; }
+    .vidoc-nav-link { display: none; }
+    .vidoc-hero { padding: 64px 20px 56px; }
+    .vidoc-footer { padding: 24px 20px 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vidoc { scroll-behavior: auto; }
+}

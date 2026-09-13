@@ -33,3 +33,10 @@ client/package-lock.json
 # Локальная база GeoIP: генерируется скриптом server/scripts/prepareGeoData.js,
 # в репозитории не хранится (~6 МБ бинарных данных).
 server/data/geoip/
+
+# Приватный ключ подписи Vlyne ID: его утечка равносильна выдаче токенов
+# от имени любого пользователя экосистемы.
+server/data/vlyne-id/
+
+# Python-кеш SDK
+__pycache__/

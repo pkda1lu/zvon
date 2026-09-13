@@ -25,7 +25,10 @@ const globalAuditLogSchema = new mongoose.Schema({
       'MINIAPP_CREATE',
       'MODERATION_REPORT_RESOLVE',
       'MODERATION_BAN',
-      'MODERATION_NOTIFY'
+      'MODERATION_NOTIFY',
+      // Vlyne ID: выдача и отзыв доступа приложению экосистемы.
+      'VLYNE_ID_AUTHORIZE',
+      'VLYNE_ID_REVOKE'
     ]
   },
   target: {

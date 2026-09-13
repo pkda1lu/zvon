@@ -96,6 +96,20 @@ const corsOptions = {
   exposedHeaders: ['Content-Type', 'Authorization']
 };
 
+/**
+ * Vlyne ID открыт для любых источников — это провайдер входа, и обращаться к
+ * его /oauth/* будет всякое приложение экосистемы со своего домена. Общий
+ * ограничитель доменов ниже отвечает на preflight сам и без совпадения по
+ * списку не ставит заголовков, поэтому этот CORS обязан стоять ПЕРЕД ним.
+ * Никакого послабления тут нет: доступ дают токен и PKCE, а не origin.
+ */
+app.use(['/oauth', '/.well-known'], cors({
+  origin: true,
+  credentials: false,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -120,6 +134,18 @@ app.use('/api/showcase', require('./routes/showcase'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/upload-files', require('./routes/uploads'));
 app.use('/api/livekit', require('./routes/livekit'));
+
+// --- Vlyne ID: единый вход в экосистему Vlyne ---
+// Аккаунт Zvon и есть Vlyne ID: отдельного реестра пользователей нет, иначе
+// пришлось бы сводить два списка людей между тремя проектами.
+// /oauth/* регистрируется до отдачи SPA ниже — иначе эти адреса перехватил бы
+// catch-all и вернул index.html вместо токена.
+const vlyneId = require('./routes/vlyneId');
+app.use('/oauth', vlyneId.oauthRouter);
+app.use('/api/vlyne-id', vlyneId.apiRouter);
+// Оба адреса — один документ: первый ждут клиенты OIDC, второй — OAuth 2.
+app.get('/.well-known/openid-configuration', vlyneId.discovery);
+app.get('/.well-known/oauth-authorization-server', vlyneId.discovery);
 app.get('/zvon-sdk.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');
@@ -205,9 +231,14 @@ app.get(/^(?!\/api).+/, (req, res) => {
     try {
       let html = fs.readFileSync(indexPath, 'utf8');
       const brand = getBrand(req);
-      
+
+      // Поддомен Vlyne ID отдаёт ту же сборку, но это витрина отдельного
+      // продукта: во вкладке должно стоять его имя, а не «Zvon».
+      const host = (req.get('x-forwarded-host') || req.get('host') || '').toLowerCase();
+      const title = /^vlyneid\./.test(host) ? 'Vlyne ID' : brand.name;
+
       // Dynamically replace title and favicon for better SEO/Initial load
-      html = html.replace(/<title>.*?<\/title>/g, `<title>${brand.name}</title>`);
+      html = html.replace(/<title>.*?<\/title>/g, `<title>${title}</title>`);
       // Update favicons and logos
       html = html.replace(/href="\/icon\.png"/g, `href="/${brand.favicon}"`);
       // Update OpenGraph / Meta tags if they exist

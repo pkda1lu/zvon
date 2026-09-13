@@ -13,6 +13,8 @@ const RANGES = [
 const ACTION_MAP: Record<string, string> = {
     'USER_REGISTER': 'Регистрация пользователя',
     'USER_LOGIN': 'Вход в аккаунт',
+    'VLYNE_ID_AUTHORIZE': 'Доступ приложению Vlyne ID',
+    'VLYNE_ID_REVOKE': 'Отзыв доступа Vlyne ID',
     'USER_DELETE': 'Удаление аккаунта',
     'USER_BLOCK': 'Блокировка аккаунта',
     'USER_UNBLOCK': 'Разблокировка аккаунта',

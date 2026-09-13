@@ -16,6 +16,8 @@ const Security = React.lazy(() => import('./pages/Security'));
 const Servers = React.lazy(() => import('./pages/Servers'));
 const About = React.lazy(() => import('./pages/About'));
 const Download = React.lazy(() => import('./pages/Download'));
+const VlyneAuthorize = React.lazy(() => import('./pages/VlyneAuthorize'));
+const VlyneIdDocs = React.lazy(() => import('./pages/VlyneIdDocs'));
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
@@ -258,12 +260,20 @@ const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </motion.div>
 );
 
+// Vlyne ID — отдельный продукт со своим доменом, но живёт в этой же сборке:
+// сервер отдаёт один index.html на любом хосте, поэтому достаточно подменить
+// корневой маршрут. Проверка по префиксу, чтобы работали и vlyneid.localhost,
+// и будущие домены вида vlyneid.vlyne.ru.
+const isVlyneIdHost = typeof window !== 'undefined'
+  && /^vlyneid\./i.test(window.location.hostname);
+
 const AnimatedRoutes: React.FC = () => {
   const location = useLocation();
   // Group all "/" and "/*" hits under a single Home key so internal navigation
   // inside Main doesn't trigger a full page exit/enter.
   const isHome =
-    !['/login', '/register', '/docs', '/policy'].some(p => location.pathname.startsWith(p))
+    !['/login', '/register', '/docs', '/policy', '/vlyne'].some(p => location.pathname.startsWith(p))
+    && !isVlyneIdHost
     && !location.pathname.startsWith('/invite');
   const routeKey = isHome ? '__home__' : location.pathname;
 
@@ -282,7 +292,9 @@ const AnimatedRoutes: React.FC = () => {
           <Route path="/servers" element={<PageShell><Servers /></PageShell>} />
           <Route path="/about"   element={<PageShell><About /></PageShell>} />
           <Route path="/download" element={<PageShell><Download /></PageShell>} />
-          <Route path="/"        element={<PageShell><Home /></PageShell>} />
+          <Route path="/vlyne/authorize" element={<PageShell><VlyneAuthorize /></PageShell>} />
+          <Route path="/vlyneid" element={<PageShell><VlyneIdDocs /></PageShell>} />
+          <Route path="/"        element={<PageShell>{isVlyneIdHost ? <VlyneIdDocs /> : <Home />}</PageShell>} />
           <Route path="/*"       element={<PageShell><Home /></PageShell>} />
         </Routes>
         </Suspense>

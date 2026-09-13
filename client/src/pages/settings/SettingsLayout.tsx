@@ -32,12 +32,14 @@ import {
     InfoIcon,
     HistoryIcon,
     BellIcon,
-    RoadmapIcon
+    RoadmapIcon,
+    LinkIcon
 } from '../../components/Icons';
 const ProfileSettings = React.lazy(() => import('./ProfileSettings'));
 const ServerProfilesSettings = React.lazy(() => import('./ServerProfilesSettings'));
 const AccountSettings = React.lazy(() => import('./AccountSettings'));
 const DevicesSettings = React.lazy(() => import('./DevicesSettings'));
+const ConnectedAppsSettings = React.lazy(() => import('./ConnectedAppsSettings'));
 const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
 const AppearanceSettings = React.lazy(() => import('./AppearanceSettings'));
 const ChatSettings = React.lazy(() => import('./ChatSettings'));
@@ -127,7 +129,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
     const handleTabChange = (id: string) => {
         if (isMobile) setIsSidebarExpanded(false);
-        const sensitiveTabs = ['account', 'devices', 'bots', 'miniapps'];
+        const sensitiveTabs = ['account', 'devices', 'connected-apps', 'bots', 'miniapps'];
         if (streamerModeEnabled && confirmSettingsAccess && sensitiveTabs.includes(id)) {
             setPendingTab(id);
         } else {
@@ -148,6 +150,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'server-profiles': return <ServerProfilesSettings initialServerId={initialData?.serverId} />;
             case 'account': return <AccountSettings />;
             case 'devices': return <DevicesSettings />;
+            case 'connected-apps': return <ConnectedAppsSettings />;
             case 'privacy': return <PrivacySettings />;
             case 'appearance': return <AppearanceSettings />;
             case 'chat': return <ChatSettings />;
@@ -271,6 +274,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <CategoryHeader>Безопасность</CategoryHeader>
                 <NavItem id="account" label="Учётная запись" icon={ShieldIcon} />
                 <NavItem id="devices" label="Устройства" icon={SmartphoneIcon} />
+                <NavItem id="connected-apps" label="Подключённые приложения" icon={LinkIcon} />
                 <NavItem id="privacy" label="Приватность" icon={EyeIcon} />
 
                 <Divider />
