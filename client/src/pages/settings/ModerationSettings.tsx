@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
+import VlyneIdModeration from './VlyneIdModeration';
 import { getFullUrl } from '../../utils/avatar';
 import PostsModeration from '../../components/posts/PostsModeration';
 
@@ -95,7 +96,7 @@ const ModerationSettings: React.FC = () => {
     const [reports, setReports] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
-    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts'>('reports');
+    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid'>('reports');
 
     // --- Жалобы на проблемы приложения (кнопка «Репорт» в сайдбаре) ---
     const [problems, setProblems] = useState<any[]>([]);
@@ -227,6 +228,18 @@ const ModerationSettings: React.FC = () => {
                     }}
                 >
                     Витрина
+                </button>
+                <button
+                    onClick={() => setMainTab('vlyneid')}
+                    style={{
+                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+                        color: mainTab === 'vlyneid' ? 'var(--primary-neon)' : 'var(--text-dim)',
+                        fontWeight: 700, fontSize: '14px',
+                        borderBottom: `2px solid ${mainTab === 'vlyneid' ? 'var(--primary-neon)' : 'transparent'}`,
+                        marginBottom: '-1px'
+                    }}
+                >
+                    Vlyne ID
                 </button>
                 <button
                     onClick={() => setMainTab('problems')}
@@ -408,6 +421,8 @@ const ModerationSettings: React.FC = () => {
                         )}
                     </div>
                 </>
+            ) : mainTab === 'vlyneid' ? (
+                <VlyneIdModeration />
             ) : mainTab === 'problems' ? (
                 <>
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>

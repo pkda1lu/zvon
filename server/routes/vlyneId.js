@@ -7,12 +7,15 @@ const VlyneClient = require('../models/VlyneClient');
 const VlyneGrant = require('../models/VlyneGrant');
 const VlyneAuthRequest = require('../models/VlyneAuthRequest');
 const VlyneRefreshToken = require('../models/VlyneRefreshToken');
+const VlyneAppRequest = require('../models/VlyneAppRequest');
 
 const { jwks, issuer, base64url } = require('../utils/vlyneKeys');
 const scopeUtil = require('../utils/vlyneScopes');
 const tokens = require('../utils/vlyneTokens');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 const { getClientIp } = require('../utils/deviceInfo');
+const { sendVlyneAppDecision } = require('../utils/mail');
+const { pushToModerators, previewText } = require('../utils/webPush');
 
 /**
  * Vlyne ID — единый вход в экосистему Vlyne.
@@ -725,7 +728,9 @@ const ACTIVITY_LABELS = {
   VLYNE_ID_AUTHORIZE: 'Выдан доступ приложению',
   VLYNE_ID_REVOKE: 'Отозван доступ приложения',
   PD_EXPORT: 'Выгрузка персональных данных',
-  PD_ACCOUNT_ANONYMIZED: 'Аккаунт обезличен'
+  PD_ACCOUNT_ANONYMIZED: 'Аккаунт обезличен',
+  VLYNE_APP_SUBMIT: 'Подана заявка на подключение приложения',
+  VLYNE_APP_DECISION: 'Решение по заявке на подключение'
 };
 
 /**
@@ -824,6 +829,450 @@ apiRouter.delete('/grants/:clientId', auth, async (req, res) => {
     res.json({ message: 'Доступ приложения отозван' });
   } catch (error) {
     console.error('[vlyne-id] revoke grant:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ===== Заявки на подключение приложений =====
+
+/**
+ * Реестр клиентов остаётся непубличным: доступ к аккаунтам людей нельзя
+ * раздавать по факту нажатия кнопки. Но «непубличный» не значит «руками в
+ * коде» — разработчик подаёт заявку, модератор читает и решает, а клиент при
+ * одобрении создаётся сам. Человек отвечает за решение, а не за перенос полей
+ * из письма в базу: именно на переносе человек и ошибается.
+ */
+
+const MAX_OPEN_REQUESTS = 5;
+
+function isValidUrl(u) {
+  try { new URL(u); return true; } catch { return false; }
+}
+
+/** Вид заявки для того, кто её подал. */
+function publicRequest(r) {
+  return {
+    id: r._id,
+    name: r.name,
+    description: r.description,
+    homepageUrl: r.homepageUrl,
+    privacyPolicyUrl: r.privacyPolicyUrl,
+    logo: r.logo,
+    type: r.type,
+    redirectUris: r.redirectUris,
+    requestedScopes: r.requestedScopes,
+    scopeDetails: scopeUtil.describe(r.requestedScopes),
+    purpose: r.purpose,
+    status: r.status,
+    contactEmail: r.contactEmail,
+    messages: (r.messages || []).map((m) => ({
+      role: m.role,
+      text: m.text,
+      author: m.author && m.author.username ? m.author.username : null,
+      createdAt: m.createdAt
+    })),
+    clientId: r.client ? (r.client.clientId || null) : null,
+    clientType: r.client ? (r.client.type || null) : null,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    decidedAt: r.decidedAt
+  };
+}
+
+/** Проверка полей заявки. Возвращает текст ошибки или null. */
+function validateRequestFields({ name, purpose, redirectUris, requestedScopes, type }) {
+  if (!name || !String(name).trim()) return 'Укажите название приложения';
+  if (!purpose || String(purpose).trim().length < 30) {
+    return 'Опишите, зачем приложению доступ — не меньше 30 символов. Это главный текст заявки';
+  }
+  if (!Array.isArray(redirectUris) || !redirectUris.length) {
+    return 'Укажите хотя бы один адрес возврата';
+  }
+  const bad = redirectUris.filter((u) => !isValidUrl(u));
+  if (bad.length) return `Неверные адреса возврата: ${bad.join(', ')}`;
+
+  const scopes = Array.isArray(requestedScopes) ? requestedScopes : [];
+  if (!scopes.length) return 'Выберите хотя бы одно право';
+  const unknown = scopeUtil.unknownScopes(scopes);
+  if (unknown.length) return `Неизвестные права: ${unknown.join(', ')}`;
+  if (type && !['public', 'confidential'].includes(type)) return 'Неверный тип приложения';
+  return null;
+}
+
+/**
+ * Модераторы узнают о заявке там же, где о жалобах: событие в открытое
+ * приложение плюс системное уведомление тем, у кого оно закрыто. Почта здесь
+ * не годится — очередь разбирают в Zvon, а не в почтовом ящике.
+ */
+function notifyModerators(req, request, kind) {
+  const io = req.app.get('io');
+  if (!io) return;
+
+  const message = kind === 'reply'
+    ? `Ответ по заявке: ${request.name}`
+    : `Новая заявка на подключение: ${request.name}`;
+
+  User.find({ role: { $in: ['moderator', 'admin'] } }).select('_id')
+    .then((staff) => {
+      for (const member of staff) {
+        if (String(member._id) === String(req.user._id)) continue;
+        io.to(`user-${member._id}`).emit('notification', {
+          type: 'vlyne_app_request',
+          message,
+          requestId: request._id,
+          timestamp: new Date()
+        });
+      }
+
+      return pushToModerators(io, {
+        title: 'Vlyne ID',
+        body: previewText(message),
+        tag: 'vlyne-app-request',
+        url: '/?settings=moderation',
+        data: { type: 'vlyne_app_request', requestId: String(request._id) }
+      }, req.user._id);
+    })
+    .catch((e) => console.error('[vlyne-id] уведомление модераторам:', e.message));
+}
+
+apiRouter.post('/applications', auth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const error = validateRequestFields(body);
+    if (error) return res.status(400).json({ message: error });
+
+    // Ограничение на число открытых заявок — не бюрократия, а защита от
+    // засыпания очереди модерации десятком одинаковых черновиков.
+    const open = await VlyneAppRequest.countDocuments({
+      applicant: req.user._id,
+      status: { $in: ['pending', 'changes_requested'] }
+    });
+    if (open >= MAX_OPEN_REQUESTS) {
+      return res.status(429).json({
+        message: `У вас уже ${open} заявок на рассмотрении. Дождитесь решения по ним.`
+      });
+    }
+
+    const scopes = [...new Set(['openid', ...body.requestedScopes])];
+
+    const request = await VlyneAppRequest.create({
+      applicant: req.user._id,
+      contactEmail: (body.contactEmail || req.user.email || '').toLowerCase(),
+      name: String(body.name).trim(),
+      description: body.description || '',
+      homepageUrl: body.homepageUrl || '',
+      privacyPolicyUrl: body.privacyPolicyUrl || '',
+      logo: body.logo || null,
+      type: body.type === 'confidential' ? 'confidential' : 'public',
+      redirectUris: body.redirectUris,
+      requestedScopes: scopes,
+      purpose: String(body.purpose).trim()
+    });
+
+    notifyModerators(req, request, 'new');
+
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'VLYNE_APP_SUBMIT',
+      targetId: req.user._id,
+      targetModel: 'User',
+      details: { name: request.name, scopes }
+    }).catch(() => {});
+
+    res.status(201).json(publicRequest(request));
+  } catch (err) {
+    console.error('[vlyne-id] create application:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+apiRouter.get('/applications', auth, async (req, res) => {
+  try {
+    const list = await VlyneAppRequest.find({ applicant: req.user._id })
+      .populate('client', 'clientId type')
+      .populate('messages.author', 'username')
+      .sort({ createdAt: -1 });
+    res.json(list.map(publicRequest));
+  } catch (err) {
+    console.error('[vlyne-id] list applications:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+apiRouter.get('/applications/:id', auth, async (req, res) => {
+  try {
+    const request = await VlyneAppRequest.findById(req.params.id)
+      .populate('client', 'clientId type')
+      .populate('messages.author', 'username');
+    if (!request) return res.status(404).json({ message: 'Заявка не найдена' });
+    // Чужую заявку не показываем даже модератору через этот адрес — у него
+    // свой раздел, а здесь человек смотрит именно свои.
+    if (String(request.applicant) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Это чужая заявка' });
+    }
+    res.json(publicRequest(request));
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+apiRouter.patch('/applications/:id', auth, async (req, res) => {
+  try {
+    const request = await VlyneAppRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Заявка не найдена' });
+    if (String(request.applicant) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Это чужая заявка' });
+    }
+    if (!request.isOpen()) {
+      return res.status(409).json({ message: 'По заявке уже принято решение — её нельзя изменить' });
+    }
+
+    const merged = { ...request.toObject(), ...req.body };
+    const error = validateRequestFields(merged);
+    if (error) return res.status(400).json({ message: error });
+
+    const editable = ['name', 'description', 'homepageUrl', 'privacyPolicyUrl', 'logo',
+      'type', 'redirectUris', 'requestedScopes', 'purpose', 'contactEmail'];
+    for (const key of editable) {
+      if (req.body[key] !== undefined) request[key] = req.body[key];
+    }
+    if (!request.requestedScopes.includes('openid')) request.requestedScopes.unshift('openid');
+
+    // Доработанная заявка снова встаёт в очередь: иначе она так и осталась бы
+    // помеченной «нужны правки» и не попалась бы модератору на глаза.
+    if (request.status === 'changes_requested') request.status = 'pending';
+    await request.save();
+
+    notifyModerators(req, request, 'reply');
+    res.json(publicRequest(request));
+  } catch (err) {
+    console.error('[vlyne-id] update application:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+apiRouter.post('/applications/:id/messages', auth, async (req, res) => {
+  try {
+    const text = String((req.body && req.body.text) || '').trim();
+    if (!text) return res.status(400).json({ message: 'Пустое сообщение' });
+
+    const request = await VlyneAppRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Заявка не найдена' });
+
+    const isApplicant = String(request.applicant) === String(req.user._id);
+    const isStaff = ['moderator', 'admin'].includes(req.user.role);
+    if (!isApplicant && !isStaff) return res.status(403).json({ message: 'Нет доступа к заявке' });
+
+    request.messages.push({
+      author: req.user._id,
+      role: isApplicant ? 'applicant' : 'moderator',
+      text: text.slice(0, 2000)
+    });
+    if (isApplicant && request.status === 'changes_requested') request.status = 'pending';
+    await request.save();
+
+    if (isApplicant) {
+      notifyModerators(req, request, 'reply');
+    } else {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user-${request.applicant}`).emit('notification', {
+          type: 'vlyne_app_reply',
+          message: `Ответ по заявке «${request.name}»`,
+          requestId: request._id,
+          timestamp: new Date()
+        });
+      }
+    }
+
+    await request.populate('messages.author', 'username');
+    res.json(publicRequest(request));
+  } catch (err) {
+    console.error('[vlyne-id] application message:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/** Приложения, которыми разработчик уже владеет. */
+apiRouter.get('/my-clients', auth, async (req, res) => {
+  try {
+    const clients = await VlyneClient.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
+    res.json(clients.map((c) => ({
+      clientId: c.clientId,
+      type: c.type,
+      name: c.name,
+      description: c.description,
+      redirectUris: c.redirectUris,
+      allowedScopes: c.allowedScopes,
+      scopeDetails: scopeUtil.describe(c.allowedScopes),
+      isActive: c.isActive,
+      createdAt: c.createdAt,
+      lastUsedAt: c.lastUsedAt
+    })));
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * Перевыпуск секрета своего приложения.
+ *
+ * Это же и способ получить секрет впервые: при одобрении он не выдаётся и
+ * нигде не хранится в открытом виде, поэтому «показать ещё раз» невозможно —
+ * можно только выпустить новый. Старый перестаёт работать сразу.
+ */
+apiRouter.post('/my-clients/:clientId/secret', auth, async (req, res) => {
+  try {
+    const client = await VlyneClient.findOne({ clientId: req.params.clientId });
+    if (!client) return res.status(404).json({ message: 'Приложение не найдено' });
+    if (String(client.createdBy) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Это не ваше приложение' });
+    }
+    if (client.type !== 'confidential') {
+      return res.status(400).json({ message: 'У публичного приложения секрета нет' });
+    }
+
+    const secret = tokens.randomToken(32);
+    client.clientSecretHash = VlyneClient.hashSecret(secret);
+    await client.save();
+    res.json({ clientId: client.clientId, clientSecret: secret });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ===== Разбор заявок (модераторы) =====
+
+const isModerator = (req, res, next) => {
+  if (req.user && ['moderator', 'admin'].includes(req.user.role)) return next();
+  res.status(403).json({ message: 'Доступ только модераторам' });
+};
+
+apiRouter.get('/admin/applications', auth, isModerator, async (req, res) => {
+  try {
+    const status = req.query.status;
+    const query = status && status !== 'all'
+      ? { status }
+      : { status: { $in: ['pending', 'changes_requested'] } };
+
+    const list = await VlyneAppRequest.find(query)
+      .populate('applicant', 'username avatar email createdAt')
+      .populate('moderator', 'username')
+      .populate('client', 'clientId')
+      .populate('messages.author', 'username')
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    res.json(list.map((r) => Object.assign(publicRequest(r), {
+      applicant: r.applicant ? {
+        id: r.applicant._id,
+        username: r.applicant.username,
+        avatar: r.applicant.avatar,
+        email: r.applicant.email,
+        registeredAt: r.applicant.createdAt
+      } : null,
+      moderator: r.moderator ? r.moderator.username : null
+    })));
+  } catch (err) {
+    console.error('[vlyne-id] admin applications:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+apiRouter.post('/admin/applications/:id/decision', auth, isModerator, async (req, res) => {
+  try {
+    const action = req.body && req.body.action;
+    const comment = String((req.body && req.body.comment) || '').trim();
+
+    if (!['approve', 'reject', 'request_changes'].includes(action)) {
+      return res.status(400).json({ message: 'Неизвестное решение' });
+    }
+    if (action !== 'approve' && !comment) {
+      // Отказ и вопросы без объяснения бесполезны: разработчик всё равно
+      // придёт спрашивать, только уже в поддержку.
+      return res.status(400).json({ message: 'Объясните решение — этот текст уйдёт разработчику' });
+    }
+
+    const request = await VlyneAppRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Заявка не найдена' });
+    if (!request.isOpen()) {
+      return res.status(409).json({ message: 'По заявке уже принято решение' });
+    }
+
+    if (comment) {
+      request.messages.push({ author: req.user._id, role: 'moderator', text: comment.slice(0, 2000) });
+    }
+
+    let createdClient = null;
+
+    if (action === 'approve') {
+      // Клиент создаётся здесь, а не руками в консоли. Ровно из тех полей,
+      // которые модератор только что прочитал: между прочитанным и созданным
+      // не остаётся шага, на котором можно ошибиться.
+      createdClient = await VlyneClient.create({
+        clientId: 'vlyne_' + tokens.randomToken(12),
+        clientSecretHash: null,
+        type: request.type,
+        name: request.name,
+        description: request.description,
+        logo: request.logo,
+        homepageUrl: request.homepageUrl,
+        privacyPolicyUrl: request.privacyPolicyUrl,
+        redirectUris: request.redirectUris,
+        allowedScopes: request.requestedScopes,
+        firstParty: false,
+        createdBy: request.applicant
+      });
+      request.client = createdClient._id;
+      request.status = 'approved';
+    } else {
+      request.status = action === 'reject' ? 'rejected' : 'changes_requested';
+    }
+
+    request.moderator = req.user._id;
+    if (action !== 'request_changes') request.decidedAt = new Date();
+    await request.save();
+
+    // Разработчику — письмо и уведомление в приложение. Письмо важнее: на
+    // странице заявки никто не дежурит, а решение может занять дни.
+    const webUrl = (process.env.VLYNE_ID_ISSUER || process.env.CLIENT_URL || '').replace(/\/$/, '');
+    sendVlyneAppDecision(request.contactEmail, {
+      appName: request.name,
+      status: request.status,
+      comment,
+      cabinetUrl: webUrl ? `${webUrl}/developers/cabinet` : ''
+    }).catch((e) => console.error('[vlyne-id] письмо о решении не ушло:', e.message));
+
+    const io = req.app.get('io');
+    if (io) {
+      const word = request.status === 'approved' ? 'одобрена'
+        : request.status === 'rejected' ? 'отклонена' : 'нужны уточнения';
+      io.to(`user-${request.applicant}`).emit('notification', {
+        type: 'vlyne_app_decision',
+        message: `Заявка «${request.name}»: ${word}`,
+        requestId: request._id,
+        timestamp: new Date()
+      });
+    }
+
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'VLYNE_APP_DECISION',
+      targetId: request.applicant,
+      targetModel: 'User',
+      details: {
+        name: request.name,
+        status: request.status,
+        client: createdClient ? createdClient.clientId : null
+      }
+    }).catch(() => {});
+
+    await request.populate('messages.author', 'username');
+    res.json(Object.assign(publicRequest(request), {
+      clientId: createdClient ? createdClient.clientId : null
+    }));
+  } catch (err) {
+    console.error('[vlyne-id] decision:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

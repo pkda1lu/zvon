@@ -233,6 +233,7 @@ const VlyneIdDocs: React.FC = () => {
     const isSubdomain = /^vlyneid\./i.test(window.location.hostname);
     const homePath = isSubdomain ? '/' : '/vlyneid';
     const accountPath = isSubdomain ? '/account' : '/vlyneid/account';
+    const devCabinetPath = isSubdomain ? '/developers/cabinet' : '/vlyneid/developers/cabinet';
 
     const scrollTo = (id: string) => {
         document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -242,7 +243,7 @@ const VlyneIdDocs: React.FC = () => {
         <div className="vidoc">
             <VlyneIdNav actions={[
                 { label: 'О Vlyne ID', to: homePath },
-                { label: 'Получить доступ', href: 'mailto:support@zvonserver.ru?subject=Подключение к Vlyne ID', primary: true }
+                { label: 'Кабинет разработчика', to: devCabinetPath, primary: true }
             ]} />
 
             <header className="vidoc-pagehead">
@@ -489,20 +490,32 @@ const VlyneIdDocs: React.FC = () => {
                         lead="Регистрация приложений не самообслуживаемая — и это осознанно."
                     >
                         <p>
-                            Vlyne ID отдаёт доступ к аккаунтам людей, поэтому список тех, кто может его просить,
-                            должен быть коротким и проверяемым глазами. Приложение заводит администратор вручную.
+                            Vlyne ID отдаёт доступ к аккаунтам людей, поэтому заявку читает человек, а не
+                            обрабатывает форма. Но «читает человек» не значит «заводится руками в консоли»:
+                            модератор принимает решение, а приложение создаётся само — из тех же полей, что
+                            он только что прочитал.
                         </p>
-                        <p>Напишите на <a href="mailto:support@zvonserver.ru">support@zvonserver.ru</a> и укажите:</p>
+                        <p>
+                            Подайте заявку в{' '}
+                            <button className="vidoc-inline-link" onClick={() => navigate(devCabinetPath)}>
+                                кабинете разработчика
+                            </button>{' '}
+                            — там же видно её состояние и переписку с модератором.
+                        </p>
                         <ul className="vidoc-list">
-                            <li>название сервиса и адрес его сайта;</li>
+                            <li>название сервиса, адрес сайта и политика конфиденциальности;</li>
                             <li>точные адреса возврата, включая отладочные;</li>
                             <li>какие права нужны и зачем именно они;</li>
-                            <li>тип приложения: браузерное или мобильное (секрет хранить негде) либо серверное.</li>
+                            <li>тип приложения: публичное (секрет хранить негде) или серверное.</li>
                         </ul>
                         <p className="vidoc-muted">
-                            В ответ придёт <code>client_id</code>, а для серверных приложений — секрет. Секрет
-                            показывается один раз: у нас хранится только его хеш, как у пароля.
+                            После одобрения <code>client_id</code> появится в кабинете. Секрет серверного
+                            приложения там же выпускается по кнопке и показывается один раз: у нас хранится
+                            только его хеш, как у пароля.
                         </p>
+                        <button className="vidoc-btn vidoc-btn-primary" onClick={() => navigate(devCabinetPath)}>
+                            Открыть кабинет разработчика
+                        </button>
                     </Section>
                 </main>
             </div>

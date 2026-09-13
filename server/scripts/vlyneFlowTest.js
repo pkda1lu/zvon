@@ -28,6 +28,8 @@ const USER = {
   isBanned: false
 };
 
+const MODERATOR = { _id: '507f1f77bcf86cd799439099', username: 'mod', email: 'm@e.ru', role: 'moderator' };
+
 const CLIENT = {
   _id: 'cid', clientId: 'vlyne_test', type: 'public', clientSecretHash: null,
   name: 'Vlyne Client', description: '', logo: null, homepageUrl: '', privacyPolicyUrl: '',
@@ -46,8 +48,30 @@ const refreshTokens = [];
 
 stub('../models/User', { findById: (id) => ({ select: async () => (String(id) === USER._id ? USER : null) }) });
 
+const clients = new Map([[CLIENT.clientId, CLIENT]]);
+let clientSeq = 0;
 stub('../models/VlyneClient', {
-  findOne: async ({ clientId }) => (clientId === CLIENT.clientId ? CLIENT : null),
+  findOne: async (q) => clients.get(q.clientId) || null,
+  create: async (doc) => {
+    const c = {
+      // Значения по умолчанию из схемы: настоящая модель проставляет их сама,
+      // а заглушка — нет, и без них созданное приложение считалось бы
+      // отключённым.
+      isActive: true,
+      allowRefreshTokens: true,
+      accessTokenTtlSec: 3600,
+      refreshTokenTtlSec: 86400,
+      firstParty: false,
+      ...doc,
+      _id: 'cid-' + (++clientSeq),
+      allowsRedirect(u) { return this.redirectUris.includes(u); },
+      verifySecret() { return false; },
+      save: async () => {}
+    };
+    clients.set(c.clientId, c);
+    return c;
+  },
+  find: () => ({ sort: async () => [...clients.values()].filter((c) => c._id !== 'cid') }),
   hashSecret: (s) => crypto.createHash('sha256').update(s).digest('hex')
 });
 
@@ -106,6 +130,52 @@ stub('../models/VlyneRefreshToken', {
 
 stub('../utils/globalAuditLogger', { logGlobalAction: async () => {} });
 
+// Почта и push в тесте только считаются — проверяем, что решение их вызывает.
+const sentMail = [];
+stub('../utils/mail', { sendVlyneAppDecision: async (to, data) => { sentMail.push({ to, ...data }); } });
+stub('../utils/webPush', { pushToModerators: async () => {}, previewText: (t) => t });
+
+// Заявки на подключение.
+const appRequests = new Map();
+let reqSeq = 0;
+function makeRequest(doc) {
+  const r = {
+    _id: 'req-' + (++reqSeq),
+    status: 'pending', messages: [], moderator: null, decidedAt: null, client: null,
+    createdAt: new Date(), updatedAt: new Date(),
+    ...doc,
+    isOpen() { return this.status === 'pending' || this.status === 'changes_requested'; },
+    toObject() { return { ...this }; },
+    populate: async () => r,
+    save: async () => { appRequests.set(String(r._id), r); return r; }
+  };
+  appRequests.set(String(r._id), r);
+  return r;
+}
+stub('../models/VlyneAppRequest', {
+  create: async (doc) => makeRequest(doc),
+  countDocuments: async (q) => [...appRequests.values()]
+    .filter((r) => String(r.applicant) === String(q.applicant) && q.status.$in.includes(r.status)).length,
+  findById: (id) => {
+    const r = appRequests.get(String(id)) || null;
+    const chain = Object.assign(Promise.resolve(r), { populate: () => chain });
+    return chain;
+  },
+  find: (q) => {
+    let rows = [...appRequests.values()];
+    if (q.applicant) rows = rows.filter((r) => String(r.applicant) === String(q.applicant));
+    if (q.status && q.status.$in) rows = rows.filter((r) => q.status.$in.includes(r.status));
+    else if (q.status) rows = rows.filter((r) => r.status === q.status);
+    const chain = {
+      populate: () => chain,
+      sort: () => chain,
+      limit: () => chain,
+      then: (res, rej) => Promise.resolve(rows).then(res, rej)
+    };
+    return chain;
+  }
+});
+
 // Журнал действий для личного кабинета.
 const auditEntries = [
   { _id: 'a1', executor: USER._id, action: 'USER_LOGIN', details: {}, createdAt: new Date('2026-09-10T10:00:00Z') },
@@ -127,8 +197,11 @@ stub('../models/GlobalAuditLog', {
 
 // Аутентификация Zvon: в тесте достаточно заголовка с именем пользователя.
 stub('../middleware/auth', (req, res, next) => {
-  if (req.header('X-Test-User') !== 'yes') return res.status(401).json({ message: 'No token' });
-  req.user = USER;
+  const who = req.header('X-Test-User');
+  if (!who) return res.status(401).json({ message: 'No token' });
+  // «mod» — тот же тест, но от лица модератора: так проверяются обе стороны
+  // разбора заявки, не поднимая второго пользователя по-настоящему.
+  req.user = who === 'mod' ? MODERATOR : USER;
   req.sessionId = 'sess-1';
   next();
 });
@@ -291,6 +364,91 @@ async function run() {
   await fetch(`${B}/api/vlyne-id/grants/vlyne_test`, { method: 'DELETE', headers: { 'X-Test-User': 'yes', Authorization: 'Bearer test' } });
   const info3 = await (await fetch(`${B}/api/vlyne-id/requests/${rid2}`, { headers: { 'X-Test-User': 'yes', Authorization: 'Bearer test' } })).json();
   ok('после отзыва согласие спрашивается заново', info3.autoApprove === false);
+
+  // --- 9. заявка на подключение: подача, вопросы, одобрение ---
+  const H = { 'Content-Type': 'application/json', 'X-Test-User': 'yes', Authorization: 'Bearer test' };
+  const M = { 'Content-Type': 'application/json', 'X-Test-User': 'mod', Authorization: 'Bearer test' };
+
+  const thin = await fetch(`${B}/api/vlyne-id/applications`, {
+    method: 'POST', headers: H,
+    body: JSON.stringify({ name: 'App', purpose: 'коротко', redirectUris: ['https://a.example/cb'], requestedScopes: ['profile'] })
+  });
+  ok('заявка без внятного обоснования отклонена', thin.status === 400);
+
+  const badUri = await fetch(`${B}/api/vlyne-id/applications`, {
+    method: 'POST', headers: H,
+    body: JSON.stringify({
+      name: 'App', purpose: 'Сервис расписаний для студентов, нужен вход и имя пользователя.',
+      redirectUris: ['не-адрес'], requestedScopes: ['profile']
+    })
+  });
+  ok('заявка с битым адресом возврата отклонена', badUri.status === 400);
+
+  const created = await fetch(`${B}/api/vlyne-id/applications`, {
+    method: 'POST', headers: H,
+    body: JSON.stringify({
+      name: 'Расписание', description: 'Расписание занятий',
+      purpose: 'Сервис расписаний для студентов. Имя и аватар нужны, чтобы подписывать комментарии.',
+      redirectUris: ['https://raspisanie.example/auth/callback'],
+      requestedScopes: ['profile', 'email'], type: 'confidential'
+    })
+  });
+  const app1 = await created.json();
+  ok('заявка принята', created.status === 201 && app1.status === 'pending', JSON.stringify(app1));
+  ok('openid добавляется сам', app1.requestedScopes.includes('openid'));
+
+  const queue = await (await fetch(`${B}/api/vlyne-id/admin/applications`, { headers: M })).json();
+  ok('заявка видна модератору', queue.some((r) => r.id === app1.id), JSON.stringify(queue).slice(0, 200));
+
+  const notMod = await fetch(`${B}/api/vlyne-id/admin/applications`, { headers: H });
+  ok('очередь заявок закрыта от обычного пользователя', notMod.status === 403);
+
+  const silentReject = await fetch(`${B}/api/vlyne-id/admin/applications/${app1.id}/decision`, {
+    method: 'POST', headers: M, body: JSON.stringify({ action: 'reject' })
+  });
+  ok('отказ без объяснения не принимается', silentReject.status === 400);
+
+  const questions = await fetch(`${B}/api/vlyne-id/admin/applications/${app1.id}/decision`, {
+    method: 'POST', headers: M,
+    body: JSON.stringify({ action: 'request_changes', comment: 'Зачем вам почта?' })
+  });
+  const afterQ = await questions.json();
+  ok('модератор может задать вопросы', questions.status === 200 && afterQ.status === 'changes_requested');
+  ok('вопрос ушёл письмом', sentMail.some((m) => m.status === 'changes_requested'), JSON.stringify(sentMail));
+
+  const answered = await fetch(`${B}/api/vlyne-id/applications/${app1.id}/messages`, {
+    method: 'POST', headers: H, body: JSON.stringify({ text: 'Почта нужна для уведомлений об изменениях.' })
+  });
+  const afterA = await answered.json();
+  ok('ответ возвращает заявку в очередь', answered.status === 200 && afterA.status === 'pending');
+  ok('переписка сохраняется целиком', afterA.messages.length === 2);
+
+  const approved = await fetch(`${B}/api/vlyne-id/admin/applications/${app1.id}/decision`, {
+    method: 'POST', headers: M, body: JSON.stringify({ action: 'approve', comment: 'Годится' })
+  });
+  const done = await approved.json();
+  ok('одобрение создаёт приложение само', approved.status === 200 && done.status === 'approved' && !!done.clientId, JSON.stringify(done));
+  ok('решение ушло письмом заявителю', sentMail.some((m) => m.status === 'approved' && m.to === USER.email));
+
+  // Главная проверка: созданное приложение работает, руками ничего не заводили.
+  const newId = done.clientId;
+  const v3 = b64url(crypto.randomBytes(48));
+  const c3 = b64url(crypto.createHash('sha256').update(v3).digest());
+  const authNew = await fetch(`${B}/oauth/authorize?client_id=${newId}`
+    + `&redirect_uri=${encodeURIComponent('https://raspisanie.example/auth/callback')}`
+    + `&response_type=code&scope=${encodeURIComponent('openid profile email')}`
+    + `&code_challenge=${c3}&code_challenge_method=S256`, { redirect: 'manual' });
+  ok('созданное приложение сразу работает', authNew.status === 302 && (authNew.headers.get('location') || '').includes('/vlyne/authorize'), String(authNew.status));
+
+  const overreach = await fetch(`${B}/oauth/authorize?client_id=${newId}`
+    + `&redirect_uri=${encodeURIComponent('https://raspisanie.example/auth/callback')}`
+    + `&response_type=code&scope=vpn%3Amanage&code_challenge=${c3}&code_challenge_method=S256`, { redirect: 'manual' });
+  ok('права сверх одобренных отклоняются', (overreach.headers.get('location') || '').includes('error=invalid_scope'));
+
+  const twiceDecided = await fetch(`${B}/api/vlyne-id/admin/applications/${app1.id}/decision`, {
+    method: 'POST', headers: M, body: JSON.stringify({ action: 'reject', comment: 'ещё раз' })
+  });
+  ok('повторное решение по заявке отклонено', twiceDecided.status === 409);
 
   console.log('');
   if (fails) { console.error(`Провалено: ${fails}`); process.exitCode = 1; }

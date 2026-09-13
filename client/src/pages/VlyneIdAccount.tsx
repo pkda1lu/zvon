@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
 import VlyneIdNav from '../components/VlyneIdNav';
 import VibeBackground from '../components/VibeBackground';
+import VlyneIdSignIn from '../components/VlyneIdSignIn';
 import './VlyneIdDocs.css';
 import './VlyneIdAccount.css';
 
@@ -78,104 +79,6 @@ const flag = (code?: string) => {
     return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(c.charCodeAt(0) + 127397));
 };
 
-// ===== Вход =====
-
-const SignIn: React.FC = () => {
-    const { login, verifyLogin } = useAuth();
-    const [step, setStep] = useState<'password' | 'code'>('password');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [code, setCode] = useState('');
-    const [error, setError] = useState('');
-    const [busy, setBusy] = useState(false);
-
-    const submit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        setBusy(true);
-        try {
-            if (step === 'password') {
-                const data = await login(email, password);
-                // Двухфакторная включена — сервер не выдал токен, а прислал
-                // признак и адрес, на который ушёл код.
-                if (data?.requires2FA) {
-                    setEmail(data.email || email);
-                    setStep('code');
-                }
-            } else {
-                await verifyLogin(email, code);
-            }
-        } catch (err: any) {
-            setError(err?.response?.data?.message || 'Не удалось войти. Проверьте данные.');
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    return (
-        <div className="vida-signin">
-            <motion.form
-                className="vida-signin-card"
-                onSubmit={submit}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            >
-                <h1>Личный кабинет</h1>
-                <p className="vida-signin-lead">
-                    Это тот же аккаунт, что и в Zvon: отдельной регистрации не нужно.
-                </p>
-
-                {step === 'password' ? (
-                    <>
-                        <label className="vida-field">
-                            <span>Почта или имя пользователя</span>
-                            <input
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                autoComplete="username"
-                                required
-                            />
-                        </label>
-                        <label className="vida-field">
-                            <span>Пароль</span>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                autoComplete="current-password"
-                                required
-                            />
-                        </label>
-                    </>
-                ) : (
-                    <label className="vida-field">
-                        <span>Код из письма</span>
-                        <input
-                            value={code}
-                            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            required
-                        />
-                    </label>
-                )}
-
-                {error && <div className="vida-error">{error}</div>}
-
-                <button className="vidoc-btn vidoc-btn-primary vida-submit" type="submit" disabled={busy}>
-                    {busy ? 'Подождите…' : step === 'password' ? 'Войти' : 'Подтвердить'}
-                </button>
-
-                <p className="vida-signin-note">
-                    Пароль проверяется тем же сервером, что и в Zvon. Забыли — восстановите
-                    на <a href="https://zvonserver.ru/login">zvonserver.ru</a>.
-                </p>
-            </motion.form>
-        </div>
-    );
-};
-
 // ===== Кабинет =====
 
 const VlyneIdAccount: React.FC = () => {
@@ -195,6 +98,12 @@ const VlyneIdAccount: React.FC = () => {
     // На поддомене разделы живут в корне, на основном домене — под /vlyneid.
     const homePath = /^vlyneid\./i.test(window.location.hostname) ? '/' : '/vlyneid';
 
+    // Счётчики для шапки. Тянутся один раз и отдельно от вкладок: сводка нужна
+    // сразу, а вкладки грузятся лениво и до открытия ничего не знают.
+    const [counts, setCounts] = useState<{ devices: number | null; apps: number | null }>({
+        devices: null, apps: null
+    });
+
     const loadActivity = useCallback(async (before?: string | null) => {
         const { data } = await axios.get('/api/vlyne-id/activity', {
             params: { limit: 30, ...(before ? { before } : {}) }
@@ -203,6 +112,26 @@ const VlyneIdAccount: React.FC = () => {
         setActivityMore(data.hasMore);
         setActivityCursor(data.nextBefore);
     }, []);
+
+    useEffect(() => {
+        if (!token) return;
+        let cancelled = false;
+        Promise.all([
+            axios.get('/api/sessions').catch(() => null),
+            axios.get('/api/vlyne-id/grants').catch(() => null)
+        ]).then(([s1, s2]) => {
+            if (cancelled) return;
+            setCounts({
+                devices: s1 ? (s1.data || []).length : null,
+                apps: s2 ? (s2.data || []).length : null
+            });
+            // Раз уж данные пришли — кладём их и во вкладки, чтобы при переходе
+            // не показывать крутилку ради уже полученного.
+            if (s1) { setSessions(s1.data || []); setLoaded((p) => ({ ...p, devices: true })); }
+            if (s2) { setApps(s2.data || []); setLoaded((p) => ({ ...p, apps: true })); }
+        });
+        return () => { cancelled = true; };
+    }, [token]);
 
     // Каждая вкладка тянет своё и только один раз: открывать четыре запроса
     // на входе в кабинет незачем, большинство уйдёт впустую.
@@ -317,27 +246,68 @@ const VlyneIdAccount: React.FC = () => {
                 <VibeBackground />
                 <div className="vidoc-above">
                     <VlyneIdNav actions={[{ label: 'О Vlyne ID', to: homePath }]} />
-                    <SignIn />
+                    <VlyneIdSignIn />
                 </div>
             </div>
         );
     }
 
     const u = user as any;
+    const daysWithAccount = u.createdAt
+        ? Math.max(0, Math.floor((Date.now() - new Date(u.createdAt).getTime()) / 86400000))
+        : null;
 
     return (
         <div className="vidoc">
             <VlyneIdNav actions={[{ label: 'О Vlyne ID', to: homePath }]} />
 
             <div className="vida-wrap">
-                <header className="vida-head">
-                    <img className="vida-avatar" src={getAvatarUrl(u.avatar) || undefined} alt="" />
-                    <div className="vida-head-text">
-                        <h1>{u.username}</h1>
-                        <div className="vida-head-sub">{u.email}</div>
+                <motion.header
+                    className="vida-hero"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                >
+                    <div className="vida-hero-glow" />
+                    <div className="vida-hero-row">
+                        <div className="vida-avatar-ring">
+                            <img className="vida-avatar" src={getAvatarUrl(u.avatar) || undefined} alt="" />
+                        </div>
+                        <div className="vida-head-text">
+                            <h1>{u.username}</h1>
+                            <div className="vida-head-sub">{u.email}</div>
+                            {/* Идентификатор — на самом видном месте: это главное,
+                                что отличает Vlyne ID от обычных настроек профиля. */}
+                            <button className="vida-id-pill" onClick={copyId} title="Скопировать Vlyne ID">
+                                <span className="vida-id-pill-label">Vlyne ID</span>
+                                <code>{String(u._id)}</code>
+                                <span className="vida-id-pill-action">{copied ? '✓' : 'копировать'}</span>
+                            </button>
+                        </div>
+                        <button className="vidoc-btn vidoc-btn-ghost vida-logout" onClick={logout}>Выйти</button>
                     </div>
-                    <button className="vidoc-btn vidoc-btn-ghost" onClick={logout}>Выйти</button>
-                </header>
+
+                    <div className="vida-stats">
+                        <div className="vida-stat">
+                            <div className="vida-stat-n">{counts.devices ?? '—'}</div>
+                            <div className="vida-stat-l">устройств</div>
+                        </div>
+                        <div className="vida-stat">
+                            <div className="vida-stat-n">{counts.apps ?? '—'}</div>
+                            <div className="vida-stat-l">приложений</div>
+                        </div>
+                        <div className="vida-stat">
+                            <div className="vida-stat-n">{daysWithAccount ?? '—'}</div>
+                            <div className="vida-stat-l">дней с аккаунтом</div>
+                        </div>
+                        <div className="vida-stat">
+                            <div className={`vida-stat-n ${u.is2FAEnabled ? 'ok' : 'warn'}`}>
+                                {u.is2FAEnabled ? 'вкл' : 'выкл'}
+                            </div>
+                            <div className="vida-stat-l">двухфакторная</div>
+                        </div>
+                    </div>
+                </motion.header>
 
                 <div className="vida-tabs">
                     {TABS.map(([id, label]) => (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import VlyneIdNav from '../components/VlyneIdNav';
 import VibeBackground from '../components/VibeBackground';
 import './VlyneIdLanding.css';
@@ -107,6 +108,7 @@ const FAQ = [
 
 const VlyneIdLanding: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [openFaq, setOpenFaq] = useState<number | null>(0);
 
     const isSubdomain = /^vlyneid\./i.test(window.location.hostname);
@@ -121,9 +123,11 @@ const VlyneIdLanding: React.FC = () => {
             <VibeBackground />
 
             <div className="vidl-content">
+                {/* Одно действие, а не два: и «Войти», и «Личный кабинет» вели
+                    в одно и то же место. Подпись зависит от того, вошёл ли
+                    человек — вошедшему предлагать войти незачем. */}
                 <VlyneIdNav actions={[
-                    { label: 'Личный кабинет', to: accountPath },
-                    { label: 'Войти', to: accountPath, primary: true }
+                    { label: user ? 'Личный кабинет' : 'Войти', to: accountPath, primary: true }
                 ]} />
 
                 {/* ===== Первый экран ===== */}
@@ -150,7 +154,7 @@ const VlyneIdLanding: React.FC = () => {
 
                         <motion.div className="vidl-hero-actions" variants={fadeUp} custom={3}>
                             <button className="vidl-btn vidl-btn-primary" onClick={() => navigate(accountPath)}>
-                                Открыть личный кабинет
+                                {user ? 'Открыть личный кабинет' : 'Войти в личный кабинет'}
                             </button>
                             <button className="vidl-btn vidl-btn-ghost" onClick={() => scrollTo('how')}>
                                 Как это работает

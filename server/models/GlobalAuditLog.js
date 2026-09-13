@@ -34,7 +34,10 @@ const globalAuditLogSchema = new mongoose.Schema({
       // logGlobalAction гасил ошибку. В итоге выгрузка и обезличивание данных
       // нигде не фиксировались, хотя именно их журналировать и обязаны.
       'PD_EXPORT',
-      'PD_ACCOUNT_ANONYMIZED'
+      'PD_ACCOUNT_ANONYMIZED',
+      // Заявки на подключение приложений к Vlyne ID: кто подал и кто решил.
+      'VLYNE_APP_SUBMIT',
+      'VLYNE_APP_DECISION'
     ]
   },
   target: {

@@ -20,6 +20,7 @@ const VlyneAuthorize = React.lazy(() => import('./pages/VlyneAuthorize'));
 const VlyneIdLanding = React.lazy(() => import('./pages/VlyneIdLanding'));
 const VlyneIdDocs = React.lazy(() => import('./pages/VlyneIdDocs'));
 const VlyneIdAccount = React.lazy(() => import('./pages/VlyneIdAccount'));
+const VlyneIdDevCabinet = React.lazy(() => import('./pages/VlyneIdDevCabinet'));
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
 import { useEffect } from 'react';
@@ -297,12 +298,16 @@ const AnimatedRoutes: React.FC = () => {
           <Route path="/vlyne/authorize" element={<PageShell><VlyneAuthorize /></PageShell>} />
           <Route path="/vlyneid" element={<PageShell><VlyneIdLanding /></PageShell>} />
           <Route path="/vlyneid/developers" element={<PageShell><VlyneIdDocs /></PageShell>} />
+          <Route path="/vlyneid/developers/cabinet" element={<PageShell><VlyneIdDevCabinet /></PageShell>} />
           <Route path="/vlyneid/account" element={<PageShell><VlyneIdAccount /></PageShell>} />
           {isVlyneIdHost && (
             <Route path="/account" element={<PageShell><VlyneIdAccount /></PageShell>} />
           )}
           {isVlyneIdHost && (
             <Route path="/developers" element={<PageShell><VlyneIdDocs /></PageShell>} />
+          )}
+          {isVlyneIdHost && (
+            <Route path="/developers/cabinet" element={<PageShell><VlyneIdDevCabinet /></PageShell>} />
           )}
           <Route path="/"        element={<PageShell>{isVlyneIdHost ? <VlyneIdLanding /> : <Home />}</PageShell>} />
           <Route path="/*"       element={<PageShell><Home /></PageShell>} />

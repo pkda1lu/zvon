@@ -208,8 +208,62 @@ const sendEmailChangeCode = async (email, code, brandName = 'Zvon') => {
   });
 };
 
+
+/**
+ * Решение по заявке на подключение приложения к Vlyne ID.
+ *
+ * Письмо, а не только отметка в кабинете: разработчик не сидит на странице
+ * заявки в ожидании ответа, а решение может занять дни. Текст решения
+ * передаётся целиком — «одобрено/отклонено» без причины вынуждает писать в
+ * поддержку и спрашивать то же самое словами.
+ */
+const sendVlyneAppDecision = async (email, { appName, status, comment, cabinetUrl }) => {
+  checkConfig();
+
+  const titles = {
+    approved: 'Заявка одобрена',
+    rejected: 'Заявка отклонена',
+    changes_requested: 'Нужны уточнения по заявке',
+  };
+  const intros = {
+    approved: `Приложение «${appName}» подключено к Vlyne ID. Идентификатор приложения и секрет ждут вас в кабинете разработчика.`,
+    rejected: `Заявка на подключение «${appName}» отклонена.`,
+    changes_requested: `По заявке на подключение «${appName}» остались вопросы. Ответьте на них в кабинете — заявку не нужно подавать заново.`,
+  };
+  const colors = { approved: '#23a559', rejected: '#f04747', changes_requested: '#faa61a' };
+
+  const title = titles[status] || 'Обновление по заявке';
+  const color = colors[status] || '#5865F2';
+
+  await transporter.sendMail({
+    from: fromAddress('Vlyne ID'),
+    to: email,
+    subject: `${title}: ${appName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+        <h2 style="color: ${color}; text-align: center;">${title}</h2>
+        <p>${intros[status] || ''}</p>
+        ${comment ? `<div style="margin: 24px 0; padding: 16px; background: #f6f6f8; border-left: 3px solid ${color}; border-radius: 6px; white-space: pre-wrap;">${escapeHtml(comment)}</div>` : ''}
+        ${cabinetUrl ? `<div style="text-align: center; margin: 30px 0;">
+          <a href="${cabinetUrl}" style="display: inline-block; padding: 12px 28px; background: ${color}; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Открыть кабинет разработчика</a>
+        </div>` : ''}
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">Это письмо отправлено по заявке, поданной в Vlyne ID.</p>
+      </div>
+    `,
+  });
+};
+
+/** Текст решения пишет человек — в письмо он попадает как текст, не как разметка. */
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 module.exports = {
   sendVerificationEmail,
+  sendVlyneAppDecision,
   sendLoginCode,
   verifyConnection,
   sendResetCode,

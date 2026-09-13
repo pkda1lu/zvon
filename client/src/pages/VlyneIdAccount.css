@@ -27,27 +27,129 @@
 
 /* ===== Шапка аккаунта ===== */
 
-.vida-head {
+/* Карточка, а не строка: кабинет открывают, чтобы посмотреть на свой аккаунт,
+   и первое, что видно, должно выглядеть как он, а не как заголовок раздела. */
+.vida-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 28px;
+    margin-bottom: 28px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--vid-border);
+    border-radius: 22px;
+}
+
+.vida-hero-glow {
+    position: absolute;
+    top: -140px;
+    right: -80px;
+    width: 420px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(124, 140, 255, 0.25), transparent 65%);
+    filter: blur(30px);
+    pointer-events: none;
+}
+
+.vida-hero-row {
+    position: relative;
     display: flex;
-    align-items: center;
-    gap: 16px;
-    padding-bottom: 24px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid var(--vid-border);
+    align-items: flex-start;
+    gap: 18px;
+}
+
+/* Кольцо вокруг аватара повторяет градиент экосистемы — тот же приём, что на
+   главной, чтобы кабинет читался как её продолжение. */
+.vida-avatar-ring {
+    flex-shrink: 0;
+    padding: 2px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00e5ff, #a155ff 55%, #ff6ec4);
 }
 
 .vida-avatar {
-    width: 56px;
-    height: 56px;
+    display: block;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     object-fit: cover;
     background: #1a1c25;
-    flex-shrink: 0;
+    border: 2px solid #0a0b0f;
 }
 
 .vida-head-text { flex: 1; min-width: 0; }
-.vida-head-text h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.vida-head-text h1 { margin: 0 0 2px; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
 .vida-head-sub { color: var(--vid-dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+
+.vida-logout { flex-shrink: 0; }
+
+/* Идентификатор целиком — кнопка: по нему чаще всего кликают, чтобы скопировать. */
+.vida-id-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    margin-top: 12px;
+    padding: 7px 12px;
+    font-family: inherit;
+    background: rgba(124, 140, 255, 0.09);
+    border: 1px solid rgba(124, 140, 255, 0.22);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.vida-id-pill:hover { background: rgba(124, 140, 255, 0.16); border-color: rgba(124, 140, 255, 0.4); }
+
+.vida-id-pill-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--vid-faint);
+}
+
+.vida-id-pill code {
+    font-family: 'Fira Code', ui-monospace, monospace;
+    font-size: 12.5px;
+    color: #b6c0ff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vida-id-pill-action { font-size: 11.5px; color: var(--vid-faint); white-space: nowrap; }
+
+/* ===== Сводка ===== */
+
+.vida-stats {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.vida-stat {
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+}
+
+.vida-stat-n {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #8fb4ff, #c08bff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.vida-stat-n.ok { background: none; color: #8be8b0; -webkit-text-fill-color: #8be8b0; }
+.vida-stat-n.warn { background: none; color: #f0c274; -webkit-text-fill-color: #f0c274; }
+
+.vida-stat-l { margin-top: 2px; font-size: 12px; color: var(--vid-faint); }
 
 /* ===== Вкладки ===== */
 
@@ -76,9 +178,10 @@
 .vida-tabs button:hover { color: var(--vid-text); }
 
 .vida-tabs button.active {
-    color: var(--vid-accent);
-    background: rgba(124, 140, 255, 0.1);
-    border-color: rgba(124, 140, 255, 0.3);
+    color: #fff;
+    background: linear-gradient(135deg, #006aff, #7000ff);
+    border-color: transparent;
+    box-shadow: 0 6px 20px rgba(0, 106, 255, 0.28);
 }
 
 .vida-section-lead {
@@ -97,12 +200,15 @@
 }
 
 .vida-card {
-    padding: 20px;
+    padding: 22px;
     margin-bottom: 16px;
     background: var(--vid-surface);
     border: 1px solid var(--vid-border);
-    border-radius: 14px;
+    border-radius: 16px;
+    transition: border-color 0.2s, background 0.2s;
 }
+
+.vida-card:hover { border-color: rgba(124, 140, 255, 0.28); background: rgba(124, 140, 255, 0.035); }
 
 .vida-grid .vida-card { margin-bottom: 0; }
 
@@ -185,6 +291,8 @@
 
 .vida-badge.ok { color: #8be8b0; background: rgba(16, 185, 129, 0.14); }
 .vida-badge.warn { color: #f0c274; background: rgba(245, 158, 11, 0.14); }
+.vida-badge.bad { color: #f08a8a; background: rgba(240, 138, 138, 0.14); }
+.vida-badge.wait { color: #9fb4ff; background: rgba(124, 140, 255, 0.14); }
 
 /* ===== Списки ===== */
 
@@ -203,6 +311,8 @@
 }
 
 .vida-row:last-child { border-bottom: none; }
+.vida-row { transition: background 0.15s; }
+.vida-row:hover { background: rgba(255, 255, 255, 0.02); }
 
 .vida-row-body { flex: 1; min-width: 0; }
 
@@ -356,6 +466,11 @@
 
 @media (max-width: 720px) {
     .vida-wrap { padding: 28px 20px 60px; }
+    .vida-hero { padding: 22px 18px; }
+    .vida-hero-row { flex-wrap: wrap; }
+    .vida-logout { order: -1; margin-left: auto; }
+    /* Четыре плитки в ряд на телефоне превращаются в нечитаемые столбики. */
+    .vida-stats { grid-template-columns: 1fr 1fr; }
 
     /* Действие уезжает под текст: на телефоне колонка справа сжимает
        название устройства до нечитаемого огрызка. */

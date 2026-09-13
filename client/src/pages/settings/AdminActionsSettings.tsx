@@ -17,6 +17,8 @@ const ACTION_MAP: Record<string, string> = {
     'VLYNE_ID_REVOKE': 'Отзыв доступа Vlyne ID',
     'PD_EXPORT': 'Выгрузка персональных данных',
     'PD_ACCOUNT_ANONYMIZED': 'Обезличивание аккаунта',
+    'VLYNE_APP_SUBMIT': 'Заявка на подключение к Vlyne ID',
+    'VLYNE_APP_DECISION': 'Решение по заявке Vlyne ID',
     'USER_DELETE': 'Удаление аккаунта',
     'USER_BLOCK': 'Блокировка аккаунта',
     'USER_UNBLOCK': 'Разблокировка аккаунта',
