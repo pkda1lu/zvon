@@ -83,10 +83,16 @@ Zvon уже лежит в этом браузере: «войти в друго�
 | `openid` | `sub` — постоянный идентификатор аккаунта |
 | `profile` | имя, аватар, баннер, описание |
 | `email` | почта и признак подтверждения |
-| `telegram` | привязка к Telegram (нужна VPN-подписке) |
-| `vpn:read` | состояние подписки |
-| `vpn:manage` | покупка и продление |
+| `telegram` | привязка к Telegram: идентификатор и имя |
 | `offline_access` | долгий вход (refresh-токен) |
+
+**Список закрыт границей предметной области.** Vlyne ID отвечает за вход и за
+данные самого аккаунта — имя, почту, привязки. Подписки, платежи и прочее
+принадлежат своим сервисам, и права на них выдаёт тот, кто ими распоряжается.
+Единый вход, который заодно раздаёт доступ к чужим предметным областям,
+перестаёт быть входом и становится общей связкой ключей от всего: тогда любая
+ошибка в нём стоит не «чужой сервис узнал ник», а «чужой сервис купил подписку
+за ваши деньги».
 
 ## Эндпоинты
 
@@ -304,7 +310,7 @@ node server/scripts/vlyneClient.js create \
 node server/scripts/vlyneClient.js create \
   --name "Vlyne VPN" --type confidential \
   --redirect "https://bot.vlyne.ru/oauth/callback" \
-  --scopes openid,profile,telegram,vpn:read,vpn:manage \
+  --scopes openid,profile,telegram \
   --first-party
 ```
 
@@ -429,7 +435,7 @@ const res  = await id.fetch('/api/что-то');   // токен подстав�
 const { VlyneVerifier } = require('./vlyne-id/node');
 const verifier = new VlyneVerifier({ issuer: 'https://vlyneid.zvonserver.ru', audience: 'vlyne_xxx' });
 
-app.get('/api/subscription', verifier.middleware({ scopes: ['vpn:read'] }), (req, res) => {
+app.get('/api/profile', verifier.middleware({ scopes: ['profile'] }), (req, res) => {
   // req.vlyne = { sub, clientId, scopes, claims }
 });
 ```
@@ -447,7 +453,7 @@ from vlyne_id import VlyneVerifier, VlyneTokenError
 verifier = VlyneVerifier("https://vlyneid.zvonserver.ru", audience="vlyne_xxx")
 
 try:
-    claims = verifier.verify(token, require_scopes=["vpn:read"])
+    claims = verifier.verify(token, require_scopes=["profile"])
 except VlyneTokenError as e:
     return {"ok": False, "error": str(e)}
 
@@ -472,6 +478,11 @@ zvon_id = claims["sub"]   # ровно то, что бот уже хранит �
 С Vlyne ID запрос несёт токен **самого пользователя**, подписанный ключом,
 который у бота есть только в публичной половине. `sub` при этом совпадает с
 нынешним `zvonId`, то есть переход не требует миграции данных.
+
+Важно, чем этот переход НЕ является: Vlyne ID не начинает распоряжаться
+VPN-подпиской. Он отвечает ровно на вопрос «кто пришёл» — что этому человеку
+можно делать с подпиской, по-прежнему решает бот, у которого она и живёт.
+Прав вида `vpn:*` в справочнике нет намеренно.
 
 Порядок перехода — по одному шагу, без «большого дня икс»:
 

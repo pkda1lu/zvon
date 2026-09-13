@@ -17,7 +17,7 @@ Vlyne ID — проверка токенов на стороне ресурса 
     verifier = VlyneVerifier("https://vlyneid.zvonserver.ru", audience="vlyne_xxx")
 
     try:
-        claims = verifier.verify(token, require_scopes=["vpn:read"])
+        claims = verifier.verify(token, require_scopes=["profile"])
     except VlyneTokenError as e:
         return {"ok": False, "error": str(e)}
 

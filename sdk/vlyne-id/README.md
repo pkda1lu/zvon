@@ -47,12 +47,12 @@ await id.logoutRemote();        // выход с отзывом refresh-токе
 const { VlyneVerifier } = require('./vlyne-id/node');
 const verifier = new VlyneVerifier({ issuer: 'https://vlyneid.zvonserver.ru', audience: 'vlyne_xxx' });
 
-app.get('/api/subscription', verifier.middleware({ scopes: ['vpn:read'] }), (req, res) => {
+app.get('/api/profile', verifier.middleware({ scopes: ['profile'] }), (req, res) => {
   req.vlyne; // { sub, clientId, scopes, claims }
 });
 
 // или вручную
-const claims = await verifier.verify(token, { requireScopes: ['vpn:read'] });
+const claims = await verifier.verify(token, { requireScopes: ['profile'] });
 ```
 
 ## python/vlyne_id.py
@@ -63,7 +63,7 @@ from vlyne_id import VlyneVerifier, VlyneTokenError, VlyneScopeError
 verifier = VlyneVerifier("https://vlyneid.zvonserver.ru", audience="vlyne_xxx")
 
 try:
-    claims = verifier.verify(token, require_scopes=["vpn:read"])
+    claims = verifier.verify(token, require_scopes=["profile"])
 except VlyneScopeError as e:
     ...  # прав не хватает: просить доступ заново, обновление не поможет
 except VlyneTokenError as e:

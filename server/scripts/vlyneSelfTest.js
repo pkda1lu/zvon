@@ -115,7 +115,7 @@ async function main() {
       assert(claims.sub === String(user._id), 'SDK вернул не того пользователя');
 
       let scopeRejected = false;
-      try { await verifier.verify(accessToken, { requireScopes: ['vpn:manage'] }); }
+      try { await verifier.verify(accessToken, { requireScopes: ['offline_access'] }); }
       catch (e) { scopeRejected = e.code === 'insufficient_scope'; }
       assert(scopeRejected, 'SDK не заметил нехватки прав');
     } finally {

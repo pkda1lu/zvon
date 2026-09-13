@@ -12,7 +12,7 @@
  *   const { VlyneVerifier } = require('./vlyne-id/node');
  *   const verifier = new VlyneVerifier({ issuer: 'https://vlyneid.zvonserver.ru', audience: 'vlyne_xxx' });
  *
- *   app.use(verifier.middleware({ scopes: ['vpn:read'] }));
+ *   app.use(verifier.middleware({ scopes: ['profile'] }));
  *   // req.vlyne = { sub, scopes, clientId, claims }
  */
 

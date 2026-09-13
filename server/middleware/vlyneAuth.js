@@ -16,7 +16,7 @@ const { parseScopes } = require('../utils/vlyneScopes');
  * подгружается только если ресурсу он действительно нужен (loadUser).
  *
  *   app.get('/api/что-то',
- *     requireVlyneToken({ scopes: ['vpn:read'] }),
+ *     requireVlyneToken({ scopes: ['profile'] }),
  *     (req, res) => { req.vlyne.sub / req.vlyne.scopes / req.user });
  */
 function requireVlyneToken({ scopes = [], loadUser = true, audience } = {}) {

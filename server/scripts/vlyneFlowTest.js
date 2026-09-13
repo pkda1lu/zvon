@@ -266,7 +266,7 @@ async function run() {
   ok('без PKCE — ошибка возвращается приложению', noPkce.status === 302 && (noPkce.headers.get('location') || '').includes('error=invalid_request'));
 
   // Право вне списка приложения
-  const badScope = await fetch(`${B}/oauth/authorize?client_id=vlyne_test&redirect_uri=${encodeURIComponent('https://app.example/cb')}&response_type=code&scope=vpn%3Amanage&code_challenge=${challenge}`, { redirect: 'manual' });
+  const badScope = await fetch(`${B}/oauth/authorize?client_id=vlyne_test&redirect_uri=${encodeURIComponent('https://app.example/cb')}&response_type=code&scope=telegram&code_challenge=${challenge}`, { redirect: 'manual' });
   ok('нераз­решённое приложению право отклонено', (badScope.headers.get('location') || '').includes('error=invalid_scope'));
 
   // --- 2. экран согласия ---
@@ -442,7 +442,7 @@ async function run() {
 
   const overreach = await fetch(`${B}/oauth/authorize?client_id=${newId}`
     + `&redirect_uri=${encodeURIComponent('https://raspisanie.example/auth/callback')}`
-    + `&response_type=code&scope=vpn%3Amanage&code_challenge=${c3}&code_challenge_method=S256`, { redirect: 'manual' });
+    + `&response_type=code&scope=telegram&code_challenge=${c3}&code_challenge_method=S256`, { redirect: 'manual' });
   ok('права сверх одобренных отклоняются', (overreach.headers.get('location') || '').includes('error=invalid_scope'));
 
   const twiceDecided = await fetch(`${B}/api/vlyne-id/admin/applications/${app1.id}/decision`, {

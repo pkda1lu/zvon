@@ -147,24 +147,26 @@ const VlyneIdModeration: React.FC = () => {
                 приложение — вручную ничего заводить не нужно.
             </p>
 
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
+            {/* Переключатель такой же, как на вкладке «Витрина»: одинаковые по смыслу
+                элементы в одном разделе не должны выглядеть по-разному. */}
+            <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 {FILTERS.map(([id, label]) => (
-                    <button
+                    <div
                         key={id}
                         onClick={() => setFilter(id)}
                         style={{
-                            padding: '7px 14px',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            borderRadius: '8px',
                             cursor: 'pointer',
-                            color: filter === id ? '#fff' : 'var(--text-dim)',
-                            background: filter === id ? 'var(--primary-neon)' : 'transparent',
-                            border: `1px solid ${filter === id ? 'transparent' : 'var(--glass-border)'}`
+                            padding: '10px 20px',
+                            background: filter === id ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)',
+                            color: filter === id ? 'black' : 'white',
+                            borderRadius: '12px',
+                            fontWeight: 600,
+                            fontSize: '14px',
+                            transition: 'all 0.2s'
                         }}
                     >
                         {label}
-                    </button>
+                    </div>
                 ))}
             </div>
 
