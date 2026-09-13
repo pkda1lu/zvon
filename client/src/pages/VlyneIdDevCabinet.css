@@ -247,3 +247,23 @@
     .vdev-item-body { padding: 4px 18px 18px; }
     .vdev-uri-row { flex-direction: column; }
 }
+
+/* Опасное действие отделено от остального и снабжено объяснением: удаление
+   необратимо, а на кнопку рядом с обычными нажимают не глядя. */
+.vdev-danger-zone {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(240, 138, 138, 0.15);
+}
+
+.vdev-danger-zone span {
+    flex: 1;
+    min-width: 200px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--vid-faint);
+}

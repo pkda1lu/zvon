@@ -37,7 +37,8 @@ const globalAuditLogSchema = new mongoose.Schema({
       'PD_ACCOUNT_ANONYMIZED',
       // Заявки на подключение приложений к Vlyne ID: кто подал и кто решил.
       'VLYNE_APP_SUBMIT',
-      'VLYNE_APP_DECISION'
+      'VLYNE_APP_DECISION',
+      'VLYNE_APP_DELETED'
     ]
   },
   target: {

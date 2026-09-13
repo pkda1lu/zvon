@@ -71,7 +71,11 @@ stub('../models/VlyneClient', {
     clients.set(c.clientId, c);
     return c;
   },
-  find: () => ({ sort: async () => [...clients.values()].filter((c) => c._id !== 'cid') }),
+  find: (q) => ({ sort: async () => [...clients.values()].filter((c) => !q || !q.createdBy || String(c.createdBy) === String(q.createdBy)) }),
+  deleteOne: async (q) => {
+    for (const [id, c] of clients) if (c._id === q._id) clients.delete(id);
+  },
+  deleteMany: async () => {},
   hashSecret: (s) => crypto.createHash('sha256').update(s).digest('hex')
 });
 
@@ -111,6 +115,7 @@ stub('../models/VlyneGrant', {
     return g;
   },
   deleteOne: async ({ user, client }) => { grants.delete(`${user}:${client}`); },
+  countGrants: () => grants.size,
   find: () => ({ populate: () => ({ sort: async () => [] }) }),
   deleteMany: async () => {}
 });
@@ -161,6 +166,9 @@ stub('../models/VlyneAppRequest', {
     const chain = Object.assign(Promise.resolve(r), { populate: () => chain });
     return chain;
   },
+  findOne: async (q) => [...appRequests.values()].find(
+    (r) => q.client && String(r.client && r.client._id ? r.client._id : r.client) === String(q.client)
+  ) || null,
   find: (q) => {
     let rows = [...appRequests.values()];
     if (q.applicant) rows = rows.filter((r) => String(r.applicant) === String(q.applicant));
@@ -449,6 +457,48 @@ async function run() {
     method: 'POST', headers: M, body: JSON.stringify({ action: 'reject', comment: 'ещё раз' })
   });
   ok('повторное решение по заявке отклонено', twiceDecided.status === 409);
+
+  // --- 10. жизненный цикл одобренного приложения ---
+  const listed = await (await fetch(`${B}/api/vlyne-id/my-clients`, { headers: H })).json();
+  ok('приложение видно владельцу', listed.some((c) => c.clientId === newId), JSON.stringify(listed));
+
+  const secretPublic = await fetch(`${B}/api/vlyne-id/my-clients/${newId}/secret`, { method: 'POST', headers: H });
+  ok('секрет выпускается только серверному приложению',
+     secretPublic.status === 200 || secretPublic.status === 400, String(secretPublic.status));
+
+  const stateNoReason = await fetch(`${B}/api/vlyne-id/admin/clients/${newId}/state`, {
+    method: 'POST', headers: M, body: JSON.stringify({ active: false })
+  });
+  ok('отзыв без причины не принимается', stateNoReason.status === 400);
+
+  const revoked = await fetch(`${B}/api/vlyne-id/admin/clients/${newId}/state`, {
+    method: 'POST', headers: M, body: JSON.stringify({ active: false, reason: 'Просит больше, чем описано' })
+  });
+  ok('модератор отзывает доступ', revoked.status === 200 && (await revoked.json()).isActive === false);
+
+  const afterRevoke = await fetch(`${B}/oauth/authorize?client_id=${newId}`
+    + `&redirect_uri=${encodeURIComponent('https://raspisanie.example/auth/callback')}`
+    + `&response_type=code&scope=openid&code_challenge=${c3}&code_challenge_method=S256`, { redirect: 'manual' });
+  ok('отозванное приложение больше не пускает', afterRevoke.status === 400, String(afterRevoke.status));
+
+  ok('разработчик узнал об отзыве письмом',
+     sentMail.some((m) => m.comment && m.comment.includes('больше, чем описано')), JSON.stringify(sentMail.slice(-1)));
+
+  const restored = await fetch(`${B}/api/vlyne-id/admin/clients/${newId}/state`, {
+    method: 'POST', headers: M, body: JSON.stringify({ active: true })
+  });
+  ok('доступ возвращается', restored.status === 200 && (await restored.json()).isActive === true);
+
+  const strangerDelete = await fetch(`${B}/api/vlyne-id/my-clients/${CLIENT.clientId}`, { method: 'DELETE', headers: H });
+  ok('чужое приложение удалить нельзя', strangerDelete.status === 403, String(strangerDelete.status));
+
+  const ownDelete = await fetch(`${B}/api/vlyne-id/my-clients/${newId}`, { method: 'DELETE', headers: H });
+  ok('владелец удаляет своё приложение', ownDelete.status === 200, String(ownDelete.status));
+
+  const afterDelete = await fetch(`${B}/oauth/authorize?client_id=${newId}`
+    + `&redirect_uri=${encodeURIComponent('https://raspisanie.example/auth/callback')}`
+    + `&response_type=code&scope=openid&code_challenge=${c3}&code_challenge_method=S256`, { redirect: 'manual' });
+  ok('удалённое приложение не существует', afterDelete.status === 400);
 
   console.log('');
   if (fails) { console.error(`Провалено: ${fails}`); process.exitCode = 1; }

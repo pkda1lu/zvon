@@ -37,6 +37,7 @@ interface AppRequest {
     contactEmail: string;
     messages: Message[];
     clientId: string | null;
+    clientActive: boolean | null;
     createdAt: string;
     applicant: {
         id: string;
@@ -100,6 +101,61 @@ const VlyneIdModeration: React.FC = () => {
     }, []);
 
     useEffect(() => { load(filter); }, [filter, load]);
+
+    /**
+     * Отзыв и возврат доступа уже одобренному приложению.
+     *
+     * Одобрение не должно быть решением навсегда: приложение может начать
+     * вести себя не так, как обещало в заявке. Отключение обратимо и
+     * сохраняет историю — в отличие от удаления.
+     */
+    const setClientState = async (req: AppRequest, active: boolean) => {
+        if (!req.clientId) return;
+        let reason = '';
+        if (!active) {
+            if (!comment.trim()) {
+                alert('Напишите причину отзыва — она уйдёт разработчику письмом.');
+                return;
+            }
+            reason = comment.trim();
+            const ok = await confirm(
+                `Отозвать доступ у «${req.name}»? Приложение перестанет пускать пользователей ` +
+                'немедленно, а выданные ему долгие токены будут погашены.'
+            );
+            if (!ok) return;
+        }
+
+        setBusy(true);
+        try {
+            await axios.post(`/api/vlyne-id/admin/clients/${req.clientId}/state`, { active, reason });
+            setComment('');
+            await load(filter);
+        } catch (err: any) {
+            alert(err?.response?.data?.message || 'Не удалось изменить состояние');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const removeClient = async (req: AppRequest) => {
+        if (!req.clientId) return;
+        const ok = await confirm(
+            `Удалить приложение «${req.name}» насовсем? Все выданные ему доступы пользователей ` +
+            'будут отозваны, а запись о приложении исчезнет. Отменить нельзя — если нужен ' +
+            'обратимый вариант, используйте «Отозвать доступ».'
+        );
+        if (!ok) return;
+
+        setBusy(true);
+        try {
+            await axios.delete(`/api/vlyne-id/admin/clients/${req.clientId}`);
+            await load(filter);
+        } catch (err: any) {
+            alert(err?.response?.data?.message || 'Не удалось удалить приложение');
+        } finally {
+            setBusy(false);
+        }
+    };
 
     const decide = async (req: AppRequest, action: 'approve' | 'reject' | 'request_changes') => {
         if (action !== 'approve' && !comment.trim()) {
@@ -277,10 +333,64 @@ const VlyneIdModeration: React.FC = () => {
                                 )}
 
                                 {req.clientId && (
-                                    <div style={{ fontSize: '13px', marginBottom: '14px' }}>
-                                        <b style={{ color: 'var(--text-dim)' }}>Создано приложение:</b>{' '}
-                                        <code>{req.clientId}</code>
-                                    </div>
+                                    <>
+                                        <div style={{ fontSize: '13px', marginBottom: '14px' }}>
+                                            <b style={{ color: 'var(--text-dim)' }}>Создано приложение:</b>{' '}
+                                            <code>{req.clientId}</code>{' '}
+                                            <span style={{
+                                                padding: '2px 9px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
+                                                color: req.clientActive === false ? '#f04747' : '#23a559',
+                                                background: 'rgba(255,255,255,0.06)'
+                                            }}>
+                                                {req.clientActive === false ? 'доступ отозван' : 'работает'}
+                                            </span>
+                                        </div>
+
+                                        {req.clientActive !== false && (
+                                            <textarea
+                                                value={comment}
+                                                onChange={(e) => setComment(e.target.value)}
+                                                rows={2}
+                                                placeholder="Причина отзыва — уйдёт разработчику письмом"
+                                                style={{
+                                                    width: '100%', padding: '11px 13px', fontFamily: 'inherit', fontSize: '13.5px',
+                                                    color: 'var(--text-normal, #fff)', background: 'rgba(255,255,255,0.04)',
+                                                    border: '1px solid var(--glass-border)', borderRadius: '10px',
+                                                    outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                                                    marginBottom: '12px'
+                                                }}
+                                            />
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                                            {req.clientActive === false ? (
+                                                <button
+                                                    className="settings-btn"
+                                                    style={{ background: '#23a559', color: '#fff', border: 'none' }}
+                                                    disabled={busy}
+                                                    onClick={() => setClientState(req, true)}
+                                                >
+                                                    Вернуть доступ
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className="settings-btn"
+                                                    style={{ background: 'rgba(250,166,26,0.15)', color: '#faa61a', border: '1px solid rgba(250,166,26,0.3)' }}
+                                                    disabled={busy}
+                                                    onClick={() => setClientState(req, false)}
+                                                >
+                                                    Отозвать доступ
+                                                </button>
+                                            )}
+                                            <button
+                                                className="settings-btn settings-btn-danger"
+                                                disabled={busy}
+                                                onClick={() => removeClient(req)}
+                                            >
+                                                Удалить приложение
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
 
                                 {editable && (

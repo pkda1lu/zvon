@@ -730,7 +730,8 @@ const ACTIVITY_LABELS = {
   PD_EXPORT: 'Выгрузка персональных данных',
   PD_ACCOUNT_ANONYMIZED: 'Аккаунт обезличен',
   VLYNE_APP_SUBMIT: 'Подана заявка на подключение приложения',
-  VLYNE_APP_DECISION: 'Решение по заявке на подключение'
+  VLYNE_APP_DECISION: 'Решение по заявке на подключение',
+  VLYNE_APP_DELETED: 'Приложение удалено'
 };
 
 /**
@@ -1158,12 +1159,15 @@ apiRouter.get('/admin/applications', auth, isModerator, async (req, res) => {
     const list = await VlyneAppRequest.find(query)
       .populate('applicant', 'username avatar email createdAt')
       .populate('moderator', 'username')
-      .populate('client', 'clientId')
+      .populate('client', 'clientId isActive')
       .populate('messages.author', 'username')
       .sort({ createdAt: -1 })
       .limit(200);
 
     res.json(list.map((r) => Object.assign(publicRequest(r), {
+      // Модератору важно не только «приложение создано», но и работает ли оно
+      // сейчас: отозванный доступ иначе выглядел бы как действующий.
+      clientActive: r.client ? r.client.isActive !== false : null,
       applicant: r.applicant ? {
         id: r.applicant._id,
         username: r.applicant.username,
@@ -1273,6 +1277,166 @@ apiRouter.post('/admin/applications/:id/decision', auth, isModerator, async (req
     }));
   } catch (err) {
     console.error('[vlyne-id] decision:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * Удаление своего приложения.
+ *
+ * Без этого одобренное приложение было вечным: ошиблись в типе или в адресе
+ * возврата — и исправить нечем, потому что эти поля менять нельзя (они и есть
+ * самое чувствительное место, их проверяет модератор). Значит, нужен хотя бы
+ * выход: удалить и подать заявку заново.
+ *
+ * Удаляется вместе с выданными согласиями и долгими токенами — иначе у людей
+ * в «Подключённых приложениях» остались бы записи, не привязанные ни к чему.
+ */
+apiRouter.delete('/my-clients/:clientId', auth, async (req, res) => {
+  try {
+    const client = await VlyneClient.findOne({ clientId: req.params.clientId });
+    if (!client) return res.status(404).json({ message: 'Приложение не найдено' });
+    if (String(client.createdBy) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Это не ваше приложение' });
+    }
+
+    await VlyneGrant.deleteMany({ client: client._id });
+    await VlyneRefreshToken.deleteMany({ client: client._id });
+    await VlyneClient.deleteOne({ _id: client._id });
+
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'VLYNE_APP_DELETED',
+      targetId: req.user._id,
+      targetModel: 'User',
+      details: { client: client.clientId, name: client.name, by: 'owner' }
+    }).catch(() => {});
+
+    res.json({ message: 'Приложение удалено' });
+  } catch (err) {
+    console.error('[vlyne-id] delete own client:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * Правка безобидных полей своего приложения: название, описание, ссылки.
+ *
+ * Адреса возврата, права и тип здесь править нельзя намеренно — их одобрял
+ * модератор, и тихо поменять их значило бы обойти проверку. Для них — новая
+ * заявка.
+ */
+apiRouter.patch('/my-clients/:clientId', auth, async (req, res) => {
+  try {
+    const client = await VlyneClient.findOne({ clientId: req.params.clientId });
+    if (!client) return res.status(404).json({ message: 'Приложение не найдено' });
+    if (String(client.createdBy) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Это не ваше приложение' });
+    }
+
+    const editable = ['name', 'description', 'logo', 'homepageUrl', 'privacyPolicyUrl'];
+    for (const key of editable) {
+      if (req.body[key] !== undefined) client[key] = req.body[key];
+    }
+    await client.save();
+
+    res.json({ clientId: client.clientId, name: client.name, description: client.description });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ===== Управление одобренными приложениями (модераторы) =====
+
+/**
+ * Отзыв и возврат доступа.
+ *
+ * Одобрение не должно быть решением навсегда: приложение может начать вести
+ * себя не так, как обещало в заявке, и тогда нужен выключатель, а не письмо
+ * администратору. Отключение обратимо и сохраняет историю — в отличие от
+ * удаления, после которого не останется даже следа, что приложение было.
+ */
+apiRouter.post('/admin/clients/:clientId/state', auth, isModerator, async (req, res) => {
+  try {
+    const active = !!(req.body && req.body.active);
+    const reason = String((req.body && req.body.reason) || '').trim();
+
+    const client = await VlyneClient.findOne({ clientId: req.params.clientId });
+    if (!client) return res.status(404).json({ message: 'Приложение не найдено' });
+
+    if (!active && !reason) {
+      return res.status(400).json({ message: 'Объясните отзыв — причина видна разработчику' });
+    }
+
+    client.isActive = active;
+    await client.save();
+
+    // Выключатель обязан гасить и уже выданные долгие токены: иначе
+    // приложение продолжит работать до истечения срока, а модератор будет
+    // считать, что отключил его.
+    if (!active) {
+      await VlyneRefreshToken.updateMany(
+        { client: client._id, revokedAt: null },
+        { $set: { revokedAt: new Date() } }
+      );
+    }
+
+    // Разработчику — письмом: на странице приложения никто не дежурит.
+    const request = await VlyneAppRequest.findOne({ client: client._id });
+    if (request) {
+      if (reason) {
+        request.messages.push({
+          author: req.user._id,
+          role: 'moderator',
+          text: (active ? 'Доступ восстановлен. ' : 'Доступ приложения отозван. ') + reason
+        });
+        await request.save();
+      }
+      const webUrl = (process.env.VLYNE_ID_ISSUER || process.env.CLIENT_URL || '').replace(/\/$/, '');
+      sendVlyneAppDecision(request.contactEmail, {
+        appName: client.name,
+        status: active ? 'approved' : 'rejected',
+        comment: reason,
+        cabinetUrl: webUrl ? `${webUrl}/developers/cabinet` : ''
+      }).catch((e) => console.error('[vlyne-id] письмо об отзыве не ушло:', e.message));
+    }
+
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'VLYNE_APP_DECISION',
+      targetId: client.createdBy,
+      targetModel: 'User',
+      details: { client: client.clientId, name: client.name, status: active ? 'restored' : 'revoked' }
+    }).catch(() => {});
+
+    res.json({ clientId: client.clientId, isActive: client.isActive });
+  } catch (err) {
+    console.error('[vlyne-id] client state:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/** Удаление приложения модератором — вместе с согласиями и токенами. */
+apiRouter.delete('/admin/clients/:clientId', auth, isModerator, async (req, res) => {
+  try {
+    const client = await VlyneClient.findOne({ clientId: req.params.clientId });
+    if (!client) return res.status(404).json({ message: 'Приложение не найдено' });
+
+    await VlyneGrant.deleteMany({ client: client._id });
+    await VlyneRefreshToken.deleteMany({ client: client._id });
+    await VlyneClient.deleteOne({ _id: client._id });
+
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'VLYNE_APP_DELETED',
+      targetId: client.createdBy,
+      targetModel: 'User',
+      details: { client: client.clientId, name: client.name, by: 'moderator' }
+    }).catch(() => {});
+
+    res.json({ message: 'Приложение удалено' });
+  } catch (err) {
+    console.error('[vlyne-id] admin delete client:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

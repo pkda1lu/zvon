@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import VlyneIdNav from '../components/VlyneIdNav';
 import VibeBackground from '../components/VibeBackground';
 import VlyneIdSignIn from '../components/VlyneIdSignIn';
@@ -107,6 +108,7 @@ const emptyForm = {
 
 const VlyneIdDevCabinet: React.FC = () => {
     const { user, token, logout, loading } = useAuth();
+    const { confirm } = useDialog();
     const [tab, setTab] = useState<Tab>('requests');
 
     const [requests, setRequests] = useState<AppRequest[]>([]);
@@ -201,6 +203,30 @@ const VlyneIdDevCabinet: React.FC = () => {
             setReply('');
         } catch (err: any) {
             setNotice(err?.response?.data?.message || 'Не удалось отправить сообщение');
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const removeClient = async (c: OwnClient) => {
+        // Тип и адреса возврата у одобренного приложения менять нельзя — их
+        // проверял модератор. Поэтому ошибку в них исправляют так: удалить и
+        // подать заявку заново. Предупреждаем прямо, что это значит.
+        const ok = await confirm(
+            `Удалить «${c.name}»? Приложение перестанет работать немедленно, а все ` +
+            'выданные ему доступы пользователей будут отозваны. Отменить удаление нельзя — ' +
+            'чтобы подключиться снова, понадобится новая заявка.'
+        );
+        if (!ok) return;
+
+        setBusy(c.clientId);
+        try {
+            await axios.delete(`/api/vlyne-id/my-clients/${c.clientId}`);
+            setNotice(`Приложение «${c.name}» удалено`);
+            if (secret && secret.clientId === c.clientId) setSecret(null);
+            await load();
+        } catch (err: any) {
+            setNotice(err?.response?.data?.message || 'Не удалось удалить приложение');
         } finally {
             setBusy(null);
         }
@@ -437,6 +463,14 @@ const VlyneIdDevCabinet: React.FC = () => {
                                         <dd className="vdev-uris">{c.redirectUris.map((u) => <code key={u}>{u}</code>)}</dd>
                                     </dl>
 
+                                    {c.type === 'public' && (
+                                        <p className="vida-card-text">
+                                            У публичного приложения секрета нет: его код выполняется
+                                            у пользователя, хранить секрет негде. Подлинность
+                                            подтверждается PKCE.
+                                        </p>
+                                    )}
+
                                     {c.type === 'confidential' && (
                                         <div className="vdev-secret">
                                             {secret && secret.clientId === c.clientId ? (
@@ -471,6 +505,20 @@ const VlyneIdDevCabinet: React.FC = () => {
                                             )}
                                         </div>
                                     )}
+
+                                    <div className="vdev-danger-zone">
+                                        <button
+                                            className="vida-danger"
+                                            onClick={() => removeClient(c)}
+                                            disabled={busy === c.clientId}
+                                        >
+                                            Удалить приложение
+                                        </button>
+                                        <span>
+                                            Тип и адреса возврата изменить нельзя — их одобрял модератор.
+                                            Чтобы исправить их, удалите приложение и подайте заявку заново.
+                                        </span>
+                                    </div>
                                 </div>
                             ))}
                         </div>
