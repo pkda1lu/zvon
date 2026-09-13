@@ -9,7 +9,8 @@ Vlyne ID живёт на том же сервере, что и Zvon, и выда
 пользователя, не показывая им пароль.
 
 Публичная витрина и инструкция для сторонних сервисов —
-**<https://vlyneid.zvonserver.ru>** (страница `client/src/pages/VlyneIdDocs.tsx`).
+**<https://vlyneid.zvonserver.ru>**, личный кабинет пользователя —
+**<https://vlyneid.zvonserver.ru/account>**.
 
 ---
 
@@ -105,7 +106,24 @@ Zvon уже лежит в этом браузере: «войти в друго�
 
 Публичная страница с инструкцией доступна по корню поддомена
 (`https://vlyneid.zvonserver.ru`) и по `/vlyneid` на любом домене — удобно для
-ссылок из интерфейса Zvon.
+ссылок из интерфейса Zvon. Личный кабинет — `/account` на поддомене и
+`/vlyneid/account` на основном.
+
+### Личный кабинет
+
+Отвечает на вопрос «кто и откуда пользуется моим аккаунтом»: идентификатор
+Vlyne ID, учётная запись, история действий (`GET /api/vlyne-id/activity`),
+устройства (`/api/sessions`), подключённые приложения (`/api/vlyne-id/grants`)
+и выгрузка персональных данных (`/api/personal-data/export`).
+
+Вход выполняется здесь заново: поддомен — отдельный origin, и токен сессии
+Zvon с основного домена сюда не попадает. Это не недоработка, а то же правило,
+которое защищает вкладки друг от друга; API при этом общий, nginx проксирует
+`/api` на тот же сервер.
+
+История берётся из общего журнала действий с жёстким фильтром по исполнителю.
+Смысл не в отчётности: список входов рядом со списком устройств — самый
+понятный способ заметить, что аккаунтом пользуется кто-то ещё.
 
 ---
 
@@ -133,45 +151,56 @@ VLYNE_ID_WEB_URL=https://zvonserver.ru
 ### 2. Поддомен в nginx
 
 Отдельного процесса не нужно: и `/oauth/*`, и сама страница отдаются тем же
-приложением, что и Zvon, — достаточно ещё одного server-блока.
+приложением, что и Zvon, — нужен только ещё один server-блок.
 
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name vlyneid.zvonserver.ru;
-
-    ssl_certificate     /etc/letsencrypt/live/vlyneid.zvonserver.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/vlyneid.zvonserver.ru/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        # Host обязателен: по нему приложение отличает поддомен Vlyne ID от
-        # основного домена и подставляет нужный заголовок вкладки.
-        # X-Forwarded-Host — запасной вариант на случай, если перед nginx
-        # когда-нибудь встанет ещё один прокси.
-        proxy_set_header Host              $host;
-        proxy_set_header X-Real-IP         $remote_addr;
-        proxy_set_header X-Forwarded-Host  $host;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Отдельный блок нужен не всегда: базовая конфигурация из `server/deploy.sh`
-объявлена как `server_name _`, то есть уже принимает любое имя. Проверить, что
-стоит на сервере сейчас:
+Сначала проверьте, не ловит ли существующая конфигурация любое имя:
 
 ```bash
 grep -R "server_name" /etc/nginx/sites-enabled/
 ```
 
-Если там `_` и HTTPS-блок тоже ловит всё — достаточно выпустить сертификат на
-поддомен. Если certbot сузил `server_name` до `zvonserver.ru` (обычное дело) —
-нужен блок выше.
+Если там перечислены конкретные домены (а не `_`), поддомен сейчас никем не
+обслуживается и блок обязателен. Заводим его **без TLS** — сертификат добавит
+certbot, и тогда не придётся угадывать пути к файлам:
 
-Сертификат: `certbot --nginx -d vlyneid.zvonserver.ru`. В DNS — запись A на тот
-же адрес, что и `zvonserver.ru`.
+```bash
+cat > /etc/nginx/sites-available/vlyneid << 'EOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name vlyneid.zvonserver.ru;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        # Host обязателен: по нему приложение отличает поддомен Vlyne ID от
+        # основного домена и подставляет нужный заголовок вкладки.
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+```
+
+Веб-сокетов здесь намеренно нет: на этом домене живёт только витрина и
+эндпоинты OAuth, а реальное время — на основном домене.
+
+```bash
+ln -s /etc/nginx/sites-available/vlyneid /etc/nginx/sites-enabled/vlyneid
+```
+
+```bash
+nginx -t && systemctl reload nginx
+```
+
+Дальше certbot сам перепишет блок под TLS и добавит редирект с 80-го порта.
+DNS к этому моменту уже должен указывать на сервер, иначе проверка владения
+доменом не пройдёт:
+
+```bash
+certbot --nginx -d vlyneid.zvonserver.ru
+```
 
 Проверка после настройки:
 
@@ -179,6 +208,9 @@ grep -R "server_name" /etc/nginx/sites-enabled/
 curl -s https://vlyneid.zvonserver.ru/.well-known/openid-configuration | head -5
 curl -s https://vlyneid.zvonserver.ru/oauth/jwks.json
 ```
+
+В первом ответе поле `issuer` должно совпадать с `VLYNE_ID_ISSUER` посимвольно —
+расхождение обнаружится не здесь, а позже, отказом в чужом проекте.
 
 ### 3. Ключ подписи
 

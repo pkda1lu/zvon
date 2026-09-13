@@ -28,7 +28,13 @@ const globalAuditLogSchema = new mongoose.Schema({
       'MODERATION_NOTIFY',
       // Vlyne ID: выдача и отзыв доступа приложению экосистемы.
       'VLYNE_ID_AUTHORIZE',
-      'VLYNE_ID_REVOKE'
+      'VLYNE_ID_REVOKE',
+      // Действия по 152-ФЗ. Писались и раньше (personalData.js, pdErasure.js),
+      // но отсутствовали в перечне — значит, mongoose отклонял их проверкой, а
+      // logGlobalAction гасил ошибку. В итоге выгрузка и обезличивание данных
+      // нигде не фиксировались, хотя именно их журналировать и обязаны.
+      'PD_EXPORT',
+      'PD_ACCOUNT_ANONYMIZED'
     ]
   },
   target: {

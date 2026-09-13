@@ -703,6 +703,79 @@ oauthRouter.get('/logout', async (req, res) => {
   }
 });
 
+// ===== Личный кабинет Vlyne ID =====
+
+/**
+ * Человекочитаемые названия действий. Журнал общий для всей системы, но
+ * пользователю показываем только то, что касается его самого и что он вообще
+ * в состоянии узнать: «вход в аккаунт» понятно, «USER_UPDATE» — нет.
+ */
+const ACTIVITY_LABELS = {
+  USER_REGISTER: 'Аккаунт создан',
+  USER_LOGIN: 'Вход в аккаунт',
+  USER_UPDATE: 'Профиль изменён',
+  USER_BLOCK: 'Аккаунт заблокирован',
+  USER_UNBLOCK: 'Блокировка снята',
+  SERVER_CREATE: 'Создан сервер',
+  SERVER_DELETE: 'Удалён сервер',
+  SERVER_UPDATE: 'Изменены настройки сервера',
+  BOT_CREATE: 'Создан бот',
+  BOT_DELETE: 'Удалён бот',
+  MINIAPP_CREATE: 'Создано мини-приложение',
+  VLYNE_ID_AUTHORIZE: 'Выдан доступ приложению',
+  VLYNE_ID_REVOKE: 'Отозван доступ приложения',
+  PD_EXPORT: 'Выгрузка персональных данных',
+  PD_ACCOUNT_ANONYMIZED: 'Аккаунт обезличен'
+};
+
+/**
+ * Своя активность — то, что записано в журнале от имени этого пользователя.
+ *
+ * Журнал уже ведётся для администраторов; здесь тот же источник, но с жёстким
+ * фильтром по исполнителю. Смысл не в отчётности, а в том, чтобы человек мог
+ * заметить чужой вход: список входов рядом со списком устройств — самый
+ * понятный признак, что аккаунтом пользуется кто-то ещё.
+ */
+apiRouter.get('/activity', auth, async (req, res) => {
+  try {
+    const GlobalAuditLog = require('../models/GlobalAuditLog');
+
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const before = req.query.before ? new Date(req.query.before) : null;
+
+    const query = { executor: req.user._id };
+    // Курсор по времени, а не постраничный сдвиг: между запросами могут
+    // появиться новые записи, и по номеру страницы часть уехала бы мимо.
+    if (before && !isNaN(before.getTime())) query.createdAt = { $lt: before };
+
+    const entries = await GlobalAuditLog.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = entries.length > limit;
+    const page = hasMore ? entries.slice(0, limit) : entries;
+
+    res.json({
+      entries: page.map((e) => ({
+        id: e._id,
+        action: e.action,
+        title: ACTIVITY_LABELS[e.action] || e.action,
+        // Из подробностей отдаём только безобидное: имя приложения и права.
+        // Остальное в журнале — служебное и пользователю ничего не скажет.
+        client: e.details?.client || null,
+        scopes: e.details?.scopes || null,
+        createdAt: e.createdAt
+      })),
+      hasMore,
+      nextBefore: hasMore ? page[page.length - 1].createdAt : null
+    });
+  } catch (error) {
+    console.error('[vlyne-id] activity:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ===== Подключённые приложения (для настроек аккаунта) =====
 
 apiRouter.get('/grants', auth, async (req, res) => {

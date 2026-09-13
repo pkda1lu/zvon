@@ -233,14 +233,18 @@ app.get(/^(?!\/api).+/, (req, res) => {
       const brand = getBrand(req);
 
       // Поддомен Vlyne ID отдаёт ту же сборку, но это витрина отдельного
-      // продукта: во вкладке должно стоять его имя, а не «Zvon».
+      // продукта: во вкладке должны стоять его имя и его значок, а не «Zvon».
       const host = (req.get('x-forwarded-host') || req.get('host') || '').toLowerCase();
-      const title = /^vlyneid\./.test(host) ? 'Vlyne ID' : brand.name;
+      const isVlyneId = /^vlyneid\./.test(host);
+      const title = isVlyneId ? 'Vlyne ID' : brand.name;
+      // Уменьшенная копия, а не оригинал: исходный значок — 1254×1254 и 1,4 МБ,
+      // во вкладке от этого ничего не выигрывает, а грузится на каждой странице.
+      const favicon = isVlyneId ? 'iconVlyneID-192.png' : brand.favicon;
 
       // Dynamically replace title and favicon for better SEO/Initial load
       html = html.replace(/<title>.*?<\/title>/g, `<title>${title}</title>`);
       // Update favicons and logos
-      html = html.replace(/href="\/icon\.png"/g, `href="/${brand.favicon}"`);
+      html = html.replace(/href="\/icon\.png"/g, `href="/${favicon}"`);
       // Update OpenGraph / Meta tags if they exist
       html = html.replace(/content="Zvon"/g, `content="${brand.name}"`);
       

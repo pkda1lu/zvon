@@ -38,7 +38,8 @@
     border-bottom: 1px solid var(--vid-border);
 }
 
-.vidoc-logo { display: flex; align-items: center; gap: 10px; }
+.vidoc-logo { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.vidoc-logo:focus-visible { outline: 2px solid var(--vid-accent); outline-offset: 4px; border-radius: 8px; }
 
 .vidoc-mark {
     display: flex;
@@ -51,6 +52,17 @@
     color: #fff;
     font-weight: 800;
     font-size: 16px;
+}
+
+/* Значок продукта. Уменьшенная копия, а не оригинал: тот — 1254×1254 и 1,4 МБ,
+   в 32 пикселях от этого ничего не прибавится, кроме времени загрузки.
+   Ни скруглений, ни фона: у значка уже есть и своя форма, и тень, и прозрачные
+   поля вокруг — рамка снаружи обрезала бы тень и дала бы вторые углы. */
+.vidoc-mark-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    display: block;
 }
 
 .vidoc-name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
@@ -66,6 +78,16 @@
 }
 
 .vidoc-nav-link:hover { color: var(--vid-text); }
+
+/* Ссылка, сделанная кнопкой ради навигации без перезагрузки: внешне должна
+   быть неотличима от соседней ссылки. */
+.vidoc-nav-link-btn {
+    padding: 0;
+    font-family: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
 
 /* ===== Кнопки ===== */
 

@@ -106,6 +106,25 @@ stub('../models/VlyneRefreshToken', {
 
 stub('../utils/globalAuditLogger', { logGlobalAction: async () => {} });
 
+// Журнал действий для личного кабинета.
+const auditEntries = [
+  { _id: 'a1', executor: USER._id, action: 'USER_LOGIN', details: {}, createdAt: new Date('2026-09-10T10:00:00Z') },
+  { _id: 'a2', executor: USER._id, action: 'VLYNE_ID_AUTHORIZE', details: { client: 'vlyne_test', scopes: ['openid'] }, createdAt: new Date('2026-09-09T10:00:00Z') },
+  { _id: 'a3', executor: 'someone-else', action: 'USER_LOGIN', details: {}, createdAt: new Date('2026-09-08T10:00:00Z') },
+];
+stub('../models/GlobalAuditLog', {
+  find: (q) => {
+    let rows = auditEntries.filter((e) => String(e.executor) === String(q.executor));
+    if (q.createdAt && q.createdAt.$lt) rows = rows.filter((e) => e.createdAt < q.createdAt.$lt);
+    const chain = {
+      sort: () => chain,
+      limit: (n) => { chain._limit = n; return chain; },
+      lean: async () => rows.slice(0, chain._limit || rows.length),
+    };
+    return chain;
+  }
+});
+
 // Аутентификация Zvon: в тесте достаточно заголовка с именем пользователя.
 stub('../middleware/auth', (req, res, next) => {
   if (req.header('X-Test-User') !== 'yes') return res.status(401).json({ message: 'No token' });
@@ -259,7 +278,16 @@ async function run() {
   const info2 = await (await fetch(`${B}/api/vlyne-id/requests/${rid2}`, { headers: { 'X-Test-User': 'yes', Authorization: 'Bearer test' } })).json();
   ok('повторный вход подтверждается автоматически', info2.autoApprove === true, JSON.stringify(info2));
 
-  // --- 7. отзыв доступа ---
+  // --- 7. личный кабинет: своя активность ---
+  const act = await (await fetch(`${B}/api/vlyne-id/activity`, { headers: { 'X-Test-User': 'yes', Authorization: 'Bearer test' } })).json();
+  ok('активность отдаётся только своя', act.entries.length === 2, JSON.stringify(act));
+  ok('действия названы по-человечески', act.entries[0].title === 'Вход в аккаунт' && act.entries[1].title === 'Выдан доступ приложению');
+  ok('в активности видно приложение и права', act.entries[1].client === 'vlyne_test' && act.entries[1].scopes.length === 1);
+
+  const actNoAuth = await fetch(`${B}/api/vlyne-id/activity`);
+  ok('чужую активность без входа не получить', actNoAuth.status === 401);
+
+  // --- 8. отзыв доступа ---
   await fetch(`${B}/api/vlyne-id/grants/vlyne_test`, { method: 'DELETE', headers: { 'X-Test-User': 'yes', Authorization: 'Bearer test' } });
   const info3 = await (await fetch(`${B}/api/vlyne-id/requests/${rid2}`, { headers: { 'X-Test-User': 'yes', Authorization: 'Bearer test' } })).json();
   ok('после отзыва согласие спрашивается заново', info3.autoApprove === false);

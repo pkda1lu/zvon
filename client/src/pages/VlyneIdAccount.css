@@ -1,0 +1,342 @@
+/* Личный кабинет Vlyne ID. Переменные и кнопки берутся из VlyneIdDocs.css —
+   кабинет и витрина должны выглядеть одним продуктом, поэтому общий корневой
+   класс .vidoc и общая палитра. */
+
+.vida-wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 40px 40px 80px;
+}
+
+/* ===== Шапка аккаунта ===== */
+
+.vida-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 24px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--vid-border);
+}
+
+.vida-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #1a1c25;
+    flex-shrink: 0;
+}
+
+.vida-head-text { flex: 1; min-width: 0; }
+.vida-head-text h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.vida-head-sub { color: var(--vid-dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===== Вкладки ===== */
+
+.vida-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.vida-tabs button {
+    padding: 8px 16px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--vid-dim);
+    background: transparent;
+    border: 1px solid var(--vid-border);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.vida-tabs button:hover { color: var(--vid-text); }
+
+.vida-tabs button.active {
+    color: var(--vid-accent);
+    background: rgba(124, 140, 255, 0.1);
+    border-color: rgba(124, 140, 255, 0.3);
+}
+
+.vida-section-lead {
+    margin: 0 0 20px;
+    color: var(--vid-dim);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* ===== Карточки ===== */
+
+.vida-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.vida-card {
+    padding: 20px;
+    margin-bottom: 16px;
+    background: var(--vid-surface);
+    border: 1px solid var(--vid-border);
+    border-radius: 14px;
+}
+
+.vida-grid .vida-card { margin-bottom: 0; }
+
+.vida-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--vid-faint);
+    margin-bottom: 12px;
+}
+
+.vida-card-text {
+    margin: 12px 0 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--vid-dim);
+}
+
+.vida-card-text a { color: var(--vid-accent); }
+.vida-card .vidoc-btn { margin-top: 16px; }
+
+.vida-id {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Идентификатор длинный и не переносится по словам — даём ему переноситься
+   где угодно, иначе на телефоне он выталкивает карточку за экран. */
+.vida-id code {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    font-family: 'Fira Code', ui-monospace, monospace;
+    font-size: 13px;
+    color: #b6c0ff;
+    background: rgba(124, 140, 255, 0.1);
+    border-radius: 8px;
+    word-break: break-all;
+}
+
+.vida-copy {
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--vid-dim);
+    background: transparent;
+    border: 1px solid var(--vid-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.vida-copy:hover { color: var(--vid-text); background: rgba(255, 255, 255, 0.05); }
+
+.vida-dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+    margin: 0;
+    font-size: 14px;
+}
+
+.vida-dl dt { color: var(--vid-faint); }
+.vida-dl dd { margin: 0; color: var(--vid-text); }
+
+.vida-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    color: var(--vid-accent);
+    background: rgba(124, 140, 255, 0.14);
+    vertical-align: middle;
+}
+
+.vida-badge.ok { color: #8be8b0; background: rgba(16, 185, 129, 0.14); }
+.vida-badge.warn { color: #f0c274; background: rgba(245, 158, 11, 0.14); }
+
+/* ===== Списки ===== */
+
+.vida-list {
+    border: 1px solid var(--vid-border);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.vida-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.vida-row:last-child { border-bottom: none; }
+
+.vida-row-body { flex: 1; min-width: 0; }
+
+.vida-row-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vid-text);
+    margin-bottom: 2px;
+}
+
+.vida-row-meta { font-size: 12.5px; color: var(--vid-faint); line-height: 1.5; }
+
+.vida-row-side {
+    flex-shrink: 0;
+    font-size: 12.5px;
+    color: var(--vid-faint);
+    text-align: right;
+}
+
+.vida-danger {
+    padding: 7px 12px;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: #f08a8a;
+    background: transparent;
+    border: 1px solid rgba(240, 138, 138, 0.25);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.vida-danger:hover:not(:disabled) { background: rgba(240, 138, 138, 0.1); }
+.vida-danger:disabled { opacity: 0.5; cursor: default; }
+
+.vida-more { margin-top: 16px; }
+
+.vida-empty,
+.vida-loading {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--vid-faint);
+    font-size: 14px;
+}
+
+.vida-spinner {
+    width: 26px;
+    height: 26px;
+    margin: 0 auto;
+    border: 2.5px solid rgba(255, 255, 255, 0.12);
+    border-top-color: var(--vid-accent);
+    border-radius: 50%;
+    animation: vidaSpin 0.8s linear infinite;
+}
+
+@keyframes vidaSpin { to { transform: rotate(360deg); } }
+
+.vida-notice {
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 13.5px;
+    color: var(--vid-dim);
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+/* ===== Вход ===== */
+
+.vida-signin {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 120px);
+    padding: 40px 20px;
+}
+
+.vida-signin-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 28px;
+    background: var(--vid-surface);
+    border: 1px solid var(--vid-border);
+    border-radius: 16px;
+}
+
+.vida-signin-card h1 { margin: 0 0 8px; font-size: 22px; font-weight: 700; }
+
+.vida-signin-lead {
+    margin: 0 0 24px;
+    font-size: 14px;
+    color: var(--vid-dim);
+}
+
+.vida-field { display: block; margin-bottom: 16px; }
+
+.vida-field span {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--vid-dim);
+}
+
+.vida-field input {
+    width: 100%;
+    padding: 11px 14px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--vid-text);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--vid-border);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+
+.vida-field input:focus { border-color: rgba(124, 140, 255, 0.5); }
+
+.vida-submit { width: 100%; justify-content: center; margin-top: 4px; }
+
+.vida-error {
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: #f08a8a;
+    background: rgba(240, 138, 138, 0.08);
+    border: 1px solid rgba(240, 138, 138, 0.2);
+    border-radius: 10px;
+}
+
+.vida-signin-note {
+    margin: 18px 0 0;
+    font-size: 12.5px;
+    color: var(--vid-faint);
+    line-height: 1.5;
+}
+
+.vida-signin-note a { color: var(--vid-accent); }
+
+/* ===== Узкие экраны ===== */
+
+@media (max-width: 720px) {
+    .vida-wrap { padding: 28px 20px 60px; }
+
+    /* Действие уезжает под текст: на телефоне колонка справа сжимает
+       название устройства до нечитаемого огрызка. */
+    .vida-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .vida-row-side { text-align: left; }
+
+    .vida-head { flex-wrap: wrap; }
+    .vida-dl { grid-template-columns: 1fr; gap: 2px 0; }
+    .vida-dl dd { margin-bottom: 10px; }
+}

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
+import { VLYNE_ID_LOGO } from '../components/VlyneIdNav';
 import './VlyneAuthorize.css';
 
 /**
@@ -169,7 +170,7 @@ const VlyneAuthorize: React.FC = () => {
           </div>
           <div className="vid-link-dots"><span /><span /><span /></div>
           <div className="vid-app">
-            <div className="vid-app-logo vid-app-logo-vlyne">V</div>
+            <img className="vid-app-logo vid-app-logo-vlyne" src={VLYNE_ID_LOGO} alt="" />
             <span className="vid-app-name">Vlyne ID</span>
           </div>
         </div>

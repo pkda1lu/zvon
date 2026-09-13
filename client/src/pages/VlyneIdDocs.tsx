@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import VlyneIdNav from '../components/VlyneIdNav';
 import './VlyneIdDocs.css';
 
 /**
@@ -256,26 +257,21 @@ const VlyneIdDocs: React.FC = () => {
         return () => observer.disconnect();
     }, []);
 
+    // На поддомене кабинет живёт по /account, на основном домене — под /vlyneid.
+    const accountPath = /^vlyneid\./i.test(window.location.hostname)
+        ? '/account'
+        : '/vlyneid/account';
+
     const scrollTo = (id: string) => {
         document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     return (
         <div className="vidoc">
-            <nav className="vidoc-nav">
-                <div className="vidoc-logo">
-                    <span className="vidoc-mark">V</span>
-                    <span className="vidoc-name">Vlyne ID</span>
-                </div>
-                <div className="vidoc-nav-actions">
-                    <a className="vidoc-nav-link" href="#start" onClick={(e) => { e.preventDefault(); scrollTo('start'); }}>
-                        Документация
-                    </a>
-                    <a className="vidoc-btn vidoc-btn-primary" href="mailto:support@zvonserver.ru?subject=Подключение к Vlyne ID">
-                        Получить доступ
-                    </a>
-                </div>
-            </nav>
+            <VlyneIdNav actions={[
+                { label: 'Личный кабинет', to: accountPath },
+                { label: 'Получить доступ', href: 'mailto:support@zvonserver.ru?subject=Подключение к Vlyne ID', primary: true }
+            ]} />
 
             <header className="vidoc-hero">
                 <div className="vidoc-hero-glow" />
@@ -564,6 +560,7 @@ const VlyneIdDocs: React.FC = () => {
             <footer className="vidoc-footer">
                 <div>Vlyne ID — единый вход экосистемы Vlyne</div>
                 <div className="vidoc-footer-links">
+                    <a href={accountPath}>Личный кабинет</a>
                     <a href="https://zvonserver.ru">Zvon</a>
                     <a href="mailto:support@zvonserver.ru">Поддержка</a>
                     <a href={`${ISSUER}/.well-known/openid-configuration`}>Discovery</a>

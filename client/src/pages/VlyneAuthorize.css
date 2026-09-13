@@ -112,8 +112,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.vid-app-logo-fallback,
-.vid-app-logo-vlyne {
+.vid-app-logo-fallback {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -123,7 +122,15 @@
 }
 
 .vid-app-logo-fallback { background: linear-gradient(135deg, #4e5058, #2f3136); }
-.vid-app-logo-vlyne { background: linear-gradient(135deg, #5865f2, #7944a0); }
+
+/* Значок Vlyne ID — готовый бейдж со своей формой и тенью. Подложка и рамка,
+   уместные для чужих логотипов, ему только мешают. */
+.vid-app-logo-vlyne {
+    background: none;
+    border: none;
+    border-radius: 0;
+    object-fit: contain;
+}
 
 .vid-app-name {
     font-size: 12px;

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
+import VlyneIdNotice from '../components/VlyneIdNotice';
 import './Auth.css';
 import './Landing.css';
 
@@ -234,6 +235,10 @@ const Login: React.FC = () => {
           <p style={{ color: 'var(--text-dim)', marginBottom: '40px', fontSize: '15px' }}>
             {getSubtitle()}
           </p>
+
+          {/* Только на самом входе: на экранах кода и сброса пароля это отвлекает
+              от действия, ради которого человек сюда попал. */}
+          {mode === 'login' && <VlyneIdNotice variant="login" />}
 
           <form onSubmit={handleSubmit} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {error && (
