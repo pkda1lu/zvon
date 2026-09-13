@@ -23,133 +23,34 @@
     line-height: 1.65;
 }
 
-/* ===== Навигация ===== */
+/* ===== Шапка страницы ===== */
 
-.vidoc-nav {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 40px;
-    background: rgba(10, 11, 15, 0.82);
-    backdrop-filter: blur(14px);
+.vidoc-pagehead {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 48px 40px 36px;
     border-bottom: 1px solid var(--vid-border);
 }
 
-.vidoc-logo { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.vidoc-logo:focus-visible { outline: 2px solid var(--vid-accent); outline-offset: 4px; border-radius: 8px; }
-
-.vidoc-mark {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    background: linear-gradient(135deg, var(--vid-accent), var(--vid-accent-2));
-    color: #fff;
-    font-weight: 800;
-    font-size: 16px;
-}
-
-/* Значок продукта. Уменьшенная копия, а не оригинал: тот — 1254×1254 и 1,4 МБ,
-   в 32 пикселях от этого ничего не прибавится, кроме времени загрузки.
-   Ни скруглений, ни фона: у значка уже есть и своя форма, и тень, и прозрачные
-   поля вокруг — рамка снаружи обрезала бы тень и дала бы вторые углы. */
-.vidoc-mark-img {
-    width: 32px;
-    height: 32px;
-    object-fit: contain;
-    display: block;
-}
-
-.vidoc-name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
-
-.vidoc-nav-actions { display: flex; align-items: center; gap: 18px; }
-
-.vidoc-nav-link {
-    color: var(--vid-dim);
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    transition: color 0.15s;
-}
-
-.vidoc-nav-link:hover { color: var(--vid-text); }
-
-/* Ссылка, сделанная кнопкой ради навигации без перезагрузки: внешне должна
-   быть неотличима от соседней ссылки. */
-.vidoc-nav-link-btn {
+.vidoc-back {
+    display: inline-block;
     padding: 0;
+    margin-bottom: 18px;
     font-family: inherit;
+    font-size: 14px;
+    color: var(--vid-dim);
     background: none;
     border: none;
     cursor: pointer;
+    transition: color 0.15s;
 }
 
-/* ===== Кнопки ===== */
-
-.vidoc-btn {
-    padding: 10px 18px;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    border-radius: 10px;
-    border: 1px solid transparent;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    transition: background 0.15s, transform 0.1s, border-color 0.15s;
-}
-
-.vidoc-btn:active { transform: translateY(1px); }
-
-.vidoc-btn-primary {
-    background: linear-gradient(135deg, var(--vid-accent), var(--vid-accent-2));
-    color: #fff;
-}
-
-.vidoc-btn-primary:hover { filter: brightness(1.08); }
-
-.vidoc-btn-ghost {
-    background: transparent;
-    color: var(--vid-text);
-    border-color: var(--vid-border);
-}
-
-.vidoc-btn-ghost:hover { background: rgba(255, 255, 255, 0.05); }
-
-/* ===== Первый экран ===== */
-
-.vidoc-hero {
-    position: relative;
-    padding: 96px 40px 80px;
-    text-align: center;
-    overflow: hidden;
-    border-bottom: 1px solid var(--vid-border);
-}
-
-.vidoc-hero-glow {
-    position: absolute;
-    top: -320px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 900px;
-    height: 640px;
-    background: radial-gradient(circle, rgba(124, 140, 255, 0.22), transparent 62%);
-    filter: blur(40px);
-    pointer-events: none;
-}
-
-.vidoc-hero-inner { position: relative; max-width: 760px; margin: 0 auto; }
+.vidoc-back:hover { color: var(--vid-text); }
 
 .vidoc-badge {
     display: inline-block;
     padding: 6px 14px;
-    margin-bottom: 24px;
+    margin-bottom: 18px;
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.06em;
@@ -159,33 +60,25 @@
     border-radius: 999px;
 }
 
-.vidoc-hero h1 {
-    margin: 0 0 20px;
-    font-size: clamp(34px, 6vw, 56px);
-    line-height: 1.1;
+.vidoc-pagehead h1 {
+    margin: 0 0 16px;
+    font-size: clamp(28px, 4.5vw, 40px);
+    line-height: 1.12;
     font-weight: 700;
     letter-spacing: -0.025em;
-    background: linear-gradient(135deg, #fff 30%, #9aa3c7);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
 }
 
 .vidoc-hero-text {
-    margin: 0 auto 32px;
-    max-width: 620px;
-    font-size: 17px;
+    max-width: 640px;
+    margin: 0 0 24px;
+    font-size: 16.5px;
     color: var(--vid-dim);
 }
-
-.vidoc-hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
 .vidoc-hero-meta {
     display: flex;
     gap: 24px;
-    justify-content: center;
     flex-wrap: wrap;
-    margin-top: 40px;
     font-size: 13px;
     color: var(--vid-faint);
 }
@@ -549,8 +442,6 @@
 
     .vidoc-side-item.active { border-left: none; border-bottom-color: var(--vid-accent); }
 
-    .vidoc-nav { padding: 12px 20px; }
-    .vidoc-nav-link { display: none; }
     .vidoc-hero { padding: 64px 20px 56px; }
     .vidoc-footer { padding: 24px 20px 32px; }
 }

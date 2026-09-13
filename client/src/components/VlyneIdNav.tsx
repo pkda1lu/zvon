@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import './VlyneIdNav.css';
 
 /**
  * Шапка страниц Vlyne ID — витрины и личного кабинета.

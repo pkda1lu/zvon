@@ -1,0 +1,115 @@
+/* Шапка страниц Vlyne ID.
+
+   Живёт рядом с самим компонентом, а не в CSS одной из страниц: шапку
+   показывают и витрина, и кабинет, и документация — стили, спрятанные в файле
+   одной из них, оставляли бы остальные без оформления.
+
+   Палитра берётся из переменных корневого блока страницы (.vidoc или .vidl),
+   поэтому шапка подстраивается под ту страницу, на которой стоит. */
+
+/* ===== Навигация ===== */
+
+.vidoc-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 40px;
+    background: rgba(10, 11, 15, 0.82);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--vid-border);
+}
+
+.vidoc-logo { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.vidoc-logo:focus-visible { outline: 2px solid var(--vid-accent); outline-offset: 4px; border-radius: 8px; }
+
+.vidoc-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--vid-accent), var(--vid-accent-2));
+    color: #fff;
+    font-weight: 800;
+    font-size: 16px;
+}
+
+/* Значок продукта. Уменьшенная копия, а не оригинал: тот — 1254×1254 и 1,4 МБ,
+   в 32 пикселях от этого ничего не прибавится, кроме времени загрузки.
+   Ни скруглений, ни фона: у значка уже есть и своя форма, и тень, и прозрачные
+   поля вокруг — рамка снаружи обрезала бы тень и дала бы вторые углы. */
+.vidoc-mark-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    display: block;
+}
+
+.vidoc-name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+
+.vidoc-nav-actions { display: flex; align-items: center; gap: 18px; }
+
+.vidoc-nav-link {
+    color: var(--vid-dim);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.15s;
+}
+
+.vidoc-nav-link:hover { color: var(--vid-text); }
+
+/* Ссылка, сделанная кнопкой ради навигации без перезагрузки: внешне должна
+   быть неотличима от соседней ссылки. */
+.vidoc-nav-link-btn {
+    padding: 0;
+    font-family: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+/* ===== Кнопки ===== */
+
+.vidoc-btn {
+    padding: 10px 18px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: background 0.15s, transform 0.1s, border-color 0.15s;
+}
+
+.vidoc-btn:active { transform: translateY(1px); }
+
+.vidoc-btn-primary {
+    background: linear-gradient(135deg, var(--vid-accent), var(--vid-accent-2));
+    color: #fff;
+}
+
+.vidoc-btn-primary:hover { filter: brightness(1.08); }
+
+.vidoc-btn-ghost {
+    background: transparent;
+    color: var(--vid-text);
+    border-color: var(--vid-border);
+}
+
+.vidoc-btn-ghost:hover { background: rgba(255, 255, 255, 0.05); }
+
+
+@media (max-width: 900px) {
+    .vidoc-nav { padding: 12px 20px; }
+    /* На телефоне в шапке остаётся только главное действие: три элемента в
+       ряд не помещаются, а ссылка дублируется содержимым страницы. */
+    .vidoc-nav-link { display: none; }
+}

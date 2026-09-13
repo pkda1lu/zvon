@@ -1,3 +1,20 @@
+/* Экран входа с живым фоном: содержимое должно лежать над холстом. */
+
+.vidoc-lively { background: transparent; }
+.vidoc-above { position: relative; z-index: 1; }
+
+.vidoc-lively .vidoc-nav {
+    background: rgba(6, 6, 14, 0.45);
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+}
+
+.vidoc-lively .vida-signin-card {
+    background: rgba(12, 12, 24, 0.72);
+    backdrop-filter: blur(14px);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
 /* Личный кабинет Vlyne ID. Переменные и кнопки берутся из VlyneIdDocs.css —
    кабинет и витрина должны выглядеть одним продуктом, поэтому общий корневой
    класс .vidoc и общая палитра. */
@@ -221,6 +238,15 @@
 .vida-danger:disabled { opacity: 0.5; cursor: default; }
 
 .vida-more { margin-top: 16px; }
+
+/* Пояснение под списком. Не предупреждение и не ошибка — просто ответ на
+   вопрос, который возникает у всех: «а где же сам Zvon». */
+.vida-hint {
+    margin-top: 16px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--vid-faint);
+}
 
 .vida-empty,
 .vida-loading {

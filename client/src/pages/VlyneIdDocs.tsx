@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import VlyneIdNav from '../components/VlyneIdNav';
 import './VlyneIdDocs.css';
 
 /**
- * Публичная страница Vlyne ID — vlyneid.zvonserver.ru.
+ * Техническая инструкция Vlyne ID — /vlyneid/developers.
  *
- * Это витрина и инструкция для сторонних сервисов, а не раздел справки Zvon.
- * Поэтому у неё своя навигация и своё оформление: тот, кто пришёл подключать
- * вход, не должен сначала разбираться, что такое Zvon и при чём тут он.
- *
- * Страница живёт внутри того же SPA (сервер отдаёт index.html на любом хосте),
- * а на корень поддомена её выводит проверка хоста в App.tsx — отдельная сборка
- * ради одной страницы не окупается.
+ * Отдельно от главной страницы намеренно. На главную приходит обычный человек
+ * по ссылке «Подробнее» с экрана входа: ему нужно понять, что стало с его
+ * аккаунтом, а таблица эндпоинтов и слова вроде PKCE только отпугивают. Сюда
+ * же попадают те, кто действительно подключает вход к своему сервису, — им,
+ * наоборот, нужны подробности без лишних уговоров.
  */
 
 const ISSUER = 'https://vlyneid.zvonserver.ru';
@@ -95,33 +94,6 @@ const Section: React.FC<{ id: string; title: string; lead?: string; children: Re
 
 // ===== Содержимое =====
 
-const ADVANTAGES = [
-    {
-        title: 'Один аккаунт на всю экосистему',
-        text: 'Человек, зарегистрированный в любом проекте Vlyne, уже зарегистрирован у вас. Идентификатор пользователя один и тот же во всех сервисах — сводить базы между собой не придётся.'
-    },
-    {
-        title: 'Вход в одно нажатие, дальше — в ноль',
-        text: 'Если пользователь уже вошёл в Vlyne, он подтверждает доступ одной кнопкой. При следующих входах согласие вспоминается, и экран не показывается вовсе.'
-    },
-    {
-        title: 'Вы не храните пароли',
-        text: 'Пароль не проходит через ваш код ни разу. Вместе с ним исчезает и весь связанный с ним объём работы: восстановление, требования к сложности, утечки, ответственность за хранение.'
-    },
-    {
-        title: 'Проверка токена без обращения к нам',
-        text: 'Подпись асимметричная: вы забираете публичный ключ один раз и проверяете токены локально. Ваш сервис продолжает работать, даже когда Vlyne ID недоступен.'
-    },
-    {
-        title: 'Права запрашиваются по частям',
-        text: 'Нужна только почта — просите только почту. Пользователь видит точный список на экране согласия и может отозвать доступ в настройках в любой момент.'
-    },
-    {
-        title: 'Обычный OAuth 2.1 / OpenID Connect',
-        text: 'Ничего своего: authorization code + PKCE, discovery, JWKS. Подойдёт любая готовая библиотека OIDC на вашем языке, а наш SDK — просто короткий путь.'
-    }
-];
-
 const SCOPES = [
     ['openid', 'Постоянный идентификатор аккаунта (sub). Запрашивается всегда'],
     ['profile', 'Имя пользователя, аватар, баннер, описание'],
@@ -144,7 +116,6 @@ const ENDPOINTS = [
 ];
 
 const NAV = [
-    ['why', 'Зачем это вам'],
     ['how', 'Как устроен вход'],
     ['start', 'Быстрый старт'],
     ['verify', 'Проверка токена'],
@@ -236,7 +207,8 @@ PKCE:       обязателен, метод S256`;
 const VlyneIdDocs: React.FC = () => {
     const [tab, setTab] = useState<'browser' | 'manual'>('browser');
     const [verifyTab, setVerifyTab] = useState<'node' | 'python' | 'any'>('node');
-    const [active, setActive] = useState('why');
+    const [active, setActive] = useState('how');
+    const navigate = useNavigate();
 
     // Подсветка текущего раздела в боковом меню. Без неё на длинной странице
     // невозможно понять, где ты находишься.
@@ -257,10 +229,10 @@ const VlyneIdDocs: React.FC = () => {
         return () => observer.disconnect();
     }, []);
 
-    // На поддомене кабинет живёт по /account, на основном домене — под /vlyneid.
-    const accountPath = /^vlyneid\./i.test(window.location.hostname)
-        ? '/account'
-        : '/vlyneid/account';
+    // На поддомене разделы Vlyne ID живут в корне, на основном — под /vlyneid.
+    const isSubdomain = /^vlyneid\./i.test(window.location.hostname);
+    const homePath = isSubdomain ? '/' : '/vlyneid';
+    const accountPath = isSubdomain ? '/account' : '/vlyneid/account';
 
     const scrollTo = (id: string) => {
         document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -269,33 +241,26 @@ const VlyneIdDocs: React.FC = () => {
     return (
         <div className="vidoc">
             <VlyneIdNav actions={[
-                { label: 'Личный кабинет', to: accountPath },
+                { label: 'О Vlyne ID', to: homePath },
                 { label: 'Получить доступ', href: 'mailto:support@zvonserver.ru?subject=Подключение к Vlyne ID', primary: true }
             ]} />
 
-            <header className="vidoc-hero">
-                <div className="vidoc-hero-glow" />
+            <header className="vidoc-pagehead">
                 <motion.div
-                    className="vidoc-hero-inner"
-                    initial={{ opacity: 0, y: 18 }}
+                    initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                    transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 >
+                    <button className="vidoc-back" onClick={() => navigate(homePath)}>
+                        ← Vlyne ID
+                    </button>
                     <div className="vidoc-badge">OAuth 2.1 · OpenID Connect</div>
-                    <h1>Единый вход<br />в экосистему Vlyne</h1>
+                    <h1>Подключение Vlyne ID</h1>
                     <p className="vidoc-hero-text">
-                        Подключите вход через Vlyne ID — и пользователи войдут в ваш сервис одним
-                        нажатием, под тем же аккаунтом, что и в остальных проектах Vlyne.
-                        Пароли остаются у нас, вы получаете проверяемый токен.
+                        Вход через Vlyne ID снимает с вашего сервиса аутентификацию целиком:
+                        пароли остаются у нас, вы получаете проверяемый токен и постоянный
+                        идентификатор пользователя.
                     </p>
-                    <div className="vidoc-hero-actions">
-                        <button className="vidoc-btn vidoc-btn-primary" onClick={() => scrollTo('start')}>
-                            Начать за 10 минут
-                        </button>
-                        <button className="vidoc-btn vidoc-btn-ghost" onClick={() => scrollTo('how')}>
-                            Как это работает
-                        </button>
-                    </div>
                     <div className="vidoc-hero-meta">
                         <span>PKCE обязателен</span>
                         <span>Подпись RS256</span>
@@ -318,21 +283,6 @@ const VlyneIdDocs: React.FC = () => {
                 </aside>
 
                 <main className="vidoc-main">
-                    <Section
-                        id="why"
-                        title="Зачем это вам"
-                        lead="Вход через Vlyne ID снимает с вашего сервиса задачу аутентификации целиком — вместе с её неприятной частью."
-                    >
-                        <div className="vidoc-cards">
-                            {ADVANTAGES.map((a) => (
-                                <div className="vidoc-card" key={a.title}>
-                                    <h3>{a.title}</h3>
-                                    <p>{a.text}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </Section>
-
                     <Section
                         id="how"
                         title="Как устроен вход"

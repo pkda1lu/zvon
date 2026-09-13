@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { getAvatarUrl } from '../utils/avatar';
 import VlyneIdNav from '../components/VlyneIdNav';
+import VibeBackground from '../components/VibeBackground';
 import './VlyneIdDocs.css';
 import './VlyneIdAccount.css';
 
@@ -191,6 +192,9 @@ const VlyneIdAccount: React.FC = () => {
     const [copied, setCopied] = useState(false);
     const [notice, setNotice] = useState('');
 
+    // На поддомене разделы живут в корне, на основном домене — под /vlyneid.
+    const homePath = /^vlyneid\./i.test(window.location.hostname) ? '/' : '/vlyneid';
+
     const loadActivity = useCallback(async (before?: string | null) => {
         const { data } = await axios.get('/api/vlyne-id/activity', {
             params: { limit: 30, ...(before ? { before } : {}) }
@@ -305,10 +309,16 @@ const VlyneIdAccount: React.FC = () => {
     }
 
     if (!token || !user) {
+        // Живой фон — только на экране входа. Внутри кабинета под ним лежат
+        // плотные списки устройств и действий: там движение за текстом мешает
+        // читать, а здесь страница почти пустая и без него выглядит мёртвой.
         return (
-            <div className="vidoc">
-                <VlyneIdNav actions={[{ label: 'О Vlyne ID', to: '/vlyneid' }]} />
-                <SignIn />
+            <div className="vidoc vidoc-lively">
+                <VibeBackground />
+                <div className="vidoc-above">
+                    <VlyneIdNav actions={[{ label: 'О Vlyne ID', to: homePath }]} />
+                    <SignIn />
+                </div>
             </div>
         );
     }
@@ -317,7 +327,7 @@ const VlyneIdAccount: React.FC = () => {
 
     return (
         <div className="vidoc">
-            <VlyneIdNav actions={[{ label: 'О Vlyne ID', to: '/vlyneid' }]} />
+            <VlyneIdNav actions={[{ label: 'О Vlyne ID', to: homePath }]} />
 
             <div className="vida-wrap">
                 <header className="vida-head">
@@ -490,7 +500,9 @@ const VlyneIdAccount: React.FC = () => {
                         {!loaded.apps ? (
                             <div className="vida-loading"><div className="vida-spinner" /></div>
                         ) : apps.length === 0 ? (
-                            <div className="vida-empty">Пока ни одно приложение не подключено.</div>
+                            <div className="vida-empty">
+                                Ни одно стороннее приложение пока не подключено.
+                            </div>
                         ) : (
                             <div className="vida-list">
                                 {apps.map((app) => (
@@ -520,6 +532,12 @@ const VlyneIdAccount: React.FC = () => {
                                 ))}
                             </div>
                         )}
+
+                        <div className="vida-hint">
+                            Самого Zvon в этом списке не будет: он не входит через Vlyne ID,
+                            а выдаёт его — ваш аккаунт Zvon и есть Vlyne ID. Где выполнен вход
+                            в сам Zvon, показано во вкладке «Устройства».
+                        </div>
                     </>
                 )}
 

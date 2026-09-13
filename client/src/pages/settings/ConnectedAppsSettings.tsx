@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { LinkIcon, LogOutIcon, ShieldIcon } from '../../components/Icons';
 import { useDialog } from '../../contexts/DialogContext';
+import { getIconBrand } from '../../utils/branding';
 
 /**
  * Приложения, которым выдан доступ через Vlyne ID.
@@ -85,7 +86,7 @@ const ConnectedAppsSettings: React.FC = () => {
                 <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px' }}>Загрузка…</div>
             ) : apps.length === 0 ? (
                 <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px' }}>
-                    Пока ни одно приложение не подключено.
+                    Ни одно стороннее приложение пока не подключено.
                 </div>
             ) : (
                 <div className="settings-list">
@@ -136,6 +137,8 @@ const ConnectedAppsSettings: React.FC = () => {
                         <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
                             Ваш аккаунт здесь — это Vlyne ID: один вход для всех проектов экосистемы.
                             Отключение приложения тут же обрывает его доступ, даже если оно уже вошло.
+                            Самого {getIconBrand().name} в списке нет: он не входит через Vlyne ID, а выдаёт
+                            его — где выполнен вход сюда, показано в разделе «Устройства».
                             {' '}
                             <a
                                 href="https://vlyneid.zvonserver.ru"
