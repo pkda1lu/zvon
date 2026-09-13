@@ -79,8 +79,43 @@ vlyneClientSchema.methods.verifySecret = function (secret) {
 };
 
 /** Строгая проверка адреса возврата (без префиксов и шаблонов). */
+/** Возврат на этот же компьютер: 127.0.0.1 или ::1. */
+function isLoopback(hostname) {
+  return hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+}
+
+/**
+ * Строгая проверка адреса возврата — с одним исключением для настольных
+ * приложений.
+ *
+ * Настольное приложение не может занять заранее известный порт: он может быть
+ * занят другой программой или вторым запущенным экземпляром. Поэтому оно
+ * поднимает слушателя на свободном порту и указывает его в redirect_uri —
+ * и порт каждый раз другой. RFC 8252 §7.3 прямо требует от сервера разрешать
+ * любой порт для адресов на localhost.
+ *
+ * Послабление ровно одно и только для петлевых адресов: схема, хост и путь
+ * по-прежнему сверяются посимвольно. Чужой домен так не подставить — на
+ * 127.0.0.1 слушает машина самого пользователя, и увести туда чужой код
+ * можно, только уже находясь на этой машине.
+ */
 vlyneClientSchema.methods.allowsRedirect = function (uri) {
-  return this.redirectUris.includes(uri);
+  if (this.redirectUris.includes(uri)) return true;
+
+  let given;
+  try { given = new URL(uri); } catch { return false; }
+  if (!isLoopback(given.hostname)) return false;
+
+  return this.redirectUris.some((registered) => {
+    let known;
+    try { known = new URL(registered); } catch { return false; }
+    return (
+      isLoopback(known.hostname) &&
+      known.protocol === given.protocol &&
+      known.hostname === given.hostname &&
+      known.pathname === given.pathname
+    );
+  });
 };
 
 vlyneClientSchema.statics.hashSecret = hashSecret;
