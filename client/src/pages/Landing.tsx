@@ -55,6 +55,7 @@ const Landing: React.FC = () => {
                     <span className="nav-link" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Возможности</span>
                     <span className="nav-link" onClick={() => document.getElementById('reel')?.scrollIntoView({ behavior: 'smooth' })}>Видео</span>
                     <span className="nav-link" onClick={() => document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' })}>Демонстрация</span>
+                    <span className="nav-link" onClick={() => navigate('/vlyneid')}>Vlyne ID</span>
                     <span className="nav-link" onClick={() => navigate('/docs')}>Документация</span>
                 </div>
                 <div className="nav-actions">
@@ -238,6 +239,7 @@ const Landing: React.FC = () => {
                                 <li><a onClick={() => navigate('/security')}>Безопасность</a></li>
                                 <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon/commits/main', '_blank')}>Список изменений</a></li>
                                 <li><a onClick={() => navigate('/servers')}>Серверы</a></li>
+                                <li><a onClick={() => navigate('/vlyneid')}>Vlyne ID</a></li>
                                 <li><a onClick={() => navigate('/docs')}>API для ботов</a></li>
                             </ul>
                         </div>

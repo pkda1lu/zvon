@@ -1161,6 +1161,26 @@ const isModerator = (req, res, next) => {
   res.status(403).json({ message: 'Доступ только модераторам' });
 };
 
+/**
+ * Сколько заявок ждёт решения.
+ *
+ * Событие о новой заявке — вещь по природе ненадёжная: модератор может быть
+ * офлайн, push может быть не настроен, а заявку иногда подаёт сам модератор,
+ * и тогда уведомлять некого. Очередь не должна зависеть от того, долетело ли
+ * сообщение, поэтому её размер видно просто так, без всяких событий.
+ */
+apiRouter.get('/admin/applications/count', auth, isModerator, async (req, res) => {
+  try {
+    const open = await VlyneAppRequest.countDocuments({
+      status: { $in: ['pending', 'changes_requested'] }
+    });
+    res.json({ open });
+  } catch (err) {
+    console.error('[vlyne-id] applications count:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 apiRouter.get('/admin/applications', auth, isModerator, async (req, res) => {
   try {
     const status = req.query.status;

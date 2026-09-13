@@ -201,8 +201,20 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 ? 'Новая жалоба на проблему'
                 : data.type === 'problem_resolved'
                 ? 'Ваша жалоба обработана'
+                : data.type === 'vlyne_app_request'
+                ? 'Заявка на подключение к Vlyne ID'
+                : data.type === 'vlyne_app_reply'
+                ? 'Ответ по заявке Vlyne ID'
+                : data.type === 'vlyne_app_decision'
+                ? 'Решение по заявке Vlyne ID'
                 : 'Сообщение от модерации';
-            const authorName = data.type === 'problem_report' || data.type === 'problem_resolved' ? 'Репорт' : 'Модерация';
+            // Подпись отправителя тоже своя: «Модерация» у заявки Vlyne ID
+            // сбивает с толку — она приходит не от модерации, а к ней.
+            const authorName = data.type === 'problem_report' || data.type === 'problem_resolved'
+                ? 'Репорт'
+                : String(data.type || '').startsWith('vlyne_app')
+                ? 'Vlyne ID'
+                : 'Модерация';
             addItem({
                 type: 'moderation',
                 title,

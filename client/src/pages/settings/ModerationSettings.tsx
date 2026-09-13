@@ -97,6 +97,10 @@ const ModerationSettings: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
     const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid'>('reports');
+    // Сколько заявок Vlyne ID ждёт решения. Показывается на самой вкладке:
+    // уведомление о новой заявке может не долететь (модератор был офлайн, push
+    // не настроен, заявку подал сам модератор), а очередь молчать не должна.
+    const [vlyneIdOpen, setVlyneIdOpen] = useState(0);
 
     // --- Жалобы на проблемы приложения (кнопка «Репорт» в сайдбаре) ---
     const [problems, setProblems] = useState<any[]>([]);
@@ -140,6 +144,19 @@ const ModerationSettings: React.FC = () => {
     useEffect(() => {
         fetchReports(filter);
     }, [filter]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const load = () => {
+            axios.get('/api/vlyne-id/admin/applications/count')
+                .then((r) => { if (!cancelled) setVlyneIdOpen(r.data?.open || 0); })
+                .catch(() => { /* счётчик — не повод показывать ошибку */ });
+        };
+        load();
+        // Заявка может прийти, пока раздел открыт, а событие — не долететь.
+        const timer = setInterval(load, 60000);
+        return () => { cancelled = true; clearInterval(timer); };
+    }, [mainTab]);
 
     useEffect(() => {
         if (mainTab === 'marketplace') fetchMarketplace(mpTab);
@@ -240,6 +257,14 @@ const ModerationSettings: React.FC = () => {
                     }}
                 >
                     Vlyne ID
+                    {vlyneIdOpen > 0 && (
+                        <span style={{
+                            marginLeft: '7px', padding: '1px 7px', fontSize: '11px', fontWeight: 800,
+                            borderRadius: '999px', color: '#fff', background: 'var(--danger, #f04747)'
+                        }}>
+                            {vlyneIdOpen}
+                        </span>
+                    )}
                 </button>
                 <button
                     onClick={() => setMainTab('problems')}
