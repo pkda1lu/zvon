@@ -153,7 +153,6 @@ input[type=file]{padding:9px;font-size:12px}
 .qty{display:flex;align-items:center;gap:14px;margin-top:10px}
 .qty button{width:44px;height:44px;border:2px solid var(--line);background:transparent;color:var(--paper);font-size:22px;cursor:pointer;line-height:1}
 .qty span{font-family:var(--display);font-size:22px;min-width:28px;text-align:center}
-.code-in{letter-spacing:.3em;text-transform:uppercase;font-family:var(--display);font-size:22px;text-align:center}
 
 /* ---------- Итог ---------- */
 .total{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;padding-top:12px;border-top:2px solid var(--line)}
@@ -390,7 +389,7 @@ const MY_OS = detectOS();
 const STATE = {
   user:null, isAdmin:false, tab:"sub", screen:"main",
   // VPN-контур (данные принадлежат Telegram-аккаунту)
-  vpn:{ available:false, linked:false, data:null, error:null },
+  vpn:{ available:false, linked:false, data:null, error:null, link:null },
   traffic:{ pack:null, promo:null, promoPct:0, method:"yookassa", order:null },
   nodes:{ loaded:false, data:null, error:null },
   installOS:MY_OS,
@@ -441,6 +440,9 @@ async function boot(){
       if(cat.vpn){ STATE.vpn.available=!!cat.vpn.available; STATE.vpn.linked=!!cat.vpn.linked; STATE.vpn.error=cat.vpn.error||null; }
     } catch(e){ STATE.vpn.error=e.message; }
     if(STATE.vpn.linked) await loadVpn();
+    // Не привязан — тянем статус ради ссылки на бота: экран привязки без неё
+    // превращается в инструкцию «найдите бота сами».
+    else if(STATE.vpn.available && await loadVpnLink()) await loadVpn();
   } else {
     STATE.products=[{ id:"demo", type:"merch", title:"Футболка Zvon", description:"Демо-мерч", price:1490, images:[], merch:{options:["S","M","L"],requiresShipping:true} }];
   }
@@ -474,6 +476,18 @@ async function autoCheckPending(){
 }
 
 /** Состояние подписки из бота: ключ, трафик, рефералка, пакеты. */
+/* Статус привязки. Отдельно от loadVpn: та тянет подписку и работает только
+   у привязанного, а этот нужен как раз тогда, когда привязки ещё нет — ради
+   ссылки на бота и ради повторной проверки после возвращения оттуда. */
+async function loadVpnLink(){
+  try{
+    const st=await S(zvon.store.vpn.linkStatus());
+    STATE.vpn.link=st;
+    STATE.vpn.linked=!!st.linked;
+  }catch(e){ STATE.vpn.link=null; }
+  return STATE.vpn.linked;
+}
+
 async function loadVpn(){
   try {
     const st=await S(zvon.store.vpn.state());
@@ -545,44 +559,47 @@ function footerLinks(){
 
 /* ==================== ПРИВЯЗКА АККАУНТА ====================
  * Подписка принадлежит Telegram-аккаунту, поэтому Zvon сначала должен узнать,
- * кто перед ним. Доказательством владения служит код из команды /link: взять
- * его можно только внутри бота. */
+ * кто перед ним. Раньше доказательством служил шестизначный код из бота —
+ * теперь человек входит в боте через Vlyne ID, а Zvon узнаёт связь по тому же
+ * идентификатору аккаунта. Вводить сюда ничего не нужно: как только привязка
+ * появится на стороне бота, этот экран сменится кабинетом. */
 function renderLinkScreen(c){
   c.appendChild(el(`<div class="eyebrow" style="margin-top:16px">Аккаунт</div>`));
-  c.appendChild(el(`<h1>Связать с Telegram</h1>`));
-  c.appendChild(el(`<div class="sub">VPN-подписка Vlyne одна на человека: ключ, трафик и приглашённые друзья живут в вашем Telegram-аккаунте. Свяжите его с Zvon — и управлять всем этим можно будет из обоих мест.</div>`));
+  c.appendChild(el(`<h1>Подключите Telegram</h1>`));
+  c.appendChild(el(`<div class="sub">VPN-подписка Vlyne одна на человека: ключ, трафик и приглашённые друзья живут в вашем Telegram-аккаунте. Войдите там через Vlyne ID — и управлять всем этим можно будет из обоих мест.</div>`));
 
   const box=el(`<div class="card hi"></div>`);
-  box.appendChild(el(`<h2>Код привязки</h2>`));
+  box.appendChild(el(`<h2>Как подключить</h2>`));
   box.appendChild(el(`<ol class="steps">
-    <li>Откройте бота Vlyne в Telegram.</li>
-    <li>«Подписка» → <b>«Связать с Zvon»</b> (или команда <b>/link</b>).</li>
-    <li>Введите шестизначный код сюда — он живёт 10 минут.</li>
+    <li>Откройте бота Vlyne в Telegram и запустите мини-приложение.</li>
+    <li>На экране «Подписка» нажмите <b>«Войти через Vlyne ID»</b>.</li>
+    <li>Подтвердите вход тем же аккаунтом, под которым вы здесь.</li>
   </ol>`));
-  const inp=el(`<input class="code-in" placeholder="000000" inputmode="numeric" maxlength="6" autocomplete="one-time-code">`);
-  box.appendChild(inp);
-  const btn=el(`<button class="btn">Связать</button>`);
-  btn.onclick=async ()=>{
-    const raw=(inp.value||"").trim();
-    // Код входа в настольное приложение Vlyne — 8 символов с буквами через
-    // дефис. Он выдаётся другой кнопкой и сюда не подойдёт, но перепутать их
-    // легко, поэтому говорим об этом прямо, а не «код неверен».
-    if(/[a-zA-Zа-яА-Я]/.test(raw)){
-      toast("Это код для приложения Vlyne. Для Zvon нужен код из «Связать с Zvon» или /link");
-      return;
-    }
-    const code=raw.replace(/\D/g,"");
-    if(code.length!==6){ toast("Код состоит из 6 цифр"); return; }
-    btn.disabled=true; btn.textContent="Связываем…";
-    try {
-      const r=await S(zvon.store.vpn.link(code));
-      STATE.vpn.linked=true;
-      await loadVpn();
-      toast("Аккаунт связан"+(r.telegram&&r.telegram.name?(": "+r.telegram.name):""));
-      renderTabs(); render();
-    } catch(e){ toast(e.message); btn.disabled=false; btn.textContent="Связать"; }
+
+  const botLink=(STATE.vpn.link && STATE.vpn.link.botLink) || "";
+  if(botLink){
+    const open=el(`<button class="btn">Открыть бота</button>`);
+    open.onclick=()=>openUrl(botLink);
+    box.appendChild(open);
+  }
+
+  // Проверка вручную: человек уходит в Telegram и возвращается, а мини-апп
+  // всё это время открыт и сам о привязке не узнает.
+  const check=el(`<button class="btn ${botLink ? 'dim' : ''}">Я уже вошёл — проверить</button>`);
+  check.onclick=async ()=>{
+    check.disabled=true; check.textContent="Проверяем…";
+    try{
+      if(await loadVpnLink()){
+        await loadVpn();
+        toast("Аккаунт подключён");
+        renderTabs(); render();
+        return;
+      }
+      toast("Привязка пока не видна. Войдите через Vlyne ID в боте и попробуйте снова");
+    }catch(e){ toast(e.message); }
+    check.disabled=false; check.textContent="Я уже вошёл — проверить";
   };
-  box.appendChild(btn);
+  box.appendChild(check);
   c.appendChild(box);
 
   c.appendChild(el(`<div class="card">
@@ -591,14 +608,18 @@ function renderLinkScreen(c){
       <li><b>Один ключ, а не два.</b> Ссылка подписки та же, что в боте — клиент настраивается один раз.</li>
       <li><b>Общий трафик.</b> Купили пакет здесь — он виден в Telegram, и наоборот.</li>
       <li><b>Общая рефералка.</b> Приглашённые друзья и заработанные ГБ считаются в одном месте.</li>
-      <li><b>Отвязать можно в любой момент</b> — здесь или командой /unlink в боте. Подписка при этом остаётся.</li>
+      <li><b>Отключить можно в любой момент</b> — здесь или в боте. Подписка при этом остаётся.</li>
     </ul>
+  </div>`));
+
+  c.appendChild(el(`<div class="card">
+    <h2>Почему без кода</h2>
+    <p class="muted" style="margin:0">Раньше приходилось переписывать шестизначный код из бота. Теперь обе стороны узнают друг друга по Vlyne ID — вашему единому аккаунту Vlyne, — и переписывать ничего не нужно.</p>
   </div>`));
 
   const sup=el(`<button class="btn dim">Написать в поддержку</button>`); sup.onclick=()=>openUrl(supportUrl()); c.appendChild(sup);
 }
 
-/** true, если экран занят заглушкой: нет привязки либо состояние не загрузилось. */
 function vpnGate(c){
   if(!STATE.vpn.linked){ renderLinkScreen(c); return true; }
   if(!STATE.vpn.data){
@@ -661,6 +682,7 @@ function renderSub(c){
     try {
       await S(zvon.store.vpn.unlink());
       STATE.vpn.linked=false; STATE.vpn.data=null; STATE.nodes={loaded:false,data:null,error:null};
+      await loadVpnLink();
       toast("Аккаунт отвязан"); renderTabs(); render();
     } catch(e){ toast(e.message); un.disabled=false; un.textContent="Отвязать Telegram"; }
   };

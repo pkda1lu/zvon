@@ -90,14 +90,19 @@ const tokenLimiter = rateLimit({ windowMs: 5 * 60 * 1000, max: 60, keyFn: (req) 
 const authorizeLimiter = rateLimit({ windowMs: 5 * 60 * 1000, max: 60, keyFn: (req) => String(req.query?.client_id || '') });
 
 /** Ошибка на /authorize, когда вернуть её приложению нельзя (битый redirect_uri). */
-function renderError(res, status, title, detail) {
+function renderError(res, status, title, detail, technical) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const tech = technical
+    ? `<code>${esc(technical)}</code>`
+    : '';
   res.status(status).type('html').send(`<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Vlyne ID — ошибка</title>
-<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1a1b23;color:#e8e9ef;font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-.c{max-width:440px;padding:32px;background:#23242e;border-radius:16px;border:1px solid #32333f}
-h1{margin:0 0 12px;font-size:18px}p{margin:0;color:#a9abbc}</style></head>
-<body><div class="c"><h1>${esc(title)}</h1><p>${esc(detail)}</p></div></body></html>`);
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1a1b23;color:#e8e9ef;font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+.c{max-width:480px;padding:32px;background:#23242e;border-radius:16px;border:1px solid #32333f}
+h1{margin:0 0 12px;font-size:18px}p{margin:0;color:#a9abbc}
+code{display:block;margin-top:18px;padding:12px 14px;font:13px/1.5 'Fira Code',ui-monospace,monospace;
+color:#b6c0ff;background:rgba(124,140,255,.1);border-radius:10px;word-break:break-all}</style></head>
+<body><div class="c"><h1>${esc(title)}</h1><p>${esc(detail)}</p>${tech}</div></body></html>`);
 }
 
 /** Возврат ошибки приложению по правилам OAuth — параметрами редиректа. */
@@ -221,8 +226,15 @@ oauthRouter.get('/authorize', authorizeLimiter, async (req, res) => {
     // отправлять по нему ошибку нельзя — иначе Vlyne ID сам станет удобным
     // перенаправителем на чужие сайты.
     if (!redirectUri || !client.allowsRedirect(String(redirectUri))) {
+      // Показываем полученный адрес. Сам по себе он не секрет — его прислал
+      // браузер и он виден в адресной строке, — зато без него ошибка
+      // превращается в тупик: расхождение бывает в одном символе, слэше или
+      // порте, и на глаз в настройках его не находят. Зарегистрированные
+      // адреса при этом НЕ показываем: их знает только владелец приложения.
       return renderError(res, 400, 'Недопустимый адрес возврата',
-        'redirect_uri не совпадает ни с одним из зарегистрированных для этого приложения. Проверьте настройки приложения.');
+        'Приложение прислало адрес, который не совпадает ни с одним из зарегистрированных. ' +
+        'Сверьте его посимвольно — включая протокол, порт и завершающий слэш.',
+        redirectUri ? `Получено: ${redirectUri}` : 'Адрес возврата вообще не передан');
     }
 
     if (responseType !== 'code') {

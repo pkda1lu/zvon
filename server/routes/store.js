@@ -247,10 +247,39 @@ router.get('/vpn/link', auth, async (req, res) => {
     if (!st.linked && req.user.telegram?.id) {
       await User.updateOne({ _id: req.user._id }, { $set: { 'telegram.id': null, 'telegram.username': '', 'telegram.linkedAt': null } });
     }
-    res.json({ ok: true, available: true, linked: !!st.linked, telegram: st.linked ? { id: st.tgUserId, username: st.username, name: st.name, linkedAt: st.linkedAt } : null });
+
+    // И наоборот: привязка теперь создаётся на стороне бота — человек входит
+    // там через Vlyne ID, и Zvon об этом узнаёт только отсюда. Без этой ветки
+    // локальная копия оставалась бы пустой, а вместе с ней и право telegram
+    // в Vlyne ID отдавало бы null у реально привязанного аккаунта.
+    if (st.linked && String(req.user.telegram?.id || '') !== String(st.tgUserId || '')) {
+      await User.updateOne({ _id: req.user._id }, { $set: {
+        'telegram.id': st.tgUserId,
+        'telegram.username': st.username || '',
+        'telegram.linkedAt': st.linkedAt ? new Date(st.linkedAt * 1000) : new Date(),
+      } });
+    }
+
+    res.json({
+      ok: true,
+      available: true,
+      linked: !!st.linked,
+      // Ссылка на бота: привязка делается там, и без неё экран превращается
+      // в инструкцию «найдите бота сами».
+      botLink: process.env.VLYNE_BOT_LINK || '',
+      telegram: st.linked ? { id: st.tgUserId, username: st.username, name: st.name, linkedAt: st.linkedAt } : null,
+    });
   } catch (e) { vpnError(res, e); }
 });
 
+/**
+ * Привязка шестизначным кодом — прежний способ.
+ *
+ * Интерфейс им больше не пользуется: связь создаётся входом через Vlyne ID на
+ * стороне бота. Маршрут оставлен на время, пока у кого-то может быть открыт
+ * старый клиент Zvon; когда такие обращения пропадут, его и парную команду
+ * /link в боте можно удалить целиком.
+ */
 router.post('/vpn/link', auth, async (req, res) => {
   try {
     const code = String(req.body?.code || '').trim();
