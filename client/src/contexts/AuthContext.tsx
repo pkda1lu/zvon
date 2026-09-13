@@ -36,6 +36,18 @@ export const useAuth = () => {
 };
 
 const getApiUrl = () => {
+  // Поддомен Vlyne ID обслуживается тем же сервером за тем же nginx, поэтому
+  // API у него свой собственный. Проверка стоит ПЕРЕД VITE_API_URL намеренно:
+  // в сборке там зашит https://zvonserver.ru, и кабинет уходил бы на чужой
+  // origin — то есть в CORS, вместо того чтобы просто спросить свой сервер.
+  if (
+    typeof window !== 'undefined' &&
+    /^vlyneid\./i.test(window.location.hostname) &&
+    /^https?:$/.test(window.location.protocol)
+  ) {
+    return window.location.origin;
+  }
+
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
   // Веб-версия, открытая с реального домена, ходит на тот же origin.
   if (

@@ -62,6 +62,12 @@ const corsOptions = {
       'http://zvon.duckdns.com',
       'https://zvonserver.ru',
       'http://zvonserver.ru',
+      // Поддомен Vlyne ID. Свой же клиент на своём же сервере: страницы оттуда
+      // обычно ходят на собственный origin, но список нужен на случай, когда
+      // сборка настроена на главный домен (VITE_API_URL) — иначе вход в личный
+      // кабинет упирается в отказ на предварительном запросе.
+      'https://vlyneid.zvonserver.ru',
+      'http://vlyneid.zvonserver.ru',
       'https://maxcord.fun',
       'http://maxcord.fun'
     ];
