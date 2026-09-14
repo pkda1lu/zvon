@@ -44,11 +44,35 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.06));
+  border-radius: var(--corner-radius, calc(18px * var(--interface-scale, 1)));
+}
+
+/* === Стекло витрины =========================================================
+   Обе панели экрана — центральная и боковая — берут плотность из одной пары
+   переменных, поэтому выглядят одним материалом и обе слушаются ползунка
+   «Непрозрачность панелей». Боковая получается темнее просто потому, что
+   вложена в центральную и накрывается подложкой дважды: это читается как
+   глубина, а не как рассогласование.
+
+   Размытие здесь обязательно. Без него сквозь центральную панель виден живой
+   фон во всей резкости, и панель перестаёт читаться как поверхность — именно
+   этим она и отличалась от боковой, у которой размытие было.
+
+   Над пользовательской картинкой размытие не включаем: её уже размывает
+   собственная настройка «Размытие фона», второй проход только съел бы
+   картинку. Та же причина, по которой его нет в .panel-hero. */
+.showcase-panel,
+.showcase-main-container .active-contacts-sidebar {
   background: linear-gradient(180deg,
     var(--panel-overlay-top, rgba(8, 8, 14, 0.45)),
     var(--panel-overlay-bottom, rgba(4, 4, 10, 0.65)));
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.06));
-  border-radius: var(--corner-radius, calc(18px * var(--interface-scale, 1)));
+}
+
+:root:not(.has-custom-bg) .showcase-panel,
+:root:not(.has-custom-bg) .showcase-main-container .active-contacts-sidebar {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 /* === Фон: два очень мягких пятна + почти незаметный диагональный блик ===
@@ -505,7 +529,7 @@
 }
 .showcase-empty p { margin: 0; }
 
-/* === Правая панель — настоящая glass-panel === */
+/* === Правая панель. Фон и размытие — в общем блоке «Стекло витрины» выше. === */
 .showcase-main-container .active-contacts-sidebar {
   width: calc(300px * var(--interface-scale, 1));
   flex: 0 0 calc(300px * var(--interface-scale, 1));
@@ -513,10 +537,7 @@
   margin: calc(12px * var(--interface-scale, 1));
   padding: calc(20px * var(--interface-scale, 1)) calc(18px * var(--interface-scale, 1));
   border-radius: calc(24px * var(--interface-scale, 1));
-  background: rgba(10, 13, 19, 0.58);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  backdrop-filter: blur(calc(30px * var(--interface-scale, 1))) saturate(130%);
-  -webkit-backdrop-filter: blur(calc(30px * var(--interface-scale, 1))) saturate(130%);
   box-shadow:
     0 calc(20px * var(--interface-scale, 1)) calc(70px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
