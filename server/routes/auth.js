@@ -12,6 +12,7 @@ const { createSession } = require('../utils/session');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 const Consent = require('../models/Consent');
 const { getConsentMeta, getPolicyMeta } = require('../utils/pdDocuments');
+const { getClientIp } = require('../utils/deviceInfo');
 
 // ===== Простой in-memory rate limit (защита от перебора паролей/кодов) =====
 const _rlStore = new Map();
@@ -596,7 +597,7 @@ router.post('/verify-registration', codeLimiter, [
           documentVersion: meta.version,
           documentHash: meta.hash,
           granted: true,
-          ip: req.ip || '',
+          ip: getClientIp(req),
           userAgent: (req.header('User-Agent') || '').slice(0, 300)
         });
       } catch (consentErr) {

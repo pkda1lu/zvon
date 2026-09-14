@@ -427,7 +427,15 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             setRemoteScreenStreams(prev => {
               const next = new Map(prev);
               const existing = next.get(participant.identity);
-              const tracks = existing ? existing.getTracks().filter(t => t.id !== track.mediaStreamTrack!.id) : [];
+              // Один живой трек каждого вида: при перепубликации (камера
+              // выключилась и включилась, демонстрация перезапустилась) старый
+              // завершённый трек оставался в потоке первым, а <video> играет
+              // именно первый — картинка застывала последним кадром.
+              const tracks = existing
+                ? existing.getTracks().filter(t => t.id !== track.mediaStreamTrack!.id
+                    && t.kind !== track.mediaStreamTrack!.kind
+                    && t.readyState !== 'ended')
+                : [];
               tracks.push(track.mediaStreamTrack!);
               next.set(participant.identity, new MediaStream(tracks));
               return next;
@@ -439,7 +447,15 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             setRemoteStreams(prev => {
               const next = new Map(prev);
               const existing = next.get(participant.identity);
-              const tracks = existing ? existing.getTracks().filter(t => t.id !== track.mediaStreamTrack!.id) : [];
+              // Один живой трек каждого вида: при перепубликации (камера
+              // выключилась и включилась, демонстрация перезапустилась) старый
+              // завершённый трек оставался в потоке первым, а <video> играет
+              // именно первый — картинка застывала последним кадром.
+              const tracks = existing
+                ? existing.getTracks().filter(t => t.id !== track.mediaStreamTrack!.id
+                    && t.kind !== track.mediaStreamTrack!.kind
+                    && t.readyState !== 'ended')
+                : [];
               tracks.push(track.mediaStreamTrack!);
               next.set(participant.identity, new MediaStream(tracks));
               return next;
@@ -453,7 +469,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
               const next = new Map(prev);
               const stream = next.get(participant.identity);
               if (stream) {
-                const remaining = stream.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
+                const remaining = stream.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id && t.readyState !== 'ended');
                 if (remaining.length === 0) next.delete(participant.identity);
                 else next.set(participant.identity, new MediaStream(remaining));
               }
@@ -464,7 +480,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
               const next = new Map(prev);
               const stream = next.get(participant.identity);
               if (stream) {
-                const remaining = stream.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id);
+                const remaining = stream.getTracks().filter(t => t.id !== track.mediaStreamTrack?.id && t.readyState !== 'ended');
                 if (remaining.length === 0) next.delete(participant.identity);
                 else next.set(participant.identity, new MediaStream(remaining));
               }

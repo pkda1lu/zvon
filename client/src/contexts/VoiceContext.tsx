@@ -1027,9 +1027,23 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 setter(prev => {
                     const next = new Map(prev);
                     const existing = next.get(part.identity);
-                    const tracks = existing ? existing.getTracks().filter(t => t.id !== mst.id) : [];
-                    tracks.push(mst);
-                    next.set(part.identity, new MediaStream(tracks));
+                    /*
+                     * Держим ровно один живой трек каждого вида.
+                     *
+                     * Раньше отсеивался только трек с тем же id, поэтому при
+                     * перепубликации (человек выключил и включил камеру, заново
+                     * запустил демонстрацию, пережил переподключение) в потоке
+                     * накапливались старые, уже завершённые треки. <video>
+                     * проигрывает ПЕРВЫЙ видеотрек потока — то есть мёртвый, —
+                     * и карточка застывала на последнем кадре: у светлого окна
+                     * это выглядело как белое пятно, возникающее «само собой»
+                     * и ничего не пишущее в логи.
+                     */
+                    const kept = existing
+                        ? existing.getTracks().filter(t => t.id !== mst.id && t.kind !== mst.kind && t.readyState !== 'ended')
+                        : [];
+                    kept.push(mst);
+                    next.set(part.identity, new MediaStream(kept));
                     return next;
                 });
             });
@@ -1048,7 +1062,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     const next = new Map(prev);
                     const existing = next.get(part.identity);
                     if (existing) {
-                        const remaining = existing.getTracks().filter(t => t.id !== mst?.id);
+                        // Заодно выметаем завершённые треки: оставшись в потоке,
+                        // они точно так же застывают кадром в <video>.
+                        const remaining = existing.getTracks().filter(t => t.id !== mst?.id && t.readyState !== 'ended');
                         if (remaining.length === 0) next.delete(part.identity);
                         else next.set(part.identity, new MediaStream(remaining));
                     }
@@ -1485,14 +1501,21 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // молча ничего не делали — сервер слал событие, которого никто не слушал.
     useEffect(() => {
         if (!socket) return;
-        const onForceJoin = (data: { channelId?: string }) => {
+        const onForceJoin = async (data: { channelId?: string }) => {
             const channelId = data?.channelId;
             if (!channelId || String(channelId) === String(activeChannelId || '')) return;
-            joinChannel(channelId);
+            try {
+                await joinChannel(channelId);
+            } catch (e) {
+                // Иначе сорвавшееся перемещение выглядит как «ничего не произошло»:
+                // модератору сервер отвечает «готово», а человек остаётся на месте.
+                console.error('[voice] не удалось перейти в канал по требованию модератора', e);
+                alert('Модератор переместил вас в другой голосовой канал, но подключиться не удалось.');
+            }
         };
         socket.on('force-join-voice', onForceJoin);
         return () => { socket.off('force-join-voice', onForceJoin); };
-    }, [socket, joinChannel, activeChannelId]);
+    }, [socket, joinChannel, activeChannelId, alert]);
 
     // Публикация внешних треков (звук/видео мини-аппов, presence-медиа) в LiveKit-комнату.
     // Раньше были заглушками → SDK мини-аппа падал с «publishAudio failed».

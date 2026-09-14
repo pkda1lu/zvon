@@ -14,6 +14,7 @@ const PushSubscription = require('../models/PushSubscription');
 const { anonymizeUser } = require('../utils/pdErasure');
 const { getPolicyMeta, getConsentMeta } = require('../utils/pdDocuments');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
+const { getClientIp } = require('../utils/deviceInfo');
 
 /**
  * Права субъекта персональных данных (152-ФЗ, ст. 14, 20, 21).
@@ -110,7 +111,7 @@ router.post('/consent', auth, async (req, res) => {
       documentVersion: meta.version,
       documentHash: meta.hash,
       granted: true,
-      ip: req.ip || '',
+      ip: getClientIp(req),
       userAgent: (req.header('User-Agent') || '').slice(0, 300),
     };
 

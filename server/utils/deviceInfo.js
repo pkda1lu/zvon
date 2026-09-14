@@ -70,11 +70,43 @@ function getClientInfo(req) {
   return parseUserAgent(ua);
 }
 
-// Достаём реальный IP клиента (с учётом прокси/nginx).
+/**
+ * Реальный IP клиента за nginx.
+ *
+ * Прежняя версия брала САМЫЙ ЛЕВЫЙ адрес из X-Forwarded-For — то есть ровно тот,
+ * который прислал сам клиент (nginx дописывает настоящий справа). Из-за этого
+ * в устройствах и в записях Vlyne ID оказывался чужой или выдуманный адрес,
+ * а при конфигурации nginx без X-Forwarded-For (только X-Real-IP) — вообще
+ * 127.0.0.1, потому что запасной путь видел адрес самого прокси. Заодно
+ * префикс IPv4-в-IPv6 (`::ffff:`) срезался только в запасной ветке, и адрес
+ * показывался пользователю в виде «::ffff:95.1.2.3».
+ *
+ * Порядок теперь такой: сначала req.ip, который Express вычисляет по
+ * X-Forwarded-For с учётом `trust proxy` (см. server.js) и подделать заголовком
+ * нельзя; затем X-Real-IP; затем ПРАВЫЙ адрес из X-Forwarded-For — его дописал
+ * наш прокси; и только потом адрес сокета.
+ */
+const LOOPBACK = new Set(['127.0.0.1', '::1', '0.0.0.0', '']);
+
+function normalizeIp(ip) {
+  return String(ip || '').trim().replace(/^::ffff:/i, '');
+}
+
 function getClientIp(req) {
-  const xff = req.headers['x-forwarded-for'];
-  if (xff) return String(xff).split(',')[0].trim();
-  return (req.ip || req.connection?.remoteAddress || '').replace(/^::ffff:/, '');
+  const fromExpress = normalizeIp(req.ip);
+  if (!LOOPBACK.has(fromExpress)) return fromExpress;
+
+  const realIp = normalizeIp(req.headers?.['x-real-ip']);
+  if (!LOOPBACK.has(realIp)) return realIp;
+
+  const xff = req.headers?.['x-forwarded-for'];
+  if (xff) {
+    const chain = String(xff).split(',').map(normalizeIp).filter(ip => !LOOPBACK.has(ip));
+    const nearest = chain[chain.length - 1];
+    if (nearest) return nearest;
+  }
+
+  return normalizeIp(req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress);
 }
 
 function isPrivateIp(ip = '') {
@@ -151,4 +183,4 @@ async function lookupGeo(ip) {
   }
 }
 
-module.exports = { parseUserAgent, getClientInfo, getClientIp, isPrivateIp, lookupGeo };
+module.exports = { parseUserAgent, getClientInfo, getClientIp, normalizeIp, isPrivateIp, lookupGeo };
