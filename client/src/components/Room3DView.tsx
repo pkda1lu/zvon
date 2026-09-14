@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
-import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio, registerPanner, unregisterPanner, setRoomActive } from '../utils/spatialAudio';
+import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio, registerPanner, unregisterPanner, setRoomActive, getPlaybackContext, resumePlayback, ROOM_HALF } from '../utils/spatialAudio';
 import { Channel, Server, User } from '../types';
 import { CubeIcon, ChatIcon } from './Icons';
 import './panel-hero.css';
@@ -153,12 +153,13 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
 
             // Глянцевый пол — не матовый бетон, а тёмное отражающее покрытие
             // киберпанк-лаунжа (даёт блики от точечных «люстр» ниже).
-            const floorGeo = new THREE.PlaneGeometry(20, 20);
+            const floorGeo = new THREE.PlaneGeometry(ROOM_HALF * 2, ROOM_HALF * 2);
             const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b0b14, roughness: 0.32, metalness: 0.4 });
             const floor = new THREE.Mesh(floorGeo, floorMat);
             floor.rotation.x = -Math.PI / 2;
             scene.add(floor);
-            const grid = new THREE.GridHelper(20, 20, 0x00e5ff, 0x22222e);
+            // Делений столько же, сколько единиц стороны — клетка ровно 1×1.
+            const grid = new THREE.GridHelper(ROOM_HALF * 2, ROOM_HALF * 2, 0x00e5ff, 0x22222e);
             (grid.material as any).opacity = 0.22;
             (grid.material as any).transparent = true;
             scene.add(grid);
@@ -168,7 +169,8 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             // стенами и потолком, по периметру идёт неоновая окантовка в цветах
             // бренда (циан/фиолетовый/розовый — те же, что у блобов panel-hero),
             // а под потолком висят три цветные «люстры», подсвечивающие зал.
-            const ROOM_HALF = 10; // половина стороны — совпадает с полом и сеткой 20×20
+            // ROOM_HALF импортируется из utils/spatialAudio: от него же считаются
+            // параметры затухания звука, поэтому размер комнаты задан в одном месте.
             const WALL_HEIGHT = 7;
             const NEON = { cyan: 0x00e5ff, purple: 0x7000ff, pink: 0xff2fd0 };
 
@@ -783,7 +785,9 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             // точки экрана.
             let screenVideo: HTMLVideoElement | null = null;
             let screenTexture: any = null;
-            let screenAudioCtx: AudioContext | null = null;
+            // Узлы звука трансляции держим отдельно: контекст общий и закрывать
+            // его нельзя, поэтому при снятии трансляции отсоединяем только их.
+            let screenAudioNodes: { src: AudioNode; panner: AudioNode; gain: AudioNode } | null = null;
             const SCREEN_AUDIO_ID = '__screen__';
 
             const detachScreen = () => {
@@ -799,7 +803,11 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
                 }
                 unregisterPanner(SCREEN_AUDIO_ID);
                 removeSource(SCREEN_AUDIO_ID);
-                if (screenAudioCtx) { screenAudioCtx.close().catch(() => { }); screenAudioCtx = null; }
+                if (screenAudioNodes) {
+                    const { src, panner, gain } = screenAudioNodes;
+                    try { src.disconnect(); panner.disconnect(); gain.disconnect(); } catch { }
+                    screenAudioNodes = null;
+                }
             };
 
             const attachScreen = (stream: MediaStream | null, withAudio: boolean) => {
@@ -826,16 +834,18 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
                 const audioTracks = stream.getAudioTracks();
                 if (withAudio && audioTracks.length > 0) {
                     try {
-                        const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
-                        const ctx: AudioContext = new Ctx();
-                        screenAudioCtx = ctx;
+                        // Тот же общий контекст, что и у голосов: иначе у звука
+                        // трансляции был бы свой AudioListener, и он не поворачивался
+                        // бы вместе с вами.
+                        const ctx = getPlaybackContext();
                         const src = ctx.createMediaStreamSource(new MediaStream(audioTracks));
                         const panner = ctx.createPanner();
                         const gain = ctx.createGain();
                         src.connect(panner); panner.connect(gain); gain.connect(ctx.destination);
-                        registerPanner(SCREEN_AUDIO_ID, panner, ctx);
+                        screenAudioNodes = { src, panner, gain };
+                        registerPanner(SCREEN_AUDIO_ID, panner);
                         setSourcePosition(SCREEN_AUDIO_ID, 0, SCREEN_Z);
-                        if (ctx.state === 'suspended') ctx.resume().catch(() => { });
+                        resumePlayback();
                     } catch { /* без звука трансляция всё равно видна */ }
                 }
             };

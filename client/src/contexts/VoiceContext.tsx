@@ -24,7 +24,7 @@ import type {
     ConnectionQuality,
 } from 'livekit-client';
 import { loadLiveKit, ConnectionStates, ConnectionQualities, TrackSources } from '../utils/livekitLazy';
-import { registerPanner, unregisterPanner, subscribeRouting } from '../utils/spatialAudio';
+import { registerPanner, unregisterPanner, subscribeRouting, getPlaybackContext, resumePlayback } from '../utils/spatialAudio';
 
 import { useCallSettings } from './CallSettingsContext';
 
@@ -480,8 +480,11 @@ const RemoteAudioElement: React.FC<{
     useEffect(() => {
         const el = ref.current;
         if (!el || !stream) return;
-        const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
-        const ctx: AudioContext = new Ctx();
+        // Контекст общий на всех собеседников — см. getPlaybackContext.
+        // Свой на каждого означал бы свой AudioListener у каждого, упирался бы
+        // в лимит браузера на число контекстов и держал бы по отдельной свёртке
+        // HRTF на участника.
+        const ctx = getPlaybackContext();
         ctxRef.current = ctx;
 
         // keep-alive: держит WebRTC-поток «живым» для createMediaStreamSource.
@@ -497,17 +500,16 @@ const RemoteAudioElement: React.FC<{
         const dest = ctx.createMediaStreamDestination();
         gain.connect(dest);
         gainRef.current = gain;
-        registerPanner(userId, panner, ctx);
+        registerPanner(userId, panner);
 
         /**
          * Панорамирование включаем в цепочку ТОЛЬКО в 3D-комнате.
          *
          * HRTF считает свёртку с импульсными характеристиками — это дорого, а в
          * обычном голосовом канале бесполезно: координаты туда не приходят, все
-         * источники стоят в точке слушателя. Когда узел стоял в цепочке всегда,
-         * при трёх и более участниках звук начинал захлёбываться: у каждого
-         * участника свой AudioContext, и к трём аудиопотокам добавлялись три
-         * свёртки.
+         * источники стоят в точке слушателя. Свёртка идёт на каждого участника
+         * отдельно, поэтому в многолюдном канале постоянно включённый узел
+         * заметен, даже когда все звучат из одной точки.
          *
          * Неподключённый PannerNode ничего не стоит, поэтому создаём его сразу,
          * а в цепочку вставляем по флагу.
@@ -525,9 +527,9 @@ const RemoteAudioElement: React.FC<{
         const unsubscribeRouting = subscribeRouting(applyRouting);
 
         el.srcObject = dest.stream;
-        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        resumePlayback();
         const tryPlay = () => el.play().catch(() => {
-            const retry = () => { ctx.resume().catch(() => {}); el.play().catch(() => {}); document.removeEventListener('click', retry); };
+            const retry = () => { resumePlayback(); el.play().catch(() => {}); document.removeEventListener('click', retry); };
             document.addEventListener('click', retry, { once: true });
         });
         tryPlay();
@@ -535,16 +537,25 @@ const RemoteAudioElement: React.FC<{
         return () => {
             unsubscribeRouting();
             unregisterPanner(userId);
-            try { source.disconnect(); panner.disconnect(); gain.disconnect(); } catch {}
+            try { source.disconnect(); panner.disconnect(); gain.disconnect(); dest.disconnect(); } catch {}
             try { keepAlive.pause(); keepAlive.srcObject = null; } catch {}
             gainRef.current = null;
-            ctx.close().catch(() => {});
+            // Контекст НЕ закрываем: он общий, закрытие оборвало бы звук
+            // остальным участникам. Достаточно отсоединить свои узлы —
+            // без связей они собираются сборщиком мусора.
         };
     }, [stream, userId]);
 
     // Усиление: gain 0..2+ (muted → 0). Верхний предел с запасом, чтобы не «резать» 200%.
+    // Ведём параметр плавно: присваивание .value меняет громкость мгновенно, и
+    // на заглушении собеседника был слышен щелчок.
     useEffect(() => {
-        if (gainRef.current) gainRef.current.gain.value = muted ? 0 : Math.min(Math.max(volume, 0), 5);
+        const gain = gainRef.current;
+        const ctx = ctxRef.current;
+        if (!gain) return;
+        const target = muted ? 0 : Math.min(Math.max(volume, 0), 5);
+        if (ctx) gain.gain.setTargetAtTime(target, ctx.currentTime, 0.015);
+        else gain.gain.value = target;
     }, [muted, volume]);
 
     useEffect(() => {

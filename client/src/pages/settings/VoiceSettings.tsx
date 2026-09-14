@@ -3,7 +3,7 @@ import { useVoice, useVoiceInputLevel } from '../../contexts/VoiceContext';
 import { CustomSelect, SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
 import { SpeakerIcon, MicIcon, CameraIcon, VideoIcon } from '../../components/Icons';
 import { getBrand } from '../../utils/branding';
-import { setSpatialEnabled } from '../../utils/spatialAudio';
+import { setSpatialEnabled, setDistanceFalloff, getDistanceFalloff, DISTANCE_FALLOFF_RANGE } from '../../utils/spatialAudio';
 
 // Separate component for the sensitivity visualizer to isolate high-frequency re-renders
 // Настройка хранится локально: это свойство воспроизведения на конкретном
@@ -133,6 +133,15 @@ const VoiceSettings: React.FC = () => {
     const handleSpatialChange = (on: boolean) => {
         localStorage.setItem(SPATIAL_KEY, String(on));
         setSpatialAudio(on);
+    };
+
+    // Крутизна затухания. Хранением и применением занимается сам модуль —
+    // здесь только текущее значение для ползунка. Подстраивать это имеет смысл
+    // прямо во время разговора: узлы обновляются на лету.
+    const [spatialFalloff, setSpatialFalloff] = useState(getDistanceFalloff);
+    const handleFalloffChange = (percent: number) => {
+        setDistanceFalloff(percent);
+        setSpatialFalloff(percent);
     };
 
     // Only start test stream if NOT already in a call
@@ -321,6 +330,31 @@ const VoiceSettings: React.FC = () => {
                     </div>
                     <SettingsToggle checked={spatialAudio} onChange={handleSpatialChange} />
                 </div>
+
+                {spatialAudio && (
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <h3>Затухание с расстоянием</h3>
+                            <p>
+                                Насколько быстро голос глохнет, когда собеседник отходит.
+                                100% — собеседник в середине комнаты тише примерно на 12 дБ:
+                                расстояние слышно, но говорить через зал можно. Больше —
+                                слышно только тех, кто рядом; меньше — комната звучит ближе.
+                                Меняется на лету, можно крутить прямо в разговоре.
+                            </p>
+                        </div>
+                        <div style={{ width: '200px' }}>
+                            <RangeSlider
+                                min={DISTANCE_FALLOFF_RANGE.min}
+                                max={DISTANCE_FALLOFF_RANGE.max}
+                                step={5}
+                                unit="%"
+                                value={spatialFalloff}
+                                onChange={handleFalloffChange}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="settings-card">
