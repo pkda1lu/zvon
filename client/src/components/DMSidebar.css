@@ -120,21 +120,23 @@
 }
 
 /*
- * Подложка выделения. Без чёткой рамки: вместо неё мягкая заливка с лёгким
- * свечением — на тёмном фоне это читается как подсветка, а не как обводка.
+ * Подложка выделения. Нейтральное белое просветление, как у активной вкладки
+ * витрины и у .friends-tab-button — по всему приложению выделение делается
+ * прозрачностью, а не цветом.
+ *
+ * Раньше здесь была заливка --primary-neon 20% плюс внешнее свечение. Такого
+ * нет больше нигде: соседние экраны обходятся 8-12% белого или очень слабым
+ * сине-фиолетовым отливом, и на их фоне вкладки чатов выбивались ярким пятном.
  */
 .dm-tab-pill {
     position: absolute;
     inset: 0;
     z-index: 0;
     border-radius: inherit;
-    background:
-        linear-gradient(180deg,
-            color-mix(in srgb, var(--primary-neon) 20%, transparent),
-            color-mix(in srgb, var(--primary-neon) 11%, transparent));
+    background: rgba(255, 255, 255, 0.10);
     box-shadow:
-        inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
-        0 2px 12px color-mix(in srgb, var(--primary-neon) 18%, transparent);
+        inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /* Непрочитанные — розовым, как счётчик у чата: один смысл, один цвет.

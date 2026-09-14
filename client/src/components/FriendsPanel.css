@@ -99,18 +99,18 @@
   gap: calc(6px * var(--interface-scale, 1));
 }
 
+/* Выделение вкладки — то же нейтральное просветление, что у .dm-tab-pill и у
+   активной вкладки витрины. Цветная заливка и свечение убраны: во всём
+   остальном приложении выделение делается прозрачностью, а не цветом. */
 .friends-tab-pill {
   position: absolute;
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--primary-neon) 20%, transparent),
-      color-mix(in srgb, var(--primary-neon) 11%, transparent));
+  background: rgba(255, 255, 255, 0.10);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
-    0 2px 12px color-mix(in srgb, var(--primary-neon) 18%, transparent);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .friends-tab-count {
