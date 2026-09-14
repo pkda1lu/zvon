@@ -4,6 +4,9 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { setSourcePosition, setListenerPose, removeSource, resetSpatialAudio, registerPanner, unregisterPanner, setRoomActive, getPlaybackContext, resumePlayback, ROOM_HALF } from '../utils/spatialAudio';
 import { Channel, Server, User } from '../types';
+import { getFullUrl } from '../utils/avatar';
+import { toProxiedMedia, isYouTubeUrl } from '../utils/mediaProxy';
+import { drawPresenceCard, presenceCardSignature, CARD_W, CARD_H, PresenceCardHit } from '../utils/presenceCard';
 import { CubeIcon, ChatIcon } from './Icons';
 import './panel-hero.css';
 import './VoiceChannelView.css';
@@ -66,6 +69,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
     const {
         isConnected, activeChannelId, joinChannel, connectedUsers,
         screenStream, isScreenSharing, remoteScreenStreams,
+        voicePresences, presenceVideoStreams, sendPresenceControl,
     } = useVoice();
 
     // Какую трансляцию показывать на экране комнаты. Чужая в приоритете: свою
@@ -77,6 +81,38 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
         if (isScreenSharing && screenStream) return { stream: screenStream, own: true };
         return null;
     }, [remoteScreenStreams, isScreenSharing, screenStream]);
+
+    /**
+     * Мини-приложение, выведенное в этот канал.
+     *
+     * Это тот же voice-presence, что в обычном голосовом канале рисуется
+     * плиткой в сетке участников (PresenceTile). Ключ канала у presence —
+     * `channel-<id>`, как его формирует MiniAppWindow при создании.
+     *
+     * Если мини-аппок несколько, берём первую: экран в комнате один.
+     */
+    const roomPresence = useMemo(() => {
+        const key = `channel-${channel._id}`;
+        for (const p of voicePresences.values()) if (p.channelId === key) return p;
+        return null;
+    }, [voicePresences, channel._id]);
+
+    /**
+     * Что показывать в комнате. Поверхностей две и они независимы:
+     * «экран» на северной стене и «эфир» (карточка мини-аппки) на восточной.
+     *
+     * Раньше источник был один и они вытесняли друг друга — включив клип,
+     * нельзя было видеть кнопки. Теперь конкуренция осталась только за экран:
+     * демонстрация экрана перебивает клип мини-аппки, а карточка висит всегда.
+     */
+    const wallContent = useMemo(() => ({
+        // Звук СВОЕЙ трансляции не воспроизводим — иначе слышно себя эхом.
+        screen: activeScreen ? { stream: activeScreen.stream, withAudio: !activeScreen.own } : null,
+        presence: roomPresence
+            ? { presence: roomPresence, stream: presenceVideoStreams.get(roomPresence.sessionId) ?? null }
+            : null,
+    }), [activeScreen, roomPresence, presenceVideoStreams]);
+
     const { speakingUsers } = useVoiceLevels();
 
     const mountRef = useRef<HTMLDivElement>(null);
@@ -85,6 +121,16 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
     // Всё изменяемое трёхмерное состояние держим в рефах — сцена живёт вне
     // React-рендеров, обновляется через requestAnimationFrame.
     const sceneRef = useRef<any>(null);
+
+    // Куда слать нажатия с кнопок эфира и чем их слать.
+    //
+    // Через ref, а не через замыкание сцены: сцена собирается один раз при
+    // входе в комнату, а presence и колбэк из контекста меняются. Замыкание
+    // застряло бы на первом значении, и кнопки перестали бы работать после
+    // первой же смены мини-аппки.
+    const presenceControlsRef = useRef<{ channelId: string; sessionId: string } | null>(null);
+    const onPresenceControlRef = useRef<typeof sendPresenceControl | null>(null);
+    onPresenceControlRef.current = sendPresenceControl;
     // three.js (и GLB-модель) грузится и инициализируется асинхронно. Пока флаг
     // не взведён, sceneRef.current === null, и эффект синхронизации участников
     // не может ничего добавить. Флаг заставляет этот эффект перезапуститься ровно
@@ -226,6 +272,36 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             const screenGlow = new THREE.PointLight(0x88bbff, 0, 14, 2);
             screenGlow.position.set(0, SCREEN_Y, SCREEN_Z + 1.5);
             scene.add(screenGlow);
+
+            // ===== Панель эфира =====
+            // Висит на ВОСТОЧНОЙ стене, отдельно от экрана. Экран и эфир — разные
+            // вещи: на экране идёт картинка (демонстрация, клип), а эфир — это
+            // карточка мини-аппки с названием и кнопками. Пока они делили одно
+            // полотно, включить клип и одновременно видеть управление было нельзя.
+            const AIR_W = 7, AIR_H = AIR_W * 9 / 16;
+            const AIR_Y = 1.3 + AIR_H / 2;
+            const AIR_X = ROOM_HALF - 0.12;
+
+            const airGroup = new THREE.Group();
+            airGroup.visible = false;
+            airGroup.position.set(AIR_X, AIR_Y, 0);
+            airGroup.rotation.y = -Math.PI / 2;   // лицом к центру комнаты
+            scene.add(airGroup);
+
+            const airFrame = new THREE.Mesh(
+                new THREE.PlaneGeometry(AIR_W + 0.26, AIR_H + 0.26),
+                new THREE.MeshBasicMaterial({ color: 0x05050a })
+            );
+            airFrame.position.z = -0.02;
+            airGroup.add(airFrame);
+
+            const airMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const airMesh = new THREE.Mesh(new THREE.PlaneGeometry(AIR_W, AIR_H), airMat);
+            airGroup.add(airMesh);
+
+            const airGlow = new THREE.PointLight(0xffcc88, 0, 12, 2);
+            airGlow.position.set(AIR_X - 1.5, AIR_Y, 0);
+            scene.add(airGlow);
 
             const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_HALF * 2, ROOM_HALF * 2), wallMat);
             ceiling.position.set(0, WALL_HEIGHT, 0);
@@ -516,6 +592,30 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             const onPointerDown = (e: PointerEvent) => {
                 toNdc(e.clientX, e.clientY);
                 raycaster.setFromCamera(pointerNdc, camera);
+
+                // Кнопки эфира. Проверяем раньше аватарки: панель висит на стене,
+                // перекрытия с фигурами нет, а промах по кнопке не должен
+                // случайно начать перетаскивание.
+                if (airGroup.visible && airHits.length > 0) {
+                    const screenHit = raycaster.intersectObject(airMesh, false)[0];
+                    if (screenHit && screenHit.uv) {
+                        // UV: (0,0) — левый нижний угол полотна, у канваса — левый верхний.
+                        const cx = screenHit.uv.x * CARD_W;
+                        const cy = (1 - screenHit.uv.y) * CARD_H;
+                        const hit = airHits.find(h => cx >= h.x && cx <= h.x + h.w && cy >= h.y && cy <= h.y + h.h);
+                        if (hit) {
+                            const target = presenceControlsRef.current;
+                            if (target) {
+                                const value = hit.kind === 'slider'
+                                    ? (hit.min ?? 0) + ((cx - hit.x) / hit.w) * ((hit.max ?? 100) - (hit.min ?? 0))
+                                    : undefined;
+                                onPresenceControlRef.current?.(target.channelId, target.sessionId, hit.id, value);
+                            }
+                            return;
+                        }
+                    }
+                }
+
                 const mine = avatarGroups.get(String(currentUser._id));
                 if (!mine) return;
                 const hits = raycaster.intersectObject(mine.hitBox, false);
@@ -777,20 +877,45 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
             window.addEventListener('focus', syncRunning);
             window.addEventListener('blur', syncRunning);
 
-            // ===== Привязка трансляции к экрану =====
+            // ===== Эфир на стене =====
+            //
+            // На северной стене висит один экран, и на него попадает ровно один
+            // источник — «эфир». Их два вида:
+            //
+            //   screen   — трансляция экрана участника;
+            //   presence — мини-приложение, выведенное в голосовой канал (тот же
+            //              механизм voice-presence, что рисует карточки в обычном
+            //              голосовом канале; здесь карточка вместо плитки в сетке
+            //              попадает на стену).
+            //
+            // Кто из них на стене, решает React-слой: сюда приходит уже готовое
+            // содержимое. Экран один, поэтому и функция одна — иначе два
+            // источника наперегонки писали бы в один материал.
+            //
             // Видео идёт через отдельный <video>, не добавленный в документ:
             // three.js нужен только сам элемент как источник кадров. Звук из
-            // этого элемента не берём — он приглушён ради автозапуска, поэтому
-            // звуковая дорожка воспроизводится своим графом и панорамируется из
-            // точки экрана.
+            // этого элемента не берём — он приглушён ради автозапуска.
             let screenVideo: HTMLVideoElement | null = null;
             let screenTexture: any = null;
             // Узлы звука трансляции держим отдельно: контекст общий и закрывать
-            // его нельзя, поэтому при снятии трансляции отсоединяем только их.
+            // его нельзя, поэтому при снятии эфира отсоединяем только их.
             let screenAudioNodes: { src: AudioNode; panner: AudioNode; gain: AudioNode } | null = null;
             const SCREEN_AUDIO_ID = '__screen__';
+            let screenSourceKey: string | null = null;
 
-            const detachScreen = () => {
+            // Эфир (восточная стена) — своё состояние, чтобы карточка и экран
+            // не сбрасывали друг друга.
+            let airTexture: any = null;
+            let airSessionId: string | null = null;
+            let airAudioSourceId: string | null = null;
+            let airCardSessionId: string | null = null;
+            let airCardSignature: string | null = null;
+            let airCardImages: Record<string, HTMLImageElement> = {};
+            let airCardUrls: Record<string, string> = {};
+            // Хит-боксы кнопок карточки в координатах полотна (см. presenceCard).
+            let airHits: PresenceCardHit[] = [];
+
+            const clearScreen = () => {
                 screenGroup.visible = false;
                 screenGlow.intensity = 0;
                 if (screenTexture) { screenTexture.dispose(); screenTexture = null; }
@@ -798,7 +923,7 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
                 screenMat.color.setHex(0x000000);
                 screenMat.needsUpdate = true;
                 if (screenVideo) {
-                    try { screenVideo.pause(); screenVideo.srcObject = null; } catch { }
+                    try { screenVideo.pause(); screenVideo.srcObject = null; screenVideo.removeAttribute('src'); screenVideo.load(); } catch { }
                     screenVideo = null;
                 }
                 unregisterPanner(SCREEN_AUDIO_ID);
@@ -808,53 +933,255 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
                     try { src.disconnect(); panner.disconnect(); gain.disconnect(); } catch { }
                     screenAudioNodes = null;
                 }
+                screenSourceKey = null;
             };
 
-            const attachScreen = (stream: MediaStream | null, withAudio: boolean) => {
-                detachScreen();
-                if (!stream) return;
+            const clearAir = () => {
+                airGroup.visible = false;
+                airGlow.intensity = 0;
+                if (airTexture) { airTexture.dispose(); airTexture = null; }
+                airMat.map = null;
+                airMat.color.setHex(0x000000);
+                airMat.needsUpdate = true;
+                if (airAudioSourceId) { removeSource(airAudioSourceId); airAudioSourceId = null; }
+                airSessionId = null;
+                airCardSessionId = null;
+                airCardSignature = null;
+                airCardImages = {};
+                airCardUrls = {};
+                airHits = [];
+                presenceControlsRef.current = null;
+            };
 
+            /** Показать текстуру на экране (северная стена). */
+            const showScreenTexture = (tex: any) => {
+                screenTexture = tex;
+                screenMat.map = tex;
+                screenMat.color.setHex(0xffffff); // белый, чтобы не тонировать кадр
+                screenMat.needsUpdate = true;
+                screenGroup.visible = true;
+                screenGlow.intensity = 1.2;
+            };
+
+            /** Показать карточку эфира (восточная стена) вместе с её хит-боксами. */
+            const showAirTexture = (tex: any, hits: PresenceCardHit[] = []) => {
+                airTexture = tex;
+                airHits = hits;
+                airMat.map = tex;
+                airMat.color.setHex(0xffffff);
+                airMat.needsUpdate = true;
+                airGroup.visible = true;
+                airGlow.intensity = 0.9;
+            };
+
+            /** Кадры из MediaStream — и для трансляции экрана, и для видео мини-аппы. */
+            const showScreenStream = (stream: MediaStream) => {
                 screenVideo = document.createElement('video');
                 screenVideo.srcObject = stream;
                 screenVideo.muted = true;      // иначе браузер не даст автозапуск
                 screenVideo.playsInline = true;
                 screenVideo.play().catch(() => { });
+                const tex = new THREE.VideoTexture(screenVideo);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                showScreenTexture(tex);
+            };
 
-                screenTexture = new THREE.VideoTexture(screenVideo);
-                screenTexture.colorSpace = THREE.SRGBColorSpace;
-                screenMat.map = screenTexture;
-                screenMat.color.setHex(0xffffff); // белый, чтобы не тонировать кадр
-                screenMat.needsUpdate = true;
+            /** Canvas карточки -> текстура для полотна. Хит-боксы кладём рядом. */
+            const cardTexture = (p: any, images: any) => {
+                const res = drawPresenceCard(p, images);
+                if (!res) return null;
+                const tex = new THREE.CanvasTexture(res.canvas);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                return { tex, hits: res.hits };
+            };
 
-                screenGroup.visible = true;
-                screenGlow.intensity = 1.2;
+            /**
+             * Показывает карточку эфира и держит её в актуальном виде.
+             *
+             * Перерисовываем ТОЛЬКО когда изменилось что-то видимое (см.
+             * presenceCardSignature). Плеер шлёт обновления presence часто —
+             * позиция трека тикает каждую секунду, — и если на каждое из них
+             * пересобирать текстуру, содержимое экрана мигает. Картинки при
+             * этом кэшируем по sessionId: без кэша каждое обновление заново
+             * загружало бы обложку, и карточка на миг возвращалась бы к
+             * текстовому виду.
+             */
+            const showPresenceCard = (p: any) => {
+                const sig = presenceCardSignature(p);
+                const sameCard = airCardSessionId === p.sessionId;
+                if (sameCard && airCardSignature === sig) return;   // ничего не изменилось
 
-                // Звук трансляции — своим графом, чтобы он шёл "от экрана":
-                // отойдя в дальний угол, вы слышите его тише, как в зале.
-                const audioTracks = stream.getAudioTracks();
-                if (withAudio && audioTracks.length > 0) {
-                    try {
-                        // Тот же общий контекст, что и у голосов: иначе у звука
-                        // трансляции был бы свой AudioListener, и он не поворачивался
-                        // бы вместе с вами.
-                        const ctx = getPlaybackContext();
-                        const src = ctx.createMediaStreamSource(new MediaStream(audioTracks));
-                        const panner = ctx.createPanner();
-                        const gain = ctx.createGain();
-                        src.connect(panner); panner.connect(gain); gain.connect(ctx.destination);
-                        screenAudioNodes = { src, panner, gain };
-                        registerPanner(SCREEN_AUDIO_ID, panner);
-                        setSourcePosition(SCREEN_AUDIO_ID, 0, SCREEN_Z);
-                        resumePlayback();
-                    } catch { /* без звука трансляция всё равно видна */ }
+                airCardSessionId = p.sessionId;
+                airCardSignature = sig;
+
+                const cached = sameCard ? airCardImages : {};
+                if (!sameCard) airCardImages = {};
+
+                const drawn = cardTexture(p, cached);
+                if (drawn) {
+                    const prev = airTexture;
+                    showAirTexture(drawn.tex, drawn.hits);
+                    if (prev) prev.dispose();
+                }
+
+                // Обложка трека и аватар мини-аппы. Оба адреса внешние, поэтому
+                // идут через свой прокси: без разрешающего CORS WebGL откажется
+                // брать картинку текстурой, и карточка осталась бы без обложки.
+                const bgUrl = p.background && p.background.type === 'image' ? getFullUrl(p.background.url) : null;
+                const avatarUrl = getFullUrl(p.avatar);
+                const urls: Record<string, string | null> = {
+                    bg: bgUrl ? toProxiedMedia(bgUrl) : null,
+                    avatar: avatarUrl ? toProxiedMedia(avatarUrl) : null,
+                };
+
+                // Уже загруженные адреса заново не тянем — иначе тик секунды
+                // у плеера каждый раз дёргал бы сеть.
+                const need = (['bg', 'avatar'] as const).filter(k => urls[k] && airCardUrls[k] !== urls[k]);
+                if (need.length === 0) return;
+
+                const loaded: Record<string, HTMLImageElement> = { ...cached };
+                let pending = need.length;
+                const done = () => {
+                    if (--pending > 0) return;
+                    // Пока грузились картинки, эфир мог смениться.
+                    if (airCardSessionId !== p.sessionId) return;
+                    airCardImages = loaded;
+                    const next = cardTexture(p, loaded);
+                    if (!next) return;
+                    const prev = airTexture;
+                    showAirTexture(next.tex, next.hits);
+                    if (prev) prev.dispose();
+                };
+                need.forEach(key => {
+                    const url = urls[key] as string;
+                    airCardUrls[key] = url;
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => { loaded[key] = img; done(); };
+                    img.onerror = () => done();
+                    img.src = url;
+                });
+            };
+
+            /**
+             * Видео мини-аппы на «экране» (северная стена).
+             *
+             * Источник — либо MediaStream (демонстрация экрана, publishVideo),
+             * либо обычный URL из presence.background типа 'video' (клип трека).
+             * YouTube-ссылки пропускаем: их кадры отдаёт только собственный
+             * плеер в iframe, текстурой это не положить.
+             */
+            const showScreenUrl = (url: string) => {
+                const v = document.createElement('video');
+                v.crossOrigin = 'anonymous';
+                v.muted = true;        // звук идёт отдельным потоком presence
+                v.loop = true;
+                v.playsInline = true;
+                v.src = url;
+                v.play().catch(() => { });
+                screenVideo = v;
+                const tex = new THREE.VideoTexture(v);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                showScreenTexture(tex);
+            };
+
+            /**
+             * Единственная точка входа для React-слоя.
+             *
+             * Поверхностей две и они независимы:
+             *   «экран» на северной стене — демонстрация экрана или видео мини-аппы;
+             *   «эфир» на восточной стене — карточка мини-аппы с управлением.
+             * Раньше они делили одно полотно и вытесняли друг друга; теперь
+             * музыкальный клип может идти на экране, пока карточка с кнопками
+             * висит сбоку.
+             *
+             * Функция идемпотентна: повторный вызов с тем же источником ничего
+             * не разрушает. Это важно, потому что React зовёт её на каждое
+             * обновление presence, а сброс полотна виден как рывок.
+             */
+            const setWall = (content: {
+                screen: { stream: MediaStream; withAudio: boolean } | null;
+                presence: { presence: any; stream: MediaStream | null } | null;
+            }) => {
+                // --- Эфир (восточная стена) ---
+                if (!content.presence) {
+                    clearAir();
+                } else {
+                    const p = content.presence.presence;
+                    const sessionId: string = p.sessionId;
+                    if (airSessionId !== sessionId) {
+                        clearAir();
+                        airSessionId = sessionId;
+                        // Звук мини-аппы уже воспроизводится общим RemoteAudioRenderer
+                        // (по sessionId), и в комнате он идёт через панораму. Своего
+                        // графа строить не нужно — достаточно сказать, откуда он
+                        // звучит: от карточки, потому что название и кнопки там.
+                        airAudioSourceId = sessionId;
+                        setSourcePosition(sessionId, AIR_X, 0);
+                    }
+                    presenceControlsRef.current = { channelId: p.channelId, sessionId };
+                    showPresenceCard(p);
+                }
+
+                // --- Экран (северная стена) ---
+                // Демонстрация экрана важнее: это разовое осознанное «смотрите
+                // сюда». Клип мини-аппки уступает ей место, но карточка эфира
+                // при этом остаётся на своей стене.
+                if (content.screen) {
+                    if (screenSourceKey === 'screen:' + content.screen.stream.id) return;
+                    clearScreen();
+                    screenSourceKey = 'screen:' + content.screen.stream.id;
+                    showScreenStream(content.screen.stream);
+
+                    // Звук трансляции — своим графом, чтобы он шёл «от экрана»:
+                    // отойдя в дальний угол, вы слышите его тише, как в зале.
+                    const audioTracks = content.screen.stream.getAudioTracks();
+                    if (content.screen.withAudio && audioTracks.length > 0) {
+                        try {
+                            // Тот же общий контекст, что и у голосов: иначе у звука
+                            // трансляции был бы свой AudioListener, и он не
+                            // поворачивался бы вместе с вами.
+                            const ctx = getPlaybackContext();
+                            const src = ctx.createMediaStreamSource(new MediaStream(audioTracks));
+                            const panner = ctx.createPanner();
+                            const gain = ctx.createGain();
+                            src.connect(panner); panner.connect(gain); gain.connect(ctx.destination);
+                            screenAudioNodes = { src, panner, gain };
+                            registerPanner(SCREEN_AUDIO_ID, panner);
+                            setSourcePosition(SCREEN_AUDIO_ID, 0, SCREEN_Z);
+                            resumePlayback();
+                        } catch { /* без звука трансляция всё равно видна */ }
+                    }
+                    return;
+                }
+
+                // Экран свободен — на него идёт видео мини-аппки: либо её
+                // собственный поток (publishVideo), либо клип из background.
+                const pres = content.presence?.presence;
+                const stream = content.presence?.stream ?? null;
+                const bgVideoUrl = pres && pres.background && pres.background.type === 'video' && pres.background.url
+                    && !isYouTubeUrl(pres.background.url) ? String(pres.background.url) : null;
+                const nextScreenKey = stream && stream.getVideoTracks().length > 0
+                    ? 'presence-video:' + pres.sessionId + ':' + stream.id
+                    : bgVideoUrl ? 'presence-url:' + bgVideoUrl : null;
+
+                if (screenSourceKey !== nextScreenKey) {
+                    clearScreen();
+                    screenSourceKey = nextScreenKey;
+                    if (nextScreenKey && stream && stream.getVideoTracks().length > 0) {
+                        showScreenStream(stream);
+                    } else if (nextScreenKey && bgVideoUrl) {
+                        showScreenUrl(bgVideoUrl);
+                    }
                 }
             };
 
-            sceneRef.current = { avatarGroups, addAvatar, removeAvatar, getDisplayName, attachScreen };
+            sceneRef.current = { avatarGroups, addAvatar, removeAvatar, getDisplayName, setWall };
             setSceneReady(true);
 
             cleanupFn = () => {
-                detachScreen();
+                clearScreen();
+                clearAir();
                 cancelAnimationFrame(raf);
                 window.removeEventListener('keydown', onKeyDown);
                 window.removeEventListener('keyup', onKeyUp);
@@ -884,15 +1211,14 @@ const Room3DView: React.FC<Room3DViewProps> = ({ channel, server, onUserClick, o
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isConnectedToThisRoom, channel._id, currentUser?._id]);
 
-    // --- Трансляция на экране комнаты ---
-    // Отдельным эффектом от синхронизации участников: смена трансляции не
-    // должна трогать аватары, и наоборот.
+    // --- Эфир на экране комнаты ---
+    // Отдельным эффектом от синхронизации участников: смена эфира не должна
+    // трогать аватары, и наоборот.
     useEffect(() => {
         const s = sceneRef.current;
-        if (!sceneReady || !s?.attachScreen) return;
-        // Звук СВОЕЙ трансляции не воспроизводим — иначе слышно себя эхом.
-        s.attachScreen(activeScreen?.stream ?? null, activeScreen ? !activeScreen.own : false);
-    }, [sceneReady, activeScreen]);
+        if (!sceneReady || !s?.setWall) return;
+        s.setWall(wallContent);
+    }, [sceneReady, wallContent]);
 
     // --- Синхронизация состава участников (кто в комнате сейчас) со сценой ---
     useEffect(() => {
