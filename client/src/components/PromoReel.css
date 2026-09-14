@@ -1,0 +1,670 @@
+/* ===================== Промо-ролик (кейноут) =====================
+   Самопроигрывающаяся последовательность сцен вместо видеофайла.
+   Все размеры — в cqw от ширины самого ролика (container-type ниже),
+   поэтому одинаково смотрится и в секции лендинга, и в модалке. */
+
+.promo-reel {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #07070c;
+    color: #f7f7fa;
+    container-type: inline-size;
+    isolation: isolate;
+
+    --pr-mist: #8b8b96;
+    --pr-dim: #4a4a56;
+    --pr-cyan: #00e5ff;
+    --pr-violet: #a155ff;
+    --pr-rose: #ff6ec4;
+    --pr-ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+.promo-reel .pr-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background: radial-gradient(75% 65% at 50% 48%, transparent 40%, rgba(0, 0, 0, .8) 100%);
+}
+
+/* ——— Сцена ——— */
+.promo-reel .pr-scene {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3.4cqw;
+    padding: 6cqw;
+    text-align: center;
+}
+
+/* Сцена с сайдбаром выше остальных — ей нужны меньшие поля и заголовок,
+   иначе подпись уезжает за нижний край кадра 16/9. */
+.promo-reel .pr-scene.pr-compact {
+    gap: 2.2cqw;
+    padding: 3.2cqw;
+}
+
+.promo-reel .pr-scene.pr-compact .pr-h2 { font-size: 5.2cqw; }
+.promo-reel .pr-scene.pr-compact .pr-sub { font-size: 2.1cqw; max-width: 42ch; }
+
+.promo-reel .pr-eyebrow {
+    font-size: 1.15cqw;
+    letter-spacing: .42em;
+    text-transform: uppercase;
+    color: var(--pr-mist);
+}
+
+.promo-reel .pr-h1,
+.promo-reel .pr-h2 {
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: -.042em;
+    line-height: .95;
+    text-wrap: balance;
+}
+
+.promo-reel .pr-h1 { font-size: 9.2cqw; }
+.promo-reel .pr-h2 { font-size: 6.2cqw; }
+
+.promo-reel .pr-sub {
+    margin: 0;
+    max-width: 34ch;
+    font-weight: 200;
+    font-size: 2.35cqw;
+    line-height: 1.35;
+    letter-spacing: -.01em;
+    color: var(--pr-mist);
+    text-wrap: balance;
+}
+
+.promo-reel .pr-sub b { font-weight: 500; color: #fff; }
+
+.promo-reel .pr-grad {
+    background: linear-gradient(100deg, var(--pr-cyan), var(--pr-violet) 55%, var(--pr-rose));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Ступенчатое появление текста внутри сцены */
+.promo-reel .pr-r { animation: pr-rise 1.15s var(--pr-ease) both; }
+.promo-reel .pr-r2 { animation-delay: .18s; }
+.promo-reel .pr-r3 { animation-delay: .34s; }
+.promo-reel .pr-r4 { animation-delay: .5s; }
+
+@keyframes pr-rise {
+    from { opacity: 0; transform: translateY(1.6cqw); filter: blur(10px); }
+    to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+/* ——— 1 и 8. Логотип на контровом свете ——— */
+.promo-reel .pr-logo {
+    position: relative;
+    width: 15cqw;
+    height: 15cqw;
+    display: block;
+    animation: pr-logo-in 1.6s var(--pr-ease) both;
+}
+
+.promo-reel .pr-logo.pr-logo-sm { width: 9cqw; height: 9cqw; }
+
+.promo-reel .pr-logo img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(0 1.4cqw 2.4cqw rgba(0, 0, 0, .8));
+}
+
+.promo-reel .pr-logo::after {
+    content: "";
+    position: absolute;
+    inset: -34%;
+    z-index: -1;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, var(--pr-cyan), var(--pr-violet), var(--pr-rose), var(--pr-cyan));
+    filter: blur(3.2cqw);
+    opacity: .38;
+    animation: pr-spin 11s linear infinite;
+}
+
+@keyframes pr-logo-in {
+    from { opacity: 0; transform: scale(.72); filter: blur(1.6cqw); }
+    to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes pr-spin { to { transform: rotate(360deg); } }
+
+/* ——— 2. Шум превращается в чистый голос ——— */
+.promo-reel .pr-eq {
+    display: flex;
+    align-items: flex-end;
+    gap: .7cqw;
+    height: 13cqw;
+}
+
+.promo-reel .pr-eq span {
+    width: .8cqw;
+    height: 12%;
+    border-radius: 1cqw;
+    background: linear-gradient(180deg, var(--pr-cyan), var(--pr-violet));
+    animation: pr-noise .42s steps(4) infinite alternate, pr-calm 3.2s var(--pr-ease) 1.6s forwards;
+}
+
+.promo-reel .pr-eq span.pr-lead {
+    width: 1.5cqw;
+    animation: pr-noise .42s steps(4) infinite alternate, pr-voice 3.2s var(--pr-ease) 1.6s forwards;
+}
+
+@keyframes pr-noise { from { height: 8%; } to { height: 78%; } }
+@keyframes pr-calm { to { height: 10%; background: linear-gradient(180deg, var(--pr-cyan), var(--pr-cyan)); } }
+@keyframes pr-voice { to { height: 56%; } }
+
+/* ——— 3. Демонстрация экрана ——— */
+.promo-reel .pr-win {
+    width: 44cqw;
+    border-radius: 1.4cqw;
+    overflow: hidden;
+    background: #0c0c14;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 6cqw 12cqw -4cqw #000;
+}
+
+.promo-reel .pr-winbar {
+    display: flex;
+    gap: .6cqw;
+    padding: .9cqw 1.2cqw;
+    background: #12121c;
+}
+
+.promo-reel .pr-winbar i {
+    width: .85cqw;
+    height: .85cqw;
+    border-radius: 50%;
+    background: #2c2c3a;
+}
+
+.promo-reel .pr-winbody {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2cqw;
+    overflow: hidden;
+}
+
+.promo-reel .pr-winbody::before {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    background: conic-gradient(from 0deg, var(--pr-cyan), var(--pr-violet), var(--pr-rose), var(--pr-cyan));
+    filter: blur(4cqw);
+    opacity: .45;
+    animation: pr-spin 7s linear infinite;
+}
+
+.promo-reel .pr-chip {
+    position: relative;
+    padding: .7cqw 1.2cqw;
+    border-radius: 10cqw;
+    font-size: 1.25cqw;
+    letter-spacing: .04em;
+    background: rgba(0, 0, 0, .4);
+    backdrop-filter: blur(12px);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+}
+
+.promo-reel .pr-dots {
+    display: inline-flex;
+    gap: .28cqw;
+    margin-left: .6cqw;
+    vertical-align: middle;
+}
+
+.promo-reel .pr-dots i {
+    display: inline-block;
+    width: .28cqw;
+    height: 1cqw;
+    border-radius: 1cqw;
+    background: var(--pr-cyan);
+    animation: pr-noise .4s steps(3) infinite alternate;
+}
+
+.promo-reel .pr-dots i:nth-child(2) { animation-delay: .12s; }
+.promo-reel .pr-dots i:nth-child(3) { animation-delay: .24s; }
+
+/* ——— 4. Живое стекло ——— */
+.promo-reel .pr-glass {
+    position: relative;
+    width: 46cqw;
+    height: 22cqw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.promo-reel .pr-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 2cqw;
+    filter: blur(1cqw);
+    background:
+        radial-gradient(38% 46% at 26% 32%, rgba(0, 229, 255, .53), transparent 62%),
+        radial-gradient(42% 48% at 74% 62%, rgba(161, 85, 255, .6), transparent 62%),
+        radial-gradient(38% 40% at 52% 84%, rgba(255, 110, 196, .47), transparent 62%);
+}
+
+.promo-reel .pr-pane {
+    position: absolute;
+    border-radius: 1.6cqw;
+    background: rgba(255, 255, 255, .055);
+    backdrop-filter: blur(16px) saturate(160%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .17), 0 2cqw 5cqw rgba(0, 0, 0, .6);
+}
+
+.promo-reel .pr-pane-a {
+    width: 30cqw;
+    height: 13cqw;
+    transform: translate(-3cqw, -2cqw);
+    animation: pr-drift 8s ease-in-out infinite alternate;
+}
+
+.promo-reel .pr-pane-b {
+    width: 22cqw;
+    height: 9cqw;
+    background: rgba(255, 255, 255, .08);
+    transform: translate(4cqw, 3cqw);
+    animation: pr-drift 8s ease-in-out .6s infinite alternate-reverse;
+}
+
+@keyframes pr-drift { to { transform: translate(2cqw, -1cqw) rotate(.6deg); } }
+
+/* ——— 5. Сервер: каналы и голосовые — как в приложении ——— */
+.promo-reel .pr-app {
+    display: flex;
+    gap: .9cqw;
+    width: 35cqw;
+    padding: 1cqw;
+    text-align: left;
+    border-radius: 1.6cqw;
+    background: rgba(255, 255, 255, .025);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+
+.promo-reel .pr-rail {
+    display: flex;
+    flex-direction: column;
+    gap: .8cqw;
+    flex-shrink: 0;
+}
+
+.promo-reel .pr-rail i {
+    display: block;
+    width: 2.8cqw;
+    height: 2.8cqw;
+    border-radius: 1.1cqw;
+    background: #15151f;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+
+.promo-reel .pr-rail i.pr-cur { background: linear-gradient(140deg, var(--pr-cyan), var(--pr-violet)); }
+
+.promo-reel .pr-list {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .35cqw;
+}
+
+.promo-reel .pr-cat {
+    padding: .7cqw .6cqw .25cqw;
+    font-size: .95cqw;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--pr-mist);
+    opacity: .85;
+}
+
+.promo-reel .pr-ch {
+    display: flex;
+    align-items: center;
+    gap: .85cqw;
+    padding: .6cqw 1cqw;
+    border-radius: 1cqw;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, .025);
+    color: var(--pr-mist);
+    font-size: 1.22cqw;
+    font-weight: 500;
+}
+
+.promo-reel .pr-ch svg {
+    width: 1.35cqw;
+    height: 1.35cqw;
+    opacity: .7;
+    flex-shrink: 0;
+}
+
+.promo-reel .pr-nm {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.promo-reel .pr-ch.pr-active {
+    background: linear-gradient(135deg, rgba(0, 242, 255, .12), rgba(112, 0, 255, .05));
+    color: #fff;
+}
+
+.promo-reel .pr-ch.pr-active .pr-nm {
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-shadow: 0 0 1.2cqw rgba(0, 229, 255, .4);
+}
+
+.promo-reel .pr-dot {
+    position: relative;
+    width: 1.2cqw;
+    height: 1.2cqw;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.promo-reel .pr-dot b {
+    width: .6cqw;
+    height: .6cqw;
+    border-radius: 50%;
+    background: var(--pr-cyan);
+    box-shadow: 0 0 .8cqw var(--pr-cyan);
+}
+
+.promo-reel .pr-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 229, 255, .6);
+    animation: pr-ping 2s ease-out infinite;
+}
+
+@keyframes pr-ping {
+    0% { transform: scale(.5); opacity: 1; }
+    100% { transform: scale(1.25); opacity: 0; }
+}
+
+.promo-reel .pr-timer {
+    flex-shrink: 0;
+    padding: .16cqw .6cqw;
+    border-radius: 999px;
+    font-size: .95cqw;
+    font-weight: 700;
+    line-height: 1.4;
+    background: rgba(0, 229, 255, .1);
+    color: #9fe9f5;
+    font-variant-numeric: tabular-nums;
+}
+
+.promo-reel .pr-vusers {
+    margin: .35cqw 0 .6cqw 1.6cqw;
+    padding-left: .9cqw;
+    display: flex;
+    flex-direction: column;
+    gap: .25cqw;
+    border-left: 2px solid rgba(255, 255, 255, .05);
+}
+
+.promo-reel .pr-vu {
+    display: flex;
+    align-items: center;
+    gap: .8cqw;
+    padding: .34cqw .8cqw;
+    border-radius: .7cqw;
+    color: var(--pr-mist);
+    font-size: 1.1cqw;
+    font-weight: 500;
+}
+
+.promo-reel .pr-vu.pr-speaking { background: rgba(0, 229, 255, .05); }
+
+.promo-reel .pr-av {
+    width: 1.85cqw;
+    height: 1.85cqw;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: .6cqw;
+    font-size: .85cqw;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .12);
+}
+
+.promo-reel .pr-vu.pr-speaking .pr-av {
+    border-color: var(--pr-cyan);
+    box-shadow: 0 0 .9cqw rgba(0, 229, 255, .4);
+    transform: scale(1.05);
+}
+
+.promo-reel .pr-vu.pr-speaking .pr-nm {
+    color: var(--pr-cyan);
+    font-weight: 700;
+}
+
+.promo-reel .pr-air {
+    padding: .1cqw .45cqw;
+    border-radius: .3cqw;
+    font-size: .78cqw;
+    font-weight: 900;
+    letter-spacing: .06em;
+    color: #fff;
+    background: linear-gradient(135deg, #ff0055, #ff3b30);
+    box-shadow: 0 0 .5cqw rgba(255, 0, 85, .33);
+}
+
+.promo-reel .pr-mute {
+    display: flex;
+    color: #f23f42;
+}
+
+.promo-reel .pr-mute svg {
+    width: 1.15cqw;
+    height: 1.15cqw;
+}
+
+.promo-reel .pr-list > * { animation: pr-slide .75s var(--pr-ease) both; }
+.promo-reel .pr-list > *:nth-child(2) { animation-delay: .07s; }
+.promo-reel .pr-list > *:nth-child(3) { animation-delay: .14s; }
+.promo-reel .pr-list > *:nth-child(4) { animation-delay: .21s; }
+.promo-reel .pr-list > *:nth-child(5) { animation-delay: .28s; }
+.promo-reel .pr-list > *:nth-child(6) { animation-delay: .35s; }
+.promo-reel .pr-list > *:nth-child(7) { animation-delay: .42s; }
+.promo-reel .pr-list > *:nth-child(8) { animation-delay: .49s; }
+
+@keyframes pr-slide {
+    from { opacity: 0; transform: translateX(-1.6cqw); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ——— 6. Мини-приложения ——— */
+.promo-reel .pr-floats {
+    position: relative;
+    width: 46cqw;
+    height: 20cqw;
+}
+
+.promo-reel .pr-float {
+    position: absolute;
+    width: 17cqw;
+    border-radius: 1.2cqw;
+    overflow: hidden;
+    background: #0e0e18;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09), 0 3cqw 7cqw -2cqw rgba(0, 0, 0, .8);
+    animation: pr-pop .9s var(--pr-ease) both;
+}
+
+.promo-reel .pr-float .pr-bar {
+    height: 1.9cqw;
+    display: flex;
+    align-items: center;
+    gap: .35cqw;
+    padding-left: .8cqw;
+    background: #16161f;
+}
+
+.promo-reel .pr-float .pr-bar i {
+    width: .6cqw;
+    height: .6cqw;
+    border-radius: 50%;
+    background: #2e2e3c;
+}
+
+.promo-reel .pr-face {
+    height: 8.4cqw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.2cqw;
+}
+
+.promo-reel .pr-f1 { left: 0; top: 2cqw; }
+.promo-reel .pr-f2 { left: 14.5cqw; top: 7cqw; animation-delay: .14s; }
+.promo-reel .pr-f3 { left: 29cqw; top: 0; animation-delay: .28s; }
+
+@keyframes pr-pop {
+    from { opacity: 0; transform: translateY(2cqw) scale(.94); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ——— 7. Vlyne ID ——— */
+.promo-reel .pr-idwrap {
+    position: relative;
+    width: 22cqw;
+    height: 22cqw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.promo-reel .pr-ring {
+    position: absolute;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13);
+}
+
+.promo-reel .pr-ring-a { inset: 0; animation: pr-spin 22s linear infinite; }
+.promo-reel .pr-ring-b { inset: 14%; box-shadow: inset 0 0 0 1px rgba(0, 229, 255, .33); }
+.promo-reel .pr-ring-c { inset: 28%; box-shadow: inset 0 0 0 1px rgba(161, 85, 255, .4); }
+
+.promo-reel .pr-idcore {
+    position: relative;
+    width: 9cqw;
+    height: 9cqw;
+}
+
+.promo-reel .pr-idcore img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(0 .8cqw 1.8cqw rgba(0, 0, 0, .8));
+}
+
+.promo-reel .pr-idcore::after {
+    content: "";
+    position: absolute;
+    inset: -18%;
+    z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(161, 85, 255, .4), transparent 68%);
+    filter: blur(1.6cqw);
+}
+
+.promo-reel .pr-sats {
+    display: flex;
+    gap: 1cqw;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.promo-reel .pr-sat {
+    padding: .7cqw 1.2cqw;
+    border-radius: 10cqw;
+    font-size: 1.2cqw;
+    letter-spacing: .04em;
+    color: var(--pr-mist);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+}
+
+/* ——— 8. Финал ——— */
+.promo-reel .pr-cta {
+    padding: 1.1cqw 2.6cqw;
+    border-radius: 10cqw;
+    font-size: 1.7cqw;
+    font-weight: 700;
+    color: #05050c;
+    background: linear-gradient(135deg, var(--pr-cyan), var(--pr-violet));
+    box-shadow: 0 2cqw 5cqw -1cqw rgba(161, 85, 255, .47);
+}
+
+.promo-reel .pr-domain {
+    font-size: 1.2cqw;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--pr-dim);
+}
+
+/* ——— Прогресс по главам ——— */
+.promo-reel .pr-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    display: flex;
+    gap: .4cqw;
+    padding: 1cqw;
+}
+
+.promo-reel .pr-seg {
+    flex: 1;
+    height: .25cqw;
+    min-height: 2px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .13);
+}
+
+.promo-reel .pr-seg span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--pr-cyan), var(--pr-violet));
+}
+
+/* На узких экранах секция лендинга переключается на 4/5 — текст крупнее */
+@container (max-width: 560px) {
+    .promo-reel .pr-sub { font-size: 3.2cqw; }
+}
+
+/* Уважаем системную настройку и режим производительности (см. MotionPreferences) */
+@media (prefers-reduced-motion: reduce) {
+    .promo-reel *,
+    .promo-reel *::before,
+    .promo-reel *::after { animation: none !important; }
+}
+
+body[data-reduce-motion="force"] .promo-reel *,
+body[data-reduce-motion="force"] .promo-reel *::before,
+body[data-reduce-motion="force"] .promo-reel *::after { animation: none !important; }
