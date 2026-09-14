@@ -1478,6 +1478,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return () => { socket.off('force-disconnect-voice', onForceDisconnect); };
     }, [socket, leaveChannel, alert]);
 
+    // Модератор переместил нас в другой голосовой канал. Сервер шлёт это событие
+    // только тем устройствам, что уже сидят в голосовом канале того же сервера,
+    // поэтому здесь достаточно перезайти в новый канал: joinChannel сам выходит
+    // из текущего. Без этого обработчика и кнопка «Переместить в», и перетаскивание
+    // молча ничего не делали — сервер слал событие, которого никто не слушал.
+    useEffect(() => {
+        if (!socket) return;
+        const onForceJoin = (data: { channelId?: string }) => {
+            const channelId = data?.channelId;
+            if (!channelId || String(channelId) === String(activeChannelId || '')) return;
+            joinChannel(channelId);
+        };
+        socket.on('force-join-voice', onForceJoin);
+        return () => { socket.off('force-join-voice', onForceJoin); };
+    }, [socket, joinChannel, activeChannelId]);
+
     // Публикация внешних треков (звук/видео мини-аппов, presence-медиа) в LiveKit-комнату.
     // Раньше были заглушками → SDK мини-аппа падал с «publishAudio failed».
     const publishExternalAudioTrack = useCallback(async (track: MediaStreamTrack, name?: string): Promise<string | null> => {

@@ -54,12 +54,18 @@ const formatVoiceDuration = (seconds: number): string => {
  */
 const VoiceUserItem = React.memo<{
   user: User;
+  channelId: string;
   avatarOverride?: string;
   displayName: string;
   isScreenSharing: boolean;
+  /** Модератор с правом MOVE_MEMBERS может перетащить участника в другой канал. */
+  canMove: boolean;
+  isDragging: boolean;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
-  onContextMenu: (e: React.MouseEvent, user: User) => void;
-}>(({ user, avatarOverride, displayName, isScreenSharing, onUserClick, onContextMenu }) => {
+  onContextMenu: (e: React.MouseEvent, user: User, channelId: string) => void;
+  onDragStart: (e: React.DragEvent, userId: string, fromChannelId: string) => void;
+  onDragEnd: () => void;
+}>(({ user, channelId, avatarOverride, displayName, isScreenSharing, canMove, isDragging, onUserClick, onContextMenu, onDragStart, onDragEnd }) => {
   const isSpeaking = useIsSpeaking(user._id);
   const anyUser = user as any;
 
@@ -68,17 +74,20 @@ const VoiceUserItem = React.memo<{
   const longPress = useLongPress(({ x, y }) => {
     onContextMenu({
       preventDefault: () => { }, stopPropagation: () => { }, clientX: x, clientY: y,
-    } as React.MouseEvent, user);
+    } as React.MouseEvent, user, channelId);
   });
 
   return (
     <div
       {...longPress}
-      className={`voice-user-item ${isSpeaking ? 'speaking' : ''} ${longPress.className}`}
+      className={`voice-user-item ${isSpeaking ? 'speaking' : ''} ${canMove ? 'is-draggable' : ''} ${isDragging ? 'is-dragging' : ''} ${longPress.className}`}
+      draggable={canMove}
+      onDragStart={(e) => onDragStart(e, user._id, channelId)}
+      onDragEnd={onDragEnd}
       onClick={(e) => { e.stopPropagation(); onUserClick(user._id, e); }}
-      onContextMenu={(e) => onContextMenu(e, user)}
+      onContextMenu={(e) => onContextMenu(e, user, channelId)}
     >
-      <div className={`voice-user-avatar ${isSpeaking ? 'speaking' : ''}`}>
+      <div className={`voice-user-avatar ${isSpeaking ? 'speaking' : ''}`} draggable={false}>
         <UserAvatar user={user} avatarOverride={avatarOverride} size={24} />
       </div>
       <div className="voice-user-name-row">
@@ -150,7 +159,19 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [editingCategory, setEditingCategory] = useState<Channel | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User, channelId?: string } | null>(null);
+
+  /*
+   * Перетаскивание участника голосового канала модератором.
+   *
+   * Источник держим в ref, а не только в состоянии: dragover срабатывает раньше,
+   * чем React успевает прокинуть новое состояние, и без ref обработчик видит null,
+   * не вызывает preventDefault — и браузер вообще запрещает бросок.
+   * draggingId нужен только для подсветки исходной строки.
+   */
+  const draggingRef = useRef<{ userId: string; fromChannelId: string } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   // Сворачивание категорий на клиенте
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -170,9 +191,58 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
     setCollapsedCategories(prev => ({ ...prev, [catId]: !prev[catId] }));
   };
 
-  const handleContextMenu = (e: React.MouseEvent, user: User) => {
+  const handleContextMenu = (e: React.MouseEvent, user: User, channelId?: string) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, user });
+    setContextMenu({ x: e.clientX, y: e.clientY, user, channelId });
+  };
+
+  // === Перетаскивание участника между голосовыми каналами ===
+  const handleUserDragStart = (e: React.DragEvent, userId: string, fromChannelId: string) => {
+    if (!canMoveMembers) return;
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    // Кладём и text/plain: Windows-браузеры иногда срезают нестандартный MIME.
+    const payload = JSON.stringify({ userId, fromChannelId });
+    try { e.dataTransfer.setData('application/zvon-voice-user', payload); } catch { /* пусто */ }
+    try { e.dataTransfer.setData('text/plain', payload); } catch { /* пусто */ }
+    draggingRef.current = { userId, fromChannelId };
+    setDraggingId(userId);
+  };
+
+  const handleUserDragEnd = () => {
+    draggingRef.current = null;
+    setDraggingId(null);
+    setDropTargetId(null);
+  };
+
+  const handleChannelDragOver = (e: React.DragEvent, channelId: string) => {
+    const src = draggingRef.current;
+    if (!canMoveMembers || !src) return;
+    if (src.fromChannelId === channelId) return; // бросок на исходный канал — ничего не делаем
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dropTargetId !== channelId) setDropTargetId(channelId);
+  };
+
+  const handleChannelDragLeave = (e: React.DragEvent, channelId: string) => {
+    if (e.currentTarget === e.target && dropTargetId === channelId) setDropTargetId(null);
+  };
+
+  const handleChannelDrop = (e: React.DragEvent, channelId: string) => {
+    if (!canMoveMembers) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const raw = e.dataTransfer.getData('application/zvon-voice-user')
+      || e.dataTransfer.getData('text/plain');
+    draggingRef.current = null;
+    setDraggingId(null);
+    setDropTargetId(null);
+    if (!raw || !socket) return;
+    try {
+      const { userId, fromChannelId } = JSON.parse(raw) as { userId: string; fromChannelId: string };
+      if (!userId || fromChannelId === channelId) return;
+      socket.emit('admin-voice-move', { userId, channelId });
+    } catch { /* мусор в dataTransfer — игнорируем */ }
   };
 
   // Voice start timers
@@ -237,10 +307,17 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
     if (channel.type === 'voice') IconComponent = SpeakerIcon;
     if (channel.type === 'room') IconComponent = CubeIcon;
 
+    // Бросить участника можно только в голосовой канал или 3D-комнату.
+    const isVoiceLike = channel.type === 'voice' || channel.type === 'room';
+    const isDropTarget = canMoveMembers && isVoiceLike && dropTargetId === channel._id;
+
     return (
       <div key={channel._id}>
         <div
-          className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''}`}
+          className={`channel-item ${selectedChannel?._id === channel._id ? 'active' : ''} ${unreadCounts[channel._id] > 0 ? 'unread' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+          onDragOver={isVoiceLike ? (e) => handleChannelDragOver(e, channel._id) : undefined}
+          onDragLeave={isVoiceLike ? (e) => handleChannelDragLeave(e, channel._id) : undefined}
+          onDrop={isVoiceLike ? (e) => handleChannelDrop(e, channel._id) : undefined}
           onClick={() => {
             onChannelSelect(channel);
             if ((channel.type === 'voice' || channel.type === 'room') && activeChannelId !== channel._id) {
@@ -302,8 +379,13 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
                   главным: оно приходит мгновеннее.
                 */
                 isScreenSharing={!!(userStates.get(u._id)?.isScreenSharing ?? (u as any).isScreenSharing)}
+                channelId={channel._id}
+                canMove={canMoveMembers && String(u._id) !== String(currentUser?._id || '')}
+                isDragging={draggingId === u._id}
                 onUserClick={onUserClick}
                 onContextMenu={handleContextMenu}
+                onDragStart={handleUserDragStart}
+                onDragEnd={handleUserDragEnd}
               />
             ))}
           </div>
@@ -522,6 +604,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
           onOpenProfile={onUserClick}
+          voiceChannelId={contextMenu.channelId}
         />
         </LazyOverlay>
       )}

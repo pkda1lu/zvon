@@ -24,6 +24,13 @@ interface MemberContextMenuProps {
     onOpenProfile?: (userId: string, event?: React.MouseEvent) => void;
     /** Если меню открыто с конкретного сообщения — жалоба будет привязана к нему. */
     reportMessageId?: string;
+    /**
+     * Голосовой канал, в котором участник сидит сейчас, если вызывающая сторона
+     * это знает (сайдбар и экран канала знают). Нужен потому, что userStates из
+     * useVoice заполнен только для тех, кто сидит в ОДНОМ канале с нами: модератор
+     * из другого канала не видел ни «Переместить в», ни серверных мьютов.
+     */
+    voiceChannelId?: string | null;
 }
 
 const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
@@ -34,7 +41,8 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     onClose,
     onMention,
     onOpenProfile,
-    reportMessageId
+    reportMessageId,
+    voiceChannelId
 }) => {
     if (!targetUser) return null;
 
@@ -75,11 +83,15 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     const { userStates, activeChannelId } = useVoice();
     const targetVoiceState = userStates.get(targetUser._id);
-    const isInVoice = !!targetVoiceState;
+    const isInVoice = !!targetVoiceState || !!voiceChannelId;
     const isServerMuted = targetVoiceState?.isServerMuted || false;
     const isServerDeafened = targetVoiceState?.isServerDeafened || false;
 
-    const voiceChannels = server.channels.filter(c => c.type === 'voice');
+    // 3D-комнаты — такие же голосовые каналы, в них тоже перемещают.
+    // Текущий канал участника из списка убираем: перемещать в него некуда.
+    const voiceChannels = server.channels.filter(c =>
+        (c.type === 'voice' || c.type === 'room') && String(c._id) !== String(voiceChannelId || '')
+    );
 
     const handleServerMute = (e: React.MouseEvent) => {
         e.stopPropagation();

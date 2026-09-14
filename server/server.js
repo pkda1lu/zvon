@@ -1507,11 +1507,18 @@ io.on('connection', (socket) => {
       if (!hasPermission(perms, Permissions.MOVE_MEMBERS)) return;
 
       const connections = io.sockets.adapter.rooms.get(`user-${userId}`);
-      if (connections) {
-        for (const sid of connections) {
-          const s = io.sockets.sockets.get(sid);
-          if (s) s.emit('force-join-voice', { channelId });
-        }
+      if (!connections) return;
+
+      for (const sid of connections) {
+        const s = io.sockets.sockets.get(sid);
+        // Перемещать можно только того, кто уже сидит в голосовом канале этого
+        // же сервера, и только в другой канал. Иначе это не перемещение, а
+        // насильное подключение человека к разговору.
+        if (!s || !s.voiceChannelId) continue;
+        if (String(s.voiceChannelId) === String(channelId)) continue;
+        const fromChannel = await Channel.findById(s.voiceChannelId).select('server');
+        if (!fromChannel || String(fromChannel.server) !== String(targetChannel.server)) continue;
+        s.emit('force-join-voice', { channelId });
       }
     } catch (e) { console.error('Move error', e); }
   });
