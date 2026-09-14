@@ -177,6 +177,13 @@ const useIdleAnimationPause = () => {
  */
 const APP_SHADER_COLORS = ['#06060e', '#12122f', '#3c1599', '#0c6d9e'];
 
+/**
+ * То же самое для темы AMOLED. Тема существует ради чёрных пикселей, поэтому
+ * основа здесь ровно #000000, а цвет оставлен только в верхних слоях и заметно
+ * приглушён: фон остаётся живым, но экран в целом читается как чёрный.
+ */
+const APP_SHADER_COLORS_AMOLED = ['#000000', '#04040c', '#1d0a5c', '#053a55'];
+
 const AppBackground: React.FC = () => {
   const location = useLocation();
   const {
@@ -206,7 +213,6 @@ const AppBackground: React.FC = () => {
     !performanceMode &&
     !reduceMotion &&
     !customBackground &&
-    !isAmoled &&
     !isAuthPage;
 
   // Раскладка и анимации живут в App.css (#global-liquid-bg) — инлайн остаётся
@@ -264,22 +270,16 @@ const AppBackground: React.FC = () => {
         — режим производительности и «отключить анимации» — человек прямо просил
           меньше движения и нагрузки;
         — свой фон-картинка — она и должна быть фоном, а не подложкой под шейдер;
-        — AMOLED — тема существует ради чёрных пикселей, живой фон её отменяет;
         — страницы входа — там уже своя 3D-сцена, две сразу незачем.
+
+        AMOLED не запрещает живой фон, но получает свою почти чёрную палитру.
       */}
       {showShader && (
         <VibeBackground
           className="vibe-bg--layer app-bg-shader"
-          colors={APP_SHADER_COLORS}
+          colors={isAmoled ? APP_SHADER_COLORS_AMOLED : APP_SHADER_COLORS}
           veil={false}
         />
-      )}
-
-      {!performanceMode && !customBackground && !showShader && (
-        <>
-          <div className="bg-orb bg-orb-cyan" />
-          <div className="bg-orb bg-orb-violet" />
-        </>
       )}
     </div>
   );

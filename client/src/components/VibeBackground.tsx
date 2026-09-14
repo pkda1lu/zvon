@@ -113,6 +113,13 @@ interface VibeBackgroundProps {
 const VibeBackground: React.FC<VibeBackgroundProps> = ({ className = '', colors, veil = true }) => {
     const ref = useRef<HTMLCanvasElement>(null);
 
+    // Палитра живёт в ref, а не в зависимостях эффекта. Иначе смена темы
+    // пересобирала бы шейдер: getContext возвращает тот же контекст, но
+    // программа, шейдеры и буфер создавались бы заново, а старые оставались
+    // висеть. Кадр и так применяет цвета сам — их достаточно подменить.
+    const paletteRef = useRef<[number, number, number][]>([]);
+    paletteRef.current = (colors && colors.length === 4 ? colors : DEFAULT_COLORS).map(hexToRgb);
+
     useEffect(() => {
         const canvas = ref.current;
         if (!canvas) return;
@@ -154,8 +161,6 @@ const VibeBackground: React.FC<VibeBackgroundProps> = ({ className = '', colors,
         const uTime = gl.getUniformLocation(prog, 'u_time');
         const uColors = ['u_c1', 'u_c2', 'u_c3', 'u_c4'].map((n) => gl.getUniformLocation(prog, n));
 
-        const palette = (colors && colors.length === 4 ? colors : DEFAULT_COLORS).map(hexToRgb);
-        palette.forEach((c, i) => gl.uniform3f(uColors[i], c[0], c[1], c[2]));
 
         let raf = 0;
         let lastDraw = 0;
@@ -179,6 +184,7 @@ const VibeBackground: React.FC<VibeBackgroundProps> = ({ className = '', colors,
             if (ts - lastDraw < 1000 / FPS) return;
             lastDraw = ts;
             resize();
+            paletteRef.current.forEach((c, i) => gl.uniform3f(uColors[i], c[0], c[1], c[2]));
             gl.uniform2f(uRes, canvas.width, canvas.height);
             gl.uniform1f(uTime, (ts - startTs) / 1000);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -235,7 +241,7 @@ const VibeBackground: React.FC<VibeBackgroundProps> = ({ className = '', colors,
             // уже некуда, и фон оставался бы пустым. Достаточно остановить
             // кадры: контекст уйдёт вместе с самим элементом.
         };
-    }, [colors]);
+    }, []);
 
     return (
         <div className={`vibe-bg ${className}`} aria-hidden="true">
