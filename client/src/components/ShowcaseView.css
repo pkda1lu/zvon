@@ -5,7 +5,9 @@
 
    ВНИМАНИЕ: классы .showcase-profile-card / .profile-card-* переиспользуются
    в настройках (BotsSettings, MiniAppsSettings) как превью карточки, поэтому
-   имена классов и структура сохранены.
+   имена классов и структура сохранены. Кнопка действия называется
+   .showcase-action-btn, а не .profile-action-btn: последний уже занят
+   UserProfileCard.css и перекрашивал ярлык в --primary-neon.
    ========================================================================= */
 
 :root {
@@ -122,41 +124,28 @@
   overflow: hidden;
 }
 
-/* === Шапка === */
-.showcase-hero-header {
-  padding: calc(32px * var(--interface-scale, 1)) calc(32px * var(--interface-scale, 1)) calc(4px * var(--interface-scale, 1));
+/* === Шапка: только название и счётчик. Слоган и «эйбрау» убраны —
+   пользователь уже внутри приложения, объяснять ему, что это Zvon, незачем. === */
+.showcase-header {
+  display: flex;
+  align-items: baseline;
+  gap: calc(12px * var(--interface-scale, 1));
+  flex-wrap: wrap;
   flex-shrink: 0;
-  text-align: left;
+  padding: calc(24px * var(--interface-scale, 1)) calc(32px * var(--interface-scale, 1)) 0;
 }
-.showcase-hero-eyebrow {
-  display: inline-block;
-  font-size: calc(10px * var(--interface-scale, 1));
+.showcase-header__title {
+  font-size: calc(22px * var(--interface-scale, 1));
   font-weight: 700;
-  letter-spacing: calc(2.4px * var(--interface-scale, 1));
-  text-transform: uppercase;
-  color: var(--sc-text-muted);
-  margin-bottom: calc(10px * var(--interface-scale, 1));
-}
-.showcase-hero-title {
-  font-size: calc(30px * var(--interface-scale, 1));
-  font-weight: 700;
-  letter-spacing: calc(-0.6px * var(--interface-scale, 1));
-  margin: 0 0 calc(8px * var(--interface-scale, 1));
-  color: var(--sc-text);
-  line-height: 1.12;
-}
-.showcase-hero-title__accent {
-  background: linear-gradient(135deg, var(--sc-accent-blue), var(--sc-accent-purple));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.showcase-hero-sub {
-  font-size: calc(13px * var(--interface-scale, 1));
-  color: var(--sc-text-secondary);
+  letter-spacing: calc(-0.3px * var(--interface-scale, 1));
   margin: 0;
-  max-width: calc(680px * var(--interface-scale, 1));
-  line-height: 1.55;
+  color: var(--sc-text);
+  line-height: 1.2;
+}
+.showcase-header__count {
+  font-size: calc(12.5px * var(--interface-scale, 1));
+  color: var(--sc-text-muted);
+  white-space: nowrap;
 }
 
 /* === Фильтры + поиск === */
@@ -425,7 +414,7 @@
   color: #ff5765;
 }
 
-.profile-action-btn {
+.showcase-action-btn {
   width: 100%;
   height: calc(40px * var(--interface-scale, 1));
   flex: 1;
@@ -443,25 +432,25 @@
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.profile-action-btn:hover {
+.showcase-action-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.16);
 }
 
 /* Градиент — только на основном действии. */
-.profile-action-btn.primary {
+.showcase-action-btn.primary {
   background: linear-gradient(135deg, var(--sc-accent-blue), var(--sc-accent-purple));
   border-color: rgba(255, 255, 255, 0.12);
   color: #fff;
   box-shadow: 0 calc(8px * var(--interface-scale, 1)) calc(24px * var(--interface-scale, 1)) rgba(75, 50, 255, 0.25);
 }
-.profile-action-btn.primary:hover {
+.showcase-action-btn.primary:hover {
   background: linear-gradient(135deg, #3f68ff, #8330ff);
   border-color: rgba(255, 255, 255, 0.18);
   box-shadow: 0 calc(10px * var(--interface-scale, 1)) calc(28px * var(--interface-scale, 1)) rgba(75, 50, 255, 0.32);
 }
 
-.profile-action-btn.secondary:hover {
+.showcase-action-btn.secondary:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.16);
 }
@@ -536,23 +525,8 @@
 /* Декоративные блобы панели приглушаем — стекло само даёт глубину. */
 .showcase-main-container .active-contacts-sidebar .panel-hero-bg { opacity: 0.3; }
 
-/* === Мобильная шапка === */
-.showcase-mobile-header {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  padding: calc(14px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1)) 0;
-}
-.showcase-mobile-header h3 {
-  margin: 0;
-  font-size: calc(16px * var(--interface-scale, 1));
-  font-weight: 700;
-  color: var(--sc-text);
-}
-
 @media (max-width: 900px) {
-  .showcase-hero-header { padding: 18px 20px 4px; }
-  .showcase-hero-title { font-size: 24px; }
+  .showcase-header { padding: 16px 20px 0; }
   .showcase-tabs { padding: 14px 20px 12px; }
   .showcase-list { padding: 4px 20px 28px; }
 }

@@ -469,7 +469,7 @@ const MiniAppsSettings: React.FC = () => {
                                         <line x1="4" y1="22" x2="4" y2="15"/>
                                     </svg>
                                 </button>
-                                <button className="profile-action-btn secondary" type="button">
+                                <button className="showcase-action-btn secondary" type="button">
                                     <MonitorIcon size={18} />
                                     <span>Открыть</span>
                                 </button>

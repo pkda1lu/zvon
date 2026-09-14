@@ -472,7 +472,7 @@ const BotsSettings: React.FC = () => {
                                     </svg>
                                 </button>
                                 <div className="action-button-container">
-                                    <button className="profile-action-btn primary" type="button">
+                                    <button className="showcase-action-btn primary" type="button">
                                         <PlusIcon size={18} />
                                         <span>Добавить</span>
                                     </button>

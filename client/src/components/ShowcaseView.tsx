@@ -7,7 +7,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { User, Server } from '../types';
 import ActiveContacts from './ActiveContacts';
-import { getBrand } from '../utils/branding';
 import { useAppearance } from '../contexts/AppearanceContext';
 import './ShowcaseView.css';
 
@@ -24,7 +23,6 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
     const { user: currentUser } = useAuth();
     const { socket } = useSocket();
     const { interfaceScale } = useAppearance();
-    const brand = getBrand();
     const [activeTab, setActiveTab] = useState<'all' | 'bots' | 'miniapps'>('all');
     const [showcaseData, setShowcaseData] = useState<{ bots: any[], miniApps: any[] }>({ bots: [], miniApps: [] });
     const [loading, setLoading] = useState(true);
@@ -84,6 +82,22 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
     const filteredBots = showcaseData.bots.filter(b => b.username.toLowerCase().includes(searchQuery.toLowerCase()));
     const filteredApps = showcaseData.miniApps.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
+    // Русские склонения: 1 бот / 2 бота / 5 ботов.
+    const plural = (n: number, one: string, few: string, many: string) => {
+        const mod10 = n % 10;
+        const mod100 = n % 100;
+        if (mod10 === 1 && mod100 !== 11) return one;
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+        return many;
+    };
+
+    // В подзаголовке — то, что реально помогает: сколько всего доступно
+    // в текущем фильтре. Слоган здесь не нужен, пользователь уже внутри приложения.
+    const counters: string[] = [];
+    if (activeTab !== 'miniapps') counters.push(`${filteredBots.length} ${plural(filteredBots.length, 'бот', 'бота', 'ботов')}`);
+    if (activeTab !== 'bots') counters.push(`${filteredApps.length} ${plural(filteredApps.length, 'приложение', 'приложения', 'приложений')}`);
+    const countLabel = loading ? 'Загрузка…' : counters.join(' · ');
+
     const renderBotCard = (bot: any) => (
         <div key={bot._id} className="showcase-profile-card">
             <div 
@@ -116,7 +130,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                         </svg>
                     </button>
                     <div className="action-button-container">
-                        <button className="profile-action-btn primary" onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}>
+                        <button className="showcase-action-btn primary" onClick={() => setShowServerSelect(showServerSelect === bot._id ? null : bot._id)}>
                             <PlusIcon size={18 * interfaceScale} />
                             <span>Добавить</span>
                         </button>
@@ -167,7 +181,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                             <line x1="4" y1="22" x2="4" y2="15"/>
                         </svg>
                     </button>
-                    <button className="profile-action-btn secondary" onClick={() => handleOpenApp(app)}>
+                    <button className="showcase-action-btn secondary" onClick={() => handleOpenApp(app)}>
                         <MonitorIcon size={18 * interfaceScale} />
                         <span>Открыть</span>
                     </button>
@@ -187,24 +201,9 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
 
             <div className="showcase-main-container">
                 <div className="showcase-left-section">
-                    {isMobile && (
-                        <div className="showcase-mobile-header">
-                            <h3>Витрина</h3>
-                        </div>
-                    )}
-
-                    <header className="showcase-hero-header">
-                        <span className="showcase-hero-eyebrow">{brand.name} · Экосистема</span>
-                        <h1 className="showcase-hero-title">
-                            {activeTab === 'bots' ? <>Наши <span className="showcase-hero-title__accent">умные боты</span></>
-                                : activeTab === 'miniapps' ? <>Лучшие <span className="showcase-hero-title__accent">мини-приложения</span></>
-                                : <>Витрина <span className="showcase-hero-title__accent">интеграций</span></>}
-                        </h1>
-                        <p className="showcase-hero-sub">
-                            {activeTab === 'bots' ? 'Автоматизируйте свои серверы с помощью мощных инструментов.'
-                                : activeTab === 'miniapps' ? 'Игры, утилиты и развлечения прямо внутри вашего окна чата.'
-                                : `Исследуйте мир возможностей ${brand.name.toUpperCase()}. Добавляйте ботов или запускайте приложения в один клик.`}
-                        </p>
+                    <header className="showcase-header">
+                        <h1 className="showcase-header__title">Витрина</h1>
+                        <span className="showcase-header__count">{countLabel}</span>
                     </header>
 
                     <div className="showcase-tabs">
