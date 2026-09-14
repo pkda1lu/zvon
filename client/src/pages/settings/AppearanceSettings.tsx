@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAppearance, AppIconType, ThemeObject, CustomColors } from '../../contexts/AppearanceContext';
-import { ChoiceGroup, GridPicker, RangeSlider } from './SettingsUI';
+import { ChoiceGroup, GridPicker, RangeSlider, SettingsToggle } from './SettingsUI';
 import { getIconBrand } from '../../utils/branding';
 import { PlusIcon, TrashIcon, CheckIcon, LockIcon, BellIcon, PinIcon, UsersIcon, SmileIcon, EditIcon } from '../../components/Icons';
 import InterfacePreview from '../../components/InterfacePreview';
@@ -119,6 +119,8 @@ const AppearanceSettings: React.FC = () => {
         customColors, setCustomColors,
         customBackground, setCustomBackground,
         glassOpacity, setGlassOpacity,
+        liveBackground, setLiveBackground,
+        performanceMode, reduceMotion,
         backgroundDim, setBackgroundDim,
         backgroundBlur, setBackgroundBlur,
         resetCustomTheme,
@@ -516,6 +518,28 @@ const AppearanceSettings: React.FC = () => {
                             unit="%"
                             onChange={setGlassOpacity}
                         />
+                    </div>
+                </div>
+
+                {/*
+                    Живой фон. Тоже личная настройка нагрузки, а не часть темы,
+                    поэтому стоит рядом с плотностью и доступна всегда.
+                */}
+                <div className="settings-card">
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <h3>Живой фон</h3>
+                            <p>
+                                Медленно перетекающая подложка вместо статичного градиента —
+                                тот же эффект, что за «Моей волной» в музыке. Рисуется на
+                                видеокарте и замирает, когда окно неактивно.
+                                {customBackground && ' Сейчас не виден: задан свой фон-картинка.'}
+                                {!customBackground && performanceMode && ' Сейчас не виден: включён режим производительности.'}
+                                {!customBackground && !performanceMode && reduceMotion && ' Сейчас не виден: анимации отключены.'}
+                                {!customBackground && !performanceMode && !reduceMotion && theme === 'amoled' && ' Сейчас не виден: выбрана тема AMOLED.'}
+                            </p>
+                        </div>
+                        <SettingsToggle checked={liveBackground} onChange={setLiveBackground} />
                     </div>
                 </div>
 

@@ -26,6 +26,7 @@ import './App.css';
 import { useEffect } from 'react';
 import TitleBar from './components/TitleBar';
 import Landing3D from './components/Landing3D';
+import VibeBackground from './components/VibeBackground';
 const Overlay = React.lazy(() => import('./pages/Overlay'));
 import UpdateNotifier from './components/UpdateNotifier';
 import ScreenReaderHandler from './components/ScreenReaderHandler';
@@ -155,6 +156,21 @@ const useIdleAnimationPause = () => {
   }, []);
 };
 
+/**
+ * Палитра живого фона для основного приложения.
+ *
+ * Темнее той, что VibeBackground берёт по умолчанию для страниц Vlyne ID: там
+ * шейдер — главный герой экрана, здесь он лежит под чатом, списками и
+ * настройками. На исходной яркости получается сплошная синяя стена: стеклянные
+ * панели перестают читаться как панели, а вторичный текст теряет контраст.
+ *
+ * Подбиралось по картинке, а не по формуле: просто затемнить палитру мало —
+ * вместе с яркостью пропадают те самые жилки, ради которых шейдер и взят.
+ * Здесь основа почти чёрная, а цвет остаётся в двух верхних слоях, поэтому
+ * рисунок виден в промежутках между панелями и не спорит с содержимым.
+ */
+const APP_SHADER_COLORS = ['#05050c', '#0f0f30', '#331380', '#0b6a95'];
+
 const AppBackground: React.FC = () => {
   const location = useLocation();
   const {
@@ -162,7 +178,9 @@ const AppBackground: React.FC = () => {
     performanceMode,
     customBackground,
     backgroundDim,
-    backgroundBlur
+    backgroundBlur,
+    reduceMotion,
+    liveBackground
   } = useAppearance();
   const currentPath = (location.pathname + (location.hash || '')).toLowerCase();
 
@@ -177,12 +195,20 @@ const AppBackground: React.FC = () => {
 
   const isAmoled = theme === 'amoled';
 
+  const showShader =
+    liveBackground &&
+    !performanceMode &&
+    !reduceMotion &&
+    !customBackground &&
+    !isAmoled &&
+    !isAuthPage;
+
   // Раскладка и анимации живут в App.css (#global-liquid-bg) — инлайн остаётся
   // только то, что зависит от пользовательских настроек.
   return (
     <div
       id="global-liquid-bg"
-      className={performanceMode ? 'perf-mode' : undefined}
+      className={[performanceMode ? 'perf-mode' : '', showShader ? 'has-live-bg' : ''].filter(Boolean).join(' ') || undefined}
       style={{ backgroundColor: isAmoled ? '#000000' : '#020205' }}
     >
       <div
@@ -222,7 +248,28 @@ const AppBackground: React.FC = () => {
         <Landing3D className="auth-bg-3d" />
       )}
 
-      {!performanceMode && !customBackground && (
+      {/*
+        Живой фон — тот же шейдер, что крутится за «Моей волной» в мини-приложении
+        музыки. Рисуется поверх .bg-gradient, а не вместо него: если WebGL
+        недоступен или шейдер не собрался, холст так и останется прозрачным
+        (он проявляется только по первому кадру), и снизу покажется градиент.
+
+        Когда его не показываем:
+        — режим производительности и «отключить анимации» — человек прямо просил
+          меньше движения и нагрузки;
+        — свой фон-картинка — она и должна быть фоном, а не подложкой под шейдер;
+        — AMOLED — тема существует ради чёрных пикселей, живой фон её отменяет;
+        — страницы входа — там уже своя 3D-сцена, две сразу незачем.
+      */}
+      {showShader && (
+        <VibeBackground
+          className="vibe-bg--layer app-bg-shader"
+          colors={APP_SHADER_COLORS}
+          veil={false}
+        />
+      )}
+
+      {!performanceMode && !customBackground && !showShader && (
         <>
           <div className="bg-orb bg-orb-cyan" />
           <div className="bg-orb bg-orb-violet" />

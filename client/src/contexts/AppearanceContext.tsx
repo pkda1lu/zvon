@@ -65,6 +65,12 @@ interface AppearanceSettings {
      * часть оформления, которым делятся.
      */
     glassOpacity: number;
+    /**
+     * Живой фон приложения — шейдер «краска в воде» (см. VibeBackground).
+     * Не входит в тему по той же причине, что и glassOpacity: это личная
+     * настройка нагрузки на машину, а не оформление, которым делятся.
+     */
+    liveBackground: boolean;
 }
 
 interface AppearanceContextType extends AppearanceSettings {
@@ -82,6 +88,7 @@ interface AppearanceContextType extends AppearanceSettings {
     setBackgroundDim: (value: number) => void;
     setBackgroundBlur: (value: number) => void;
     setGlassOpacity: (value: number) => void;
+    setLiveBackground: (enabled: boolean) => void;
     setScreenReader: (enabled: boolean) => void;
     resetCustomTheme: () => void;
     
@@ -137,7 +144,8 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 customBackground: parsed.customBackground || '',
                 backgroundDim: parsed.backgroundDim ?? 40,
                 backgroundBlur: parsed.backgroundBlur ?? 0,
-                glassOpacity: parsed.glassOpacity ?? 100
+                glassOpacity: parsed.glassOpacity ?? 100,
+                liveBackground: parsed.liveBackground ?? true
             };
         }
         return {
@@ -157,6 +165,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             backgroundDim: 40,
             backgroundBlur: 0,
             glassOpacity: 100,
+            liveBackground: true,
         };
     });
 
@@ -197,6 +206,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     backgroundDim: s.backgroundDim ?? prev.backgroundDim,
                     backgroundBlur: s.backgroundBlur ?? prev.backgroundBlur,
                     glassOpacity: s.glassOpacity ?? prev.glassOpacity,
+                    liveBackground: s.liveBackground ?? prev.liveBackground,
                 }));
             }
         } catch (err) {
@@ -226,6 +236,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         backgroundDim: newSettings.backgroundDim,
                         backgroundBlur: newSettings.backgroundBlur,
                         glassOpacity: newSettings.glassOpacity,
+                        liveBackground: newSettings.liveBackground,
                     },
                     accessibility: {
                         screenReader: newSettings.screenReader,
@@ -524,6 +535,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setActiveThemeId(null);
     };
     const setGlassOpacity = (glassOpacity: number) => setSettings(prev => ({ ...prev, glassOpacity }));
+    const setLiveBackground = (liveBackground: boolean) => setSettings(prev => ({ ...prev, liveBackground }));
 
     const setBackgroundBlur = (backgroundBlur: number) => {
         setSettings(prev => ({ ...prev, backgroundBlur }));
@@ -685,6 +697,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setBackgroundDim,
             setBackgroundBlur,
             setGlassOpacity,
+            setLiveBackground,
             resetCustomTheme,
             
             savedThemes,

@@ -253,6 +253,10 @@ const userSchema = new mongoose.Schema({
       // mongoose молча выбросил бы его, и настройка не переносилась бы
       // между устройствами.
       glassOpacity: { type: Number, default: 100, min: 0, max: 250 },
+      // Живой фон приложения (шейдер «краска в воде»). Как и glassOpacity —
+      // личная настройка нагрузки, не часть темы, но переносить её между
+      // устройствами нужно, поэтому поле объявлено явно.
+      liveBackground: { type: Boolean, default: true },
       deviceScales: { type: mongoose.Schema.Types.Mixed, default: {} }
     },
     chat: {

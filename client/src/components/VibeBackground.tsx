@@ -98,7 +98,19 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
     return sh;
 }
 
-const VibeBackground: React.FC<{ className?: string; colors?: string[] }> = ({ className = '', colors }) => {
+interface VibeBackgroundProps {
+    className?: string;
+    colors?: string[];
+    /**
+     * Затемняющая вуаль поверх холста. Нужна там, где текст лежит прямо на
+     * фоне (страницы Vlyne ID). В основном приложении контент живёт на своих
+     * стеклянных подложках, которые затемняют фон сами, — там вуаль только
+     * гасит картинку второй раз, поэтому её отключают.
+     */
+    veil?: boolean;
+}
+
+const VibeBackground: React.FC<VibeBackgroundProps> = ({ className = '', colors, veil = true }) => {
     const ref = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -147,7 +159,8 @@ const VibeBackground: React.FC<{ className?: string; colors?: string[] }> = ({ c
 
         let raf = 0;
         let lastDraw = 0;
-        const startTs = performance.now();
+        let startTs = performance.now();
+        let pausedAt = 0;
 
         const resize = () => {
             const rect = canvas.getBoundingClientRect();
@@ -169,21 +182,51 @@ const VibeBackground: React.FC<{ className?: string; colors?: string[] }> = ({ c
             gl.uniform2f(uRes, canvas.width, canvas.height);
             gl.uniform1f(uTime, (ts - startTs) / 1000);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
+            // Холст показываем только после первого нарисованного кадра.
+            // Контекст создаётся с alpha: false, поэтому пустой холст — это
+            // непрозрачный чёрный прямоугольник: если бы дальше инициализации
+            // дело не дошло, он закрыл бы собой запасную подложку.
+            canvas.classList.add('is-ready');
         };
 
-        // Во вкладке, которую не смотрят, рисовать незачем: requestAnimationFrame
-        // сам замолкает, но на всякий случай гасим и по событию.
-        const onVisibility = () => {
-            if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
-            else if (!raf) { lastDraw = 0; raf = requestAnimationFrame(frame); }
+        // Смотреть на фон некому — не считаем его.
+        //
+        // Источник правды тот же, что у остальных декоративных слоёв: класс
+        // .app-idle на <html> (см. useIdleAnimationPause в App.tsx). Он
+        // покрывает и свёрнутое окно, и потерю фокуса, и пятнадцать секунд
+        // без ввода. Остановить CSS-анимацию можно было правилом
+        // animation-play-state, а цикл requestAnimationFrame — только кодом,
+        // поэтому здесь следим за классом руками. Шейдер — самый дорогой из
+        // декоративных слоёв, и выигрыш от паузы у него наибольший.
+        const root = document.documentElement;
+        const shouldRun = () => !document.hidden && !root.classList.contains('app-idle');
+
+        const sync = () => {
+            if (shouldRun()) {
+                if (raf) return;
+                // Время сдвигаем на длительность паузы, иначе рисунок
+                // «перепрыгнет» вперёд на всё время простоя.
+                if (pausedAt) startTs += performance.now() - pausedAt;
+                pausedAt = 0;
+                lastDraw = 0;
+                raf = requestAnimationFrame(frame);
+            } else if (raf) {
+                cancelAnimationFrame(raf);
+                raf = 0;
+                pausedAt = performance.now();
+            }
         };
-        document.addEventListener('visibilitychange', onVisibility);
+
+        document.addEventListener('visibilitychange', sync);
+        const idleObserver = new MutationObserver(sync);
+        idleObserver.observe(root, { attributes: true, attributeFilter: ['class'] });
 
         resize();
-        raf = requestAnimationFrame(frame);
+        if (shouldRun()) raf = requestAnimationFrame(frame);
 
         return () => {
-            document.removeEventListener('visibilitychange', onVisibility);
+            document.removeEventListener('visibilitychange', sync);
+            idleObserver.disconnect();
             if (raf) cancelAnimationFrame(raf);
             // Контекст здесь НЕ убиваем намеренно. loseContext() ломает его
             // насовсем, а getContext() на том же элементе возвращает тот же
@@ -197,7 +240,7 @@ const VibeBackground: React.FC<{ className?: string; colors?: string[] }> = ({ c
     return (
         <div className={`vibe-bg ${className}`} aria-hidden="true">
             <canvas ref={ref} className="vibe-bg-canvas" />
-            <div className="vibe-bg-veil" />
+            {veil && <div className="vibe-bg-veil" />}
         </div>
     );
 };
