@@ -88,14 +88,16 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
         <div key={bot._id} className="showcase-profile-card">
             <div 
                 className="profile-card-banner" 
-                style={{ backgroundImage: bot.banner ? `url(${getFullUrl(bot.banner)})` : 'none', backgroundColor: 'var(--primary-neon)' }}
+                style={bot.banner
+                    ? { backgroundImage: `url(${getFullUrl(bot.banner)})` }
+                    : { background: 'linear-gradient(135deg, rgba(49, 92, 255, 0.45), rgba(118, 28, 255, 0.28))' }}
             >
                 <div className="profile-card-badge bot">Бот</div>
             </div>
             <div className="profile-card-content">
                 <div className="profile-card-header">
                     <div className="profile-card-avatar">
-                        {bot.avatar ? <img src={getFullUrl(bot.avatar)!} alt="" /> : <BotIcon size={28 * interfaceScale} color="var(--primary-neon)" />}
+                        {bot.avatar ? <img src={getFullUrl(bot.avatar)!} alt="" /> : <BotIcon size={26 * interfaceScale} color="var(--sc-accent-blue, #315cff)" />}
                     </div>
                     <div className="profile-card-main-info">
                         <div className="profile-card-name">{bot.username}</div>
@@ -138,14 +140,16 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
         <div key={app._id} className="showcase-profile-card">
             <div 
                 className="profile-card-banner" 
-                style={{ backgroundImage: app.banner ? `url(${getFullUrl(app.banner)})` : 'none', backgroundColor: 'var(--secondary-neon)' }}
+                style={app.banner
+                    ? { backgroundImage: `url(${getFullUrl(app.banner)})` }
+                    : { background: 'linear-gradient(135deg, rgba(118, 28, 255, 0.42), rgba(49, 92, 255, 0.24))' }}
             >
                 <div className="profile-card-badge app">Приложение</div>
             </div>
             <div className="profile-card-content">
                 <div className="profile-card-header">
                     <div className="profile-card-avatar">
-                        {app.avatar ? <img src={getFullUrl(app.avatar)!} alt="" /> : <LayoutGridIcon size={28 * interfaceScale} color="var(--secondary-neon)" />}
+                        {app.avatar ? <img src={getFullUrl(app.avatar)!} alt="" /> : <LayoutGridIcon size={26 * interfaceScale} color="var(--sc-accent-purple, #761cff)" />}
                     </div>
                     <div className="profile-card-main-info">
                         <div className="profile-card-name">{app.name}</div>
@@ -174,27 +178,18 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
 
     return (
         <div className="showcase-panel">
-            <div className="showcase-hero-bg" aria-hidden="true">
-                <div className="showcase-hero-blob showcase-hero-blob--cyan" />
-                <div className="showcase-hero-blob showcase-hero-blob--purple" />
-                <div className="showcase-hero-blob showcase-hero-blob--pink" />
-                <svg className="showcase-hero-wave showcase-hero-wave--cyan" viewBox="0 0 1200 400" preserveAspectRatio="none">
-                    <path d="M0,200 C200,80 400,320 600,200 C800,80 1000,320 1200,200" />
-                </svg>
-                <svg className="showcase-hero-wave showcase-hero-wave--purple" viewBox="0 0 1200 400" preserveAspectRatio="none">
-                    <path d="M0,220 C300,140 500,280 700,180 C900,100 1100,260 1200,220" />
-                </svg>
-                <div className="showcase-hero-orb">
-                    <div className="showcase-hero-orb__ring" />
-                    <div className="showcase-hero-orb__core" />
-                </div>
+            {/* Фон намеренно приглушён: сначала читаются интеграции, потом декор. */}
+            <div className="showcase-bg" aria-hidden="true">
+                <div className="showcase-bg__glow showcase-bg__glow--blue" />
+                <div className="showcase-bg__glow showcase-bg__glow--violet" />
+                <div className="showcase-bg__sheen" />
             </div>
 
             <div className="showcase-main-container">
                 <div className="showcase-left-section">
                     {isMobile && (
-                        <div className="showcase-mobile-header" style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', flexShrink: 0 }}>
-                            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#fff' }}>Витрина</h3>
+                        <div className="showcase-mobile-header">
+                            <h3>Витрина</h3>
                         </div>
                     )}
 
@@ -230,7 +225,7 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
 
                     <div className="showcase-list custom-scrollbar">
                         {loading ? (
-                            <div className="showcase-loading" style={{ height: '200px', border: 'none', background: 'transparent' }}>
+                            <div className="showcase-loading">
                                 <span>Загрузка витрины...</span>
                             </div>
                         ) : (
@@ -238,8 +233,8 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                                 {(activeTab === 'all' || activeTab === 'bots') && filteredBots.map(renderBotCard)}
                                 {(activeTab === 'all' || activeTab === 'miniapps') && filteredApps.map(renderAppCard)}
                                 {filteredBots.length === 0 && filteredApps.length === 0 && (
-                                    <div className="showcase-empty" style={{ height: '200px', border: 'none', background: 'transparent' }}>
-                                        <LayoutGridIcon size={48} color="var(--text-dim)" />
+                                    <div className="showcase-empty">
+                                        <LayoutGridIcon size={40} color="rgba(255,255,255,0.25)" />
                                         <p>Ничего не найдено</p>
                                     </div>
                                 )}
