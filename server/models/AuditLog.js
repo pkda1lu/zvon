@@ -37,6 +37,14 @@ const auditLogSchema = new mongoose.Schema({
       'MEMBER_LEAVE',
       'MEMBER_UPDATE', // Roles, Nickname change
       'MEMBER_TIMEOUT',
+      // Голосовая модерация. Эти действия писались в журнал с самого начала,
+      // но в список не входили — mongoose отбивал их валидацией, и в логах
+      // сервера вместо записи копились ошибки «is not a valid enum value».
+      'MEMBER_VOICE_KICK',
+      'MEMBER_VOICE_MOVE',
+      'MEMBER_VOICE_SERVER_MUTE',
+      'MEMBER_VOICE_SERVER_DEAFEN',
+      'MEMBER_VOICE_SELF_STATE',
       'SERVER_TRANSFER',
       'ROLE_CREATE',
       'ROLE_UPDATE',

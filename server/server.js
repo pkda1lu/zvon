@@ -1503,16 +1503,21 @@ io.on('connection', (socket) => {
     try {
       const { userId, channelId } = data || {};
       const targetChannel = await Channel.findById(channelId);
-      if (!targetChannel) return reply({ ok: false, error: 'Канал назначения не найден.' });
+      if (!targetChannel) {
+        console.log('[VoiceMove] отказ: канал назначения не найден', channelId);
+        return reply({ ok: false, error: 'Канал назначения не найден.' });
+      }
       const server = await Server.findById(targetChannel.server);
       if (!server) return reply({ ok: false, error: 'Сервер канала не найден.' });
 
       const perms = computePermissions(socket.userId, server);
       if (!hasPermission(perms, Permissions.MOVE_MEMBERS)) {
+        console.log(`[VoiceMove] отказ: у ${socket.userId} нет права MOVE_MEMBERS`);
         return reply({ ok: false, error: 'Недостаточно прав для перемещения участников.' });
       }
 
       const connections = io.sockets.adapter.rooms.get(`user-${userId}`) || new Set();
+      console.log(`[VoiceMove] ${socket.userId} -> ${userId} в канал ${channelId}; сокетов у участника: ${connections.size}`);
       let sent = 0;
       for (const sid of connections) {
         const s = io.sockets.sockets.get(sid);
@@ -1527,7 +1532,21 @@ io.on('connection', (socket) => {
         sent++;
       }
 
-      if (!sent) return reply({ ok: false, error: 'Участник сейчас не в голосовом канале этого сервера.' });
+      if (!sent) {
+        console.log(`[VoiceMove] отказ: ${userId} не числится в голосовом канале этого сервера`);
+        return reply({ ok: false, error: 'Участник сейчас не в голосовом канале этого сервера.' });
+      }
+      console.log(`[VoiceMove] отправлено force-join-voice на ${sent} устройств(о)`);
+
+      await logAction({
+        serverId: targetChannel.server,
+        executorId: socket.userId,
+        targetId: userId,
+        targetModel: 'User',
+        action: 'MEMBER_VOICE_MOVE',
+        reason: `Moved to voice channel #${targetChannel.name}`
+      });
+
       reply({ ok: true, sent });
     } catch (e) {
       console.error('Move error', e);
