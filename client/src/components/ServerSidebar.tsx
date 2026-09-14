@@ -16,6 +16,7 @@ import UserBadges, { resolveServerTag } from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
 import { ConnectionStates } from '../utils/livekitLazy';
 import { useAppearance } from "../contexts/AppearanceContext";
+import { useDialog } from '../contexts/DialogContext';
 import { useLongPress } from '../utils/useLongPress';
 
 // Модалки сайдбара открываются по действию пользователя, поэтому грузятся
@@ -148,6 +149,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   style
 }) => {
   const { interfaceScale } = useAppearance();
+  const { alert } = useDialog();
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
   const { joinChannel, userStates, activeChannelId, roomConnectionState } = useVoice();
@@ -241,7 +243,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
     try {
       const { userId, fromChannelId } = JSON.parse(raw) as { userId: string; fromChannelId: string };
       if (!userId || fromChannelId === channelId) return;
-      socket.emit('admin-voice-move', { userId, channelId });
+      socket.emit('admin-voice-move', { userId, channelId }, (res: any) => {
+        if (res && res.ok === false) alert(res.error || 'Не удалось переместить участника.');
+      });
     } catch { /* мусор в dataTransfer — игнорируем */ }
   };
 

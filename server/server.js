@@ -1495,20 +1495,25 @@ io.on('connection', (socket) => {
     socket.emit('room-positions-snapshot', { channelId, positions: getRoomPositionsSnapshot(channelId) });
   });
 
-  socket.on('admin-voice-move', async (data) => {
+  // Перемещение участника между голосовыми каналами.
+  // Отвечаем подтверждением: раньше при любом отказе (нет прав, участник вышел
+  // из голосового) обработчик молча возвращался, и модератор видел ровно ничего.
+  socket.on('admin-voice-move', async (data, ack) => {
+    const reply = (payload) => { if (typeof ack === 'function') ack(payload); };
     try {
-      const { userId, channelId } = data;
+      const { userId, channelId } = data || {};
       const targetChannel = await Channel.findById(channelId);
-      if (!targetChannel) return;
+      if (!targetChannel) return reply({ ok: false, error: 'Канал назначения не найден.' });
       const server = await Server.findById(targetChannel.server);
-      if (!server) return;
+      if (!server) return reply({ ok: false, error: 'Сервер канала не найден.' });
 
       const perms = computePermissions(socket.userId, server);
-      if (!hasPermission(perms, Permissions.MOVE_MEMBERS)) return;
+      if (!hasPermission(perms, Permissions.MOVE_MEMBERS)) {
+        return reply({ ok: false, error: 'Недостаточно прав для перемещения участников.' });
+      }
 
-      const connections = io.sockets.adapter.rooms.get(`user-${userId}`);
-      if (!connections) return;
-
+      const connections = io.sockets.adapter.rooms.get(`user-${userId}`) || new Set();
+      let sent = 0;
       for (const sid of connections) {
         const s = io.sockets.sockets.get(sid);
         // Перемещать можно только того, кто уже сидит в голосовом канале этого
@@ -1519,8 +1524,15 @@ io.on('connection', (socket) => {
         const fromChannel = await Channel.findById(s.voiceChannelId).select('server');
         if (!fromChannel || String(fromChannel.server) !== String(targetChannel.server)) continue;
         s.emit('force-join-voice', { channelId });
+        sent++;
       }
-    } catch (e) { console.error('Move error', e); }
+
+      if (!sent) return reply({ ok: false, error: 'Участник сейчас не в голосовом канале этого сервера.' });
+      reply({ ok: true, sent });
+    } catch (e) {
+      console.error('Move error', e);
+      reply({ ok: false, error: 'Внутренняя ошибка сервера.' });
+    }
   });
 
   socket.on('admin-voice-mute', async (data) => {

@@ -106,7 +106,14 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     };
 
     const handleMoveTo = (channelId: string) => {
-        if (socket) socket.emit('admin-voice-move', { userId: targetUser._id, channelId });
+        if (socket) {
+            // Сервер подтверждает перемещение. Без подтверждения отказ (участник
+            // успел выйти из голосового, не хватает прав) выглядел как «ничего
+            // не произошло», и было не понять, сломано оно или запрещено.
+            socket.emit('admin-voice-move', { userId: targetUser._id, channelId }, (res: any) => {
+                if (res && res.ok === false) alert(res.error || 'Не удалось переместить участника.');
+            });
+        }
         onClose();
     };
 
