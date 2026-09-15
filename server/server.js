@@ -1017,6 +1017,25 @@ io.on('connection', (socket) => {
       const user = await User.findById(socket.userId);
       if (!user) return;
 
+      /*
+       * Активность сообщает КАЖДОЕ устройство пользователя, и раньше побеждало
+       * то, которое написало последним. Настольный клиент видит запущенную игру
+       * и шлёт её, а вкладка в браузере игр не видит и шлёт null — статус
+       * «играет» то появлялся, то пропадал без всякой причины.
+       *
+       * Держим активность на самом сокете, а в профиль пишем первую живую среди
+       * всех устройств человека. Тогда null от устройства без игры лишь снимает
+       * его собственную активность, а не чужую.
+       */
+      socket.activity = activity || null;
+      if (!activity) {
+        const connections = io.sockets.adapter.rooms.get(`user-${String(socket.userId)}`) || new Set();
+        for (const sid of connections) {
+          const s = io.sockets.sockets.get(sid);
+          if (s && s.id !== socket.id && s.activity) { activity = s.activity; break; }
+        }
+      }
+
       // Enrich with SteamGridDB icons if it's a game and icons are missing OR remote
       if (activity && activity.name && (!activity.assets || !activity.assets.largeImage || activity.assets.largeImage.startsWith('http'))) {
         try {
@@ -1653,6 +1672,31 @@ io.on('connection', (socket) => {
     }
     cleanupUserPresencesEverywhere(socket.userId, io);
     const connections = io.sockets.adapter.rooms.get(`user-${String(socket.userId)}`);
+
+    // Ушло одно из устройств, а человек ещё в сети: если игру показывало именно
+    // оно, активность надо пересчитать по оставшимся, иначе закрытый клиент
+    // продолжал «играть» до выхода со всех устройств.
+    if (connections && connections.size > 0 && socket.activity) {
+      try {
+        let remaining = null;
+        for (const sid of connections) {
+          const s = io.sockets.sockets.get(sid);
+          if (s && s.activity) { remaining = s.activity; break; }
+        }
+        const user = await User.findById(socket.userId);
+        if (user && JSON.stringify(user.activity || null) !== JSON.stringify(remaining)) {
+          try {
+            const { recordGameSession } = require('./utils/gamePlaytime');
+            const prevActivity = user.activity && user.activity.toObject ? user.activity.toObject() : user.activity;
+            recordGameSession(user, prevActivity, remaining);
+          } catch (e) { console.error('Playtime flush error:', e); }
+          user.activity = remaining;
+          await user.save();
+          io.emit('user-updated', { _id: user._id, activity: remaining });
+        }
+      } catch (err) { console.error('[Presence] Пересчёт активности при отключении устройства:', err); }
+    }
+
     if (!connections || connections.size === 0) {
       try {
         const user = await User.findById(socket.userId);
@@ -1673,6 +1717,25 @@ io.on('connection', (socket) => {
 
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').then(async () => {
   console.log('Connected to MongoDB');
+  /*
+   * Статус «в сети» живёт в базе, а снимается он обработчиком disconnect.
+   * При перезапуске процесса (деплой, падение, pm2 restart) этот обработчик не
+   * отрабатывает ни для кого: все сокеты просто исчезают вместе с процессом.
+   * В базе оставались «в сети» и с активностью люди, которых нет, и снять это
+   * было нечем — при следующем подключении статус уже не offline, поэтому
+   * событие о смене никому не уходило. Отсюда и «обновляется только при
+   * перезагрузке»: свежая раскладка приходила лишь тому, кто перезапустил
+   * клиент и забрал статусы запросом.
+   *
+   * На старте живых соединений заведомо нет, поэтому обнуляем всех разом.
+   */
+  try {
+    const reset = await User.updateMany(
+      { $or: [{ status: { $ne: 'offline' } }, { activity: { $ne: null } }] },
+      { $set: { status: 'offline', activity: null } }
+    );
+    console.log(`[Presence] Сброшено зависших статусов при старте: ${reset.modifiedCount}`);
+  } catch (e) { console.error('[Presence] Не удалось сбросить статусы при старте:', e); }
   try { await require('./bootstrap/systemMiniApps')(); }
   catch (e) { console.error('[MiniApps] bootstrap failed:', e.message); }
   try { await require('./bootstrap/storeProducts')(); }

@@ -1168,6 +1168,17 @@ const Main: React.FC = () => {
         ...prev,
         participants: prev.participants.map((p: User) => p._id === updatedUser._id ? { ...p, ...updatedUser } : p)
       } : prev);
+      /*
+       * Список личных сообщений тоже держит копии собеседников и показывает по
+       * ним точку статуса, причём сортируется «кто в сети — выше». Его правка
+       * здесь отсутствовала: в открытом диалоге статус обновлялся, а в списке
+       * слева оставался прежним до перезапуска клиента.
+       */
+      setDms((prev: DirectMessage[]) => prev.map((dm: DirectMessage) => (
+        dm.participants?.some((p: User) => String(p._id) === targetUserId)
+          ? { ...dm, participants: dm.participants.map((p: User) => String(p._id) === targetUserId ? { ...p, ...updatedUser } : p) }
+          : dm
+      )));
       if (updatedUser._id === user?._id) updateUser(updatedUser);
     };
 

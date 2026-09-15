@@ -115,7 +115,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     chatCache.getGlobalUsers().then(cached => {
-      if (cached) setGlobalUsers(cached);
+      if (!cached) return;
+      /*
+       * Из кэша берём только устойчивые поля профиля. Статус и активность —
+       * величины сиюминутные: сохранённые с прошлого сеанса, они показывали
+       * человека «в сети» и «играющим» в игру, которую он давно закрыл, причём
+       * поверх свежих данных — globalUsers накладывается на пользователя
+       * последним слоем. Живые значения приходят сокетом (user-updated).
+       */
+      const withoutVolatile = Object.fromEntries(
+        Object.entries(cached).map(([id, u]) => {
+          const { status, activity, ...rest } = u as any;
+          return [id, rest];
+        })
+      );
+      setGlobalUsers(withoutVolatile);
     });
   }, []);
 

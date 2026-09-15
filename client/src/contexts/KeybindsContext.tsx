@@ -88,13 +88,6 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const saveKeybinds = useCallback(async (newKeybinds: Keybind[]) => {
         localStorage.setItem('keybinds', JSON.stringify(newKeybinds));
 
-        // Sync with Electron
-        // @ts-ignore
-        if (window.electron && window.electron.ipc) {
-            // @ts-ignore
-            window.electron.ipc.send('update-keybinds', newKeybinds.filter(k => k.isEnabled));
-        }
-
         if (user) {
             try {
                 const { data } = await axios.put('/api/users/settings', {
@@ -126,6 +119,22 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             saveKeybindsRef.current(keybinds);
         }, 1000); // Debounce saves
         return () => clearTimeout(timer);
+    }, [keybinds]);
+
+    /*
+     * Глобальные сочетания живут в главном процессе Electron, и список ему
+     * передавался ТОЛЬКО при сохранении изменений. Поэтому выключенное в
+     * настройках сочетание продолжало работать: при запуске приложение
+     * регистрировало сочетания само, а обновлённый список ему никто не слал,
+     * пока пользователь снова что-нибудь не менял. Теперь состав уезжает в
+     * главный процесс при каждом изменении списка, включая первую отрисовку и
+     * подгрузку настроек с сервера.
+     */
+    useEffect(() => {
+        // @ts-ignore
+        if (!window.electron?.ipc) return;
+        // @ts-ignore
+        window.electron.ipc.send('update-keybinds', keybinds.filter(k => k.isEnabled));
     }, [keybinds]);
 
     const [isRecording, setIsRecording] = useState(false);

@@ -55,6 +55,43 @@ const VoiceParticipantCard: React.FC<{
     }
   }, [participant.cameraStream, isExpanded]);
 
+  /*
+   * Камера считается включённой только когда в потоке есть ЖИВОЙ видеотрек.
+   *
+   * cameraStream — это общий поток участника (микрофон + камера), и берётся он
+   * по флагу isVideoOn из состояния голоса. Флаг и трек приходят разными путями:
+   * флаг — сокетом, трек — через LiveKit. Если флаг уже true, а трека ещё (или
+   * уже) нет, карточка получала класс has-video, прятала аватар с баннером и
+   * показывала пустой <video> — то есть пустой прямоугольник во всю карточку.
+   * Слушаем mute/unmute/ended и добавление треков, чтобы аватар возвращался сам.
+   */
+  const [hasLiveVideo, setHasLiveVideo] = React.useState(false);
+  useEffect(() => {
+    const stream: MediaStream | null = participant.cameraStream || null;
+    if (!stream) { setHasLiveVideo(false); return; }
+    const update = () => setHasLiveVideo(
+      stream.getVideoTracks().some(t => t.readyState === 'live' && !t.muted)
+    );
+    update();
+    const tracks = stream.getVideoTracks();
+    tracks.forEach(t => {
+      t.addEventListener('mute', update);
+      t.addEventListener('unmute', update);
+      t.addEventListener('ended', update);
+    });
+    stream.addEventListener('addtrack', update);
+    stream.addEventListener('removetrack', update);
+    return () => {
+      tracks.forEach(t => {
+        t.removeEventListener('mute', update);
+        t.removeEventListener('unmute', update);
+        t.removeEventListener('ended', update);
+      });
+      stream.removeEventListener('addtrack', update);
+      stream.removeEventListener('removetrack', update);
+    };
+  }, [participant.cameraStream]);
+
   useEffect(() => {
     if (isExpanded && cardRef.current) {
       const target: any = cardRef.current;
@@ -86,7 +123,7 @@ const VoiceParticipantCard: React.FC<{
     };
   }, [isExpanded, onToggleExpand]);
 
-  const hasVideo = !!participant.cameraStream;
+  const hasVideo = hasLiveVideo;
   const showFullscreenBtn = isPrimary && hasVideo && onToggleExpand;
 
   const cardContent = (

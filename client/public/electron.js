@@ -527,15 +527,18 @@ function updateTrayStatus(state) {
     updateTrayMenu();
 }
 
+/*
+ * Сочетания регистрирует интерфейс: он присылает список в 'update-keybinds'
+ * сразу при запуске и при каждом изменении.
+ *
+ * Раньше здесь жёстко регистрировались «умолчания» (Ctrl+Shift+M и Ctrl+Shift+D)
+ * «пока не подгрузятся настоящие». Настоящие не приходили вовсе, если человек
+ * ничего не менял в настройках, — и выключенные в настройках сочетания
+ * продолжали работать до конца сеанса. Ничего не регистрируем сами: пустой
+ * список до готовности интерфейса честнее, чем чужие сочетания.
+ */
 function registerGlobalShortcuts() {
-    // Default shortcuts until dynamic ones are loaded from frontend
-    globalShortcut.register('CommandOrControl+Shift+M', () => {
-        if (mainWindow) mainWindow.webContents.send('toggle-mute-shortcut');
-    });
-
-    globalShortcut.register('CommandOrControl+Shift+D', () => {
-        if (mainWindow) mainWindow.webContents.send('toggle-deafen-shortcut');
-    });
+    unregisterGlobalShortcuts();
 }
 
 function unregisterGlobalShortcuts() {
