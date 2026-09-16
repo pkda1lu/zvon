@@ -24,11 +24,14 @@
  * задаётся переменной окружения ZVON_SINGBOX.
  */
 
-const { app, session } = require('electron');
+// net из electron ходит через сетевой стек Chromium, то есть уважает PAC —
+// именно этим и проверяем узел. Имя отличается от node-модуля net ниже.
+const { app, session, net: electronNet } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const net = require('net');
+const http = require('http');
 
 // Домены, которые должны идти через узел. Медиа TikTok раздаётся с отдельных
 // CDN, и если забыть их, лента откроется, но видео не поедут (или поедут с
@@ -49,6 +52,7 @@ const TUNNELED_HOSTS = [
 ];
 
 let proc = null;
+let pacServer = null;
 let state = { running: false, country: null, title: null, port: 0 };
 
 /** Свободный порт для локального SOCKS5: занимаем и сразу отпускаем. */
@@ -139,18 +143,53 @@ function pacFor(port) {
 }`;
 }
 
+/**
+ * Отдаём PAC по http с петлевого адреса.
+ *
+ * Через file:// не работает: сетевой стек Chromium такой адрес для PAC не
+ * забирает, правила молча не применяются — ровно это и поймала проверка при
+ * первом запуске. Локальный http-ответ движок забирает всегда.
+ */
+function servePac(socksPort) {
+    return new Promise((resolve, reject) => {
+        const body = pacFor(socksPort);
+        const srv = http.createServer((req, res) => {
+            res.writeHead(200, {
+                'Content-Type': 'application/x-ns-proxy-autoconfig',
+                'Content-Length': Buffer.byteLength(body),
+                'Cache-Control': 'no-store',
+            });
+            res.end(body);
+        });
+        srv.on('error', reject);
+        srv.listen(0, '127.0.0.1', () => {
+            pacServer = srv;
+            resolve('http://127.0.0.1:' + srv.address().port + '/proxy.pac');
+        });
+    });
+}
+
 /** Ставим PAC и убеждаемся, что он действительно применился. */
-async function installPac(port) {
-    const file = path.join(app.getPath('userData'), 'tiktok-proxy.pac');
-    fs.writeFileSync(file, pacFor(port), 'utf8');
-
+async function installPac(socksPort) {
     const ses = session.defaultSession;
-    await ses.setProxy({ mode: 'pac_script', pacScript: `file://${file.replace(/\\/g, '/')}` });
+    const pacUrl = await servePac(socksPort);
 
-    const viaProxy = await ses.resolveProxy('https://www.tiktok.com/');
-    const direct = await ses.resolveProxy('https://zvonserver.ru/');
+    await ses.setProxy({ mode: 'pac_script', pacScript: pacUrl });
+    // Скрипт забирается лениво: к первому разрешению адреса он может быть ещё
+    // не скачан. Просим перечитать и даём несколько попыток.
+    try { await ses.forceReloadProxyConfig(); } catch { /* в старых версиях метода нет */ }
+
+    let viaProxy = '';
+    let direct = '';
+    for (let attempt = 0; attempt < 15; attempt++) {
+        viaProxy = await ses.resolveProxy('https://www.tiktok.com/');
+        direct = await ses.resolveProxy('https://zvonserver.ru/');
+        if (/SOCKS5/i.test(viaProxy)) break;
+        await new Promise(r => setTimeout(r, 200));
+    }
+
     if (!/SOCKS5/i.test(viaProxy)) {
-        throw new Error('Правила маршрутизации не применились: трафик пошёл бы напрямую, страна не сменилась бы.');
+        throw new Error('Правила маршрутизации не применились (для tiktok.com получено «' + (viaProxy || 'пусто') + '»): трафик пошёл бы напрямую, страна не сменилась бы.');
     }
     if (!/DIRECT/i.test(direct)) {
         throw new Error('Правила маршрутизации захватили лишний трафик — отменено ради сохранности голосовой связи.');
@@ -159,6 +198,28 @@ async function installPac(port) {
 
 async function removePac() {
     try { await session.defaultSession.setProxy({ mode: 'direct' }); } catch { /* приложение уже закрывается */ }
+    if (pacServer) {
+        try { pacServer.close(); } catch { /* уже закрыт */ }
+        pacServer = null;
+    }
+}
+
+/**
+ * Подключаем предзагрузку для кадров TikTok (см. tiktok-frame-preload.js):
+ * без неё страница, увидев себя в рамке, может просто ничего не нарисовать.
+ * Ставим только на время работы туннеля и снимаем вместе с ним — постоянный
+ * список предзагрузок на всю сессию нам не нужен.
+ */
+function installFramePreload() {
+    try {
+        session.defaultSession.setPreloads([path.join(__dirname, 'tiktok-frame-preload.js')]);
+    } catch (e) {
+        console.error('[Tunnel] не удалось подключить предзагрузку кадра:', e.message);
+    }
+}
+
+function clearFramePreload() {
+    try { session.defaultSession.setPreloads([]); } catch { /* приложение закрывается */ }
 }
 
 /**
@@ -187,6 +248,39 @@ function clearHeaders() {
             null
         );
     } catch { /* не критично */ }
+}
+
+/**
+ * Пробный запрос ЧЕРЕЗ узел.
+ *
+ * Без него неработающий узел выглядел как пустое чёрное окно: правила стоят,
+ * процесс жив, а запросы никуда не доходят. Запрос идёт сетевым стеком
+ * Chromium, поэтому проходит по тем же правилам, что и сама лента.
+ */
+function probeThroughTunnel() {
+    return new Promise((resolve) => {
+        let done = false;
+        const finish = (result) => { if (!done) { done = true; resolve(result); } };
+
+        const req = electronNet.request({ url: 'https://www.tiktok.com/', session: session.defaultSession });
+        const timer = setTimeout(() => {
+            try { req.abort(); } catch { /* уже закрыт */ }
+            finish({ ok: false, error: 'узел не ответил за 15 секунд' });
+        }, 15000);
+
+        req.on('response', (res) => {
+            clearTimeout(timer);
+            res.on('data', () => { /* тело не нужно, но поток надо вычитать */ });
+            res.on('end', () => { });
+            finish({ ok: true, status: res.statusCode });
+            try { req.abort(); } catch { /* уже закрыт */ }
+        });
+        req.on('error', (e) => {
+            clearTimeout(timer);
+            finish({ ok: false, error: e && e.message ? e.message : 'соединение не установлено' });
+        });
+        req.end();
+    });
 }
 
 /** Ждём, пока sing-box действительно начнёт принимать подключения. */
@@ -242,12 +336,22 @@ async function start({ uri, country, title, locale } = {}) {
     }
 
     applyHeaders(locale);
+    installFramePreload();
+
+    const probe = await probeThroughTunnel();
+    if (!probe.ok) {
+        await stop();
+        throw new Error(`Узел не пропускает трафик: ${probe.error}. Проверьте, что сервер жив и параметры reality актуальны.`);
+    }
+    console.log(`[Tunnel] проверка через узел: HTTP ${probe.status}`);
+
     state = { running: true, country: country || null, title: title || null, port };
     console.log(`[Tunnel] TikTok идёт через «${title || country}», локальный порт ${port}`);
     return { ok: true, country: state.country, port };
 }
 
 async function stop() {
+    clearFramePreload();
     clearHeaders();
     await removePac();
     if (proc) {
