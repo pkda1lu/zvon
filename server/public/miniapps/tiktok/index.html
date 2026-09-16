@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TikTok — Zvon</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="/zvon-sdk.js"></script>
+</head>
+<body>
+  <!-- Экран загрузки: показываем, пока не выяснили, где нас открыли -->
+  <section class="screen" id="screen-boot">
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="muted">Проверяем окружение…</p>
+  </section>
+
+  <!-- Браузерная версия: возможности сменить точку выхода нет -->
+  <section class="screen hidden" id="screen-web">
+    <div class="glyph" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="3" />
+        <path d="M10 9.5v5l4.5-2.5z" fill="currentColor" stroke="none" />
+      </svg>
+    </div>
+    <h1>Только в приложении Zvon</h1>
+    <p class="lead">
+      Сервис определяет страну по адресу, с которого вы к нему пришли, и меняется этот адрес
+      только настольным клиентом. Во вкладке браузера подменить его нечем — ни язык, ни часовой
+      пояс на выдачу не влияют.
+    </p>
+    <a class="btn primary" id="download-link" href="/download" target="_blank" rel="noreferrer">Скачать Zvon для Windows</a>
+  </section>
+
+  <!-- Выбор страны и подключение -->
+  <section class="screen hidden" id="screen-setup">
+    <div class="glyph" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" />
+      </svg>
+    </div>
+    <h1>Откуда смотреть</h1>
+    <p class="lead">
+      Трафик этого окна пойдёт через узел Vlyne в выбранной стране. Остальной Zvon —
+      голос, сообщения, демонстрация экрана — продолжит работать напрямую.
+    </p>
+
+    <div class="countries" id="countries"></div>
+
+    <button class="btn primary" id="connect">Подключиться</button>
+    <p class="status" id="setup-status"></p>
+  </section>
+
+  <!-- Сама лента -->
+  <section class="screen viewer hidden" id="screen-viewer">
+    <header class="bar">
+      <span class="pill" id="country-pill">—</span>
+      <span class="bar-spacer"></span>
+      <button class="btn ghost" id="reload" title="Перезагрузить ленту">Обновить</button>
+      <button class="btn ghost" id="change-country">Сменить страну</button>
+    </header>
+    <iframe
+      id="frame"
+      title="TikTok"
+      referrerpolicy="no-referrer-when-downgrade"
+      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+    ></iframe>
+  </section>
+
+  <script src="./app.js"></script>
+</body>
+</html>

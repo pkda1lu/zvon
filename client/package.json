@@ -51,6 +51,15 @@
         "repo": "zvon",
         "releaseType": "release"
       }
+    ],
+    "extraResources": [
+      {
+        "from": "singbox",
+        "to": "singbox",
+        "filter": [
+          "**/*"
+        ]
+      }
     ]
   },
   "repository": {

@@ -246,6 +246,61 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                         break;
                     }
 
+                    case 'tunnel': {
+                        /*
+                         * Сетевой туннель для окна мини-аппки: её трафик уходит через
+                         * зарубежный узел, остальное приложение продолжает ходить прямо.
+                         *
+                         * Разрешено ровно одному системному приложению (по URL) и только
+                         * в настольном клиенте: маршрутизацией заведует главный процесс
+                         * Electron, а сторонней мини-аппке такое давать нельзя — она бы
+                         * перенаправила чужой трафик через свой узел.
+                         */
+                        const ipc: any = (window as any).electron?.ipc;
+                        const allowed = absoluteUrl.includes('/miniapps/tiktok');
+                        const action = payload?.action;
+
+                        if (action === 'status') {
+                            const running = allowed && ipc ? await ipc.invoke('tunnel:status') : null;
+                            respond(id, { ok: true, result: { available: !!(allowed && ipc), ...(running || {}) } });
+                            break;
+                        }
+                        if (!allowed || !ipc) {
+                            respond(id, { ok: false, error: 'Туннель недоступен для этого приложения.' });
+                            break;
+                        }
+
+                        try {
+                            if (action === 'countries') {
+                                const r = await axios.get('/api/miniapps/system/tiktok/countries');
+                                respond(id, { ok: true, result: r.data });
+                                break;
+                            }
+                            if (action === 'start') {
+                                // Реквизиты узла держит сервер, клиент лишь передаёт их
+                                // главному процессу — в мини-аппку они не попадают.
+                                const r = await axios.get('/api/miniapps/system/tiktok/outbound', {
+                                    params: { country: payload?.country }
+                                });
+                                const res = await ipc.invoke('tunnel:start', r.data);
+                                respond(id, { ok: true, result: { ...res, title: r.data.title } });
+                                break;
+                            }
+                            if (action === 'stop') {
+                                const res = await ipc.invoke('tunnel:stop');
+                                respond(id, { ok: true, result: res });
+                                break;
+                            }
+                            respond(id, { ok: false, error: 'unknown tunnel action' });
+                        } catch (e: any) {
+                            respond(id, {
+                                ok: false,
+                                error: e?.response?.data?.message || e?.message || 'Не удалось поднять соединение.'
+                            });
+                        }
+                        break;
+                    }
+
                     case 'publishAudioTrack': {
                         const track = pickTrackFromMessage(msg, iframe);
                         if (!track) { respond(id, { ok: false, error: 'no track received' }); break; }

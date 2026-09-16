@@ -49,6 +49,53 @@ router.get('/my', auth, async (req, res) => {
     }
 });
 
+/**
+ * Точка выхода для системной мини-аппки TikTok.
+ *
+ * Сервис определяет страну по IP, а не по языку интерфейса или часовому поясу,
+ * поэтому единственный способ смотреть его как из Германии или Финляндии —
+ * выпускать трафик именно этого окна через тамошний узел. Клиент поднимает у
+ * себя локальный SOCKS5 поверх выданного здесь исходящего подключения и уводит
+ * в него только домены TikTok (см. PAC-правила в electron.js).
+ *
+ * Сами ссылки на узлы лежат в переменных окружения, а не в базе: это секреты
+ * уровня инфраструктуры, общие для всех, и в выдачу профиля им попадать незачем.
+ * Маршрут ОБЯЗАТЕЛЬНО объявлен до '/:id', иначе express примет 'system' за
+ * идентификатор приложения.
+ *
+ * TIKTOK_OUTBOUND_DE / TIKTOK_OUTBOUND_FI — строки подключения вида
+ * vless://... от узлов Vlyne в соответствующей стране.
+ */
+const TIKTOK_OUTBOUNDS = {
+    de: { env: 'TIKTOK_OUTBOUND_DE', title: 'Германия', locale: 'de-DE', timeZone: 'Europe/Berlin' },
+    fi: { env: 'TIKTOK_OUTBOUND_FI', title: 'Финляндия', locale: 'fi-FI', timeZone: 'Europe/Helsinki' },
+};
+
+router.get('/system/tiktok/countries', auth, async (req, res) => {
+    res.json(Object.entries(TIKTOK_OUTBOUNDS)
+        .filter(([, cfg]) => !!process.env[cfg.env])
+        .map(([code, cfg]) => ({ code, title: cfg.title })));
+});
+
+router.get('/system/tiktok/outbound', auth, async (req, res) => {
+    try {
+        const code = String(req.query.country || 'de').toLowerCase();
+        const cfg = TIKTOK_OUTBOUNDS[code];
+        if (!cfg) return res.status(400).json({ message: 'Неизвестная страна.' });
+
+        const uri = process.env[cfg.env];
+        if (!uri) {
+            return res.status(503).json({
+                message: `Узел для страны «${cfg.title}» не настроен: задайте ${cfg.env} в окружении сервера.`
+            });
+        }
+
+        res.json({ country: code, title: cfg.title, locale: cfg.locale, timeZone: cfg.timeZone, uri });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // Public meta for a single mini-app (used to auto-open collaborative apps).
 // Only returns apps that are launchable: system, published, or owned by the user.
 router.get('/:id', auth, async (req, res) => {

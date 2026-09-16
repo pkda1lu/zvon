@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer, globalShortcut, Notification, shell, protocol, net } = require('electron');
+const tunnel = require('./tunnel');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
@@ -1390,6 +1391,21 @@ ipcMain.on('window-minimize', () => { if (mainWindow) mainWindow.minimize(); });
 ipcMain.on('window-maximize', () => { if (mainWindow) { if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize(); } });
 ipcMain.on('window-close', () => { if (mainWindow) mainWindow.close(); });
 
+/*
+ * Туннель мини-аппки TikTok (см. tunnel.js). Реквизиты узла приходят из
+ * интерфейса — их выдаёт сервер Zvon авторизованному пользователю, в самой
+ * мини-аппке они не появляются.
+ */
+ipcMain.handle('tunnel:start', async (event, config) => {
+    try {
+        return await tunnel.start(config || {});
+    } catch (e) {
+        return { ok: false, error: e && e.message ? e.message : 'Не удалось поднять соединение.' };
+    }
+});
+ipcMain.handle('tunnel:stop', async () => tunnel.stop());
+ipcMain.handle('tunnel:status', async () => tunnel.status());
+
 ipcMain.handle('get-desktop-sources', async (event, options) => {
     let sources = await desktopCapturer.getSources(options);
 
@@ -1587,6 +1603,8 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 app.on('before-quit', () => {
     if (currentScanTimeout) clearTimeout(currentScanTimeout);
     killProbe();
+    // Иначе PAC-правила и процесс sing-box переживут приложение.
+    tunnel.stop();
 });
 
 ipcMain.on('update-overlay-config', (event, config) => {

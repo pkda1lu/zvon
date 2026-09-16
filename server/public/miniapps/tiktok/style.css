@@ -1,0 +1,198 @@
+/* Мини-аппка TikTok. Палитра и стекло — те же, что в остальных системных
+   мини-аппах Zvon, чтобы окно не выбивалось из интерфейса. */
+
+:root {
+    --bg: #07070c;
+    --panel: rgba(255, 255, 255, 0.04);
+    --line: rgba(255, 255, 255, 0.12);
+    --text: #f2f2f6;
+    --muted: #8b8b96;
+    --cyan: #00e5ff;
+    --violet: #a155ff;
+    --danger: #ff6b6e;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+}
+
+.hidden { display: none !important; }
+
+/* ——— Экраны-заставки ——— */
+.screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 32px 28px;
+    text-align: center;
+}
+
+.screen h1 {
+    margin: 0;
+    font-size: clamp(22px, 4vw, 30px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.lead {
+    margin: 0;
+    max-width: 46ch;
+    font-size: 14.5px;
+    line-height: 1.5;
+    font-weight: 300;
+    color: var(--muted);
+}
+
+.muted { color: var(--muted); font-size: 13px; margin: 0; }
+
+.glyph {
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border-radius: 22px;
+    background: linear-gradient(140deg, rgba(0, 229, 255, 0.16), rgba(161, 85, 255, 0.16));
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--cyan);
+}
+
+.glyph svg { width: 32px; height: 32px; }
+
+.spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.14);
+    border-top-color: var(--cyan);
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ——— Кнопки ——— */
+.btn {
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 11px 22px;
+    border-radius: 12px;
+    border: 0;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.15s var(--ease), background 0.2s, opacity 0.2s;
+}
+
+.btn.primary {
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    color: #05050c;
+    box-shadow: 0 12px 28px rgba(161, 85, 255, 0.28);
+}
+
+.btn.primary:hover { transform: translateY(-1px); }
+.btn.primary:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+.btn.ghost {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-weight: 600;
+    padding: 7px 14px;
+    font-size: 12.5px;
+}
+
+.btn.ghost:hover { background: rgba(255, 255, 255, 0.12); }
+.btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ——— Выбор страны ——— */
+.countries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.country {
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 20px;
+    border-radius: 14px;
+    border: 0;
+    cursor: pointer;
+    color: var(--muted);
+    background: var(--panel);
+    box-shadow: inset 0 0 0 1px var(--line);
+    transition: color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.country:hover { color: var(--text); }
+
+.country[aria-pressed="true"] {
+    color: #fff;
+    background: linear-gradient(135deg, rgba(0, 242, 255, 0.14), rgba(112, 0, 255, 0.08));
+    box-shadow: inset 0 0 0 1px rgba(0, 229, 255, 0.5);
+}
+
+.status {
+    margin: 0;
+    min-height: 20px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.status.error { color: var(--danger); }
+
+/* ——— Лента ——— */
+.viewer {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 0;
+}
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(10, 10, 16, 0.92);
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+}
+
+.bar-spacer { flex: 1; }
+
+.pill {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 6px 12px;
+    border-radius: 999px;
+    color: #9fe9f5;
+    background: rgba(0, 229, 255, 0.12);
+}
+
+#frame {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    background: #000;
+}

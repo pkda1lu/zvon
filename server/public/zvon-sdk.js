@@ -187,6 +187,27 @@
      */
     fetch: (url, options) => call('fetch', { url, ...(options || {}) }),
 
+    /**
+     * Сетевой туннель для окна мини-аппки: весь её трафик выпускается через
+     * узел Vlyne в выбранной стране, остальное приложение продолжает ходить
+     * напрямую. Нужен сервисам, которые определяют регион по IP-адресу.
+     *
+     * Доступен только системным мини-аппам и только в настольном клиенте:
+     * в браузере поменять точку выхода нельзя в принципе. Проверяйте
+     * `(await zvon.tunnel.status()).available` перед использованием.
+     *
+     *   countries() → [{ code, title }]        какие страны настроены
+     *   start(code) → { ok, country, title }   поднять туннель и ждать готовности
+     *   stop()      → { ok }                   вернуть окно к прямому соединению
+     *   status()    → { available, running, country }
+     */
+    tunnel: {
+      countries: () => call('tunnel', { action: 'countries' }),
+      start: (country) => call('tunnel', { action: 'start', country }),
+      stop: () => call('tunnel', { action: 'stop' }),
+      status: () => call('tunnel', { action: 'status' }),
+    },
+
     /** Send a chat message into a Zvon channel as the current user. */
     sendMessage: (channelId, payload) => call('sendMessage', { channelId, ...payload }),
 
