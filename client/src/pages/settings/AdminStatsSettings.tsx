@@ -21,6 +21,39 @@ const toLocalDateInputValue = (d: Date) => {
     return `${year}-${month}-${day}`;
 };
 
+// Палитра контрастных и гармоничных цветов для визуального разделения брендов в статистике
+const STATS_DISTINCT_COLORS = [
+    '#5865f2', // Indigo / Blurple
+    '#f43f5e', // Rose
+    '#10b981', // Emerald
+    '#f59e0b', // Amber
+    '#8b5cf6', // Violet
+    '#06b6d4', // Cyan
+    '#ec4899', // Pink
+    '#3b82f6', // Blue
+    '#14b8a6', // Teal
+    '#f97316', // Orange
+    '#a855f7', // Purple
+    '#84cc16', // Lime
+    '#e11d48', // Crimson
+    '#0ea5e9', // Sky
+    '#d946ef', // Fuchsia
+    '#22c55e', // Green
+];
+
+// Детерминированный псевдослучайный хэш от строки (ID бренда), 
+// чтобы у каждого бренда был свой уникальный случайный цвет, стабильный во время всей сессии
+const getStatsBrandColor = (brandId: string, index = 0): string => {
+    if (!brandId) return STATS_DISTINCT_COLORS[index % STATS_DISTINCT_COLORS.length];
+    let hash = 0;
+    for (let i = 0; i < brandId.length; i++) {
+        hash = (hash << 5) - hash + brandId.charCodeAt(i);
+        hash |= 0;
+    }
+    const colorIndex = Math.abs(hash + index * 7) % STATS_DISTINCT_COLORS.length;
+    return STATS_DISTINCT_COLORS[colorIndex];
+};
+
 export interface BrandStatItem {
     id: string;
     name: string;
@@ -668,15 +701,21 @@ const AdminStatsSettings: React.FC = () => {
 
                     {/* Группа: Заходы по брендингам платформы */}
                     {(() => {
-                        const brandList: BrandStatItem[] = (stats.totals?.branding?.brands && stats.totals.branding.brands.length > 0)
+                        const rawBrands: BrandStatItem[] = (stats.totals?.branding?.brands && stats.totals.branding.brands.length > 0)
                             ? stats.totals.branding.brands
-                            : Object.keys(BRANDS).map((k, idx) => ({
+                            : Object.keys(BRANDS).map(k => ({
                                 id: k,
                                 name: BRANDS[k]?.name || k,
-                                color: getBrandColor(k, idx),
+                                color: '',
                                 count: stats.totals?.branding?.byBrand?.[k] ?? 0,
                                 percent: 0
                             }));
+
+                        // Каждому бренду назначаем свой уникальный визуальный цвет для графиков статистики
+                        const brandList: BrandStatItem[] = rawBrands.map((b, idx) => ({
+                            ...b,
+                            color: getStatsBrandColor(b.id, idx)
+                        }));
 
                         return (
                             <div style={{ marginTop: '32px', marginBottom: '16px' }}>
