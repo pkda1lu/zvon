@@ -161,6 +161,6 @@ export async function disablePush(): Promise<void> {
 }
 
 /** Отправляет тестовое уведомление самому себе. */
-export async function sendTestPush(): Promise<void> {
-    await axios.post('/api/push/test');
+export async function sendTestPush(withAttachment = false): Promise<void> {
+    await axios.post('/api/push/test', { withAttachment });
 }

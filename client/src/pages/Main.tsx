@@ -163,6 +163,20 @@ const Main: React.FC = () => {
       if (settingsTab) {
         setSettingsInitialTab(settingsTab);
         setShowSettingsModal(true);
+        return;
+      }
+
+      const tab = params.get('tab');
+      if (tab === 'friends') {
+        setSelectedServer(null);
+        setSelectedChannel(null);
+        setSelectedDM(null);
+        setShowFriends(true);
+        return;
+      }
+      if (tab === 'inbox') {
+        setShowInbox(true);
+        return;
       }
     };
 
@@ -177,7 +191,7 @@ const Main: React.FC = () => {
     // повторяло переход.
     if (window.location.search) {
       const search = window.location.search;
-      if (/[?&](dm|channel|settings)=/.test(search)) {
+      if (/[?&](dm|channel|settings|tab)=/.test(search)) {
         openTarget(window.location.pathname + search);
         window.history.replaceState({}, '', window.location.pathname);
       }

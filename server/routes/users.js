@@ -406,6 +406,12 @@ router.put('/settings', auth, async (req, res) => {
     if (settings.overlay) {
       req.user.settings.overlay = { ...req.user.settings.overlay, ...settings.overlay };
     }
+    if (settings.notifications) {
+      req.user.settings.notifications = {
+        ...(req.user.settings.notifications?.toObject ? req.user.settings.notifications.toObject() : (req.user.settings.notifications || {})),
+        ...settings.notifications
+      };
+    }
     if (settings.interaction) {
       const currentInteraction = req.user.settings.interaction?.toObject
         ? req.user.settings.interaction.toObject()

@@ -15,7 +15,7 @@ const tokens = require('../utils/vlyneTokens');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 const { getClientIp } = require('../utils/deviceInfo');
 const { sendVlyneAppDecision } = require('../utils/mail');
-const { pushToModerators, previewText } = require('../utils/webPush');
+const { pushToModerators, pushIfOffline, previewText } = require('../utils/webPush');
 
 /**
  * Vlyne ID — единый вход в экосистему Vlyne.
@@ -1283,11 +1283,19 @@ apiRouter.post('/admin/applications/:id/decision', auth, isModerator, async (req
     if (io) {
       const word = request.status === 'approved' ? 'одобрена'
         : request.status === 'rejected' ? 'отклонена' : 'нужны уточнения';
+      const msgText = `Заявка «${request.name}»: ${word}`;
       io.to(`user-${request.applicant}`).emit('notification', {
         type: 'vlyne_app_decision',
-        message: `Заявка «${request.name}»: ${word}`,
+        message: msgText,
         requestId: request._id,
         timestamp: new Date()
+      });
+      pushIfOffline(io, request.applicant, {
+        title: '🛡️ Vlyne ID',
+        body: previewText(msgText),
+        tag: `vlyne-decision-${request._id}`,
+        url: '/?tab=inbox',
+        data: { type: 'vlyne_app_decision', requestId: String(request._id) }
       });
     }
 

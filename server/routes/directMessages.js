@@ -264,17 +264,18 @@ router.post('/group', auth, async (req, res) => {
     // чем — там сработает уведомление о первом сообщении.
     if (dm.participants.length > 2) {
       const io = req.app.get('io');
-      const creatorName = req.user.username || 'Кто-то';
-      const groupTitle = dm.name || 'Групповой чат';
+      const creatorName = req.user.displayName || req.user.username || 'Кто-то';
+      const groupTitle = dm.name ? `👥 ${dm.name}` : '👥 Групповой чат';
       dm.participants.forEach(p => {
         if (String(p._id) === String(req.user._id)) return;
         pushIfOffline(io, p._id, {
           title: groupTitle,
           body: `${creatorName} добавил вас в групповой чат`,
+          icon: req.user.avatar || null,
           tag: `dm-${dm._id}`,
           url: `/?dm=${dm._id}`,
           data: { type: 'dm-group-added', dmId: String(dm._id) }
-        });
+        }, 'directMessages');
       });
     }
 

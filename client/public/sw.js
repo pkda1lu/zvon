@@ -4,7 +4,7 @@
  *  - хэшированные ассеты Vite (/assets/...): cache-first (имена уникальны → не устаревают);
  *  - остальное: проходит в сеть как обычно.
  * Не кэшируем API/сокеты/медиа, чтобы не отдавать устаревшие данные. */
-const CACHE = 'zvon-pwa-v1';
+const CACHE = 'zvon-pwa-v2';
 const SHELL = '/index.html';
 
 self.addEventListener('install', (e) => {
@@ -50,6 +50,10 @@ self.addEventListener('push', (event) => {
     renotify: true,
     data: { url: payload.url || '/', ...(payload.data || {}) },
   };
+
+  if (payload.image) {
+    options.image = payload.image;
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

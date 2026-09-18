@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
 import { SettingsToggle } from './SettingsUI';
+import { useAuth } from '../../contexts/AuthContext';
 import {
     getPushState,
     enablePush,
@@ -11,20 +13,23 @@ import {
 } from '../../utils/webPush';
 
 /**
- * Настройки push-уведомлений.
- *
- * Отдельная страница нужна не столько ради тумблера, сколько ради объяснений:
- * на iPhone уведомления физически не включаются из вкладки Safari, и без
- * подсказки про «Поделиться → На экран Домой» пользователь просто решит, что
- * ничего не работает.
- *
- * Разрешение запрашивается строго из обработчика клика — на iOS вызов
- * Notification.requestPermission() вне жеста пользователя молча игнорируется.
+ * Настройки push-уведомлений PWA и категорий доставки.
  */
 const NotificationsSettings: React.FC = () => {
+    const { user, updateUser } = useAuth();
     const [status, setStatus] = useState<PushStatus | null>(null);
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
+
+    // Локальные настройки категорий из профиля пользователя
+    const notifications = user?.settings?.notifications || {
+        directMessages: true,
+        channelMentions: true,
+        voiceCalls: true,
+        friendRequests: true,
+        showPreview: true,
+        showAttachments: true
+    };
 
     const refresh = useCallback(async () => {
         try {
@@ -37,7 +42,7 @@ const NotificationsSettings: React.FC = () => {
 
     useEffect(() => { refresh(); }, [refresh]);
 
-    const handleToggle = async (next: boolean) => {
+    const handleTogglePush = async (next: boolean) => {
         setBusy(true);
         setMessage(null);
         try {
@@ -55,11 +60,32 @@ const NotificationsSettings: React.FC = () => {
         }
     };
 
-    const handleTest = async () => {
+    const updateNotificationPref = async (key: keyof typeof notifications, value: boolean) => {
+        const nextPrefs = { ...notifications, [key]: value };
+        // Оптимистичное обновление в UI
+        if (user) {
+            updateUser({
+                settings: {
+                    ...(user.settings || {}),
+                    notifications: nextPrefs
+                } as any
+            });
+        }
+
+        try {
+            await axios.put('/api/users/settings', {
+                settings: { notifications: nextPrefs }
+            });
+        } catch (err) {
+            console.error('Ошибка сохранения настроек уведомлений:', err);
+        }
+    };
+
+    const handleTest = async (withAttachment = false) => {
         setBusy(true);
         setMessage(null);
         try {
-            await sendTestPush();
+            await sendTestPush(withAttachment);
             setMessage('Уведомление отправлено. Если приложение открыто на этом устройстве, сверните его — уведомления приходят, когда приложение закрыто.');
         } catch {
             setMessage('Не удалось отправить тестовое уведомление.');
@@ -118,19 +144,20 @@ const NotificationsSettings: React.FC = () => {
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Уведомления</h2>
 
+            {/* Системный статус и подписка PWA */}
             <div className="settings-card">
                 <div className="settings-row">
                     <div className="settings-row-text">
-                        <h3>Уведомления на устройство</h3>
+                        <h3>Уведомления на устройство (Web Push)</h3>
                         <p>
-                            Личные сообщения и упоминания будут приходить, даже когда
-                            Zvon закрыт. Пока приложение открыто, уведомление не
-                            дублируется — вы и так видите его внутри.
+                            Личные сообщения, звонки и упоминания будут приходить через PWA, даже когда
+                            Zvon полностью закрыт. Пока приложение активно, системные уведомления не
+                            дублируются.
                         </p>
                     </div>
                     <SettingsToggle
                         checked={enabled}
-                        onChange={(v) => { if (!busy && canToggle) handleToggle(v); }}
+                        onChange={(v) => { if (!busy && canToggle) handleTogglePush(v); }}
                     />
                 </div>
 
@@ -141,16 +168,116 @@ const NotificationsSettings: React.FC = () => {
                 )}
             </div>
 
+            {/* Категории уведомлений */}
+            <div className="settings-card">
+                <h3 className="settings-section-title" style={{ marginTop: 0 }}>Категории уведомлений</h3>
+                <p className="settings-description">
+                    Выберите, о каких событиях отправлять системные уведомления на устройство.
+                </p>
+
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>💬</span>
+                            <h4>Личные сообщения и группы</h4>
+                        </div>
+                        <p>Сообщения в личных диалогах и групповых беседах.</p>
+                    </div>
+                    <SettingsToggle
+                        checked={notifications.directMessages ?? true}
+                        onChange={(v) => updateNotificationPref('directMessages', v)}
+                    />
+                </div>
+
+                <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                    <div className="settings-row-text">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>📢</span>
+                            <h4>Упоминания в каналах серверов</h4>
+                        </div>
+                        <p>Когда вас персонально упоминают (@никнейм) в текстовом канале.</p>
+                    </div>
+                    <SettingsToggle
+                        checked={notifications.channelMentions ?? true}
+                        onChange={(v) => updateNotificationPref('channelMentions', v)}
+                    />
+                </div>
+
+                <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                    <div className="settings-row-text">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>📞</span>
+                            <h4>Входящие голосовые вызовы</h4>
+                        </div>
+                        <p>Срочные системные звонки в личных беседах и группах.</p>
+                    </div>
+                    <SettingsToggle
+                        checked={notifications.voiceCalls ?? true}
+                        onChange={(v) => updateNotificationPref('voiceCalls', v)}
+                    />
+                </div>
+
+                <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                    <div className="settings-row-text">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>👋</span>
+                            <h4>Запросы в друзья</h4>
+                        </div>
+                        <p>Уведомления о новых входящих запросах и принятых заявках в друзья.</p>
+                    </div>
+                    <SettingsToggle
+                        checked={notifications.friendRequests ?? true}
+                        onChange={(v) => updateNotificationPref('friendRequests', v)}
+                    />
+                </div>
+            </div>
+
+            {/* Конфиденциальность и медиа */}
+            <div className="settings-card">
+                <h3 className="settings-section-title" style={{ marginTop: 0 }}>Конфиденциальность и медиа</h3>
+                <p className="settings-description">
+                    Настройте вид уведомлений на заблокированном экране вашего устройства.
+                </p>
+
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h4>Показывать текст сообщения (превью)</h4>
+                        <p>Если отключено, в тексте уведомления будет отображаться только «Новое сообщение».</p>
+                    </div>
+                    <SettingsToggle
+                        checked={notifications.showPreview ?? true}
+                        onChange={(v) => updateNotificationPref('showPreview', v)}
+                    />
+                </div>
+
+                <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                    <div className="settings-row-text">
+                        <h4>Превью изображений и вложений</h4>
+                        <p>Отображать прикреплённую картинку большим баннером в системном пуше.</p>
+                    </div>
+                    <SettingsToggle
+                        checked={notifications.showAttachments ?? true}
+                        onChange={(v) => updateNotificationPref('showAttachments', v)}
+                    />
+                </div>
+            </div>
+
+            {/* Проверка отправки */}
             {enabled && (
                 <div className="settings-card">
                     <div className="settings-row">
                         <div className="settings-row-text">
-                            <h3>Проверка</h3>
-                            <p>Отправить себе тестовое уведомление.</p>
+                            <h3>Проверка уведомлений</h3>
+                            <p>Отправить себе тестовый push для проверки звука, иконки и отображения вложений.</p>
                         </div>
-                        <button className="settings-btn" disabled={busy} onClick={handleTest}>
-                            Отправить
-                        </button>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            <button className="settings-btn" disabled={busy} onClick={() => handleTest(false)}>
+                                Обычное
+                            </button>
+                            <button className="settings-btn" disabled={busy} onClick={() => handleTest(true)} style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                С вложением 📷
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

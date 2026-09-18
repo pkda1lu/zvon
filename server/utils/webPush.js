@@ -60,6 +60,7 @@ async function sendPushToUser(userId, payload) {
     title: payload.title || 'Zvon',
     body: payload.body || '',
     icon: payload.icon || null,
+    image: payload.image || null,
     // tag схлопывает уведомления из одного чата в одно, чтобы не заваливать
     // экран блокировки при активной переписке.
     tag: payload.tag || 'zvon',
@@ -116,20 +117,66 @@ function isUserOnline(io, userId) {
 }
 
 /**
- * Шлёт push, только если приложение у пользователя закрыто.
- *
- * Пока приложение открыто, человек видит внутреннее уведомление и слышит звук —
- * системный push дал бы дубль. А когда вкладка закрыта (типичный случай PWA на
- * телефоне в кармане), сокета нет, и push — единственный способ достучаться.
- *
- * Решение принимается на сервере, а не в service worker, потому что на iOS
- * подписка обязана быть userVisibleOnly: воркер не имеет права «проглотить»
- * push молча, Safari покажет вместо него системную заглушку.
+ * Преобразует относительный путь аватара или вложения в абсолютный URL.
  */
-async function pushIfOffline(io, userId, payload) {
+function toAbsoluteUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const base = process.env.API_URL || process.env.CLIENT_URL || 'https://zvonserver.ru';
+  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  if (url.startsWith('/')) return `${cleanBase}${url}`;
+  return `${cleanBase}/api/uploads/${url}`;
+}
+
+/**
+ * Шлёт push, только если приложение у пользователя закрыто, с учётом персональных настроек.
+ *
+ * @param {object} io
+ * @param {string} userId
+ * @param {object} payload
+ * @param {string} [category] - directMessages | channelMentions | voiceCalls | friendRequests
+ */
+async function pushIfOffline(io, userId, payload, category = null) {
   try {
+    if (!configured || !userId) return;
     if (isUserOnline(io, userId)) return;
-    await sendPushToUser(userId, payload);
+
+    const User = require('../models/User');
+    const user = await User.findById(userId).select('settings');
+    const notifSettings = user?.settings?.notifications || {};
+
+    // Проверяем категорию (по умолчанию включены)
+    if (category && notifSettings[category] === false) {
+      return;
+    }
+
+    const modifiedPayload = { ...payload };
+
+    // Если отключено превью текста, скрываем подробности
+    if (notifSettings.showPreview === false && modifiedPayload.body) {
+      if (category === 'voiceCalls') {
+        modifiedPayload.body = 'Входящий звонок';
+      } else if (category === 'friendRequests') {
+        modifiedPayload.body = 'Новый запрос';
+      } else {
+        modifiedPayload.body = 'Новое сообщение';
+      }
+    }
+
+    // Если отключено отображение картинок/вложений
+    if (notifSettings.showAttachments === false) {
+      modifiedPayload.image = null;
+    }
+
+    // Приводим icon и image к абсолютным URL, если они заданы
+    if (modifiedPayload.icon) {
+      modifiedPayload.icon = toAbsoluteUrl(modifiedPayload.icon);
+    }
+    if (modifiedPayload.image) {
+      modifiedPayload.image = toAbsoluteUrl(modifiedPayload.image);
+    }
+
+    await sendPushToUser(userId, modifiedPayload);
   } catch (err) {
     console.error('[push] pushIfOffline error:', err.message);
   }
@@ -167,6 +214,70 @@ function previewText(text, max = 140) {
   return clean.length > max ? clean.slice(0, max - 1) + '…' : clean;
 }
 
+/**
+ * Формирует превью для сообщения с текстом и вложениями.
+ * Возвращает { body, image }
+ */
+function formatMessagePreview(text, attachments = [], max = 140) {
+  const cleanText = String(text || '').replace(/\s+/g, ' ').trim();
+  const attList = Array.isArray(attachments) ? attachments.filter(a => a && a.url) : [];
+  let image = null;
+
+  if (attList.length === 0) {
+    return {
+      body: cleanText ? (cleanText.length > max ? cleanText.slice(0, max - 1) + '…' : cleanText) : 'Новое сообщение',
+      image: null
+    };
+  }
+
+  // Находим первое изображение для отображения в push image
+  const firstImage = attList.find(a => {
+    const type = (a.type || '').toLowerCase();
+    const url = (a.url || '').toLowerCase();
+    return type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)($|\?)/i.test(url);
+  });
+  if (firstImage) {
+    image = firstImage.url;
+  }
+
+  // Формируем текстовое описание вложений
+  let attachSummary = '';
+  if (attList.length === 1) {
+    const item = attList[0];
+    const type = (item.type || '').toLowerCase();
+    const url = (item.url || '').toLowerCase();
+    const fname = item.filename || '';
+
+    if (type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)($|\?)/i.test(url)) {
+      attachSummary = '📷 Фотография';
+    } else if (type.startsWith('audio/') || /\.(mp3|ogg|wav|m4a|aac)($|\?)/i.test(url)) {
+      attachSummary = '🎵 Аудиозапись';
+    } else if (type.startsWith('video/') || /\.(mp4|webm|mov|mkv)($|\?)/i.test(url)) {
+      attachSummary = '🎬 Видеозапись';
+    } else {
+      attachSummary = fname ? `📎 Файл: ${fname}` : '📎 Вложение';
+    }
+  } else {
+    // Несколько файлов
+    const imagesCount = attList.filter(a => (a.type || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)($|\?)/i.test(a.url || '')).length;
+    if (imagesCount === attList.length) {
+      attachSummary = `🖼️ ${attList.length} изображений`;
+    } else {
+      attachSummary = `📎 ${attList.length} вложений`;
+    }
+  }
+
+  let finalBody = '';
+  if (cleanText) {
+    const preview = cleanText.length > 90 ? cleanText.slice(0, 89) + '…' : cleanText;
+    finalBody = `${preview} (${attachSummary})`;
+  } else {
+    finalBody = attachSummary;
+  }
+
+  return { body: finalBody, image };
+}
+
 module.exports = {
   sendPushToUser,
   pushIfOffline,
@@ -174,5 +285,7 @@ module.exports = {
   isUserOnline,
   isPushConfigured,
   getPublicKey,
-  previewText
+  previewText,
+  formatMessagePreview,
+  toAbsoluteUrl
 };

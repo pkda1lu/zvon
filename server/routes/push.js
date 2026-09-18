@@ -55,11 +55,14 @@ router.post('/unsubscribe', auth, async (req, res) => {
 // PWA неочевиден и легко ошибиться.
 router.post('/test', auth, async (req, res) => {
   try {
+    const { withAttachment } = req.body || {};
     const result = await sendPushToUser(req.user._id, {
-      title: 'Zvon',
-      body: 'Проверка уведомлений — всё работает.',
+      title: '💬 Тестовое уведомление',
+      body: withAttachment ? 'Проверка с вложением: всё настроено верно! (📷 Фотография)' : 'Проверка уведомлений — всё работает отлично.',
+      icon: req.user.avatar || '/icon.png',
+      image: withAttachment ? 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop' : null,
       tag: 'zvon-test',
-      url: '/'
+      url: '/?settings=notifications'
     });
     res.json({ ok: true, ...result });
   } catch (err) {

@@ -15,7 +15,7 @@ const { computePermissions, hasPermission } = require('./utils/permissionCalcula
 const { Permissions } = require('./utils/permissions');
 const { logAction } = require('./utils/auditLogger');
 const { getBrand } = require('./utils/branding');
-const { pushIfOffline: pushOfflineWithIo, previewText } = require('./utils/webPush');
+const { pushIfOffline: pushOfflineWithIo, previewText, formatMessagePreview } = require('./utils/webPush');
 const { isCommunicationBlocked } = require('./utils/privacy');
 const fs = require('fs');
 
@@ -420,7 +420,7 @@ function cleanupUserPresencesEverywhere(userId, io) {
 }
 
 // Сокращение, чтобы не таскать io в каждый вызов — реализация в utils/webPush.js.
-const pushIfOffline = (userId, payload) => pushOfflineWithIo(io, userId, payload);
+const pushIfOffline = (userId, payload, category = null) => pushOfflineWithIo(io, userId, payload, category);
 
 // Уведомление о звонке живёт недолго: если человек взял телефон через десять
 // минут, «вам звонят» уже неправда и только путает. 45 секунд примерно
@@ -833,15 +833,18 @@ io.on('connection', (socket) => {
           if (String(userId) !== String(socket.userId)) {
             io.to(`user-${userId}`).emit('mention', fullMessage);
             // Упомянули, а приложение закрыто — доставим системным уведомлением.
-            const authorName = fullMessage.author?.username || 'Кто-то';
+            const authorName = fullMessage.author?.displayName || fullMessage.author?.username || 'Кто-то';
             const channelName = pushChannelName;
+            const preview = formatMessagePreview(fullMessage.content, fullMessage.attachments);
             pushIfOffline(userId, {
-              title: channelName ? `${authorName} в #${channelName}` : authorName,
-              body: previewText(fullMessage.content),
+              title: channelName ? `📢 #${channelName} · @${authorName}` : `📢 Упоминание от @${authorName}`,
+              body: preview.body,
+              icon: fullMessage.author?.avatar || null,
+              image: preview.image,
               tag: `channel-${data.channelId}`,
               url: `/?channel=${data.channelId}`,
               data: { type: 'mention', channelId: String(data.channelId) }
-            });
+            }, 'channelMentions');
           }
         });
       }
@@ -855,12 +858,14 @@ io.on('connection', (socket) => {
           // Имя берём из базы: при аутентификации сокета проставляется только
           // socket.userId, объекта socket.user нет.
           const sender = dm.participants.find(p => String(p._id) === String(socket.userId));
-          const authorName = sender?.username || 'Новое сообщение';
+          const authorName = sender?.displayName || sender?.username || 'Новое сообщение';
+          const isGroup = (dm.participants || []).length > 2 || !!dm.name;
           // Модерационные обращения помечаем явно: для модератора это рабочая
           // очередь, и он должен отличать её от личной переписки, не открывая.
           const dmTitle = dm.isModeration
-            ? `Модерация · ${authorName}`
-            : (dm.name ? `${authorName} · ${dm.name}` : authorName);
+            ? `🛡️ Модерация · ${authorName}`
+            : (isGroup ? `👥 ${dm.name || 'Групповой чат'} · ${authorName}` : `💬 ${authorName}`);
+          const preview = formatMessagePreview(message.content, message.attachments);
           dm.participants.forEach(p => {
             if (String(p._id) === String(socket.userId)) return;
             // Уведомления по этой переписке отключены получателем — не шлём.
@@ -869,11 +874,13 @@ io.on('connection', (socket) => {
             if ((p.mutedDMs || []).some(id => String(id) === String(data.dmId))) return;
             pushIfOffline(p._id, {
               title: dmTitle,
-              body: previewText(message.content),
+              body: preview.body,
+              icon: sender?.avatar || null,
+              image: preview.image,
               tag: `dm-${data.dmId}`,
               url: `/?dm=${data.dmId}`,
               data: { type: 'dm', dmId: String(data.dmId) }
-            });
+            }, 'directMessages');
           });
         }
       }
@@ -1106,13 +1113,14 @@ io.on('connection', (socket) => {
                 isGroup: true
               });
               pushIfOffline(p, {
-                title: dm.name ? `Групповой звонок · ${dm.name}` : 'Групповой звонок',
+                title: dm.name ? `📞 Групповой звонок · ${dm.name}` : '📞 Групповой звонок',
                 body: `${callerName} звонит`,
                 ...CALL_PUSH_OPTS,
+                icon: callerAvatar || null,
                 tag: `call-${data.dmId}`,
                 url: `/?dm=${data.dmId}`,
                 data: { type: 'call', dmId: String(data.dmId), isGroup: true }
-              });
+              }, 'voiceCalls');
             }
           });
         }
@@ -1135,14 +1143,17 @@ io.on('connection', (socket) => {
 
       console.log(`[Call] Offer from ${socket.userId} to ${data.targetUserId}`);
       io.to(`user-${String(data.targetUserId)}`).emit('call-offer', { fromUserId: String(socket.userId), offer: data.offer, dmId: data.dmId });
+      const callerAvatar = user?.avatar || null;
+      const callerDisplayName = user?.displayName || user?.username || 'Кто-то';
       pushIfOffline(data.targetUserId, {
-        title: 'Входящий звонок',
-        body: `${user?.username || 'Кто-то'} звонит вам`,
+        title: '📞 Входящий звонок',
+        body: `${callerDisplayName} звонит вам`,
         ...CALL_PUSH_OPTS,
+        icon: callerAvatar,
         tag: `call-${data.dmId || data.targetUserId}`,
         url: data.dmId ? `/?dm=${data.dmId}` : '/',
         data: { type: 'call', dmId: data.dmId ? String(data.dmId) : null }
-      });
+      }, 'voiceCalls');
     }
   });
 

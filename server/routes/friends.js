@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const Friendship = require('../models/Friendship');
 const User = require('../models/User');
 const { friendIdSet } = require('../utils/privacy');
+const { pushIfOffline } = require('../utils/webPush');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -48,6 +49,15 @@ router.post('/request', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`user-${userId}`).emit('friend-request', friendship);
+      const requesterName = req.user.displayName || req.user.username || 'Кто-то';
+      pushIfOffline(io, userId, {
+        title: '👋 Запрос в друзья',
+        body: `${requesterName} хочет добавить вас в друзья`,
+        icon: req.user.avatar || null,
+        tag: `friend-request-${req.user._id}`,
+        url: '/?tab=friends',
+        data: { type: 'friend_request', userId: String(req.user._id) }
+      }, 'friendRequests');
     }
 
     res.status(201).json(friendship);
@@ -69,6 +79,15 @@ router.post('/accept/:id', auth, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`user-${friendship.requester._id}`).emit('friend-request-accepted', friendship);
+      const accepterName = req.user.displayName || req.user.username || 'Пользователь';
+      pushIfOffline(io, friendship.requester._id, {
+        title: '🤝 Запрос в друзья принят',
+        body: `${accepterName} принял ваш запрос в друзья`,
+        icon: req.user.avatar || null,
+        tag: `friend-accept-${req.user._id}`,
+        url: '/?tab=friends',
+        data: { type: 'friend_request_accepted', userId: String(req.user._id) }
+      }, 'friendRequests');
     }
 
     res.json(friendship);

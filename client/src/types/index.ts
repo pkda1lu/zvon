@@ -76,6 +76,14 @@ export interface User {
       language: string;
       timeFormat: string;
     };
+    notifications?: {
+      directMessages?: boolean;
+      channelMentions?: boolean;
+      voiceCalls?: boolean;
+      friendRequests?: boolean;
+      showPreview?: boolean;
+      showAttachments?: boolean;
+    };
     streamerMode?: {
       enabled?: boolean;
       autoEnableWithOBS?: boolean;

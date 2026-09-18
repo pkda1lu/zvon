@@ -233,6 +233,14 @@ const userSchema = new mongoose.Schema({
       type: Number,
       default: 50
     },
+    notifications: {
+      directMessages: { type: Boolean, default: true },
+      channelMentions: { type: Boolean, default: true },
+      voiceCalls: { type: Boolean, default: true },
+      friendRequests: { type: Boolean, default: true },
+      showPreview: { type: Boolean, default: true },
+      showAttachments: { type: Boolean, default: true }
+    },
     // New Interface Settings
     appearance: {
       theme: { type: String, default: 'dark' },

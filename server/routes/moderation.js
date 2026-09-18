@@ -6,7 +6,7 @@ const Report = require('../models/Report');
 const ProblemReport = require('../models/ProblemReport');
 const Post = require('../models/Post');
 const { body, validationResult } = require('express-validator');
-const { pushToModerators, previewText } = require('../utils/webPush');
+const { pushToModerators, pushIfOffline, previewText } = require('../utils/webPush');
 
 // Middleware to check for moderator/admin roles
 const isModerator = async (req, res, next) => {
@@ -142,12 +142,20 @@ router.post('/reports/:id/resolve', [auth, isModerator], async (req, res) => {
     // Notify the offender if resolved (meaning a violation was confirmed)
     if (status === 'resolved' && report.reportedUser) {
       const io = req.app.get('io');
+      const warningText = `На ваш аккаунт поступила жалоба, которая была одобрена модератором: ${note || 'Нарушение правил'}`;
       if (io) {
         io.to(`user-${report.reportedUser._id}`).emit('notification', {
           type: 'moderation_violation',
-          message: `На ваш аккаунт поступила жалоба, которая была одобрена модератором: ${note}`,
+          message: warningText,
           reason: report.reason,
           timestamp: new Date()
+        });
+        pushIfOffline(io, report.reportedUser._id, {
+          title: '🛡️ Предупреждение модерации',
+          body: previewText(warningText),
+          tag: `moderation-warn-${report._id}`,
+          url: '/?tab=inbox',
+          data: { type: 'moderation_violation', reportId: String(report._id) }
         });
       }
     }
@@ -560,15 +568,23 @@ router.post('/problem-reports/:id/resolve', [auth, isModerator], async (req, res
     // Уведомляем автора жалобы о решении (но не при возврате в «ожидание»).
     if (report && report.reporter && (newStatus === 'resolved' || newStatus === 'dismissed')) {
       const io = req.app.get('io');
+      const verdict = newStatus === 'resolved' ? 'решена' : 'отклонена';
+      const tail = note ? ` Комментарий: ${note}` : '';
+      const messageText = `Ваша жалоба «${report.subject}» ${verdict}.${tail}`;
       if (io) {
-        const verdict = newStatus === 'resolved' ? 'решена' : 'отклонена';
-        const tail = note ? ` Комментарий: ${note}` : '';
         io.to(`user-${report.reporter}`).emit('notification', {
           type: 'problem_resolved',
-          message: `Ваша жалоба «${report.subject}» ${verdict}.${tail}`,
+          message: messageText,
           reportId: report._id,
           status: newStatus,
           timestamp: new Date()
+        });
+        pushIfOffline(io, report.reporter, {
+          title: '🛡️ Служба поддержки',
+          body: previewText(messageText),
+          tag: `problem-resolved-${report._id}`,
+          url: '/?tab=inbox',
+          data: { type: 'problem_resolved', reportId: String(report._id) }
         });
       }
     }
