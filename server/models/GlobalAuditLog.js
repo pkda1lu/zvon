@@ -38,7 +38,12 @@ const globalAuditLogSchema = new mongoose.Schema({
       // Заявки на подключение приложений к Vlyne ID: кто подал и кто решил.
       'VLYNE_APP_SUBMIT',
       'VLYNE_APP_DECISION',
-      'VLYNE_APP_DELETED'
+      'VLYNE_APP_DELETED',
+      // Управление брендами
+      'BRAND_CREATE',
+      'BRAND_UPDATE',
+      'BRAND_DELETE',
+      'BRAND_TOGGLE'
     ]
   },
   target: {
@@ -48,7 +53,7 @@ const globalAuditLogSchema = new mongoose.Schema({
   },
   targetModel: {
     type: String,
-    enum: ['User', 'Server', 'Report', 'MiniApp'],
+    enum: ['User', 'Server', 'Report', 'MiniApp', 'Brand'],
     default: 'User'
   },
   details: {

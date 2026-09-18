@@ -1,0 +1,486 @@
+.branding-settings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.branding-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+/* Linear clean list view */
+.branding-list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.brand-list-row {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: all 0.2s ease;
+}
+
+.brand-list-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.brand-list-row.disabled-brand {
+    opacity: 0.55;
+}
+
+.brand-row-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.brand-row-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.brand-row-logo img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.brand-row-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.brand-row-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.brand-row-domain {
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.brand-row-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+}
+
+.brand-row-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.brand-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Modal and Form Styles */
+.branding-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(16px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.branding-modal-card {
+    background: rgba(18, 18, 24, 0.96);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 680px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+.branding-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.branding-modal-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+}
+
+.branding-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.branding-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.form-section-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.form-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.form-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-field-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.form-field-input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.form-field-input:focus {
+    border-color: var(--primary-neon, #5865f2);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.25);
+}
+
+.form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 600px) {
+    .form-row-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Domain Behavior segmented options */
+.domain-behavior-group {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+@media (max-width: 600px) {
+    .domain-behavior-group {
+        grid-template-columns: 1fr;
+    }
+}
+
+.domain-behavior-option {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.domain-behavior-option:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.domain-behavior-option.active {
+    background: rgba(88, 101, 242, 0.15);
+    border-color: var(--primary-neon, #5865f2);
+    box-shadow: 0 0 12px rgba(88, 101, 242, 0.2);
+}
+
+.domain-behavior-option:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.domain-behavior-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.domain-behavior-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.3;
+}
+
+.upload-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-upload-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.btn-upload-label:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+/* Status badges in brand list */
+.brand-row-status {
+    display: flex;
+    align-items: center;
+}
+
+.brand-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.brand-status-badge.status-open {
+    background: rgba(46, 204, 113, 0.12);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.brand-status-badge.status-redirect {
+    background: rgba(52, 152, 219, 0.12);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.brand-status-badge.status-disabled {
+    background: rgba(231, 76, 60, 0.12);
+    color: #e74c3c;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+/* App Icons Management */
+.icons-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.icon-config-row {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.icon-config-row:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.icon-config-row.is-primary {
+    border-color: rgba(88, 101, 242, 0.5);
+    background: rgba(88, 101, 242, 0.08);
+    box-shadow: 0 0 14px rgba(88, 101, 242, 0.12);
+}
+
+.icon-preview-thumb {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.icon-preview-thumb img {
+    max-width: 82%;
+    max-height: 82%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+.icon-primary-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.icon-primary-btn.active {
+    background: linear-gradient(135deg, var(--primary-neon, #5865f2) 0%, #7000ff 100%);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(88, 101, 242, 0.35);
+}
+
+.icon-primary-btn.inactive {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.icon-primary-btn.inactive:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Nginx Configuration Modal */
+.nginx-config-editor {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: #08090d;
+    color: #6ee7b7;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 14px;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: pre;
+    resize: vertical;
+    tab-size: 4;
+}
+
+.nginx-domains-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.nginx-domain-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-family: monospace;
+    color: #fff;
+}
+
+.certbot-code-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #08090d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #e2e8f0;
+    gap: 12px;
+    overflow-x: auto;
+}

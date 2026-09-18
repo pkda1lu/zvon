@@ -4,7 +4,7 @@
  *  - хэшированные ассеты Vite (/assets/...): cache-first (имена уникальны → не устаревают);
  *  - остальное: проходит в сеть как обычно.
  * Не кэшируем API/сокеты/медиа, чтобы не отдавать устаревшие данные. */
-const CACHE = 'zvon-pwa-v2';
+const CACHE = 'zvon-pwa-v3';
 const SHELL = '/index.html';
 
 self.addEventListener('install', (e) => {
@@ -109,10 +109,15 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       try {
         const net = await fetch(req);
-        if (net.ok) (await caches.open(CACHE)).put(req, net.clone()).catch(() => {});
+        if (net && net.ok) {
+          const cache = await caches.open(CACHE);
+          cache.put(req, net.clone()).catch(() => {});
+        }
         return net;
-      } catch {
-        return cached || Response.error();
+      } catch (err) {
+        // Если сеть недоступна (например, SSL ошибка или оффлайн), пробуем кэш или нативный ответ
+        if (cached) return cached;
+        throw err;
       }
     })());
   }

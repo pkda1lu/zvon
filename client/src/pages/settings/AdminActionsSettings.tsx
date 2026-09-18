@@ -33,7 +33,11 @@ const ACTION_MAP: Record<string, string> = {
     'MINIAPP_CREATE': 'Создание мини-приложения',
     'MODERATION_REPORT_RESOLVE': 'Решение жалобы',
     'MODERATION_BAN': 'Бан модератором',
-    'MODERATION_NOTIFY': 'Предупреждение модератора'
+    'MODERATION_NOTIFY': 'Предупреждение модератора',
+    'BRAND_CREATE': 'Создание бренда',
+    'BRAND_UPDATE': 'Изменение настроек бренда',
+    'BRAND_DELETE': 'Удаление бренда',
+    'BRAND_TOGGLE': 'Переключение активности бренда'
 };
 
 const ACTION_OPTIONS: CustomSelectOption[] = Object.entries(ACTION_MAP).map(([val, label]) => ({

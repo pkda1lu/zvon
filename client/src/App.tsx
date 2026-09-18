@@ -30,6 +30,8 @@ import VibeBackground from './components/VibeBackground';
 const Overlay = React.lazy(() => import('./pages/Overlay'));
 import UpdateNotifier from './components/UpdateNotifier';
 import ScreenReaderHandler from './components/ScreenReaderHandler';
+import BrandInfoBanner from './components/BrandInfoBanner';
+import { fetchAndApplyBranding } from './utils/branding';
 
 const ElectronHandler: React.FC = () => {
   const navigate = useNavigate();
@@ -377,6 +379,10 @@ function App() {
 
   useIdleAnimationPause();
 
+  useEffect(() => {
+    fetchAndApplyBranding();
+  }, []);
+
   return (
     <Router>
       <Routes>
@@ -395,6 +401,7 @@ function App() {
                             <AppBackground />
                             <ScreenReaderHandler />
                             <TitleBar />
+                            <BrandInfoBanner />
                             <ElectronHandler />
                             <MouseNavGuard />
                             <UpdateNotifier />

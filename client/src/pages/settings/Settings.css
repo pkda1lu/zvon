@@ -7,7 +7,7 @@
 
 .settings-overlay {
     position: fixed;
-    top: 0;
+    top: var(--brand-banner-height, 0px);
     left: 0;
     right: 0;
     bottom: 0;

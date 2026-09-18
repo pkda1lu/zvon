@@ -1,0 +1,137 @@
+.brand-info-banner-wrapper {
+    position: relative;
+    width: 100%;
+    z-index: 1001;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.brand-info-banner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 48px;
+    height: 38px;
+    min-height: 38px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 38px;
+    text-align: center;
+    color: #fff;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    box-sizing: border-box;
+    overflow: hidden;
+    transition: all 0.25s ease;
+    user-select: text;
+}
+
+.brand-info-banner-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.brand-info-banner-content.is-overflowing {
+    justify-content: flex-start;
+    mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+}
+
+.brand-info-banner-track {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    will-change: transform;
+}
+
+.brand-info-banner-content:not(.is-overflowing) .brand-info-banner-track {
+    width: 100%;
+    justify-content: center;
+}
+
+.brand-info-banner-content.is-overflowing .brand-info-banner-track {
+    animation: banner-marquee 22s linear infinite;
+}
+
+.brand-info-banner-content.is-overflowing:hover .brand-info-banner-track {
+    animation-play-state: paused;
+}
+
+.brand-info-banner-text {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+}
+
+.brand-info-banner-text-duplicate {
+    padding-left: 80px;
+}
+
+@keyframes banner-marquee {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+.brand-banner-link {
+    color: #ffffff;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    font-weight: 700;
+    margin: 0 3px;
+    transition: opacity 0.2s ease, text-shadow 0.2s ease;
+}
+
+.brand-banner-link:hover {
+    opacity: 0.85;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+.brand-info-banner-close {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+    transition: all 0.2s ease;
+    z-index: 2;
+}
+
+.brand-info-banner-close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-50%) scale(1.08);
+}
+
+@media (max-width: 768px) {
+    .brand-info-banner {
+        padding: 8px 36px;
+        font-size: 12px;
+    }
+    .brand-info-banner-text {
+        font-size: 12px;
+    }
+}

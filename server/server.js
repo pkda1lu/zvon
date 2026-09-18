@@ -165,6 +165,9 @@ app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
 }));
 app.use('/api/moderation', require('./routes/moderation'));
 app.use('/api/admin', require('./routes/admin'));
+const brandingRoutes = require('./routes/branding');
+app.use('/api/branding', brandingRoutes.router);
+app.use('/api/admin/branding', brandingRoutes.adminRouter);
 app.use('/api/version', require('./routes/version'));
 app.use('/api/roadmap', require('./routes/roadmap'));
 app.use('/api/themes', require('./routes/themes'));
@@ -234,13 +237,28 @@ app.get(/^(?!\/api).+/, (req, res) => {
   
   const indexPath = path.join(__dirname, '../client/build/index.html');
   if (fs.existsSync(indexPath)) {
+      const host = (req.get('x-forwarded-host') || req.get('host') || '').toLowerCase();
+      const { BRANDS } = require('./utils/branding');
+
+      // Check domain behavior for incoming request host
+      for (const [k, b] of Object.entries(BRANDS)) {
+        if (k !== 'zvon' && b.domain && host.includes(b.domain.toLowerCase())) {
+          if (b.domainBehavior === 'redirect') {
+            const targetHost = BRANDS.zvon?.domain || 'zvonserver.ru';
+            return res.redirect(302, `https://${targetHost}${req.originalUrl || ''}`);
+          }
+          if (b.domainBehavior === 'disabled') {
+            return res.status(503).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Сайт недоступен</title><style>body{background:#0b0c10;color:#fff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}div{text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.03);}</style></head><body><div><h2>Домен временно недоступен</h2><p style="color:#888;">Обслуживание сайта по этому домену приостановлено.</p></div></body></html>`);
+          }
+        }
+      }
+
     try {
       let html = fs.readFileSync(indexPath, 'utf8');
       const brand = getBrand(req);
 
       // Поддомен Vlyne ID отдаёт ту же сборку, но это витрина отдельного
       // продукта: во вкладке должны стоять его имя и его значок, а не «Zvon».
-      const host = (req.get('x-forwarded-host') || req.get('host') || '').toLowerCase();
       const isVlyneId = /^vlyneid\./.test(host);
       const title = isVlyneId ? 'Vlyne ID' : brand.name;
       // Уменьшенная копия, а не оригинал: исходный значок — 1254×1254 и 1,4 МБ,
@@ -253,6 +271,12 @@ app.get(/^(?!\/api).+/, (req, res) => {
       html = html.replace(/href="\/icon\.png"/g, `href="/${favicon}"`);
       // Update OpenGraph / Meta tags if they exist
       html = html.replace(/content="Zvon"/g, `content="${brand.name}"`);
+
+      // Inject brand configuration for synchronous client hydration
+      const brandDataScript = `<script>window.__INITIAL_BRAND__ = ${JSON.stringify(brand).replace(/</g, '\\u003c')};</script>`;
+      if (html.includes('</head>')) {
+        html = html.replace('</head>', `${brandDataScript}</head>`);
+      }
       
       res.send(html);
     } catch (e) {
@@ -1751,6 +1775,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').th
   catch (e) { console.error('[MiniApps] bootstrap failed:', e.message); }
   try { await require('./bootstrap/storeProducts')(); }
   catch (e) { console.error('[Store] product seed failed:', e.message); }
+  try { await require('./utils/branding').initBrands(); }
+  catch (e) { console.error('[Branding] brand init failed:', e.message); }
 }).catch(err => { console.error('MongoDB connection error:', err); });
 /**
  * Слушаем ТОЛЬКО петлю: снаружи приложение доступно исключительно через nginx.

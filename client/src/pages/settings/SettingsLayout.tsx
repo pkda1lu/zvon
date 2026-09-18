@@ -64,6 +64,7 @@ const AdminUsersSettings = React.lazy(() => import('./AdminUsersSettings'));
 const AdminStatsSettings = React.lazy(() => import('./AdminStatsSettings'));
 const AdminInfraSettings = React.lazy(() => import('./AdminInfraSettings'));
 const AdminActionsSettings = React.lazy(() => import('./AdminActionsSettings'));
+const AdminBrandingSettings = React.lazy(() => import('./AdminBrandingSettings'));
 const AppVersionSettings = React.lazy(() => import('./AppVersionSettings'));
 const AppChangelogSettings = React.lazy(() => import('./AppChangelogSettings'));
 const AppRoadmapSettings = React.lazy(() => import('./AppRoadmapSettings'));
@@ -175,6 +176,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'admin-stats': return <AdminStatsSettings />;
             case 'admin-infra': return <AdminInfraSettings />;
             case 'admin-actions': return <AdminActionsSettings />;
+            case 'admin-branding': return <AdminBrandingSettings />;
             case 'app-version': return <AppVersionSettings />;
             case 'app-changelog': return <AppChangelogSettings />;
             case 'app-roadmap': return <AppRoadmapSettings />;
@@ -323,6 +325,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <NavItem id="admin-stats" label="Статистика" icon={BarChartIcon} />
                         <NavItem id="admin-actions" label="Журнал действий" icon={DocumentIcon} />
                         <NavItem id="admin-infra" label="Инфраструктура" icon={GlobeIcon} />
+                        <NavItem id="admin-branding" label="Брендинг" icon={PaletteIcon} />
                     </>
                 )}
                 
