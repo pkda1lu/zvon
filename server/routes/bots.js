@@ -176,6 +176,42 @@ router.post('/:id/add-to-server', auth, async (req, res) => {
             await bot.save();
         }
 
+        /*
+         * Рассылаем событие о новом участнике — ровно как это делают вступление
+         * по приглашению (invites.js) и обычное присоединение (servers.js).
+         *
+         * Здесь его не было, и получалось так: бот добавлялся в базу, но ни у
+         * кого не появлялся в списке участников до перезахода. Человек нажимал
+         * «Добавить на сервер» ещё раз и получал 400 «уже участник» — со стороны
+         * это выглядело как сломанное добавление, хотя бот всё это время был на
+         * сервере.
+         */
+        const io = req.app.get('io');
+        if (io) {
+            const populatedServer = await Server.findById(server._id)
+                .populate({ path: 'owner', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } })
+                .populate('channels')
+                .populate({ path: 'members.user', select: 'username displayName avatar status badges activity displayedTag isBot settings.streamerMode.streamerLink', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+
+            const newMember = populatedServer.members.find(m => String(m.user._id) === String(botId));
+            io.to(`server-${server._id}`).emit('server-member-joined', { serverId: server._id, member: newMember, server: populatedServer });
+            io.to(`server-${server._id}`).emit('server-updated', populatedServer);
+
+            /*
+             * Сам бот в комнату сервера попадает только при подключении сокета
+             * (см. updateStatusOnConnect в server.js). Уже запущенный бот иначе
+             * не увидел бы ни одного события нового сервера до перезапуска —
+             * заводим его в комнату сразу.
+             */
+            const botSockets = io.sockets.adapter.rooms.get(`user-${String(botId)}`);
+            if (botSockets) {
+                for (const sid of botSockets) {
+                    const s = io.sockets.sockets.get(sid);
+                    if (s) s.join(`server-${server._id}`);
+                }
+            }
+        }
+
         res.json({ message: 'Бот успешно добавлен на сервер' });
     } catch (error) {
         console.error('Add bot to server error:', error);
