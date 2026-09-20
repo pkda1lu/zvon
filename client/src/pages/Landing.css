@@ -39,12 +39,13 @@
     align-items: center;
     padding: 20px 80px;
     position: fixed;
-    top: 0;
+    top: var(--brand-banner-height, 0px);
     left: 0;
     right: 0;
     z-index: 1000;
     background: rgba(11, 12, 16, 0.8);
     backdrop-filter: blur(10px);
+    transition: top 0.25s ease;
 }
 
 .nav-logo {
@@ -750,7 +751,7 @@ footer {
         radial-gradient(90% 70% at 50% 44%, rgba(5,5,12,0) 28%, rgba(5,5,12,.22) 68%, rgba(5,5,12,.72) 100%),
         linear-gradient(180deg, rgba(5,5,12,.18) 0%, rgba(5,5,12,0) 34%, rgba(5,5,12,.18) 70%, rgba(5,5,12,.58) 100%); }
 
-.landing-cine .landing-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 30; }
+.landing-cine .landing-nav { position: fixed; top: var(--brand-banner-height, 0px); left: 0; right: 0; z-index: 30; }
 
 /* Полноэкранные сцены поверх фиксированной планеты */
 .scene { position: relative; z-index: 2; min-height: 100vh; display: flex; align-items: center; padding: 0 8vw; }

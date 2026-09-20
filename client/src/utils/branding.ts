@@ -80,26 +80,39 @@ export const BRANDS: Record<string, BrandConfig> = {
     }
 };
 
-// Hydrate from server-injected script if available
-if (typeof window !== 'undefined' && (window as any).__INITIAL_BRAND__) {
-    const initial = (window as any).__INITIAL_BRAND__;
-    if (initial && initial.id) {
-        BRANDS[initial.id] = {
-            ...BRANDS[initial.id],
-            ...initial
-        };
+// Hydrate from server-injected script or localStorage cache immediately
+if (typeof window !== 'undefined') {
+    try {
+        const cached = localStorage.getItem('zvon_cached_brands');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === 'object') {
+                Object.assign(BRANDS, parsed);
+            }
+        }
+    } catch { /* ignore cache read error */ }
+
+    if ((window as any).__INITIAL_BRAND__) {
+        const initial = (window as any).__INITIAL_BRAND__;
+        if (initial && initial.id) {
+            BRANDS[initial.id] = {
+                ...BRANDS[initial.id],
+                ...initial
+            };
+        }
     }
 }
 
-export const BRAND_FALLBACK_COLORS = ['#5865f2', '#ff5722', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#3b82f6'];
+export const BRAND_FALLBACK_COLORS = ['#3b82f6', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316'];
 
 export const getBrandColor = (_brandId?: string, index = 0): string => {
     return BRAND_FALLBACK_COLORS[index % BRAND_FALLBACK_COLORS.length];
 };
 
 const withZvonFallback = (b: BrandConfig): BrandConfig => {
+    if (!b) return BRANDS.zvon;
+    if (b.id === 'zvon') return b;
     const zvon = BRANDS.zvon;
-    if (!b || b.id === 'zvon') return zvon || b;
     return {
         ...b,
         logo: b.logo?.trim() ? b.logo : (zvon?.logo || 'zvonlogonew.png'),
@@ -120,6 +133,9 @@ export const updateBrandInRegistry = (brand: BrandConfig) => {
         BRANDS.zvon.enabled = true;
     }
     if (typeof window !== 'undefined') {
+        try {
+            localStorage.setItem('zvon_cached_brands', JSON.stringify(BRANDS));
+        } catch { /* ignore cache write error */ }
         window.dispatchEvent(new CustomEvent('zvon-brand-updated', { detail: brand }));
     }
 };

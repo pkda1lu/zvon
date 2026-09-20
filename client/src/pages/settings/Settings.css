@@ -2236,12 +2236,12 @@ input[type=range]:disabled::-webkit-slider-thumb {
     .settings-overlay.server-settings-overlay,
     .server-settings-layout-content {
         position: fixed !important;
-        top: 0 !important;
+        top: var(--brand-banner-height, 0px) !important;
         left: 0 !important;
         right: 0 !important;
         bottom: 0 !important;
         width: 100% !important;
-        height: 100dvh !important;
+        height: calc(100dvh - var(--brand-banner-height, 0px)) !important;
         z-index: 11000 !important;
         display: flex !important;
         flex-direction: row !important;
@@ -2254,13 +2254,13 @@ input[type=range]:disabled::-webkit-slider-thumb {
     /* Regular settings overlay stops above mobile-bottom-nav so bottom nav remains visible */
     .settings-overlay:not(.server-settings-overlay) {
         position: fixed !important;
-        top: 0 !important;
+        top: var(--brand-banner-height, 0px) !important;
         left: 0 !important;
         right: 0 !important;
         bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
         width: 100% !important;
         height: auto !important;
-        max-height: calc(100dvh - 56px - env(safe-area-inset-bottom, 0px)) !important;
+        max-height: calc(100dvh - 56px - env(safe-area-inset-bottom, 0px) - var(--brand-banner-height, 0px)) !important;
         z-index: 10000 !important;
         display: flex !important;
         flex-direction: row !important;

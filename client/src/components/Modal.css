@@ -21,7 +21,8 @@
   backdrop-filter: blur(40px) saturate(180%);
   width: 100%;
   max-width: 480px;
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 80px - var(--brand-banner-height, 0px));
+  max-height: calc(100dvh - 80px - var(--brand-banner-height, 0px));
   border-radius: var(--radius-2xl);
   box-shadow:
     0 30px 60px rgba(0, 0, 0, 0.5),

@@ -664,10 +664,10 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
             ref={windowRef}
             className={`miniapp-window ${!minimized ? 'miniapp-active-fullscreen' : ''}`}
             style={{
-                left: position.x,
-                top: position.y,
-                width: size.width,
-                height: size.height,
+                left: isMobile ? undefined : position.x,
+                top: isMobile ? undefined : position.y,
+                width: isMobile ? undefined : size.width,
+                height: isMobile ? undefined : size.height,
                 zIndex: isDragging || isResizing ? 9001 : 9000,
                 transformOrigin: '0 0',
                 pointerEvents: minimized ? 'none' : 'auto',

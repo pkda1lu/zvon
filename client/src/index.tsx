@@ -3,10 +3,11 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import './Mobile.css';
 import App from './App';
-import { applyBranding } from './utils/branding';
+import { applyBranding, fetchAndApplyBranding } from './utils/branding';
 
-// Apply branding (title, favicon) immediately
+// Apply branding (title, favicon) immediately and start fetching server config asynchronously
 applyBranding();
+fetchAndApplyBranding();
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

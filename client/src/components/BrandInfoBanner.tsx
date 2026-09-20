@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrentBrand } from '../utils/branding';
 import { useAppearance } from '../contexts/AppearanceContext';
@@ -64,7 +65,9 @@ export const BrandInfoBanner: React.FC = () => {
     const [isDismissed, setIsDismissed] = useState(false);
     const [isOverflowing, setIsOverflowing] = useState(false);
 
-    const wrapperRef = useRef<HTMLDivElement>(null);
+    const [duration, setDuration] = useState(40);
+
+    const outerRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLDivElement>(null);
 
@@ -92,20 +95,19 @@ export const BrandInfoBanner: React.FC = () => {
         }
 
         const updateHeight = () => {
-            if (wrapperRef.current) {
-                const h = wrapperRef.current.offsetHeight;
+            if (outerRef.current) {
+                const h = outerRef.current.offsetHeight;
                 document.documentElement.style.setProperty('--brand-banner-height', `${h}px`);
             }
         };
 
-        // Задержка на следующий кадр для корректного чтения высоты
         const t = setTimeout(updateHeight, 30);
         window.addEventListener('resize', updateHeight);
 
         let resizeObserver: ResizeObserver | null = null;
-        if (typeof ResizeObserver !== 'undefined' && wrapperRef.current) {
+        if (typeof ResizeObserver !== 'undefined' && outerRef.current) {
             resizeObserver = new ResizeObserver(() => updateHeight());
-            resizeObserver.observe(wrapperRef.current);
+            resizeObserver.observe(outerRef.current);
         }
 
         return () => {
@@ -116,14 +118,23 @@ export const BrandInfoBanner: React.FC = () => {
         };
     }, [shouldShow]);
 
-    // Проверка переполнения в одну строчку
+    // Проверка переполнения в одну строчку и вычисление комфортной скорости скролла
     useEffect(() => {
         if (!shouldShow) return;
 
         const checkOverflow = () => {
             if (containerRef.current && textRef.current) {
-                const isOver = textRef.current.scrollWidth > containerRef.current.clientWidth;
+                const textWidth = textRef.current.offsetWidth || textRef.current.scrollWidth;
+                const containerWidth = containerRef.current.clientWidth;
+                const isOver = textWidth > containerWidth;
                 setIsOverflowing(isOver);
+                if (isOver) {
+                    // Скорость ~55px в секунду для спокойного и легкого чтения
+                    // Ширина одного цикла = ширина текста + правый отступ 220px
+                    const itemWidth = textWidth + 220;
+                    const calculated = Math.max(25, Math.round(itemWidth / 55));
+                    setDuration(calculated);
+                }
             }
         };
 
@@ -145,57 +156,69 @@ export const BrandInfoBanner: React.FC = () => {
         }
     };
 
-    // Background color strictly depends on user's theme settings
-    const themePrimary = customColors?.primary || 'var(--primary-neon, #5865f2)';
+    const location = useLocation();
+    const isLanding = location.pathname === '/' || location.pathname === '/landing';
+
+    // Фоновый градиент по умолчанию берется из темы пользователя
+    const themePrimary = customColors?.primary || 'var(--primary-neon, #006aff)';
     const themeSecondary = customColors?.secondary || 'var(--secondary-neon, #7000ff)';
     const bannerBg = `linear-gradient(90deg, ${themePrimary}e6 0%, ${themeSecondary}d9 100%)`;
 
     return (
-        <AnimatePresence>
-            {shouldShow && (
-                <motion.div
-                    ref={wrapperRef}
-                    className="brand-info-banner-wrapper"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.25, ease: 'easeInOut' }}
-                >
-                    <div
-                        className="brand-info-banner"
-                        style={{ background: bannerBg }}
+        <div ref={outerRef} className="brand-info-banner-outer">
+            <AnimatePresence>
+                {shouldShow && (
+                    <motion.div
+                        key={`brand-info-banner-${brand.id}`}
+                        className={`brand-info-banner-wrapper ${isLanding ? 'is-landing' : ''}`}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: 'easeInOut' }}
                     >
-                        <div 
-                            className={`brand-info-banner-content ${isOverflowing ? 'is-overflowing' : ''}`}
-                            ref={containerRef}
+                        <div
+                            className="brand-info-banner"
+                            style={{ background: bannerBg }}
                         >
-                            <div className="brand-info-banner-track">
-                                <div className="brand-info-banner-text" ref={textRef}>
-                                    {renderBannerContent(banner.text)}
-                                </div>
-                                {isOverflowing && (
-                                    <div className="brand-info-banner-text brand-info-banner-text-duplicate" aria-hidden="true">
-                                        {renderBannerContent(banner.text)}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {banner.closable !== false && (
-                            <button
-                                type="button"
-                                className="brand-info-banner-close"
-                                onClick={handleDismiss}
-                                title="Скрыть уведомление"
-                                aria-label="Закрыть"
+                            <div 
+                                className={`brand-info-banner-content ${isOverflowing ? 'is-overflowing' : ''}`}
+                                ref={containerRef}
                             >
-                                <CloseIcon size={14} color="#ffffff" />
-                            </button>
-                        )}
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
+                                <div 
+                                    className="brand-info-banner-track"
+                                    style={isOverflowing ? { animationDuration: `${duration}s` } : undefined}
+                                >
+                                    <div className="brand-info-banner-item" ref={textRef}>
+                                        <div className="brand-info-banner-text">
+                                            {renderBannerContent(banner.text)}
+                                        </div>
+                                    </div>
+                                    {isOverflowing && (
+                                        <div className="brand-info-banner-item" aria-hidden="true">
+                                            <div className="brand-info-banner-text">
+                                                {renderBannerContent(banner.text)}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {banner.closable !== false && (
+                                <button
+                                    type="button"
+                                    className="brand-info-banner-close"
+                                    onClick={handleDismiss}
+                                    title="Скрыть уведомление"
+                                    aria-label="Закрыть"
+                                >
+                                    <CloseIcon size={14} color="#ffffff" />
+                                </button>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 };
 

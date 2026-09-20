@@ -511,13 +511,22 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       totalBrandVisits += sum;
     });
 
-    const brandingList = knownBrandKeys.map(k => {
+    // Палитра контрастных цветов для визуального разделения источников данных в статистике:
+    // Приоритет: сначала синий, потом красный, потом зелёный, потом жёлтый, затем второстепенные
+    const STATS_DISTINCT_COLORS = [
+      '#3b82f6', '#f43f5e', '#10b981', '#f59e0b',
+      '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
+      '#14b8a6', '#a855f7', '#84cc16', '#e11d48',
+      '#0ea5e9', '#d946ef', '#5865f2', '#22c55e'
+    ];
+
+    const brandingList = knownBrandKeys.map((k, idx) => {
       const count = brandTotals[k] || 0;
       const percent = totalBrandVisits > 0 ? Math.round((count / totalBrandVisits) * 100) : (k === 'zvon' ? 100 : 0);
       return {
         id: k,
         name: BRANDS[k]?.name || k,
-        color: BRANDS[k]?.color || '#5865f2',
+        color: STATS_DISTINCT_COLORS[idx % STATS_DISTINCT_COLORS.length],
         count,
         percent
       };

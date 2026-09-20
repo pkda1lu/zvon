@@ -1,8 +1,13 @@
-.brand-info-banner-wrapper {
+.brand-info-banner-outer {
     position: relative;
     width: 100%;
     z-index: 1001;
     flex-shrink: 0;
+}
+
+.brand-info-banner-wrapper {
+    position: relative;
+    width: 100%;
     overflow: hidden;
 }
 
@@ -11,7 +16,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 48px;
+    padding: 0 44px 0 16px;
     height: 38px;
     min-height: 38px;
     font-size: 13px;
@@ -20,6 +25,7 @@
     text-align: center;
     color: #fff;
     backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
     box-sizing: border-box;
@@ -38,9 +44,13 @@
 }
 
 .brand-info-banner-content.is-overflowing {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
     justify-content: flex-start;
-    mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
 }
 
 .brand-info-banner-track {
@@ -56,11 +66,19 @@
 }
 
 .brand-info-banner-content.is-overflowing .brand-info-banner-track {
-    animation: banner-marquee 22s linear infinite;
+    animation: banner-marquee 40s linear infinite;
 }
 
 .brand-info-banner-content.is-overflowing:hover .brand-info-banner-track {
     animation-play-state: paused;
+}
+
+.brand-info-banner-item {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    padding-right: 220px; /* Увеличенное расстояние между концом текста и началом повтора */
+    flex-shrink: 0;
 }
 
 .brand-info-banner-text {
@@ -71,10 +89,6 @@
     font-size: 13px;
     font-weight: 500;
     letter-spacing: 0.2px;
-}
-
-.brand-info-banner-text-duplicate {
-    padding-left: 80px;
 }
 
 @keyframes banner-marquee {
@@ -102,7 +116,7 @@
 
 .brand-info-banner-close {
     position: absolute;
-    right: 14px;
+    right: 12px;
     top: 50%;
     transform: translateY(-50%);
     background: rgba(255, 255, 255, 0.15);
@@ -128,8 +142,11 @@
 
 @media (max-width: 768px) {
     .brand-info-banner {
-        padding: 8px 36px;
+        padding: 0 34px 0 12px;
         font-size: 12px;
+    }
+    .brand-info-banner-item {
+        padding-right: 160px;
     }
     .brand-info-banner-text {
         font-size: 12px;
