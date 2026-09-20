@@ -16,7 +16,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 44px 0 16px;
+    padding: 0 44px;
     height: 38px;
     min-height: 38px;
     font-size: 13px;
@@ -77,8 +77,11 @@
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
-    padding-right: 220px; /* Увеличенное расстояние между концом текста и началом повтора */
     flex-shrink: 0;
+}
+
+.brand-info-banner-content.is-overflowing .brand-info-banner-item {
+    padding-right: 220px; /* Увеличенное расстояние между концом текста и началом повтора только при прокрутке */
 }
 
 .brand-info-banner-text {
@@ -142,10 +145,10 @@
 
 @media (max-width: 768px) {
     .brand-info-banner {
-        padding: 0 34px 0 12px;
+        padding: 0 34px;
         font-size: 12px;
     }
-    .brand-info-banner-item {
+    .brand-info-banner-content.is-overflowing .brand-info-banner-item {
         padding-right: 160px;
     }
     .brand-info-banner-text {
