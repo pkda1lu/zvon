@@ -50,8 +50,11 @@ const auth = async (req, res, next) => {
         }
       }
 
+      const brand = getBrand(req).id;
+      const { trackUserActivity } = require('../utils/activityTracker');
+      trackUserActivity(user._id, brand);
+
       if (req.sessionId) {
-        const brand = getBrand(req).id;
         // Обновляем «последнюю активность» не чаще раза в 60 сек.
         Session.updateOne(
           { _id: req.sessionId, lastActiveAt: { $lt: new Date(Date.now() - 60 * 1000) } },

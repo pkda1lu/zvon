@@ -9,6 +9,7 @@ const Server = require('../models/Server');
 const Message = require('../models/Message');
 const Report = require('../models/Report');
 const Session = require('../models/Session');
+const DailyUserActivity = require('../models/DailyUserActivity');
 const VoiceSession = require('../models/VoiceSession');
 const GlobalAuditLog = require('../models/GlobalAuditLog');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
@@ -195,10 +196,24 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
+    // Формируем строковые границы дат "YYYY-MM-DD" для запроса к DailyUserActivity
+    const { getDayString } = require('../utils/activityTracker');
+    const startDayStr = getDayString(startDate);
+    const endDayStr = getDayString(endDate);
+
     // 1. Уникальные пользователи онлайн по дням (DAU Online)
     let onlineUsersAgg = [];
     try {
-      onlineUsersAgg = await Session.aggregate([
+      // Сначала читаем из персистентной таблицы ежедневной активности
+      const dailyActivityAgg = await DailyUserActivity.aggregate([
+        { $match: { day: { $gte: startDayStr, $lte: endDayStr } } },
+        { $group: { _id: { day: "$day", user: "$user" } } },
+        { $group: { _id: "$_id.day", count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]);
+
+      // Также читаем из текущих Session (для обратной совместимости и плавного перехода)
+      const sessionAgg = await Session.aggregate([
         {
           $match: {
             $or: [
@@ -225,11 +240,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
             }
           }
         },
-        {
-          $match: {
-            activeDate: { $ne: null }
-          }
-        },
+        { $match: { activeDate: { $ne: null } } },
         {
           $group: {
             _id: {
@@ -246,8 +257,21 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         },
         { $sort: { _id: 1 } }
       ]);
+
+      // Объединяем результаты: берём максимум между DailyUserActivity и Session за каждый день
+      const dauMap = new Map();
+      sessionAgg.forEach(item => {
+        dauMap.set(item._id, Math.max(dauMap.get(item._id) || 0, item.count || 0));
+      });
+      dailyActivityAgg.forEach(item => {
+        dauMap.set(item._id, Math.max(dauMap.get(item._id) || 0, item.count || 0));
+      });
+
+      onlineUsersAgg = Array.from(dauMap.entries())
+        .map(([_id, count]) => ({ _id, count }))
+        .sort((a, b) => a._id.localeCompare(b._id));
     } catch (e) {
-      console.error('Session DAU aggregate error:', e);
+      console.error('Session/DailyActivity DAU aggregate error:', e);
       onlineUsersAgg = [];
     }
 
@@ -258,7 +282,21 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
 
     let brandingAgg = [];
     try {
-      brandingAgg = await Session.aggregate([
+      const dailyBrandingAgg = await DailyUserActivity.aggregate([
+        { $match: { day: { $gte: startDayStr, $lte: endDayStr } } },
+        {
+          $group: {
+            _id: {
+              day: "$day",
+              brand: { $ifNull: ["$brand", "zvon"] }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id.day": 1 } }
+      ]);
+
+      const sessionBrandingAgg = await Session.aggregate([
         {
           $match: {
             $or: [
@@ -286,11 +324,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
             }
           }
         },
-        {
-          $match: {
-            activeDate: { $ne: null }
-          }
-        },
+        { $match: { activeDate: { $ne: null } } },
         {
           $group: {
             _id: {
@@ -311,6 +345,36 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         },
         { $sort: { "_id.day": 1 } }
       ]);
+
+      // Объединяем статистику брендингов (берем максимум из DailyUserActivity и Session)
+      const brandDayMap = new Map();
+      const makeKey = (day, brand) => `${day}__${brand}`;
+
+      sessionBrandingAgg.forEach(item => {
+        if (item._id && item._id.day) {
+          const key = makeKey(item._id.day, item._id.brand || 'zvon');
+          brandDayMap.set(key, {
+            _id: { day: item._id.day, brand: item._id.brand || 'zvon' },
+            count: item.count || 0
+          });
+        }
+      });
+
+      dailyBrandingAgg.forEach(item => {
+        if (item._id && item._id.day) {
+          const key = makeKey(item._id.day, item._id.brand || 'zvon');
+          const existing = brandDayMap.get(key);
+          const count = Math.max(existing ? existing.count : 0, item.count || 0);
+          brandDayMap.set(key, {
+            _id: { day: item._id.day, brand: item._id.brand || 'zvon' },
+            count
+          });
+        }
+      });
+
+      brandingAgg = Array.from(brandDayMap.values()).sort((a, b) =>
+        a._id.day.localeCompare(b._id.day)
+      );
     } catch (e) {
       console.error('Branding visits aggregate error:', e);
       brandingAgg = [];

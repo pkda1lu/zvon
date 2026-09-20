@@ -94,6 +94,8 @@ async function anonymizeUser(userId) {
   //    Это чистое ПД без ценности для других пользователей — удаляем, а не
   //    обезличиваем.
   const sessions = await Session.deleteMany({ user: userId });
+  const DailyUserActivity = require('../models/DailyUserActivity');
+  await DailyUserActivity.deleteMany({ user: userId }).catch(() => {});
   const pushes = await PushSubscription.deleteMany({ user: userId });
   const pending = await PendingRegistration.deleteMany({ email });
 
