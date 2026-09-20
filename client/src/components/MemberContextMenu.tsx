@@ -13,6 +13,7 @@ import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import './MemberContextMenu.css';
 import InputModal from './InputModal';
 import ReportModal from './ReportModal';
+import UserAvatar from './UserAvatar';
 
 interface MemberContextMenuProps {
     user: User;
@@ -31,6 +32,8 @@ interface MemberContextMenuProps {
      * из другого канала не видел ни «Переместить в», ни серверных мьютов.
      */
     voiceChannelId?: string | null;
+    /** Флаг явного контекста голосовой связи */
+    isVoiceContext?: boolean;
 }
 
 const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
@@ -42,9 +45,11 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     onMention,
     onOpenProfile,
     reportMessageId,
-    voiceChannelId
+    voiceChannelId,
+    isVoiceContext
 }) => {
-    if (!targetUser) return null;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const [isInteractive, setIsInteractive] = useState(!isMobile);
 
     const { user: currentUser, refreshUser } = useAuth();
     const { streamerModeEnabled, censorInfo } = useWindowSettings();
@@ -69,9 +74,16 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const [adjustedPos, setAdjustedPos] = useState({ top: y, left: x });
     const [isVisible, setIsVisible] = useState(false);
 
-    const currentVolume = userVolumes.get(targetUser._id) ?? 1;
-    const isLocalMuted = localMutes.has(targetUser._id);
-    const isSelf = currentUser?._id === targetUser._id;
+    useEffect(() => {
+        if (isMobile) {
+            const timer = setTimeout(() => setIsInteractive(true), 320);
+            return () => clearTimeout(timer);
+        }
+    }, [isMobile]);
+
+    const currentVolume = userVolumes.get(targetUser?._id || '') ?? 1;
+    const isLocalMuted = localMutes.has(targetUser?._id || '');
+    const isSelf = currentUser?._id === targetUser?._id;
     const userPerms = currentUser ? computePermissions(currentUser._id, server) : 0n;
     const canManageRoles = hasPermission(userPerms, Permissions.MANAGE_ROLES);
     const canKick = hasPermission(userPerms, Permissions.KICK_MEMBERS);
@@ -82,10 +94,11 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const isOwner = (typeof server.owner === 'object' ? (server.owner as any)._id : server.owner) === currentUser?._id;
 
     const { userStates, activeChannelId } = useVoice();
-    const targetVoiceState = userStates.get(targetUser._id);
-    const isInVoice = !!targetVoiceState || !!voiceChannelId;
+    const targetVoiceState = userStates.get(targetUser?._id || '');
+    const isVoice = isVoiceContext ?? (!!targetVoiceState || !!voiceChannelId);
     const isServerMuted = targetVoiceState?.isServerMuted || false;
     const isServerDeafened = targetVoiceState?.isServerDeafened || false;
+    const member = server.members.find(m => String((m.user as any)?._id || m.user) === String(targetUser?._id || ''));
 
     // 3D-комнаты — такие же голосовые каналы, в них тоже перемещают.
     // Текущий канал участника из списка убираем: перемещать в него некуда.
@@ -160,6 +173,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     // ... (friendship effect existing code)
     useEffect(() => {
+        if (!targetUser?._id) return;
         const checkFriendship = async () => {
             try {
                 const res = await axios.get('/api/friends');
@@ -175,7 +189,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
             const userNote = currentUser.notes[targetUser._id];
             if (userNote) setNote(userNote);
         }
-    }, [targetUser._id, currentUser]);
+    }, [targetUser?._id, currentUser]);
 
     const handleAction = async (action: string) => {
         try {
@@ -280,6 +294,8 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     const flipSubmenu = adjustedPos.left > window.innerWidth - 440;
 
+    if (!targetUser) return null;
+
     if (showInputModal) {
         return ReactDOM.createPortal(
             <InputModal
@@ -317,170 +333,247 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const originX = `${Math.max(0, x - adjustedPos.left)}px`;
     const originY = `${Math.max(0, y - adjustedPos.top)}px`;
 
+    const renderVolumeSection = (title: string) => {
+        if (isSelf) return null;
+        return (
+            <div className="menu-group volume-group">
+                <div className="menu-label">
+                    <span>{title}</span>
+                    <span className="volume-percent">{Math.round(currentVolume * 100)}%</span>
+                </div>
+                <div className="volume-slider-container">
+                    <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.01"
+                        value={currentVolume}
+                        onChange={(e) => setUserVolume(targetUser._id, parseFloat(e.target.value))}
+                        className="menu-volume-slider"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+                <div className="menu-item check-item" onClick={(e) => { e.stopPropagation(); toggleLocalMute(targetUser._id); }}>
+                    <span>Заглушить (для себя)</span>
+                    <div className={`checkbox ${isLocalMuted ? 'checked' : ''}`}>{isLocalMuted && '✓'}</div>
+                </div>
+            </div>
+        );
+    };
+
     return ReactDOM.createPortal(
-        <motion.div
-            className="member-context-menu"
-            ref={menuRef}
-            style={{
-                top: adjustedPos.top,
-                left: adjustedPos.left,
-                visibility: isVisible ? 'visible' : 'hidden',
-                transformOrigin: `${originX} ${originY}`,
-            }}
-            variants={popoverVariants}
-            initial="initial"
-            animate={isVisible ? 'animate' : 'initial'}
-            transition={popoverTransition}
-        >
-            <div className="menu-group">
-                <div className="menu-item" onClick={() => handleAction('profile')}>Профиль</div>
-                {isSelf && <div className="menu-item" onClick={() => handleAction('server-profile')}>Настроить профиль на сервере</div>}
-                {!isSelf && (
+        <React.Fragment>
+            {isMobile && <div className="member-context-backdrop" onClick={isInteractive ? onClose : undefined} />}
+            <motion.div
+                className={`member-context-menu ${isVoice ? 'is-voice-menu' : 'is-user-menu'}`}
+                ref={menuRef}
+                style={{
+                    top: !isMobile ? adjustedPos.top : undefined,
+                    left: !isMobile ? adjustedPos.left : undefined,
+                    visibility: isVisible ? 'visible' : 'hidden',
+                    transformOrigin: !isMobile ? `${originX} ${originY}` : undefined,
+                    pointerEvents: isInteractive ? 'auto' : 'none',
+                }}
+                variants={!isMobile ? popoverVariants : undefined}
+                initial={!isMobile ? "initial" : undefined}
+                animate={!isMobile ? (isVisible ? 'animate' : 'initial') : undefined}
+                transition={!isMobile ? popoverTransition : undefined}
+            >
+                {isMobile && (
+                    <div className="sheet-drag-handle-wrap">
+                        <div className="sheet-drag-handle" />
+                    </div>
+                )}
+
+                {/* Compact User Header */}
+                <div className="menu-user-header">
+                    <UserAvatar user={targetUser} avatarOverride={member?.avatar || undefined} size={32} />
+                    <div className="menu-user-header-info">
+                        <span className="menu-user-header-name">
+                            {member?.nickname || targetUser.displayName || targetUser.username}
+                        </span>
+                        <span className="menu-user-header-sub">
+                            {isVoice ? '🔊 В голосовом канале' : `@${targetUser.username}`}
+                        </span>
+                    </div>
+                </div>
+
+                {isVoice ? (
+                    /* ====== CASE 1: ГОЛОСОВОЙ КОНТЕКСТ ====== */
                     <>
-                        <div className="menu-item" onClick={() => handleAction('mention')}>Упомянуть</div>
-                        <div className="menu-item" onClick={() => handleAction('message')}>Написать сообщение</div>
-                        <div className="menu-item" onClick={() => handleAction('call')}>Позвонить</div>
+                        {renderVolumeSection("Громкость в голосовой")}
+
+                        {!isSelf && (hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) || hasPermission(userPerms, Permissions.MOVE_MEMBERS)) && (
+                            <>
+                                <div className="menu-separator" />
+                                <div className="menu-group">
+                                    <div className="menu-label">Управление в канале</div>
+                                    {hasPermission(userPerms, Permissions.MUTE_MEMBERS) && (
+                                        <div className="menu-item check-item" onClick={handleServerMute}>
+                                            <span>Отключить микрофон (Сервер)</span>
+                                            <div className={`checkbox ${isServerMuted ? 'checked' : ''}`}>{isServerMuted && '✓'}</div>
+                                        </div>
+                                    )}
+                                    {hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) && (
+                                        <div className="menu-item check-item" onClick={handleServerDeafen}>
+                                            <span>Отключить звук (Сервер)</span>
+                                            <div className={`checkbox ${isServerDeafened ? 'checked' : ''}`}>{isServerDeafened && '✓'}</div>
+                                        </div>
+                                    )}
+                                    {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && voiceChannels.length > 0 && (
+                                        <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
+                                            <span>Переместить в</span>
+                                            <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
+                                            <div className="submenu">
+                                                {voiceChannels.map(vc => (
+                                                    <div key={vc._id} className="menu-item" onClick={(e) => { e.stopPropagation(); handleMoveTo(vc._id); }}>
+                                                        {vc.name}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && (
+                                        <div className="menu-item destructive" onClick={handleVoiceKick}>
+                                            Отключить от голосового
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="menu-separator" />
+                        <div className="menu-group">
+                            <div className="menu-item" onClick={() => handleAction('profile')}>Профиль</div>
+                            {!isSelf && (
+                                <>
+                                    <div className="menu-item" onClick={() => handleAction('mention')}>Упомянуть</div>
+                                    <div className="menu-item" onClick={() => handleAction('message')}>Написать сообщение</div>
+                                    <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>
+                                </>
+                            )}
+                        </div>
+
+                        {!isSelf && canBan && (
+                            <>
+                                <div className="menu-separator" />
+                                <div className="menu-group">
+                                    <div className="menu-item destructive" onClick={handleBan}>Забанить на сервере</div>
+                                </div>
+                            </>
+                        )}
+                    </>
+                ) : (
+                    /* ====== CASE 3: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЕМ (СПИСОК / ЧАТ) ====== */
+                    <>
+                        <div className="menu-group">
+                            <div className="menu-item" onClick={() => handleAction('profile')}>Профиль</div>
+                            {isSelf && <div className="menu-item" onClick={() => handleAction('server-profile')}>Настроить профиль на сервере</div>}
+                            {!isSelf && (
+                                <>
+                                    <div className="menu-item" onClick={() => handleAction('mention')}>Упомянуть</div>
+                                    <div className="menu-item" onClick={() => handleAction('message')}>Написать сообщение</div>
+                                    <div className="menu-item" onClick={() => handleAction('call')}>Позвонить</div>
+                                </>
+                            )}
+                        </div>
+
+                        {!shouldCensor && (
+                            <>
+                                <div className="menu-separator" />
+                                <div className="menu-group">
+                                    <div className="menu-item" onClick={() => handleAction('update-note')}>
+                                        {note ? 'Изменить заметку' : 'Добавить заметку'}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Volume slider for user */}
+                        {renderVolumeSection("Громкость пользователя")}
+
+                        <div className="menu-separator" />
+
+                        <div className="menu-group">
+                            {(isSelf ? canChangeNickname : canManageNicknames) && (
+                                <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
+                            )}
+                            {canManageRoles && !isSelf && (
+                                <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
+                                    <span>Роли</span>
+                                    <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
+                                    <div className="submenu">
+                                        {(server.roles || []).filter(r => r.name !== '@everyone').map(role => {
+                                            const m = server.members.find(me => String(me.user._id || me.user) === String(targetUser._id));
+                                            const hasRole = (m?.roles || []).includes(role._id);
+                                            return (
+                                                <div
+                                                    key={role._id}
+                                                    className="menu-item role-item"
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        const newRoles = hasRole
+                                                            ? (m?.roles || []).filter(rid => rid !== role._id)
+                                                            : [...(m?.roles || []), role._id];
+                                                        try {
+                                                            await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { roles: newRoles });
+                                                        } catch (err) { }
+                                                    }}
+                                                >
+                                                    <div className="role-info">
+                                                        <div className={`role-checkbox ${hasRole ? 'checked' : ''}`}>
+                                                            {hasRole && '✓'}
+                                                        </div>
+                                                        <div className="role-dot-mini" style={{ backgroundColor: role.color, color: role.color }} />
+                                                        <span className="role-name-text" style={{ color: role.color }}>{role.name}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            {!isSelf && (isFriend ? <div className="menu-item destructive" onClick={() => handleAction('remove-friend')}>Удалить из друзей</div> : <div className="menu-item" onClick={() => handleAction('add-friend')}>Добавить в друзья</div>)}
+                            {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('block')}>Заблокировать</div>}
+                            {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>}
+                        </div>
+
+                        {(currentUser?.role === 'moderator' || currentUser?.role === 'admin') && !isSelf && (
+                            <>
+                                <div className="menu-separator" />
+                                <div className="menu-group">
+                                    <div className="menu-label">МОДЕРАЦИЯ</div>
+                                    <div className="menu-item" onClick={() => handleAction('moderation-message')}>Написать от имени модерации</div>
+                                </div>
+                            </>
+                        )}
+
+                        {currentUser?.role === 'admin' && !isSelf && (
+                            <>
+                                <div className="menu-separator" />
+                                <div className="menu-group">
+                                    <div className="menu-label">АДМИН: ПРАВА</div>
+                                    {targetUser.role !== 'moderator' ? (
+                                        <div className="menu-item" onClick={() => handleAction('assign-moderator')}>Назначить модератором</div>
+                                    ) : (
+                                        <div className="menu-item destructive" onClick={() => handleAction('assign-user')}>Снять права модератора</div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {!isSelf && canBan && (
+                            <>
+                                <div className="menu-separator" />
+                                <div className="menu-group">
+                                    <div className="menu-item destructive" onClick={handleBan}>Забанить на сервере</div>
+                                </div>
+                            </>
+                        )}
                     </>
                 )}
-            </div>
-            {!shouldCensor && (
-                <>
-                    <div className="menu-separator" />
-                    <div className="menu-group">
-                        <div className="menu-item" onClick={() => handleAction('update-note')}>
-                            {note ? 'Изменить заметку' : 'Добавить заметку'}
-                        </div>
-                    </div>
-                </>
-            )}
-            <div className="menu-separator" />
-
-            {(isInVoice && !isSelf && (hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) || hasPermission(userPerms, Permissions.MOVE_MEMBERS))) && (
-                <>
-                    <div className="menu-group">
-                        {hasPermission(userPerms, Permissions.MUTE_MEMBERS) && (
-                            <div className="menu-item check-item" onClick={handleServerMute}>
-                                <span>Отключить микрофон (Сервер)</span>
-                                <div className={`checkbox ${isServerMuted ? 'checked' : ''}`}>{isServerMuted && '✓'}</div>
-                            </div>
-                        )}
-                        {hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) && (
-                            <div className="menu-item check-item" onClick={handleServerDeafen}>
-                                <span>Отключить звук (Сервер)</span>
-                                <div className={`checkbox ${isServerDeafened ? 'checked' : ''}`}>{isServerDeafened && '✓'}</div>
-                            </div>
-                        )}
-                        {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && (
-                            <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
-                                <span>Переместить в</span>
-                                <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
-                                <div className="submenu">
-                                    {voiceChannels.map(vc => (
-                                        <div key={vc._id} className="menu-item" onClick={(e) => { e.stopPropagation(); handleMoveTo(vc._id); }}>
-                                            {vc.name}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div className="menu-separator" />
-                </>
-            )}
-
-            <div className="menu-group">
-                {(isSelf ? canChangeNickname : canManageNicknames) && (
-                    <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
-                )}
-                {canManageRoles && !isSelf && (
-                    <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
-                        <span>Роли</span>
-                        <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
-                        <div className="submenu">
-                            {(server.roles || []).filter(r => r.name !== '@everyone').map(role => {
-                                const m = server.members.find(me => String(me.user._id || me.user) === String(targetUser._id));
-                                const hasRole = (m?.roles || []).includes(role._id);
-                                return (
-                                    <div
-                                        key={role._id}
-                                        className="menu-item role-item"
-                                        onClick={async (e) => {
-                                            e.stopPropagation();
-                                            const newRoles = hasRole
-                                                ? (m?.roles || []).filter(rid => rid !== role._id)
-                                                : [...(m?.roles || []), role._id];
-                                            try {
-                                                await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { roles: newRoles });
-                                            } catch (err) { }
-                                        }}
-                                    >
-                                        <div className="role-info">
-                                            <div className={`role-checkbox ${hasRole ? 'checked' : ''}`}>
-                                                {hasRole && '✓'}
-                                            </div>
-                                            <div className="role-dot-mini" style={{ backgroundColor: role.color, color: role.color }} />
-                                            <span className="role-name-text" style={{ color: role.color }}>{role.name}</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-                {!isSelf && (isFriend ? <div className="menu-item destructive" onClick={() => handleAction('remove-friend')}>Удалить из друзей</div> : <div className="menu-item" onClick={() => handleAction('add-friend')}>Добавить в друзья</div>)}
-                {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('block')}>Заблокировать</div>}
-                {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>}
-            </div>
-            {(currentUser?.role === 'moderator' || currentUser?.role === 'admin') && !isSelf && (
-                <>
-                    <div className="menu-separator" />
-                    <div className="menu-group">
-                        <div className="menu-label">МОДЕРАЦИЯ</div>
-                        <div className="menu-item" onClick={() => handleAction('moderation-message')}>Написать от имени модерации</div>
-                    </div>
-                </>
-            )}
-            {currentUser?.role === 'admin' && !isSelf && (
-                <>
-                    <div className="menu-separator" />
-                    <div className="menu-group">
-                        <div className="menu-label">АДМИН: ПРАВА</div>
-                        {targetUser.role !== 'moderator' ? (
-                            <div className="menu-item" onClick={() => handleAction('assign-moderator')}>Назначить модератором</div>
-                        ) : (
-                            <div className="menu-item destructive" onClick={() => handleAction('assign-user')}>Снять права модератора</div>
-                        )}
-                    </div>
-                </>
-            )}
-            {!isSelf && (
-                <>
-                    <div className="menu-separator" />
-                    <div className="menu-group">
-                        <div className="menu-label">
-                            <span>Громкость пользователя</span>
-                            <span className="volume-percent">{Math.round(currentVolume * 100)}%</span>
-                        </div>
-                        <div className="volume-slider-container">
-                            <input type="range" min="0" max="2" step="0.01" value={currentVolume} onChange={(e) => setUserVolume(targetUser._id, parseFloat(e.target.value))} className="menu-volume-slider" onClick={(e) => e.stopPropagation()} />
-                        </div>
-                        <div className="menu-item check-item" onClick={(e) => { e.stopPropagation(); toggleLocalMute(targetUser._id); }}>
-                            <span>Заглушить (для себя)</span>
-                            <div className={`checkbox ${isLocalMuted ? 'checked' : ''}`}>{isLocalMuted && '✓'}</div>
-                        </div>
-                    </div>
-                </>
-            )}
-            {!isSelf && (canBan || (isInVoice && canMove)) && (
-                <>
-                    <div className="menu-separator" />
-                    <div className="menu-group">
-                        {isInVoice && canMove && <div className="menu-item destructive" onClick={handleVoiceKick}>Отключить (Голос)</div>}
-                        {canBan && <div className="menu-item destructive" onClick={handleBan}>Забанить</div>}
-                    </div>
-                </>
-            )}
-        </motion.div>,
+            </motion.div>
+        </React.Fragment>,
         document.body
     );
 };

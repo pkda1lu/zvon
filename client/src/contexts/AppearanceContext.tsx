@@ -41,6 +41,7 @@ export interface PageScales {
     chat?: number;
     members?: number;
     settings?: number;
+    contextMenu?: number;
 }
 
 interface AppearanceSettings {
@@ -433,6 +434,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         root.style.setProperty('--chat-scale', (ps.chat ?? s.interfaceScale).toString());
         root.style.setProperty('--members-scale', (ps.members ?? s.interfaceScale).toString());
         root.style.setProperty('--settings-scale', (ps.settings ?? s.interfaceScale).toString());
+        root.style.setProperty('--context-menu-scale', (ps.contextMenu ?? s.interfaceScale).toString());
 
         if (s.density === 'compact') {
             root.style.setProperty('--message-padding-v', '2px');

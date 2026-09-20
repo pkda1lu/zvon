@@ -43,14 +43,21 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [showBotServerSelect, setShowBotServerSelect] = useState(false);
     const [userServers, setUserServers] = useState<any[]>([]);
 
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     const cardRef = useRef<HTMLDivElement>(null);
     const [adjustedPos, setAdjustedPos] = useState({ top: position?.y || 0, left: (position?.x || 0) + 20 });
     const [isVisible, setIsVisible] = useState(false);
 
-    const isPopout = position && !forceFull;
+    const isPopout = !isMobile && Boolean(position) && !forceFull;
 
     useEffect(() => {
-        if (!isPopout || !cardRef.current) return;
+        if (!isPopout || !position || !cardRef.current) return;
 
         let isDisposed = false;
 

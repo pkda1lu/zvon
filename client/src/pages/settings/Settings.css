@@ -2384,6 +2384,18 @@ input[type=range]:disabled::-webkit-slider-thumb {
         background: rgba(8, 8, 14, 0.98) !important;
         overflow-y: auto !important;
         box-sizing: border-box !important;
+        animation: settingsSidebarSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes settingsSidebarSlideIn {
+        from {
+            transform: translateX(-100%);
+            opacity: 0.8;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
     }
 
     .settings-sidebar.mobile-expanded .settings-sidebar-item.logout,
@@ -4289,3 +4301,67 @@ input[type=range]:disabled::-webkit-slider-thumb {
     margin-bottom: 6px;
     color: var(--text-dim);
 }
+
+/* Quick Reaction Settings Styles */
+.quick-reaction-picker-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.quick-reaction-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1.5px solid var(--glass-border);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none;
+    padding: 0;
+}
+
+.quick-reaction-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.quick-reaction-btn:active {
+    transform: scale(0.95);
+}
+
+.quick-reaction-btn.active {
+    background: rgba(0, 242, 254, 0.15);
+    border-color: var(--primary-neon);
+    box-shadow: 0 0 16px rgba(0, 242, 254, 0.35);
+    transform: scale(1.05);
+}
+
+.quick-reaction-emoji {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.quick-reaction-check {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary-neon);
+    color: #0b0c10;
+    font-size: 10px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+

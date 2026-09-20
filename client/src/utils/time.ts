@@ -24,3 +24,18 @@ export const formatClockTime = (
     }
     return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
 };
+
+// «ДД.ММ.ГГГГ ЧЧ:ММ» (например, 20.09.2026 21:35).
+export const formatDateTime = (
+    date: Date | string | number,
+    fmt: TimeFormat = getTimeFormat()
+): string => {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const day = pad(d.getDate());
+    const month = pad(d.getMonth() + 1);
+    const year = d.getFullYear();
+    const time = formatClockTime(d, fmt);
+    return `${day}.${month}.${year} ${time}`;
+};

@@ -2,11 +2,15 @@
 .member-context-menu {
     position: fixed;
     z-index: 9999;
+    zoom: var(--context-menu-scale, var(--interface-scale, 1));
     background: rgba(15, 15, 25, 0.7);
     backdrop-filter: blur(45px) saturate(180%) brightness(1.2);
     border-radius: 18px;
     padding: 8px;
     min-width: 230px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    scrollbar-width: thin;
     box-shadow:
         0 20px 50px rgba(0, 0, 0, 0.6),
         0 0 0 1px rgba(255, 255, 255, 0.1),
@@ -14,7 +18,45 @@
     user-select: none;
     border: 1px solid var(--glass-border);
     animation: menuFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    overflow: visible;
+}
+
+@media (max-width: 768px) {
+    .member-context-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 9998;
+    }
+
+    .member-context-menu {
+        position: fixed !important;
+        top: auto !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
+        max-height: 80vh !important;
+        border-radius: 24px 24px 0 0 !important;
+        border-bottom: none !important;
+        box-sizing: border-box !important;
+        padding: 12px 16px max(24px, env(safe-area-inset-bottom, 24px)) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        animation: memberSheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    @keyframes memberSheetSlideUp {
+        from {
+            transform: translateY(100%);
+        }
+        to {
+            transform: translateY(0);
+        }
+    }
 }
 
 @keyframes menuFadeIn {
@@ -254,3 +296,51 @@
     transform: scale(1.15);
     box-shadow: 0 0 25px var(--primary-neon);
 }
+
+/* --- HEADER & SHEET HANDLE --- */
+.sheet-drag-handle-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 2px 0 10px;
+    width: 100%;
+}
+
+.sheet-drag-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.menu-user-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 6px;
+}
+
+.menu-user-header-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.menu-user-header-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.menu-user-header-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

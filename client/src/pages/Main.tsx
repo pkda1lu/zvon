@@ -1552,7 +1552,7 @@ const Main: React.FC = () => {
     const handleUserClick = useCallback((userId: string, event?: React.MouseEvent | CustomEvent, scopeless?: boolean) => {
     setShowProfileUserId(userId);
     setProfileScopeless(!!scopeless);
-    if (event) {
+    if (!isMobile && event) {
       if ('clientX' in event) {
         setProfilePosition({ x: event.clientX, y: event.clientY });
       } else if (event.detail && typeof event.detail.x === 'number') {
@@ -1561,16 +1561,16 @@ const Main: React.FC = () => {
     } else {
       setProfilePosition(null);
     }
-  }, []);
+  }, [isMobile]);
 
   const handleServerProfileClick = useCallback((event?: React.MouseEvent) => {
     setShowServerProfile(true);
-    if (event) {
+    if (!isMobile && event) {
       setServerProfilePosition({ x: event.clientX, y: event.clientY });
     } else {
       setServerProfilePosition(null);
     }
-  }, []);
+  }, [isMobile]);
 
   // --- Стабильные колбэки для мемоизированных сайдбаров ---
   // Раньше это были инлайн-стрелки прямо в JSX: новая функция на каждый рендер
@@ -1642,121 +1642,203 @@ const Main: React.FC = () => {
     <div
       className={`main-container ${isMobile ? 'is-mobile' : ''} view-${mobileView} ${(!!(selectedChannel || selectedDM) && mobileView === 'content') ? 'in-conversation' : ''}`}
     >
-      {( (!isMobile || mobileView === 'sidebar') ) && (
-        <Sidebar
-          isMobile={isMobile}
-          user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
-          onServerSelect={handleSidebarServerSelect}
-          onCreateServer={handleCreateServer}
-          onServerJoined={handleServerJoined}
-          onLogout={logout} onShowFriends={handleShowFriendsFromSidebar}
-          showFriends={showFriends}
-          onShowShowcase={handleShowShowcase}
-          showShowcase={showShowcase}
-          onServerLeave={handleServerLeave}
-          onOpenJoinModal={handleOpenJoinModal}
-          onOpenSettings={handleOpenSettingsModal}
-          onOpenProfile={handleUserClick}
-          onToggleInbox={handleToggleInbox}
-          inboxUnreadCount={inboxUnreadCount}
-          minimizedMiniApps={minimizedMiniApps}
-          onRestoreMiniApp={handleRestoreMiniApp}
-          onCloseMiniApp={handleCloseMiniApp}
-        />
+      {/* --- SIDEBARS AREA --- */}
+      {isMobile ? (
+        <div className="mobile-sidebars-wrap">
+          <Sidebar
+            isMobile={true}
+            user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
+            onServerSelect={handleSidebarServerSelect}
+            onCreateServer={handleCreateServer}
+            onServerJoined={handleServerJoined}
+            onLogout={logout} onShowFriends={handleShowFriendsFromSidebar}
+            showFriends={showFriends}
+            onShowShowcase={handleShowShowcase}
+            showShowcase={showShowcase}
+            onServerLeave={handleServerLeave}
+            onOpenJoinModal={handleOpenJoinModal}
+            onOpenSettings={handleOpenSettingsModal}
+            onOpenProfile={handleUserClick}
+            onToggleInbox={handleToggleInbox}
+            inboxUnreadCount={inboxUnreadCount}
+            minimizedMiniApps={minimizedMiniApps}
+            onRestoreMiniApp={handleRestoreMiniApp}
+            onCloseMiniApp={handleCloseMiniApp}
+          />
+          {(() => {
+            const sidebarKind: 'server' | 'dm' | null =
+              selectedServer && !showFriends ? 'server'
+              : (!selectedServer && !showShowcase) ? 'dm'
+              : null;
+            if (!sidebarKind) return null;
+            const dir = sidebarKind === 'server' ? 1 : -1;
+            return (
+              <AnimatePresence mode="wait" initial={false} custom={dir}>
+                {sidebarKind === 'server' && (
+                  <motion.div
+                    key="server-sidebar"
+                    className="secondary-sidebar-container"
+                    style={{ width: 'calc(100% - 72px)' }}
+                    custom={dir}
+                    variants={sidebarSwapVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={iosSpring}
+                  >
+                    <ServerSidebar
+                      server={selectedServer!}
+                      selectedChannel={selectedChannel}
+                      unreadCounts={unreadCounts}
+                      onChannelSelect={handleChannelSelect}
+                      onChannelCreated={fetchServers}
+                      onUserClick={handleUserClick}
+                      onOpenSettings={handleOpenServerSettings}
+                      onServerClick={handleServerProfileClick}
+                      style={FULL_WIDTH_STYLE}
+                    />
+                  </motion.div>
+                )}
+                {sidebarKind === 'dm' && (
+                  <motion.div
+                    key="dm-sidebar"
+                    className="secondary-sidebar-container"
+                    style={{ width: 'calc(100% - 72px)' }}
+                    custom={dir}
+                    variants={sidebarSwapVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={iosSpring}
+                  >
+                    <DMSidebar
+                      dms={dms}
+                      selectedDM={selectedDM}
+                      onDMSelect={handleDMSelect}
+                      onShowFriends={handleShowFriendsFromDM}
+                      onAddDM={handleOpenCreateGroupModal}
+                      onDeleteDM={handleDeleteDM}
+                      showFriends={showFriends}
+                      currentUser={user!}
+                      unreadCounts={unreadCounts}
+                      style={FULL_WIDTH_STYLE}
+                      isMobile={true}
+                      friends={friends}
+                      servers={servers}
+                      onUserClick={handleUserClick}
+                      onStartDM={handleStartDM}
+                      onUserBlocked={handleDMBlocked}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            );
+          })()}
+        </div>
+      ) : (
+        <React.Fragment>
+          <Sidebar
+            isMobile={false}
+            user={user!} servers={servers} unreadCounts={unreadCounts} selectedServer={selectedServer}
+            onServerSelect={handleSidebarServerSelect}
+            onCreateServer={handleCreateServer}
+            onServerJoined={handleServerJoined}
+            onLogout={logout} onShowFriends={handleShowFriendsFromSidebar}
+            showFriends={showFriends}
+            onShowShowcase={handleShowShowcase}
+            showShowcase={showShowcase}
+            onServerLeave={handleServerLeave}
+            onOpenJoinModal={handleOpenJoinModal}
+            onOpenSettings={handleOpenSettingsModal}
+            onOpenProfile={handleUserClick}
+            onToggleInbox={handleToggleInbox}
+            inboxUnreadCount={inboxUnreadCount}
+            minimizedMiniApps={minimizedMiniApps}
+            onRestoreMiniApp={handleRestoreMiniApp}
+            onCloseMiniApp={handleCloseMiniApp}
+          />
+          {(() => {
+            const sidebarKind: 'server' | 'dm' | null =
+              selectedServer && !showFriends ? 'server'
+              : (!selectedServer && !showShowcase) ? 'dm'
+              : null;
+            if (!sidebarKind) return null;
+            const dir = sidebarKind === 'server' ? 1 : -1;
+            return (
+              <React.Fragment>
+                <AnimatePresence mode="wait" initial={false} custom={dir}>
+                  {sidebarKind === 'server' && (
+                    <motion.div
+                      key="server-sidebar"
+                      className="secondary-sidebar-container"
+                      style={{ width: `${sidebarWidth}px` }}
+                      custom={dir}
+                      variants={sidebarSwapVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      transition={iosSpring}
+                    >
+                      <ServerSidebar
+                        server={selectedServer!}
+                        selectedChannel={selectedChannel}
+                        unreadCounts={unreadCounts}
+                        onChannelSelect={handleChannelSelect}
+                        onChannelCreated={fetchServers}
+                        onUserClick={handleUserClick}
+                        onOpenSettings={handleOpenServerSettings}
+                        onServerClick={handleServerProfileClick}
+                        style={FULL_WIDTH_STYLE}
+                      />
+                    </motion.div>
+                  )}
+                  {sidebarKind === 'dm' && (
+                    <motion.div
+                      key="dm-sidebar"
+                      className="secondary-sidebar-container"
+                      style={{ width: `${sidebarWidth}px` }}
+                      custom={dir}
+                      variants={sidebarSwapVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      transition={iosSpring}
+                    >
+                      <DMSidebar
+                        dms={dms}
+                        selectedDM={selectedDM}
+                        onDMSelect={handleDMSelect}
+                        onShowFriends={handleShowFriendsFromDM}
+                        onAddDM={handleOpenCreateGroupModal}
+                        onDeleteDM={handleDeleteDM}
+                        showFriends={showFriends}
+                        currentUser={user!}
+                        unreadCounts={unreadCounts}
+                        style={FULL_WIDTH_STYLE}
+                        isMobile={false}
+                        friends={friends}
+                        servers={servers}
+                        onUserClick={handleUserClick}
+                        onStartDM={handleStartDM}
+                        onUserBlocked={handleDMBlocked}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div
+                  className="sidebar-resizer"
+                  onMouseDown={handleSidebarResizeStart}
+                  onTouchStart={handleSidebarResizeStart}
+                  title="Перетащите для изменения ширины"
+                />
+              </React.Fragment>
+            );
+          })()}
+        </React.Fragment>
       )}
 
-      {/* --- SECOND SIDEBAR AREA --- */}
-      {(() => {
-        // Derive which secondary sidebar (if any) to render. Server sidebar wins when
-        // a server is selected and we're not on the friends panel; otherwise DMSidebar.
-        const sidebarKind: 'server' | 'dm' | null =
-          selectedServer && !showFriends ? 'server'
-          : (!selectedServer && !showShowcase) ? 'dm'
-          : null;
-        if (!(!isMobile || mobileView === 'sidebar')) return null;
-        // Direction: server sidebar slides in from the right, DM sidebar from the left.
-        const dir = sidebarKind === 'server' ? 1 : -1;
-        const currentSidebarScale = (pageScales?.scaleMode === 'separate' && pageScales?.sidebar !== undefined)
-          ? pageScales.sidebar
-          : interfaceScale;
-        const computedSidebarWidth = isMobile ? '100%' : `${sidebarWidth}px`;
-
-        return (
-          <React.Fragment>
-            <AnimatePresence mode="wait" initial={false} custom={dir}>
-              {sidebarKind === 'server' && (
-                <motion.div
-                  key="server-sidebar"
-                  className="secondary-sidebar-container"
-                  style={{ width: computedSidebarWidth }}
-                  custom={dir}
-                  variants={sidebarSwapVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  transition={iosSpring}
-                >
-                  <ServerSidebar
-                    server={selectedServer!}
-                    selectedChannel={selectedChannel}
-                    unreadCounts={unreadCounts}
-                    onChannelSelect={handleChannelSelect}
-                    onChannelCreated={fetchServers}
-                    onUserClick={handleUserClick}
-                    onOpenSettings={handleOpenServerSettings}
-                    onServerClick={handleServerProfileClick}
-                    style={FULL_WIDTH_STYLE}
-                  />
-                </motion.div>
-              )}
-              {sidebarKind === 'dm' && (
-                <motion.div
-                  key="dm-sidebar"
-                  className="secondary-sidebar-container"
-                  style={{ width: computedSidebarWidth }}
-                  custom={dir}
-                  variants={sidebarSwapVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  transition={iosSpring}
-                >
-                  <DMSidebar
-                    dms={dms}
-                    selectedDM={selectedDM}
-                    onDMSelect={handleDMSelect}
-                    onShowFriends={handleShowFriendsFromDM}
-                    onAddDM={handleOpenCreateGroupModal}
-                    onDeleteDM={handleDeleteDM}
-                    showFriends={showFriends}
-                    currentUser={user!}
-                    unreadCounts={unreadCounts}
-                    style={FULL_WIDTH_STYLE}
-                    isMobile={isMobile}
-                    friends={friends}
-                    servers={servers}
-                    onUserClick={handleUserClick}
-                    onStartDM={handleStartDM}
-                    onUserBlocked={handleDMBlocked}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {!isMobile && sidebarKind && (
-              <div
-                className="sidebar-resizer"
-                onMouseDown={handleSidebarResizeStart}
-                onTouchStart={handleSidebarResizeStart}
-                title="Перетащите для изменения ширины"
-              />
-            )}
-          </React.Fragment>
-        );
-      })()}
-
       {/* --- CONTENT AREA --- */}
-      {((!isMobile || mobileView === 'content' || mobileView === 'members')) && (
-        <div className="main-content-area">
+      <div className="main-content-area">
           <VerificationWarning onOpenSettings={() => setShowSettingsModal(true)} />
           {(() => {
             // Mutually-exclusive content swap. Outer key drives section change;
@@ -1885,37 +1967,66 @@ const Main: React.FC = () => {
                         />
                         </Suspense>
                       </div>
-                      {showVoiceChat && (
-                        <React.Fragment>
-                          {!isMobile && (
-                            <div
-                              className="sidebar-resizer"
-                              onMouseDown={handleVoiceChatResizeStart}
-                              onTouchStart={handleVoiceChatResizeStart}
-                              title="Перетащите для изменения ширины"
-                            />
-                          )}
-                          <div className="voice-chat-sidebar" style={!isMobile ? { width: `${voiceChatWidth}px` } : undefined}>
-                            <Suspense fallback={<LazyViewFallback />}>
-                            <ChannelView
-                              channel={selectedChannel}
-                              server={selectedServer!}
-                              messages={messages}
-                              socket={socket}
-                              onUserClick={handleUserClick}
-                              initialUnreadCount={unreadCounts[selectedChannel._id]}
-                              hasMore={hasMore}
-                              isLoadingMore={isLoadingMore}
-                              onLoadMore={loadMoreMessages}
-                              pinnedMessages={pinnedMessages}
-                              setMessages={setMessages}
-                              onBack={() => setMobileView('sidebar')}
-                              isMobile={isMobile}
-                            />
-                            </Suspense>
-                          </div>
-                        </React.Fragment>
-                      )}
+                      <AnimatePresence>
+                        {showVoiceChat && (
+                          isMobile ? (
+                            <motion.div
+                              key="voice-chat-sidebar-mobile"
+                              className="voice-chat-sidebar"
+                              initial={{ x: '100%' }}
+                              animate={{ x: 0 }}
+                              exit={{ x: '100%' }}
+                              transition={iosSpring}
+                            >
+                              <Suspense fallback={<LazyViewFallback />}>
+                              <ChannelView
+                                channel={selectedChannel}
+                                server={selectedServer!}
+                                messages={messages}
+                                socket={socket}
+                                onUserClick={handleUserClick}
+                                initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                hasMore={hasMore}
+                                isLoadingMore={isLoadingMore}
+                                onLoadMore={loadMoreMessages}
+                                pinnedMessages={pinnedMessages}
+                                setMessages={setMessages}
+                                onBack={() => setShowVoiceChat(false)}
+                                isMobile={isMobile}
+                              />
+                              </Suspense>
+                            </motion.div>
+                          ) : (
+                            <React.Fragment key="voice-chat-sidebar-desktop">
+                              <div
+                                className="sidebar-resizer"
+                                onMouseDown={handleVoiceChatResizeStart}
+                                onTouchStart={handleVoiceChatResizeStart}
+                                title="Перетащите для изменения ширины"
+                              />
+                              <div className="voice-chat-sidebar" style={{ width: `${voiceChatWidth}px` }}>
+                                <Suspense fallback={<LazyViewFallback />}>
+                                <ChannelView
+                                  channel={selectedChannel}
+                                  server={selectedServer!}
+                                  messages={messages}
+                                  socket={socket}
+                                  onUserClick={handleUserClick}
+                                  initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                  hasMore={hasMore}
+                                  isLoadingMore={isLoadingMore}
+                                  onLoadMore={loadMoreMessages}
+                                  pinnedMessages={pinnedMessages}
+                                  setMessages={setMessages}
+                                  onBack={() => setMobileView('sidebar')}
+                                  isMobile={isMobile}
+                                />
+                                </Suspense>
+                              </div>
+                            </React.Fragment>
+                          )
+                        )}
+                      </AnimatePresence>
                     </div>
                   </motion.div>
                 )}
@@ -1940,37 +2051,66 @@ const Main: React.FC = () => {
                           />
                         </Suspense>
                       </div>
-                      {showVoiceChat && (
-                        <React.Fragment>
-                          {!isMobile && (
-                            <div
-                              className="sidebar-resizer"
-                              onMouseDown={handleVoiceChatResizeStart}
-                              onTouchStart={handleVoiceChatResizeStart}
-                              title="Перетащите для изменения ширины"
-                            />
-                          )}
-                          <div className="voice-chat-sidebar" style={!isMobile ? { width: `${voiceChatWidth}px` } : undefined}>
-                            <Suspense fallback={<LazyViewFallback />}>
-                            <ChannelView
-                              channel={selectedChannel}
-                              server={selectedServer!}
-                              messages={messages}
-                              socket={socket}
-                              onUserClick={handleUserClick}
-                              initialUnreadCount={unreadCounts[selectedChannel._id]}
-                              hasMore={hasMore}
-                              isLoadingMore={isLoadingMore}
-                              onLoadMore={loadMoreMessages}
-                              pinnedMessages={pinnedMessages}
-                              setMessages={setMessages}
-                              onBack={() => setMobileView('sidebar')}
-                              isMobile={isMobile}
-                            />
-                            </Suspense>
-                          </div>
-                        </React.Fragment>
-                      )}
+                      <AnimatePresence>
+                        {showVoiceChat && (
+                          isMobile ? (
+                            <motion.div
+                              key="room-chat-sidebar-mobile"
+                              className="voice-chat-sidebar"
+                              initial={{ x: '100%' }}
+                              animate={{ x: 0 }}
+                              exit={{ x: '100%' }}
+                              transition={iosSpring}
+                            >
+                              <Suspense fallback={<LazyViewFallback />}>
+                              <ChannelView
+                                channel={selectedChannel}
+                                server={selectedServer!}
+                                messages={messages}
+                                socket={socket}
+                                onUserClick={handleUserClick}
+                                initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                hasMore={hasMore}
+                                isLoadingMore={isLoadingMore}
+                                onLoadMore={loadMoreMessages}
+                                pinnedMessages={pinnedMessages}
+                                setMessages={setMessages}
+                                onBack={() => setShowVoiceChat(false)}
+                                isMobile={isMobile}
+                              />
+                              </Suspense>
+                            </motion.div>
+                          ) : (
+                            <React.Fragment key="room-chat-sidebar-desktop">
+                              <div
+                                className="sidebar-resizer"
+                                onMouseDown={handleVoiceChatResizeStart}
+                                onTouchStart={handleVoiceChatResizeStart}
+                                title="Перетащите для изменения ширины"
+                              />
+                              <div className="voice-chat-sidebar" style={{ width: `${voiceChatWidth}px` }}>
+                                <Suspense fallback={<LazyViewFallback />}>
+                                <ChannelView
+                                  channel={selectedChannel}
+                                  server={selectedServer!}
+                                  messages={messages}
+                                  socket={socket}
+                                  onUserClick={handleUserClick}
+                                  initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                  hasMore={hasMore}
+                                  isLoadingMore={isLoadingMore}
+                                  onLoadMore={loadMoreMessages}
+                                  pinnedMessages={pinnedMessages}
+                                  setMessages={setMessages}
+                                  onBack={() => setMobileView('sidebar')}
+                                  isMobile={isMobile}
+                                />
+                                </Suspense>
+                              </div>
+                            </React.Fragment>
+                          )
+                        )}
+                      </AnimatePresence>
                     </div>
                   </motion.div>
                 )}
@@ -2023,31 +2163,48 @@ const Main: React.FC = () => {
             );
           })()}
 
-          {selectedServer && selectedServer.showMembersList !== false && !showFriends && selectedChannel?.type !== 'voice' && selectedChannel?.type !== 'room' && (isMobile ? mobileView === 'members' : showMembersSidebar) && (
-            <React.Fragment>
-              {!isMobile && (
-                <div
-                  className="sidebar-resizer"
-                  onMouseDown={handleMembersResizeStart}
-                  onTouchStart={handleMembersResizeStart}
-                  title="Перетащите для изменения ширины"
-                />
-              )}
-              <div
-                className={`members-sidebar-wrapper ${isMobile ? 'is-mobile' : ''}`}
-                style={!isMobile ? { width: `${membersWidth}px` } : undefined}
-              >
-                <ServerMembers
-                  server={selectedServer}
-                  onUserClick={handleUserClick}
-                  onBack={handleBackToContent}
-                  isMobile={isMobile}
-                />
-              </div>
-            </React.Fragment>
-          )}
+          <AnimatePresence>
+            {selectedServer && selectedServer.showMembersList !== false && !showFriends && selectedChannel?.type !== 'voice' && selectedChannel?.type !== 'room' && (isMobile ? mobileView === 'members' : showMembersSidebar) && (
+              isMobile ? (
+                <motion.div
+                  key="members-sidebar-motion-mobile"
+                  className="members-sidebar-wrapper is-mobile"
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={iosSpring}
+                >
+                  <ServerMembers
+                    server={selectedServer}
+                    onUserClick={handleUserClick}
+                    onBack={handleBackToContent}
+                    isMobile={isMobile}
+                  />
+                </motion.div>
+              ) : (
+                <React.Fragment key="members-sidebar-desktop">
+                  <div
+                    className="sidebar-resizer"
+                    onMouseDown={handleMembersResizeStart}
+                    onTouchStart={handleMembersResizeStart}
+                    title="Перетащите для изменения ширины"
+                  />
+                  <div
+                    className="members-sidebar-wrapper"
+                    style={{ width: `${membersWidth}px` }}
+                  >
+                    <ServerMembers
+                      server={selectedServer}
+                      onUserClick={handleUserClick}
+                      onBack={handleBackToContent}
+                      isMobile={isMobile}
+                    />
+                  </div>
+                </React.Fragment>
+              )
+            )}
+          </AnimatePresence>
         </div>
-      )}
 
       {/* --- MOBILE BOTTOM NAVIGATION --- */}
       {(() => {

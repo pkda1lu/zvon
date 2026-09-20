@@ -9,6 +9,8 @@ export interface GestureSettings {
   hapticFeedback: boolean;
   swipeToOpenSidebar: boolean;
   swipeToOpenMembers: boolean;
+  quickReaction: string;
+  doubleTapReaction: boolean;
 }
 
 interface GestureSettingsContextType {
@@ -24,6 +26,8 @@ const DEFAULT_GESTURE_SETTINGS: GestureSettings = {
   hapticFeedback: true,
   swipeToOpenSidebar: true,
   swipeToOpenMembers: true,
+  quickReaction: '❤️',
+  doubleTapReaction: true,
 };
 
 const GestureSettingsContext = createContext<GestureSettingsContextType | undefined>(undefined);

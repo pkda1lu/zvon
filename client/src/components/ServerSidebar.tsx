@@ -609,6 +609,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           onClose={() => setContextMenu(null)}
           onOpenProfile={onUserClick}
           voiceChannelId={contextMenu.channelId}
+          isVoiceContext={true}
         />
         </LazyOverlay>
       )}

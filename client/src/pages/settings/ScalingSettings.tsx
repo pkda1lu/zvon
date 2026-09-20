@@ -12,7 +12,8 @@ const ScalingSettings: React.FC = () => {
         (pageScales?.sidebar !== undefined && pageScales.sidebar !== interfaceScale) ||
         (pageScales?.chat !== undefined && pageScales.chat !== interfaceScale) ||
         (pageScales?.members !== undefined && pageScales.members !== interfaceScale) ||
-        (pageScales?.settings !== undefined && pageScales.settings !== interfaceScale)
+        (pageScales?.settings !== undefined && pageScales.settings !== interfaceScale) ||
+        (pageScales?.contextMenu !== undefined && pageScales.contextMenu !== interfaceScale)
             ? 'separate'
             : 'global'
     );
@@ -29,6 +30,7 @@ const ScalingSettings: React.FC = () => {
         chat: Math.round((pageScales?.chat ?? interfaceScale) * 100),
         members: Math.round((pageScales?.members ?? interfaceScale) * 100),
         settings: Math.round((pageScales?.settings ?? interfaceScale) * 100),
+        contextMenu: Math.round((pageScales?.contextMenu ?? interfaceScale) * 100),
     }));
 
     const setInterfaceScaleRef = useRef(setInterfaceScale);
@@ -53,7 +55,7 @@ const ScalingSettings: React.FC = () => {
         setGlobalPercent(clamped);
     };
 
-    const handlePageChange = (key: 'sidebar' | 'chat' | 'members' | 'settings', newVal: number) => {
+    const handlePageChange = (key: 'sidebar' | 'chat' | 'members' | 'settings' | 'contextMenu', newVal: number) => {
         const clamped = Math.min(150, Math.max(70, Math.round(newVal)));
         setLocalPages(prev => ({ ...prev, [key]: clamped }));
     };
@@ -68,7 +70,8 @@ const ScalingSettings: React.FC = () => {
                 sidebar: globalPercent,
                 chat: globalPercent,
                 members: globalPercent,
-                settings: globalPercent
+                settings: globalPercent,
+                contextMenu: globalPercent,
             });
         }
     };
@@ -87,6 +90,7 @@ const ScalingSettings: React.FC = () => {
                     chat: globalFactor,
                     members: globalFactor,
                     settings: globalFactor,
+                    contextMenu: globalFactor,
                 });
             } else {
                 const pages = localPagesRef.current;
@@ -96,6 +100,7 @@ const ScalingSettings: React.FC = () => {
                     chat: (pages.chat ?? globalPercentRef.current) / 100,
                     members: (pages.members ?? globalPercentRef.current) / 100,
                     settings: (pages.settings ?? globalPercentRef.current) / 100,
+                    contextMenu: (pages.contextMenu ?? globalPercentRef.current) / 100,
                 });
             }
         };
@@ -232,6 +237,26 @@ const ScalingSettings: React.FC = () => {
                                 inputMin={70}
                                 inputMax={150}
                                 onChange={(val) => handlePageChange('settings', val)} 
+                            />
+                        </div>
+
+                        <div className="settings-sidebar-divider" style={{ margin: '16px 0' }} />
+
+                        <div className="settings-row">
+                            <div className="settings-row-text">
+                                <h3>Контекстные меню</h3>
+                                <p>Размер контекстных меню сообщений, участников и голосовых каналов.</p>
+                            </div>
+                            <RangeSlider 
+                                value={localPages.contextMenu ?? globalPercent} 
+                                min={70} 
+                                max={150} 
+                                step={1} 
+                                unit="%" 
+                                showInput={true}
+                                inputMin={70}
+                                inputMax={150}
+                                onChange={(val) => handlePageChange('contextMenu', val)} 
                             />
                         </div>
                     </div>

@@ -67,6 +67,50 @@ const GestureSettings: React.FC = () => {
                 </div>
             </div>
 
+            {/* Quick Reaction Section */}
+            <div className="settings-section" style={{ opacity: settings.enabled ? 1 : 0.5, pointerEvents: settings.enabled ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+                <h3 className="settings-section-title">Быстрая реакция</h3>
+
+                <div className="settings-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <h3>Быстрая реакция двойным нажатием</h3>
+                            <p>Дважды быстро коснитесь сообщения на телефоне, чтобы поставить выбранную реакцию.</p>
+                        </div>
+                        <SettingsToggle
+                            checked={settings.doubleTapReaction !== false}
+                            onChange={(val) => setSetting('doubleTapReaction', val)}
+                        />
+                    </div>
+
+                    <div className="settings-divider" style={{ margin: '0', height: '1px', background: 'var(--border-color, rgba(255, 255, 255, 0.06))' }} />
+
+                    <div className="settings-row-stacked" style={{ opacity: settings.doubleTapReaction !== false ? 1 : 0.5, pointerEvents: settings.doubleTapReaction !== false ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+                        <div className="settings-row-text" style={{ marginBottom: '12px' }}>
+                            <h3>Выбор эмодзи для реакции</h3>
+                            <p>Выберите эмодзи, который будет отправляться при двойном тапе.</p>
+                        </div>
+                        <div className="quick-reaction-picker-grid">
+                            {['❤️', '👍', '🔥', '😂', '🎉', '😮', '😢', '🚀', '👏', '⚡', '💯', '✨', '🤝', '👀'].map((emoji) => {
+                                const isSelected = (settings.quickReaction || '❤️') === emoji;
+                                return (
+                                    <button
+                                        key={emoji}
+                                        type="button"
+                                        className={`quick-reaction-btn ${isSelected ? 'active' : ''}`}
+                                        onClick={() => setSetting('quickReaction', emoji)}
+                                        title={`Выбрать ${emoji}`}
+                                    >
+                                        <span className="quick-reaction-emoji">{emoji}</span>
+                                        {isSelected && <span className="quick-reaction-check">✓</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="settings-info-box" style={{ marginTop: '20px' }}>
                 <p style={{ margin: 0 }}>
                     Жесты отключаются во время просмотра списков друзей, витрин и всплывающих модальных окон, чтобы предотвратить случайные переключения.

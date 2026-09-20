@@ -1,0 +1,246 @@
+/* Backdrop for mobile bottom sheet */
+.message-context-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 10000;
+}
+
+/* Base context menu */
+.message-context-menu {
+  zoom: var(--context-menu-scale, var(--interface-scale, 1));
+  background: rgba(18, 18, 28, 0.88);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  user-select: none;
+  z-index: 10001;
+  box-sizing: border-box;
+}
+
+/* Desktop Popover */
+.message-context-menu.is-desktop-popover {
+  position: fixed;
+  border-radius: 16px;
+  padding: 8px;
+  min-width: 220px;
+  max-width: 300px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* Mobile Bottom Sheet */
+.message-context-menu.is-mobile-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-height: 80vh;
+  border-radius: 24px 24px 0 0;
+  border-bottom: none;
+  padding: 10px 16px max(24px, env(safe-area-inset-bottom, 24px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Sheet drag handle */
+.sheet-drag-handle-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0 10px;
+  cursor: grab;
+}
+
+.sheet-drag-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Mobile message preview header */
+.message-context-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 10px;
+}
+
+.message-context-author-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.message-context-author-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-context-snippet {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Quick Reactions Bar */
+.message-context-reactions-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.message-context-reactions-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.context-reaction-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.context-reaction-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: scale(1.15);
+}
+
+.context-reaction-btn:active {
+  transform: scale(0.92);
+}
+
+.context-reaction-btn.add-more {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.context-reaction-btn.add-more:hover {
+  color: var(--primary-neon);
+  border-color: var(--primary-neon);
+}
+
+/* Divider */
+.message-context-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
+  margin: 6px 4px;
+}
+
+/* Groups and Items */
+.menu-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.message-context-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.message-context-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.message-context-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transform: translateX(3px);
+}
+
+.message-context-item:active {
+  transform: scale(0.98);
+}
+
+.message-context-item.destructive {
+  color: rgba(255, 77, 77, 0.9);
+}
+
+.message-context-item.destructive:hover {
+  background: rgba(255, 77, 77, 0.12);
+  color: #ff4d4d;
+}
+
+.mention-at-symbol {
+  font-size: 18px;
+  font-weight: 700;
+  width: 18px;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--primary-neon);
+}
+
+/* Double-tap floating reaction pop animation */
+@keyframes doubleTapReactionPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(-50%, -65%) scale(1.4);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, -85%) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -120%) scale(0.9);
+  }
+}
+
+.double-tap-reaction-pop {
+  position: fixed;
+  pointer-events: none;
+  font-size: 52px;
+  z-index: 10005;
+  animation: doubleTapReactionPop 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+}

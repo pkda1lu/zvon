@@ -8,8 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { formatClockTime } from '../utils/time';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon, PaperclipIcon } from './Icons';
+import { formatClockTime, formatDateTime } from '../utils/time';
+import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon, PaperclipIcon, EllipsisIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -30,6 +30,9 @@ import type { ChatPoll } from './MessagePoll';
 import StickyPins from './StickyPins';
 import UserBadges, { resolveServerTag } from './UserBadges';
 const AttachmentsModal = React.lazy(() => import('./AttachmentsModal'));
+import MessageContextMenu from './MessageContextMenu';
+import { useMessageGestures } from '../utils/useMessageGestures';
+import { useGestureSettings } from '../contexts/GestureSettingsContext';
 import ServerInviteCard from './ServerInviteCard';
 import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
 import './panel-hero.css';
@@ -147,15 +150,25 @@ const DMMessageItem = React.memo<{
   scrollToMessage: (msgId: string, createdAt?: string) => void;
   onInteractiveButtonClick?: (messageId: string, actionId: string) => void;
   isFresh?: boolean;
+  onOpenMessageMenu: (msg: Message, pos: { x: number; y: number }) => void;
+  onDoubleTapReact: (msg: Message, pos: { x: number; y: number }) => void;
 }>(({
   msg, prev, user, dmId, showPreview, showHoverBar, highlightMentions,
   dispAuthor, onUserClick, onTogglePin, onDelete, formatDate, renderMessageContent,
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
-  onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh
+  onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh, onOpenMessageMenu, onDoubleTapReact
 }) => {
   const { confirm: customConfirm } = useDialog();
   const { interfaceScale } = useAppearance();
+  const { settings: gestureSettings } = useGestureSettings();
   const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number } | null>(null);
+
+  const gestures = useMessageGestures({
+    doubleTapEnabled: gestureSettings.enabled && gestureSettings.doubleTapReaction !== false,
+    hapticFeedback: gestureSettings.hapticFeedback,
+    onLongPress: (pos) => onOpenMessageMenu(msg, pos),
+    onDoubleTap: (pos) => onDoubleTapReact(msg, pos),
+  });
 
   const openLink = (url: string) => {
     if ((window as any).electron?.util?.openExternal) {
@@ -300,13 +313,19 @@ const DMMessageItem = React.memo<{
     transition: { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.75 },
   } : {};
   const MessageBox: any = isFresh ? motion.div : 'div';
+  const { className: gestureClass, ...gestureProps } = gestures;
 
   return (
     <React.Fragment>
       {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
       <MessageBox
         id={`msg-${msg._id}`}
-        className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''}`}
+        className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''} ${gestureClass}`}
+        onContextMenu={(e: React.MouseEvent) => {
+          e.preventDefault();
+          onOpenMessageMenu(msg, { x: e.clientX, y: e.clientY });
+        }}
+        {...gestureProps}
         {...messageProps}
       >
         {msg.replyTo && (
@@ -348,7 +367,7 @@ const DMMessageItem = React.memo<{
                 )}
                 {!dispAuthor(msg.author)._masked && <UserBadges badges={dispAuthor(msg.author).badges} serverTag={resolveServerTag(dispAuthor(msg.author))} size={14 * interfaceScale} />}
                 {!dispAuthor(msg.author)._masked && dispAuthor(msg.author).isBot && <span className="bot-badge">БOТ</span>}
-                <span className="message-time">{formatDate(msg.createdAt)}</span>
+                <span className="message-time">{formatDateTime(msg.createdAt)}</span>
               </div>
             )}
 
@@ -403,6 +422,17 @@ const DMMessageItem = React.memo<{
                     <TrashIcon size={(grouped ? 14 : 16) * interfaceScale} />
                   </button>
                 )}
+                <button
+                  className={`msg-action-btn ${grouped ? 'mini' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    onOpenMessageMenu(msg, { x: rect.left, y: rect.bottom + 6 });
+                  }}
+                  title="Ещё"
+                >
+                  <EllipsisIcon size={(grouped ? 14 : 16) * interfaceScale} />
+                </button>
               </div>
             )}
           </div>
@@ -631,6 +661,27 @@ const DMView: React.FC<DMViewProps> = ({
   const [showSearch, setShowSearch] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [messageMenu, setMessageMenu] = useState<{ msg: Message, x: number, y: number } | null>(null);
+  const [doubleTapPop, setDoubleTapPop] = useState<{ emoji: string, x: number, y: number } | null>(null);
+  const [menuEmojiPicker, setMenuEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
+  const { settings: gestureSettings } = useGestureSettings();
+
+  const handleReact = useCallback((messageId: string, emoji: string) => {
+    axios.post(`/api/messages/${messageId}/reactions`, { emoji });
+  }, []);
+
+  const handleOpenMessageMenu = useCallback((msg: Message, pos: { x: number, y: number }) => {
+    setMessageMenu({ msg, x: pos.x, y: pos.y });
+  }, []);
+
+  const handleDoubleTapReact = useCallback((msg: Message, pos: { x: number, y: number }) => {
+    const emoji = gestureSettings.quickReaction || '❤️';
+    handleReact(msg._id, emoji);
+    setDoubleTapPop({ emoji, x: pos.x, y: pos.y });
+    setTimeout(() => {
+      setDoubleTapPop(curr => (curr?.x === pos.x && curr?.y === pos.y ? null : curr));
+    }, 750);
+  }, [gestureSettings.quickReaction, handleReact]);
 
   const chatEngineRef = useRef<ChatScrollEngineHandle>(null);
   const atBottomRef = useRef(true);
@@ -785,10 +836,6 @@ const DMView: React.FC<DMViewProps> = ({
 
     return () => clearTimeout(timer);
   }, [messages]);
-
-  const handleReact = useCallback((messageId: string, emoji: string) => {
-    axios.post(`/api/messages/${messageId}/reactions`, { emoji });
-  }, []);
 
   const handleReply = useCallback((m: Message) => {
     setReplyToMessage(m);
@@ -1427,6 +1474,8 @@ const DMView: React.FC<DMViewProps> = ({
                     onReply={handleReply}
                     scrollToMessage={scrollToMessage}
                     onInteractiveButtonClick={handleInteractiveButtonClick}
+                    onOpenMessageMenu={handleOpenMessageMenu}
+                    onDoubleTapReact={handleDoubleTapReact}
                   />
                 </React.Fragment>
               );
@@ -1597,6 +1646,60 @@ const DMView: React.FC<DMViewProps> = ({
         endpoint={`/api/direct-messages/${dm._id}/search`}
         onJump={jumpToMessage}
       />
+
+      {messageMenu && (
+        <MessageContextMenu
+          message={messageMenu.msg}
+          x={messageMenu.x}
+          y={messageMenu.y}
+          isMobile={!!isMobile}
+          onClose={() => setMessageMenu(null)}
+          onReact={handleReact}
+          onReply={handleReply}
+          onTogglePin={handleTogglePin}
+          onDelete={handleDeleteMessage}
+          canPin={true}
+          canReact={true}
+          canDelete={messageMenu.msg.author._id === user?._id}
+          user={user}
+          onUserClick={onUserClick}
+          onOpenEmojiPicker={(pos) => setMenuEmojiPicker({ x: pos.x, y: pos.y, msgId: pos.msgId })}
+        />
+      )}
+
+      {menuEmojiPicker && createPortal(
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+          onClick={() => setMenuEmojiPicker(null)}
+        >
+          <div
+            style={{
+              position: 'fixed',
+              top: Math.min(menuEmojiPicker.y, window.innerHeight - 420),
+              left: Math.min(menuEmojiPicker.x, window.innerWidth - 340),
+              zIndex: 10000
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <EmojiPicker
+              onSelect={(emoji) => {
+                handleReact(menuEmojiPicker.msgId, emoji);
+                setMenuEmojiPicker(null);
+              }}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {doubleTapPop && (
+        <div
+          className="double-tap-reaction-pop"
+          style={{ left: doubleTapPop.x, top: doubleTapPop.y }}
+        >
+          {doubleTapPop.emoji}
+        </div>
+      )}
     </div>
   );
 };

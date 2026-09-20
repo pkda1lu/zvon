@@ -31,6 +31,33 @@
   }
 
   /* Sidebars */
+  .mobile-sidebars-wrap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    z-index: 10;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+    pointer-events: auto;
+  }
+
+  .is-mobile.view-sidebar .mobile-sidebars-wrap {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .is-mobile.view-content .mobile-sidebars-wrap,
+  .is-mobile.view-members .mobile-sidebars-wrap {
+    transform: translateX(-28%);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
   .sidebar {
     width: 72px !important;
     min-width: 72px !important;
@@ -60,9 +87,51 @@
 
   /* Content */
   .main-content-area {
-    width: 100%;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100% !important;
+    z-index: 20 !important;
+    background: var(--bg-primary);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
     border-radius: 0 !important;
     margin: 0 !important;
+  }
+
+  .is-mobile.view-sidebar .main-content-area {
+    transform: translateX(100%);
+    pointer-events: none;
+    box-shadow: none;
+  }
+
+  .is-mobile.view-content .main-content-area {
+    transform: translateX(0);
+    pointer-events: auto;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.65);
+  }
+
+  .is-mobile.view-members .main-content-area {
+    transform: translateX(0);
+    pointer-events: auto;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.65);
+  }
+
+  .is-mobile.view-members .message-input-container {
+    display: none !important;
+  }
+
+  .is-mobile .members-sidebar-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 500;
+    background: var(--bg-primary);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
   }
 
   .channel-view, .dm-view-container {
@@ -150,14 +219,17 @@
 
   /* Overlays */
   .server-members {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
     width: 100% !important;
-    z-index: 2000 !important;
+    height: 100% !important;
+    z-index: auto !important;
     background: var(--bg-primary) !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   /* Friends Panel */
