@@ -14,6 +14,9 @@ import './MemberContextMenu.css';
 import InputModal from './InputModal';
 import ReportModal from './ReportModal';
 import UserAvatar from './UserAvatar';
+import { ChevronLeftIcon } from './Icons';
+
+type MenuView = 'main' | 'roles' | 'move_channel';
 
 interface MemberContextMenuProps {
     user: User;
@@ -48,8 +51,14 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     voiceChannelId,
     isVoiceContext
 }) => {
-    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
     const [isInteractive, setIsInteractive] = useState(!isMobile);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const { user: currentUser, refreshUser } = useAuth();
     const { streamerModeEnabled, censorInfo } = useWindowSettings();
@@ -73,6 +82,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const [showReportModal, setShowReportModal] = useState(false);
     const [adjustedPos, setAdjustedPos] = useState({ top: y, left: x });
     const [isVisible, setIsVisible] = useState(false);
+    const [activeView, setActiveView] = useState<MenuView>('main');
 
     useEffect(() => {
         if (isMobile) {
@@ -96,8 +106,27 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const { userStates, activeChannelId } = useVoice();
     const targetVoiceState = userStates.get(targetUser?._id || '');
     const isVoice = isVoiceContext ?? (!!targetVoiceState || !!voiceChannelId);
-    const isServerMuted = targetVoiceState?.isServerMuted || false;
-    const isServerDeafened = targetVoiceState?.isServerDeafened || false;
+
+    const initialServerMuted = Boolean(targetVoiceState?.isServerMuted ?? (targetUser as any)?.isServerMuted);
+    const initialServerDeafened = Boolean(targetVoiceState?.isServerDeafened ?? (targetUser as any)?.isServerDeafened);
+
+    const [localServerMuted, setLocalServerMuted] = useState<boolean | null>(null);
+    const [localServerDeafened, setLocalServerDeafened] = useState<boolean | null>(null);
+
+    const isServerMuted = localServerMuted !== null ? localServerMuted : initialServerMuted;
+    const isServerDeafened = localServerDeafened !== null ? localServerDeafened : initialServerDeafened;
+
+    useEffect(() => {
+        if (targetVoiceState) {
+            if (typeof targetVoiceState.isServerMuted === 'boolean') {
+                setLocalServerMuted(targetVoiceState.isServerMuted);
+            }
+            if (typeof targetVoiceState.isServerDeafened === 'boolean') {
+                setLocalServerDeafened(targetVoiceState.isServerDeafened);
+            }
+        }
+    }, [targetVoiceState?.isServerMuted, targetVoiceState?.isServerDeafened]);
+
     const member = server.members.find(m => String((m.user as any)?._id || m.user) === String(targetUser?._id || ''));
 
     // 3D-комнаты — такие же голосовые каналы, в них тоже перемещают.
@@ -108,14 +137,30 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     const handleServerMute = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (socket) socket.emit('admin-voice-mute', { userId: targetUser._id, muted: !isServerMuted, serverId: server._id });
-        // Don't close immediately to let the checkbox update
+        const nextMuted = !isServerMuted;
+        setLocalServerMuted(nextMuted);
+        if (socket) {
+            socket.emit('admin-voice-mute', { userId: targetUser._id, muted: nextMuted, serverId: server._id }, (res: any) => {
+                if (res && res.ok === false) {
+                    setLocalServerMuted(!nextMuted);
+                    alert(res.error || 'Не удалось изменить состояние микрофона.');
+                }
+            });
+        }
     };
 
     const handleServerDeafen = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (socket) socket.emit('admin-voice-deafen', { userId: targetUser._id, deafened: !isServerDeafened, serverId: server._id });
-        // Don't close immediately to let the checkbox update
+        const nextDeafened = !isServerDeafened;
+        setLocalServerDeafened(nextDeafened);
+        if (socket) {
+            socket.emit('admin-voice-deafen', { userId: targetUser._id, deafened: nextDeafened, serverId: server._id }, (res: any) => {
+                if (res && res.ok === false) {
+                    setLocalServerDeafened(!nextDeafened);
+                    alert(res.error || 'Не удалось изменить состояние звука.');
+                }
+            });
+        }
     };
 
     const handleMoveTo = (channelId: string) => {
@@ -385,20 +430,92 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     </div>
                 )}
 
-                {/* Compact User Header */}
-                <div className="menu-user-header">
-                    <UserAvatar user={targetUser} avatarOverride={member?.avatar || undefined} size={32} />
-                    <div className="menu-user-header-info">
-                        <span className="menu-user-header-name">
-                            {member?.nickname || targetUser.displayName || targetUser.username}
-                        </span>
-                        <span className="menu-user-header-sub">
-                            {isVoice ? '🔊 В голосовом канале' : `@${targetUser.username}`}
+                {/* Compact User Header or Subview Header */}
+                {activeView === 'main' ? (
+                    <div className="menu-user-header">
+                        <UserAvatar user={targetUser} avatarOverride={member?.avatar || undefined} size={32} />
+                        <div className="menu-user-header-info">
+                            <span className="menu-user-header-name">
+                                {member?.nickname || targetUser.displayName || targetUser.username}
+                            </span>
+                            <span className="menu-user-header-sub">
+                                {isVoice ? '🔊 В голосовом канале' : `@${targetUser.username}`}
+                            </span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="menu-subview-header">
+                        <button
+                            type="button"
+                            className="menu-subview-back-btn"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveView('main');
+                            }}
+                        >
+                            <ChevronLeftIcon size={18} />
+                            <span>Назад</span>
+                        </button>
+                        <span className="menu-subview-title">
+                            {activeView === 'move_channel' ? 'Переместить в' : 'Роли участника'}
                         </span>
                     </div>
-                </div>
+                )}
 
-                {isVoice ? (
+                {activeView === 'move_channel' ? (
+                    <div className="menu-group">
+                        {voiceChannels.length === 0 ? (
+                            <div className="menu-empty-hint">Нет доступных голосовых каналов</div>
+                        ) : (
+                            voiceChannels.map(vc => (
+                                <div
+                                    key={vc._id}
+                                    className="menu-item"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMoveTo(vc._id);
+                                    }}
+                                >
+                                    <span>{vc.name}</span>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                ) : activeView === 'roles' ? (
+                    <div className="menu-group">
+                        {((server.roles || []).filter(r => r.name !== '@everyone')).length === 0 ? (
+                            <div className="menu-empty-hint">На сервере пока нет созданных ролей</div>
+                        ) : (
+                            (server.roles || []).filter(r => r.name !== '@everyone').map(role => {
+                                const m = server.members.find(me => String(me.user._id || me.user) === String(targetUser._id));
+                                const hasRole = (m?.roles || []).includes(role._id);
+                                return (
+                                    <div
+                                        key={role._id}
+                                        className="menu-item role-item"
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+                                            const newRoles = hasRole
+                                                ? (m?.roles || []).filter(rid => rid !== role._id)
+                                                : [...(m?.roles || []), role._id];
+                                            try {
+                                                await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { roles: newRoles });
+                                            } catch (err) { }
+                                        }}
+                                    >
+                                        <div className="role-info">
+                                            <div className={`role-checkbox ${hasRole ? 'checked' : ''}`}>
+                                                {hasRole && '✓'}
+                                            </div>
+                                            <div className="role-dot-mini" style={{ backgroundColor: role.color, color: role.color }} />
+                                            <span className="role-name-text" style={{ color: role.color }}>{role.name}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                ) : isVoice ? (
                     /* ====== CASE 1: ГОЛОСОВОЙ КОНТЕКСТ ====== */
                     <>
                         {renderVolumeSection("Громкость в голосовой")}
@@ -421,7 +538,15 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                                         </div>
                                     )}
                                     {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && voiceChannels.length > 0 && (
-                                        <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
+                                        <div
+                                            className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}
+                                            onClick={(e) => {
+                                                if (isMobile) {
+                                                    e.stopPropagation();
+                                                    setActiveView('move_channel');
+                                                }
+                                            }}
+                                        >
                                             <span>Переместить в</span>
                                             <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
                                             <div className="submenu">
@@ -442,17 +567,16 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                             </>
                         )}
 
-                        <div className="menu-separator" />
-                        <div className="menu-group">
-                            <div className="menu-item" onClick={() => handleAction('profile')}>Профиль</div>
-                            {!isSelf && (
-                                <>
+                        {!isSelf && (
+                            <>
+                                <div className="menu-separator" />
+                                <div className="menu-group">
                                     <div className="menu-item" onClick={() => handleAction('mention')}>Упомянуть</div>
                                     <div className="menu-item" onClick={() => handleAction('message')}>Написать сообщение</div>
                                     <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>
-                                </>
-                            )}
-                        </div>
+                                </div>
+                            </>
+                        )}
 
                         {!isSelf && canBan && (
                             <>
@@ -467,7 +591,6 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     /* ====== CASE 3: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЕМ (СПИСОК / ЧАТ) ====== */
                     <>
                         <div className="menu-group">
-                            <div className="menu-item" onClick={() => handleAction('profile')}>Профиль</div>
                             {isSelf && <div className="menu-item" onClick={() => handleAction('server-profile')}>Настроить профиль на сервере</div>}
                             {!isSelf && (
                                 <>
@@ -495,11 +618,19 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                         <div className="menu-separator" />
 
                         <div className="menu-group">
-                            {(isSelf ? canChangeNickname : canManageNicknames) && (
+                            {!isSelf && canManageNicknames && (
                                 <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
                             )}
                             {canManageRoles && !isSelf && (
-                                <div className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}>
+                                <div
+                                    className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}
+                                    onClick={(e) => {
+                                        if (isMobile) {
+                                            e.stopPropagation();
+                                            setActiveView('roles');
+                                        }
+                                    }}
+                                >
                                     <span>Роли</span>
                                     <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
                                     <div className="submenu">

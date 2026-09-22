@@ -33,6 +33,14 @@
   max-width: 300px;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.message-context-menu::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* Mobile Bottom Sheet */
@@ -139,6 +147,12 @@
 
 .context-reaction-btn:active {
   transform: scale(0.92);
+}
+
+.context-custom-emoji {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .context-reaction-btn.add-more {

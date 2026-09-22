@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { motion } from 'framer-motion';
 import { Message, User, Server } from '../types';
@@ -9,13 +9,14 @@ import {
   ForwardIcon,
   TrashIcon,
   PlusIcon,
-  UsersIcon,
   ChatIcon,
   ShieldIcon,
 } from './Icons';
 import UserAvatar from './UserAvatar';
 import ReportModal from './ReportModal';
 import { useDialog } from '../contexts/DialogContext';
+import { getRecentReactions, recordRecentReaction, isCustomEmoji } from '../utils/recentReactions';
+import { getFullUrl } from '../utils/avatar';
 import axios from 'axios';
 import './MessageContextMenu.css';
 
@@ -38,8 +39,6 @@ export interface MessageContextMenuProps {
   onMention?: (username: string) => void;
   onOpenEmojiPicker?: (pos: { x: number; y: number; msgId: string }) => void;
 }
-
-const QUICK_EMOJIS = ['❤️', '👍', '🔥', '😂', '🎉', '😮', '😢', '🚀'];
 
 const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   message,
@@ -65,6 +64,11 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   const [adjustedPos, setAdjustedPos] = useState({ top: y, left: x });
   const [showReportModal, setShowReportModal] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const quickEmojis = useMemo(
+    () => getRecentReactions(server?._id),
+    [server?._id]
+  );
 
   const targetUser = message.author;
   const isSelf = user?._id === targetUser._id;
@@ -147,6 +151,7 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
 
   const handleQuickReaction = (emoji: string) => {
     if (!isInteractive) return;
+    recordRecentReaction(emoji, server?._id);
     onReact(message._id, emoji);
     onClose();
   };
@@ -255,17 +260,24 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
         {/* Quick Reactions Bar */}
         {canReact && (
           <div className="message-context-reactions-bar">
-            {QUICK_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                className="context-reaction-btn"
-                onClick={() => handleQuickReaction(emoji)}
-                title={`Реакция ${emoji}`}
-              >
-                {emoji}
-              </button>
-            ))}
+            {quickEmojis.map((emoji) => {
+              const custom = isCustomEmoji(emoji);
+              return (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="context-reaction-btn"
+                  onClick={() => handleQuickReaction(emoji)}
+                  title={custom ? 'Реакция' : `Реакция ${emoji}`}
+                >
+                  {custom ? (
+                    <img src={getFullUrl(emoji) || ''} alt="emoji" className="context-custom-emoji" />
+                  ) : (
+                    emoji
+                  )}
+                </button>
+              );
+            })}
             {onOpenEmojiPicker && (
               <button
                 key="add-reaction"
@@ -364,21 +376,6 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             >
               <span className="mention-at-symbol">@</span>
               <span>Упомянуть автора</span>
-            </button>
-          )}
-
-          {onUserClick && (
-            <button
-              type="button"
-              className="message-context-item"
-              onClick={() => {
-                if (!isInteractive) return;
-                onUserClick(targetUser._id);
-                onClose();
-              }}
-            >
-              <UsersIcon size={16} />
-              <span>Профиль {authorName}</span>
             </button>
           )}
 

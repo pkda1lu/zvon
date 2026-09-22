@@ -1608,32 +1608,40 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('admin-voice-mute', async (data) => {
+  socket.on('admin-voice-mute', async (data, ack) => {
+    const reply = (payload) => { if (typeof ack === 'function') ack(payload); };
     try {
-      const { userId, muted, serverId } = data;
+      const { userId, muted, serverId } = data || {};
       const server = await Server.findById(serverId);
-      if (!server) return;
+      if (!server) return reply({ ok: false, error: 'Сервер не найден' });
       const perms = computePermissions(socket.userId, server);
-      if (!hasPermission(perms, Permissions.MUTE_MEMBERS)) return;
+      if (!hasPermission(perms, Permissions.MUTE_MEMBERS)) {
+        return reply({ ok: false, error: 'Недостаточно прав' });
+      }
 
       const connections = io.sockets.adapter.rooms.get(`user-${userId}`);
       if (connections) {
         for (const sid of connections) {
           const s = io.sockets.sockets.get(sid);
           if (s) {
-            s.isServerMuted = muted;
+            s.isServerMuted = !!muted;
+            const updatePayload = {
+              userId: userId,
+              isMuted: !!s.isMuted,
+              isDeafened: !!s.isDeafened,
+              isScreenSharing: !!s.isScreenSharing,
+              isVideoOn: !!s.isVideoOn,
+              isServerMuted: s.isServerMuted,
+              isServerDeafened: s.isServerDeafened
+            };
             if (s.voiceChannelId) {
-              io.to(`voice-channel-${s.voiceChannelId}`).emit('voice-user-state-update', {
-                userId: userId,
-                isMuted: s.isMuted,
-                isDeafened: s.isDeafened,
-                isScreenSharing: s.isScreenSharing,
-                isServerMuted: s.isServerMuted,
-                isServerDeafened: s.isServerDeafened
-              });
+              io.to(`voice-channel-${s.voiceChannelId}`).emit('voice-user-state-update', updatePayload);
               await notifyVoiceChannelUpdate(s.voiceChannelId);
             }
-            s.emit('voice-server-state-update', { isServerMuted: muted, isServerDeafened: s.isServerDeafened });
+            if (serverId) {
+              io.to(`server-${serverId}`).emit('voice-user-state-update', updatePayload);
+            }
+            s.emit('voice-server-state-update', { isServerMuted: s.isServerMuted, isServerDeafened: s.isServerDeafened });
           }
         }
         
@@ -1643,38 +1651,50 @@ io.on('connection', (socket) => {
           targetId: userId,
           targetModel: 'User',
           action: 'MEMBER_VOICE_SERVER_MUTE',
-          changes: [{ key: 'isServerMuted', newValue: muted }]
+          changes: [{ key: 'isServerMuted', newValue: !!muted }]
         });
       }
-    } catch (e) { console.error('admin-voice-mute error:', e); }
+      reply({ ok: true, isServerMuted: !!muted });
+    } catch (e) {
+      console.error('admin-voice-mute error:', e);
+      reply({ ok: false, error: 'Внутренняя ошибка сервера' });
+    }
   });
 
-  socket.on('admin-voice-deafen', async (data) => {
+  socket.on('admin-voice-deafen', async (data, ack) => {
+    const reply = (payload) => { if (typeof ack === 'function') ack(payload); };
     try {
-      const { userId, deafened, serverId } = data;
+      const { userId, deafened, serverId } = data || {};
       const server = await Server.findById(serverId);
-      if (!server) return;
+      if (!server) return reply({ ok: false, error: 'Сервер не найден' });
       const perms = computePermissions(socket.userId, server);
-      if (!hasPermission(perms, Permissions.DEAFEN_MEMBERS)) return;
+      if (!hasPermission(perms, Permissions.DEAFEN_MEMBERS)) {
+        return reply({ ok: false, error: 'Недостаточно прав' });
+      }
 
       const connections = io.sockets.adapter.rooms.get(`user-${userId}`);
       if (connections) {
         for (const sid of connections) {
           const s = io.sockets.sockets.get(sid);
           if (s) {
-            s.isServerDeafened = deafened;
+            s.isServerDeafened = !!deafened;
+            const updatePayload = {
+              userId: userId,
+              isMuted: !!s.isMuted,
+              isDeafened: !!s.isDeafened,
+              isScreenSharing: !!s.isScreenSharing,
+              isVideoOn: !!s.isVideoOn,
+              isServerMuted: s.isServerMuted,
+              isServerDeafened: s.isServerDeafened
+            };
             if (s.voiceChannelId) {
-              io.to(`voice-channel-${s.voiceChannelId}`).emit('voice-user-state-update', {
-                userId: userId,
-                isMuted: s.isMuted,
-                isDeafened: s.isDeafened,
-                isScreenSharing: s.isScreenSharing,
-                isServerMuted: s.isServerMuted,
-                isServerDeafened: s.isServerDeafened
-              });
+              io.to(`voice-channel-${s.voiceChannelId}`).emit('voice-user-state-update', updatePayload);
               await notifyVoiceChannelUpdate(s.voiceChannelId);
             }
-            s.emit('voice-server-state-update', { isServerMuted: s.isServerMuted, isServerDeafened: deafened });
+            if (serverId) {
+              io.to(`server-${serverId}`).emit('voice-user-state-update', updatePayload);
+            }
+            s.emit('voice-server-state-update', { isServerMuted: s.isServerMuted, isServerDeafened: s.isServerDeafened });
           }
         }
         
@@ -1684,10 +1704,14 @@ io.on('connection', (socket) => {
           targetId: userId,
           targetModel: 'User',
           action: 'MEMBER_VOICE_SERVER_DEAFEN',
-          changes: [{ key: 'isServerDeafened', newValue: deafened }]
+          changes: [{ key: 'isServerDeafened', newValue: !!deafened }]
         });
       }
-    } catch (e) { console.error('admin-voice-deafen error:', e); }
+      reply({ ok: true, isServerDeafened: !!deafened });
+    } catch (e) {
+      console.error('admin-voice-deafen error:', e);
+      reply({ ok: false, error: 'Внутренняя ошибка сервера' });
+    }
   });
 
   socket.on('disconnect', async () => {

@@ -28,6 +28,7 @@ import { useChatSettings } from '../contexts/ChatSettingsContext';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import Reactions from './Reactions';
+import { recordRecentReaction } from '../utils/recentReactions';
 import MessagePoll from './MessagePoll';
 import CreatePollModal from './CreatePollModal';
 import ComposerAddMenu from './ComposerAddMenu';
@@ -1883,6 +1884,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
               server={server}
               onSelect={(emoji) => {
                 handleReact(menuEmojiPicker.msgId, emoji);
+                recordRecentReaction(emoji, server?._id);
                 setMenuEmojiPicker(null);
               }}
             />

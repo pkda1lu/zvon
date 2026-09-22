@@ -23,6 +23,7 @@ import UserAvatar from './UserAvatar';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import Reactions from './Reactions';
+import { recordRecentReaction } from '../utils/recentReactions';
 import MessagePoll from './MessagePoll';
 import CreatePollModal from './CreatePollModal';
 import ComposerAddMenu from './ComposerAddMenu';
@@ -1684,6 +1685,7 @@ const DMView: React.FC<DMViewProps> = ({
             <EmojiPicker
               onSelect={(emoji) => {
                 handleReact(menuEmojiPicker.msgId, emoji);
+                recordRecentReaction(emoji);
                 setMenuEmojiPicker(null);
               }}
             />

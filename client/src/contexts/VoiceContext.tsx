@@ -919,6 +919,13 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         vadStreamRef.current = new MediaStream([vadClone]);
     }, [isMuted, isServerMuted, isDeafened, isServerDeafened, noiseSuppressionMode]);
 
+    // Синхронизируем активность трека микрофона при изменении серверного или локального мьюта/деафа
+    useEffect(() => {
+        if (livekitTrackRef.current) {
+            livekitTrackRef.current.enabled = !isMuted && !isServerMuted && !isDeafened && !isServerDeafened;
+        }
+    }, [isMuted, isServerMuted, isDeafened, isServerDeafened]);
+
     // Стабильная ссылка на последний обработчик публикации мика — чтобы
     // переключение режима шумоподавления на лету не зависело от смены mute и т.п.
     const handleLocalMicPublicationRef = useRef(handleLocalMicPublication);
@@ -1385,23 +1392,50 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (!data?.userId) return;
             setUserStates(prev => {
                 const next = new Map(prev);
+                const prevEntry = prev.get(String(data.userId));
                 next.set(String(data.userId), {
-                    isMuted: !!data.isMuted,
-                    isDeafened: !!data.isDeafened,
-                    isScreenSharing: !!data.isScreenSharing,
-                    isVideoOn: !!data.isVideoOn,
-                    isServerMuted: !!data.isServerMuted,
-                    isServerDeafened: !!data.isServerDeafened
+                    ...(prevEntry || {}),
+                    isMuted: data.isMuted !== undefined ? !!data.isMuted : !!prevEntry?.isMuted,
+                    isDeafened: data.isDeafened !== undefined ? !!data.isDeafened : !!prevEntry?.isDeafened,
+                    isScreenSharing: data.isScreenSharing !== undefined ? !!data.isScreenSharing : !!prevEntry?.isScreenSharing,
+                    isVideoOn: data.isVideoOn !== undefined ? !!data.isVideoOn : !!prevEntry?.isVideoOn,
+                    isServerMuted: data.isServerMuted !== undefined ? !!data.isServerMuted : !!prevEntry?.isServerMuted,
+                    isServerDeafened: data.isServerDeafened !== undefined ? !!data.isServerDeafened : !!prevEntry?.isServerDeafened
                 });
                 return next;
             });
         };
-        // Своё серверное состояние, включая никнейм на сервере активного канала.
+        // Своё серверное состояние, включая никнейм на сервере активного канала, server mute и deafen.
         const onServerState = (data: any) => {
-            if (data && 'myNickname' in data) setOwnNickname(data.myNickname || null);
+            if (!data) return;
+            if ('myNickname' in data) setOwnNickname(data.myNickname || null);
+            if ('isServerMuted' in data) setIsServerMuted(!!data.isServerMuted);
+            if ('isServerDeafened' in data) setIsServerDeafened(!!data.isServerDeafened);
+        };
+        const onChannelUsersUpdate = (data: any) => {
+            if (!data?.users || !Array.isArray(data.users)) return;
+            setUserStates(prev => {
+                const next = new Map(prev);
+                data.users.forEach((u: any) => {
+                    if (u?._id) {
+                        const prevEntry = prev.get(String(u._id));
+                        next.set(String(u._id), {
+                            ...(prevEntry || {}),
+                            isMuted: u.isMuted !== undefined ? !!u.isMuted : !!prevEntry?.isMuted,
+                            isDeafened: u.isDeafened !== undefined ? !!u.isDeafened : !!prevEntry?.isDeafened,
+                            isScreenSharing: u.isScreenSharing !== undefined ? !!u.isScreenSharing : !!prevEntry?.isScreenSharing,
+                            isVideoOn: u.isVideoOn !== undefined ? !!u.isVideoOn : !!prevEntry?.isVideoOn,
+                            isServerMuted: u.isServerMuted !== undefined ? !!u.isServerMuted : !!prevEntry?.isServerMuted,
+                            isServerDeafened: u.isServerDeafened !== undefined ? !!u.isServerDeafened : !!prevEntry?.isServerDeafened
+                        });
+                    }
+                });
+                return next;
+            });
         };
         socket.on('voice-user-state-update', onUserState);
         socket.on('voice-server-state-update', onServerState);
+        socket.on('voice-channel-users-update', onChannelUsersUpdate);
 
         const onConnect = () => {
             if (activeChannelIdRef.current) {
@@ -1422,6 +1456,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return () => {
             socket.off('voice-user-state-update', onUserState);
             socket.off('voice-server-state-update', onServerState);
+            socket.off('voice-channel-users-update', onChannelUsersUpdate);
             socket.off('connect', onConnect);
         };
     }, [socket]);

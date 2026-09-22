@@ -480,9 +480,10 @@ body { overscroll-behavior: none; }                 /* без pull-to-refresh/б
  * текст в списках по-прежнему можно.
  */
 @media (hover: none) and (pointer: coarse) {
-  .long-pressable {
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
+  .long-pressable,
+  .long-pressable * {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
   }
 }

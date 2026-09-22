@@ -141,11 +141,6 @@ const DMContextMenu: React.FC<DMContextMenuProps> = ({
             transition={popoverTransition}
         >
             <div className="menu-group">
-                {otherUser && onOpenProfile && (
-                    <div className="menu-item" onClick={(e) => { onOpenProfile(otherUser._id, e as any); onClose(); }}>
-                        Профиль
-                    </div>
-                )}
                 <div className="menu-item" onClick={handleMute}>
                     {isMuted ? 'Включить уведомления' : 'Отключить уведомления'}
                 </div>
