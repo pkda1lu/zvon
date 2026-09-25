@@ -33,6 +33,7 @@ fn wide(s: &str) -> Vec<u16> {
 
 pub struct ProcEntry {
     pub pid: u32,
+    pub parent: u32,
     pub exe: String,
 }
 
@@ -51,6 +52,7 @@ pub fn processes() -> Vec<ProcEntry> {
                 let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
                 out.push(ProcEntry {
                     pid: entry.th32ProcessID,
+                    parent: entry.th32ParentProcessID,
                     exe: String::from_utf16_lossy(&entry.szExeFile[..len]),
                 });
                 if Process32NextW(snap, &mut entry).is_err() {
@@ -61,6 +63,17 @@ pub fn processes() -> Vec<ProcEntry> {
         let _ = CloseHandle(snap);
     }
     out
+}
+
+/// Корневой процесс WebView2 этого приложения (msedgewebview2.exe без --type,
+/// запущенный нами). Звук страницы Windows приписывает его дереву, а не
+/// дереву Zvon.exe, хотя по родителю он наш потомок.
+pub fn webview_browser_pid() -> Option<u32> {
+    let me = std::process::id();
+    processes()
+        .into_iter()
+        .find(|p| p.parent == me && p.exe.eq_ignore_ascii_case("msedgewebview2.exe"))
+        .map(|p| p.pid)
 }
 
 pub fn exe_name_of(pid: u32) -> Option<String> {

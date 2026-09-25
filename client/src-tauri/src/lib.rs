@@ -4,7 +4,10 @@
 
 mod activity;
 mod audio;
+mod capture;
 mod ipc;
+mod migrate;
+mod netfilter;
 mod overlay;
 mod permissions;
 mod settings;
@@ -45,6 +48,7 @@ pub fn on_main_loaded(window: &tauri::WebviewWindow, event: PageLoadEvent) {
         return;
     }
     let app = window.app_handle();
+    migrate::finish();
     if !MAIN_SHOWN.swap(true, Ordering::SeqCst) && !windows::should_start_hidden(app) {
         let _ = window.show();
         let _ = window.set_focus();
@@ -125,14 +129,24 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(audio::Capture::default())
+        .manage(capture::ScreenCapture::default())
         .invoke_handler(tauri::generate_handler![ipc::ipc_invoke, ipc::ipc_send, ipc::audio_start])
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            // Маршрутизация TikTok — до первого окна: WebView2 берёт PAC
+            // только при создании окружения.
+            if let Some(pac) = tunnel::init() {
+                let _ = windows::PAC_URL.set(pac);
+            }
+
             let loaded = settings::load(&handle);
             app.manage(AppState::new(loaded, opened_hidden, startup_link.clone()));
 
+            // Ссылки zvon:// — на установленную копию. Отладочная сборка их не
+            // перехватывает, иначе ссылки открывали бы target\debug.
             #[cfg(windows)]
-            {
+            if !cfg!(debug_assertions) {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 if let Err(e) = app.deep_link().register_all() {
                     log::warn!("[deep-link] регистрация zvon:// не удалась: {e}");
@@ -140,6 +154,12 @@ pub fn run() {
             }
 
             tray::create(&handle)?;
+
+            // Автозапуск прежней версии на Electron заменяется своим.
+            if migrate::take_electron_autostart() && !cfg!(debug_assertions) {
+                use tauri_plugin_autostart::ManagerExt;
+                let _ = handle.autolaunch().enable();
+            }
 
             if cfg!(debug_assertions) {
                 open_main(&handle);
@@ -166,6 +186,7 @@ pub fn run() {
     app.run(|app, event| {
         if let RunEvent::Exit = event {
             app.state::<audio::Capture>().stop();
+            app.state::<capture::ScreenCapture>().stop(app);
             tauri::async_runtime::block_on(tunnel::stop(app));
         }
     });

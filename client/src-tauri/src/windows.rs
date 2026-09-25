@@ -32,20 +32,44 @@ const BROWSER_ARGS: &str = concat!(
 // Как в Electron: маскировка под обычный Chrome ради встраиваемого YouTube.
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 
+/// PAC туннеля TikTok (tunnel.rs), заданный при запуске.
+pub static PAC_URL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
 fn browser_args() -> String {
+    let mut args = BROWSER_ARGS.to_string();
+    if let Some(pac) = PAC_URL.get() {
+        args.push_str(&format!(" --proxy-pac-url={pac}"));
+    }
     if cfg!(debug_assertions) {
         // Отладочная сборка: DevTools-протокол для проверки моста снаружи.
-        format!("{BROWSER_ARGS} --remote-debugging-port=9222")
-    } else {
-        BROWSER_ARGS.to_string()
+        args.push_str(" --remote-debugging-port=9222");
     }
+    args
 }
 
+// Страницы TikTok в рамке: SPA, увидев себя в iframe, может ничего не
+// нарисовать. Выполняется во всех кадрах, но действует только на TikTok.
+const TIKTOK_FRAME: &str = r#"(function () {
+  try {
+    var h = (location && location.hostname) || '';
+    if ((/(^|\.)tiktok\.com$/i.test(h) || /(^|\.)tiktokv\.com$/i.test(h)) && window.top !== window.self) {
+      Object.defineProperty(window, 'top', { get: function () { return window; }, configurable: true });
+      Object.defineProperty(window, 'parent', { get: function () { return window; }, configurable: true });
+      Object.defineProperty(window, 'frameElement', { get: function () { return null; }, configurable: true });
+    }
+  } catch (e) { }
+})();"#;
+
 fn base<'a>(app: &'a AppHandle, label: &str, url: &str) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
-    WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+    let mut b = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .additional_browser_args(&browser_args())
-        .user_agent(USER_AGENT)
-        .initialization_script(SHIM)
+        .user_agent(USER_AGENT);
+    // Перенос localStorage из Electron — до скриптов страницы.
+    if let Some(script) = crate::migrate::script() {
+        b = b.initialization_script(script);
+    }
+    b.initialization_script(SHIM)
+        .initialization_script_for_all_frames(TIKTOK_FRAME)
         // Иначе перетаскивание файлов в чат перехватывает сам Tauri.
         .disable_drag_drop_handler()
         .visible(false)
@@ -61,6 +85,7 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .background_color(Color(0x1e, 0x1f, 0x22, 0xff))
         .build()?;
     crate::permissions::install(&w);
+    crate::netfilter::install(&w);
     Ok(w)
 }
 

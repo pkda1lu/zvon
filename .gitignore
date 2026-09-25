@@ -40,3 +40,7 @@ server/data/vlyne-id/
 
 # Python-кеш SDK
 __pycache__/
+
+# Файлы релизов (собираются scripts/release-assets.mjs)
+client/release/
+client/release-transition/

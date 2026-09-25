@@ -1,6 +1,6 @@
 {
   "name": "zvon-client",
-  "version": "2.8.4",
+  "version": "3.0.0",
   "private": true,
   "author": "pkda1lu",
   "description": "Zvon - Real-time communication platform",
@@ -76,7 +76,9 @@
     "build:tauri-frontend": "cross-env VITE_ELECTRON=true npm run build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "electron:build:transition": "cross-env VITE_ELECTRON=true npm run build && node -e \"const fs=require('fs'); fs.cpSync('public', 'build', {recursive: true, force: true})\" && electron-builder -w -c.extraMetadata.version=2.9.0 -c.extraMetadata.main=build/electron.js -c.compression=store",
+    "release:assets": "node scripts/release-assets.mjs"
   },
   "eslintConfig": {
     "extends": [

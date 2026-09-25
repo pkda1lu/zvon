@@ -59,7 +59,13 @@ function pickAsset(assets, platform) {
     }
     // default: windows installer (NSIS). Prefer the user-facing "Setup .exe",
     // never the blockmap or web-setup helper files.
+    //
+    // В релизах после перехода на Tauri лежат два установщика: новый
+    // (Zvon_<версия>_x64-setup.exe) и переходный Electron (Zvon-Setup-2.9.0.exe),
+    // который нужен только старым клиентам для автообновления. Новым
+    // пользователям отдаём новый.
     return (
+        byName((n) => n.endsWith('_x64-setup.exe')) ||
         byName((n) => n.includes('setup') && n.endsWith('.exe')) ||
         byName((n) => n.endsWith('.exe') && !n.includes('.blockmap')) ||
         null

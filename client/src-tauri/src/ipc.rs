@@ -60,7 +60,22 @@ pub async fn ipc_invoke(app: AppHandle, window: WebviewWindow, channel: String, 
         "tunnel:start" => Ok(tunnel::start(&app, arg(&args, 0)).await),
         "tunnel:stop" => Ok(tunnel::stop(&app).await),
         "tunnel:status" => Ok(tunnel::status(&app)),
-        "get-desktop-sources" => Ok(json!([])),
+        "get-desktop-sources" => {
+            let options = arg(&args, 0);
+            tauri::async_runtime::spawn_blocking(move || crate::capture::list_sources(&options))
+                .await
+                .map_err(|e| e.to_string())
+        }
+        "capture:start" => {
+            let source = arg(&args, 0).as_str().unwrap_or_default().to_string();
+            let fps = arg(&args, 1).as_u64().unwrap_or(30) as u32;
+            let session = app.state::<crate::capture::ScreenCapture>().start(&app, &source, fps).await?;
+            Ok(json!(session))
+        }
+        "capture:stop" => {
+            app.state::<crate::capture::ScreenCapture>().stop(&app);
+            Ok(Value::Null)
+        }
         "set-content-protection" => {
             if let Some(w) = main_window(&app) {
                 let _ = w.set_content_protected(arg(&args, 0).as_bool().unwrap_or(false));
@@ -150,6 +165,13 @@ pub async fn ipc_send(app: AppHandle, channel: String, args: Vec<Value>) {
 
 #[tauri::command]
 pub async fn audio_start(app: AppHandle, pid: u32, mode: u32, on_data: Channel<InvokeResponseBody>) {
+    // «Всё, кроме Zvon»: исключать нужно корневой процесс WebView2 — иначе
+    // в демонстрацию попадают голоса собеседников и звуки самого Zvon.
+    let pid = if mode == 1 && pid == std::process::id() {
+        winsys::webview_browser_pid().unwrap_or(pid)
+    } else {
+        pid
+    };
     log::info!("[NativeAudio] старт захвата: pid {pid}, режим {mode}");
     app.state::<Capture>().start(pid, mode, on_data);
 }

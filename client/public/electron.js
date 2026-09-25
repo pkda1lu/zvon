@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, screen, desktopCapturer, globalShortcut, Notification, shell, protocol, net } = require('electron');
 const tunnel = require('./tunnel');
+const transition = require('./transition');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
@@ -581,7 +582,7 @@ function createUpdaterWindow() {
     autoUpdater.on('update-available', (info) => updaterWindow.webContents.send('updater-message', `Найдено обновление ${info.version}. Загрузка...`));
     autoUpdater.on('update-not-available', () => {
         updaterWindow.webContents.send('updater-message', 'У вас последняя версия');
-        setTimeout(() => { createWindow(); if (updaterWindow && !updaterWindow.isDestroyed()) updaterWindow.close(); }, 1000);
+        setTimeout(proceedAfterUpdateCheck, 1000);
     });
     autoUpdater.on('error', () => {
         updaterWindow.webContents.send('updater-message', 'Ошибка при поиске обновлений');
@@ -591,6 +592,45 @@ function createUpdaterWindow() {
     autoUpdater.on('update-downloaded', () => {
         updaterWindow.webContents.send('updater-message', 'Обновление скачано. Установка...');
         setTimeout(() => autoUpdater.quitAndInstall(true, true), 1000);
+    });
+}
+
+/*
+ * Переходная версия: после проверки обновлений ставим новую версию Zvon
+ * (см. transition.js). Если переход не удался — открываемся как обычно.
+ */
+async function proceedAfterUpdateCheck() {
+    const openMain = () => { createWindow(); if (updaterWindow && !updaterWindow.isDestroyed()) updaterWindow.close(); };
+    if (!app.isPackaged) { openMain(); return; }
+    const send = (channel, value) => {
+        if (updaterWindow && !updaterWindow.isDestroyed()) updaterWindow.webContents.send(channel, value);
+    };
+    const started = await transition.run(
+        { message: (text) => send('updater-message', text), progress: (p) => send('updater-progress', p) },
+        registerAppProtocol,
+        log
+    );
+    if (started) {
+        isQuitting = true;
+        setTimeout(() => app.quit(), 800);
+        return;
+    }
+    openMain();
+}
+
+/** Протокол app:// для собранного интерфейса (регистрируется один раз). */
+function registerAppProtocol() {
+    if (protocol.isProtocolHandled('app')) return;
+    protocol.handle('app', (request) => {
+        const url = new URL(request.url);
+        let relativePath = url.pathname;
+
+        // On Windows, the pathname might start with a leading slash or be the hostname
+        if (relativePath.startsWith('/')) relativePath = relativePath.slice(1);
+        if (!relativePath || relativePath === 'index.html') relativePath = 'index.html';
+
+        const filePath = path.join(__dirname, relativePath);
+        return net.fetch(`file://${filePath}`);
     });
 }
 
@@ -777,17 +817,7 @@ function createWindow() {
         mainWindow.loadURL('http://localhost:3000');
     } else {
         // Use custom protocol in production to bypass file:// restrictions
-        protocol.handle('app', (request) => {
-            const url = new URL(request.url);
-            let relativePath = url.pathname;
-            
-            // On Windows, the pathname might start with a leading slash or be the hostname
-            if (relativePath.startsWith('/')) relativePath = relativePath.slice(1);
-            if (!relativePath || relativePath === 'index.html') relativePath = 'index.html';
-            
-            const filePath = path.join(__dirname, relativePath);
-            return net.fetch(`file://${filePath}`);
-        });
+        registerAppProtocol();
         mainWindow.loadURL('app://index.html');
     }
 

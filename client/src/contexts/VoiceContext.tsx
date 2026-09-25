@@ -25,7 +25,7 @@ import type {
 } from 'livekit-client';
 import { loadLiveKit, ConnectionStates, ConnectionQualities, TrackSources } from '../utils/livekitLazy';
 import { registerPanner, unregisterPanner, subscribeRouting, getPlaybackContext, resumePlayback } from '../utils/spatialAudio';
-import { openDesktopSource, nativeAudioSourceId } from '../utils/desktopCapture';
+import { openDesktopSource } from '../utils/desktopCapture';
 
 import { useCallSettings } from './CallSettingsContext';
 
@@ -1262,7 +1262,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 if (options?.withAudio && roomRef.current) {
                     try {
                         console.log('[Voice] Захват звука демонстрации через нативный драйвер…');
-                        const audioStream = await nativeAudioManager.startcapture(nativeAudioSourceId(sourceId, stream));
+                        const audioStream = await nativeAudioManager.startcapture(sourceId);
                         const screenAudioTrack = audioStream.getAudioTracks()[0];
                         if (screenAudioTrack) {
                             // Звук стрима НЕ зависит от мьюта/деафа микрофона — держим трек

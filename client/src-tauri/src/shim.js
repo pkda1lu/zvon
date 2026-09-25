@@ -126,30 +126,103 @@
     }
 
     /*
-     * Выбор источника демонстрации. WebView2 не умеет открыть поток по
-     * chromeMediaSourceId, поэтому вместо списка окон отдаём два источника:
-     * «экран» и «окно». Сам выбор делает системный пикер getDisplayMedia,
-     * а по метке дорожки потом находим окно для захвата его звука.
+     * Демонстрация экрана. Список источников с превью и сам захват делает Rust
+     * (capture.rs, Windows Graphics Capture); кадры приходят через общую
+     * память WebView2 (sharedbufferreceived) и собираются в видеодорожку.
      */
-    function sourceTile(label) {
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="85" viewBox="0 0 150 85">' +
-            '<rect width="150" height="85" rx="8" fill="#1e1f22"/>' +
-            '<rect x="45" y="20" width="60" height="38" rx="4" fill="none" stroke="#8b8cf8" stroke-width="3"/>' +
-            '<rect x="68" y="60" width="14" height="6" fill="#8b8cf8"/>' +
-            '<text x="75" y="80" font-family="Segoe UI, sans-serif" font-size="9" fill="#b5bac1" text-anchor="middle">' + label + '</text></svg>';
-        return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    function getDesktopSources(options) {
+        return invoke('get-desktop-sources', options || {});
     }
 
-    function getDesktopSources(options) {
-        var types = (options && options.types) || ['screen'];
-        var list = [];
-        if (types.indexOf('screen') !== -1) {
-            list.push({ id: 'tauri:monitor', name: 'Выбрать экран…', thumbnail: sourceTile('Экран'), display_id: '', appIcon: null });
+    var capture = null; // { session, writer, canvas, ctx, track }
+
+    function onSharedBuffer(e) {
+        var buf = e.getBuffer();
+        try {
+            var d = e.additionalData;
+            if (!capture || !d || d.session !== capture.session) return;
+            var frame = new VideoFrame(new Uint8Array(buf, 0, d.stride * d.height), {
+                format: 'BGRA',
+                codedWidth: d.width,
+                codedHeight: d.height,
+                timestamp: Math.round(performance.now() * 1000),
+                layout: [{ offset: 0, stride: d.stride }]
+            });
+            if (capture.writer) {
+                // Кодировщик не успевает — лучше пропустить кадр, чем копить очередь.
+                if (capture.writer.desiredSize !== null && capture.writer.desiredSize <= 0) { frame.close(); return; }
+                capture.writer.write(frame).catch(function () { try { frame.close(); } catch (_) { } });
+            } else {
+                if (capture.canvas.width !== d.width || capture.canvas.height !== d.height) {
+                    capture.canvas.width = d.width; capture.canvas.height = d.height;
+                }
+                capture.ctx.drawImage(frame, 0, 0);
+                frame.close();
+            }
+        } catch (err) {
+            console.error('[zvon] кадр демонстрации:', err);
+        } finally {
+            window.chrome.webview.releaseBuffer(buf);
         }
-        if (types.indexOf('window') !== -1) {
-            list.push({ id: 'tauri:window', name: 'Выбрать окно…', thumbnail: sourceTile('Окно'), display_id: '', appIcon: null });
+    }
+
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.addEventListener('sharedbufferreceived', onSharedBuffer);
+    }
+
+    function endCapture(notify) {
+        var c = capture;
+        if (!c) return;
+        capture = null;
+        try { if (c.writer) c.writer.close().catch(function () { }); } catch (_) { }
+        call('ipc_invoke', { channel: 'capture:stop', args: [] }).catch(function () { });
+        if (notify && c.track) {
+            try { c.origStop.call(c.track); } catch (_) { }
+            c.track.dispatchEvent(new Event('ended'));
         }
-        return Promise.resolve(list);
+    }
+
+    var endedSubscribed = false;
+
+    function openCaptureStream(sourceId, opts) {
+        var frameRate = (opts && opts.frameRate) || 30;
+        endCapture(false);
+        if (!endedSubscribed) {
+            endedSubscribed = true;
+            on('capture-ended', function (_e, session) {
+                if (capture && capture.session === session) endCapture(true);
+            });
+        }
+
+        var state = {};
+        var track;
+        if (typeof MediaStreamTrackGenerator === 'function') {
+            var gen = new MediaStreamTrackGenerator({ kind: 'video' });
+            state.writer = gen.writable.getWriter();
+            track = gen;
+        } else {
+            state.canvas = document.createElement('canvas');
+            state.canvas.width = 1280; state.canvas.height = 720;
+            state.ctx = state.canvas.getContext('2d');
+            track = state.canvas.captureStream(frameRate).getVideoTracks()[0];
+        }
+        state.track = track;
+        state.origStop = track.stop;
+        // Остановка дорожки интерфейсом (конец демонстрации) гасит и захват.
+        track.stop = function () {
+            state.origStop.call(track);
+            if (capture === state) endCapture(false);
+        };
+
+        capture = state;
+        return invoke('capture:start', sourceId, frameRate).then(function (session) {
+            state.session = session;
+            return new MediaStream([track]);
+        }, function (err) {
+            if (capture === state) capture = null;
+            try { state.origStop.call(track); } catch (_) { }
+            throw err;
+        });
     }
 
     window.electron = {
@@ -167,6 +240,7 @@
             close: function () { send('window-close'); }
         },
         getDesktopSources: getDesktopSources,
+        openCaptureStream: openCaptureStream,
         setContentProtection: function (enabled) { return invoke('set-content-protection', enabled); }
     };
 
