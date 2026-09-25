@@ -2,7 +2,8 @@
 //!
 //! Переходный релиз на Electron (2.9.0, public/transition.js) перед установкой
 //! этой версии выгружает localStorage интерфейса — токен входа, настройки
-//! звука, клавиш, внешнего вида — в %APPDATA%\Zvon\zvon-migration.json.
+//! звука, клавиш, внешнего вида — в %APPDATA%\zvon-client\zvon-migration.json
+//! (папка данных Electron называется по имени пакета).
 //! Здесь содержимое подкладывается в localStorage новой страницы до запуска
 //! её скриптов, поэтому человек открывает Zvon уже вошедшим, со своими
 //! настройками. Файл удаляется, как только основное окно загрузилось.
@@ -20,7 +21,7 @@ const MARK: &str = "__zvon_migrated_v1";
 static SCRIPT: OnceLock<Option<String>> = OnceLock::new();
 
 fn file() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("Zvon").join("zvon-migration.json"))
+    std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("zvon-client").join("zvon-migration.json"))
 }
 
 fn build_script() -> Option<String> {
@@ -85,7 +86,7 @@ pub fn take_electron_autostart() -> bool {
             return false;
         }
         // Имена, под которыми Electron (setLoginItemSettings) регистрировал Zvon.
-        for name in ["com.zvon.app", "electron.app.Zvon"] {
+        for name in ["electron.app.zvon-client", "com.zvon.app", "electron.app.Zvon"] {
             let wname = wide(name);
             let mut buf = vec![0u16; 1024];
             let mut size = (buf.len() * 2) as u32;

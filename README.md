@@ -3,7 +3,7 @@
 **Zvon** — это современная и высокопроизводительная коммуникационная платформа реального времени, вдохновленная Discord, но с упором на премиальный дизайн и расширенные возможности аудио-захвата.
 
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/pkda1lu/zvon/releases)
-[![Electron](https://img.shields.io/badge/platform-Electron-brightgreen.svg)](https://www.electronjs.org/)
+[![Tauri](https://img.shields.io/badge/platform-Tauri-brightgreen.svg)](https://tauri.app/)
 [![Technologies](https://img.shields.io/badge/stack-MERN%20+%20Socket.io-orange.svg)](https://socket.io/)
 
 ---
@@ -60,7 +60,7 @@ Zvon поддерживает запуск внешних веб-приложе�
 | **Frontend** | React, TypeScript, Vite, Vanilla CSS, WebRTC |
 | **Backend** | Node.js, Express, MongoDB (Mongoose), JWT |
 | **Real-time** | Socket.io |
-| **Desktop** | Electron, C++ (Native Audio Module) |
+| **Desktop** | Tauri 2 (Rust, WebView2) |
 | **Инфраструктура** | PM2, Nginx, Let's Encrypt |
 
 ---
@@ -95,10 +95,10 @@ Zvon поддерживает запуск внешних веб-приложе�
    npm run dev
    ```
 
-4. **Запуск десктопной версии (Electron):**
+4. **Запуск десктопной версии (Tauri):**
    ```bash
    cd client
-   npm run electron:dev
+   npm run tauri:dev
    ```
 
 ---
@@ -108,9 +108,10 @@ Zvon поддерживает запуск внешних веб-приложе�
 ### Сборка Windows приложения
 ```bash
 cd client
-npm run electron:build
+npm run tauri:build
 ```
-Инсталлер будет доступен в папке `client/dist`.
+Инсталлер будет доступен в папке `client/src-tauri/target/release/bundle/nsis`.
+Выпуск релиза и переход пользователей с Electron — в [docs/desktop-tauri.md](./docs/desktop-tauri.md).
 
 ### Деплой на VPS
 Подробная инструкция по деплою (Nginx, PM2, SSL) находится в файле [VPS_DEPLOYMENT.md](./VPS_DEPLOYMENT.md).
@@ -121,10 +122,10 @@ npm run electron:build
 
 ```text
 zvon/
-├── client/           # React + Electron (Frontend)
+├── client/           # React (Frontend) + настольная оболочка
 │   ├── src/          # Исходный код UI
-│   ├── public/       # Статические ресурсы и Electron точки входа
-│   └── native-audio/ # C++ модуль захвата аудио
+│   ├── src-tauri/    # Настольный клиент на Tauri (Rust)
+│   └── public/       # Статические ресурсы; electron.js — переходная версия 2.9
 ├── server/           # Node.js + Express (Backend)
 │   ├── models/       # Схемы данных MongoDB
 │   ├── routes/       # API Эндпоинты

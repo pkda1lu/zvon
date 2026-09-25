@@ -73,7 +73,9 @@ const serveDfAssetsRaw = (): Plugin => {
 };
 
 export default defineConfig({
-    plugins: [react(), tsconfigPaths(), serveDfAssetsRaw()],
+    // projects: только свой tsconfig — иначе плагин обходит весь каталог, включая
+    // src-tauri/target с исходниками зависимостей Rust.
+    plugins: [react(), tsconfigPaths({ projects: ['./tsconfig.json'] }), serveDfAssetsRaw()],
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),
         __BUILD_TIME__: JSON.stringify(buildTime),

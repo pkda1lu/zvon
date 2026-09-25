@@ -54,9 +54,10 @@ fn own_path(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join(FILE_NAME))
 }
 
-/// Файл прежнего клиента на Electron: %APPDATA%\Zvon\window-settings.json.
+/// Файл прежнего клиента на Electron: %APPDATA%\zvon-client\window-settings.json
+/// (папку данных Electron называет по имени пакета, а не продукта).
 fn electron_path() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("Zvon").join(FILE_NAME))
+    std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("zvon-client").join(FILE_NAME))
 }
 
 fn read(path: &PathBuf) -> Option<Settings> {
