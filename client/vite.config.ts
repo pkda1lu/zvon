@@ -77,7 +77,9 @@ export default defineConfig({
     // src-tauri/target с исходниками зависимостей Rust.
     plugins: [react(), tsconfigPaths({ projects: ['./tsconfig.json'] }), serveDfAssetsRaw()],
     define: {
-        __APP_VERSION__: JSON.stringify(pkg.version),
+        // ZVON_APP_VERSION — версия переходной сборки Electron (2.9.x), которая
+        // собирается из того же package.json, что и 3.x на Tauri.
+        __APP_VERSION__: JSON.stringify(process.env.ZVON_APP_VERSION || pkg.version),
         __BUILD_TIME__: JSON.stringify(buildTime),
         __GIT_COMMIT_HASH__: JSON.stringify(gitInfo.hash),
         __GIT_COMMIT_SHORT_HASH__: JSON.stringify(gitInfo.shortHash),

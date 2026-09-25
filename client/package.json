@@ -77,7 +77,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "electron:build:transition": "cross-env VITE_ELECTRON=true npm run build && node -e \"const fs=require('fs'); fs.cpSync('public', 'build', {recursive: true, force: true})\" && electron-builder -w -c.extraMetadata.version=2.9.0 -c.extraMetadata.main=build/electron.js -c.compression=store",
+    "electron:build:transition": "cross-env VITE_ELECTRON=true ZVON_APP_VERSION=2.9.0 npm run build && node -e \"const fs=require('fs'); fs.cpSync('public', 'build', {recursive: true, force: true})\" && electron-builder -w -c.extraMetadata.version=2.9.0 -c.extraMetadata.main=build/electron.js -c.compression=store",
     "release:assets": "node scripts/release-assets.mjs"
   },
   "eslintConfig": {

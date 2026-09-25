@@ -255,7 +255,7 @@ function installedNewVersion() {
  */
 async function run(ui, ensureAppProtocol, log) {
     try {
-        ui.message('Проверка обновлений: переход на новую версию Zvon...');
+        ui.message('Проверка обновлений...');
 
         const feed = JSON.parse((await fetchBuffer(FEED)).toString('utf8'));
         const platform = (feed.platforms && (feed.platforms['windows-x86_64-nsis'] || feed.platforms['windows-x86_64'])) || null;
