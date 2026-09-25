@@ -54,11 +54,12 @@ const getApiUrl = () => {
     typeof window !== 'undefined' &&
     /^https?:$/.test(window.location.protocol) &&
     window.location.hostname !== 'localhost' &&
+    window.location.hostname !== 'tauri.localhost' &&
     window.location.hostname !== '127.0.0.1'
   ) {
     return window.location.origin;
   }
-  // Десктоп-клиент (file://) и локальный запуск — рабочий сервер Zvon.
+  // Десктоп-клиент (file://, tauri.localhost) и локальный запуск — рабочий сервер Zvon.
   return 'https://zvonserver.ru';
 };
 

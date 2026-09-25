@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Окна Zvon: основное, оверлей и окно обновления. Удалённым источникам (мини-аппкам в iframe) IPC не выдаётся.",
+  "windows": ["main", "overlay", "updater"],
+  "permissions": [
+    "core:default"
+  ]
+}

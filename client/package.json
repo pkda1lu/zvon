@@ -72,7 +72,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "cross-env VITE_ELECTRON=true npm run build && node -e \"const fs=require('fs'); fs.cpSync('public', 'build', {recursive: true, force: true})\" && electron-builder -w -c.extraMetadata.main=build/electron.js -c.compression=store"
+    "electron:build": "cross-env VITE_ELECTRON=true npm run build && node -e \"const fs=require('fs'); fs.cpSync('public', 'build', {recursive: true, force: true})\" && electron-builder -w -c.extraMetadata.main=build/electron.js -c.compression=store",
+    "build:tauri-frontend": "cross-env VITE_ELECTRON=true npm run build",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "eslintConfig": {
     "extends": [
@@ -94,6 +98,7 @@
   },
   "devDependencies": {
     "@sapphi-red/web-noise-suppressor": "^0.3.5",
+    "@tauri-apps/cli": "^2.11.5",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",

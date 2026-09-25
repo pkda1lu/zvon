@@ -25,6 +25,7 @@ import type {
 } from 'livekit-client';
 import { loadLiveKit, ConnectionStates, ConnectionQualities, TrackSources } from '../utils/livekitLazy';
 import { registerPanner, unregisterPanner, subscribeRouting, getPlaybackContext, resumePlayback } from '../utils/spatialAudio';
+import { openDesktopSource, nativeAudioSourceId } from '../utils/desktopCapture';
 
 import { useCallSettings } from './CallSettingsContext';
 
@@ -1231,11 +1232,8 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             let stream: MediaStream;
             if (isElectron && sourceId) {
-                // Electron: захват конкретного источника через desktopCapturer sourceId.
-                stream = await navigator.mediaDevices.getUserMedia({
-                    audio: false,
-                    video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
-                } as any);
+                // Десктоп: выбранный источник (Electron — по sourceId, Tauri — системный пикер).
+                stream = await openDesktopSource(sourceId, frameRate);
             } else {
                 // Веб: нативный системный пикер браузера. Звук экрана/вкладки — через getDisplayMedia.
                 stream = await navigator.mediaDevices.getDisplayMedia({
@@ -1264,7 +1262,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 if (options?.withAudio && roomRef.current) {
                     try {
                         console.log('[Voice] Захват звука демонстрации через нативный драйвер…');
-                        const audioStream = await nativeAudioManager.startcapture(sourceId);
+                        const audioStream = await nativeAudioManager.startcapture(nativeAudioSourceId(sourceId, stream));
                         const screenAudioTrack = audioStream.getAudioTracks()[0];
                         if (screenAudioTrack) {
                             // Звук стрима НЕ зависит от мьюта/деафа микрофона — держим трек

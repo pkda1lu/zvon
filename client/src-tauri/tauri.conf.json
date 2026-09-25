@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Zvon",
+  "mainBinaryName": "Zvon",
+  "version": "../package.json",
+  "identifier": "com.zvon.app",
+  "build": {
+    "beforeDevCommand": "npm run dev -- --host 127.0.0.1",
+    "devUrl": "http://127.0.0.1:3000",
+    "beforeBuildCommand": "npm run build:tauri-frontend",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "pkda1lu",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../singbox/sing-box.exe": "singbox/sing-box.exe"
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "languages": ["Russian", "English"],
+        "displayLanguageSelector": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": { "schemes": ["zvon"] }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/pkda1lu/zvon/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4REYxMDM2M0Y2MUE3QTUKUldTbHAyRS9OaERmYUVjcVhWU05VUFExREVoT1RXWmhFL3UyUCtsdFBqSDVLWVRUQ0t0bFBjc2cK",
+      "windows": { "installMode": "quiet" }
+    }
+  }
+}

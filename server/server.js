@@ -69,7 +69,11 @@ const corsOptions = {
       'https://vlyneid.zvonserver.ru',
       'http://vlyneid.zvonserver.ru',
       'https://maxcord.fun',
-      'http://maxcord.fun'
+      'http://maxcord.fun',
+      // Настольный клиент на Tauri: страница интерфейса открыта с этого origin
+      // (WebView2), а API — на основном домене.
+      'http://tauri.localhost',
+      'https://tauri.localhost'
     ];
     // Сравнение строго по совпадению. Было `startsWith`, а это дыра:
     // https://zvonserver.ru.example.com начинается с https://zvonserver.ru,

@@ -333,9 +333,10 @@
         animate();
     </script>
 
-    <!-- ipc-логика автообновления (классический скрипт: require доступен в Electron) -->
+    <!-- ipc-логика автообновления. Electron: require('electron'); Tauri: тот же
+         интерфейс ipc выставляет шим window.electron. -->
     <script>
-        const { ipcRenderer } = require('electron');
+        const ipcRenderer = (window.electron && window.electron.ipc) || require('electron').ipcRenderer;
         const card        = document.getElementById('card');
         const statusEl    = document.getElementById('status');
         const progress    = document.getElementById('progress');

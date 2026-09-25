@@ -27,6 +27,7 @@ import {
   VideoPresets,
   LocalAudioTrack
 } from 'livekit-client';
+import { openDesktopSource } from '../utils/desktopCapture';
 import './VoiceCall.css';
 import './MemberContextMenu.css';
 
@@ -606,10 +607,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
         // Electron: конкретный источник по sourceId; веб: нативный пикер браузера.
         const stream = (isElectron && sourceId)
-          ? await navigator.mediaDevices.getUserMedia({
-              audio: false,
-              video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate: frameRate } } as any
-            } as any)
+          ? await openDesktopSource(sourceId, frameRate)
           : await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: frameRate } }, audio: true });
         if (roomRef.current) {
           const videoTrack = stream.getVideoTracks()[0];

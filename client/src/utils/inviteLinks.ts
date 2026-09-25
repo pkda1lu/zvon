@@ -1,10 +1,10 @@
 // Возвращает правильный домен для генерации ссылок-приглашений:
 // если открыто в браузере (наzvonserver.ru или maxcord.fun и т.д.) — использует текущий domain/origin.
-// если открыто в Electron / EXE (file://, app://) — определяет бренд (maxcord.fun для maxcord, иначе zvonserver.ru).
+// если открыто в Electron / EXE (file://, app://, tauri.localhost) — определяет бренд (maxcord.fun для maxcord, иначе zvonserver.ru).
 export const getInviteBaseUrl = (): string => {
     if (typeof window !== 'undefined') {
         const origin = window.location.origin;
-        if (origin && !origin.includes('file://') && !origin.includes('app://') && !origin.includes('localhost:3000') && !origin.includes('127.0.0.1')) {
+        if (origin && !origin.includes('file://') && !origin.includes('app://') && !origin.includes('tauri.localhost') && !origin.includes('localhost:3000') && !origin.includes('127.0.0.1')) {
             // Если в обычном браузере на реальном домене (например https://maxcord.fun или https://zvonserver.ru)
             const host = window.location.hostname;
             if (host.includes('maxcord.fun')) return 'https://maxcord.fun';
