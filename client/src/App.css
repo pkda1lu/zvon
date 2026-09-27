@@ -112,6 +112,14 @@
   animation-play-state: paused;
 }
 
+/* Окно свёрнуто или убрано в трей — на паузу всё, включая индикаторы и
+   спиннеры: смотреть не на что, а каждая анимация будит компоновщик. */
+:root.app-hidden *,
+:root.app-hidden *::before,
+:root.app-hidden *::after {
+  animation-play-state: paused !important;
+}
+
 /* Режим производительности — анимации фона выключены полностью. */
 #global-liquid-bg.perf-mode,
 #global-liquid-bg.perf-mode * {

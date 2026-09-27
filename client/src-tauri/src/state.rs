@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -31,6 +31,8 @@ pub struct AppState {
     /// подключился позже отправки (ключ — метка окна и имя канала).
     pub sticky: Mutex<HashMap<(String, String), Value>>,
     pub was_maximized: AtomicBool,
+    /// Идёт личный звонок (VoiceCall): голосовой канал сервера — в `voice`.
+    pub call_active: AtomicBool,
 }
 
 impl AppState {
@@ -46,7 +48,13 @@ impl AppState {
             scan_notify: Arc::new(Notify::new()),
             sticky: Mutex::new(HashMap::new()),
             was_maximized: AtomicBool::new(false),
+            call_active: AtomicBool::new(false),
         }
+    }
+
+    /// Идёт ли голос: канал сервера или личный звонок (см. power.rs).
+    pub fn in_voice(&self) -> bool {
+        self.voice.lock().is_connected || self.call_active.load(Ordering::Relaxed)
     }
 
     pub fn scan_now(&self) {

@@ -18,6 +18,7 @@ import ChannelView from './ChannelView';
 import './panel-hero.css';
 import './VoiceChannelView.css';
 import { useServerMemberMap } from '../utils/serverMembers';
+import { useStillImage } from '../utils/stillImage';
 
 
 
@@ -124,6 +125,8 @@ const VoiceParticipantCard: React.FC<{
   }, [isExpanded, onToggleExpand]);
 
   const hasVideo = hasLiveVideo;
+  // Баннер под сильным блюром — неподвижным кадром (см. utils/stillImage).
+  const bannerStill = useStillImage(!hasVideo && participant.banner ? getFullUrl(participant.banner) : null);
   const showFullscreenBtn = isPrimary && hasVideo && onToggleExpand;
 
   const cardContent = (
@@ -134,7 +137,7 @@ const VoiceParticipantCard: React.FC<{
       onClick={onClick}
     >
       {hasVideo && <video ref={videoRef} autoPlay playsInline muted className="p-camera-video" />}
-      {!hasVideo && participant.banner && <div className="p-bg" style={{ backgroundImage: `url(${getFullUrl(participant.banner)})` }} />}
+      {!hasVideo && bannerStill && <div className="p-bg" style={{ backgroundImage: `url(${bannerStill})` }} />}
       {!hasVideo && <div className="p-avatar-wrap"><UserAvatar user={participant} avatarOverride={avatarOverride} size={64} animate={true} className="p-avatar" /></div>}
       
       {showFullscreenBtn && (

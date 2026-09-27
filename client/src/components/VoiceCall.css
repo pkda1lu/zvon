@@ -185,6 +185,9 @@
   position: relative;
   will-change: transform;
   display: grid;
+  /* Запасная раскладка на случай числа участников без своего правила ниже:
+     плитки с container-type не должны получать колонки по содержимому. */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 20px;
   align-content: center;
   justify-content: center;
@@ -791,6 +794,8 @@
 
 .participant-slot {
   position: relative;
+  /* Для @container у подписи: в узкой плитке она компактнее. */
+  container-type: inline-size;
   aspect-ratio: 16/9;
   background: rgba(0, 0, 0, 0.4);
   border-radius: 28px;
@@ -843,15 +848,39 @@
   position: absolute;
   bottom: 15px;
   left: 15px;
-  background: rgba(0, 0, 0, 0.6);
+  /* Одна строка: имя сжимается с многоточием, значок сервера не переносится
+     и не выпадает из подписи в узком окне. */
+  display: flex;
+  align-items: center;
+  max-width: calc(100% - 30px);
+  min-width: 0;
+  white-space: nowrap;
+  /* Плотный фон вместо backdrop-filter: под подписью идёт видео, и блюр
+     пересчитывался бы на каждом его кадре. */
+  background: rgba(0, 0, 0, 0.7);
   padding: 6px 14px;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 700;
   color: white;
-  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 10;
+}
+
+.participant-label-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.participant-label .server-tag-preview,
+.participant-label .user-badges-container {
+  flex-shrink: 0;
+}
+
+/* Узкая плитка (свёрнутое или маленькое окно) — подпись компактнее. */
+@container (max-width: 260px) {
+  .participant-label { bottom: 8px; left: 8px; max-width: calc(100% - 16px); padding: 4px 8px; }
 }
 
 .participant-screenshare {

@@ -12,9 +12,16 @@ pub const SHIM: &str = include_str!("shim.js");
 // use-fake-ui-for-media-stream: в WebView2 он заставил бы getDisplayMedia
 // молча брать весь экран вместо выбора окна. Разрешения на микрофон и камеру
 // выдаются обработчиком в permissions.rs.
+//
+// Без --disable-background-timer-throttling (был в Electron): свёрнутое в трей
+// окно скрывает WebView (power.rs), и Chromium должен притормаживать таймеры
+// страницы. Во время голоса страница остаётся видимой, так что звонка это не
+// касается. AudioWorkletRealtimeThread — поток AudioWorklet (шумоподавление,
+// VAD) с приоритетом реального времени: под нагрузкой от игры он не теряет
+// 10-миллисекундные кадры.
 const BROWSER_ARGS: &str = concat!(
     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinrtCaptureBorders,Vulkan,IsolateOrigins,site-per-process ",
-    "--enable-features=WebRtcAllowInputVolumeAdjustment,WebRtcHideLocalSdps,WebRtcUseEchoCanceller3,D3D11VideoDecoder,D3D11VideoEncoder ",
+    "--enable-features=WebRtcAllowInputVolumeAdjustment,WebRtcHideLocalSdps,WebRtcUseEchoCanceller3,D3D11VideoDecoder,D3D11VideoEncoder,AudioWorkletRealtimeThread ",
     "--disable-site-isolation-trials ",
     "--disable-web-security ",
     "--allow-running-insecure-content ",
@@ -22,7 +29,6 @@ const BROWSER_ARGS: &str = concat!(
     "--enable-gpu-rasterization ",
     "--enable-zero-copy ",
     "--ignore-gpu-blocklist ",
-    "--disable-background-timer-throttling ",
     "--disable-renderer-backgrounding ",
     "--disable-backgrounding-occluded-windows ",
     "--force-fieldtrials=WebRTC-Video-MinimumSendBitrate/Enabled-300000/ ",
@@ -126,6 +132,7 @@ pub fn reveal_main(app: &AppHandle) {
         let _ = w.show();
         let _ = w.set_focus();
     }
+    crate::power::refresh(app);
 }
 
 pub fn should_start_hidden(app: &AppHandle) -> bool {

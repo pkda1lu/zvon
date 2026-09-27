@@ -69,7 +69,7 @@
     inset: 0;
     border-radius: 50%;
     border: 1.5px solid var(--vcp-connected);
-    animation: vcpPulse 2s ease-out infinite;
+    animation: vcpPulse 2s steps(30) infinite;
     opacity: 0.55;
     transition: border-color 0.25s ease;
 }

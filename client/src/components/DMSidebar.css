@@ -282,7 +282,7 @@
     position: relative;
     background: rgba(255, 255, 255, 0.025);
     border: 1px solid transparent;
-    backdrop-filter: blur(20px);
+    /* Без backdrop-filter — см. .channel-item в ServerSidebar.css. */
 }
 
 .dm-item:hover {

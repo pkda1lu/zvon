@@ -53,6 +53,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                     let minimized = w.is_minimized().unwrap_or(false);
                     if visible && !minimized && w.is_focused().unwrap_or(false) {
                         let _ = w.hide();
+                        crate::power::refresh(app);
                     } else {
                         windows::reveal_main(app);
                     }

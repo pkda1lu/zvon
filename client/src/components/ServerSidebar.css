@@ -260,7 +260,9 @@
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid transparent;
-  backdrop-filter: blur(20px);
+  /* Без backdrop-filter: под пунктами анимированные размытые пятна фона,
+     и блюр каждого пункта пересчитывался каждый кадр — под нагрузкой на GPU
+     список мерцал. Пятна уже размыты, на вид разницы нет. */
   position: relative;
   overflow: hidden;
 }
@@ -327,7 +329,7 @@
   /* transform-origin: center — анимация voicePulse масштабирует кольцо вокруг центра,
      поэтому translate здесь не нужен (он бы конфликтовал с scale из анимации). */
   transform-origin: center;
-  animation: voicePulse 2s infinite;
+  animation: voicePulse 2s steps(30) infinite;
   z-index: 1;
 }
 
@@ -483,7 +485,7 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 10px rgba(255, 0, 85, 0.4);
-  animation: live-pulse 2s infinite;
+  animation: live-pulse 2s steps(30) infinite;
   line-height: 1;
 }
 

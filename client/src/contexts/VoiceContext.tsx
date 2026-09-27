@@ -244,6 +244,13 @@ const OverlaySync: React.FC = () => {
         electron.ipc.send('update-overlay-data', { users });
     }, [isConnected, connectedUsers, userStates, speakingUsers, isMuted, isDeafened, ownNickname, user?._id]);
 
+    // Состояние голоса — в главный процесс: пункты микрофона и звука в трее
+    // и режим питания (в голосе процессам Zvon поднимается приоритет, см.
+    // src-tauri/src/power.rs).
+    useEffect(() => {
+        (window as any).electron?.ipc?.send('voice-state-sync', { isConnected, isMuted, isDeafened });
+    }, [isConnected, isMuted, isDeafened]);
+
     return null;
 };
 
@@ -465,22 +472,50 @@ registerProcessor('vad-processor', VADProcessor);
 // воспроизводился (в отличие от DM-звонков в VoiceCall) — поэтому собеседников
 // было не слышно, хотя обводка говорящего (ActiveSpeakers) работала. Этот
 // рендерер монтирует по <audio> на каждый удалённый поток и проигрывает звук.
-// Проигрывание удалённого аудио через WebAudio GainNode — это позволяет усиление
-// выше 100% (до 200%+), чего нельзя сделать через <audio>.volume (он ограничен 1.0).
-// Граф: stream → GainNode → MediaStreamDestination → <audio> (для выбора устройства
-// вывода через setSinkId). Плюс скрытый muted <audio> с исходным потоком —
-// обходим баг Chromium, когда createMediaStreamSource от удалённого WebRTC молчит.
+// Проигрывание удалённого аудио — двумя путями.
+//
+// Обычный случай (громкость до 100%, не 3D-комната): поток играет прямо в
+// <audio>. Тогда звук идёт через аудиосервис Chromium, у которого поток
+// вывода с приоритетом реального времени (MMCSS), и не зависит от загрузки
+// рендерера. Раньше каждый собеседник шёл через WebAudio в самом рендерере:
+// когда игра забирала процессор, поток WebAudio не успевал считать кадры, и
+// собеседники хрипели и пропадали.
+//
+// WebAudio включается только там, где без него нельзя: усиление выше 100%
+// (<audio>.volume ограничен 1.0) и панорама в 3D-комнате. Граф:
+// stream → [PannerNode] → GainNode → MediaStreamDestination → <audio> (ради
+// setSinkId). Плюс скрытый muted <audio> с исходным потоком — обходим баг
+// Chromium, когда createMediaStreamSource от удалённого WebRTC молчит.
 const RemoteAudioElement: React.FC<{
     stream: MediaStream; muted: boolean; volume: number; sinkId?: string; userId: string;
 }> = ({ stream, muted, volume, sinkId, userId }) => {
     const ref = useRef<HTMLAudioElement>(null);
     const ctxRef = useRef<AudioContext | null>(null);
     const gainRef = useRef<GainNode | null>(null);
-    const keepAliveRef = useRef<HTMLAudioElement | null>(null);
+    const [spatial, setSpatial] = useState(false);
+    useEffect(() => subscribeRouting(setSpatial), []);
+    const useWebAudio = spatial || volume > 1;
+
+    // Актуальная громкость для построения графа, без пересборки на каждый шаг ползунка.
+    const levelRef = useRef(0);
+    levelRef.current = muted ? 0 : Math.min(Math.max(volume, 0), 5);
 
     useEffect(() => {
         const el = ref.current;
         if (!el || !stream) return;
+
+        const tryPlay = () => el.play().catch(() => {
+            const retry = () => { resumePlayback(); el.play().catch(() => {}); document.removeEventListener('click', retry); };
+            document.addEventListener('click', retry, { once: true });
+        });
+
+        if (!useWebAudio) {
+            el.srcObject = stream;
+            el.volume = Math.min(levelRef.current, 1);
+            tryPlay();
+            return () => { try { el.srcObject = null; } catch { } };
+        }
+
         // Контекст общий на всех собеседников — см. getPlaybackContext.
         // Свой на каждого означал бы свой AudioListener у каждого, упирался бы
         // в лимит браузера на число контекстов и держал бы по отдельной свёртке
@@ -493,71 +528,56 @@ const RemoteAudioElement: React.FC<{
         keepAlive.srcObject = stream;
         keepAlive.muted = true;
         keepAlive.play().catch(() => {});
-        keepAliveRef.current = keepAlive;
 
         const source = ctx.createMediaStreamSource(stream);
-        const panner = ctx.createPanner();
         const gain = ctx.createGain();
         const dest = ctx.createMediaStreamDestination();
+        gain.gain.value = levelRef.current;
         gain.connect(dest);
         gainRef.current = gain;
-        registerPanner(userId, panner);
 
-        /**
-         * Панорамирование включаем в цепочку ТОЛЬКО в 3D-комнате.
-         *
-         * HRTF считает свёртку с импульсными характеристиками — это дорого, а в
-         * обычном голосовом канале бесполезно: координаты туда не приходят, все
-         * источники стоят в точке слушателя. Свёртка идёт на каждого участника
-         * отдельно, поэтому в многолюдном канале постоянно включённый узел
-         * заметен, даже когда все звучат из одной точки.
-         *
-         * Неподключённый PannerNode ничего не стоит, поэтому создаём его сразу,
-         * а в цепочку вставляем по флагу.
-         */
-        const applyRouting = (spatial: boolean) => {
-            try { source.disconnect(); } catch { }
-            try { panner.disconnect(); } catch { }
-            if (spatial) {
-                source.connect(panner);
-                panner.connect(gain);
-            } else {
-                source.connect(gain);
-            }
-        };
-        const unsubscribeRouting = subscribeRouting(applyRouting);
+        // HRTF считает свёртку на каждого участника — только в 3D-комнате.
+        let panner: PannerNode | null = null;
+        if (spatial) {
+            panner = ctx.createPanner();
+            registerPanner(userId, panner);
+            source.connect(panner);
+            panner.connect(gain);
+        } else {
+            source.connect(gain);
+        }
 
         el.srcObject = dest.stream;
+        el.volume = 1;
         resumePlayback();
-        const tryPlay = () => el.play().catch(() => {
-            const retry = () => { resumePlayback(); el.play().catch(() => {}); document.removeEventListener('click', retry); };
-            document.addEventListener('click', retry, { once: true });
-        });
         tryPlay();
 
         return () => {
-            unsubscribeRouting();
-            unregisterPanner(userId);
-            try { source.disconnect(); panner.disconnect(); gain.disconnect(); dest.disconnect(); } catch {}
+            if (panner) unregisterPanner(userId);
+            try { source.disconnect(); panner?.disconnect(); gain.disconnect(); dest.disconnect(); } catch {}
             try { keepAlive.pause(); keepAlive.srcObject = null; } catch {}
+            try { el.srcObject = null; } catch {}
             gainRef.current = null;
+            ctxRef.current = null;
             // Контекст НЕ закрываем: он общий, закрытие оборвало бы звук
             // остальным участникам. Достаточно отсоединить свои узлы —
             // без связей они собираются сборщиком мусора.
         };
-    }, [stream, userId]);
+    }, [stream, userId, useWebAudio, spatial]);
 
-    // Усиление: gain 0..2+ (muted → 0). Верхний предел с запасом, чтобы не «резать» 200%.
-    // Ведём параметр плавно: присваивание .value меняет громкость мгновенно, и
-    // на заглушении собеседника был слышен щелчок.
+    // Громкость. В WebAudio ведём параметр плавно: присваивание .value меняет
+    // громкость мгновенно, и на заглушении собеседника был слышен щелчок.
     useEffect(() => {
+        const target = levelRef.current;
         const gain = gainRef.current;
         const ctx = ctxRef.current;
-        if (!gain) return;
-        const target = muted ? 0 : Math.min(Math.max(volume, 0), 5);
-        if (ctx) gain.gain.setTargetAtTime(target, ctx.currentTime, 0.015);
-        else gain.gain.value = target;
-    }, [muted, volume]);
+        if (gain) {
+            if (ctx) gain.gain.setTargetAtTime(target, ctx.currentTime, 0.015);
+            else gain.gain.value = target;
+        } else if (ref.current) {
+            ref.current.volume = Math.min(target, 1);
+        }
+    }, [muted, volume, useWebAudio]);
 
     useEffect(() => {
         const el = ref.current as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
@@ -868,7 +888,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         // Фоновый интервал для гарантированного обнаружения подключённых устройств
         // на случай, если Chromium в Windows пропустил событие devicechange
-        const interval = setInterval(refreshDevices, 3000);
+        // В скрытом окне не опрашиваем: devicechange всё равно придёт, а при
+        // возвращении окна список обновит handleVisibility.
+        const interval = setInterval(() => { if (!document.hidden) refreshDevices(); }, 3000);
 
         return () => {
             timers.forEach(clearTimeout);

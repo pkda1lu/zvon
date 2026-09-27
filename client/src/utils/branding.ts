@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 
 export interface AppIconOption {
     id: string;
@@ -237,8 +238,10 @@ export const fetchAndApplyBranding = async () => {
     if (typeof window === 'undefined') return;
     try {
         const [currentRes, publicRes] = await Promise.all([
-            fetch('/api/branding/current').then(r => r.ok ? r.json() : null).catch(() => null),
-            fetch('/api/branding/public').then(r => r.ok ? r.json() : null).catch(() => null)
+            // Через axios: у него baseURL на сервер (AuthContext). Относительный
+            // fetch в десктоп-клиенте уходил на app://index.html/api/... и падал.
+            axios.get('/api/branding/current').then(r => r.data).catch(() => null),
+            axios.get('/api/branding/public').then(r => r.data).catch(() => null)
         ]);
 
         if (Array.isArray(publicRes)) {

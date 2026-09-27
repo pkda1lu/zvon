@@ -598,8 +598,10 @@ io.on('connection', (socket) => {
       if (server) {
         const voiceStates = {};
         for (const ch of server.channels) if (ch.type === 'voice' || ch.type === 'room') voiceStates[ch._id] = await getVoiceChannelUsers(ch._id);
+        // Только тому, кто открыл сервер: остальные и так получают точечные
+        // voice-channel-users-update. Рассылка всем заменяла у каждого клиента
+        // всё дерево голосовых каналов при каждом заходе кого-то на сервер.
         socket.emit('server-voice-states', voiceStates);
-        io.to(`server-${serverId}`).emit('server-voice-states', voiceStates);
       }
     } catch (err) { }
   });

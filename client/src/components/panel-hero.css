@@ -34,23 +34,27 @@
 .panel-hero-bg .blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(60px);
+  /* Мягкость — самим градиентом, без filter: blur(60px). Размытый слой
+     компоновщик размывал заново на КАЖДОМ кадре, и любая мелкая анимация на
+     экране (пульс голосового канала, спиннер, «печатает…») стоила почти ядро
+     процессора в GPU-процессе. Размеры больше прежних на радиус того блюра. */
+  filter: none;
   opacity: 0.35;
   will-change: transform;
   animation: panelHeroBlobFloat 28s ease-in-out infinite;
 }
 .panel-hero-bg .blob.cyan {
-  width: 320px; height: 320px; top: -12%; left: -12%;
-  background: radial-gradient(circle, rgba(0, 242, 255, 0.65), transparent 65%);
+  width: 440px; height: 440px; top: calc(-12% - 60px); left: calc(-12% - 60px);
+  background: radial-gradient(circle closest-side, rgba(0, 242, 255, 0.5), rgba(0, 242, 255, 0.22) 45%, rgba(0, 242, 255, 0.06) 75%, transparent);
 }
 .panel-hero-bg .blob.purple {
-  width: 360px; height: 360px; bottom: -15%; right: -12%;
-  background: radial-gradient(circle, rgba(112, 0, 255, 0.65), transparent 65%);
+  width: 480px; height: 480px; bottom: calc(-15% - 60px); right: calc(-12% - 60px);
+  background: radial-gradient(circle closest-side, rgba(112, 0, 255, 0.5), rgba(112, 0, 255, 0.22) 45%, rgba(112, 0, 255, 0.06) 75%, transparent);
   animation-delay: -9s; animation-duration: 32s;
 }
 .panel-hero-bg .blob.pink {
-  width: 220px; height: 220px; top: 40%; right: 30%;
-  background: radial-gradient(circle, rgba(255, 0, 200, 0.35), transparent 65%);
+  width: 340px; height: 340px; top: calc(40% - 60px); right: calc(30% - 60px);
+  background: radial-gradient(circle closest-side, rgba(255, 0, 200, 0.28), rgba(255, 0, 200, 0.12) 45%, rgba(255, 0, 200, 0.03) 75%, transparent);
   animation-delay: -16s; animation-duration: 36s;
 }
 

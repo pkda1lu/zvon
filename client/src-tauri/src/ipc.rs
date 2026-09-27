@@ -118,8 +118,19 @@ pub async fn ipc_send(app: AppHandle, channel: String, args: Vec<Value>) {
         "voice-state-sync" => {
             if let Ok(v) = serde_json::from_value::<VoiceState>(arg(&args, 0)) {
                 tray::update_voice(&app, v);
+                crate::power::refresh(&app);
             }
         }
+        "call-active" => {
+            let active = arg(&args, 0).as_bool().unwrap_or(false);
+            state.call_active.store(active, std::sync::atomic::Ordering::Relaxed);
+            crate::power::refresh(&app);
+        }
+        "minimize-to-tray" => {
+            if let Some(w) = main_window(&app) { let _ = w.hide(); }
+            crate::power::refresh(&app);
+        }
+        "close-window" => { if let Some(w) = main_window(&app) { let _ = w.close(); } }
         "show-native-notification" => {
             let n = arg(&args, 0);
             use tauri_plugin_notification::NotificationExt;
@@ -158,7 +169,7 @@ pub async fn ipc_send(app: AppHandle, channel: String, args: Vec<Value>) {
         "update-overlay-config" => overlay::set_config(&app, arg(&args, 0)),
         "stop-audio-capture" => app.state::<Capture>().stop(),
         // Каналы, которые интерфейс шлёт, но и в Electron их никто не слушал.
-        "set-hardware-acceleration" | "close-window" | "minimize-to-tray" => {}
+        "set-hardware-acceleration" => {}
         other => log::debug!("[ipc] нет обработчика для '{other}'"),
     }
 }

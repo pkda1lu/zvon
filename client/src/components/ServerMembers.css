@@ -57,7 +57,7 @@
     gap: calc(12px * var(--interface-scale, 1));
     padding: calc(14px * var(--interface-scale, 1)) calc(16px * var(--interface-scale, 1));
     border-radius: calc(14px * var(--interface-scale, 1));
-    backdrop-filter: blur(20px) saturate(160%);
+    /* Без backdrop-filter — см. .channel-item в ServerSidebar.css. */
     transition: background 0.4s ease;
 }
 
@@ -94,7 +94,7 @@
     margin: calc(4px * var(--interface-scale, 1)) 0;
     background: rgba(255, 255, 255, 0.025);
     border: 1px solid transparent;
-    backdrop-filter: blur(20px);
+    /* Без backdrop-filter — см. .channel-item в ServerSidebar.css. */
 }
 
 .member-item:hover {

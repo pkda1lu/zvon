@@ -147,6 +147,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, setUserVolume, localMutes, toggleLocalMute, isDeafened: isGlobalDeafened } = useVoice();
   const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -187,6 +188,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const notificationSentRef = useRef(false);
   const mountedAtRef = useRef<number>(Date.now());
   const hasJoinedRoomRef = useRef(false);
+
+  // Пока окно звонка открыто (включая вызов), главный процесс держит режим
+  // голоса: повышенный приоритет и без троттлинга Windows (power.rs).
+  useEffect(() => {
+    const ipc = (window as any).electron?.ipc;
+    ipc?.send('call-active', true);
+    return () => ipc?.send('call-active', false);
+  }, []);
 
   const fetchMetadata = useCallback(async (userId: string) => {
     if (participantsMetadata.has(userId)) return;
@@ -499,6 +508,24 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           const id = publication.track?.mediaStreamTrack?.id;
           if (id && publication.kind === Track.Kind.Video) setMutedVideoIds(prev => { const n = new Set(prev); n.delete(id); return n; });
         })
+        // Потеря связи с LiveKit. Раньше не обрабатывалась: при обрыве звонок
+        // молча оставался «В эфире», хотя собеседники уже не слышали друг друга.
+        .on(RoomEvent.Reconnecting, () => {
+          console.warn('[DM Voice] связь потеряна, переподключение');
+          setIsReconnecting(true);
+        })
+        .on(RoomEvent.Reconnected, () => {
+          console.log('[DM Voice] переподключено');
+          setIsReconnecting(false);
+        })
+        .on(RoomEvent.Disconnected, (reason) => {
+          // Своё завершение (endCall → cleanupStreams) уже обнулило roomRef.
+          if (roomRef.current !== room) return;
+          console.warn('[DM Voice] комната закрыта, причина:', reason);
+          roomRef.current = null;
+          setIsReconnecting(false);
+          endCallRef.current();
+        })
         .on(RoomEvent.LocalTrackPublished, () => syncLocalStream())
         .on(RoomEvent.LocalTrackUnpublished, () => syncLocalStream());
 
@@ -561,6 +588,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     }
     setIsCallActive(false); onEndCall();
   };
+  // Обработчики комнаты вешаются один раз при входе — берут свежий endCall отсюда.
+  const endCallRef = useRef(endCall);
+  endCallRef.current = endCall;
 
   const cleanupStreams = () => {
     if (roomRef.current) { roomRef.current.disconnect(); roomRef.current = null; }
@@ -590,6 +620,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       setIsScreenSharing(false);
       soundManager.play(SOUNDS.SCREENSHARE_OFF, 0.4);
       if (roomRef.current) await roomRef.current.localParticipant.setScreenShareEnabled(false);
+      // Трек публиковался из своего потока (publishTrack), и снятие публикации
+      // его не останавливает — захват экрана продолжал работать вхолостую.
+      screenStream?.getTracks().forEach(t => t.stop());
+      setScreenStream(null);
     } else if (roomRef.current && (sourceId || !isElectron)) {
       try {
         const frameRate = parseInt(options?.frameRate || '30', 10);
@@ -789,7 +823,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             {!isGroup && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={16} />}
           </div>
         </div>
-        <div className="call-duration">{isCallActive ? 'В эфире' : 'Подключение...'}</div>
+        <div className="call-duration">{isCallActive ? (isReconnecting ? 'Переподключение...' : 'В эфире') : 'Подключение...'}</div>
       </header>
 
       <main className="call-main">
@@ -821,11 +855,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                   />
                 ) : (
                   <div className="participant-placeholder">
+                    {/* Имя и значок — только в подписи плитки (.participant-label):
+                        второй экземпляр под аватаркой в маленьком окне наезжал на неё. */}
                     <UserAvatar user={userMeta || (p.isMe ? user : null)} size={allParticipants.length > 2 ? 80 : 120} animate={isSpeaking} />
-                    <div className="participant-placeholder-name">
-                      <span>{userMeta?.username || 'Загрузка...'}</span>
-                      {userMeta && <UserBadges badges={userMeta.badges} serverTag={resolveServerTag(userMeta)} size={16} />}
-                    </div>
                   </div>
                 )}
                 {screenShare && hasLiveVideo(screenShare) && (
@@ -867,7 +899,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                   </button>
                 )}
                 <div className="participant-label">
-                  {userMeta?.username || p.identity} {p.isMe && '(Вы)'}
+                  <span className="participant-label-name">{userMeta?.username || p.identity}{p.isMe && ' (Вы)'}</span>
                   {userMeta && <UserBadges badges={userMeta.badges} serverTag={resolveServerTag(userMeta)} size={12} />}
                 </div>
               </motion.div>

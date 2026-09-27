@@ -127,7 +127,12 @@ const useIdleAnimationPause = () => {
 
     // Окно вне поля зрения — гасим немедленно, не дожидаясь таймаута.
     const windowHidden = () => document.hidden || !document.hasFocus();
-    const evaluate = () => apply(windowHidden() || Date.now() - lastInput >= IDLE_AFTER_MS);
+    // Окно скрыто совсем (свёрнуто, в трее) — останавливаем ВСЕ анимации,
+    // не только декоративные: .app-hidden, см. App.css.
+    const evaluate = () => {
+      root.classList.toggle('app-hidden', document.hidden);
+      apply(windowHidden() || Date.now() - lastInput >= IDLE_AFTER_MS);
+    };
 
     // Обработчик ввода должен быть максимально дешёвым: он срабатывает на
     // каждое движение мыши, поэтому в общем случае это одна запись в переменную.
@@ -153,7 +158,7 @@ const useIdleAnimationPause = () => {
       window.removeEventListener('focus', onInput);
       window.removeEventListener('blur', evaluate);
       window.clearInterval(poll);
-      root.classList.remove('app-idle');
+      root.classList.remove('app-idle', 'app-hidden');
     };
   }, []);
 };

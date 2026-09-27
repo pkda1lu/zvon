@@ -10,6 +10,7 @@ mod migrate;
 mod netfilter;
 mod overlay;
 mod permissions;
+mod power;
 mod settings;
 mod state;
 mod tray;
@@ -53,6 +54,7 @@ pub fn on_main_loaded(window: &tauri::WebviewWindow, event: PageLoadEvent) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+    power::refresh(app);
     app.state::<AppState>().scan_now();
 }
 
@@ -65,6 +67,7 @@ fn on_main_event(window: &tauri::Window, event: &WindowEvent) {
             if !state.quitting.load(Ordering::Relaxed) && close_to_tray {
                 api.prevent_close();
                 let _ = window.hide();
+                power::refresh(app);
             }
         }
         WindowEvent::Resized(_) => {
@@ -72,13 +75,16 @@ fn on_main_event(window: &tauri::Window, event: &WindowEvent) {
                 if state.settings.lock().minimize_to_tray {
                     let _ = window.hide();
                 }
+                power::refresh(app);
                 return;
             }
+            power::refresh(app);
             let maximized = window.is_maximized().unwrap_or(false);
             if state.was_maximized.swap(maximized, Ordering::Relaxed) != maximized {
                 let _ = app.emit_to("main", "window-maximized", maximized);
             }
         }
+        WindowEvent::Focused(_) => power::refresh(app),
         // Основное окно закрыто по-настоящему — завершаемся, даже если
         // скрытый оверлей ещё существует.
         WindowEvent::Destroyed => app.exit(0),
@@ -167,6 +173,7 @@ pub fn run() {
                 updater::start(&handle);
             }
 
+            tauri::async_runtime::spawn(power::run());
             tauri::async_runtime::spawn(activity::run(handle));
             Ok(())
         })

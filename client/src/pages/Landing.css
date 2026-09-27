@@ -369,8 +369,9 @@
     display: block;
 }
 
-/* Floating Blobs */
-.blob {
+/* Floating Blobs. Имена с префиксом: глобальный .blob задевал фоновые пятна
+   панелей (panel-hero.css) во всём приложении и вешал на них blur(100px). */
+.landing-blob {
     position: absolute;
     width: 600px;
     height: 600px;
@@ -380,14 +381,14 @@
     opacity: 0.2;
 }
 
-.blob-1 {
+.landing-blob-1 {
     background: var(--landing-primary);
     top: -100px;
     right: -200px;
     animation: float 20s infinite alternate;
 }
 
-.blob-2 {
+.landing-blob-2 {
     background: var(--landing-accent);
     bottom: -200px;
     left: -200px;

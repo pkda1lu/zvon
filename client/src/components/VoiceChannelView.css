@@ -101,7 +101,7 @@
   border-radius: 50%;
   border: 2px solid #23a559;
   transform-origin: center;
-  animation: voicePulse 2s infinite;
+  animation: voicePulse 2s steps(30) infinite;
   z-index: 1;
 }
 
@@ -407,13 +407,14 @@
   opacity: 0.6;
   z-index: 0;
   transition: opacity 0.5s, transform 0.5s;
-  will-change: opacity, filter, transform;
-  transform: translateZ(0);
+  /* Не выносим в отдельный слой (will-change/translateZ): у слоя фильтр
+     применяет компоновщик на каждом кадре, а без него размытие растрируется
+     один раз и дальше берётся из кэша. */
 }
 
 .p-card:hover .p-bg {
   opacity: 0.8;
-  transform: scale(1.1) translateZ(0);
+  transform: scale(1.1);
 }
 
 /* Avatar Section */
@@ -491,7 +492,7 @@
 .badge-live {
   background: #ff3b30;
   color: #fff;
-  animation: pulseRed 2s infinite;
+  animation: pulseRed 2s steps(30) infinite;
 }
 
 @keyframes pulseRed {
