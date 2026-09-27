@@ -1,6 +1,6 @@
 //! Первый запуск после перехода с Electron.
 //!
-//! Переходный релиз на Electron (2.9.0, public/transition.js) перед установкой
+//! Переходный релиз на Electron (2.9.x, public/transition.js) перед установкой
 //! этой версии выгружает localStorage интерфейса — токен входа, настройки
 //! звука, клавиш, внешнего вида — в %APPDATA%\zvon-client\zvon-migration.json
 //! (папка данных Electron называется по имени пакета).

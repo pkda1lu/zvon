@@ -49,13 +49,13 @@ Electron. Интерфейс не менялся: это тот же React-ба�
 Установленные клиенты на Electron умеют читать только `latest.yml`. Цепочка:
 
 ```
-Electron ≤ 2.8.x ──latest.yml──▶ Electron 2.9.0 (переходная) ──latest.json──▶ Tauri 3.x
+Electron ≤ 2.8.x ──latest.yml──▶ Electron 2.9.1 (переходная) ──latest.json──▶ Tauri 3.x
 ```
 
-1. Старый клиент видит в `latest.yml` версию **2.9.0** и обновляется до неё
+1. Старый клиент видит в `latest.yml` версию **2.9.1** и обновляется до неё
    обычным путём (для установки «для всех пользователей» — с запросом UAC, как
    и всегда).
-2. 2.9.0 при запуске (`client/public/transition.js`):
+2. 2.9.1 при запуске (`client/public/transition.js`):
    - выгружает localStorage интерфейса (вход, настройки звука, клавиши…) в
      `%APPDATA%\zvon-client\zvon-migration.json`;
    - читает `latest.json`, скачивает установщик новой версии и проверяет
@@ -76,7 +76,7 @@ Electron ≤ 2.8.x ──latest.yml──▶ Electron 2.9.0 (переходна�
 
 ### Правило для всех будущих релизов
 
-**В каждом релизе должны лежать `latest.yml` и `Zvon-Setup-2.9.0.exe`.**
+**В каждом релизе должны лежать `latest.yml` и `Zvon-Setup-2.9.1.exe`.**
 Клиент, не запускавшийся со времён Electron, читает `latest.yml` последнего
 релиза; если его там нет, он не обновится никогда. Скрипт
 `release-assets.mjs` кладёт их автоматически.
@@ -95,7 +95,7 @@ npm run tauri:build
 
 # 2. Переходная версия — один раз; результат хранится в release-transition/
 npm run electron:build:transition
-mkdir -p release-transition && cp dist/Zvon-Setup-2.9.0.exe* dist/latest.yml release-transition/
+mkdir -p release-transition && cp dist/Zvon-Setup-2.9.1.exe* dist/latest.yml release-transition/
 
 # 3. Файлы релиза
 npm run release:assets        # → release/v<версия>/
@@ -114,7 +114,7 @@ gh release create v<версия> release/v<версия>/* --title <верси�
    добавлен origin `http://tauri.localhost`.
 2. **Релиз v3.0.0** со всеми файлами из `release/v3.0.0/`.
 3. Проверить на чистой машине (виртуалке) с установленной 2.8.x: обновление
-   до 2.9.0 → переход → Tauri открылся вошедшим, в «Программах и компонентах»
+   до 2.9.1 → переход → Tauri открылся вошедшим, в «Программах и компонентах»
    один Zvon, ярлыки ведут на новую версию, `zvon://` открывает её.
 
 ### Ключ подписи
