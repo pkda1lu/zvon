@@ -134,7 +134,9 @@ const INSTALL_SCRIPT = String.raw`
 param([int]$ElectronPid, [string]$Setup, [string]$OldDir, [string]$Log)
 $ErrorActionPreference = 'Continue'
 function Say($m) { Add-Content -Path $Log -Value ("{0:u} {1}" -f (Get-Date), $m) -Encoding UTF8 }
-function OldProcs { Get-CimInstance Win32_Process -Filter "Name='Zvon.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($OldDir, [StringComparison]::OrdinalIgnoreCase) } }
+# Вместе с Zvon.exe — sing-box.exe туннеля: переживший приложение, он держит файлы
+# в папке установки и не даёт деинсталлятору их удалить.
+function OldProcs { Get-CimInstance Win32_Process -Filter "Name='Zvon.exe' OR Name='sing-box.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($OldDir, [StringComparison]::OrdinalIgnoreCase) } }
 
 Say "переход: старт, Electron pid $ElectronPid, каталог $OldDir"
 

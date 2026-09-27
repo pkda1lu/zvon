@@ -351,13 +351,16 @@ async function start({ uri, country, title, locale } = {}) {
 }
 
 async function stop() {
-    clearFramePreload();
-    clearHeaders();
-    await removePac();
+    // Процесс гасим первым и синхронно: на выходе из приложения (before-quit)
+    // до кода после await дело может не дойти, и осиротевший sing-box.exe
+    // держит файлы в папке установки — обновление не может их заменить.
     if (proc) {
         try { proc.kill(); } catch { /* уже мёртв */ }
         proc = null;
     }
+    clearFramePreload();
+    clearHeaders();
+    await removePac();
     state = { running: false, country: null, title: null, port: 0 };
     return { ok: true };
 }
