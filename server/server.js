@@ -394,7 +394,7 @@ const resetVoiceFlags = (socket) => {
  */
 const VOICE_GRACE_MS = 15000;
 const pendingVoiceLeaves = new Map(); // userId -> { channelId, timer, finish }
-const pendingDmLeaves = new Map();    // `${userId}:${dmId}` -> { timer }
+const pendingDmLeaves = new Map();    // `${userId}:${dmId}` -> { timer, finish }
 
 /** Кто сейчас в звонке переписки (по сокетам в комнате dm-call-<id>). */
 const dmCallUserIds = (dmId) => {
@@ -562,30 +562,83 @@ async function finalizeVoiceSession(socket, channelId, dmId = null) {
   }
 }
 
-// Как в Discord: когда пользователь заходит в голосовой канал с нового устройства,
-// все его прочие сессии, находящиеся в голосовом канале, принудительно отключаются.
-// Иначе на LiveKit возникает конфликт identity (одинаковый userId) — старое
-// соединение рвётся, а в списке участников появляется дубликат.
-const disconnectOtherVoiceSessions = async (userId, exceptSocketId) => {
-  const connections = io.sockets.adapter.rooms.get(`user-${String(userId)}`);
+/*
+ * Голос у пользователя один на все устройства, как в Discord: вошёл в голосовой
+ * канал или в звонок с одного устройства — прочие его сессии (голосовые каналы
+ * и звонки в переписках) закрываются. Раньше закрывались только голосовые
+ * каналы и только при входе в канал: звонок с телефона оставлял ПК сидеть в
+ * канале сервера, а на LiveKit в одном и том же звонке возникал конфликт
+ * identity (одинаковый userId).
+ *
+ * target — куда пользователь входит сейчас: { channelId } или { dmId }. Если
+ * другое устройство уже в этом же звонке, для собеседников это не выход, а
+ * переезд звонка: dm-call-user-left им не шлём, иначе личный звонок у них
+ * завершится.
+ */
+const disconnectOtherVoiceSessions = async (userId, exceptSocketId, target = {}) => {
+  const uid = String(userId);
+  const targetDmId = target.dmId ? String(target.dmId) : null;
+  const targetChannelId = target.channelId ? String(target.channelId) : null;
+
+  // Устройство, чей сокет оборвался и ещё не вернулся, тоже числится в голосе:
+  // его отложенный выход завершаем сразу.
+  for (const [key, pending] of Array.from(pendingDmLeaves.entries())) {
+    if (!key.startsWith(uid + ':') || (targetDmId && key === `${uid}:${targetDmId}`)) continue;
+    clearTimeout(pending.timer);
+    pending.finish();
+  }
+  const pendingVoice = pendingVoiceLeaves.get(uid);
+  if (pendingVoice && pendingVoice.channelId !== targetChannelId) {
+    clearTimeout(pendingVoice.timer);
+    pendingVoice.finish();
+  }
+
+  const connections = io.sockets.adapter.rooms.get(`user-${uid}`);
   if (!connections) return;
   for (const sid of Array.from(connections)) {
     if (sid === exceptSocketId) continue;
     const s = io.sockets.sockets.get(sid);
-    if (!s || !s.voiceChannelId) continue;
-    const oldChannelId = s.voiceChannelId;
-    finalizeVoiceSession(s, oldChannelId);
-    cleanupUserPresencesInChannel('channel-' + oldChannelId, userId, io);
-    endWatchIfHost(oldChannelId, userId, io);
-    s.emit('force-disconnect-voice', { reason: 'other-device' });
-    s.leave(`voice-channel-${oldChannelId}`);
-    s.voiceChannelId = null;
-    resetVoiceFlags(s);
-    io.to(`voice-channel-${oldChannelId}`).emit('voice-user-left', { userId: String(userId) });
-    removeRoomPosition(oldChannelId, userId);
-    io.to(`voice-channel-${oldChannelId}`).emit('room-position-removed', { channelId: oldChannelId, userId: String(userId) });
-    await notifyVoiceChannelUpdate(oldChannelId);
+    if (!s) continue;
+    if (s.voiceChannelId) {
+      const oldChannelId = s.voiceChannelId;
+      finalizeVoiceSession(s, oldChannelId);
+      cleanupUserPresencesInChannel('channel-' + oldChannelId, userId, io);
+      endWatchIfHost(oldChannelId, userId, io);
+      s.emit('force-disconnect-voice', { reason: 'other-device' });
+      s.leave(`voice-channel-${oldChannelId}`);
+      s.voiceChannelId = null;
+      resetVoiceFlags(s);
+      io.to(`voice-channel-${oldChannelId}`).emit('voice-user-left', { userId: uid });
+      removeRoomPosition(oldChannelId, userId);
+      io.to(`voice-channel-${oldChannelId}`).emit('room-position-removed', { channelId: oldChannelId, userId: uid });
+      await notifyVoiceChannelUpdate(oldChannelId);
+    }
+    if (s.dmCallId) {
+      const oldDmId = String(s.dmCallId);
+      const sameCall = oldDmId === targetDmId;
+      finalizeVoiceSession(s, null, oldDmId);
+      cleanupUserPresencesInChannel('call-' + oldDmId, userId, io);
+      s.leave(`dm-call-${oldDmId}`);
+      s.dmCallId = null;
+      s.emit('force-end-dm-call', { dmId: oldDmId, reason: 'other-device', sameCall });
+      if (!sameCall) {
+        io.to(`dm-call-${oldDmId}`).emit('dm-call-user-left', { userId: uid });
+        broadcastDmCallState(oldDmId);
+      }
+    }
   }
+};
+
+/** Сидит ли пользователь в голосе (канал или звонок) с другого живого сокета. */
+const hasOtherLiveVoiceSession = (userId, exceptSocketId) => {
+  const connections = io.sockets.adapter.rooms.get(`user-${String(userId)}`);
+  if (!connections) return false;
+  for (const sid of connections) {
+    if (sid === exceptSocketId) continue;
+    const s = io.sockets.sockets.get(sid);
+    if (s && s.connected && (s.voiceChannelId || s.dmCallId)) return true;
+  }
+  return false;
 };
 
 app.set('io', io);
@@ -1279,12 +1332,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join-dm-call', (data) => {
-    console.log(`[Call] User ${socket.userId} joined DM room ${data.dmId}`);
-    // Возвращение в звонок после обрыва сокета — сессия продолжается.
+  socket.on('join-dm-call', async (data) => {
+    if (!data?.dmId) return;
     const pendingKey = `${socket.userId}:${data.dmId}`;
     const pendingDm = pendingDmLeaves.get(pendingKey);
+    /*
+     * resume — устройство возвращается в звонок после обрыва своего сокета.
+     * Если за это время человек зашёл в голос с другого устройства, возвращать
+     * звонок сюда нельзя: иначе проснувшийся телефон отбирал бы голос у ПК.
+     */
+    if (data.resume && hasOtherLiveVoiceSession(socket.userId, socket.id)) {
+      if (pendingDm) { clearTimeout(pendingDm.timer); pendingDm.finish(); }
+      socket.emit('force-end-dm-call', { dmId: String(data.dmId), reason: 'other-device', sameCall: false });
+      return;
+    }
+    console.log(`[Call] User ${socket.userId} joined DM room ${data.dmId}`);
+    // Возвращение в звонок после обрыва сокета — сессия продолжается.
     if (pendingDm) { clearTimeout(pendingDm.timer); pendingDmLeaves.delete(pendingKey); }
+    await disconnectOtherVoiceSessions(socket.userId, socket.id, { dmId: data.dmId });
     socket.join(`dm-call-${data.dmId}`);
     socket.dmCallId = data.dmId;
     const requestedJoinedAt = Number(data?.joinedVoiceAt);
@@ -1325,6 +1390,16 @@ io.on('connection', (socket) => {
 
   socket.on('leave-dm-call', (data) => {
     const dmId = data?.dmId || socket.dmCallId;
+    // Сокет уже не в этом звонке (звонок переехал на другое устройство) —
+    // запоздалый выход не должен объявлять собеседникам, что человек ушёл.
+    // Если же это сокет после переподключения, не успевший вернуться в звонок,
+    // отложенный выход прежнего сокета завершаем сразу.
+    if (dmId && !socket.rooms.has(`dm-call-${dmId}`)) {
+      const pending = pendingDmLeaves.get(`${socket.userId}:${dmId}`);
+      if (pending) { clearTimeout(pending.timer); pending.finish(); }
+      if (String(socket.dmCallId || '') === String(dmId)) socket.dmCallId = null;
+      return;
+    }
     // Обработчик один: второй такой же ниже по файлу рассылал
     // dm-call-user-left повторно, и у собеседника звонок «завершался» дважды.
     if (dmId) {
@@ -1445,6 +1520,13 @@ io.on('connection', (socket) => {
       // вернулся в другой канал — прежний выход завершаем сразу.
       const userKey = String(socket.userId);
       const pendingLeave = pendingVoiceLeaves.get(userKey);
+      // Пока сокет этого устройства лежал, человек зашёл в голос с другого —
+      // голос остаётся там, а это устройство из канала выходит.
+      if (data?.resume && hasOtherLiveVoiceSession(socket.userId, socket.id)) {
+        if (pendingLeave) { clearTimeout(pendingLeave.timer); pendingLeave.finish(); }
+        socket.emit('force-disconnect-voice', { reason: 'other-device' });
+        return;
+      }
       const returning = !!pendingLeave && pendingLeave.channelId === String(channelId);
       if (pendingLeave) {
         clearTimeout(pendingLeave.timer);
@@ -1469,7 +1551,7 @@ io.on('connection', (socket) => {
 
       // Отключаем прочие устройства этого пользователя из голосовых каналов,
       // чтобы активной осталась только новая сессия (поведение как в Discord).
-      await disconnectOtherVoiceSessions(socket.userId, socket.id);
+      await disconnectOtherVoiceSessions(socket.userId, socket.id, { channelId });
 
       const requestedJoinedAt = Number(data?.joinedVoiceAt);
       const isValidJoinedAt = requestedJoinedAt && !isNaN(requestedJoinedAt) && requestedJoinedAt > 0 && requestedJoinedAt <= (Date.now() + 5000);
@@ -1870,17 +1952,17 @@ io.on('connection', (socket) => {
       const key = `${socket.userId}:${dmId}`;
       const prev = pendingDmLeaves.get(key);
       if (prev) clearTimeout(prev.timer);
-      pendingDmLeaves.set(key, {
-        timer: setTimeout(() => {
-          pendingDmLeaves.delete(key);
-          if (userSocketInRoom(`dm-call-${dmId}`, socket.userId)) return;
-          finalizeVoiceSession(socket, null, dmId);
-          cleanupUserPresencesInChannel('call-' + dmId, socket.userId, io);
-          // Не вернулся — для остальных это выход из звонка.
-          io.to(`dm-call-${dmId}`).emit('dm-call-user-left', { userId: socket.userId });
-          broadcastDmCallState(dmId);
-        }, VOICE_GRACE_MS)
-      });
+      const finish = () => {
+        const cur = pendingDmLeaves.get(key);
+        if (cur && cur.finish === finish) pendingDmLeaves.delete(key);
+        if (userSocketInRoom(`dm-call-${dmId}`, socket.userId)) return;
+        finalizeVoiceSession(socket, null, dmId);
+        cleanupUserPresencesInChannel('call-' + dmId, socket.userId, io);
+        // Не вернулся — для остальных это выход из звонка.
+        io.to(`dm-call-${dmId}`).emit('dm-call-user-left', { userId: socket.userId });
+        broadcastDmCallState(dmId);
+      };
+      pendingDmLeaves.set(key, { finish, timer: setTimeout(finish, VOICE_GRACE_MS) });
     }
     cleanupUserPresencesEverywhere(socket.userId, io);
     const connections = io.sockets.adapter.rooms.get(`user-${String(socket.userId)}`);

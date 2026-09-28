@@ -1037,3 +1037,108 @@
   .control-circle { width: 48px; height: 48px; border-radius: 18px; }
   .end-call-circle { width: 64px; }
 }
+
+/*
+ * Телефон. Окно звонка уходило за края экрана:
+ *  - размер плиток считался от 100vh, а на телефоне это высота без панелей
+ *    браузера — плитки получались выше видимой области;
+ *  - в групповом режиме плитка была не уже 300px при полях по 40px — на
+ *    экране шириной 375px сетка вылезала вбок;
+ *  - шапка и кнопки заходили под вырез и системную панель (viewport-fit=cover).
+ * Здесь плитки считаются от фактической высоты области звонка (cqh), а поля
+ * учитывают безопасные зоны экрана.
+ */
+@media (max-width: 760px) {
+  .voice-call-full-view {
+    height: 100dvh;
+    padding-left: var(--safe-left, 0px);
+    padding-right: var(--safe-right, 0px);
+  }
+  .call-topbar { padding-top: max(16px, calc(var(--safe-top, 0px) + 8px)); gap: 10px; }
+  .call-duration { padding: 6px 12px; letter-spacing: 1px; }
+  .back-to-app-btn { width: 40px; height: 40px; }
+  .back-to-app-btn:hover { transform: none; }
+
+  .call-main,
+  .voice-call-full-view.group-mode .call-main {
+    container-type: size;
+    padding: 8px 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .video-grid { gap: 12px; }
+  .video-grid.count-1 {
+    max-width: min(100%, calc(100cqh * 16 / 9));
+  }
+  .video-grid.count-2,
+  .video-grid.count-3,
+  .video-grid.count-4 {
+    max-width: min(100%, calc((100cqh - 12px) / 2 * 16 / 9));
+  }
+  /* Группа: плитки в две колонки, если помещаются, и не шире экрана. */
+  .voice-call-full-view.group-mode .video-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+    max-width: 100%;
+  }
+  .video-grid.has-screenshare,
+  .voice-call-full-view.group-mode .video-grid.has-screenshare {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    max-width: 100%;
+  }
+  .video-grid.has-screenshare .participant-slot { height: auto; }
+  .video-grid.has-screenshare .participant-slot.sharing-screen {
+    height: auto;
+    max-height: none;
+    margin-bottom: 0;
+  }
+  .participant-slot { border-radius: 20px; }
+  .participant-slot.speaking { transform: none; }
+
+  .call-controls-bar {
+    max-width: calc(100% - 24px);
+    margin-bottom: max(16px, calc(var(--safe-bottom, 0px) + 8px));
+  }
+  .control-circle:hover { transform: none; }
+  .end-call-circle:hover { width: 64px; }
+
+  /* Входящий звонок: не шире экрана, длинное имя сжимается, а не выталкивает
+     кнопки ответа за край. */
+  .voice-call-notification {
+    top: max(12px, calc(var(--safe-top, 0px) + 8px));
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .call-controls-bar { gap: 8px; padding: 8px 12px; }
+  .control-circle { width: 44px; height: 44px; border-radius: 16px; }
+  .end-call-circle, .end-call-circle:hover { width: 56px; }
+}
+
+.notification-info { min-width: 0; }
+.notification-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.notification-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notification-name > .user-badges-container,
+.notification-name > .server-tag-preview,
+.notification-actions { flex-shrink: 0; }
+
+/* Заголовок окна звонка: ник сжимается, значок сервера остаётся целым. */
+.call-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.call-title > .user-badges-container,
+.call-title > .server-tag-preview { flex-shrink: 0; }

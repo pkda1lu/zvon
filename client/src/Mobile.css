@@ -144,6 +144,18 @@
     padding: 0 12px !important;
   }
 
+  /* На телефоне кнопок в шапке переписки четыре-пять: при прежнем отступе
+     16px между ними имени почти не оставалось места. */
+  .channel-header.dm-header {
+    gap: 2px !important;
+    padding: 0 8px !important;
+  }
+
+  .channel-header.dm-header .dm-header-info {
+    gap: 10px;
+    margin-right: 4px;
+  }
+
   .message-input-container {
     padding: 0 8px max(8px, env(safe-area-inset-bottom)) !important;
   }

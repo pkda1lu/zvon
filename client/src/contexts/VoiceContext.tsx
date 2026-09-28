@@ -1175,6 +1175,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 channelId, joinedVoiceAt: now,
                 isMuted: voiceStateRef.current.isMuted, isDeafened: voiceStateRef.current.isDeafened,
                 isScreenSharing: false, isVideoOn: false,
+                // Тихое переподключение: если за это время мы зашли в голос с
+                // другого устройства, сервер не пустит обратно, а выведет отсюда.
+                resume: rejoin,
             });
             // Микрофон после переподключения — в прежнем состоянии мьюта.
             if (rejoin && livekitTrackRef.current) {
@@ -1570,6 +1573,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     channelId: activeChannelIdRef.current,
                     joinedVoiceAt: joinedVoiceAtRef.current || Date.now(),
                     ...voiceStateRef.current,
+                    resume: true,
                 });
             }
         };
@@ -1649,7 +1653,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (!isConnectedRef.current && !roomRef.current) return;
             leaveChannel();
             if (data?.reason === 'other-device') {
-                alert('Вы подключились к голосовому каналу с другого устройства.');
+                alert('Вы подключились к голосу с другого устройства — здесь голосовой канал отключён.');
             }
         };
         socket.on('force-disconnect-voice', onForceDisconnect);

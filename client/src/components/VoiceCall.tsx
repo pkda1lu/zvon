@@ -176,7 +176,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   // Свёрнутый режим: звонок остаётся подключённым, показываем компактный
   // перетаскиваемый виджет поверх интерфейса вместо полноэкранного вида.
   const [isMinimized, setIsMinimized] = useState(false);
-  const [widgetPos, setWidgetPos] = useState({ x: window.innerWidth - 320, y: window.innerHeight - 180 });
+  // На узком экране виджет не должен начинаться за левым краем.
+  const [widgetPos, setWidgetPos] = useState({ x: Math.max(8, window.innerWidth - 320), y: Math.max(8, window.innerHeight - 180) });
   const [isDraggingWidget, setIsDraggingWidget] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
@@ -283,9 +284,19 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     // звонка на сервере. Без этого групповой звонок переставал получать
     // события о входе и выходе участников и о его завершении.
     const handleReconnect = () => {
-      if (hasJoinedRoomRef.current && !endedRef.current) socket.emit('join-dm-call', { dmId });
+      if (hasJoinedRoomRef.current && !endedRef.current) socket.emit('join-dm-call', { dmId, resume: true });
     };
     socket.io.on('reconnect', handleReconnect);
+
+    // Мы зашли в голос с другого устройства — здесь звонок заканчивается.
+    const handleForceEnd = (data: { dmId?: string; sameCall?: boolean }) => {
+      if (String(data?.dmId) !== String(dmId)) return;
+      // Ушли в другой звонок или канал, а собеседник ещё ждёт ответа на наш
+      // вызов — вызов снимаем, как при обычном завершении.
+      if (!data.sameCall && !isGroup) socket.emit('call-end', { targetUserId: otherUser._id, dmId });
+      endCallLocallyRef.current(true);
+    };
+    socket.on('force-end-dm-call', handleForceEnd);
 
     socket.on('call-offer', handleIncomingOffer);
     socket.on('call-end', handleCallEnd);
@@ -308,6 +319,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       socket.off('dm-call-user-joined', handleOtherUserJoined);
       socket.off('dm-call-existing-users', handleExistingUsers);
       socket.off('dm-call-user-left', handleUserLeft);
+      socket.off('force-end-dm-call', handleForceEnd);
       socket.io.off('reconnect', handleReconnect);
       if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       cleanupStreams();
@@ -568,7 +580,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           console.warn('[DM Voice] комната закрыта, причина:', reason);
           roomRef.current = null;
           // Кикнули или вошли в этот звонок с другого устройства — завершаем.
-          if (reason === DisconnectReason.PARTICIPANT_REMOVED || reason === DisconnectReason.DUPLICATE_IDENTITY || reason === DisconnectReason.ROOM_DELETED) {
+          if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+            // Этот же звонок взяло другое наше устройство — собеседнику звонок
+            // не завершаем.
+            setIsReconnecting(false);
+            endCallLocallyRef.current(false);
+            return;
+          }
+          if (reason === DisconnectReason.PARTICIPANT_REMOVED || reason === DisconnectReason.ROOM_DELETED) {
             setIsReconnecting(false);
             endCallRef.current();
             return;
@@ -673,6 +692,23 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   // Обработчики комнаты вешаются один раз при входе — берут свежий endCall отсюда.
   const endCallRef = useRef(endCall);
   endCallRef.current = endCall;
+
+  // Голос забрало другое наше устройство: закрываем звонок только здесь.
+  // Сервер уже вывел этот сокет из звонка, а call-end и leave-dm-call отсюда
+  // завершили бы звонок собеседнику (или объявили бы, что мы ушли).
+  const endCallLocally = (notify: boolean) => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+    hasJoinedRoomRef.current = false;
+    notificationSentRef.current = true;
+    if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+    cleanupStreams();
+    soundManager.play(SOUNDS.CALL_LEAVE, 0.4);
+    setIsCallActive(false); onEndCall();
+    if (notify) alert('Вы подключились к голосу с другого устройства — звонок здесь завершён.');
+  };
+  const endCallLocallyRef = useRef(endCallLocally);
+  endCallLocallyRef.current = endCallLocally;
 
   const cleanupStreams = () => {
     if (roomRef.current) { roomRef.current.disconnect(); roomRef.current = null; }
@@ -793,7 +829,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           </div>
           <div className="notification-info">
             <div className="notification-name">
-              {isGroup ? (dmName || 'Групповой звонок') : otherUser.username}
+              <span className="notification-name-text">{isGroup ? (dmName || 'Групповой звонок') : otherUser.username}</span>
               {!isGroup && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={14} />}
             </div>
             <div className="notification-status">Входящий звонок...</div>
@@ -903,7 +939,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           </button>
         <div className="call-topbar-center">
           <div className="call-title">
-            {isGroup ? (dmName || 'Групповой звонок') : `Звонок: ${otherUser.username}`}
+            <span className="call-title-text">{isGroup ? (dmName || 'Групповой звонок') : `Звонок: ${otherUser.username}`}</span>
             {!isGroup && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={16} />}
           </div>
           <div className="call-duration">{isCallActive ? (isReconnecting ? 'Переподключение...' : 'В эфире') : 'Подключение...'}</div>

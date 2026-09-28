@@ -70,7 +70,9 @@
   display: flex;
   align-items: center;
   gap: calc(12px * var(--interface-scale, 1));
-  flex: 1;
+  /* От размера содержимого, а не от нуля: иначе пустой разделитель справа
+     (flex: 1) забирал половину места, и ник в узкой шапке пропадал целиком. */
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -126,9 +128,39 @@
   display: flex;
   align-items: center;
   gap: calc(8px * var(--interface-scale, 1));
+  min-width: 0;
+}
+
+/* Длинный ник сжимается с многоточием, а значки, тег сервера и пометка о
+   блокировке остаются целыми. Раньше блок имени не сжимался вовсе и в узкой
+   шапке (телефон) значки налезали на кнопки звонка и поиска. */
+.dm-header-text-info {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dm-header .dm-display-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dm-display-name-row > .user-badges-container,
+.dm-display-name-row > .server-tag-preview,
+.dm-display-name-row > .dm-blocked-tag {
+  flex-shrink: 0;
+}
+
+.dm-header .header-action-btn,
+.dm-header .mobile-close-btn {
+  flex-shrink: 0;
 }
 
 .dm-status-subtext {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: calc(12px * var(--interface-scale, 1));
   color: var(--primary-neon);
   font-weight: 600;

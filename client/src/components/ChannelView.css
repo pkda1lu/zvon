@@ -60,6 +60,21 @@
   display: flex;
   align-items: center;
   gap: calc(8px * var(--interface-scale, 1));
+  /* Длинное название сжимается, а не заезжает на кнопки справа. */
+  min-width: 0;
+}
+
+.channel-header-info h3 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-header > .header-action-btn,
+.channel-header > .mobile-close-btn,
+.channel-header-info .channel-icon {
+  flex-shrink: 0;
 }
 
 .channel-icon {
