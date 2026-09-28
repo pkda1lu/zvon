@@ -261,7 +261,7 @@ const AccountSettings: React.FC = () => {
                         <h3>Электронная почта</h3>
                         <p>{shouldCensor ? 'email_hidden@hidden.com' : user?.email}</p>
                     </div>
-                    <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }} onClick={handleEmailChange} disabled={isEmailLoading || shouldCensor}>
+                    <button className="settings-btn secondary" onClick={handleEmailChange} disabled={isEmailLoading || shouldCensor}>
                         Изменить
                     </button>
                 </div>
@@ -273,7 +273,7 @@ const AccountSettings: React.FC = () => {
                         <h3>Пароль</h3>
                         <p>Обновите пароль для повышения безопасности аккаунта.</p>
                     </div>
-                    <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }} onClick={handlePasswordChange} disabled={isPasswordLoading}>
+                    <button className="settings-btn secondary" onClick={handlePasswordChange} disabled={isPasswordLoading}>
                         Сменить пароль
                     </button>
                 </div>

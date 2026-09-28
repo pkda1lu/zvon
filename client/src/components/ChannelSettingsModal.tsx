@@ -9,6 +9,7 @@ import { CloseIcon, TrashIcon, PlusIcon, LayoutGridIcon, ShieldIcon } from './Ic
 import './ChannelSettingsModal.css';
 import UserAvatar from "./UserAvatar";
 import { SettingsToggle, RangeSlider } from '../pages/settings/SettingsUI';
+import ZvSelect from './ZvSelect';
 
 interface ChannelSettingsModalProps {
     isOpen: boolean;
@@ -49,6 +50,12 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     const [mobileViewState, setMobileViewState] = useState<'tabs' | 'content'>('tabs');
     const [name, setName] = useState(channel.name);
     const [topic, setTopic] = useState(channel.topic || '');
+    // Категория — локально: выбор виден сразу, не дожидаясь перезагрузки
+    // списка серверов. Раньше поле брало значение из снимка канала на момент
+    // открытия и после выбора всё равно показывало «Без категории».
+    const channelCategoryId = channel.category ? String(typeof channel.category === 'object' ? (channel.category as any)._id : channel.category) : '';
+    const [categoryId, setCategoryId] = useState(channelCategoryId);
+    useEffect(() => { setCategoryId(channelCategoryId); }, [channel._id, channelCategoryId]);
     const [overwrites, setOverwrites] = useState<PermissionOverwrite[]>(channel.permissionOverwrites || []);
     const [loading, setLoading] = useState(false);
     const [showAddAccessDropdown, setShowAddAccessDropdown] = useState(false);
@@ -325,13 +332,13 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 
                                 <div className="settings-card">
                                     <h3 className="settings-section-title" style={{ marginTop: 0 }}>Категория</h3>
-                                    <select
+                                    <ZvSelect
                                         className="settings-input"
                                         style={{ width: '100%', cursor: 'pointer' }}
-                                        value={channel.category ? (typeof channel.category === 'object' ? channel.category._id : channel.category) : ''}
+                                        value={categoryId}
                                         onChange={(e) => {
-                                            const newCatId = e.target.value || null;
-                                            saveField({ category: newCatId as any });
+                                            setCategoryId(e.target.value);
+                                            saveField({ category: (e.target.value || null) as any });
                                         }}
                                     >
                                         <option value="">Без категории</option>
@@ -343,7 +350,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                 </option>
                                             ))
                                         }
-                                    </select>
+                                    </ZvSelect>
                                 </div>
 
                                 {channel.type === 'text' && (
@@ -383,14 +390,14 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                             value={slowAmount}
                                                             onChange={(e) => handleSlowAmountChange(parseInt(e.target.value))}
                                                         />
-                                                        <select
+                                                        <ZvSelect
                                                             className="settings-input"
                                                             style={{ flex: 1 }}
                                                             value={slowUnit}
                                                             onChange={(e) => handleSlowUnitChange(parseInt(e.target.value))}
                                                         >
                                                             {COOLDOWN_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                                                        </select>
+                                                        </ZvSelect>
                                                     </div>
                                                 </>
                                             )}

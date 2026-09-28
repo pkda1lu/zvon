@@ -37,7 +37,7 @@ export interface MessageContextMenuProps {
   server?: Server;
   onUserClick?: (userId: string, event?: React.MouseEvent) => void;
   onMention?: (username: string) => void;
-  onOpenEmojiPicker?: (pos: { x: number; y: number; msgId: string }) => void;
+  onOpenEmojiPicker?: (pos: { x: number; y: number; msgId: string; rect?: { left: number; top: number; right: number; bottom: number } }) => void;
 }
 
 const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
@@ -158,11 +158,12 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
 
   const handleOpenFullEmojiPicker = (e: React.MouseEvent) => {
     if (!isInteractive) return;
-    onOpenEmojiPicker?.({
-      x: isMobile ? window.innerWidth / 2 : e.clientX,
-      y: isMobile ? window.innerHeight / 2 : e.clientY,
-      msgId: message._id,
-    });
+    // Якорь — сама кнопка «+», а не точка клика: окно выбора встаёт рядом с
+    // меню (FloatingEmojiPicker), на телефоне — по центру экрана.
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    onOpenEmojiPicker?.(isMobile
+      ? { x: window.innerWidth / 2 - 160, y: window.innerHeight / 2 - 200, msgId: message._id }
+      : { x: r.left, y: r.bottom, msgId: message._id, rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } });
     onClose();
   };
 

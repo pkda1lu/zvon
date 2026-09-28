@@ -105,24 +105,20 @@ const PrivacySettings: React.FC = () => {
                 <p className="settings-description">Кто может найти ваш профиль в поиске друзей.</p>
                 <div style={{ marginTop: '16px' }}>
                     {/* Search findability remains single choice as it makes more sense logically */}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <div className="settings-choice-group">
                         {[
                             { value: 'everyone', label: 'Все' },
                             { value: 'friends_of_friends', label: 'Друзья друзей' },
                             { value: 'nobody', label: 'Никто' }
                         ].map(opt => (
-                            <button 
+                            <div
                                 key={opt.value}
-                                className={`settings-btn ${settings.whoCanFindInSearch === opt.value ? '' : 'settings-btn-danger'}`}
-                                style={{ 
-                                    background: settings.whoCanFindInSearch === opt.value ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)',
-                                    color: settings.whoCanFindInSearch === opt.value ? '#fff' : 'var(--text-main)',
-                                    border: 'none'
-                                }}
+                                role="button"
+                                className={`settings-choice-item ${settings.whoCanFindInSearch === opt.value ? 'active' : ''}`}
                                 onClick={() => updateSetting('whoCanFindInSearch', opt.value)}
                             >
                                 {opt.label}
-                            </button>
+                            </div>
                         ))}
                     </div>
                 </div>

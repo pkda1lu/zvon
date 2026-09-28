@@ -786,7 +786,7 @@ router.patch('/users/:id', [auth, isModerator], async (req, res) => {
 
     await user.save();
     
-    await logGlobalAction({
+    await logGlobalAction({ req,
       executorId: req.user._id,
       action: 'USER_UPDATE',
       targetId: user._id,
@@ -816,7 +816,7 @@ router.delete('/users/:id', [auth, isModerator], async (req, res) => {
       return res.status(403).json({ message: 'Нельзя удалить администратора' });
     }
 
-    await logGlobalAction({
+    await logGlobalAction({ req,
       executorId: req.user._id,
       action: 'USER_DELETE',
       targetId: user._id,
@@ -856,7 +856,7 @@ router.delete('/servers/:id', [auth, isModerator], async (req, res) => {
     const server = await Server.findById(req.params.id);
     if (!server) return res.status(404).json({ message: 'Сервер не найден' });
 
-    await logGlobalAction({
+    await logGlobalAction({ req,
       executorId: req.user._id,
       action: 'SERVER_DELETE',
       targetId: server._id,
@@ -893,7 +893,7 @@ router.post('/notify', [auth, isModerator], async (req, res) => {
       });
     }
 
-    await logGlobalAction({
+    await logGlobalAction({ req,
       executorId: req.user._id,
       action: 'MODERATION_NOTIFY',
       targetId: target._id,
@@ -960,6 +960,9 @@ router.get('/actions', [auth, isModerator], async (req, res) => {
         { 'details.name': rx },
         { 'details.serverName': rx },
         { 'details.reason': rx },
+        { 'details.targetName': rx },
+        { 'details.note': rx },
+        { 'details.meta.ip': rx },
       ];
       if (refIds.length) {
         or.push({ executor: { $in: refIds } });

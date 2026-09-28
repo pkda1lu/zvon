@@ -294,7 +294,8 @@
     background: linear-gradient(135deg, rgba(0, 242, 255, 0.12), rgba(112, 0, 255, 0.05));
 }
 
-.dm-avatar,
+.dm-item .dm-avatar,
+.dm-item .dm-avatar img,
 .dm-list-container .user-avatar-container,
 .dm-list-container .avatar-placeholder {
     border-radius: calc(12px * var(--interface-scale, 1)) !important;
@@ -557,4 +558,81 @@
 .dm-item:has(.dm-blocked-icon) .dm-name,
 .dm-item:has(.dm-blocked-icon) .dm-preview {
     opacity: 0.5;
+}
+
+/* Идёт звонок в переписке: зелёная метка с числом участников. */
+.dm-call-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: calc(11px * var(--interface-scale, 1));
+    font-weight: 800;
+    color: var(--success);
+    background: rgba(46, 213, 115, 0.12);
+}
+
+/* Пропущенный входящий звонок в превью переписки. */
+.dm-preview-text.missed-call {
+    color: var(--danger, #ff4757);
+}
+
+/* Поиск по перепискам и друзьям под вкладками. */
+.dm-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin: 0 4px 8px;
+}
+
+.dm-search-icon {
+    position: absolute;
+    left: 10px;
+    color: var(--text-dim);
+    pointer-events: none;
+}
+
+.dm-search input {
+    width: 100%;
+    height: calc(34px * var(--interface-scale, 1));
+    padding: 0 30px 0 32px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-main, #fff);
+    font-size: calc(13px * var(--interface-scale, 1));
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dm-search input::placeholder {
+    color: var(--text-dim);
+}
+
+.dm-search input:focus {
+    border-color: var(--primary-neon);
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.dm-search-clear {
+    position: absolute;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.dm-search-clear:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
 }

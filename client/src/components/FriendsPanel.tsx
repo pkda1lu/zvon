@@ -11,7 +11,8 @@ import UserBadges, { resolveServerTag } from './UserBadges';
 import ActiveContacts from './ActiveContacts';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { motion } from 'framer-motion';
-import { iosSpring } from '../animations/transitions';
+import { iosSpring, tabSwapVariants, tabSwapTransition } from '../animations/transitions';
+import { consumeNavIntent, NAV_INTENT_EVENT } from '../utils/navIntents';
 import './FriendsPanel.css';
 
 interface FriendsPanelProps {
@@ -44,7 +45,17 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [activeTab, setActiveTab] = useState<'friends' | 'pending' | 'add'>('friends');
+  // Переход по уведомлению («новая заявка в друзья») открывает сразу нужную вкладку.
+  const [activeTab, setActiveTab] = useState<'friends' | 'pending' | 'add'>(() => consumeNavIntent('friendsTab') || 'friends');
+  useEffect(() => {
+    const onIntent = (e: Event) => {
+      if ((e as CustomEvent).detail !== 'friendsTab') return;
+      const tab = consumeNavIntent('friendsTab');
+      if (tab) setActiveTab(tab);
+    };
+    window.addEventListener(NAV_INTENT_EVENT, onIntent);
+    return () => window.removeEventListener(NAV_INTENT_EVENT, onIntent);
+  }, []);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [panelMessage, setPanelMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
@@ -188,7 +199,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
               </button>
             ))}
           </div>
-          <div className="friends-content custom-scrollbar">
+          <motion.div className="friends-content custom-scrollbar" key={activeTab} variants={tabSwapVariants} initial="initial" animate="animate" transition={tabSwapTransition}>
             {activeTab === 'friends' && (
               <div className="friends-list">
                 {friends.length === 0 ? <div className="empty-state">У вас пока нет друзей</div> : friends.map(f => (
@@ -282,7 +293,7 @@ const FriendsPanel: React.FC<FriendsPanelProps> = ({ friends, setFriends, onStar
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
         {!isMobile && (
           <ActiveContacts

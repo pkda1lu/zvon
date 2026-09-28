@@ -139,6 +139,7 @@ function isPrivateIp(ip = '') {
  */
 const path = require('path');
 const fs = require('fs');
+const geoDb = require('./geoDb');
 
 const COUNTRY_ONLY_DIR = path.join(__dirname, '..', 'data', 'geoip');
 if (fs.existsSync(path.join(COUNTRY_ONLY_DIR, 'geoip-country.dat'))) {
@@ -167,20 +168,39 @@ try {
  */
 async function lookupGeo(ip) {
   try {
-    if (!geoip || !ip || isPrivateIp(ip)) return {};
-    const found = geoip.lookup(ip);
-    if (!found || !found.country) return {};
+    ip = normalizeIp(ip);
+    if (!ip || isPrivateIp(ip)) return {};
+    // Основной источник — свежая база DB-IP (utils/geoDb.js). geoip-lite с
+    // устаревшей базой из пакета — только пока DB-IP ещё не скачана.
+    let countryCode = geoDb.lookupCountry(ip);
+    let city = '';
+    if (!countryCode && !geoDb.isReady() && geoip) {
+      const found = geoip.lookup(ip);
+      countryCode = found?.country || null;
+      city = found?.city || '';
+    }
+    if (!countryCode) return {};
 
-    const countryCode = found.country;
     let country = countryCode;
     try {
       country = regionNames ? (regionNames.of(countryCode) || countryCode) : countryCode;
     } catch { /* неизвестный код — покажем сам код */ }
 
-    return { country, countryCode, city: found.city || '' };
+    return { country, countryCode, city };
   } catch {
     return {};
   }
 }
 
-module.exports = { parseUserAgent, getClientInfo, getClientIp, normalizeIp, isPrivateIp, lookupGeo };
+/** Страна по IP только из DB-IP, синхронно: { country, countryCode } или null. */
+function lookupCountryName(ip) {
+  const clean = normalizeIp(ip);
+  if (!clean || isPrivateIp(clean)) return null;
+  const countryCode = geoDb.lookupCountry(clean);
+  if (!countryCode) return null;
+  let country = countryCode;
+  try { country = regionNames ? (regionNames.of(countryCode) || countryCode) : countryCode; } catch { /* код как есть */ }
+  return { country, countryCode };
+}
+
+module.exports = { parseUserAgent, getClientInfo, getClientIp, normalizeIp, isPrivateIp, lookupGeo, lookupCountryName };

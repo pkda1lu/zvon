@@ -81,6 +81,9 @@ export interface User {
       channelMentions?: boolean;
       voiceCalls?: boolean;
       friendRequests?: boolean;
+      modReports?: boolean;
+      modProblems?: boolean;
+      modVlyneApps?: boolean;
       showPreview?: boolean;
       showAttachments?: boolean;
     };
@@ -216,6 +219,10 @@ export interface AuditLogEntry {
   action: string;
   changes?: Array<{ key: string; oldValue?: any; newValue?: any }>;
   reason?: string | null;
+  /** Снимок названия цели на момент действия (переживает её удаление). */
+  targetName?: string | null;
+  /** Контекст действия: канал, текст сообщения, срок и т.п. */
+  details?: Record<string, any>;
   createdAt: string;
 }
 
@@ -324,6 +331,10 @@ export interface DirectMessage {
   participants: User[];
   name?: string | null;
   icon?: string | null;
+  /** Групповой чат (у групп, созданных до этого поля, его нет — см. isGroupDM). */
+  isGroup?: boolean;
+  /** Создатель группы: может исключать участников. */
+  owner?: string | { _id: string } | null;
   messages?: Message[];
   isModeration?: boolean;
   moderator?: string | { _id: string } | null;

@@ -22,7 +22,7 @@ const NotificationsSettings: React.FC = () => {
     const [message, setMessage] = useState<string | null>(null);
 
     // Локальные настройки категорий из профиля пользователя
-    const notifications = user?.settings?.notifications || {
+    const notifications: Record<string, boolean | undefined> = user?.settings?.notifications || {
         directMessages: true,
         channelMentions: true,
         voiceCalls: true,
@@ -30,6 +30,7 @@ const NotificationsSettings: React.FC = () => {
         showPreview: true,
         showAttachments: true
     };
+    const isStaff = user?.role === 'admin' || user?.role === 'moderator';
 
     const refresh = useCallback(async () => {
         try {
@@ -60,7 +61,7 @@ const NotificationsSettings: React.FC = () => {
         }
     };
 
-    const updateNotificationPref = async (key: keyof typeof notifications, value: boolean) => {
+    const updateNotificationPref = async (key: string, value: boolean) => {
         const nextPrefs = { ...notifications, [key]: value };
         // Оптимистичное обновление в UI
         if (user) {
@@ -231,6 +232,59 @@ const NotificationsSettings: React.FC = () => {
                     />
                 </div>
             </div>
+
+            {/* Модерация — только для модераторов и админов. Выключенная категория
+                не приходит ни во «Входящие», ни push-уведомлением. */}
+            {isStaff && (
+                <div className="settings-card">
+                    <h3 className="settings-section-title" style={{ marginTop: 0 }}>Уведомления модерации</h3>
+                    <p className="settings-description">
+                        О каких событиях модерации сообщать: во «Входящих», всплывающим уведомлением и на устройство.
+                    </p>
+
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🚩</span>
+                                <h4>Жалобы на контент</h4>
+                            </div>
+                            <p>Жалобы пользователей на сообщения, профили, серверы и мини-приложения.</p>
+                        </div>
+                        <SettingsToggle
+                            checked={notifications.modReports ?? true}
+                            onChange={(v) => updateNotificationPref('modReports', v)}
+                        />
+                    </div>
+
+                    <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                        <div className="settings-row-text">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🐞</span>
+                                <h4>Обращения о проблемах</h4>
+                            </div>
+                            <p>Баг-репорты и предложения из кнопки «Репорт».</p>
+                        </div>
+                        <SettingsToggle
+                            checked={notifications.modProblems ?? true}
+                            onChange={(v) => updateNotificationPref('modProblems', v)}
+                        />
+                    </div>
+
+                    <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                        <div className="settings-row-text">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🔑</span>
+                                <h4>Заявки Vlyne ID</h4>
+                            </div>
+                            <p>Новые заявки на подключение приложений и ответы разработчиков по ним.</p>
+                        </div>
+                        <SettingsToggle
+                            checked={notifications.modVlyneApps ?? true}
+                            onChange={(v) => updateNotificationPref('modVlyneApps', v)}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Конфиденциальность и медиа */}
             <div className="settings-card">

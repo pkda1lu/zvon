@@ -132,11 +132,11 @@
 }
 
 .status-indicator.away {
-    background: #faa61a;
+    background: var(--status-away);
 }
 
 .status-indicator.busy {
-    background: #f04747;
+    background: var(--status-busy);
 }
 
 .status-indicator.streaming {

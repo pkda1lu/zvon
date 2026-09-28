@@ -22,6 +22,19 @@ const auditLogSchema = new mongoose.Schema({
     enum: ['User', 'Channel', 'Message', 'Server', 'Invite'],
     default: 'User'
   },
+  // Снимок названия цели на момент действия: канал, роль или участник могут
+  // быть удалены, и без снимка запись превращалась в пустое место.
+  targetName: {
+    type: String,
+    maxlength: 200,
+    default: null
+  },
+  // Контекст действия: канал и текст сообщения, код приглашения, цвет роли,
+  // срок бана и т.п. Раньше это писалось английской фразой в «причину».
+  details: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   action: {
     type: String,
     required: true,
@@ -36,6 +49,8 @@ const auditLogSchema = new mongoose.Schema({
       'MEMBER_JOIN',
       'MEMBER_LEAVE',
       'MEMBER_UPDATE', // Roles, Nickname change
+      'MEMBER_BAN_UPDATE', // Изменение срока или причины бана
+      'BOT_ADD',
       'MEMBER_TIMEOUT',
       // Голосовая модерация. Эти действия писались в журнал с самого начала,
       // но в список не входили — mongoose отбивал их валидацией, и в логах
@@ -52,6 +67,7 @@ const auditLogSchema = new mongoose.Schema({
       'ROLE_POSITIONS_UPDATE',
       'INVITE_CREATE',
       'INVITE_DELETE',
+      'INVITE_UPDATE',
       'MESSAGE_DELETE',
       'MESSAGE_BULK_DELETE',
       'MESSAGE_PIN',

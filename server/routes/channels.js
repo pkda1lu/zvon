@@ -164,7 +164,8 @@ router.delete('/:id', auth, async (req, res, next) => {
         targetId: serverId, // Server is target since channel is gone
         targetModel: 'Server',
         action: 'CHANNEL_DELETE',
-        reason: `Deleted ${isCategory ? 'category' : 'channel'} ${channel.name}`
+        targetName: channel.name,
+        details: { channelType: channel.type, channelName: channel.name }
       });
     }
     const io = req.app.get('io');

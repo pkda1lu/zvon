@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Server, AuditLogEntry } from '../../types';
 import { getAvatarUrl } from '../../utils/avatar';
 import { ChoiceGroup, CustomSelect, CustomSelectOption } from '../settings/SettingsUI';
+import { AuditDetails, hasAuditDetails, formatAuditValue } from '../settings/AuditDetails';
 
 interface Props {
     server: Server;
@@ -28,12 +29,19 @@ const ALL_SERVER_ACTIONS: Record<string, string> = {
     'MEMBER_LEAVE': 'Выход участника',
     'MEMBER_UPDATE': 'Обновление профиля участника',
     'MEMBER_TIMEOUT': 'Мут участника',
+    'MEMBER_BAN_UPDATE': 'Изменение бана',
+    'MEMBER_VOICE_KICK': 'Отключение из голосового',
+    'MEMBER_VOICE_MOVE': 'Перемещение в голосовом',
+    'MEMBER_VOICE_SERVER_MUTE': 'Серверный мут микрофона',
+    'MEMBER_VOICE_SERVER_DEAFEN': 'Серверное отключение звука',
+    'BOT_ADD': 'Добавление бота',
     'ROLE_CREATE': 'Создание роли',
     'ROLE_UPDATE': 'Изменение роли',
     'ROLE_DELETE': 'Удаление роли',
     'ROLE_POSITIONS_UPDATE': 'Изменение порядка ролей',
     'INVITE_CREATE': 'Создание приглашения',
     'INVITE_DELETE': 'Удаление приглашения',
+    'INVITE_UPDATE': 'Изменение приглашения',
     'MESSAGE_DELETE': 'Удаление сообщения',
     'MESSAGE_BULK_DELETE': 'Массовое удаление сообщений',
     'MESSAGE_PIN': 'Закрепление сообщения',
@@ -52,7 +60,9 @@ const translateKey = (key: string) => {
         'name': 'Название', 'description': 'Описание', 'icon': 'Иконка', 'banner': 'Баннер',
         'permissions': 'Права', 'color': 'Цвет', 'hoist': 'Отображение', 'topic': 'Тема',
         'roles': 'Роли', 'nickname': 'Никнейм', 'expiresAt': 'Срок', 'owner': 'Владелец',
-        'communicationDisabledUntil': 'Мут до'
+        'communicationDisabledUntil': 'Мут до', 'reason': 'Причина', 'maxUses': 'Макс. использований',
+        'slowMode': 'Медленный режим', 'category': 'Категория', 'permissionOverwrites': 'Права канала',
+        'bitrate': 'Битрейт', 'userLimit': 'Лимит участников'
     };
     return keys[key] || key;
 };
@@ -227,7 +237,7 @@ const ServerAuditLogSettings: React.FC<Props> = ({ server }) => {
             <div className="audit-logs-list">
                 {filteredLogs.map(log => {
                     const isExpanded = !!expandedLogs[log._id];
-                    const hasDetails = (log.changes && log.changes.length > 0) || !!log.reason;
+                    const hasDetails = (log.changes && log.changes.length > 0) || !!log.reason || hasAuditDetails(log.details);
 
                     return (
                         <div key={log._id} className="audit-log-item" style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--bg-secondary, rgba(255,255,255,0.03))', border: '1px solid var(--glass-border, rgba(255,255,255,0.06))' }}>
@@ -251,9 +261,9 @@ const ServerAuditLogSettings: React.FC<Props> = ({ server }) => {
                                         <span className="audit-action-badge" style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'var(--primary-neon-transparent, rgba(88,101,242,0.2))', color: 'var(--primary-neon, #5865f2)' }}>
                                             {formatAuditAction(log.action)}
                                         </span>
-                                        {log.target && (
+                                        {(log.targetName || log.target) && (
                                             <span className="audit-target" style={{ fontWeight: 600, color: 'var(--text-bright, #fff)' }}>
-                                                {(log.target as any).username || (log.target as any).name || (log.target as any).content}
+                                                {log.targetName || (log.target as any).displayName || (log.target as any).username || (log.target as any).name || (log.target as any).content}
                                             </span>
                                         )}
                                     </div>
@@ -297,18 +307,20 @@ const ServerAuditLogSettings: React.FC<Props> = ({ server }) => {
                                             {c.oldValue !== undefined && (
                                                 <span className="change-old" style={{ color: '#ef4444', textDecoration: 'line-through', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
                                                     <span style={{ fontSize: '10px', opacity: 0.7, marginRight: '4px' }}>[До]:</span>
-                                                    {String(c.oldValue)}
+                                                    {formatAuditValue(c.key, c.oldValue)}
                                                 </span>
                                             )}
                                             <span className="change-arrow" style={{ color: 'var(--text-dim)', fontWeight: 700 }}>→</span>
                                             <span className="change-new" style={{ color: '#22c55e', fontWeight: 600, background: 'rgba(34, 197, 94, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
                                                 <span style={{ fontSize: '10px', opacity: 0.8, marginRight: '4px' }}>[После]:</span>
-                                                {String(c.newValue)}
+                                                {formatAuditValue(c.key, c.newValue)}
                                             </span>
                                         </div>
                                     ))}
                                 </div>
                             )}
+
+                            {isExpanded && <AuditDetails details={log.details} />}
 
                             {isExpanded && log.reason && (
                                 <div className="audit-log-reason" style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-normal)', background: 'rgba(255,255,255,0.03)', padding: '6px 10px', borderRadius: '4px' }}>

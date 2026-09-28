@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useVoice, useVoiceInputLevel } from '../../contexts/VoiceContext';
+import { useVoice, useVoiceInputLevel, useVoiceGateState } from '../../contexts/VoiceContext';
 import { CustomSelect, SettingsToggle, RangeSlider, ChoiceGroup } from './SettingsUI';
 import { SpeakerIcon, MicIcon, CameraIcon, VideoIcon } from '../../components/Icons';
 import { getBrand } from '../../utils/branding';
@@ -18,19 +18,18 @@ const SensitivityVisualizer: React.FC<{
     // Отдельный контекст уровня: обновляется 25 раз в секунду и теперь
     // перерисовывает только этот индикатор, а не всё, что слушает голос.
     const currentInputLevel = useVoiceInputLevel();
-
-    const barColor = (currentInputLevel > (isAutomaticSensitivity ? -60 : inputSensitivity)) 
-        ? '#00ffa3' 
-        : '#ff3b30';
+    // Цвет — решение того же детектора, что стоит на микрофоне в звонке:
+    // зелёный значит «этот звук ушёл бы в эфир».
+    const gate = useVoiceGateState();
+    const barColor = gate.open ? '#00ffa3' : '#ff3b30';
+    const marker = isAutomaticSensitivity ? gate.threshold : inputSensitivity;
 
     return (
         <div className="sensitivity-visualizer">
-            {!isAutomaticSensitivity && (
-                <div
-                    className="sensitivity-marker"
-                    style={{ left: `${Math.max(0, Math.min(100, inputSensitivity + 100))}%` }}
-                />
-            )}
+            <div
+                className={`sensitivity-marker ${isAutomaticSensitivity ? 'is-auto' : ''}`}
+                style={{ left: `${Math.max(0, Math.min(100, marker + 100))}%`, transition: isAutomaticSensitivity ? 'left 0.4s ease' : undefined }}
+            />
             <div
                 className="sensitivity-bar-fill"
                 style={{
@@ -41,6 +40,13 @@ const SensitivityVisualizer: React.FC<{
             />
         </div>
     );
+};
+
+// Текущий автоматический порог — отдельным компонентом, чтобы частые
+// обновления не перерисовывали всю страницу настроек.
+const AutoThresholdLabel: React.FC = () => {
+    const { threshold } = useVoiceGateState();
+    return <>авто · {Math.round(threshold)} dB</>;
 };
 
 const CameraPreview: React.FC<{ deviceId: string }> = ({ deviceId }) => {
@@ -232,7 +238,7 @@ const VoiceSettings: React.FC = () => {
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <h3>Автоматически определять чувствительность</h3>
-                        <p>Позволить {brand.name.toUpperCase()} автоматически настраивать чувствительность нажатия.</p>
+                        <p>{brand.name} сам следит за фоновым шумом и включает микрофон, только когда вы говорите. Ползунок не нужен.</p>
                     </div>
                     <SettingsToggle checked={isAutomaticSensitivity} onChange={setIsAutomaticSensitivity} />
                 </div>
@@ -240,7 +246,9 @@ const VoiceSettings: React.FC = () => {
                 <div className={`sensitivity-container ${isAutomaticSensitivity ? 'disabled' : ''}`} style={{ marginTop: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Порог срабатывания</span>
-                        <span style={{ fontSize: '13px', color: 'var(--primary-neon)', fontWeight: 'bold' }}>{Math.round(inputSensitivity)} dB</span>
+                        <span style={{ fontSize: '13px', color: 'var(--primary-neon)', fontWeight: 'bold' }}>
+                            {isAutomaticSensitivity ? <AutoThresholdLabel /> : `${Math.round(inputSensitivity)} dB`}
+                        </span>
                     </div>
 
                     <SensitivityVisualizer 

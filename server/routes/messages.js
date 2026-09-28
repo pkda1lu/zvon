@@ -128,7 +128,8 @@ router.delete('/:id', auth, async (req, res) => {
 
     const channelId = message.channel;
     const authorId = message.author;
-    const contentPreview = message.content?.substring(0, 50);
+    const contentPreview = message.content?.substring(0, 200);
+    const attachmentsCount = Array.isArray(message.attachments) ? message.attachments.length : 0;
 
     await Message.findByIdAndDelete(req.params.id);
 
@@ -141,7 +142,7 @@ router.delete('/:id', auth, async (req, res) => {
           targetId: authorId,
           targetModel: 'User',
           action: 'MESSAGE_DELETE',
-          reason: `Deleted message: "${contentPreview}..." in #${channel.name}`
+          details: { channelId: String(channel._id), channelName: channel.name, messagePreview: contentPreview || '', attachments: attachmentsCount }
         });
       }
     }
@@ -194,7 +195,7 @@ router.patch('/:id/pin', auth, async (req, res) => {
           targetId: message.author,
           targetModel: 'User',
           action: message.pinned ? 'MESSAGE_PIN' : 'MESSAGE_UNPIN',
-          reason: `In #${channel.name}: "${message.content?.substring(0, 50)}..."`
+          details: { channelId: String(channel._id), channelName: channel.name, messageId: String(message._id), messagePreview: message.content?.substring(0, 200) || '' }
         });
       }
     }

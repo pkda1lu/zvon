@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { backdropMotion, popMotion } from '../../animations/transitions';
 import axios from 'axios';
 import { SettingsToggle } from './SettingsUI';
 import { 
@@ -12,6 +14,7 @@ import {
 import { useAppearance } from '../../contexts/AppearanceContext';
 import { CloseIcon, PlusIcon, GlobeIcon } from '../../components/Icons';
 import './AdminBrandingSettings.css';
+import { uploadFiles } from '../../utils/transfers';
 
 const DEFAULT_BANNER = {
     enabled: false,
@@ -334,11 +337,7 @@ server {
 
         setUploadingLogo(true);
         try {
-            const formData = new FormData();
-            formData.append('files', file);
-            const res = await axios.post('/api/upload-files', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const res = await uploadFiles([file]);
             const uploadedUrl = res.data?.[0]?.url;
             if (uploadedUrl) {
                 setEditingBrand(prev => prev ? ({ ...prev, logo: uploadedUrl }) : null);
@@ -363,11 +362,7 @@ server {
 
         setUploadingIconIndex(iconIndex);
         try {
-            const formData = new FormData();
-            formData.append('files', file);
-            const res = await axios.post('/api/upload-files', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const res = await uploadFiles([file]);
             const uploadedUrl = res.data?.[0]?.url;
             if (uploadedUrl) {
                 updateIconField(iconIndex, 'img', uploadedUrl);
@@ -631,9 +626,10 @@ server {
             )}
 
             {/* Modal for Creating or Editing Brand */}
+            <AnimatePresence>
             {isModalOpen && editingBrand && (
-                <div className="branding-modal-overlay" onClick={closeModal}>
-                    <div className="branding-modal-card" onClick={e => e.stopPropagation()}>
+                <motion.div className="branding-modal-overlay" onClick={closeModal} key="brand-modal" {...backdropMotion}>
+                    <motion.div className="branding-modal-card" onClick={e => e.stopPropagation()} {...popMotion}>
                         <div className="branding-modal-header">
                             <h3 className="branding-modal-title">
                                 {isCreating ? 'Новый бренд' : `Настройка: ${editingBrand.name}`}
@@ -954,9 +950,10 @@ server {
                                 {saving ? 'Сохранение...' : isCreating ? 'Создать бренд' : 'Сохранить изменения'}
                             </button>
                         </div>
-                    </div>
-                </div>
+                    </motion.div>
+                </motion.div>
             )}
+            </AnimatePresence>
 
             {/* Modal for Nginx Configuration */}
             {isNginxModalOpen && (

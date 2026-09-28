@@ -7,6 +7,7 @@ import UserAvatar from './UserAvatar';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { getInviteUrl } from '../utils/inviteLinks';
 import './InviteModal.css';
+import ZvSelect from './ZvSelect';
 
 interface InviteModalProps { 
   isOpen: boolean; 
@@ -233,7 +234,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
           <div className="invite-collapsible-settings">
             <div className="form-section">
               <label>Срок действия</label>
-              <select
+              <ZvSelect
                 className="category-select"
                 value={expiresIn}
                 onChange={e => handleExpireChange(Number(e.target.value))}
@@ -243,12 +244,12 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </ZvSelect>
             </div>
 
             <div className="form-section">
               <label>Кол-во использований</label>
-              <select
+              <ZvSelect
                 className="category-select"
                 value={maxUses}
                 onChange={e => handleMaxUsesChange(Number(e.target.value))}
@@ -258,7 +259,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, serverId, se
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </ZvSelect>
             </div>
           </div>
         )}

@@ -373,7 +373,10 @@ router.post('/note', auth, async (req, res) => {
     const { userId, note } = req.body;
     if (!userId) return res.status(400).json({ message: 'User ID required' });
     if (!req.user.notes) req.user.notes = new Map();
-    req.user.notes.set(userId, note);
+    // Пустая заметка — удаление, а не хранение пустой строки.
+    const text = typeof note === 'string' ? note.trim().slice(0, 256) : '';
+    if (text) req.user.notes.set(String(userId), text);
+    else req.user.notes.delete(String(userId));
     await req.user.save();
     res.json({ message: 'Note updated' });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }

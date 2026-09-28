@@ -69,8 +69,8 @@ const PostsModeration: React.FC = () => {
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14, borderTop: '1px solid var(--glass-border)', paddingTop: 14 }}>
-                  <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => toggleActive(post)}>{post.active ? 'Выключить' : 'Включить'}</button>
-                  <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => setEditing(post)}>Редактировать</button>
+                  <button className="settings-btn secondary" onClick={() => toggleActive(post)}>{post.active ? 'Выключить' : 'Включить'}</button>
+                  <button className="settings-btn secondary" onClick={() => setEditing(post)}>Редактировать</button>
                   <button className="settings-btn settings-btn-danger" onClick={() => deletePost(post)}>Удалить</button>
                 </div>
               </div>

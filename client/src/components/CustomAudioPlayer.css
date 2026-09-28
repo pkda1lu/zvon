@@ -1,153 +1,106 @@
-.custom-audio-player {
+/* Аудиоплеер Zvon — стеклянная карточка в стиле остальных вложений.
+   Полоса перемотки, кнопки и время — общие классы .zv-player__* из
+   CustomVideoPlayer.css. */
+@import './CustomVideoPlayer.css';
+
+.zv-audio {
     display: flex;
     align-items: center;
-    background: #2f3136;
-    border-radius: 8px;
-    padding: 8px 12px;
-    width: 100%;
-    max-width: 550px;
-    border: 1px solid #202225;
     gap: 12px;
-    user-select: none;
+    /* Фиксированная ширина с ограничением родителем: процент от ширины
+       карточки, которая сама сжимается по содержимому, схлопывал плеер. */
+    width: 460px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px 10px 10px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    container-type: inline-size;
+    user-select: none;
+    outline: none;
 }
 
-.audio-controls-main {
+.zv-audio:focus-visible {
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.55);
+}
+
+.zv-audio__play {
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--primary-neon, #006aff);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 106, 255, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
-.audio-info {
+.zv-audio__play:hover {
+    transform: scale(1.05);
+    filter: brightness(1.08);
+    box-shadow: 0 6px 20px rgba(0, 106, 255, 0.5);
+}
+
+.zv-audio__play:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.55);
+}
+
+.zv-audio__play .zv-audio__play-icon--play { margin-left: 3px; }
+
+.zv-audio__body {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
-    min-width: 0;
-    /* Allow shrinking below content width */
 }
 
-.audio-name {
-    color: #dcddde;
+.zv-audio__name {
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
+    color: var(--text-main, #fff);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.audio-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    /* Fill available space */
-}
-
-.time-display {
+.zv-audio .zv-player__time {
+    padding: 0;
+    min-width: 34px;
     font-size: 11px;
-    font-family: monospace;
-    color: #b9bbbe;
-    min-width: 32px;
-    flex-shrink: 0;
-    /* Prevent time from squishing */
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
 }
 
-.time-display.current {
-    text-align: right;
+.zv-audio .zv-player__time--end { text-align: right; }
+
+.zv-audio .zv-player__track { background: rgba(255, 255, 255, 0.12); }
+.zv-audio .zv-player__buffered { background: rgba(255, 255, 255, 0.18); }
+
+.zv-audio .zv-player__btn {
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
 }
 
-.time-display.total {
-    text-align: left;
-    margin-right: 4px;
+.zv-audio .zv-player__btn:hover {
+    color: var(--text-main, #fff);
+    background: rgba(255, 255, 255, 0.08);
 }
 
-.audio-seek {
-    flex: 1;
-    height: 6px;
-    background: #4f545c;
-    border-radius: 3px;
-    position: relative;
-    cursor: pointer;
-    min-width: 40px;
-    /* Allow much smaller seek bar if needed */
+.zv-audio .zv-player__volume-range { accent-color: var(--primary-neon, #006aff); }
+
+.zv-audio__error {
+    font-size: 12px;
+    color: var(--danger, #ff4757);
 }
 
-/* Reusing seek-bar styles from video player but ensuring consistency or overrides */
-.seek-bar {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 100%;
-    background: transparent;
-    position: absolute;
-    top: 0;
-    left: 0;
-    margin: 0;
-    outline: none;
-    cursor: pointer;
-    background-image: linear-gradient(#5865F2, #5865F2);
-    background-repeat: no-repeat;
-    border-radius: 2px;
-}
-
-.seek-bar::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 10px;
-    width: 10px;
-    border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
-    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
-    opacity: 1;
-    /* Always visible */
-    transition: opacity 0.1s;
-}
-
-.audio-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.play-btn {
-    color: #dcddde;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 0.1s;
-}
-
-.play-btn:hover {
-    color: #fff;
-}
-
-.audio-vol {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-}
-
-/* Volume slider specific overrides for audio context */
-.audio-vol .volume-slider {
-    width: 60px;
-}
-
-@media (max-width: 450px) {
-    .audio-vol .volume-slider {
-        width: 40px;
-    }
-}
-
-@media (max-width: 350px) {
-    .audio-vol .volume-slider {
-        display: none;
-    }
+@container (max-width: 320px) {
+    .zv-audio .zv-player__volume { display: none; }
 }

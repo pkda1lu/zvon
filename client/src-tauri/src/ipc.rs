@@ -126,6 +126,8 @@ pub async fn ipc_send(app: AppHandle, channel: String, args: Vec<Value>) {
             state.call_active.store(active, std::sync::atomic::Ordering::Relaxed);
             crate::power::refresh(&app);
         }
+        // Клик по уведомлению, когда Zvon свёрнут или в трее.
+        "focus-main-window" => crate::windows::reveal_main(&app),
         "minimize-to-tray" => {
             if let Some(w) = main_window(&app) { let _ = w.hide(); }
             crate::power::refresh(&app);

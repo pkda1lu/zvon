@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { isGroupDM } from '../utils/dm';
 import ReactDOM from 'react-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -168,7 +169,7 @@ const DMContextMenu: React.FC<DMContextMenuProps> = ({
                     <div className="menu-separator" />
                     <div className="menu-group">
                         <div className="menu-item destructive" onClick={handleDelete}>
-                            Удалить чат
+                            {isGroupDM(dm) ? 'Покинуть группу' : 'Удалить чат'}
                         </div>
                     </div>
                 </>

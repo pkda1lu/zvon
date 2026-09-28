@@ -14,6 +14,10 @@ import './panel-hero.css';
 import './Sidebar.css';
 
 // iOS-style press feedback shared across every clickable server-icon button.
+// Одна анимация для всех кнопок левой панели — как у иконок серверов.
+// Раньше у витрины, «лички» и «+» к ней добавлялся CSS-сдвиг вверх, у своей
+// аватарки — CSS-увеличение с поворотом, у колокольчика, жалобы и настроек —
+// поворот на -8°: всё двигалось по-разному.
 const pressFeedback = {
   whileTap: { scale: 0.88 },
   whileHover: { scale: 1.06 },
@@ -224,9 +228,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               onClick={onToggleInbox}
               title="Уведомления"
               style={{ position: 'relative' }}
-              whileTap={{ scale: 0.88, rotate: 30 }}
-              whileHover={{ scale: 1.08, rotate: -8 }}
-              transition={iosSpringSnappy}
+              {...pressFeedback}
             >
               <BellIcon size={18 * interfaceScale} />
               {inboxUnreadCount > 0 && <div className="unread-badge sidebar-user-badge">{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</div>}
@@ -235,9 +237,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="logout-button report-button"
               onClick={() => setShowReport(true)}
               title="Сообщить о проблеме"
-              whileTap={{ scale: 0.88, rotate: 30 }}
-              whileHover={{ scale: 1.08, rotate: -8 }}
-              transition={iosSpringSnappy}
+              {...pressFeedback}
             >
               <FlagIcon size={18 * interfaceScale} />
             </motion.button>
@@ -245,9 +245,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="logout-button"
               onClick={onOpenSettings}
               title="Настройки"
-              whileTap={{ scale: 0.88, rotate: 30 }}
-              whileHover={{ scale: 1.08, rotate: -8 }}
-              transition={iosSpringSnappy}
+              {...pressFeedback}
             >
               <SettingsIcon size={20 * interfaceScale} />
             </motion.button>

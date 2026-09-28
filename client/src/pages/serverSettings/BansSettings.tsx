@@ -4,6 +4,7 @@ import { Server, ServerBan } from '../../types';
 import { getAvatarUrl } from '../../utils/avatar';
 import { useDialog } from '../../contexts/DialogContext';
 import { TrashIcon } from '../../components/Icons';
+import ZvSelect from '../../components/ZvSelect';
 
 interface Props {
     server: Server;
@@ -99,13 +100,13 @@ const BansSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                                 </div>
                             </div>
                             <div className="server-settings-list-row-actions">
-                                <select className="settings-input" defaultValue="" onChange={(e) => e.target.value !== '' && changeExpiry(uid, e.target.value === '0' ? null : parseInt(e.target.value))}>
+                                <ZvSelect className="settings-input" defaultValue="" onChange={(e) => e.target.value !== '' && changeExpiry(uid, e.target.value === '0' ? null : parseInt(e.target.value))}>
                                     <option value="" disabled>Изменить срок...</option>
                                     <option value="0">Навсегда</option>
                                     <option value={24 * 60 * 60}>1 день</option>
                                     <option value={7 * 24 * 60 * 60}>1 неделя</option>
                                     <option value={30 * 24 * 60 * 60}>30 дней</option>
-                                </select>
+                                </ZvSelect>
                                 <button className="action-button danger" title="Снять бан" onClick={() => handleUnban(uid)}><TrashIcon size={16} /></button>
                             </div>
                         </div>

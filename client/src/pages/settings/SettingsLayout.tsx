@@ -1,4 +1,7 @@
 import React from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { heavyModalVariants, heavyModalTransition, tabSwapVariants, tabSwapTransition, backdropMotion, popMotion } from '../../animations/transitions';
+import { useFreezeAppBackground } from '../../animations/useFreezeAppBackground';
 import './Settings.css';
 import { 
     CloseIcon, 
@@ -126,6 +129,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
     const touchStartRef = React.useRef<{ x: number; y: number; t: number } | null>(null);
 
+    useFreezeAppBackground(isOpen);
+
     if (!isOpen) return null;
 
     const handleTabChange = (id: string) => {
@@ -171,7 +176,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'overlay': return <OverlaySettings />;
             case 'windows-actions': return <WindowsSettings />;
             case 'advanced': return <AdvancedSettings />;
-            case 'moderation': return <ModerationSettings />;
+            case 'moderation': return <ModerationSettings focus={initialData?.focus} />;
             case 'admin-users': return <AdminUsersSettings />;
             case 'admin-stats': return <AdminStatsSettings />;
             case 'admin-infra': return <AdminInfraSettings />;
@@ -245,7 +250,16 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     };
 
     return (
-        <div className="settings-overlay" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        <motion.div
+            className="settings-overlay"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            variants={heavyModalVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={heavyModalTransition}
+        >
             <div className={`settings-sidebar ${isMobile ? 'mobile-collapsed' : ''} ${isSidebarExpanded ? 'mobile-expanded' : ''}`}>
                 {isMobile && (
                     <button
@@ -351,13 +365,23 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                     </button>
                 )}
                 <React.Suspense fallback={<SettingsTabFallback />}>
-                    {renderContent()}
+                    <motion.div
+                        key={activeTab}
+                        className="settings-tab-swap"
+                        variants={tabSwapVariants}
+                        initial="initial"
+                        animate="animate"
+                        transition={tabSwapTransition}
+                    >
+                        {renderContent()}
+                    </motion.div>
                 </React.Suspense>
             </div>
 
+            <AnimatePresence>
             {pendingTab && (
-                <div className="settings-modal-overlay">
-                    <div className="settings-modal-glass">
+                <motion.div key="streamer-confirm" className="settings-modal-overlay" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass" {...popMotion}>
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                             <div style={{ 
                                 width: '60px', 
@@ -382,10 +406,11 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                             <button className="settings-btn secondary" style={{ flex: 1 }} onClick={() => setPendingTab(null)}>Отмена</button>
                             <button className="settings-btn danger" style={{ flex: 1.2 }} onClick={confirmTabChange}>Показать настройки</button>
                         </div>
-                    </div>
-                </div>
+                    </motion.div>
+                </motion.div>
             )}
-        </div>
+            </AnimatePresence>
+        </motion.div>
     );
 };
 

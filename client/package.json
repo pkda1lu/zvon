@@ -6,6 +6,7 @@
   "description": "Zvon - Real-time communication platform",
   "dependencies": {
     "axios": "^1.6.2",
+    "country-flag-icons": "^1.6.20",
     "deepfilternet3-noise-filter": "^1.2.1",
     "electron-is-dev": "^2.0.0",
     "electron-log": "^5.4.3",

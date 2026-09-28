@@ -259,7 +259,7 @@ ffmpeg.stdout.on("data", (chunk) => {
                                     Транслирует <code>MediaStreamTrack</code> (kind=&quot;audio&quot;) в голосовой канал пользователя. Все участники канала будут слышать этот звук как дополнительный аудио-источник от данного юзера.
                                 </p>
                                 <p>
-                                    Возвращает <code>sid</code> публикации — сохраните, чтобы потом остановить через <code>unpublishAudioTrack(sid)</code>. Если юзер не в голосовом — вернёт <code>null</code>.
+                                    Возвращает идентификатор публикации (<code>sid</code>) — он не меняется при переподключении к каналу, сохраните его, чтобы потом остановить через <code>unpublishAudioTrack(sid)</code>. Если юзер не в голосовом — вернёт <code>null</code>.
                                 </p>
                                 <div className="code-block">
                                     <pre>{`const audio = new Audio('https://example.com/song.mp3');

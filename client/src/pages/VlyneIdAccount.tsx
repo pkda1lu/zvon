@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import CountryFlag from '../components/CountryFlag';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
@@ -72,11 +73,6 @@ const fmtDate = (iso?: string) => {
     return new Date(iso).toLocaleString('ru-RU', {
         day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
-};
-
-const flag = (code?: string) => {
-    if (!code) return '🏳️';
-    return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(c.charCodeAt(0) + 127397));
 };
 
 // ===== Кабинет =====
@@ -429,7 +425,7 @@ const VlyneIdAccount: React.FC = () => {
                                                     {s.current && <span className="vida-badge ok">это устройство</span>}
                                                 </div>
                                                 <div className="vida-row-meta">
-                                                    {flag(s.countryCode)} {[s.city, s.country].filter(Boolean).join(', ') || 'Место неизвестно'} · {s.ip}
+                                                    <CountryFlag code={s.countryCode} title={s.country} /> {[s.city, s.country].filter(Boolean).join(', ') || 'Место неизвестно'} · {s.ip}
                                                 </div>
                                                 <div className="vida-row-meta">
                                                     {s.browser} · активность {fmtDate(s.lastActiveAt)}

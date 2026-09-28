@@ -1,0 +1,335 @@
+/* Закреплённые сообщения (PinnedMessagesModal) */
+
+.pinned-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pinned-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    outline: none;
+}
+
+.pinned-card:hover,
+.pinned-card:focus-visible {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 106, 255, 0.35);
+}
+
+.pinned-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.pinned-name {
+    font-weight: 700;
+    color: var(--text-main, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pinned-date {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.pinned-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pinned-actions .zv-btn {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.pinned-card:hover .pinned-actions .zv-btn,
+.pinned-card:focus-within .pinned-actions .zv-btn {
+    opacity: 1;
+}
+
+.pinned-go {
+    display: flex;
+    color: var(--text-dim);
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.pinned-card:hover .pinned-go {
+    color: var(--primary-neon);
+    transform: translateX(2px);
+}
+
+.pinned-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-left: 36px;
+}
+
+/* Текст целиком; длинный — свёрнут до ~10 строк. */
+.pinned-text {
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-main, #fff);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: calc(1.45em * 10);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent);
+    mask-image: linear-gradient(180deg, #000 80%, transparent);
+}
+
+.pinned-text.expanded {
+    max-height: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+.pinned-more {
+    align-self: flex-start;
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary-neon);
+    cursor: pointer;
+}
+
+/* Картинки и видео — сетка до 4 плиток. */
+.pinned-media {
+    display: grid;
+    gap: 4px;
+    max-width: 420px;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.pinned-media.count-1 { grid-template-columns: 1fr; }
+.pinned-media.count-2 { grid-template-columns: 1fr 1fr; }
+.pinned-media.count-3,
+.pinned-media.count-4 { grid-template-columns: 1fr 1fr; }
+.pinned-media.count-3 .pinned-media-tile:first-child { grid-column: span 2; }
+
+.pinned-media-tile {
+    position: relative;
+    padding: 0;
+    border: none;
+    background: rgba(0, 0, 0, 0.3);
+    aspect-ratio: 16 / 10;
+    cursor: zoom-in;
+    overflow: hidden;
+}
+
+.pinned-media.count-1 .pinned-media-tile {
+    aspect-ratio: auto;
+    max-height: 280px;
+}
+
+.pinned-media-tile img,
+.pinned-media-tile video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.pinned-media.count-1 .pinned-media-tile img,
+.pinned-media.count-1 .pinned-media-tile video {
+    height: auto;
+    max-height: 280px;
+    object-fit: contain;
+}
+
+.pinned-media-play {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 36px;
+    height: 36px;
+    margin: -18px 0 0 -18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.pinned-media-more {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+/* Документы и аудио — карточки со скачиванием. */
+.pinned-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 420px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-dim);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.pinned-file:hover {
+    border-color: rgba(0, 106, 255, 0.4);
+    color: var(--primary-neon);
+}
+
+.pinned-file-icon {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(0, 106, 255, 0.12);
+    color: var(--primary-neon);
+}
+
+.pinned-file-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pinned-file-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pinned-file-meta {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.pinned-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 40px 0;
+    color: var(--text-dim);
+    text-align: center;
+}
+
+.pinned-empty small {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+    .pinned-body { padding-left: 0; }
+    .pinned-actions .zv-btn { opacity: 1; }
+}
+
+/* Пересланное и встраивания — цитатой с полосой слева. */
+.pinned-quote {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 12px;
+    border-left: 3px solid var(--primary-neon);
+    border-radius: 4px 10px 10px 4px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.pinned-quote-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-dim);
+}
+
+/* Опрос: вопрос и варианты с долей голосов. */
+.pinned-poll {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-width: 420px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.pinned-poll-q {
+    font-weight: 700;
+    color: var(--text-main, #fff);
+    margin-bottom: 2px;
+}
+
+.pinned-poll-opt {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 13px;
+}
+
+.pinned-poll-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--pct, 0%);
+    background: rgba(0, 106, 255, 0.18);
+}
+
+.pinned-poll-text,
+.pinned-poll-votes {
+    position: relative;
+}
+
+.pinned-poll-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pinned-poll-votes {
+    font-weight: 700;
+    color: var(--text-dim);
+}
+
+.pinned-poll-more,
+.pinned-poll-total {
+    font-size: 12px;
+    color: var(--text-dim);
+}

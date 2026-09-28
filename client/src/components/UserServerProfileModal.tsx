@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { backdropMotion, popMotion } from '../animations/transitions';
 import axios from 'axios';
 import { Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +9,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { CloseIcon, PlusIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import './UserServerProfileModal.css';
+import { uploadFiles } from '../utils/transfers';
 
 interface UserServerProfileModalProps {
     isOpen: boolean;
@@ -52,10 +55,8 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
         if (e.target.files && e.target.files[0]) {
-            const formData = new FormData();
-            formData.append('files', e.target.files[0]);
             try {
-                const res = await axios.post('/api/upload-files', formData);
+                const res = await uploadFiles([e.target.files[0]]);
                 if (type === 'avatar') setAvatar(res.data[0].url);
                 else setBanner(res.data[0].url);
             } catch (err) { await alert('Ошибка загрузки'); }
@@ -77,8 +78,8 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
     if (!isOpen || !server || loading || !user) return null;
 
     return (
-        <div className="user-server-profile-overlay" onClick={onClose}>
-            <div className="user-server-profile-modal" onClick={e => e.stopPropagation()}>
+        <motion.div className="user-server-profile-overlay" onClick={onClose} {...backdropMotion}>
+            <motion.div className="user-server-profile-modal" onClick={e => e.stopPropagation()} {...popMotion}>
                 <div className="modal-header"><h3>Профиль сервера</h3><button className="close-btn" onClick={onClose}><CloseIcon /></button></div>
                 <div className="user-server-profile-content">
                     <div className="profile-preview-section">
@@ -115,8 +116,8 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
                 <div className="modal-footer"><button className="cancel-btn" onClick={onClose}>Отмена</button><button className="save-btn" onClick={handleSave} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить изменения'}</button></div>
                 <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={e => handleFileUpload(e, 'avatar')} />
                 <input type="file" ref={bannerInputRef} style={{ display: 'none' }} accept="image/*" onChange={e => handleFileUpload(e, 'banner')} />
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 

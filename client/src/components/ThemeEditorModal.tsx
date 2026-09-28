@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { backdropMotion, popMotion } from '../animations/transitions';
 import axios from 'axios';
 import { ThemeObject, ThemeType, CustomColors } from '../contexts/AppearanceContext';
 import { RangeSlider, ChoiceGroup } from '../pages/settings/SettingsUI';
@@ -96,8 +98,8 @@ const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({
     };
 
     return (
-        <div className="settings-modal-overlay" onClick={onClose}>
-            <div className="settings-modal-glass theme-editor" onClick={e => e.stopPropagation()}>
+        <motion.div className="settings-modal-overlay" onClick={onClose} {...backdropMotion}>
+            <motion.div className="settings-modal-glass theme-editor" onClick={e => e.stopPropagation()} {...popMotion}>
                 <div className="theme-editor-head">
                     <h3>{existing ? 'Правка темы' : 'Новая тема'}</h3>
                     {!existing && baseName && (
@@ -233,8 +235,8 @@ const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({
                     «Сохранить» оставит тему только у вас. «Опубликовать» отправит её на
                     проверку модератору — в общий список она попадёт после одобрения.
                 </p>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 

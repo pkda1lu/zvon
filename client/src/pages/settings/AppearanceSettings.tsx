@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useAppearance, AppIconType, ThemeObject, CustomColors } from '../../contexts/AppearanceContext';
 import { ChoiceGroup, GridPicker, RangeSlider, SettingsToggle } from './SettingsUI';
@@ -563,8 +564,10 @@ const AppearanceSettings: React.FC = () => {
                 а оформление к тому моменту уже было применено ко всему
                 приложению. Теперь всё наоборот: сначала собираем тему в
                 черновике с предпросмотром, и лишь сохранение её применяет. */}
+            <AnimatePresence>
             {editor && (
                 <ThemeEditorModal
+                    key="theme-editor"
                     initial={editor.draft}
                     existing={editor.existing}
                     baseName={editor.baseName}
@@ -572,6 +575,7 @@ const AppearanceSettings: React.FC = () => {
                     onSave={handleEditorSave}
                 />
             )}
+            </AnimatePresence>
 
         </div>
     );

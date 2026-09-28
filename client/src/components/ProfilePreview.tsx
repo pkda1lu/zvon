@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { tabSwapVariants, tabSwapTransition } from '../animations/transitions';
+import axios from 'axios';
 import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
@@ -125,6 +128,64 @@ const RolesSection: React.FC<{ roleIds: string[]; serverRoles: any[] }> = ({ rol
                     ))}
                 </div>
             )}
+        </section>
+    );
+};
+
+/**
+ * Личная заметка о пользователе. Видна только автору. Редактируется прямо в
+ * карточке: сохраняется при уходе из поля (или Enter), Shift+Enter — перенос.
+ * Раньше заметку можно было только завести в контекстном меню, а в профиле
+ * она нигде не показывалась.
+ */
+const ProfileNote: React.FC<{ userId: string }> = ({ userId }) => {
+    const { user: currentUser, refreshUser } = useAuth();
+    const saved = currentUser?.notes?.[userId] || '';
+    const [value, setValue] = useState(saved);
+    const [saving, setSaving] = useState(false);
+    const ref = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => { setValue(saved); }, [saved, userId]);
+
+    // Высота по содержимому, без полосы прокрутки.
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [value]);
+
+    const save = async () => {
+        const next = value.trim();
+        if (next === saved.trim()) return;
+        setSaving(true);
+        try {
+            await axios.post('/api/users/note', { userId, note: next });
+            await refreshUser();
+        } catch {
+            setValue(saved);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <section className="profile-note">
+            <h4>ЗАМЕТКА{saving ? ' · сохранение…' : ''}</h4>
+            <textarea
+                ref={ref}
+                className="profile-note-input"
+                value={value}
+                maxLength={256}
+                rows={1}
+                placeholder="Нажмите, чтобы добавить заметку (видна только вам)"
+                onChange={e => setValue(e.target.value)}
+                onBlur={save}
+                onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ref.current?.blur(); }
+                    if (e.key === 'Escape') { setValue(saved); e.stopPropagation(); ref.current?.blur(); }
+                }}
+            />
         </section>
     );
 };
@@ -277,6 +338,8 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                         </section>
                     )}
 
+                    {!isSelf && currentUser && !user.isBot && <ProfileNote userId={String(user._id)} />}
+
                     {isServerType && memberData ? (
                         <section>
                             <h4>ДАТА ВСТУПЛЕНИЯ НА СЕРВЕР</h4>
@@ -340,7 +403,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     )}
                 </div>
 
-                <div className="profile-tab-content-full">
+                <motion.div className="profile-tab-content-full" key={activeTab} variants={tabSwapVariants} initial="initial" animate="animate" transition={tabSwapTransition}>
                     {activeTab === 'contacts' && !isSelf && (
                         <div className="contacts-tab">
                             <section>
@@ -500,7 +563,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                             </section>
                         </div>
                     )}
-                </div>
+                </motion.div>
             </div>
         </div>
     );

@@ -63,8 +63,8 @@ router.get('/my', auth, async (req, res) => {
  * Маршрут ОБЯЗАТЕЛЬНО объявлен до '/:id', иначе express примет 'system' за
  * идентификатор приложения.
  *
- * TIKTOK_OUTBOUND_DE / TIKTOK_OUTBOUND_FI — строки подключения вида
- * vless://... от узлов Vlyne в соответствующей стране.
+ * TIKTOK_OUTBOUND_DE / TIKTOK_OUTBOUND_FI — ссылки vless:// или hysteria2://
+ * от узлов Vlyne в стране; несколько — через пробел, по порядку предпочтения.
  */
 const TIKTOK_OUTBOUNDS = {
     de: { env: 'TIKTOK_OUTBOUND_DE', title: 'Германия', locale: 'de-DE', timeZone: 'Europe/Berlin' },
@@ -83,14 +83,19 @@ router.get('/system/tiktok/outbound', auth, async (req, res) => {
         const cfg = TIKTOK_OUTBOUNDS[code];
         if (!cfg) return res.status(400).json({ message: 'Неизвестная страна.' });
 
-        const uri = process.env[cfg.env];
-        if (!uri) {
+        // Несколько ссылок через пробел или «;» — запасные транспорты одного
+        // узла (reality, hysteria2…). Клиент 3.0 перебирает их по порядку:
+        // у части провайдеров reality по TCP не проходит, а QUIC проходит.
+        const uris = String(process.env[cfg.env] || '').split(/[\s;]+/).filter(Boolean);
+        if (uris.length === 0) {
             return res.status(503).json({
                 message: `Узел для страны «${cfg.title}» не настроен: задайте ${cfg.env} в окружении сервера.`
             });
         }
+        // Переходный клиент 2.9.x понимает только одну ссылку vless://.
+        const uri = uris.find(u => u.startsWith('vless://')) || uris[0];
 
-        res.json({ country: code, title: cfg.title, locale: cfg.locale, timeZone: cfg.timeZone, uri });
+        res.json({ country: code, title: cfg.title, locale: cfg.locale, timeZone: cfg.timeZone, uri, uris });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }

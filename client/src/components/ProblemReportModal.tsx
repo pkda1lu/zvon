@@ -4,6 +4,7 @@ import Modal from './Modal';
 import { useNotifications } from '../contexts/NotificationContext';
 import { getFullUrl } from '../utils/avatar';
 import './ReportModal.css';
+import { uploadFiles } from '../utils/transfers';
 
 interface ProblemReportModalProps {
   isOpen: boolean;
@@ -64,13 +65,9 @@ const ProblemReportModal: React.FC<ProblemReportModalProps> = ({ isOpen, onClose
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
-    const formData = new FormData();
-    Array.from(files).forEach(f => formData.append('files', f));
     setUploading(true);
     try {
-      const res = await axios.post('/api/upload-files', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await uploadFiles(Array.from(files));
       const uploaded: UploadedAttachment[] = (res.data || []).map((a: any) => ({
         url: a.url, type: a.type, filename: a.filename, size: a.size,
       }));

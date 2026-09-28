@@ -5,12 +5,7 @@ import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { useDialog } from '../contexts/DialogContext';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import { motion } from 'framer-motion';
-import {
-  popoverVariants,
-  popoverTransition,
-  modalPopVariants,
-  modalPopTransition,
-} from '../animations/transitions';
+import { popoverVariants, popoverTransition, modalPopVariants, modalPopTransition, quickExit, overlayTransition } from '../animations/transitions';
 import './UserProfileCard.css';
 import './ServerProfileCard.css';
 
@@ -215,7 +210,14 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
     };
 
     return (
-        <div className={`user-profile-overlay ${position ? 'transparent' : ''}`} onClick={onClose}>
+        <motion.div
+            className={`user-profile-overlay ${position ? 'transparent' : ''}`}
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, pointerEvents: 'none', transition: quickExit }}
+            transition={overlayTransition}
+        >
             <motion.div
                 className={`user-profile-card ${position ? 'popout' : ''} panel-hero`}
                 onClick={e => e.stopPropagation()}
@@ -229,6 +231,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                 variants={position ? popoverVariants : modalPopVariants}
                 initial="initial"
                 animate={position ? (isVisible ? 'animate' : 'initial') : 'animate'}
+                exit="exit"
                 transition={position ? popoverTransition : modalPopTransition}
             >
                 <div>
@@ -240,7 +243,7 @@ const ServerProfileCard: React.FC<ServerProfileCardProps> = ({ server, onClose, 
                     <ServerProfileCardBody server={server} onOwnerClick={onUserClick} onLeave={handleLeave} />
                 </div>
             </motion.div>
-        </div>
+        </motion.div>
     );
 };
 

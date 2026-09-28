@@ -1,0 +1,682 @@
+/* =============================================================================
+   Кнопки, переключатели и флажки Zvon — одна система на всё приложение.
+
+   До неё в интерфейсе жило несколько независимых наборов, делавших одно и то
+   же по-разному: .settings-btn (определён дважды, с плоской заливкой и с
+   градиентом — побеждал тот, что ниже), .zv-btn с отдельными переопределениями
+   в каждой модалке, .neon-btn, .custom-dialog-button, а «вторичную» кнопку в
+   модерации делали инлайн-перекраской основной.
+
+   Теперь вид задаётся здесь. Старые классы оставлены как синонимы, чтобы не
+   переписывать разметку в сотне мест:
+
+     основная    .zv-btn--primary   = .settings-btn, .neon-btn,
+                                      .custom-dialog-button.confirm
+     вторичная   .zv-btn--secondary = .zv-btn--ghost, .settings-btn.secondary,
+                                      .custom-dialog-button.cancel
+     прозрачная  .zv-btn--quiet
+     опасная     .zv-btn--danger    = .settings-btn.danger,
+                                      .custom-dialog-button.confirm.danger
+     опасная с обводкой .zv-btn--danger-outline = .settings-btn-danger
+
+   Размеры: по умолчанию 40 px, .zv-btn--sm 32 px, .zv-btn--lg 48 px;
+   .zv-btn--block — на всю ширину. Квадратная кнопка-иконка — .zv-icon-btn.
+   ========================================================================== */
+
+:root {
+    --btn-height: 40px;
+    --btn-radius: 12px;
+    --btn-font: 14px;
+    --btn-pad-x: 18px;
+    --btn-focus: 0 0 0 2px rgba(0, 229, 255, 0.55);
+    --btn-primary-shadow: 0 4px 14px rgba(0, 106, 255, 0.35);
+    --btn-primary-shadow-hover: 0 6px 20px rgba(0, 106, 255, 0.5);
+}
+
+/* --- База ----------------------------------------------------------------- */
+.zv-btn,
+.settings-btn,
+.neon-btn,
+.custom-dialog-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: var(--btn-height);
+    padding: 0 var(--btn-pad-x);
+    border-radius: var(--btn-radius);
+    border: 1px solid transparent;
+    font-family: inherit;
+    font-size: var(--btn-font);
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+    text-transform: none;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+        box-shadow 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+}
+
+.zv-btn:focus-visible,
+.settings-btn:focus-visible,
+.neon-btn:focus-visible,
+.custom-dialog-button:focus-visible,
+.zv-icon-btn:focus-visible,
+.action-button:focus-visible {
+    outline: none;
+    box-shadow: var(--btn-focus);
+}
+
+.zv-btn:active:not(:disabled),
+.settings-btn:active:not(:disabled),
+.neon-btn:active:not(:disabled),
+.custom-dialog-button:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+.zv-btn:disabled,
+.settings-btn:disabled,
+.neon-btn:disabled,
+.custom-dialog-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+}
+
+/* Эти два класса исторически блочные (display: flex): в формах и колонках
+   они растянуты на всю ширину. Раскладку сохраняем, меняется только вид. */
+.settings-btn,
+.neon-btn {
+    display: flex;
+}
+
+/* --- Основная --------------------------------------------------------------- */
+.zv-btn--primary,
+.settings-btn,
+.neon-btn,
+.custom-dialog-button.confirm {
+    background: var(--primary-neon);
+    color: #fff;
+    box-shadow: var(--btn-primary-shadow);
+}
+
+.zv-btn--primary:hover:not(:disabled),
+.settings-btn:hover:not(:disabled),
+.neon-btn:hover:not(:disabled),
+.custom-dialog-button.confirm:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--btn-primary-shadow-hover);
+    filter: brightness(1.08);
+}
+
+/* Голубая основная в AMOLED — с тёмным текстом: белый на ней не читается. */
+:root[data-theme="amoled"] .zv-btn--primary,
+:root[data-theme="amoled"] .settings-btn:not(.secondary):not(.danger):not(.settings-btn-danger):not(.settings-btn-secondary):not(.success-glass):not(.danger-glass):not(.zv-btn--warning),
+:root[data-theme="amoled"] .neon-btn,
+:root[data-theme="amoled"] .custom-dialog-button.confirm:not(.danger) {
+    color: #000;
+    box-shadow: 0 4px 16px rgba(0, 229, 255, 0.35);
+}
+
+/* --- Вторичная (отмена, второстепенные действия) ----------------------------- */
+.zv-btn--secondary,
+.zv-btn--ghost,
+.settings-btn.secondary,
+.settings-btn.settings-btn-secondary,
+.custom-dialog-button.cancel {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main, #fff);
+    border-color: var(--glass-border, rgba(255, 255, 255, 0.1));
+    box-shadow: none;
+    filter: none;
+}
+
+.zv-btn--secondary:hover:not(:disabled),
+.zv-btn--ghost:hover:not(:disabled),
+.settings-btn.secondary:hover:not(:disabled),
+.settings-btn.settings-btn-secondary:hover:not(:disabled),
+.custom-dialog-button.cancel:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: none;
+    filter: none;
+    transform: translateY(-1px);
+}
+
+/* --- Прозрачная (действие-ссылка внутри блока) ------------------------------- */
+.zv-btn--quiet {
+    background: transparent;
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
+    box-shadow: none;
+}
+
+.zv-btn--quiet:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main, #fff);
+}
+
+/* --- Опасная ---------------------------------------------------------------- */
+.zv-btn--danger,
+.settings-btn.danger,
+.custom-dialog-button.confirm.danger {
+    background: var(--danger, #ff4757);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 14px rgba(255, 71, 87, 0.3);
+}
+
+.zv-btn--danger:hover:not(:disabled),
+.settings-btn.danger:hover:not(:disabled),
+.custom-dialog-button.confirm.danger:hover:not(:disabled) {
+    box-shadow: 0 6px 20px rgba(255, 71, 87, 0.45);
+    filter: brightness(1.08);
+}
+
+.zv-btn--danger-outline,
+.settings-btn.settings-btn-danger,
+.settings-btn.secondary.danger,
+.settings-btn.danger-glass,
+.settings-btn-danger {
+    background: transparent;
+    color: var(--danger, #ff4757);
+    border-color: rgba(255, 71, 87, 0.35);
+    box-shadow: none;
+}
+
+.zv-btn--danger-outline:hover:not(:disabled),
+.settings-btn.settings-btn-danger:hover:not(:disabled),
+.settings-btn.secondary.danger:hover:not(:disabled),
+.settings-btn.danger-glass:hover:not(:disabled),
+.settings-btn-danger:hover:not(:disabled) {
+    background: var(--danger, #ff4757);
+    border-color: var(--danger, #ff4757);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(255, 71, 87, 0.3);
+    filter: none;
+}
+
+/* --- Успех и предупреждение (одобрить / решено, предупредить) --------------- */
+.zv-btn--success,
+.settings-btn.success-glass {
+    background: rgba(46, 213, 115, 0.14);
+    color: var(--success, #2ed573);
+    border-color: rgba(46, 213, 115, 0.35);
+    box-shadow: none;
+}
+
+.zv-btn--success:hover:not(:disabled),
+.settings-btn.success-glass:hover:not(:disabled) {
+    background: var(--success, #2ed573);
+    border-color: var(--success, #2ed573);
+    color: #04140a;
+    box-shadow: 0 4px 14px rgba(46, 213, 115, 0.3);
+    filter: none;
+}
+
+.zv-btn--warning {
+    background: rgba(240, 178, 50, 0.14);
+    color: #f0b232;
+    border-color: rgba(240, 178, 50, 0.35);
+    box-shadow: none;
+}
+
+.zv-btn--warning:hover:not(:disabled) {
+    background: #f0b232;
+    border-color: #f0b232;
+    color: #1a1204;
+    box-shadow: 0 4px 14px rgba(240, 178, 50, 0.3);
+    filter: none;
+}
+
+/* --- Размеры ---------------------------------------------------------------- */
+.zv-btn--sm {
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 13px;
+}
+
+.zv-btn--lg,
+.neon-btn,
+.custom-dialog-button {
+    min-height: 44px;
+    padding: 0 22px;
+}
+
+.zv-btn--lg {
+    min-height: 48px;
+    border-radius: 14px;
+    font-size: 15px;
+}
+
+.zv-btn--block {
+    display: flex;
+    width: 100%;
+}
+
+/* --- Кнопка-иконка ------------------------------------------------------------ */
+.zv-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
+    cursor: pointer;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.zv-icon-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: var(--text-main, #fff);
+}
+
+.zv-icon-btn--sm { width: 30px; height: 30px; border-radius: 8px; }
+.zv-icon-btn--danger:hover:not(:disabled) { color: var(--danger, #ff4757); border-color: rgba(255, 71, 87, 0.4); }
+.zv-icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- Переключатель (SettingsToggle) -------------------------------------------- */
+.settings-toggle input:focus-visible + .toggle-slider {
+    box-shadow: var(--btn-focus);
+}
+
+/* --- Флажки ----------------------------------------------------------------- */
+/* Все флажки приложения выглядят одинаково: раньше в опросах, постах и
+   кабинете разработчика стояли системные квадратики браузера. Скрытый флажок
+   внутри SettingsToggle не затрагивается — у него своя отрисовка. */
+input[type="checkbox"]:not(.settings-toggle input) {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+    vertical-align: -3px;
+    border-radius: 5px;
+    border: 1.5px solid rgba(255, 255, 255, 0.28);
+    background: rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    display: inline-grid;
+    place-content: center;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+input[type="checkbox"]:not(.settings-toggle input)::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    transform: scale(0);
+    transition: transform 0.12s ease;
+    background: #fff;
+    clip-path: polygon(14% 44%, 0 58%, 40% 98%, 100% 22%, 86% 8%, 40% 70%);
+}
+
+input[type="checkbox"]:not(.settings-toggle input):checked {
+    background: var(--primary-neon);
+    border-color: var(--primary-neon);
+}
+
+input[type="checkbox"]:not(.settings-toggle input):checked::before {
+    transform: scale(1);
+}
+
+input[type="checkbox"]:not(.settings-toggle input):hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+input[type="checkbox"]:not(.settings-toggle input):focus-visible {
+    outline: none;
+    box-shadow: var(--btn-focus);
+}
+
+input[type="checkbox"]:not(.settings-toggle input):disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* =============================================================================
+   Кнопки-иконки: два вида.
+     • с подложкой — действия в списках и панелях, «закрыть» (.zv-icon-btn);
+     • тихая — иконки в шапках и тулбарах, подложка только при наведении
+       (.zv-icon-btn--quiet).
+   Состояние «включено» (панель открыта, режим активен) — голубой тон.
+   Кнопки «закрыть» при наведении краснеют — так было в настройках и профиле,
+   теперь везде.
+
+   Синонимы — через button.<класс>: CSS компонентов грузится позже и с той же
+   специфичностью перебил бы общий вид. Положение остаётся у компонентов,
+   здесь внешний вид и размер.
+   ========================================================================== */
+button.voice-chat-toggle-btn,
+button.inbox-item-btn,
+button.settings-button,
+button.invite-button,
+button.report-icon-btn,
+button.action-button,
+button.settings-close-btn,
+button.mobile-close-btn,
+.user-server-profile-modal button.close-btn,
+.report-modal-header button.close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
+    box-shadow: none;
+    cursor: pointer;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+button.voice-chat-toggle-btn:hover:not(:disabled),
+button.inbox-item-btn:hover:not(:disabled),
+button.settings-button:hover:not(:disabled),
+button.invite-button:hover:not(:disabled),
+button.action-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: var(--text-main, #fff);
+    box-shadow: none;
+    transform: none;
+}
+
+/* Закрыть и пожаловаться — красным при наведении. */
+button.report-icon-btn:hover:not(:disabled),
+button.settings-close-btn:hover:not(:disabled),
+button.mobile-close-btn:hover:not(:disabled),
+.user-server-profile-modal button.close-btn:hover:not(:disabled),
+.report-modal-header button.close-btn:hover:not(:disabled) {
+    background: rgba(255, 71, 87, 0.14);
+    border-color: rgba(255, 71, 87, 0.4);
+    color: var(--danger, #ff4757);
+    transform: none;
+}
+
+/* Компактные — в плотных местах (шапка сайдбара, строки списков). */
+button.voice-chat-toggle-btn,
+button.inbox-item-btn,
+button.settings-button,
+button.invite-button,
+.report-modal-header button.close-btn {
+    width: calc(32px * var(--interface-scale, 1));
+    height: calc(32px * var(--interface-scale, 1));
+    border-radius: calc(9px * var(--interface-scale, 1));
+}
+
+button.report-icon-btn,
+button.action-button,
+button.mobile-close-btn,
+.user-server-profile-modal button.close-btn {
+    width: 36px;
+    height: 36px;
+}
+
+/* Тихая кнопка-иконка — шапки каналов и ЛС, закрытие поиска. */
+.zv-icon-btn--quiet,
+button.header-action-btn,
+button.msg-search-close {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.zv-icon-btn--quiet:hover:not(:disabled),
+button.header-action-btn:hover:not(:disabled),
+button.msg-search-close:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: transparent;
+    color: var(--text-main, #fff);
+    transform: none;
+}
+
+/* «Включено»: открыт чат голосового канала, выбран режим и т.п. */
+.zv-icon-btn.active,
+.zv-icon-btn--quiet.active,
+button.voice-chat-toggle-btn.active,
+button.header-action-btn.active {
+    background: rgba(0, 229, 255, 0.12);
+    border-color: rgba(0, 229, 255, 0.45);
+    color: var(--primary-neon, #00e5ff);
+}
+
+button.voice-chat-toggle-btn:focus-visible,
+button.inbox-item-btn:focus-visible,
+button.settings-button:focus-visible,
+button.invite-button:focus-visible,
+button.report-icon-btn:focus-visible,
+button.settings-close-btn:focus-visible,
+button.mobile-close-btn:focus-visible,
+button.header-action-btn:focus-visible,
+button.msg-search-close:focus-visible,
+.zv-icon-btn--quiet:focus-visible {
+    outline: none;
+    box-shadow: var(--btn-focus);
+}
+
+/* =============================================================================
+   Кнопки управления голосом: панель в сайдбаре (.vcp__btn), нижняя панель
+   голосового канала (.ctrl-btn), личный звонок (.control-circle — полный вид,
+   .control-button — свёрнутый виджет и оверлей).
+
+   Раньше у каждой панели был свой смысл цвета: в канале красной была
+   «активная» кнопка, в звонке — «выключенная», а «положить трубку» где-то
+   заливалась красным, где-то была красным контуром. Теперь везде одинаково:
+     • красный тон  — выключено (микрофон, звук);
+     • голубой тон  — включено (камера, демонстрация, мини-приложения);
+     • сплошной красный — положить трубку.
+   ========================================================================== */
+button.ctrl-btn,
+button.control-circle,
+button.control-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    box-shadow: none;
+    cursor: pointer;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+        transform 0.18s ease, box-shadow 0.18s ease, width 0.18s ease;
+}
+
+button.ctrl-btn:hover:not(:disabled),
+button.control-circle:hover:not(:disabled),
+button.control-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Нижние панели канала и звонка — один размер. */
+button.ctrl-btn,
+button.control-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+}
+
+button.control-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+}
+
+/* Выключено */
+button.ctrl-btn.active,
+button.control-circle.muted,
+button.control-button.muted,
+button.control-button.deafened,
+button.vcp__btn--danger.is-active {
+    background: rgba(255, 71, 87, 0.15);
+    border-color: rgba(255, 71, 87, 0.35);
+    color: var(--danger, #ff4757);
+}
+
+/* Включено */
+button.ctrl-btn.streaming,
+button.control-circle.active,
+button.control-button.return-to-chat,
+button.vcp__btn--accent.is-active {
+    background: rgba(0, 229, 255, 0.13);
+    border-color: rgba(0, 229, 255, 0.45);
+    color: var(--primary-neon, #00e5ff);
+}
+
+/* Положить трубку */
+button.ctrl-btn.hangup,
+button.control-circle.end-call-circle,
+button.control-button.end-call,
+button.vcp__hangup {
+    background: var(--danger, #ff4757);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(255, 71, 87, 0.35);
+}
+
+button.ctrl-btn.hangup:hover:not(:disabled),
+button.control-circle.end-call-circle:hover:not(:disabled),
+button.control-button.end-call:hover:not(:disabled),
+button.vcp__hangup:hover:not(:disabled) {
+    background: var(--danger, #ff4757);
+    border-color: transparent;
+    color: #fff;
+    filter: brightness(1.1);
+    box-shadow: 0 10px 26px rgba(255, 71, 87, 0.5);
+}
+
+button.ctrl-btn.hangup,
+button.control-circle.end-call-circle {
+    width: 68px;
+}
+
+@media (max-width: 760px) {
+    button.ctrl-btn,
+    button.control-circle { width: 46px; height: 46px; border-radius: 14px; }
+    button.ctrl-btn.hangup,
+    button.control-circle.end-call-circle { width: 60px; }
+}
+
+button.ctrl-btn:focus-visible,
+button.control-circle:focus-visible,
+button.control-button:focus-visible,
+button.vcp__btn:focus-visible,
+button.vcp__hangup:focus-visible {
+    outline: none;
+    box-shadow: var(--btn-focus);
+}
+
+/* =============================================================================
+   Вкладки. Эталон — вкладки друзей и чатов: плашка с нейтральным белым
+   просветлением, без цветной заливки и неоновых подчёркиваний. Входящие,
+   выбор источника демонстрации, витрина, модерация раньше рисовали выделение
+   каждая по-своему (голубая линия со свечением, голубая заливка с чёрным
+   текстом, «таблетки» с полным скруглением).
+   ========================================================================== */
+.zv-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.zv-tab,
+.inbox-tabs .inbox-tab,
+.screen-source-tabs .tab-button,
+div.showcase-tabs button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-dim, rgba(255, 255, 255, 0.6));
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: none;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.zv-tab:hover,
+.inbox-tabs .inbox-tab:hover,
+.screen-source-tabs .tab-button:hover,
+div.showcase-tabs button:hover {
+    color: var(--text-main, #fff);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: transparent;
+}
+
+.zv-tab.active,
+.inbox-tabs .inbox-tab.active,
+.screen-source-tabs .tab-button.active,
+div.showcase-tabs button.active,
+.settings-choice-group .settings-choice-item.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.10);
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Подчёркивания прежних вкладок больше не рисуем. */
+.inbox-tabs .inbox-tab.active::after,
+.screen-source-tabs .tab-button.active::after {
+    display: none;
+}
+
+.zv-tab:focus-visible,
+div.showcase-tabs button:focus-visible,
+.screen-source-tabs .tab-button:focus-visible {
+    outline: none;
+    box-shadow: var(--btn-focus);
+}
+
+/* Счётчик на вкладке. */
+.zv-tab-count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.zv-tab.active .zv-tab-count {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
+
+.zv-tab-count.accent {
+    background: var(--accent-pink, #ff3b30);
+    color: #fff;
+}

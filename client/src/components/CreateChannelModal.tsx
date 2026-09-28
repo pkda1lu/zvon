@@ -5,6 +5,7 @@ import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { Channel } from '../types';
 import './CreateChannelModal.css';
+import ZvSelect from './ZvSelect';
 
 interface CreateChannelModalProps {
   isOpen: boolean;
@@ -234,7 +235,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
         {entityType === 'channel' && (
           <div className="form-section">
             <label htmlFor="channel-category">Привязать к категории</label>
-            <select
+            <ZvSelect
               id="channel-category"
               className="category-select"
               value={selectedCategoryId}
@@ -244,7 +245,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               {categories.map(cat => (
                 <option key={cat._id} value={cat._id}>{cat.name}</option>
               ))}
-            </select>
+            </ZvSelect>
           </div>
         )}
 

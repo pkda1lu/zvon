@@ -24,8 +24,22 @@ const globalAuditLogSchema = new mongoose.Schema({
       'BOT_DELETE',
       'MINIAPP_CREATE',
       'MODERATION_REPORT_RESOLVE',
+      'MODERATION_REPORT_UNRESOLVE',
       'MODERATION_BAN',
+      'MODERATION_UNBAN',
       'MODERATION_NOTIFY',
+      'MODERATION_ROLE_ASSIGN',
+      // Обращения о проблемах (кнопка «Репорт»)
+      'PROBLEM_REPORT_RESOLVE',
+      // Витрина: боты, мини-приложения, темы
+      'MARKETPLACE_APPROVE',
+      'MARKETPLACE_REJECT',
+      'MARKETPLACE_BLOCK',
+      'MARKETPLACE_UNBLOCK',
+      // Посты-объявления
+      'POST_CREATE',
+      'POST_UPDATE',
+      'POST_DELETE',
       // Vlyne ID: выдача и отзыв доступа приложению экосистемы.
       'VLYNE_ID_AUTHORIZE',
       'VLYNE_ID_REVOKE',
@@ -53,7 +67,7 @@ const globalAuditLogSchema = new mongoose.Schema({
   },
   targetModel: {
     type: String,
-    enum: ['User', 'Server', 'Report', 'MiniApp', 'Brand'],
+    enum: ['User', 'Server', 'Report', 'MiniApp', 'Brand', 'Theme', 'ProblemReport', 'Post'],
     default: 'User'
   },
   details: {

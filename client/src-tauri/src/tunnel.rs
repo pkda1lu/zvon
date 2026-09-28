@@ -214,34 +214,24 @@ fn find_binary(app: &AppHandle) -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.exists())
 }
 
-/// vless://uuid@host:port?...#name → outbound sing-box. Готовый JSON — как есть.
+/// Ссылка узла → outbound sing-box. Понимает vless:// и hysteria2:// (hy2://),
+/// готовый JSON берётся как есть.
 fn parse_outbound(uri: &str) -> Result<Value, String> {
     let raw = uri.trim();
     if raw.starts_with('{') {
         return serde_json::from_str(raw).map_err(|e| e.to_string());
     }
+    if let Some(rest) = raw.strip_prefix("hysteria2://").or_else(|| raw.strip_prefix("hy2://")) {
+        return parse_hysteria2(rest);
+    }
     let rest = raw
         .strip_prefix("vless://")
-        .ok_or("Поддерживаются только ссылки vless:// или готовый JSON выходного подключения.")?;
-    let rest = rest.split('#').next().unwrap_or("");
-    let (auth, query) = rest.split_once('?').unwrap_or((rest, ""));
-    let (uuid, hostport) = auth.split_once('@').ok_or("в ссылке нет адреса узла")?;
-    let (host, port) = match hostport.rsplit_once(':') {
-        Some((h, p)) => (h.trim_matches(['[', ']']).to_string(), p.parse::<u16>().unwrap_or(443)),
-        None => (hostport.to_string(), 443),
-    };
-    let q: std::collections::HashMap<String, String> = query
-        .split('&')
-        .filter(|s| !s.is_empty())
-        .map(|kv| {
-            let (k, v) = kv.split_once('=').unwrap_or((kv, ""));
-            (k.to_string(), percent_decode(v))
-        })
-        .collect();
+        .ok_or("Поддерживаются ссылки vless://, hysteria2:// или готовый JSON выходного подключения.")?;
+    let (uuid, host, port, q) = split_link(rest)?;
     let get = |k: &str| q.get(k).filter(|v| !v.is_empty()).cloned();
 
     let mut out = json!({
-        "type": "vless", "tag": "proxy", "server": host, "server_port": port, "uuid": percent_decode(uuid),
+        "type": "vless", "tag": "proxy", "server": host, "server_port": port, "uuid": uuid,
     });
     if let Some(flow) = get("flow") {
         out["flow"] = json!(flow);
@@ -280,6 +270,88 @@ fn parse_outbound(uri: &str) -> Result<Value, String> {
         _ => {}
     }
     Ok(out)
+}
+
+type LinkQuery = std::collections::HashMap<String, String>;
+
+/// `auth@host:port/?query#name` → (auth, host, port, query).
+fn split_link(rest: &str) -> Result<(String, String, u16, LinkQuery), String> {
+    let rest = rest.split('#').next().unwrap_or("");
+    let (auth, query) = rest.split_once('?').unwrap_or((rest, ""));
+    let (auth, hostport) = auth.rsplit_once('@').ok_or("в ссылке нет адреса узла")?;
+    let hostport = hostport.trim_end_matches('/');
+    let (host, port) = match hostport.rsplit_once(':') {
+        Some((h, p)) => (h.trim_matches(['[', ']']).to_string(), p.parse::<u16>().unwrap_or(443)),
+        None => (hostport.to_string(), 443),
+    };
+    let q = query
+        .split('&')
+        .filter(|s| !s.is_empty())
+        .map(|kv| {
+            let (k, v) = kv.split_once('=').unwrap_or((kv, ""));
+            (k.to_string(), percent_decode(v))
+        })
+        .collect();
+    Ok((percent_decode(auth), host, port, q))
+}
+
+/// hysteria2://password@host:port/?sni=…&obfs=salamander&obfs-password=…&insecure=1
+fn parse_hysteria2(rest: &str) -> Result<Value, String> {
+    let (password, host, port, q) = split_link(rest)?;
+    let get = |k: &str| q.get(k).filter(|v| !v.is_empty()).cloned();
+    let mut tls = json!({
+        "enabled": true,
+        "server_name": get("sni").unwrap_or_else(|| host.clone()),
+        "insecure": get("insecure").as_deref() == Some("1"),
+        "alpn": get("alpn").map(|a| a.split(',').map(String::from).collect::<Vec<_>>()).unwrap_or_else(|| vec!["h3".into()]),
+    });
+    if let Some(pin) = get("pinSHA256") {
+        tls["certificate_public_key_sha256"] = json!([pin]);
+    }
+    let mut out = json!({
+        "type": "hysteria2", "tag": "proxy", "server": host, "server_port": port, "password": password, "tls": tls,
+    });
+    if let Some(obfs) = get("obfs") {
+        out["obfs"] = json!({ "type": obfs, "password": get("obfs-password").unwrap_or_default() });
+    }
+    Ok(out)
+}
+
+/// Ссылки на узел: от сервера приходит список `uris` (запасные транспорты —
+/// например, reality и hysteria2 на одном узле), от старого сервера — одна `uri`.
+fn candidate_links(config: &Value) -> Vec<String> {
+    let mut links: Vec<String> = config
+        .get("uris")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+        .unwrap_or_default();
+    if let Some(uri) = config.get("uri").and_then(Value::as_str) {
+        if !links.iter().any(|l| l == uri) {
+            links.push(uri.to_string());
+        }
+    }
+    links.retain(|l| !l.trim().is_empty());
+    links
+}
+
+/// Последняя ошибка из журнала sing-box — для понятного сообщения и логов.
+fn last_singbox_error(path: &std::path::Path) -> Option<String> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let line = text.lines().rev().find(|l| l.contains("ERROR") || l.contains("FATAL"))?;
+    // Без ANSI-раскраски и служебного префикса «connection: open connection to …».
+    let mut clean = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            for n in chars.by_ref() {
+                if n.is_ascii_alphabetic() { break; }
+            }
+        } else {
+            clean.push(c);
+        }
+    }
+    let msg = clean.rsplit(": ").next().unwrap_or(&clean).trim().to_string();
+    Some(msg)
 }
 
 fn percent_decode(s: &str) -> String {
@@ -338,49 +410,99 @@ async fn start_inner(app: &AppHandle, config: &Value) -> Result<Value, String> {
     }
     let bin = find_binary(app)
         .ok_or("Не найден компонент подключения (sing-box). Переустановите клиент или задайте ZVON_SINGBOX.")?;
-    let outbound = parse_outbound(config.get("uri").and_then(Value::as_str).unwrap_or(""))?;
-    let port = free_port().ok_or("нет свободного порта")?;
-    let sb_config = json!({
-        "log": { "level": "error" },
-        "inbounds": [{ "type": "socks", "tag": "local", "listen": "127.0.0.1", "listen_port": port }],
-        "outbounds": [outbound, { "type": "direct", "tag": "direct" }],
-    });
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let _ = std::fs::create_dir_all(&dir);
-    let config_path = dir.join("tiktok-tunnel.json");
-    std::fs::write(&config_path, serde_json::to_string_pretty(&sb_config).unwrap_or_default()).map_err(|e| e.to_string())?;
-
-    let mut cmd = std::process::Command::new(&bin);
-    cmd.args(["run", "-c"]).arg(&config_path).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    let links = candidate_links(config);
+    if links.is_empty() {
+        return Err("Сервер не выдал ссылку на узел.".into());
     }
-    let child = cmd.spawn().map_err(|e| format!("sing-box не запустился: {e}"))?;
     let country = config.get("country").and_then(Value::as_str).map(String::from);
     let title = config.get("title").and_then(Value::as_str).map(String::from);
-    *RUNNING.lock() = Some(Running { child, country: country.clone(), title: title.clone() });
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let _ = std::fs::create_dir_all(&dir);
 
-    if let Err(e) = wait_for_port(port).await {
-        stop_inner(app);
-        return Err(e);
-    }
-    match probe(port).await {
-        Ok(status) => log::info!("[tunnel] проверка через узел: HTTP {status}"),
-        Err(e) => {
-            stop_inner(app);
-            return Err(format!(
-                "Узел не пропускает трафик: {e}. Проверьте, что сервер жив и параметры reality актуальны."
-            ));
+    /*
+     * Транспорты пробуются по очереди, пока пробный запрос не пройдёт. У части
+     * провайдеров (и внутри другого VPN, чей узел подменяет адрес по SNI)
+     * reality по TCP не доходит до узла — соединение уводят на настоящий сайт
+     * маски, и sing-box отвечает «reality verification failed». Тот же узел по
+     * hysteria2 (QUIC) при этом работает, поэтому одна ссылка — не вариант.
+     */
+    let mut errors = Vec::new();
+    let mut connected = None;
+    for (i, link) in links.iter().enumerate() {
+        let outbound = match parse_outbound(link) {
+            Ok(o) => o,
+            Err(e) => { errors.push(e); continue; }
+        };
+        let kind = outbound.get("type").and_then(Value::as_str).unwrap_or("?").to_string();
+        match launch(&bin, &dir, outbound).await {
+            Ok((child, port)) => {
+                log::info!("[tunnel] узел отвечает через {kind} (вариант {})", i + 1);
+                connected = Some((child, port));
+                break;
+            }
+            Err(e) => {
+                log::warn!("[tunnel] {kind} (вариант {}) не прошёл: {e}", i + 1);
+                errors.push(format!("{kind}: {e}"));
+            }
         }
     }
+    let Some((child, port)) = connected else {
+        return Err(format!("Узел не пропускает трафик ({}). Попробуйте другую страну или повторите позже.", errors.join("; ")));
+    };
+    *RUNNING.lock() = Some(Running { child, country: country.clone(), title: title.clone() });
 
     switch_upstream(port);
     let locale = config.get("locale").and_then(Value::as_str).map(String::from);
     crate::netfilter::set_tunnel_locale(app, locale);
     log::info!("[tunnel] TikTok идёт через «{}», локальный порт {port}", title.clone().or(country.clone()).unwrap_or_default());
     Ok(json!({ "ok": true, "country": country, "port": port }))
+}
+
+/// Запустить sing-box с одним выходом и убедиться, что через него ходит
+/// трафик. Ошибки sing-box пишутся в tiktok-tunnel.log рядом с конфигом.
+async fn launch(bin: &std::path::Path, dir: &std::path::Path, outbound: Value) -> Result<(std::process::Child, u16), String> {
+    let port = free_port().ok_or("нет свободного порта")?;
+    let sb_config = json!({
+        "log": { "level": "error" },
+        "inbounds": [{ "type": "socks", "tag": "local", "listen": "127.0.0.1", "listen_port": port }],
+        "outbounds": [outbound, { "type": "direct", "tag": "direct" }],
+    });
+    let config_path = dir.join("tiktok-tunnel.json");
+    let log_path = dir.join("tiktok-tunnel.log");
+    std::fs::write(&config_path, serde_json::to_string_pretty(&sb_config).unwrap_or_default()).map_err(|e| e.to_string())?;
+    let log_file = std::fs::File::create(&log_path).map_err(|e| e.to_string())?;
+
+    let mut cmd = std::process::Command::new(bin);
+    cmd.args(["run", "-c"])
+        .arg(&config_path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(log_file);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("sing-box не запустился: {e}"))?;
+    let kill = |child: &mut std::process::Child| {
+        let _ = child.kill();
+        let _ = child.wait();
+    };
+
+    if let Err(e) = wait_for_port(port).await {
+        kill(&mut child);
+        return Err(last_singbox_error(&log_path).unwrap_or(e));
+    }
+    match probe(port).await {
+        Ok(status) => {
+            log::info!("[tunnel] проверка через узел: HTTP {status}");
+            Ok((child, port))
+        }
+        Err(e) => {
+            kill(&mut child);
+            Err(last_singbox_error(&log_path).unwrap_or(e))
+        }
+    }
 }
 
 fn stop_inner(app: &AppHandle) {
@@ -409,5 +531,40 @@ pub fn status(_app: &AppHandle) -> Value {
     match running.as_ref() {
         Some(r) => json!({ "running": true, "country": r.country, "title": r.title }),
         None => json!({ "running": false, "country": null, "title": null }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hysteria2_link() {
+        let o = parse_outbound("hysteria2://p%40ss@node.example:36887/?sni=node.example&obfs=salamander&obfs-password=xyz#DE").unwrap();
+        assert_eq!(o["type"], "hysteria2");
+        assert_eq!(o["server"], "node.example");
+        assert_eq!(o["server_port"], 36887);
+        assert_eq!(o["password"], "p@ss");
+        assert_eq!(o["obfs"]["type"], "salamander");
+        assert_eq!(o["obfs"]["password"], "xyz");
+        assert_eq!(o["tls"]["server_name"], "node.example");
+        assert_eq!(o["tls"]["alpn"][0], "h3");
+    }
+
+    #[test]
+    fn vless_reality_link() {
+        let o = parse_outbound("vless://uuid-1@host.example:443?type=tcp&security=reality&pbk=KEY&sid=ab&sni=mask.example&fp=firefox&flow=xtls-rprx-vision#x").unwrap();
+        assert_eq!(o["type"], "vless");
+        assert_eq!(o["uuid"], "uuid-1");
+        assert_eq!(o["flow"], "xtls-rprx-vision");
+        assert_eq!(o["tls"]["reality"]["short_id"], "ab");
+        assert_eq!(o["tls"]["server_name"], "mask.example");
+    }
+
+    #[test]
+    fn candidates_merge_list_and_legacy_uri() {
+        let c = json!({ "uris": ["hy2://a@h:1", "vless://b@h:2"], "uri": "vless://b@h:2" });
+        assert_eq!(candidate_links(&c), vec!["hy2://a@h:1", "vless://b@h:2"]);
+        assert_eq!(candidate_links(&json!({ "uri": "vless://b@h:2" })), vec!["vless://b@h:2"]);
     }
 }

@@ -25,6 +25,7 @@ import type {
 } from 'livekit-client';
 import { loadLiveKit, ConnectionStates, ConnectionQualities, TrackSources } from '../utils/livekitLazy';
 import { registerPanner, unregisterPanner, subscribeRouting, getPlaybackContext, resumePlayback } from '../utils/spatialAudio';
+import { VOICE_DETECTOR_SOURCE, registerVoiceGateNode, setVoiceGateConfig } from '../utils/voiceGate';
 import { openDesktopSource } from '../utils/desktopCapture';
 
 import { useCallSettings } from './CallSettingsContext';
@@ -34,7 +35,7 @@ import { useCallSettings } from './CallSettingsContext';
 interface VoiceContextType {
     isConnected: boolean;
     activeChannelId: string | null;
-    joinChannel: (channelId: string) => void;
+    joinChannel: (channelId: string, opts?: { rejoin?: boolean }) => Promise<boolean> | void;
     leaveChannel: () => void;
     isMuted: boolean;
     isDeafened: boolean;
@@ -149,6 +150,9 @@ const VoiceLevelContext = createContext<VoiceLevelContextType | undefined>(undef
 // Теперь 25 обновлений в секунду задевают лишь тех, кто реально подписан на
 // уровень, — то есть открытые настройки, и больше никого.
 const VoiceInputLevelContext = createContext<number>(-100);
+/** Порог детектора голоса и открыт ли он — для индикатора в настройках. */
+export interface VoiceGateState { threshold: number; open: boolean }
+const VoiceGateStateContext = createContext<VoiceGateState>({ threshold: -48, open: false });
 
 /**
  * Точечная подписка на «говорит ли конкретный пользователь».
@@ -199,6 +203,7 @@ export const useVoiceLevels = () => {
 /** Текущий уровень входного сигнала в dB. Подписывайтесь только там, где он
  *  действительно отображается — обновляется 25 раз в секунду. */
 export const useVoiceInputLevel = () => useContext(VoiceInputLevelContext);
+export const useVoiceGateState = () => useContext(VoiceGateStateContext);
 
 // Шлёт состав голосового канала и кто говорит в окно оверлея (Electron).
 // Без этого оверлей получал пустой список участников и показывал только заставку
@@ -280,6 +285,7 @@ const VoiceLevelProvider: React.FC<{
     remoteSpeakingUsersRef, getAudioContext, roomRef 
 }) => {
     const [currentInputLevel, setCurrentInputLevel] = useState(-100);
+    const [gateState, setGateState] = useState<VoiceGateState>({ threshold: -48, open: false });
     const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
 
     // Точечная подписка «говорит ли пользователь X»: набор живёт в ref, а
@@ -313,6 +319,7 @@ const VoiceLevelProvider: React.FC<{
     const workletNodesRef = useRef<Map<string, AudioWorkletNode>>(new Map());
     const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const registeredWorkletsRef = useRef<WeakSet<AudioContext>>(new WeakSet());
+    const vadUnregisterRef = useRef<(() => void) | null>(null);
 
     const inputSensitivityRef = useRef(inputSensitivity);
     const isAutomaticSensitivityRef = useRef(isAutomaticSensitivity);
@@ -334,32 +341,38 @@ const VoiceLevelProvider: React.FC<{
                 vadSourceRef.current.disconnect();
                 vadSourceRef.current = null;
             }
+            vadUnregisterRef.current?.();
+            vadUnregisterRef.current = null;
             return;
         }
 
         const setupLocalVAD = async () => {
             try {
                 const audioCtx = getAudioContext();
-                const vadWorkletCode = `
+                // Тот же детектор, что у гейта микрофона (utils/voiceGate): подсветка
+                // «говорит» и индикатор в настройках совпадают с тем, что уходит в эфир.
+                const vadWorkletCode = VOICE_DETECTOR_SOURCE + `
 class VADProcessor extends AudioWorkletProcessor {
-    constructor() { super(); this._lastUpdate = 0; this._rms = 0; }
+    constructor() {
+        super();
+        this.det = new VoiceDetector(sampleRate);
+        this._lastUpdate = 0;
+        this.port.onmessage = (e) => { if (e.data && e.data.type === 'config') this.det.setConfig(e.data); };
+    }
     process(inputs) {
         const input = inputs[0];
         if (input && input[0] && input[0].length > 0) {
-            const samples = input[0];
-            let sumOfSquares = 0;
-            for (let i = 0; i < samples.length; i++) sumOfSquares += samples[i] * samples[i];
-            this._rms = Math.sqrt(sumOfSquares / samples.length);
-            const now = Date.now();
-            if (now - this._lastUpdate > 40) {
-                this.port.postMessage({ rms: this._rms });
+            this.det.analyze(input[0]);
+            const now = currentTime;
+            if (now - this._lastUpdate > 0.04) {
+                this.port.postMessage({ db: this.det.db, open: this.det.open, threshold: this.det.threshold });
                 this._lastUpdate = now;
             }
         }
         return true;
     }
 }
-registerProcessor('vad-processor', VADProcessor);
+registerProcessor('zvon-vad-processor', VADProcessor);
 `;
                 const blob = new Blob([vadWorkletCode], { type: 'application/javascript' });
                 const url = URL.createObjectURL(blob);
@@ -371,15 +384,16 @@ registerProcessor('vad-processor', VADProcessor);
 
                 if (vadSourceRef.current) vadSourceRef.current.disconnect();
                 const source = audioCtx.createMediaStreamSource(stream);
-                const vadNode = new AudioWorkletNode(audioCtx, 'vad-processor');
+                const vadNode = new AudioWorkletNode(audioCtx, 'zvon-vad-processor');
+                vadUnregisterRef.current?.();
+                vadUnregisterRef.current = registerVoiceGateNode(vadNode);
 
                 vadNode.port.onmessage = (event) => {
-                    const { rms } = event.data;
+                    const { db, open, threshold } = event.data as { db: number; open: boolean; threshold: number };
                     lastVadMessageTimeRef.current = Date.now();
-                    const db = rms > 1e-5 ? 20 * Math.log10(rms) : -100;
-                    setCurrentInputLevel(db);
-                    const baseThreshold = isAutomaticSensitivityRef.current ? -70 : inputSensitivityRef.current;
-                    if (db > baseThreshold) lastSpeakingTimeRef.current = Date.now();
+                    setCurrentInputLevel(Math.max(db, -100));
+                    setGateState(prev => (prev.open === open && Math.abs(prev.threshold - threshold) < 0.5) ? prev : { open, threshold });
+                    if (open) lastSpeakingTimeRef.current = Date.now();
                 };
 
                 source.connect(vadNode);
@@ -460,7 +474,9 @@ registerProcessor('vad-processor', VADProcessor);
         <SpeakingStoreContext.Provider value={speakingStore}>
             <VoiceLevelContext.Provider value={value}>
                 <VoiceInputLevelContext.Provider value={currentInputLevel}>
-                    {children}
+                    <VoiceGateStateContext.Provider value={gateState}>
+                        {children}
+                    </VoiceGateStateContext.Provider>
                 </VoiceInputLevelContext.Provider>
             </VoiceLevelContext.Provider>
         </SpeakingStoreContext.Provider>
@@ -635,7 +651,9 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Реакция на аварийный обрыв комнаты. Живёт в рефе, т.к. подписка вешается
     // внутри joinChannel, а сам обработчик опирается на emitVoiceState, который
     // объявлен ниже по файлу (прямая ссылка в deps дала бы TDZ-ошибку).
-    const onRoomDisconnectedRef = useRef<() => void>(() => {});
+    const onRoomDisconnectedRef = useRef<(reason?: number, reasons?: Record<string, number>) => void>(() => {});
+    // Идёт автоматическое переподключение к голосовому каналу (см. обработчик обрыва).
+    const rejoinInFlightRef = useRef(false);
 
     // States
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -688,9 +706,18 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // найти appId и сохранить громкость per-app в localStorage.
     const voicePresencesRef = useRef<Map<string, VoicePresenceInfo>>(new Map());
     const [isVideoOn, setIsVideoOn] = useState(false);
+    // Текущее состояние голоса — для join-voice-channel: сервер берёт флаги из
+    // него, а не из прошлого сеанса (иначе «эфир» мог застрять или пропасть).
+    const voiceStateRef = useRef({ isMuted, isDeafened, isScreenSharing, isVideoOn });
+    voiceStateRef.current = { isMuted, isDeafened, isScreenSharing, isVideoOn };
     const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
     const [inputSensitivity, setInputSensitivity] = useState(() => user?.settings?.interaction?.voice?.inputSensitivity || Number(localStorage.getItem('inputSensitivity')) || -50);
     const [isAutomaticSensitivity, setIsAutomaticSensitivity] = useState(() => user?.settings?.interaction?.voice?.isAutomaticSensitivity ?? (localStorage.getItem('isAutomaticSensitivity') !== 'false'));
+    // Настройки голосовой активации — в гейт микрофона и детектор индикатора
+    // (utils/voiceGate). Применяются на лету, в том числе посреди звонка.
+    useEffect(() => {
+        setVoiceGateConfig({ auto: isAutomaticSensitivity, thresholdDb: inputSensitivity });
+    }, [isAutomaticSensitivity, inputSensitivity]);
     const [echoCancellation, setEchoCancellation] = useState(() => user?.settings?.interaction?.voice?.echoCancellation ?? (localStorage.getItem('echoCancellation') !== 'false'));
     const [autoGainControl, setAutoGainControl] = useState(() => user?.settings?.interaction?.voice?.autoGainControl ?? (localStorage.getItem('autoGainControl') !== 'false'));
     const [attenuation, setAttenuation] = useState(() => user?.settings?.interaction?.voice?.attenuation || Number(localStorage.getItem('attenuation')) || 0);
@@ -992,6 +1019,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // перезахода UI показывал «фантомную» плитку стрима (и ронял рендер).
         // Останавливаем ДО disconnect, пока публикацию ещё есть с чего снимать.
         await teardownScreenShare();
+        externalPubsRef.current.clear();
         if (roomRef.current) await roomRef.current.disconnect();
         roomRef.current = null;
         if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
@@ -1014,8 +1042,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         soundManager.play(SOUNDS.VOICE_LEAVE, 0.4);
     }, [socket, teardownScreenShare]);
 
-    const joinChannel = useCallback(async (channelId: string) => {
-        if (isConnectedRef.current || roomRef.current) await leaveChannel();
+    /**
+     * Вход в голосовой канал. rejoin — тихое повторное подключение к тому же
+     * каналу после обрыва LiveKit: без выхода для остальных, без звуков, с
+     * прежним временем входа. Возвращает, удалось ли подключиться.
+     */
+    const joinChannel = useCallback(async (channelId: string, opts?: { rejoin?: boolean }): Promise<boolean> => {
+        const rejoin = !!opts?.rejoin;
+        if (rejoin) {
+            const old = roomRef.current;
+            roomRef.current = null;
+            if (old) {
+                try { (old as any).removeAllListeners?.(); await old.disconnect(); } catch { /* уже закрыта */ }
+            }
+        } else if (isConnectedRef.current || roomRef.current) {
+            await leaveChannel();
+        }
         try {
             // Подтягиваем библиотеку параллельно с запросом токена — оба сетевых
             // похода идут одновременно, так что ленивая загрузка не удлиняет вход.
@@ -1110,7 +1152,11 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             // Комната закрылась окончательно (сеть отвалилась, сервер перезапустился).
             // При штатном выходе демонстрация уже снята — обработчик это увидит и
             // ничего не сделает; здесь важен именно аварийный случай.
-            room.on(RoomEvent.Disconnected, () => onRoomDisconnectedRef.current());
+            room.on(RoomEvent.Disconnected, (reason?: number) => {
+                // Событие старой комнаты после её замены — не наше.
+                if (roomRef.current !== room) return;
+                onRoomDisconnectedRef.current(reason, (lk as any).DisconnectReason);
+            });
             room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
                 if (participant?.identity === room.localParticipant.identity) setConnectionQuality(quality);
             });
@@ -1121,12 +1167,26 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             
             setIsConnected(true);
             setActiveChannelId(channelId);
-            const now = Date.now();
+            const now = rejoin && joinedVoiceAtRef.current ? joinedVoiceAtRef.current : Date.now();
             joinedVoiceAtRef.current = now;
-            if (socket) socket.emit('join-voice-channel', { channelId, joinedVoiceAt: now });
-            soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
+            // Новый вход: демонстрации и камеры ещё нет (leaveChannel их погасил);
+            // при переподключении демонстрацию погасил обработчик обрыва.
+            if (socket) socket.emit('join-voice-channel', {
+                channelId, joinedVoiceAt: now,
+                isMuted: voiceStateRef.current.isMuted, isDeafened: voiceStateRef.current.isDeafened,
+                isScreenSharing: false, isVideoOn: false,
+            });
+            // Микрофон после переподключения — в прежнем состоянии мьюта.
+            if (rejoin && livekitTrackRef.current) {
+                livekitTrackRef.current.enabled = !voiceStateRef.current.isMuted && !voiceStateRef.current.isDeafened;
+            }
+            if (!rejoin) soundManager.play(SOUNDS.VOICE_JOIN, 0.4);
+            else republishExternalTracksRef.current();
+            return true;
         } catch (e) {
+            if (rejoin) { console.warn('[Voice] переподключение не удалось:', e); return false; }
             await alert('Ошибка подключения');
+            return false;
         }
     }, [user?._id, selectedInputDeviceId, socket, handleLocalMicPublication, leaveChannel, echoCancellation, autoGainControl, noiseSuppressionMode]);
 
@@ -1350,13 +1410,57 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // «в эфире». Проверка по рефам захвата отсекает штатный выход из канала —
     // там teardownScreenShare уже отработал и делать нечего.
     useEffect(() => {
-        onRoomDisconnectedRef.current = () => {
-            if (!screenStreamRef.current && !screenAudioTrackRef.current) return;
-            console.warn('[Voice] Комната оборвалась — останавливаю демонстрацию экрана');
-            teardownScreenShare();
-            emitVoiceState({ isScreenSharing: false });
+        onRoomDisconnectedRef.current = (reason, reasons = {}) => {
+            if (screenStreamRef.current || screenAudioTrackRef.current) {
+                console.warn('[Voice] Комната оборвалась — останавливаю демонстрацию экрана');
+                teardownScreenShare();
+                emitVoiceState({ isScreenSharing: false });
+            }
+            // Штатный выход (leaveChannel, смена канала) — ничего не делаем.
+            if (reason === reasons.CLIENT_INITIATED) return;
+            const channelId = activeChannelIdRef.current;
+            if (!channelId || !isConnectedRef.current) return;
+
+            // Кикнули, зашли с другого устройства, канал удалён — возвращаться некуда.
+            if (reason === reasons.PARTICIPANT_REMOVED || reason === reasons.DUPLICATE_IDENTITY || reason === reasons.ROOM_DELETED) {
+                console.warn('[Voice] комната закрыта сервером, причина', reason);
+                leaveChannel();
+                return;
+            }
+
+            /*
+             * Окончательный обрыв (LiveKit сдался после своих попыток: долгий
+             * сон ПК, смена сети, перезапуск медиасервера). Раньше клиент так и
+             * оставался «в канале» без звука — панель показывала подключение, а
+             * никто никого не слышал. Теперь переподключаемся сами, тихо: для
+             * остальных человек не выходил. Не вышло за три попытки — выходим
+             * по-честному и говорим об этом.
+             */
+            if (rejoinInFlightRef.current) return;
+            rejoinInFlightRef.current = true;
+            setRoomConnectionState(ConnectionStates.Reconnecting);
+            console.warn('[Voice] связь с комнатой потеряна, переподключение; причина', reason);
+            (async () => {
+                for (const delay of [1000, 3000, 7000]) {
+                    await new Promise(r => setTimeout(r, delay));
+                    if (activeChannelIdRef.current !== channelId) break; // вышли сами или перешли
+                    if (!navigator.onLine) continue;
+                    const ok = await joinChannelRef.current(channelId, { rejoin: true });
+                    if (ok) { rejoinInFlightRef.current = false; return; }
+                }
+                rejoinInFlightRef.current = false;
+                if (activeChannelIdRef.current === channelId) {
+                    await leaveChannel();
+                    alert('Связь с голосовым каналом потеряна. Подключитесь заново, когда сеть восстановится.');
+                }
+            })();
         };
-    }, [teardownScreenShare, emitVoiceState]);
+    }, [teardownScreenShare, emitVoiceState, leaveChannel, alert]);
+
+    // Свежая ссылка на joinChannel для переподключения (обработчик выше
+    // объявлен раньше, чем функция готова к замыканию).
+    const joinChannelRef = useRef(joinChannel);
+    useEffect(() => { joinChannelRef.current = joinChannel; }, [joinChannel]);
 
     // Смотрящая сторона: включить/выключить просмотр чужой трансляции.
     // Поток уже приходит в remoteScreenStreams (авто-подписка), здесь только
@@ -1460,9 +1564,12 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const onConnect = () => {
             if (activeChannelIdRef.current) {
                 console.log('[Voice] Socket reconnected, re-joining voice channel:', activeChannelIdRef.current);
+                // Сокет переподключился, а комната LiveKit и демонстрация живы —
+                // сообщаем серверу то, что идёт сейчас.
                 socket.emit('join-voice-channel', {
                     channelId: activeChannelIdRef.current,
-                    joinedVoiceAt: joinedVoiceAtRef.current || Date.now()
+                    joinedVoiceAt: joinedVoiceAtRef.current || Date.now(),
+                    ...voiceStateRef.current,
                 });
             }
         };
@@ -1572,64 +1679,98 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return () => { socket.off('force-join-voice', onForceJoin); };
     }, [socket, joinChannel, activeChannelId, alert]);
 
-    // Публикация внешних треков (звук/видео мини-аппов, presence-медиа) в LiveKit-комнату.
-    // Раньше были заглушками → SDK мини-аппа падал с «publishAudio failed».
-    const publishExternalAudioTrack = useCallback(async (track: MediaStreamTrack, name?: string): Promise<string | null> => {
-        if (!roomRef.current || !track) return null;
-        try {
-            track.enabled = true; // иначе собеседники не слышат (трек мог прийти выключенным)
-            // publishTrack ждёт LocalTrack, а не сырой MediaStreamTrack — иначе
-            // TypeError: track.updateLoggerOptions is not a function.
-            const { LocalAudioTrack } = await loadLiveKit();
-            const localTrack = new LocalAudioTrack(track);
-            const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
-                name: name || 'external-audio',
-                dtx: false,
-                red: false,
-            });
-            console.log('[Voice] external audio published:', name, '→ sid', pub?.trackSid);
-            return pub?.trackSid || null;
-        } catch (e) { console.error('[Voice] publishExternalAudioTrack failed:', e); return null; }
-    }, []);
+    /*
+     * Публикация внешних треков (звук/видео мини-аппов, presence-медиа) в
+     * LiveKit-комнату.
+     *
+     * Наружу отдаётся не sid публикации, а постоянный ключ: sid живёт, пока жива
+     * комната, а после переподключения к каналу (onRoomDisconnectedRef → rejoin)
+     * комната новая. Раньше музыка мини-аппа после такого обрыва пропадала у
+     * всех, кроме хоста, — хост слышит её локально и ничего не замечал. Теперь
+     * реестр переопубликует треки в новую комнату сам.
+     */
+    const externalPubsRef = useRef(new Map<string, {
+        kind: 'audio' | 'video';
+        mediaTrack: MediaStreamTrack;
+        name: string;
+        local: any | null; // LocalAudioTrack | LocalVideoTrack
+    }>());
+    const externalSeqRef = useRef(0);
 
-    const publishExternalVideoTrack = useCallback(async (track: MediaStreamTrack, name?: string): Promise<string | null> => {
-        if (!roomRef.current || !track) return null;
-        try {
-            track.enabled = true;
-            const { LocalVideoTrack } = await loadLiveKit();
-            const localTrack = new LocalVideoTrack(track);
-            const pub = await roomRef.current.localParticipant.publishTrack(localTrack, {
-                name: name || 'external-video',
-                simulcast: false,
-            });
-            return pub?.trackSid || null;
-        } catch (e) { console.error('[Voice] publishExternalVideoTrack failed:', e); return null; }
-    }, []);
-
-    const unpublishExternalAudioTrack = useCallback(async (publicationSid: string): Promise<void> => {
-        if (!roomRef.current || !publicationSid) return;
-        try {
-            for (const pub of roomRef.current.localParticipant.trackPublications.values()) {
-                if (pub.trackSid === publicationSid && pub.track) {
-                    await roomRef.current.localParticipant.unpublishTrack(pub.track);
-                    break;
-                }
-            }
-        } catch (e) { console.error('[Voice] unpublishExternalAudioTrack failed:', e); }
-    }, []);
-
-    const replaceExternalTrack = useCallback(async (publicationSid: string, newTrack: MediaStreamTrack): Promise<boolean> => {
-        if (!roomRef.current || !publicationSid || !newTrack) return false;
-        try {
-            for (const pub of roomRef.current.localParticipant.trackPublications.values()) {
-                if (pub.trackSid === publicationSid && pub.track) {
-                    await (pub.track as any).replaceTrack?.(newTrack);
-                    return true;
-                }
-            }
+    const publishExternalEntry = useCallback(async (key: string): Promise<boolean> => {
+        const entry = externalPubsRef.current.get(key);
+        const room = roomRef.current;
+        if (!entry || !room) return false;
+        entry.mediaTrack.enabled = true; // иначе собеседники не слышат (трек мог прийти выключенным)
+        // publishTrack ждёт LocalTrack, а не сырой MediaStreamTrack — иначе
+        // TypeError: track.updateLoggerOptions is not a function.
+        const { LocalAudioTrack, LocalVideoTrack } = await loadLiveKit();
+        const local = entry.kind === 'audio' ? new LocalAudioTrack(entry.mediaTrack) : new LocalVideoTrack(entry.mediaTrack);
+        const pub = entry.kind === 'audio'
+            ? await room.localParticipant.publishTrack(local, { name: entry.name, dtx: false, red: false })
+            : await room.localParticipant.publishTrack(local, { name: entry.name, simulcast: false });
+        // Пока публиковали, трек могли снять или комнату сменить.
+        if (externalPubsRef.current.get(key) !== entry || roomRef.current !== room) {
+            try { await room.localParticipant.unpublishTrack(local); } catch { /* уже снят */ }
             return false;
+        }
+        entry.local = local;
+        console.log('[Voice] external', entry.kind, 'published:', entry.name, '→ sid', pub?.trackSid);
+        return !!pub;
+    }, []);
+
+    const publishExternal = useCallback(async (kind: 'audio' | 'video', track: MediaStreamTrack, name?: string): Promise<string | null> => {
+        if (!roomRef.current || !track) return null;
+        const key = `ext-${++externalSeqRef.current}`;
+        externalPubsRef.current.set(key, { kind, mediaTrack: track, name: name || `external-${kind}`, local: null });
+        try {
+            if (await publishExternalEntry(key)) return key;
+        } catch (e) { console.error(`[Voice] publishExternal ${kind} failed:`, e); }
+        externalPubsRef.current.delete(key);
+        return null;
+    }, [publishExternalEntry]);
+
+    const publishExternalAudioTrack = useCallback(
+        (track: MediaStreamTrack, name?: string) => publishExternal('audio', track, name), [publishExternal]);
+    const publishExternalVideoTrack = useCallback(
+        (track: MediaStreamTrack, name?: string) => publishExternal('video', track, name), [publishExternal]);
+
+    const unpublishExternalAudioTrack = useCallback(async (key: string): Promise<void> => {
+        const entry = externalPubsRef.current.get(key);
+        if (!entry) return;
+        externalPubsRef.current.delete(key);
+        if (!roomRef.current || !entry.local) return;
+        try { await roomRef.current.localParticipant.unpublishTrack(entry.local); }
+        catch (e) { console.error('[Voice] unpublishExternalAudioTrack failed:', e); }
+    }, []);
+
+    const replaceExternalTrack = useCallback(async (key: string, newTrack: MediaStreamTrack): Promise<boolean> => {
+        const entry = externalPubsRef.current.get(key);
+        if (!entry?.local || !newTrack) return false;
+        try {
+            newTrack.enabled = true;
+            await entry.local.replaceTrack?.(newTrack);
+            entry.mediaTrack = newTrack;
+            // Когда прежний трек заканчивается, LiveKit не снимает публикацию
+            // пользовательского трека, а глушит её (handleTrackEnded → mute), и
+            // replaceTrack это не отменяет. Отсюда «музыка замолкла у всех,
+            // кроме хоста» на смене трека. Снимаем приглушение явно.
+            if (entry.local.isMuted) await entry.local.unmute();
+            return true;
         } catch (e) { console.error('[Voice] replaceExternalTrack failed:', e); return false; }
     }, []);
+
+    // После автоматического переподключения к каналу — вернуть внешние треки.
+    const republishExternalTracks = useCallback(async () => {
+        for (const [key, entry] of externalPubsRef.current) {
+            entry.local = null;
+            if (entry.mediaTrack.readyState !== 'live') { externalPubsRef.current.delete(key); continue; }
+            try { await publishExternalEntry(key); }
+            catch (e) { console.warn('[Voice] republish external failed:', entry.name, e); }
+        }
+    }, [publishExternalEntry]);
+    const republishExternalTracksRef = useRef(republishExternalTracks);
+    republishExternalTracksRef.current = republishExternalTracks;
 
     // Громкость presence-мини-аппа сохраняется per-app (а не per-session), чтобы
     // выбор слушателя в карточке восстанавливался при новом сеансе вещателя.

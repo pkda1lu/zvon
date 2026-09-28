@@ -5,7 +5,7 @@ import { Socket } from 'socket.io-client';
 import axios from 'axios';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { useVoice, useVoiceLevels } from '../contexts/VoiceContext';
+import { useVoice } from '../contexts/VoiceContext';
 import { getAvatarUrl } from '../utils/avatar';
 import { createNoiseProcessor } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
@@ -25,7 +25,8 @@ import {
   RemoteParticipant,
   Track,
   VideoPresets,
-  LocalAudioTrack
+  LocalAudioTrack,
+  DisconnectReason
 } from 'livekit-client';
 import { openDesktopSource } from '../utils/desktopCapture';
 import './VoiceCall.css';
@@ -39,6 +40,8 @@ interface VoiceCallProps {
   dmName?: string;
   onEndCall: () => void;
   initialIncomingCall?: boolean;
+  /** Войти в уже идущий звонок группы: без вызова остальных и ожидания ответа. */
+  joinExisting?: boolean;
   initialOffer?: any;
   onOpenProfile?: (userId: string, event?: React.MouseEvent) => void;
   // Вызывается перед подключением к ЛС-звонку — чтобы выйти из голосового канала
@@ -139,13 +142,12 @@ const DmCallContextMenu: React.FC<{
 };
 
 const VoiceCall: React.FC<VoiceCallProps> = ({
-  socket, otherUser, dmId, isGroup = false, dmName, onEndCall, initialIncomingCall = false, onOpenProfile, onCallConnecting
+  socket, otherUser, dmId, isGroup = false, dmName, onEndCall, initialIncomingCall = false, joinExisting = false, onOpenProfile, onCallConnecting
 }) => {
   const { user } = useAuth();
   const { alert } = useDialog();
   const brand = getBrand();
   const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, setUserVolume, localMutes, toggleLocalMute, isDeafened: isGlobalDeafened } = useVoice();
-  const { speakingUsers = new Set<string>() } = useVoiceLevels() || {};
   const [isCallActive, setIsCallActive] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -154,7 +156,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipant[]>([]);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [isIncomingCall, setIsIncomingCall] = useState(initialIncomingCall);
-  const [isRinging, setIsRinging] = useState(!initialIncomingCall);
+  const [isRinging, setIsRinging] = useState(!initialIncomingCall && !joinExisting);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
@@ -165,8 +167,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   // id видеотреков, которые на паузе/завершены (нативный mute/ended) — чтобы не показывать застывший кадр
   const [mutedVideoIds, setMutedVideoIds] = useState<Set<string>>(new Set());
 
-  const [localSpeaking, setLocalSpeaking] = useState(false);
-  const [remoteSpeaking, setRemoteSpeaking] = useState(false);
+  // Кто говорит и у кого выключен микрофон — по событиям комнаты звонка.
+  // Раньше обводка бралась из useVoiceLevels(), а это состояние голосового
+  // канала сервера: в личном звонке оно пустое, и обводка не работала.
+  const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set());
+  const [micMutedIds, setMicMutedIds] = useState<Set<string>>(new Set());
 
   // Свёрнутый режим: звонок остаётся подключённым, показываем компактный
   // перетаскиваемый виджет поверх интерфейса вместо полноэкранного вида.
@@ -207,7 +212,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
   useEffect(() => {
     if (!socket || !dmId) return;
-    if (!initialIncomingCall) {
+    if (joinExisting) {
+      // Звонок уже идёт: входим в комнату и сразу подключаемся к LiveKit.
+      hasJoinedRoomRef.current = true;
+      socket.emit('join-dm-call', { dmId });
+      joinLiveKitRoomRef.current();
+    } else if (!initialIncomingCall) {
       hasJoinedRoomRef.current = true;
       socket.emit('join-dm-call', { dmId });
       // If it's a group, we don't need targetUserId
@@ -243,6 +253,9 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
     const handleUserLeft = (data: { userId: string }) => {
       if (isGroup) {
+        // Состав сетки ведёт LiveKit. Сокет мог оборваться, а голос — нет:
+        // тогда человек в комнате, и убирать его плитку нельзя.
+        if (roomRef.current?.remoteParticipants.has(String(data.userId))) return;
         setRemoteParticipants(prev => prev.filter(p => p.identity !== data.userId));
         setRemoteStreams(prev => {
           const next = new Map(prev);
@@ -266,6 +279,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       if (!isGroup) endCall();
     };
 
+    // Сокет переподключился (обрыв сети, сон ПК) — возвращаемся в комнату
+    // звонка на сервере. Без этого групповой звонок переставал получать
+    // события о входе и выходе участников и о его завершении.
+    const handleReconnect = () => {
+      if (hasJoinedRoomRef.current && !endedRef.current) socket.emit('join-dm-call', { dmId });
+    };
+    socket.io.on('reconnect', handleReconnect);
+
     socket.on('call-offer', handleIncomingOffer);
     socket.on('call-end', handleCallEnd);
     socket.on('dm-call-user-joined', handleOtherUserJoined);
@@ -287,6 +308,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       socket.off('dm-call-user-joined', handleOtherUserJoined);
       socket.off('dm-call-existing-users', handleExistingUsers);
       socket.off('dm-call-user-left', handleUserLeft);
+      socket.io.off('reconnect', handleReconnect);
       if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       cleanupStreams();
     };
@@ -330,8 +352,18 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noiseSuppressionMode]);
 
-  const joinLiveKitRoom = async () => {
-    if (roomRef.current || joiningRoomRef.current) return;
+  const setMicMuted = (identity: string, muted: boolean) => {
+    const id = String(identity);
+    setMicMutedIds(prev => {
+      if (prev.has(id) === muted) return prev;
+      const next = new Set(prev);
+      if (muted) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+
+  const joinLiveKitRoom = async (opts?: { silent?: boolean }): Promise<boolean> => {
+    if (roomRef.current || joiningRoomRef.current) return !!roomRef.current;
     joiningRoomRef.current = true;
     // Выходим из голосового канала сервера ДО захвата микрофона ЛС-звонком —
     // иначе две LiveKit-комнаты конфликтуют за устройство (и пользователь остаётся
@@ -347,9 +379,12 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       });
 
       const { token, serverUrl } = data;
+      // Без adaptiveStream и dynacast, как в голосовых каналах сервера.
+      // adaptiveStream приостанавливал видео, как только <video> пропадал из
+      // вида (свернули окно, переключились на другой экран), а dynacast у
+      // показывающего выключал кодирование единственного слоя демонстрации —
+      // после возврата картинка оставалась застывшей.
       const room = new Room({
-        adaptiveStream: { pixelDensity: 'screen' },
-        dynacast: true,
         // Нативное подавление — только для 'standard'; для AI-режимов выключаем,
         // чтобы не было двойной обработки (её сделает наш процессор поверх трека).
         audioCaptureDefaults: {
@@ -366,11 +401,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
       room
         .on(RoomEvent.ParticipantConnected, (participant) => {
-          setRemoteParticipants(prev => [...prev, participant]);
+          // Переподключившийся участник (потеря пакетов, смена сети) приходит
+          // заново — заменяем, а не добавляем: иначе в сетке было две плитки.
+          setRemoteParticipants(prev => [...prev.filter(p => p.identity !== participant.identity), participant]);
           if (isGroup) fetchMetadata(participant.identity);
         })
         .on(RoomEvent.ParticipantDisconnected, (participant) => {
           setRemoteParticipants(prev => prev.filter(p => p.identity !== participant.identity));
+          setMicMuted(participant.identity, false);
           setRemoteStreams(prev => {
             const next = new Map(prev);
             next.delete(participant.identity);
@@ -393,6 +431,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           });
         })
         .on(RoomEvent.TrackPublished, (publication, participant) => {
+          if (publication.source === Track.Source.Microphone) setMicMuted(participant.identity, publication.isMuted);
           if (publication.source === Track.Source.ScreenShare) {
             setRemoteSharingScreen(prev => new Set(prev).add(participant.identity));
             publication.setSubscribed(false);
@@ -500,13 +539,18 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         })
         // Дублируем сигнал mute через события LiveKit (camera И screen) — на случай,
         // если нативный track-event не пришёл. Кадр не показываем, пока трек на паузе.
-        .on(RoomEvent.TrackMuted, (publication) => {
+        .on(RoomEvent.TrackMuted, (publication, participant) => {
           const id = publication.track?.mediaStreamTrack?.id;
           if (id && publication.kind === Track.Kind.Video) setMutedVideoIds(prev => new Set(prev).add(id));
+          if (publication.source === Track.Source.Microphone) setMicMuted(participant.identity, true);
         })
-        .on(RoomEvent.TrackUnmuted, (publication) => {
+        .on(RoomEvent.TrackUnmuted, (publication, participant) => {
           const id = publication.track?.mediaStreamTrack?.id;
           if (id && publication.kind === Track.Kind.Video) setMutedVideoIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+          if (publication.source === Track.Source.Microphone) setMicMuted(participant.identity, false);
+        })
+        .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          setSpeakingIds(new Set(speakers.map(s => String(s.identity))));
         })
         // Потеря связи с LiveKit. Раньше не обрабатывалась: при обрыве звонок
         // молча оставался «В эфире», хотя собеседники уже не слышали друг друга.
@@ -523,8 +567,25 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           if (roomRef.current !== room) return;
           console.warn('[DM Voice] комната закрыта, причина:', reason);
           roomRef.current = null;
-          setIsReconnecting(false);
-          endCallRef.current();
+          // Кикнули или вошли в этот звонок с другого устройства — завершаем.
+          if (reason === DisconnectReason.PARTICIPANT_REMOVED || reason === DisconnectReason.DUPLICATE_IDENTITY || reason === DisconnectReason.ROOM_DELETED) {
+            setIsReconnecting(false);
+            endCallRef.current();
+            return;
+          }
+          // Иначе (сеть, сон ПК, перезапуск медиасервера) — две попытки вернуться,
+          // и только потом завершаем звонок.
+          setIsReconnecting(true);
+          (async () => {
+            for (const delay of [1500, 5000]) {
+              await new Promise(r => setTimeout(r, delay));
+              if (endedRef.current) return;
+              if (!navigator.onLine) continue;
+              if (await joinLiveKitRoomRef.current({ silent: true })) { setIsReconnecting(false); return; }
+            }
+            setIsReconnecting(false);
+            endCallRef.current();
+          })();
         })
         .on(RoomEvent.LocalTrackPublished, () => syncLocalStream())
         .on(RoomEvent.LocalTrackUnpublished, () => syncLocalStream());
@@ -532,6 +593,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       await room.connect(serverUrl, token);
       const existingParticipants = Array.from(room.remoteParticipants.values());
       setRemoteParticipants(existingParticipants);
+      existingParticipants.forEach(p => {
+        const mic = p.getTrackPublication(Track.Source.Microphone);
+        if (mic) setMicMuted(p.identity, mic.isMuted);
+      });
       if (isGroup) existingParticipants.forEach(p => fetchMetadata(p.identity));
       const alreadySharing = new Set<string>();
       existingParticipants.forEach(p => {
@@ -552,18 +617,27 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
       setIsCallActive(true);
       wasCallEstablishedRef.current = true;
+      return true;
     } catch (e) {
       console.error('[DM Voice] LiveKit join error:', e);
+      // Неудачная комната не должна мешать следующей попытке.
+      try { roomRef.current?.disconnect(); } catch { /* */ }
+      roomRef.current = null;
+      if (opts?.silent) return false;
       const msg = String((e as Error)?.message || '');
       if (/support|webRTC|supported on this browser/i.test(msg)) {
         alert(`Не удалось установить соединение: WebRTC недоступен в этом браузере. Скорее всего его блокирует расширение (например, MetaMask или «WebRTC Leak Prevent»). Откройте звонок в десктоп-приложении ${brand.name} или отключите расширения, блокирующие WebRTC.`);
       } else {
         alert('Не удалось подключиться к звонку: ' + (msg || 'неизвестная ошибка') + '. Попробуйте ещё раз.');
       }
+      return false;
     } finally {
       joiningRoomRef.current = false;
     }
   };
+
+  const joinLiveKitRoomRef = useRef(joinLiveKitRoom);
+  joinLiveKitRoomRef.current = joinLiveKitRoom;
 
   const acceptCall = async () => {
     setIsIncomingCall(false);
@@ -576,7 +650,15 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     await joinLiveKitRoom();
   };
 
+  // Завершение приходит сразу из нескольких мест: своя кнопка, call-end и
+  // dm-call-user-left от сервера, таймер ожидания ответа, закрытие комнаты
+  // LiveKit. Без защиты каждое из них заново проигрывало звук выхода — 3-5 раз
+  // подряд. Звонок завершается один раз.
+  const endedRef = useRef(false);
   const endCall = async () => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+    if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
     cleanupStreams();
     soundManager.play(SOUNDS.CALL_LEAVE, 0.4);
     if (socket) {
@@ -769,7 +851,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
   // Свёрнутый вид: компактный перетаскиваемый виджет. Звонок остаётся подключённым.
   if (isCallActive && isMinimized) {
-    const speakingNow = remoteParticipants.some(p => speakingUsers.has(p.identity)) || localSpeaking;
+    const speakingNow = speakingIds.size > 0;
+    const otherMicOff = !isGroup && micMutedIds.has(String(otherUser._id));
     const title = isGroup ? (dmName || 'Групповой звонок') : otherUser.username;
     return (
       <>
@@ -785,6 +868,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <div className="dm-call-widget-info">
               <UserAvatar user={isGroup ? null : otherUser} size={28} />
               <span className="dm-call-widget-title">{title}</span>
+              {otherMicOff && <span className="dm-call-mic-off" title="Микрофон собеседника выключен"><MicMutedIcon size={14} color="#f23f42" /></span>}
             </div>
             <button className="dm-call-widget-expand" onClick={() => setIsMinimized(false)} title="Развернуть">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -814,16 +898,17 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       transition={{ type: 'spring', stiffness: 320, damping: 32 }}
     >
       <header className="call-topbar">
-        <div className="call-topbar-left">
-          <button className="back-to-app-btn" onClick={() => setIsMinimized(true)} title="Свернуть звонок">
+        <button className="back-to-app-btn" onClick={() => setIsMinimized(true)} title="Свернуть звонок">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </button>
+        <div className="call-topbar-center">
           <div className="call-title">
             {isGroup ? (dmName || 'Групповой звонок') : `Звонок: ${otherUser.username}`}
             {!isGroup && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={16} />}
           </div>
+          <div className="call-duration">{isCallActive ? (isReconnecting ? 'Переподключение...' : 'В эфире') : 'Подключение...'}</div>
         </div>
-        <div className="call-duration">{isCallActive ? (isReconnecting ? 'Переподключение...' : 'В эфире') : 'Подключение...'}</div>
+        <div aria-hidden="true" />
       </header>
 
       <main className="call-main">
@@ -832,7 +917,8 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           {allParticipants.map((p) => {
             const stream = p.isLocal ? (isVideoEnabled ? localStream : null) : remoteStreams.get(p.identity);
             const userMeta = p.isMe ? user : (isGroup ? participantsMetadata.get(p.identity) : otherUser);
-            const isSpeaking = speakingUsers.has(p.identity) || (p.isMe && localSpeaking);
+            const isSpeaking = speakingIds.has(String(p.identity));
+            const micOff = p.isMe ? isMuted : micMutedIds.has(String(p.identity));
             const screenShare = p.isLocal ? (isScreenSharing ? screenStream : null) : remoteScreenStreams.get(p.identity);
             const hasRemoteScreenShare = !p.isLocal && remoteSharingScreen.has(p.identity);
 
@@ -898,7 +984,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                     <span>Смотреть демонстрацию</span>
                   </button>
                 )}
+                {micOff && (
+                  <div className="participant-mic-off" title={p.isMe ? 'Ваш микрофон выключен' : 'Микрофон выключен'}>
+                    <MicMutedIcon size={16} color="#f23f42" />
+                  </div>
+                )}
                 <div className="participant-label">
+                  {micOff && <span className="participant-label-mic"><MicMutedIcon size={12} color="#f23f42" /></span>}
                   <span className="participant-label-name">{userMeta?.username || p.identity}{p.isMe && ' (Вы)'}</span>
                   {userMeta && <UserBadges badges={userMeta.badges} serverTag={resolveServerTag(userMeta)} size={12} />}
                 </div>

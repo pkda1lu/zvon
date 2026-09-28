@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import { getAvatarUrl } from '../utils/avatar';
 import { useWindowSettings } from './WindowSettingsContext';
 import './Notification.css';
+import TransferToasts from '../components/TransferToasts';
 
 export interface Notification {
     id: string;
@@ -89,6 +90,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                         }}>×</button>
                     </div>
                 ))}
+                <TransferToasts />
             </div>
         </NotificationContext.Provider>
     );

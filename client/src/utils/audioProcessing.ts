@@ -8,6 +8,7 @@ import rnnoiseWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import rnnoiseSimdWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
 import type { AudioProcessorOptions, Track, TrackProcessor } from 'livekit-client';
 import { createDeepFilterProcessor } from './deepFilter';
+import { VoiceGateTrackProcessor } from './voiceGate';
 
 // The rnnoise and noiseGate worklets share the same source basename
 // ("workletProcessor.js"), which makes Vite's `?url` import collapse them into a
@@ -164,17 +165,18 @@ export class RnnoiseTrackProcessor
 export type NoiseSuppressionMode = 'none' | 'standard' | 'rnnoise' | 'deepfilter';
 
 /**
- * Returns the LiveKit audio processor for the chosen mode, or `undefined` when
- * no custom processing graph is needed:
- *   - 'deepfilter' → DeepFilterNet3 (AI)
- *   - 'rnnoise'    → RNNoise + noise gate (AI)
- *   - 'standard'   → browser-native suppression (handled by capture constraints)
- *   - 'none'       → no suppression
+ * Процессор микрофона для LiveKit: голосовая активация (utils/voiceGate) и,
+ * если выбрано, шумоподавление внутри неё:
+ *   - 'deepfilter' → DeepFilterNet3 (AI) → гейт
+ *   - 'rnnoise'    → RNNoise → гейт (свой гейт RNNoise выключен — гейт один)
+ *   - 'standard'   → нативное подавление браузера (ограничения захвата) → гейт
+ *   - 'none'       → только гейт
+ * Процессор возвращается всегда: голосовая активация нужна в любом режиме.
  */
 export const createNoiseProcessor = (
     mode: NoiseSuppressionMode
 ): TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined => {
-    if (mode === 'deepfilter') return createDeepFilterProcessor();
-    if (mode === 'rnnoise') return new RnnoiseTrackProcessor();
-    return undefined;
+    if (mode === 'deepfilter') return new VoiceGateTrackProcessor(createDeepFilterProcessor());
+    if (mode === 'rnnoise') return new VoiceGateTrackProcessor(new RnnoiseTrackProcessor({ gate: false }));
+    return new VoiceGateTrackProcessor();
 };

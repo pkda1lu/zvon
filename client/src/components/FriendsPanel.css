@@ -199,12 +199,12 @@
   background: #23a559;
   box-shadow: 0 0 calc(10px * var(--interface-scale, 1)) #23a559;
 }
-.status-indicator.away { background: #faa61a; }
+.status-indicator.away { background: var(--status-away); }
 .status-indicator.busy {
-  background: var(--accent-pink, #ff3b30);
-  box-shadow: 0 0 calc(10px * var(--interface-scale, 1)) rgba(255, 59, 48, 0.6);
+  background: var(--status-busy);
+  box-shadow: 0 0 calc(10px * var(--interface-scale, 1)) rgba(242, 63, 66, 0.6);
 }
-.status-indicator.offline { background: #4a505b; }
+.status-indicator.offline { background: var(--status-offline); }
 
 .friend-info { flex: 1; min-width: 0; }
 

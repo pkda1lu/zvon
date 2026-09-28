@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon } from './Icons';
 import { getFullUrl } from '../utils/avatar';
+import { getMediaKind } from '../utils/mediaKind';
+import { downloadFile } from '../utils/transfers';
 import {
   overlayVariants,
   overlayTransition,
@@ -62,35 +64,16 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ isOpen, onClose, media, i
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose, handleNext, handlePrev]);
 
-    const handleDownload = async (e: React.MouseEvent) => {
+    const handleDownload = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         const item = media[currentIndex];
-        const url = getFullUrl(item.url)!;
-        const filename = item.filename || (item.type.startsWith('video/') ? 'video.mp4' : 'image.jpg');
-
-        try {
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-        } catch (error) {
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            link.target = "_blank";
-            link.click();
-        }
+        const isVid = getMediaKind(item) === 'video';
+        downloadFile(getFullUrl(item.url)!, item.filename || (isVid ? 'video.mp4' : 'image.jpg'));
     };
 
     const currentItem = isOpen ? media[currentIndex] : null;
-    const isVideo = currentItem ? currentItem.type.startsWith('video/') : false;
+    const isVideo = currentItem ? getMediaKind(currentItem) === 'video' : false;
 
     return createPortal(
         <AnimatePresence>
@@ -115,8 +98,6 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ isOpen, onClose, media, i
                         <CustomVideoPlayer
                             src={getFullUrl(currentItem.url)!}
                             autoPlay
-                            className="lightbox-video"
-                            style={{ maxWidth: '90vw', maxHeight: '80vh', aspectRatio: 'auto' }}
                             startTime={currentItem.startTime || 0}
                             isExpandedView={true}
                         />

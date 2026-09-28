@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getAvatarUrl } from '../../utils/avatar';
 import { ChoiceGroup, CustomSelect, CustomSelectOption } from './SettingsUI';
+import { AuditDetails, hasAuditDetails, formatAuditValue } from './AuditDetails';
 
 const RANGES = [
     { value: '7d', label: '7 дней' },
@@ -32,8 +33,19 @@ const ACTION_MAP: Record<string, string> = {
     'BOT_DELETE': 'Удаление бота',
     'MINIAPP_CREATE': 'Создание мини-приложения',
     'MODERATION_REPORT_RESOLVE': 'Решение жалобы',
+    'MODERATION_REPORT_UNRESOLVE': 'Жалоба возвращена в ожидание',
     'MODERATION_BAN': 'Бан модератором',
+    'MODERATION_UNBAN': 'Разбан модератором',
     'MODERATION_NOTIFY': 'Предупреждение модератора',
+    'MODERATION_ROLE_ASSIGN': 'Назначение системной роли',
+    'PROBLEM_REPORT_RESOLVE': 'Решение по обращению',
+    'MARKETPLACE_APPROVE': 'Витрина: одобрено',
+    'MARKETPLACE_REJECT': 'Витрина: отклонено',
+    'MARKETPLACE_BLOCK': 'Витрина: заблокировано',
+    'MARKETPLACE_UNBLOCK': 'Витрина: разблокировано',
+    'POST_CREATE': 'Создание поста',
+    'POST_UPDATE': 'Изменение поста',
+    'POST_DELETE': 'Удаление поста',
     'BRAND_CREATE': 'Создание бренда',
     'BRAND_UPDATE': 'Изменение настроек бренда',
     'BRAND_DELETE': 'Удаление бренда',
@@ -58,7 +70,8 @@ const translateKey = (key: string) => {
         'permissions': 'Права', 'color': 'Цвет', 'hoist': 'Отображение', 'topic': 'Тема',
         'roles': 'Роли', 'nickname': 'Никнейм', 'expiresAt': 'Срок', 'owner': 'Владелец',
         'communicationDisabledUntil': 'Мут до', 'username': 'Имя пользователя', 'email': 'Email',
-        'status': 'Статус', 'bio': 'О себе', 'isBanned': 'Бан', 'role': 'Системная роль'
+        'status': 'Статус', 'bio': 'О себе', 'isBanned': 'Бан', 'role': 'Системная роль',
+        'title': 'Заголовок', 'active': 'Активен', 'blocks': 'Блоков', 'resetSeen': 'Показать заново', 'reason': 'Причина'
     };
     return keys[key] || key;
 };
@@ -141,6 +154,10 @@ const AdminActionsSettings: React.FC = () => {
     };
 
     const getTargetLabel = (log: any): string | null => {
+        if (log.target && (log.target.username || log.target.name || log.target.title || log.target.subject)) {
+            return log.target.username || log.target.name || log.target.title || log.target.subject;
+        }
+        if (log.details?.targetName) return log.target ? log.details.targetName : `${log.details.targetName}${log.action.endsWith('_DELETE') ? ' (удалено)' : ''}`;
         if (log.targetModel === 'User' && log.target) return log.target.username;
         if (log.targetModel === 'Server' && log.target) return log.target.name;
         if (log.targetModel === 'MiniApp' && log.target) return log.target.name;
@@ -223,7 +240,7 @@ const AdminActionsSettings: React.FC = () => {
                     logs.map(log => {
                         const target = getTargetLabel(log);
                         const isExpanded = !!expandedLogs[log._id];
-                        const hasDetails = (Array.isArray(log.details?.changes) && log.details.changes.length > 0) || log.details?.serverName || log.details?.reason || (log.details?.changes && !Array.isArray(log.details.changes));
+                        const hasDetails = (Array.isArray(log.details?.changes) && log.details.changes.length > 0) || hasAuditDetails(log.details, true) || (log.details?.changes && !Array.isArray(log.details.changes));
 
                         return (
                             <div key={log._id} className="audit-log-item" style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--bg-secondary, rgba(255,255,255,0.03))', border: '1px solid var(--glass-border, rgba(255,255,255,0.06))' }}>
@@ -289,28 +306,26 @@ const AdminActionsSettings: React.FC = () => {
                                                 {c.oldValue !== undefined && (
                                                     <span className="change-old" style={{ color: '#ef4444', textDecoration: 'line-through', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
                                                         <span style={{ fontSize: '10px', opacity: 0.7, marginRight: '4px' }}>[До]:</span>
-                                                        {String(c.oldValue)}
+                                                        {formatAuditValue(c.key, c.oldValue)}
                                                     </span>
                                                 )}
                                                 <span className="change-arrow" style={{ color: 'var(--text-dim)', fontWeight: 700 }}>→</span>
                                                 <span className="change-new" style={{ color: '#22c55e', fontWeight: 600, background: 'rgba(34, 197, 94, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
                                                     <span style={{ fontSize: '10px', opacity: 0.8, marginRight: '4px' }}>[После]:</span>
-                                                    {String(c.newValue)}
+                                                    {formatAuditValue(c.key, c.newValue)}
                                                 </span>
                                             </div>
                                         ))}
                                     </div>
                                 )}
 
-                                {isExpanded && (log.details?.serverName || log.details?.reason || (log.details?.changes && !Array.isArray(log.details.changes))) && (
-                                    <div className="audit-log-reason" style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-normal)', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '6px' }}>
-                                        {log.details.serverName && <div><strong>Сервер:</strong> {log.details.serverName}</div>}
-                                        {log.details.reason && <div><strong>Причина:</strong> {log.details.reason}</div>}
-                                        {log.details.changes && !Array.isArray(log.details.changes) && (
-                                            <div style={{ marginTop: '4px' }}>
-                                                <strong>Детали:</strong> {JSON.stringify(log.details.changes)}
-                                            </div>
-                                        )}
+                                {isExpanded && <AuditDetails details={log.details} showMeta />}
+                                {isExpanded && log.details?.changes && !Array.isArray(log.details.changes) && (
+                                    <div className="audit-log-details">
+                                        <div className="audit-log-detail">
+                                            <span className="audit-log-detail-key">Детали</span>
+                                            <span className="audit-log-detail-value">{JSON.stringify(log.details.changes)}</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -7,6 +7,7 @@ import {
   modalPopVariants,
   modalPopTransition,
 } from '../animations/transitions';
+import { useExitPresence } from '../animations/useExitPresence';
 import { useFreezeAppBackground } from '../animations/useFreezeAppBackground';
 import './Modal.css';
 
@@ -65,6 +66,9 @@ const Modal: React.FC<ModalProps> = ({
     }
   }, [open]);
 
+  // Родитель снимает модалку — проиграть закрытие (см. useExitPresence).
+  const presence = useExitPresence(open);
+
   const onBackdropClick = (e: React.MouseEvent) => {
     if (closeOnBackdrop && e.target === e.currentTarget) onClose();
   };
@@ -81,8 +85,8 @@ const Modal: React.FC<ModalProps> = ({
   // and confine `position: fixed`). framer-motion keeps inline `transform` on
   // every motion.div in the tree, so this matters.
   return createPortal(
-    <AnimatePresence>
-      {open && (
+    <AnimatePresence onExitComplete={presence.onExitComplete}>
+      {presence.open && (
         <motion.div
           className="zv-modal-overlay"
           onMouseDown={onBackdropClick}

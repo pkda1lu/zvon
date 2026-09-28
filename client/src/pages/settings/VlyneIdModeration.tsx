@@ -77,12 +77,14 @@ const fmtDate = (iso?: string | null) => {
     });
 };
 
-const VlyneIdModeration: React.FC = () => {
+const VlyneIdModeration: React.FC<{ focusId?: string }> = ({ focusId }) => {
     const { alert, confirm } = useDialog();
     const [filter, setFilter] = useState('open');
     const [list, setList] = useState<AppRequest[]>([]);
     const [loading, setLoading] = useState(true);
-    const [openId, setOpenId] = useState<string | null>(null);
+    // Заявка из уведомления раскрыта сразу.
+    const [openId, setOpenId] = useState<string | null>(focusId || null);
+    useEffect(() => { if (focusId) setOpenId(focusId); }, [focusId]);
     const [comment, setComment] = useState('');
     const [busy, setBusy] = useState(false);
 
@@ -101,6 +103,13 @@ const VlyneIdModeration: React.FC = () => {
     }, []);
 
     useEffect(() => { load(filter); }, [filter, load]);
+
+    // Прокрутка к заявке из уведомления, когда список загрузился.
+    useEffect(() => {
+        if (!focusId || loading || !list.some(r => r.id === focusId)) return;
+        const t = setTimeout(() => document.getElementById(`vlyne-req-${focusId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+        return () => clearTimeout(t);
+    }, [focusId, loading, list]);
 
     /**
      * Отзыв и возврат доступа уже одобренному приложению.
@@ -205,21 +214,12 @@ const VlyneIdModeration: React.FC = () => {
 
             {/* Переключатель такой же, как на вкладке «Витрина»: одинаковые по смыслу
                 элементы в одном разделе не должны выглядеть по-разному. */}
-            <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="zv-tabs" style={{ marginBottom: '20px' }}>
                 {FILTERS.map(([id, label]) => (
                     <div
                         key={id}
+                        className={`zv-tab ${filter === id ? 'active' : ''}`}
                         onClick={() => setFilter(id)}
-                        style={{
-                            cursor: 'pointer',
-                            padding: '10px 20px',
-                            background: filter === id ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)',
-                            color: filter === id ? 'black' : 'white',
-                            borderRadius: '12px',
-                            fontWeight: 600,
-                            fontSize: '14px',
-                            transition: 'all 0.2s'
-                        }}
                     >
                         {label}
                     </div>
@@ -237,7 +237,7 @@ const VlyneIdModeration: React.FC = () => {
                 const editable = req.status === 'pending' || req.status === 'changes_requested';
 
                 return (
-                    <div key={req.id} style={card}>
+                    <div key={req.id} id={`vlyne-req-${req.id}`} style={card} className={focusId && req.id === focusId ? 'mod-focus-flash' : undefined}>
                         <div
                             style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
                             onClick={() => { setOpenId(isOpen ? null : req.id); setComment(''); }}

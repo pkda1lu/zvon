@@ -91,12 +91,13 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .background_color(Color(0x1e, 0x1f, 0x22, 0xff))
         .build()?;
     crate::permissions::install(&w);
+    crate::permissions::install_context_menu(&w);
     crate::netfilter::install(&w);
     Ok(w)
 }
 
 pub fn create_updater(app: &AppHandle) -> tauri::Result<WebviewWindow> {
-    base(app, "updater", "updater.html")
+    let w = base(app, "updater", "updater.html")
         .title("Zvon")
         .inner_size(480.0, 600.0)
         .resizable(false)
@@ -104,7 +105,9 @@ pub fn create_updater(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .center()
         .decorations(false)
         .background_color(Color(0x04, 0x04, 0x0a, 0xff))
-        .build()
+        .build()?;
+    crate::permissions::install_context_menu(&w);
+    Ok(w)
 }
 
 pub fn create_overlay(app: &AppHandle) -> tauri::Result<WebviewWindow> {

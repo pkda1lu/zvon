@@ -95,30 +95,16 @@ const AdminUsersSettings: React.FC = () => {
             <h2 className="settings-page-title">Управление сообществом</h2>
             <p className="settings-description">Полный список пользователей и серверов с инструментами администрирования.</p>
 
-            <div style={{ marginBottom: '24px', display: 'flex', gap: '10px', borderBottom: '1px solid var(--glass-border)' }}>
+            <div className="zv-tabs" style={{ marginBottom: '24px' }}>
                 <button
                     onClick={() => { setView('users'); setPage(1); }}
-                    className={`settings-tab-btn ${view === 'users' ? 'active' : ''}`}
-                    style={{
-                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: view === 'users' ? 'var(--primary-neon)' : 'var(--text-dim)',
-                        fontWeight: 700, fontSize: '14px',
-                        borderBottom: `2px solid ${view === 'users' ? 'var(--primary-neon)' : 'transparent'}`,
-                        marginBottom: '-1px'
-                    }}
+                    className={`zv-tab ${view === 'users' ? 'active' : ''}`}
                 >
                     Пользователи
                 </button>
                 <button
                     onClick={() => { setView('servers'); setPage(1); }}
-                    className={`settings-tab-btn ${view === 'servers' ? 'active' : ''}`}
-                    style={{
-                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: view === 'servers' ? 'var(--primary-neon)' : 'var(--text-dim)',
-                        fontWeight: 700, fontSize: '14px',
-                        borderBottom: `2px solid ${view === 'servers' ? 'var(--primary-neon)' : 'transparent'}`,
-                        marginBottom: '-1px'
-                    }}
+                    className={`zv-tab ${view === 'servers' ? 'active' : ''}`}
                 >
                     Сервера
                 </button>

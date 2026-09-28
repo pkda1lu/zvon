@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { isGroupDM } from '../utils/dm';
 import axios from 'axios';
 import { Socket } from 'socket.io-client';
 import { DirectMessage, Server, User, Message } from '../types';
@@ -42,7 +43,7 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ isOpen, onClo
         const list: ForwardTarget[] = [];
 
         dms.forEach(dm => {
-            const isGroup = dm.participants.length > 2 || !!dm.name;
+            const isGroup = isGroupDM(dm);
             const others = dm.participants.filter(p => p._id !== currentUser._id);
             const other = others[0];
             const label = dm.name || (isGroup ? others.map(p => p.username).join(', ') : other?.username) || 'Чат';

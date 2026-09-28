@@ -4,6 +4,8 @@ import { Post, PostBlock, BlockType, createBlock, genId, POST_FONT_FAMILIES } fr
 import PostBlockRenderer from './PostBlockRenderer';
 import { useNotifications } from '../../contexts/NotificationContext';
 import './Posts.css';
+import { uploadFiles } from '../../utils/transfers';
+import ZvSelect from '../ZvSelect';
 
 interface PostEditorProps {
   post: Post | null; // null => создание нового
@@ -56,10 +58,8 @@ const PostEditor: React.FC<PostEditorProps> = ({ post, onSaved, onCancel }) => {
     const file = e.target.files?.[0];
     const target = uploadTarget.current;
     if (!file || !target) return;
-    const formData = new FormData();
-    formData.append('files', file);
     try {
-      const res = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await uploadFiles([file]);
       const uploaded = res.data?.[0];
       if (uploaded) updateBlock(target.id, { url: uploaded.url, filename: uploaded.filename } as Partial<PostBlock>);
     } catch {
@@ -104,22 +104,22 @@ const PostEditor: React.FC<PostEditorProps> = ({ post, onSaved, onCancel }) => {
           <div className="post-ctrl-row">
             <label>Размер {numInput(block.fontSize, v => updateBlock(block.id, { fontSize: v } as any), 8, 96)}</label>
             <label>Жирность
-              <select value={block.fontWeight} onChange={e => updateBlock(block.id, { fontWeight: Number(e.target.value) } as any)} className="post-select">
+              <ZvSelect value={block.fontWeight} onChange={e => updateBlock(block.id, { fontWeight: Number(e.target.value) } as any)} className="post-select">
                 {[300, 400, 500, 600, 700, 800, 900].map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
+              </ZvSelect>
             </label>
             <label>Шрифт
-              <select value={block.fontFamily} onChange={e => updateBlock(block.id, { fontFamily: e.target.value } as any)} className="post-select">
+              <ZvSelect value={block.fontFamily} onChange={e => updateBlock(block.id, { fontFamily: e.target.value } as any)} className="post-select">
                 {POST_FONT_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-              </select>
+              </ZvSelect>
             </label>
           </div>
           <div className="post-ctrl-row">
             <label>Цвет <input type="color" value={block.color} onChange={e => updateBlock(block.id, { color: e.target.value } as any)} className="post-color" /></label>
             <label>Выравнивание
-              <select value={block.align} onChange={e => updateBlock(block.id, { align: e.target.value as any } as any)} className="post-select">
+              <ZvSelect value={block.align} onChange={e => updateBlock(block.id, { align: e.target.value as any } as any)} className="post-select">
                 <option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option>
-              </select>
+              </ZvSelect>
             </label>
             <label>Интерлиньяж {numInput(block.lineHeight, v => updateBlock(block.id, { lineHeight: v } as any), 1, 3, 0.1)}</label>
           </div>
@@ -136,9 +136,9 @@ const PostEditor: React.FC<PostEditorProps> = ({ post, onSaved, onCancel }) => {
             <label>Ширина % {numInput(block.width, v => updateBlock(block.id, { width: v } as any), 10, 100)}</label>
             <label>Скругление {numInput(block.radius, v => updateBlock(block.id, { radius: v } as any), 0, 40)}</label>
             <label>Выравнивание
-              <select value={block.align} onChange={e => updateBlock(block.id, { align: e.target.value as any } as any)} className="post-select">
+              <ZvSelect value={block.align} onChange={e => updateBlock(block.id, { align: e.target.value as any } as any)} className="post-select">
                 <option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option>
-              </select>
+              </ZvSelect>
             </label>
           </div>
         </>
@@ -239,7 +239,7 @@ const PostEditor: React.FC<PostEditorProps> = ({ post, onSaved, onCancel }) => {
         <label className="post-checkbox"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Активен (показывать пользователям)</label>
         {post && <label className="post-checkbox"><input type="checkbox" checked={resetSeen} onChange={e => setResetSeen(e.target.checked)} /> Показать заново всем (сброс просмотров)</label>}
         <div style={{ flex: 1 }} />
-        <button type="button" className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={onCancel} disabled={saving}>Отмена</button>
+        <button type="button" className="settings-btn secondary" onClick={onCancel} disabled={saving}>Отмена</button>
         <button type="button" className="settings-btn success-glass" onClick={handleSave} disabled={saving}>{saving ? 'Сохранение…' : 'Сохранить'}</button>
       </div>
     </div>

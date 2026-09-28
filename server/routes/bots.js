@@ -169,6 +169,18 @@ router.post('/:id/add-to-server', auth, async (req, res) => {
         server.members.push({ user: botId });
         await server.save();
 
+        // Бот получает права участника — это решение администратора сервера,
+        // и в журнале сервера оно должно быть видно.
+        const { logAction } = require('../utils/auditLogger');
+        logAction({
+            serverId: server._id,
+            executorId: req.user._id,
+            targetId: bot._id,
+            targetModel: 'User',
+            action: 'BOT_ADD',
+            targetName: bot.displayName || bot.username
+        });
+
         // Also update bot's servers array
         if (!bot.servers) bot.servers = [];
         if (!bot.servers.includes(serverId)) {

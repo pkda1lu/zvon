@@ -42,6 +42,11 @@
   let waveStation = 'user:onyourwave';
   let waveBatchId = null;
   let waveLoading = false;
+  // Сессия волны (rotor/session): id сессии, false — сессии недоступны и
+  // работаем по старому API станций. waveHistory — «трек:альбом» сыгранных
+  // треков, по ним rotor подбирает продолжение.
+  let waveSessionId = null;
+  let waveHistory = [];
 
   // Куда возвращает «Назад» с вложенной страницы (альбом, исполнитель).
   // Ставится экранами верхнего уровня. Объявлено здесь, а не рядом с
@@ -268,8 +273,36 @@
   // swap. The reliable fix is to use a fresh <audio> per track and capture
   // its stream once — the track stays live for the duration of that blob.
   let audio = null;
-  let _captureStream = null;
   let _userVolume = 0.8;
+
+  /*
+   * Звук идёт через один граф Web Audio на всю жизнь мини-аппки:
+   *   <audio> → источник → ├─ локальная громкость → динамики хоста
+   *                        └─ MediaStreamDestination → голосовой канал
+   * Раньше в канал публиковался audio.captureStream() очередного элемента, а
+   * элемент пересоздаётся на каждый трек: старый трек гасился, переданная в
+   * Zvon копия умирала вместе с ним, и слушатели оставались без звука, пока
+   * не проходила перепубликация (или навсегда, если она срывалась). Теперь
+   * публикуемый трек один и тот же — новые элементы лишь подключаются к нему.
+   * Хост при этом слышит музыку как раньше, ползунок громкости влияет только
+   * на него: у слушателей своя громкость участника в Zvon.
+   */
+  let _ctx = null, _mixDest = null, _localGain = null, _srcNode = null;
+  function ensureGraph() {
+    if (_ctx) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    _ctx = new AC({ latencyHint: 'playback' });
+    _mixDest = _ctx.createMediaStreamDestination();
+    _localGain = _ctx.createGain();
+    _localGain.gain.value = _userVolume;
+    _localGain.connect(_ctx.destination);
+    return true;
+  }
+  function applyVolume() {
+    if (_localGain) _localGain.gain.value = _userVolume;
+    else if (audio) audio.volume = _userVolume;
+  }
   function recreateAudio() {
     // Tear down old element if any.
     if (audio) {
@@ -277,29 +310,35 @@
       audio.src = '';
       try { audio.load(); } catch {}
     }
-    if (_captureStream) {
-      _captureStream.getTracks().forEach(t => { try { t.stop(); } catch {} });
-    }
-    _captureStream = null;
+    if (_srcNode) { try { _srcNode.disconnect(); } catch {} _srcNode = null; }
     audio = new Audio();
     audio.crossOrigin = 'anonymous';
     audio.preload = 'auto';
-    audio.volume = _userVolume;
+    if (ensureGraph()) {
+      audio.volume = 1;
+      _srcNode = _ctx.createMediaElementSource(audio);
+      _srcNode.connect(_localGain);
+      _srcNode.connect(_mixDest);
+    } else {
+      audio.volume = _userVolume;
+    }
     audio.addEventListener('ended', () => {
-      if (waveMode) sendWaveFeedback('trackFinished', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio.duration || 0) });
-      if (currentIndex < queue.length - 1) playIndex(currentIndex + 1); else stopPlayback();
+      if (waveMode) sendWaveFeedback('trackFinished', queue[currentIndex], { totalPlayedSeconds: Math.round(audio.duration || 0) });
+      if (currentIndex < queue.length - 1) playIndex(currentIndex + 1);
+      else if (waveMode) continueWave();
+      else stopPlayback();
     });
     audio.addEventListener('timeupdate', () => { updateLocalProgress(); pushPresenceProgress(); });
     audio.addEventListener('play',  () => { setPlayIcon(true);  updatePresenceControls(); });
     audio.addEventListener('pause', () => { setPlayIcon(false); updatePresenceControls(); });
   }
   function getCaptureTrack() {
-    if (!audio || typeof audio.captureStream !== 'function') {
+    if (!_mixDest && (!audio || typeof audio.captureStream !== 'function')) {
       console.error('[YM] audio.captureStream not supported / no audio element');
       return null;
     }
-    if (!_captureStream) _captureStream = audio.captureStream();
-    return _captureStream.getAudioTracks()[0] || null;
+    if (_mixDest) return _mixDest.stream.getAudioTracks()[0] || null;
+    return audio.captureStream().getAudioTracks()[0] || null;
   }
   recreateAudio();
 
@@ -323,13 +362,13 @@
   // Persisted volume — restored from storage, saved on change.
   const savedVol = await sdk.storage.get('volume').catch(() => null);
   _userVolume = (typeof savedVol === 'number') ? Math.max(0, Math.min(1, savedVol)) : 0.8;
-  audio.volume = _userVolume;
+  applyVolume();
   $('#vol').value = String(Math.round(_userVolume * 100));
   setVolIcon(_userVolume);
   let _volSaveTimer = null;
   $('#vol').addEventListener('input', (e) => {
     _userVolume = Number(e.target.value) / 100;
-    if (audio) audio.volume = _userVolume;
+    applyVolume();
     setVolIcon(_userVolume);
     clearTimeout(_volSaveTimer);
     _volSaveTimer = setTimeout(() => sdk.storage.set('volume', _userVolume).catch(() => {}), 300);
@@ -338,7 +377,7 @@
   $('#btn-play').addEventListener('click', () => { if (audio) audio.paused ? audio.play() : audio.pause(); });
   $('#btn-prev').addEventListener('click', () => { if (currentIndex > 0) playIndex(currentIndex - 1); });
   $('#btn-next').addEventListener('click', () => {
-    if (waveMode) sendWaveFeedback('skip', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
+    if (waveMode) sendWaveFeedback('skip', queue[currentIndex], { totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
     if (currentIndex < queue.length - 1) playIndex(currentIndex + 1);
   });
   $('#btn-stop').addEventListener('click', stopPlayback);
@@ -375,6 +414,17 @@
     } catch (e) { console.warn('[YM] load likes failed:', e.message); }
   }
 
+  async function yaPostJson(path, body) {
+    const r = await sdk.fetch(YA_API + path, {
+      method: 'POST',
+      headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      responseType: 'json',
+    });
+    if (r.status >= 400) throw new Error('Yandex API ' + r.status);
+    return r.data;
+  }
+
   async function yaPostForm(path, params) {
     const r = await sdk.fetch(YA_API + path, {
       method: 'POST',
@@ -409,6 +459,11 @@
     // Оптимистично обновляем UI.
     if (wasLiked) likedTrackIds.delete(id); else likedTrackIds.add(id);
     updateLikeButton();
+    // Лайк в волне — сигнал рекомендациям, как в самой Музыке.
+    if (waveMode && !wasLiked) {
+      const t = queue.find(x => String(x.id) === id);
+      if (t) sendWaveFeedback('like', t);
+    }
     try {
       const action = wasLiked ? 'remove' : 'add-multiple';
       await yaPostForm(`/users/${encodeURIComponent(ymAccount.uid)}/likes/tracks/${action}`, { 'track-ids': id });
@@ -995,7 +1050,7 @@
     renderVoiceJoinButton();
     renderLibrary();
     updateQueueBadge();
-    $('#wave-card')?.addEventListener('click', startWave);
+    $('#wave-card')?.addEventListener('click', () => startWave('user:onyourwave'));
     const q = $('#q');
     q.focus();
     let searchTimer = null;
@@ -1408,8 +1463,10 @@
       presence.on('control', onPresenceControl);
       await presence.setAccentColor('#ffcc00');
       await presence.setControls(getControlSchema());
-      // If we are already playing a track, immediately publish audio + cover + subtitle.
-      if (audio && !audio.paused && audio.src) await reattachPresenceMedia();
+      // Публикуем сразу: трек графа постоянный, на паузе в нём тишина. Раньше
+      // звук публиковался только если трек уже играл, и включённая позже
+      // музыка иногда так и не доходила до канала.
+      await reattachPresenceMedia();
     } catch (e) {
       alert('Не получилось встать в голосовой канал: ' + e.message);
       presence = null;
@@ -1441,7 +1498,7 @@
   function onPresenceControl({ controlId, value }) {
     if (controlId === 'play-pause') audio && (audio.paused ? audio.play() : audio.pause());
     else if (controlId === 'next') {
-      if (waveMode) sendWaveFeedback('skip', { trackId: queue[currentIndex]?.id, totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
+      if (waveMode) sendWaveFeedback('skip', queue[currentIndex], { totalPlayedSeconds: Math.round(audio?.currentTime || 0) });
       if (currentIndex < queue.length - 1) playIndex(currentIndex + 1);
     }
     else if (controlId === 'prev') { if (currentIndex > 0) playIndex(currentIndex - 1); }
@@ -1578,6 +1635,13 @@
     if (!presence) return;
     const track = queue[currentIndex];
 
+    // Звук — первым: видео-клип ищется по сети и раньше задерживал публикацию.
+    // Трек графа постоянный, повторная публикация на стороне Zvon — no-op.
+    try {
+      const at = getCaptureTrack();
+      if (at) await presence.publishAudio(at);
+    } catch (e) { console.error('[YM] presence publishAudio failed:', e); }
+
     // Видео-клип трека (Yandex "video shot"): фон presence-плитки.
     const videoUrl = await getVideoShot(track);
 
@@ -1595,13 +1659,6 @@
       try { await presence.setSubtitle(subtitle); } catch {}
     }
 
-    // The capture track is stable across audio src changes (Web Audio dest),
-    // so publishing once is enough. The bridge no-ops on repeat publishes of
-    // the same track to avoid LiveKit republish thrashing.
-    try {
-      const at = getCaptureTrack();
-      if (at) await presence.publishAudio(at);
-    } catch (e) { console.error('[YM] presence publishAudio failed:', e); }
     await presence.setControls(getControlSchema());
   }
 
@@ -2031,20 +2088,65 @@
 
   // ---------- "Моя волна" (rotor radio) ----------
 
-  async function fetchWaveBatch(prevTrackId) {
-    let path = `/rotor/station/${waveStation}/tracks?settings2=true`;
-    if (prevTrackId) path += `&queue=${encodeURIComponent(prevTrackId)}`;
+  const waveTrackKey = (t) => t ? (t.albumId ? `${t.id}:${t.albumId}` : String(t.id)) : '';
+
+  /*
+   * Треки волны. Основной путь — сессии rotor (/rotor/session/*), как в
+   * нынешних клиентах Яндекс Музыки: «Моя волна» там подбирается по вкусу и
+   * истории прослушиваний. Старый /rotor/station/user:onyourwave/tracks для
+   * многих аккаунтов отдаёт по сути «Мне нравится» — он остаётся запасным,
+   * если сессии недоступны.
+   */
+  async function fetchWaveBatch() {
+    if (waveSessionId !== false) {
+      try {
+        let data;
+        if (!waveSessionId) {
+          data = await yaPostJson('/rotor/session/new', {
+            seeds: [waveStation],
+            includeTracksInResponse: true,
+            includeWaveModel: false,
+            interactive: true,
+          });
+          waveSessionId = data.result?.radioSessionId || null;
+          if (!waveSessionId) throw new Error('нет radioSessionId');
+        } else {
+          data = await yaPostJson(`/rotor/session/${encodeURIComponent(waveSessionId)}/tracks`, {
+            queue: waveHistory.slice(-20),
+          });
+        }
+        if (data.result?.batchId) waveBatchId = data.result.batchId;
+        const tracks = (data.result?.sequence || []).map(s => s.track).filter(Boolean).map(normalizeTrack);
+        if (tracks.length) return tracks;
+        throw new Error('пустая выдача');
+      } catch (e) {
+        console.warn('[YM] rotor session failed, fallback to station API:', e.message);
+        waveSessionId = false;
+      }
+    }
+    let path = `/rotor/station/${encodeURIComponent(waveStation)}/tracks?settings2=true`;
+    const last = waveHistory[waveHistory.length - 1];
+    if (last) path += `&queue=${encodeURIComponent(last)}`;
     const data = await yaCall(path);
     if (data.result?.batchId) waveBatchId = data.result.batchId;
-    const seq = data.result?.sequence || [];
-    return seq.map(s => s.track).filter(Boolean).map(normalizeTrack);
+    return (data.result?.sequence || []).map(s => s.track).filter(Boolean).map(normalizeTrack);
   }
 
-  // Best-effort: rotor personalizes "Моя волна" from these play/skip events.
-  function sendWaveFeedback(type, extra) {
-    const body = Object.assign({ type, from: 'zvon-radio', timestamp: new Date().toISOString() }, extra || {});
-    let path = `/rotor/station/${waveStation}/feedback`;
-    if (waveBatchId && type !== 'radioStarted') path += `?batch-id=${encodeURIComponent(waveBatchId)}`;
+  // Best-effort: rotor подстраивает волну по этим событиям.
+  function sendWaveFeedback(type, track, extra) {
+    const timestamp = new Date().toISOString();
+    const trackId = waveTrackKey(track);
+    if (type !== 'radioStarted' && !trackId) return;
+    let path, body;
+    if (waveSessionId) {
+      path = `/rotor/session/${encodeURIComponent(waveSessionId)}/feedback`;
+      body = { event: Object.assign({ type, timestamp }, trackId ? { trackId } : {}, extra || {}) };
+      if (waveBatchId) body.batchId = waveBatchId;
+    } else {
+      path = `/rotor/station/${encodeURIComponent(waveStation)}/feedback`;
+      if (waveBatchId && type !== 'radioStarted') path += `?batch-id=${encodeURIComponent(waveBatchId)}`;
+      body = Object.assign({ type, timestamp, from: 'zvon-radio' }, trackId ? { trackId } : {}, extra || {});
+    }
     sdk.fetch(YA_API + path, {
       method: 'POST',
       headers: { ...HEADERS_BASE, Authorization: 'OAuth ' + token, 'Content-Type': 'application/json' },
@@ -2055,14 +2157,18 @@
 
   async function startWave(stationId) {
     if (waveLoading) return;
-    if (stationId) waveStation = stationId;
+    if (typeof stationId === 'string' && stationId) waveStation = stationId;
     const card = $('#wave-card');
     if (card) card.classList.add('loading');
     waveLoading = true;
+    // Новая станция — новая сессия и история.
+    waveSessionId = null;
+    waveBatchId = null;
+    waveHistory = [];
     try {
-      sendWaveFeedback('radioStarted', { from: 'zvon-radio-' + waveStation });
-      const tracks = await fetchWaveBatch(null);
+      const tracks = await fetchWaveBatch();
       if (!tracks.length) throw new Error('пустой ответ от rotor');
+      if (!waveSessionId) sendWaveFeedback('radioStarted', null, { from: 'zvon-radio-' + waveStation });
       waveMode = true;
       queue = tracks.slice();
       currentIndex = -1;
@@ -2085,10 +2191,10 @@
   }
 
   // Keep the wave flowing: append a fresh batch when the queue runs low.
-  function refillWave(prevTrackId) {
+  function refillWave() {
     if (!waveMode || waveLoading) return;
     waveLoading = true;
-    fetchWaveBatch(prevTrackId)
+    fetchWaveBatch()
       .then(more => {
         if (!waveMode || !more?.length) return;
         const have = new Set(queue.map(t => t.id));
@@ -2099,9 +2205,29 @@
       .finally(() => { waveLoading = false; });
   }
 
+  async function continueWave() {
+    const from = queue.length;
+    try {
+      if (!waveLoading) {
+        waveLoading = true;
+        try {
+          const more = await fetchWaveBatch();
+          const have = new Set(queue.map(t => t.id));
+          more.filter(t => !have.has(t.id)).forEach(t => queue.push(t));
+          renderQueue(); updateQueueBadge();
+        } finally { waveLoading = false; }
+      } else {
+        // Догрузка уже идёт — дождаться её.
+        for (let i = 0; i < 50 && waveLoading; i++) await new Promise(r => setTimeout(r, 200));
+      }
+    } catch (e) { console.warn('[YM] wave continue failed:', e.message); }
+    if (waveMode && queue.length > from) playIndex(from);
+    else stopPlayback();
+  }
+
   // Leaving wave mode whenever the user starts a hand-picked playlist/track,
   // so the radio stops refilling and feedback stops firing.
-  function exitWave() { waveMode = false; waveBatchId = null; }
+  function exitWave() { waveMode = false; waveBatchId = null; waveSessionId = null; waveHistory = []; }
 
   // ---------- Playback ----------
 
@@ -2120,6 +2246,7 @@
     const skipToNext = (reason) => {
       console.warn('[YM] skipping track:', track.title, '—', reason);
       if (currentIndex < queue.length - 1) playIndex(currentIndex + 1, attempted);
+      else if (waveMode) continueWave();
       else { showPlayer(track, false, reason); stopPlayback(); }
     };
 
@@ -2135,14 +2262,16 @@
       const blob = new Blob([bytes], { type: 'audio/mpeg' });
       recreateAudio();
       audio.src = URL.createObjectURL(blob);
+      if (_ctx && _ctx.state !== 'running') { try { await _ctx.resume(); } catch { } }
       try { await audio.play(); }
       catch (playErr) { return skipToNext('audio.play() ' + playErr.message); }
       showPlayer(track, false);
       pushPresenceProgress._last = -1;
       if (presence) await reattachPresenceMedia();
       if (waveMode) {
-        sendWaveFeedback('trackStarted', { trackId: track.id });
-        if (index >= queue.length - 2) refillWave(track.id);
+        waveHistory.push(waveTrackKey(track));
+        sendWaveFeedback('trackStarted', track);
+        if (index >= queue.length - 2) refillWave();
       }
     } catch (e) {
       console.error('[YM] playback failed:', e);
@@ -2156,10 +2285,6 @@
       try { audio.pause(); } catch { }
       audio.removeAttribute('src');
       try { audio.load(); } catch { }
-    }
-    if (_captureStream) {
-      _captureStream.getTracks().forEach(t => { try { t.stop(); } catch {} });
-      _captureStream = null;
     }
     currentIndex = -1;
     renderQueue();

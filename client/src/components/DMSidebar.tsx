@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { isGroupDM } from '../utils/dm';
 import { motion } from 'framer-motion';
 import { iosSpring } from '../animations/transitions';
 import { DirectMessage, User, Server } from '../types';
-import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, ChatIcon, BellOffIcon, BlockIcon } from './Icons';
+import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, ChatIcon, BellOffIcon, BlockIcon, PhoneIcon, SearchIcon, CloseIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
@@ -32,6 +33,8 @@ interface DMSidebarProps {
     onStartDM?: (userId: string) => void;
     /** Пользователь заблокирован из меню чата — обновить состояние переписки. */
     onUserBlocked?: (dm: DirectMessage) => void;
+    /** Идущие звонки: dmId → кто в звонке. */
+    dmCalls?: Record<string, string[]>;
 }
 
 /**
@@ -67,11 +70,19 @@ const buildPreview = (
     currentUserId: string,
     isGroup: boolean,
     maskModeration: boolean,
-): { prefix: string; text: string } | null => {
+): { prefix: string; text: string; missed?: boolean } | null => {
     const last = dm.lastMessage;
     if (!last) return null;
 
     const isMine = last.authorId === currentUserId;
+    // Пропущенный звонок: сообщение пишет звонивший. Свой — исходящий без
+    // ответа (раньше выходило «Вы: Пропущенный звонок»), чужой — пропущенный
+    // входящий, его подсвечиваем.
+    if (last.type === 'missed-call') {
+        return isMine
+            ? { prefix: '', text: '↗ Исходящий звонок — нет ответа' }
+            : { prefix: (isGroup && !maskModeration && last.authorName) ? `${last.authorName}: ` : '', text: '↙ Пропущенный звонок', missed: true };
+    }
     const prefix = isMine ? 'Вы: '
         : (isGroup && !maskModeration && last.authorName) ? `${last.authorName}: `
         : '';
@@ -106,7 +117,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     servers = [],
     onUserClick,
     onStartDM,
-    onUserBlocked
+    onUserBlocked, dmCalls
 }) => {
     const { interfaceScale, reduceMotion } = useAppearance();
     // Чаты «от имени модерации», где текущий пользователь — модератор.
@@ -145,6 +156,26 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
      * onShowFriends и showFriends принимались, но в разметке не использовались.
      */
     const [tab, setTab] = useState<'chats' | 'friends'>('chats');
+
+    /*
+     * Поиск по перепискам: по названию группы, имени и @нику собеседника, в
+     * группе — по любому участнику. На вкладке «Друзья» — по друзьям.
+     */
+    const [query, setQuery] = useState('');
+    const q = query.trim().toLowerCase().replace(/^@/, '');
+    const userMatches = (u?: Partial<User> | null) => !!u && (
+        (u.displayName || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q));
+    const dmMatches = (dm: DirectMessage) => {
+        if (!q) return true;
+        if ((dm.name || '').toLowerCase().includes(q)) return true;
+        // Чат «от имени модерации» для собеседника называется «Модерация».
+        if (getModeratorId(dm) && 'модерация'.includes(q)) return true;
+        return dm.participants.some(p => p._id !== currentUser._id && userMatches(p));
+    };
+    const shownDMs = React.useMemo(() => q ? regularDMs.filter(dmMatches) : regularDMs,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [regularDMs, q]);
+    const shownModerationDMs = q ? myModerationDMs.filter(dmMatches) : myModerationDMs;
 
     // Друзья: сначала те, кто в сети, внутри — по имени. Офлайн внизу, потому
     // что написать сейчас можно в основном тем, кто на месте.
@@ -199,7 +230,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     useEffect(() => { if (isModerationSelected) setModExpanded(true); }, [isModerationSelected]);
 
     const renderDMItem = (dm: DirectMessage, sub = false) => {
-        const isGroup = dm.participants.length > 2 || !!dm.name;
+        const isGroup = isGroupDM(dm);
         const otherParticipants = dm.participants.filter(p => p._id !== currentUser._id);
         const otherUser = otherParticipants[0];
         if (!otherUser && !isGroup) return null;
@@ -211,7 +242,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
         const moderatorId = getModeratorId(dm);
         const maskModeration = !!moderatorId && moderatorId !== currentUser._id;
         const displayName = maskModeration ? 'Модерация' : (dm.name || (isGroup ? otherParticipants.map(p => p.displayName || p.username).join(', ') : (otherUser?.displayName || otherUser?.username)));
-        const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? null : otherUser);
+        const avatarUser = maskModeration ? { username: 'Модерация', avatar: null } : (isGroup ? (dm.icon ? { username: displayName, avatar: dm.icon } : null) : otherUser);
         const preview = buildPreview(dm, currentUser._id, isGroup, maskModeration);
         const isDmMuted = mutedIds.has(dm._id);
 
@@ -235,6 +266,12 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 <div className="dm-info">
                     <div className="dm-name-row">
                         <span className="dm-name">{displayName}</span>
+                        {(dmCalls?.[dm._id]?.length || 0) > 0 && (
+                            <span className="dm-call-live" title={`Идёт звонок · ${dmCalls![dm._id].length}`}>
+                                <PhoneIcon size={11 * interfaceScale} color="currentColor" />
+                                {dmCalls![dm._id].length}
+                            </span>
+                        )}
                         {!isGroup && !maskModeration && otherUser && <UserBadges badges={otherUser.badges} serverTag={resolveServerTag(otherUser)} size={12 * interfaceScale} />}
                         {/* Заблокированный чат помечаем и в списке: иначе непонятно,
                             почему в него нельзя написать, пока не откроешь. */}
@@ -254,7 +291,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                         {preview
                             ? <>
                                 {preview.prefix && <span className="dm-preview-author">{preview.prefix}</span>}
-                                <span className="dm-preview-text">{preview.text}</span>
+                                <span className={`dm-preview-text ${preview.missed ? 'missed-call' : ''}`}>{preview.text}</span>
                               </>
                             : <span className="dm-preview-empty">Нет сообщений</span>}
                     </span>
@@ -331,6 +368,23 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                     </button>
                 </div>
 
+                <div className="dm-search">
+                    <SearchIcon size={14 * interfaceScale} className="dm-search-icon" />
+                    <input
+                        type="text"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Escape') setQuery(''); }}
+                        placeholder={tab === 'chats' ? 'Поиск чата или ника' : 'Поиск друга'}
+                        aria-label={tab === 'chats' ? 'Поиск по перепискам' : 'Поиск по друзьям'}
+                    />
+                    {query && (
+                        <button className="dm-search-clear" onClick={() => setQuery('')} title="Очистить">
+                            <CloseIcon size={12 * interfaceScale} />
+                        </button>
+                    )}
+                </div>
+
                 {tab === 'friends' ? (
                     <div className="dm-list">
                         {/* Заявки, поиск и удаление живут в полной панели друзей —
@@ -343,7 +397,9 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                             <div className="dm-empty">
                                 Друзей пока нет.<br />Добавьте — и переписки появятся здесь.
                             </div>
-                        ) : sortedFriends.map(f => (
+                        ) : q && !sortedFriends.some(userMatches) ? (
+                            <div className="dm-empty">Никого не нашлось по «{query.trim()}»</div>
+                        ) : sortedFriends.filter(f => !q || userMatches(f)).map(f => (
                             <div
                                 key={f._id}
                                 className="dm-item friend-item"
@@ -384,7 +440,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 <div className="dm-list">
                     {/* Хаб «Модерация»: единый чат, внутри которого все переписки,
                         начатые модератором от имени модерации. */}
-                    {myModerationDMs.length > 0 && (
+                    {shownModerationDMs.length > 0 && (
                         <>
                             <div
                                 className={`dm-item moderation-hub ${isModerationSelected ? 'active' : ''} ${moderationUnread > 0 ? 'unread' : ''}`}
@@ -408,20 +464,23 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                                     {modExpanded ? <ChevronDownIcon size={16 * interfaceScale} /> : <ChevronRightIcon size={16 * interfaceScale} />}
                                 </div>
                             </div>
-                            {modExpanded && (
+                            {(modExpanded || !!q) && (
                                 <div className="moderation-subchats">
-                                    {myModerationDMs.map(dm => renderDMItem(dm, true))}
+                                    {shownModerationDMs.map(dm => renderDMItem(dm, true))}
                                 </div>
                             )}
                         </>
                     )}
 
-                    {regularDMs.length === 0 && myModerationDMs.length === 0 && (
+                    {!q && regularDMs.length === 0 && myModerationDMs.length === 0 && (
                         <div className="dm-empty">
                             Переписок пока нет.<br />Откройте вкладку «Друзья», чтобы начать.
                         </div>
                     )}
-                    {regularDMs.map(dm => renderDMItem(dm))}
+                    {q && shownDMs.length === 0 && shownModerationDMs.length === 0 && (
+                        <div className="dm-empty">Ничего не нашлось по «{query.trim()}»</div>
+                    )}
+                    {shownDMs.map(dm => renderDMItem(dm))}
                 </div>
                 )}
             </div>
@@ -432,7 +491,7 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                 // чата «от имени модерации» скрываем намеренно: блокировать
                 // модерацию — значит отрезать себе канал обращений.
                 const mid = getModeratorId(menu.dm);
-                const isGroup = menu.dm.participants.length > 2 || !!menu.dm.name;
+                const isGroup = isGroupDM(menu.dm);
                 const other = (isGroup || mid)
                     ? null
                     : menu.dm.participants.find(p => p._id !== currentUser._id) || null;

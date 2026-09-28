@@ -67,19 +67,6 @@
   padding: 16px 28px;
 }
 
-.forward-modal-styled .zv-btn--ghost {
-  background: rgba(255, 255, 255, 0.04) !important;
-  color: var(--text-dim, rgba(255, 255, 255, 0.7)) !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  border-radius: 14px !important;
-  padding: 11px 22px !important;
-}
-
-.forward-modal-styled .zv-btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.09) !important;
-  color: var(--text-main, #ffffff) !important;
-}
-
 .forward-modal-content {
   display: flex;
   flex-direction: column;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import CountryFlag from '../../components/CountryFlag';
 import axios from 'axios';
 import { MonitorIcon, SmartphoneIcon, LogOutIcon, ShieldIcon } from '../../components/Icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -143,11 +144,6 @@ const DevicesSettings: React.FC = () => {
         }
     };
 
-    const getFlag = (countryCode: string) => {
-        if (!countryCode) return '🏳️';
-        return countryCode.toUpperCase().replace(/./g, char => String.fromCodePoint(char.charCodeAt(0) + 127397));
-    };
-
     const getTime = (isoString: string) => {
         if (!isoString) return 'Неизвестно';
         return new Date(isoString).toLocaleString('ru-RU', {
@@ -155,8 +151,12 @@ const DevicesSettings: React.FC = () => {
         });
     };
 
-    const locationLabel = (l: DeviceLocation) =>
-        `${getFlag(l.countryCode)} ${[l.city, l.country].filter(Boolean).join(', ') || 'Локация неизвестна'} • ${l.ip}`;
+    const locationLabel = (l: DeviceLocation) => (
+        <>
+            <CountryFlag code={l.countryCode} title={l.country} />
+            {' '}{[l.city, l.country].filter(Boolean).join(', ') || 'Локация неизвестна'} • {l.ip}
+        </>
+    );
 
     const groups = groupSessions(sessions);
     const currentGroup = groups.find(g => g.current);
@@ -184,6 +184,8 @@ const DevicesSettings: React.FC = () => {
             <h2 className="settings-page-title">Устройства</h2>
             <p className="settings-description">
                 Список устройств, на которых вы вошли в свой аккаунт. Входы с одного устройства сгруппированы вместе, даже если IP-адрес менялся.
+                {' '}Страна определяется по IP-адресу на нашем сервере, по базе{' '}
+                <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a>.
             </p>
 
             {loading && sessions.length === 0 ? (

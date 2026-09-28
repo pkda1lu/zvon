@@ -116,9 +116,24 @@ router.patch('/:code', auth, async (req, res) => {
         }
 
         const { expiresIn, maxUses } = req.body;
+        const before = { expiresAt: invite.expiresAt || null, maxUses: invite.maxUses || null };
         if (expiresIn !== undefined) invite.expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
         if (maxUses !== undefined) invite.maxUses = maxUses || null;
         await invite.save();
+
+        const inviteChanges = [];
+        if (expiresIn !== undefined) inviteChanges.push({ key: 'expiresAt', oldValue: before.expiresAt, newValue: invite.expiresAt });
+        if (maxUses !== undefined) inviteChanges.push({ key: 'maxUses', oldValue: before.maxUses, newValue: invite.maxUses });
+        await logAction({
+            serverId: server._id,
+            executorId: req.user._id,
+            targetId: server._id,
+            targetModel: 'Server',
+            action: 'INVITE_UPDATE',
+            targetName: invite.code,
+            changes: inviteChanges,
+            details: { inviteCode: invite.code }
+        });
         res.json(invite);
     } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
@@ -145,7 +160,8 @@ router.delete('/:code', auth, async (req, res) => {
             targetId: server._id,
             targetModel: 'Server',
             action: 'INVITE_DELETE',
-            reason: `Revoked invite ${invite.code}`
+            targetName: invite.code,
+            details: { inviteCode: invite.code, uses: invite.uses || 0 }
         });
 
         res.json({ message: 'Invite revoked' });

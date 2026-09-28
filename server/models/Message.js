@@ -113,7 +113,7 @@ const messageSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['default', 'missed-call', 'call-ended', 'server-join'],
+    enum: ['default', 'missed-call', 'call-ended', 'server-join', 'group-event'],
     default: 'default'
   },
   poll: {

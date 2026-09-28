@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { backdropMotion, popMotion } from '../../animations/transitions';
 import axios from 'axios';
 import { Server, Role } from '../../types';
 import { getAvatarUrl } from '../../utils/avatar';
@@ -8,6 +10,7 @@ import { Permissions, hasPermission, computePermissions } from '../../utils/perm
 import { PlusIcon, SpeakerMutedIcon, BootIcon, HammerIcon } from '../../components/Icons';
 import '../../components/UserProfileCard.css';
 import UserAvatar from "../../components/UserAvatar";
+import ZvSelect from '../../components/ZvSelect';
 
 interface Props {
     server: Server;
@@ -251,12 +254,13 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                 })}
             </div>
 
+            <AnimatePresence>
             {muteModalFor && (
-                <div className="settings-modal-overlay">
-                    <div className="settings-modal-glass">
+                <motion.div className="settings-modal-overlay" key="mute-modal" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass" {...popMotion}>
                         <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Замутить {muteModalFor.username}?</h3>
                         <p style={{ fontSize: '13px', marginBottom: '8px', color: 'var(--text-dim)' }}>Срок</p>
-                        <select
+                        <ZvSelect
                             className="settings-input"
                             style={{ marginBottom: '4px' }}
                             value={muteDuration ?? ''}
@@ -265,7 +269,7 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                             {MUTE_PRESETS.map(p => (
                                 <option key={p.label} value={p.seconds ?? ''}>{p.label}</option>
                             ))}
-                        </select>
+                        </ZvSelect>
                         <div className="modal-actions" style={{ justifyContent: 'stretch', display: 'flex', gap: '10px', marginTop: '20px' }}>
                             <button className="settings-btn secondary" style={{ flex: 1 }} onClick={() => setMuteModalFor(null)}>Отмена</button>
                             {muteModalFor.alreadyMuted && (
@@ -273,30 +277,33 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                             )}
                             <button className="settings-btn danger" style={{ flex: 1.2 }} onClick={() => applyMute(muteModalFor.userId, muteDuration)}>Замутить</button>
                         </div>
-                    </div>
-                </div>
+                    </motion.div>
+                </motion.div>
             )}
+            </AnimatePresence>
 
+            <AnimatePresence>
             {banModalFor && (
-                <div className="settings-modal-overlay">
-                    <div className="settings-modal-glass">
+                <motion.div className="settings-modal-overlay" key="ban-modal" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass" {...popMotion}>
                         <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Забанить {banModalFor.username}?</h3>
                         <p style={{ fontSize: '13px', marginBottom: '8px', color: 'var(--text-dim)' }}>Причина (необязательно)</p>
                         <input className="settings-input" style={{ marginBottom: '16px' }} value={banReason} onChange={(e) => setBanReason(e.target.value)} maxLength={500} />
                         <p style={{ fontSize: '13px', marginBottom: '8px', color: 'var(--text-dim)' }}>Срок</p>
-                        <select className="settings-input" style={{ marginBottom: '4px' }} value={banDuration ?? ''} onChange={(e) => setBanDuration(e.target.value ? parseInt(e.target.value) : null)}>
+                        <ZvSelect className="settings-input" style={{ marginBottom: '4px' }} value={banDuration ?? ''} onChange={(e) => setBanDuration(e.target.value ? parseInt(e.target.value) : null)}>
                             <option value="">Навсегда</option>
                             <option value={24 * 60 * 60}>1 день</option>
                             <option value={7 * 24 * 60 * 60}>1 неделя</option>
                             <option value={30 * 24 * 60 * 60}>30 дней</option>
-                        </select>
+                        </ZvSelect>
                         <div className="modal-actions" style={{ justifyContent: 'stretch', display: 'flex', gap: '10px', marginTop: '20px' }}>
                             <button className="settings-btn secondary" style={{ flex: 1 }} onClick={() => { setBanModalFor(null); setBanReason(''); setBanDuration(null); }}>Отмена</button>
                             <button className="settings-btn danger" style={{ flex: 1 }} onClick={submitBan}>Забанить</button>
                         </div>
-                    </div>
-                </div>
+                    </motion.div>
+                </motion.div>
             )}
+            </AnimatePresence>
 
             {transferFor && (
                 <div className="settings-modal-overlay">

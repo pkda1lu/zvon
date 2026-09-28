@@ -936,3 +936,36 @@
     color: var(--text-muted);
     white-space: nowrap;
 }
+
+/* Личная заметка в профиле: поле без рамки, пока не наведено/не в фокусе. */
+.profile-note-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: none;
+    overflow: hidden;
+    min-height: 32px;
+    padding: 6px 8px;
+    margin: 0;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-primary, #fff);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.4;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.profile-note-input::placeholder {
+    color: var(--text-faint, rgba(255, 255, 255, 0.35));
+}
+
+.profile-note-input:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.profile-note-input:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.3);
+    border-color: var(--glass-border, rgba(255, 255, 255, 0.12));
+}

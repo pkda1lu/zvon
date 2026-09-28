@@ -562,7 +562,8 @@ router.delete('/:id/roles/:roleId', auth, checkPermission(Permissions.MANAGE_ROL
       targetId: server._id,
       targetModel: 'Server',
       action: 'ROLE_DELETE',
-      reason: `Deleted role ${role.name}`
+      targetName: role.name,
+      details: { roleName: role.name, roleColor: role.color || null }
     });
 
     const io = req.app.get('io');
@@ -908,18 +909,21 @@ router.patch('/:id/bans/:userId', auth, checkPermission(Permissions.BAN_MEMBERS)
     if (!server) return res.status(404).json({ message: 'Server not found' });
     const ban = server.bans.find(b => String(b.user) === String(req.params.userId));
     if (!ban) return res.status(404).json({ message: 'Ban not found' });
+    const before = { reason: ban.reason || null, expiresAt: ban.expiresAt || null };
     if (reason !== undefined) ban.reason = reason;
     if (expiresAt !== undefined) ban.expiresAt = expiresAt ? new Date(expiresAt) : null;
     await server.save();
 
+    const banChanges = [];
+    if (reason !== undefined && reason !== before.reason) banChanges.push({ key: 'reason', oldValue: before.reason, newValue: reason });
+    if (expiresAt !== undefined) banChanges.push({ key: 'expiresAt', oldValue: before.expiresAt, newValue: ban.expiresAt });
     await logAction({
       serverId: server._id,
       executorId: req.user._id,
       targetId: req.params.userId,
       targetModel: 'User',
-      action: 'MEMBER_BAN',
-      reason: reason,
-      changes: [{ key: 'expiresAt', newValue: expiresAt }]
+      action: 'MEMBER_BAN_UPDATE',
+      changes: banChanges
     });
 
     res.json(ban);
@@ -1125,7 +1129,8 @@ router.delete('/:id/emojis/:emojiId', auth, checkPermission(Permissions.MANAGE_G
       targetId: server._id,
       targetModel: 'Server',
       action: 'EMOJI_DELETE',
-      reason: deletedEmoji ? `Deleted emoji ${deletedEmoji.name}` : undefined
+      targetName: deletedEmoji ? deletedEmoji.name : null,
+      details: deletedEmoji ? { emojiName: deletedEmoji.name } : {}
     });
 
     const io = req.app.get('io');

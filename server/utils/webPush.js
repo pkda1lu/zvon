@@ -135,6 +135,7 @@ function toAbsoluteUrl(url) {
  * @param {string} userId
  * @param {object} payload
  * @param {string} [category] - directMessages | channelMentions | voiceCalls | friendRequests
+ *   | modReports | modProblems | modVlyneApps
  */
 async function pushIfOffline(io, userId, payload, category = null) {
   try {
@@ -179,6 +180,38 @@ async function pushIfOffline(io, userId, payload, category = null) {
     await sendPushToUser(userId, modifiedPayload);
   } catch (err) {
     console.error('[push] pushIfOffline error:', err.message);
+  }
+}
+
+/**
+ * Уведомление команде модерации с учётом их настроек: событие во «Входящие»
+ * открытого приложения и push тем, у кого оно закрыто. Модератор, выключивший
+ * категорию (settings.notifications[category] === false), не получает ни того,
+ * ни другого.
+ *
+ * @param {object} io
+ * @param {object} opts
+ * @param {'modReports'|'modProblems'|'modVlyneApps'} opts.category
+ * @param {object} opts.socket — полезная нагрузка события 'notification'
+ * @param {object} [opts.push] — полезная нагрузка push
+ * @param {string} [opts.excludeUserId] — автор события (сам себя не уведомляет)
+ */
+async function notifyModerators(io, { category, socket, push, excludeUserId = null }) {
+  try {
+    const User = require('../models/User');
+    const staff = await User.find({ role: { $in: ['moderator', 'admin'] } }).select('_id settings.notifications');
+    const targets = staff.filter(u =>
+      !(excludeUserId && String(u._id) === String(excludeUserId)) &&
+      u.settings?.notifications?.[category] !== false
+    );
+    if (io && socket) {
+      for (const u of targets) io.to(`user-${u._id}`).emit('notification', { ...socket, timestamp: new Date() });
+    }
+    if (push && configured) {
+      await Promise.all(targets.map(u => pushIfOffline(io, u._id, push, category)));
+    }
+  } catch (err) {
+    console.error('[push] notifyModerators error:', err.message);
   }
 }
 
@@ -281,6 +314,7 @@ function formatMessagePreview(text, attachments = [], max = 140) {
 module.exports = {
   sendPushToUser,
   pushIfOffline,
+  notifyModerators,
   pushToModerators,
   isUserOnline,
   isPushConfigured,

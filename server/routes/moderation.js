@@ -5,8 +5,9 @@ const User = require('../models/User');
 const Report = require('../models/Report');
 const ProblemReport = require('../models/ProblemReport');
 const Post = require('../models/Post');
+const { logGlobalAction } = require('../utils/globalAuditLogger');
 const { body, validationResult } = require('express-validator');
-const { pushToModerators, pushIfOffline, previewText } = require('../utils/webPush');
+const { pushIfOffline, previewText, notifyModerators } = require('../utils/webPush');
 
 // Middleware to check for moderator/admin roles
 const isModerator = async (req, res, next) => {
@@ -93,13 +94,24 @@ router.post('/report', auth, [
       || contentSnapshot?.authorName
       || contentSnapshot?.appName
       || null;
-    pushToModerators(req.app.get('io'), {
-      title: targetName ? `Новая жалоба: ${targetName}` : 'Новая жалоба',
-      body: previewText(description || reason),
-      tag: 'moderation-report',
-      url: '/?settings=moderation',
-      data: { type: 'report', reportId: String(report._id) }
-    }, req.user._id);
+    // Во «Входящие» — тоже: раньше жалоба приходила только push-уведомлением
+    // при закрытом приложении, а в открытом о ней было не узнать.
+    notifyModerators(req.app.get('io'), {
+      category: 'modReports',
+      excludeUserId: req.user._id,
+      socket: {
+        type: 'content_report',
+        message: targetName ? `${targetName}: ${description || reason}` : (description || reason || 'Новая жалоба'),
+        reportId: report._id
+      },
+      push: {
+        title: targetName ? `Новая жалоба: ${targetName}` : 'Новая жалоба',
+        body: previewText(description || reason),
+        tag: 'moderation-report',
+        url: '/?settings=moderation',
+        data: { type: 'report', reportId: String(report._id) }
+      }
+    });
 
     res.status(201).json({ message: 'Жалоба успешно отправлена' });
   } catch (err) {
@@ -138,6 +150,24 @@ router.post('/reports/:id/resolve', [auth, isModerator], async (req, res) => {
       resolvedBy: req.user._id,
       resolutionNote: note
     }, { new: true }).populate('reportedUser').populate('reporter');
+
+    if (report) {
+      logGlobalAction({
+        executorId: req.user._id,
+        action: 'MODERATION_REPORT_RESOLVE',
+        targetId: report._id,
+        targetModel: 'Report',
+        targetName: report.reportedUser?.username || report.contentSnapshot?.username || report.contentSnapshot?.appName || null,
+        details: {
+          status,
+          note: note || null,
+          reason: report.reason || null,
+          reporter: report.reporter?.username || null,
+          reportedUser: report.reportedUser?.username || null
+        },
+        req
+      });
+    }
     
     // Notify the offender if resolved (meaning a violation was confirmed)
     if (status === 'resolved' && report.reportedUser) {
@@ -188,7 +218,21 @@ router.post('/ban', [auth, isModerator], async (req, res) => {
     }
     
     await user.save();
-    
+
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'MODERATION_BAN',
+      targetId: user._id,
+      targetName: user.username,
+      details: {
+        type: type === 'temporary' ? 'temporary' : 'permanent',
+        durationHours: type === 'temporary' ? durationHours || null : null,
+        expiresAt: user.banExpires || null,
+        reason: reason || null
+      },
+      req
+    });
+
     // Notify user of their ban status immediately via socket
     const io = req.app.get('io');
     if (io) {
@@ -211,7 +255,18 @@ router.post('/ban', [auth, isModerator], async (req, res) => {
 router.post('/assign-role', [auth, isAdmin], async (req, res) => {
   try {
     const { userId, role } = req.body;
+    const prev = await User.findById(userId).select('role username');
     const user = await User.findByIdAndUpdate(userId, { role }, { new: true });
+    if (user) {
+      logGlobalAction({
+        executorId: req.user._id,
+        action: 'MODERATION_ROLE_ASSIGN',
+        targetId: user._id,
+        targetName: user.username,
+        details: { changes: [{ key: 'role', oldValue: prev?.role || null, newValue: role }] },
+        req
+      });
+    }
     res.json({ message: `Роль ${role} успешно назначена пользователю ${user.username}`, user });
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -225,10 +280,20 @@ router.post('/unban', [auth, isModerator], async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
 
+    const prevReason = user.banReason || null;
     user.isBanned = false;
     user.banExpires = undefined;
     user.banReason = undefined;
     await user.save();
+
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'MODERATION_UNBAN',
+      targetId: user._id,
+      targetName: user.username,
+      details: { previousReason: prevReason },
+      req
+    });
 
     res.json({ message: 'Пользователь успешно разбанен' });
   } catch (err) {
@@ -239,11 +304,22 @@ router.post('/unban', [auth, isModerator], async (req, res) => {
 // Unresolve report (Moderator only)
 router.post('/reports/:id/unresolve', [auth, isModerator], async (req, res) => {
   try {
+    const before = await Report.findById(req.params.id).select('status resolutionNote reason');
     const report = await Report.findByIdAndUpdate(req.params.id, {
       status: 'pending',
       resolvedBy: null,
       resolutionNote: null
     }, { new: true });
+    if (report) {
+      logGlobalAction({
+        executorId: req.user._id,
+        action: 'MODERATION_REPORT_UNRESOLVE',
+        targetId: report._id,
+        targetModel: 'Report',
+        details: { previousStatus: before?.status || null, previousNote: before?.resolutionNote || null, reason: report.reason || null },
+        req
+      });
+    }
     res.json(report);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -315,6 +391,29 @@ router.get('/marketplace/reports', auth, isModerator, async (req, res) => {
   }
 });
 
+/**
+ * Запись действия модерации витрины в глобальный журнал: тип предмета,
+ * его название (снимок) и причина.
+ */
+async function logMarketplace(req, action, type, id, reason) {
+  try {
+    let name = null;
+    let targetModel = 'User';
+    if (type === 'bot') { const b = await User.findById(id).select('username displayName'); name = b ? (b.displayName || b.username) : null; }
+    else if (type === 'miniapp') { const a = await MiniApp.findById(id).select('name'); name = a?.name || null; targetModel = 'MiniApp'; }
+    else if (type === 'theme') { const t = await Theme.findById(id).select('name'); name = t?.name || null; targetModel = 'Theme'; }
+    await logGlobalAction({
+      executorId: req.user._id,
+      action,
+      targetId: id,
+      targetModel,
+      targetName: name,
+      details: { itemType: type, reason: reason || null },
+      req
+    });
+  } catch (e) { console.error('[GlobalAudit] marketplace:', e.message); }
+}
+
 // Approve a pending submission: publish it to showcase.
 router.post('/marketplace/:type/:id/approve', auth, isModerator, async (req, res) => {
   try {
@@ -349,6 +448,7 @@ router.post('/marketplace/:type/:id/approve', auth, isModerator, async (req, res
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }
+    logMarketplace(req, 'MARKETPLACE_APPROVE', type, id, null);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -390,6 +490,7 @@ router.post('/marketplace/:type/:id/reject', auth, isModerator, async (req, res)
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }
+    logMarketplace(req, 'MARKETPLACE_REJECT', type, id, reason);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -434,6 +535,7 @@ router.post('/marketplace/:type/:id/block', auth, isModerator, async (req, res) 
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }
+    logMarketplace(req, 'MARKETPLACE_BLOCK', type, id, reason);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -469,6 +571,7 @@ router.post('/marketplace/:type/:id/unblock', auth, isModerator, async (req, res
     } else {
       return res.status(400).json({ message: 'Неверный тип' });
     }
+    logMarketplace(req, 'MARKETPLACE_UNBLOCK', type, id, null);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -506,32 +609,22 @@ router.post('/problem-report', auth, [
     });
     await report.save();
 
-    // Уведомляем всех модераторов и админов.
-    const staff = await User.find({ role: { $in: ['moderator', 'admin'] } }).select('_id');
+    // Уведомляем команду модерации (с учётом их настроек уведомлений).
     const io = req.app.get('io');
-    if (io) {
-      const reporter = await User.findById(req.user._id).select('username');
-      const reporterName = reporter ? reporter.username : 'Пользователь';
-      for (const member of staff) {
-        if (String(member._id) === String(req.user._id)) continue;
-        io.to(`user-${member._id}`).emit('notification', {
-          type: 'problem_report',
-          message: `${reporterName}: ${subject}`,
-          reportId: report._id,
-          timestamp: new Date()
-        });
-      }
-
-      // Сокет-уведомление выше долетит только до открытого приложения.
-      // Тем, у кого оно закрыто, отправляем системное.
-      pushToModerators(io, {
+    const reporter = await User.findById(req.user._id).select('username');
+    const reporterName = reporter ? reporter.username : 'Пользователь';
+    notifyModerators(io, {
+      category: 'modProblems',
+      excludeUserId: req.user._id,
+      socket: { type: 'problem_report', message: `${reporterName}: ${subject}`, reportId: report._id },
+      push: {
         title: `Обращение: ${reporterName}`,
         body: previewText(subject),
         tag: 'moderation-problem',
         url: '/?settings=moderation',
         data: { type: 'problem_report', reportId: String(report._id) }
-      }, req.user._id);
-    }
+      }
+    });
 
     res.status(201).json({ message: 'Жалоба отправлена. Спасибо!' });
   } catch (err) {
@@ -564,6 +657,18 @@ router.post('/problem-reports/:id/resolve', [auth, isModerator], async (req, res
       resolvedBy: req.user._id,
       resolutionNote: note || ''
     }, { new: true });
+
+    if (report) {
+      logGlobalAction({
+        executorId: req.user._id,
+        action: 'PROBLEM_REPORT_RESOLVE',
+        targetId: report._id,
+        targetModel: 'ProblemReport',
+        targetName: report.subject,
+        details: { status: newStatus, note: note || null, category: report.category || null },
+        req
+      });
+    }
 
     // Уведомляем автора жалобы о решении (но не при возврате в «ожидание»).
     if (report && report.reporter && (newStatus === 'resolved' || newStatus === 'dismissed')) {
@@ -629,6 +734,15 @@ router.post('/posts', [auth, isModerator], async (req, res) => {
     if (post.active) {
       await Post.updateMany({ _id: { $ne: post._id }, active: true }, { active: false });
     }
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'POST_CREATE',
+      targetId: post._id,
+      targetModel: 'Post',
+      targetName: post.title || 'Без заголовка',
+      details: { active: post.active, blocks: post.blocks?.length || 0 },
+      req
+    });
     res.status(201).json(post);
   } catch (err) {
     console.error('create post error:', err);
@@ -655,6 +769,11 @@ router.put('/posts/:id', [auth, isModerator], async (req, res) => {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Пост не найден' });
 
+    const postChanges = [];
+    if (title !== undefined && title !== post.title) postChanges.push({ key: 'title', oldValue: post.title, newValue: title });
+    if (active !== undefined && active !== post.active) postChanges.push({ key: 'active', oldValue: post.active, newValue: active });
+    if (blocks !== undefined) postChanges.push({ key: 'blocks', oldValue: post.blocks?.length || 0, newValue: Array.isArray(blocks) ? blocks.length : 0 });
+    if (resetSeen) postChanges.push({ key: 'resetSeen', newValue: true });
     if (title !== undefined) post.title = title;
     if (blocks !== undefined) post.blocks = sanitizeBlocks(blocks);
     if (active !== undefined) post.active = active;
@@ -666,6 +785,15 @@ router.put('/posts/:id', [auth, isModerator], async (req, res) => {
     if (post.active) {
       await Post.updateMany({ _id: { $ne: post._id }, active: true }, { active: false });
     }
+    logGlobalAction({
+      executorId: req.user._id,
+      action: 'POST_UPDATE',
+      targetId: post._id,
+      targetModel: 'Post',
+      targetName: post.title || 'Без заголовка',
+      details: { changes: postChanges },
+      req
+    });
     res.json(post);
   } catch (err) {
     console.error('update post error:', err);
@@ -676,7 +804,18 @@ router.put('/posts/:id', [auth, isModerator], async (req, res) => {
 // Удалить пост (модераторы/админы).
 router.delete('/posts/:id', [auth, isModerator], async (req, res) => {
   try {
-    await Post.findByIdAndDelete(req.params.id);
+    const deleted = await Post.findByIdAndDelete(req.params.id);
+    if (deleted) {
+      logGlobalAction({
+        executorId: req.user._id,
+        action: 'POST_DELETE',
+        targetId: null,
+        targetModel: 'Post',
+        targetName: deleted.title || 'Без заголовка',
+        details: { wasActive: !!deleted.active },
+        req
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера' });

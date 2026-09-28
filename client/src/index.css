@@ -10,6 +10,14 @@
   --primary-neon: #006aff;
   --secondary-neon: #7000ff;
   --accent-pink: #ff00c8;
+  /* Цвета статусов — одни на всё приложение. Раньше «Занят» был красным в
+     сайдбаре, другим красным в настройках и пурпурным в списке друзей (там
+     брался --accent-pink), и глобальное правило друзей перекрашивало точку
+     на собственной аватарке в сайдбаре. */
+  --status-online: #23a559;
+  --status-away: #faa61a;
+  --status-busy: #f23f42;
+  --status-offline: #747f8d;
   --accent-cyan: #00e5ff;
   --danger: #ff4757;
   --success: #2ed573;
@@ -88,35 +96,6 @@ video {
 }
 
 /* --- GLOBAL LIQUID COMPONENTS --- */
-.neon-btn {
-  background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
-  color: #ffffff !important;
-  border: none;
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: var(--fast-transition);
-  box-shadow: 0 4px 14px rgba(0, 106, 255, 0.35);
-  font-family: inherit;
-  will-change: transform, box-shadow;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.neon-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 106, 255, 0.5);
-}
-
-.neon-btn:active {
-  transform: translateY(0);
-}
-
 .auth-input-glass {
   width: 100%;
   padding: 14px 18px;
@@ -490,4 +469,19 @@ body { overscroll-behavior: none; }                 /* без pull-to-refresh/б
     -webkit-user-select: none !important;
     user-select: none !important;
   }
+}
+
+/* Флаг страны (components/CountryFlag.tsx): по высоте строки, как эмодзи. */
+.country-flag {
+  display: inline-block;
+  width: 1.35em;
+  height: 0.9em;
+  border-radius: 2px;
+  object-fit: cover;
+  vertical-align: -0.1em;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.country-flag--unknown {
+  background: var(--glass-border, rgba(255, 255, 255, 0.12));
 }

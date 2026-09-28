@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedOverlay from '../../animations/AnimatedOverlay';
+import { tabSwapVariants, tabSwapTransition } from '../../animations/transitions';
 import { Server } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { Permissions, hasPermission, computePermissions } from '../../utils/permissions';
@@ -233,7 +234,16 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                         <CloseIcon size={20} />
                     </button>
                     <React.Suspense fallback={<SettingsTabFallback />}>
-                        {renderContent()}
+                        <motion.div
+                            key={activeTab}
+                            className="settings-tab-swap"
+                            variants={tabSwapVariants}
+                            initial="initial"
+                            animate="animate"
+                            transition={tabSwapTransition}
+                        >
+                            {renderContent()}
+                        </motion.div>
                     </React.Suspense>
                 </div>
             </div>

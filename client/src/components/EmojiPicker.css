@@ -31,6 +31,7 @@
 
 .emoji-picker-scroll {
     overflow-y: auto;
+    overflow-x: hidden;
     flex: 1;
     padding-right: 4px;
 }
@@ -56,10 +57,13 @@
     padding-left: 4px;
 }
 
+/* minmax(0, 1fr): у 1fr минимум — ширина содержимого, и восемь кнопок с
+   эмодзи не помещались: крайний столбец обрезался, появлялась горизонтальная
+   прокрутка. */
 .emoji-grid {
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 4px;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 2px;
 }
 
 .emoji-item {
@@ -78,6 +82,29 @@
 .emoji-item:hover {
     background: rgba(255, 255, 255, 0.1);
     transform: scale(1.1);
+}
+
+.emoji-item {
+    aspect-ratio: 1;
+    min-width: 0;
+}
+
+.emoji-picker-empty {
+    padding: 24px 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+/* Плавающий выбор эмодзи (FloatingEmojiPicker) */
+.floating-emoji-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+}
+
+.floating-emoji-box {
+    position: fixed;
 }
 
 .emoji-item.custom img {

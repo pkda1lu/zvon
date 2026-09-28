@@ -15,7 +15,7 @@ const tokens = require('../utils/vlyneTokens');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 const { getClientIp } = require('../utils/deviceInfo');
 const { sendVlyneAppDecision } = require('../utils/mail');
-const { pushToModerators, pushIfOffline, previewText } = require('../utils/webPush');
+const { pushIfOffline, previewText, notifyModerators: notifyStaff } = require('../utils/webPush');
 
 /**
  * Vlyne ID — единый вход в экосистему Vlyne.
@@ -925,27 +925,18 @@ function notifyModerators(req, request, kind) {
     ? `Ответ по заявке: ${request.name}`
     : `Новая заявка на подключение: ${request.name}`;
 
-  User.find({ role: { $in: ['moderator', 'admin'] } }).select('_id')
-    .then((staff) => {
-      for (const member of staff) {
-        if (String(member._id) === String(req.user._id)) continue;
-        io.to(`user-${member._id}`).emit('notification', {
-          type: 'vlyne_app_request',
-          message,
-          requestId: request._id,
-          timestamp: new Date()
-        });
-      }
-
-      return pushToModerators(io, {
-        title: 'Vlyne ID',
-        body: previewText(message),
-        tag: 'vlyne-app-request',
-        url: '/?settings=moderation',
-        data: { type: 'vlyne_app_request', requestId: String(request._id) }
-      }, req.user._id);
-    })
-    .catch((e) => console.error('[vlyne-id] уведомление модераторам:', e.message));
+  notifyStaff(io, {
+    category: 'modVlyneApps',
+    excludeUserId: req.user._id,
+    socket: { type: 'vlyne_app_request', message, requestId: request._id },
+    push: {
+      title: 'Vlyne ID',
+      body: previewText(message),
+      tag: 'vlyne-app-request',
+      url: '/?settings=moderation',
+      data: { type: 'vlyne_app_request', requestId: String(request._id) }
+    }
+  });
 }
 
 apiRouter.post('/applications', auth, async (req, res) => {

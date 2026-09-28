@@ -393,3 +393,32 @@
   .attachments-content-header { padding-top: max(env(safe-area-inset-top), 12px); }
   .attachments-grid { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)) !important; }
 }
+
+
+/* Карточка целиком кликабельна: фото и видео открываются, остальное скачивается. */
+.attachment-card {
+    cursor: pointer;
+}
+
+.attachment-card:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.55);
+}
+
+/* Значок «видео» в углу превью — чтобы отличать ролик от картинки. */
+.card-play-badge {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    pointer-events: none;
+}

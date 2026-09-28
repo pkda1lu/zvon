@@ -5,12 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import { motion } from 'framer-motion';
 import { PlusIcon, CheckIcon, BlockIcon, AlertIcon } from './Icons';
-import {
-  popoverVariants,
-  popoverTransition,
-  modalPopVariants,
-  modalPopTransition,
-} from '../animations/transitions';
+import { popoverVariants, popoverTransition, modalPopVariants, modalPopTransition, quickExit, overlayTransition } from '../animations/transitions';
 import ProfilePreview from './ProfilePreview';
 import './UserProfileCard.css';
 
@@ -391,7 +386,15 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     );
 
     return (
-        <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose} style={{ zIndex: 4000 }}>
+        <motion.div
+            className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`}
+            onClick={onClose}
+            style={{ zIndex: 4000 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, pointerEvents: 'none', transition: quickExit }}
+            transition={overlayTransition}
+        >
             <motion.div
                 onClick={e => e.stopPropagation()}
                 style={isPopout ? {
@@ -405,6 +408,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 variants={isPopout ? popoverVariants : modalPopVariants}
                 initial="initial"
                 animate={isPopout ? (isVisible ? 'animate' : 'initial') : 'animate'}
+                exit="exit"
                 transition={isPopout ? popoverTransition : modalPopTransition}
             >
                 <ProfilePreview
@@ -421,7 +425,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     notice={blockedNotice}
                 />
             </motion.div>
-        </div>
+        </motion.div>
     );
 };
 

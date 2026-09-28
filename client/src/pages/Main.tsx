@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { isGroupDM } from '../utils/dm';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useVoice } from '../contexts/VoiceContext';
@@ -15,7 +16,9 @@ import { addRecentMiniApp } from '../utils/recentMiniApps';
 import { getBrand } from '../utils/branding';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useDialog } from '../contexts/DialogContext';
-import { useInbox } from '../contexts/InboxContext';
+import { useInbox, InboxItem } from '../contexts/InboxContext';
+import { useNavigate } from 'react-router-dom';
+import { setNavIntent, OPEN_NOTIFICATION_EVENT } from '../utils/navIntents';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { useGestureSettings } from '../contexts/GestureSettingsContext';
 import VerificationWarning from '../components/VerificationWarning';
@@ -233,6 +236,10 @@ const Main: React.FC = () => {
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
   const [dmMessages, setDmMessages] = useState<Message[]>([]);
   const [dms, setDms] = useState<DirectMessage[]>([]);
+  // Для обработчика сообщений сокета: список переписок нужен ему для тоста,
+  // но переподписываться на каждое изменение списка незачем.
+  const dmsRef = useRef<DirectMessage[]>([]);
+  dmsRef.current = dms;
   const [friends, setFriends] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInbox, setShowInbox] = useState(false);
@@ -286,7 +293,13 @@ const Main: React.FC = () => {
     offer?: any;
     isGroup?: boolean;
     dmName?: string;
+    /** Присоединиться к уже идущему звонку группы — без нового вызова всем. */
+    joinExisting?: boolean;
   } | null>(null);
+  // Идущие звонки в переписках: dmId → кто в звонке (сервер, dm-call-state).
+  const [dmCalls, setDmCalls] = useState<Record<string, string[]>>({});
+  const dmCallsRef = useRef(dmCalls);
+  dmCallsRef.current = dmCalls;
   const [showProfileUserId, setShowProfileUserId] = useState<string | null>(null);
   const [profilePosition, setProfilePosition] = useState<{ x: number, y: number } | null>(null);
   // Профиль без привязки к серверу (напр. клик по своей аватарке в sidebar-user) — игнорируем selectedServer.
@@ -308,6 +321,21 @@ const Main: React.FC = () => {
     setSettingsInitialData(data);
     setShowSettingsModal(true);
   };
+  const navigate = useNavigate();
+
+  /**
+   * Переход по уведомлению — один для входящих, всплывающих и системных
+   * уведомлений: упоминание открывает канал и прокручивает к сообщению,
+   * заявка в друзья — вкладку заявок, жалоба на проблему и заявка Vlyne ID —
+   * нужную запись в модерации.
+   */
+  const openNotificationTargetRef = useRef<(item: InboxItem) => void>(() => {});
+  const openNotificationTarget = useCallback((item: InboxItem) => openNotificationTargetRef.current(item), []);
+  useEffect(() => {
+    const onOpen = (e: Event) => { const item = (e as CustomEvent).detail as InboxItem; if (item) openNotificationTarget(item); };
+    window.addEventListener(OPEN_NOTIFICATION_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_NOTIFICATION_EVENT, onOpen);
+  }, [openNotificationTarget]);
   const SIDEBAR_WIDTH = 280;
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const saved = localStorage.getItem('secondarySidebarWidth');
@@ -1254,6 +1282,26 @@ const Main: React.FC = () => {
     socket.on('server-kicked', handleServerKicked);
     socket.on('server-deleted', handleServerDeletedSocket);
     socket.on('dm-deleted', handleDmDeleted);
+    // Группа изменилась (название, иконка, состав) — или нас в неё добавили.
+    const handleDmUpdated = (dm: DirectMessage) => {
+      setDms((prev: DirectMessage[]) => prev.some(d => d._id === dm._id)
+        ? prev.map(d => d._id === dm._id ? { ...d, ...dm } : d)
+        : [dm, ...prev]);
+      setSelectedDM((prev: DirectMessage | null) => (prev && prev._id === dm._id) ? { ...prev, ...dm } : prev);
+    };
+    socket.on('dm-updated', handleDmUpdated);
+    // Идущие звонки в переписках: снимок при подключении и изменения по событию.
+    const handleDmCallState = ({ dmId, userIds }: { dmId: string; userIds: string[] }) => {
+      setDmCalls(prev => {
+        const next = { ...prev };
+        if (userIds.length) next[dmId] = userIds; else delete next[dmId];
+        return next;
+      });
+    };
+    const requestDmCalls = () => socket.emit('get-dm-call-states', null, (states: Record<string, string[]>) => setDmCalls(states || {}));
+    socket.on('dm-call-state', handleDmCallState);
+    socket.io.on('reconnect', requestDmCalls);
+    requestDmCalls();
     socket.on('user-verified', handleUserVerified);
     return () => {
       socket.off('call-offer', handleCallOffer);
@@ -1266,6 +1314,9 @@ const Main: React.FC = () => {
       socket.off('server-kicked', handleServerKicked);
       socket.off('server-deleted', handleServerDeletedSocket);
       socket.off('dm-deleted', handleDmDeleted);
+      socket.off('dm-updated', handleDmUpdated);
+      socket.off('dm-call-state', handleDmCallState);
+      socket.io.off('reconnect', requestDmCalls);
       socket.off('user-verified', handleUserVerified);
     };
   }, [socket, activeCall, user, updateUser, handleServerUpdate]);
@@ -1311,8 +1362,45 @@ const Main: React.FC = () => {
           const id = message.directMessage || message.channel;
           if (id) setUnreadCounts((prev: Record<string, number>) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
 
-          // Only show old toast for channel messages WITHOUT mentions of current user. 
-          // DMs and Mentions are now handled by InboxContext (persistent + new toast).
+          // Тост о личном сообщении. Раньше считалось, что их показывает
+          // InboxContext, но он обрабатывает только упоминания и события
+          // друзей — о личных сообщениях внутри Zvon не сообщалось вовсе.
+          if (message.directMessage) {
+            const dmId = String(message.directMessage);
+            const prefs = user.settings?.notifications || {};
+            const dmMuted = (user.mutedDMs || []).map(String).includes(dmId);
+            if (!dmMuted && prefs.directMessages !== false) {
+              const dm = dmsRef.current.find(d => d._id === dmId);
+              const author = message.author.displayName || message.author.username;
+              const isGroup = isGroupDM(dm);
+              const groupName = dm?.name || (isGroup
+                ? dm!.participants.filter(p => p._id !== user._id).map(p => p.displayName || p.username).join(', ')
+                : '');
+              const attachments = message.attachments?.length || 0;
+              const text = prefs.showPreview === false
+                ? 'Новое сообщение'
+                : (message.content?.trim() || (attachments ? `📎 Вложение${attachments > 1 ? ` (${attachments})` : ''}` : 'Новое сообщение'));
+              soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
+              addNotification({
+                title: isGroup ? `${author} · ${groupName}` : author,
+                content: text,
+                type: 'message',
+                avatar: message.author.avatar || undefined,
+                onClick: () => {
+                  const target = dmsRef.current.find(d => d._id === dmId);
+                  if (!target) return;
+                  setSelectedDM(target);
+                  setShowFriends(false);
+                  setShowShowcase(false);
+                  setSelectedServer(null);
+                  setMobileView('content');
+                },
+              });
+            }
+          }
+
+          // Only show old toast for channel messages WITHOUT mentions of current user.
+          // Mentions are handled by InboxContext (persistent + toast).
           const isMentioned = message.mentions?.some(m => m._id === user._id);
 
           // Сервер заглушён — не отвлекаем. Упоминания сюда не попадают
@@ -1474,13 +1562,17 @@ const Main: React.FC = () => {
   const handleStartDirectCall = (user: User, dmId: string) => { setActiveCall({ user, isIncoming: false, dmId, isGroup: false }); };
   const handleStartGroupCall = () => {
     if (!selectedDM || !user) return;
-    const dmName = selectedDM.name || selectedDM.participants.filter(p => p._id !== user._id).map(p => p.username).join(', ');
+    if (activeCall?.dmId === selectedDM._id) return;
+    const dmName = selectedDM.name || selectedDM.participants.filter(p => p._id !== user._id).map(p => p.displayName || p.username).join(', ');
     setActiveCall({
       user: user, // Current user is the one starting, but in group calls this simplifies things
       isIncoming: false,
       dmId: selectedDM._id,
       isGroup: true,
-      dmName
+      dmName,
+      // В группе уже идёт звонок — просто входим в него. Раньше кнопка
+      // звонка заново звонила всем, а войти в идущий звонок было нельзя.
+      joinExisting: (dmCallsRef.current[selectedDM._id] || []).length > 0,
     });
   };
   const handleServerDelete = (serverId: string) => {
@@ -1488,13 +1580,14 @@ const Main: React.FC = () => {
     if (selectedServer?._id === serverId) { setSelectedServer(null); setSelectedChannel(null); }
   };
   const handleDeleteDM = useCallback(async (dm: DirectMessage) => {
-    const isGroup = dm.participants.length > 2 || !!dm.name;
+    const isGroup = isGroupDM(dm);
+    // Группа у остальных остаётся: «удалить» для неё — выйти из неё.
     const ok = await customConfirm(
       isGroup
-        ? 'Удалить эту беседу у всех участников вместе со всей перепиской? Действие необратимо.'
+        ? 'Покинуть группу? Переписка останется у остальных участников, а вернуться можно, только если вас снова добавят.'
         : 'Удалить этот чат у обоих собеседников вместе со всей перепиской? Действие необратимо.',
-      'Удалить чат',
-      'Удалить',
+      isGroup ? 'Покинуть группу' : 'Удалить чат',
+      isGroup ? 'Покинуть' : 'Удалить',
       'Отмена'
     );
     if (!ok) return;
@@ -1602,6 +1695,42 @@ const Main: React.FC = () => {
   }, []);
 
   const handleOpenJoinModal = useCallback(() => setShowJoinModal(true), []);
+  openNotificationTargetRef.current = (item: InboxItem) => {
+    const target = item.target;
+    const openHome = () => { setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null); };
+    if (item.type === 'mention' || item.type === 'dm') {
+      if (item.link?.dmId) {
+        window.dispatchEvent(new CustomEvent('start-dm-by-id', { detail: { dmId: item.link.dmId } }));
+      } else if (item.link?.channelId) {
+        const channelId = String(item.link.channelId);
+        const server = servers.find(s => s.channels.some(c => String(c._id) === channelId));
+        if (server) {
+          if (item.link.messageId) setNavIntent('jump', { channelId, messageId: item.link.messageId, createdAt: item.link.createdAt });
+          setSelectedServer(server);
+          const channel = server.channels.find(c => String(c._id) === channelId);
+          if (channel) setSelectedChannel(channel);
+          setShowFriends(false);
+          setSelectedDM(null);
+        }
+      }
+    } else if (item.type === 'friend_request') {
+      setNavIntent('friendsTab', target?.kind === 'friend_accepted' ? 'friends' : 'pending');
+      setShowFriends(true);
+      openHome();
+    } else if (item.type === 'moderation') {
+      if (target?.kind === 'content_report' && target.id) {
+        handleOpenSettings('moderation', { focus: { kind: 'report', id: target.id } });
+      } else if (target?.kind === 'problem_report' && target.id) {
+        handleOpenSettings('moderation', { focus: { kind: 'problem', id: target.id } });
+      } else if (target?.kind === 'vlyne_app_request' && target.id) {
+        handleOpenSettings('moderation', { focus: { kind: 'vlyne', id: target.id } });
+      } else if ((target?.kind === 'vlyne_app_reply' || target?.kind === 'vlyne_app_decision')) {
+        navigate('/vlyneid/developers/cabinet');
+      }
+    }
+    setShowInbox(false);
+  };
+
   const handleOpenSettingsModal = useCallback(() => {
     import('../components/SettingsModal');
     setShowSettingsModal(true);
@@ -1728,6 +1857,7 @@ const Main: React.FC = () => {
                       onUserClick={handleUserClick}
                       onStartDM={handleStartDM}
                       onUserBlocked={handleDMBlocked}
+                      dmCalls={dmCalls}
                     />
                   </motion.div>
                 )}
@@ -1821,6 +1951,7 @@ const Main: React.FC = () => {
                         onUserClick={handleUserClick}
                         onStartDM={handleStartDM}
                         onUserBlocked={handleDMBlocked}
+                        dmCalls={dmCalls}
                       />
                     </motion.div>
                   )}
@@ -2132,6 +2263,8 @@ const Main: React.FC = () => {
                         onClose={() => { setSelectedDM(null); setShowFriends(true); setMobileView('sidebar'); }}
                         onStartCall={handleStartDirectCall}
                         onStartGroupCall={handleStartGroupCall}
+                        callUserIds={dmCalls[selectedDM._id]}
+                        inThisCall={activeCall?.dmId === selectedDM._id}
                         onUserClick={handleUserClick}
                         initialUnreadCount={unreadCounts[selectedDM._id]}
                         hasMore={hasMore}
@@ -2265,6 +2398,7 @@ const Main: React.FC = () => {
             isGroup={activeCall.isGroup}
             dmName={activeCall.dmName}
             initialIncomingCall={activeCall.isIncoming}
+            joinExisting={activeCall.joinExisting}
             initialOffer={activeCall.offer}
             onEndCall={() => setActiveCall(null)}
             onOpenProfile={handleUserClick}
@@ -2274,8 +2408,9 @@ const Main: React.FC = () => {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
       {showProfileUserId && (
-        <LazyOverlay>
+        <LazyOverlay key="profile-card">
         <UserProfileCard
           userId={showProfileUserId}
           onClose={() => { setShowProfileUserId(null); setProfilePosition(null); }}
@@ -2285,11 +2420,15 @@ const Main: React.FC = () => {
         />
         </LazyOverlay>
       )}
+      </AnimatePresence>
 
-      {showServerSettings && selectedServer && <LazyOverlay><ServerSettingsLayout isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} /></LazyOverlay>}
+      <AnimatePresence>
+        {showServerSettings && selectedServer && <LazyOverlay key="server-settings"><ServerSettingsLayout isOpen={showServerSettings} onClose={() => setShowServerSettings(false)} server={selectedServer} onServerUpdate={handleServerUpdate} onServerDelete={handleServerDelete} /></LazyOverlay>}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {showServerProfile && selectedServer && (
-        <LazyOverlay>
+        <LazyOverlay key="server-profile">
         <ServerProfileCard
           server={selectedServer}
           onClose={() => { setShowServerProfile(false); setServerProfilePosition(null); }}
@@ -2299,11 +2438,15 @@ const Main: React.FC = () => {
         />
         </LazyOverlay>
       )}
+      </AnimatePresence>
 
-      {showUserServerProfile && serverProfileServerId && <LazyOverlay><UserServerProfileModal isOpen={showUserServerProfile} onClose={() => setShowUserServerProfile(false)} serverId={serverProfileServerId} onUpdate={handleServerUpdate} /></LazyOverlay>}
+      <AnimatePresence>
+        {showUserServerProfile && serverProfileServerId && <LazyOverlay key="user-server-profile"><UserServerProfileModal isOpen={showUserServerProfile} onClose={() => setShowUserServerProfile(false)} serverId={serverProfileServerId} onUpdate={handleServerUpdate} /></LazyOverlay>}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {showJoinModal && (
-        <LazyOverlay>
+        <LazyOverlay key="join-modal">
         <JoinServerModal
           isOpen={showJoinModal}
           onClose={() => setShowJoinModal(false)}
@@ -2317,9 +2460,11 @@ const Main: React.FC = () => {
         />
         </LazyOverlay>
       )}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {inviteServerId && (
-        <LazyOverlay>
+        <LazyOverlay key="invite-modal">
         <ServerInviteModal
           isOpen={!!inviteServerId}
           serverId={inviteServerId}
@@ -2338,9 +2483,11 @@ const Main: React.FC = () => {
         />
         </LazyOverlay>
       )}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {forwardMessage && user && (
-        <LazyOverlay>
+        <LazyOverlay key="forward-modal">
         <ForwardMessageModal
           isOpen={!!forwardMessage}
           onClose={() => setForwardMessage(null)}
@@ -2351,12 +2498,14 @@ const Main: React.FC = () => {
         />
         </LazyOverlay>
       )}
+      </AnimatePresence>
 
       {/* SettingsModal внутри сам возвращает null при isOpen=false, поэтому
           монтируем его только когда он реально открыт — так чанк настроек
           (вместе с Settings.css) не грузится, пока их не откроют. */}
+      <AnimatePresence>
       {showSettingsModal && (
-        <LazyOverlay>
+        <LazyOverlay key="settings">
           <SettingsModal
             isOpen={showSettingsModal}
             onClose={() => setShowSettingsModal(false)}
@@ -2365,11 +2514,13 @@ const Main: React.FC = () => {
           />
         </LazyOverlay>
       )}
+      </AnimatePresence>
 
       <PostAnnouncements />
 
+      <AnimatePresence>
       {showCreateGroupModal && (
-        <LazyOverlay>
+        <LazyOverlay key="create-group">
         <CreateGroupDMModal
           isOpen={showCreateGroupModal}
           onClose={() => setShowCreateGroupModal(false)}
@@ -2385,6 +2536,7 @@ const Main: React.FC = () => {
         />
         </LazyOverlay>
       )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showInbox && (
@@ -2401,28 +2553,7 @@ const Main: React.FC = () => {
             <LazyOverlay key="inbox">
             <Inbox
               onClose={() => setShowInbox(false)}
-              onItemClick={(item) => {
-                if (item.type === 'mention' || item.type === 'dm') {
-                  if (item.link?.dmId) {
-                    window.dispatchEvent(new CustomEvent('start-dm-by-id', { detail: { dmId: item.link.dmId } }));
-                  } else if (item.link?.channelId) {
-                    const server = servers.find(s => s.channels.some(c => c._id === item.link?.channelId));
-                    if (server) {
-                      setSelectedServer(server);
-                      const channel = server.channels.find(c => c._id === item.link?.channelId);
-                      if (channel) setSelectedChannel(channel);
-                      setShowFriends(false);
-                      setSelectedDM(null);
-                    }
-                  }
-                } else if (item.type === 'friend_request') {
-                  setShowFriends(true);
-                  setSelectedServer(null);
-                  setSelectedChannel(null);
-                  setSelectedDM(null);
-                }
-                setShowInbox(false);
-              }}
+              onItemClick={openNotificationTarget}
             />
             </LazyOverlay>
           </React.Fragment>

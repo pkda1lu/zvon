@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { backdropMotion, popMotion } from '../../animations/transitions';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
@@ -12,6 +14,7 @@ import {
     LockIcon,
     CheckIcon
 } from '../../components/Icons';
+import ZvSelect from '../../components/ZvSelect';
 
 export interface RoadmapItem {
     _id: string;
@@ -365,9 +368,10 @@ const AppRoadmapSettings: React.FC = () => {
             )}
 
             {/* Modal for Add / Edit */}
+            <AnimatePresence>
             {isModalOpen && (
-                <div className="settings-modal-overlay">
-                    <div className="settings-modal-glass roadmap-v-modal">
+                <motion.div className="settings-modal-overlay" key="roadmap-modal" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass roadmap-v-modal" {...popMotion}>
                         <div className="roadmap-modal-header">
                             <h3 className="roadmap-modal-title">
                                 {editingItem ? 'Редактировать идею' : 'Новая идея'}
@@ -430,7 +434,7 @@ const AppRoadmapSettings: React.FC = () => {
                                     <label className="roadmap-form-label">
                                         Приоритет <span className="optional-tag">(необязательно)</span>
                                     </label>
-                                    <select
+                                    <ZvSelect
                                         className="settings-input roadmap-form-select"
                                         value={modalPriority}
                                         onChange={(e) => setModalPriority(e.target.value)}
@@ -439,7 +443,7 @@ const AppRoadmapSettings: React.FC = () => {
                                         <option value="regular">Обычное обновление</option>
                                         <option value="major">Большое обновление</option>
                                         <option value="massive">Крупное обновление</option>
-                                    </select>
+                                    </ZvSelect>
                                 </div>
                             </div>
 
@@ -504,9 +508,10 @@ const AppRoadmapSettings: React.FC = () => {
                                 </div>
                             </div>
                         </form>
-                    </div>
-                </div>
+                    </motion.div>
+                </motion.div>
             )}
+            </AnimatePresence>
         </div>
     );
 };

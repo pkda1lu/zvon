@@ -12,6 +12,7 @@ import {
   iosSpring,
 } from './transitions';
 import { useFreezeAppBackground } from './useFreezeAppBackground';
+import { useExitPresence } from './useExitPresence';
 
 type Variant = 'pop' | 'sheet' | 'fade';
 
@@ -65,6 +66,8 @@ const AnimatedOverlay: React.FC<AnimatedOverlayProps> = ({
   }, [isOpen, closeOnEsc, onClose]);
 
   useFreezeAppBackground(isOpen);
+  // Родитель снимает модалку — проиграть закрытие (см. useExitPresence).
+  const presence = useExitPresence(isOpen);
 
   const contentVariants =
     variant === 'sheet' ? sheetVariants
@@ -80,8 +83,8 @@ const AnimatedOverlay: React.FC<AnimatedOverlayProps> = ({
   };
 
   const tree = (
-    <AnimatePresence>
-      {isOpen && (
+    <AnimatePresence onExitComplete={presence.onExitComplete}>
+      {presence.open && (
         <motion.div
           className={overlayClassName}
           onMouseDown={handleBackdropMouseDown}

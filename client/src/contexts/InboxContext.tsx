@@ -5,6 +5,7 @@ import { useNotifications } from './NotificationContext';
 import { Message, User } from '../types';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { getAvatarUrl } from '../utils/avatar';
+import { OPEN_NOTIFICATION_EVENT } from '../utils/navIntents';
 
 export interface InboxItem {
     id: string;
@@ -23,7 +24,11 @@ export interface InboxItem {
         serverId?: string;
         channelId?: string;
         dmId?: string;
+        messageId?: string;
+        createdAt?: string;
     };
+    /** Куда ведёт уведомление, кроме каналов и ЛС: заявки в друзья, жалоба, заявка Vlyne ID. */
+    target?: { kind: string; id?: string };
     data?: any;
     read: boolean;
 }
@@ -71,7 +76,19 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, []);
 
-    const sendNativeNotification = useCallback((title: string, body: string, iconUrl?: string | null) => {
+    /**
+     * Переход к тому, о чём уведомление: его обрабатывает Main (маршрутизатор
+     * один для входящих, тоста и системного уведомления). Окно выводим вперёд —
+     * по системному уведомлению кликают, когда Zvon свёрнут или в трее.
+     */
+    const openItem = useCallback((item: InboxItem) => {
+        setItems(prev => prev.map(i => i.id === item.id ? { ...i, read: true } : i));
+        (window as any).electron?.ipc?.send('focus-main-window');
+        window.focus();
+        window.dispatchEvent(new CustomEvent(OPEN_NOTIFICATION_EVENT, { detail: item }));
+    }, []);
+
+    const sendNativeNotification = useCallback((title: string, body: string, iconUrl?: string | null, onClick?: () => void) => {
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
         // Don't show if window is focused (optional, but requested "all in windows")
@@ -84,8 +101,8 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
 
         notification.onclick = () => {
-            window.focus();
-            // Optional: navigate to the item
+            notification.close();
+            if (onClick) onClick(); else window.focus();
         };
     }, []);
 
@@ -104,17 +121,16 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             content: item.content,
             type: item.type === 'mention' ? 'message' : 'info',
             avatar: item.author?.avatar || undefined,
-            onClick: () => {
-                // Clicking toast could open inbox or directly the item
-            }
+            onClick: () => openItem(newItem)
         });
 
         sendNativeNotification(
             item.title,
             item.content,
-            item.author?.avatar ? getAvatarUrl(item.author.avatar) : null
+            item.author?.avatar ? getAvatarUrl(item.author.avatar) : null,
+            () => openItem(newItem)
         );
-    }, [addNotification, sendNativeNotification]);
+    }, [addNotification, sendNativeNotification, openItem]);
 
     const markAsRead = useCallback((id: string) => {
         setItems(prev => prev.map(item => item.id === id ? { ...item, read: true } : item));
@@ -149,9 +165,13 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     badges: message.author.badges || [],
                     displayedTag: message.author.displayedTag
                 },
+                // channel приходит объектом (выше берём его name) — раньше в
+                // channelId попадал весь объект, и переход в канал не срабатывал.
                 link: {
-                    serverId: (message.channel as any)?.server,
-                    channelId: message.channel as string
+                    serverId: typeof message.channel === 'object' ? String((message.channel as any)?.server?._id || (message.channel as any)?.server || '') || undefined : undefined,
+                    channelId: typeof message.channel === 'object' ? String((message.channel as any)?._id || '') : String(message.channel || ''),
+                    messageId: message._id,
+                    createdAt: message.createdAt as any
                 },
                 data: message
             });
@@ -170,6 +190,7 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     badges: requester.badges || [],
                     displayedTag: requester.displayedTag
                 },
+                target: { kind: 'friend_request' },
                 data: friendship
             });
         };
@@ -187,6 +208,7 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     badges: (other as any).badges || [],
                     displayedTag: (other as any).displayedTag
                 },
+                target: { kind: 'friend_accepted' },
                 data: friendship
             });
         };
@@ -197,6 +219,8 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (!data?.message) return;
             const title = data.type === 'moderation_violation'
                 ? 'Предупреждение модерации'
+                : data.type === 'content_report'
+                ? 'Новая жалоба'
                 : data.type === 'problem_report'
                 ? 'Новая жалоба на проблему'
                 : data.type === 'problem_resolved'
@@ -219,7 +243,8 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 type: 'moderation',
                 title,
                 content: data.message,
-                author: { _id: 'moderation', username: authorName, avatar: null }
+                author: { _id: 'moderation', username: authorName, avatar: null },
+                target: { kind: String(data.type || ''), id: data.reportId ? String(data.reportId) : data.requestId ? String(data.requestId) : undefined }
             });
         };
 

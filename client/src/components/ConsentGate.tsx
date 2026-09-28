@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { backdropMotion, popMotion } from '../animations/transitions';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import SimpleMarkdown from './SimpleMarkdown';
@@ -72,8 +74,8 @@ const ConsentGate: React.FC = () => {
     if (!needed) return null;
 
     return (
-        <div className="consent-gate-backdrop" role="dialog" aria-modal="true" aria-label="Согласие на обработку персональных данных">
-            <div className="consent-gate-panel">
+        <motion.div className="consent-gate-backdrop" role="dialog" aria-modal="true" aria-label="Согласие на обработку персональных данных" {...backdropMotion}>
+            <motion.div className="consent-gate-panel" {...popMotion}>
                 <h2 className="consent-gate-title">Обновились условия обработки персональных данных</h2>
                 <p className="consent-gate-lead">
                     Чтобы продолжить пользоваться Zvon, ознакомьтесь с документом и подтвердите согласие.
@@ -124,8 +126,8 @@ const ConsentGate: React.FC = () => {
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 

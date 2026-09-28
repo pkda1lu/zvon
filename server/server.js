@@ -346,14 +346,90 @@ const getVoiceChannelUsers = async (channelId) => {
   return users;
 };
 
-const notifyVoiceChannelUpdate = async (channelId) => {
+// Рассылки состава канала идут по очереди: сборка списка медленная (по
+// запросу к базе на участника), и параллельные вызовы могли прийти не по
+// порядку — старый снимок без «эфира» затирал новый. Пока идёт рассылка,
+// повторные вызовы сливаются в одну следующую.
+const voiceNotifyState = new Map(); // channelId -> { running, dirty, waiters }
+const notifyVoiceChannelUpdate = (channelId) => {
+  const key = String(channelId);
+  let st = voiceNotifyState.get(key);
+  if (!st) { st = { running: false, dirty: false, waiters: [] }; voiceNotifyState.set(key, st); }
+  const done = new Promise(resolve => st.waiters.push(resolve));
+  if (st.running) { st.dirty = true; return done; }
+  const run = async () => {
+    st.running = true;
+    do {
+      st.dirty = false;
+      const waiters = st.waiters.splice(0);
+      try {
+        const channel = await Channel.findById(channelId);
+        if (channel) {
+          const users = await getVoiceChannelUsers(channelId);
+          io.to(`server-${channel.server}`).emit('voice-channel-users-update', { channelId, users });
+        }
+      } catch (err) { }
+      waiters.forEach(w => w());
+    } while (st.dirty || st.waiters.length);
+    st.running = false;
+    voiceNotifyState.delete(key);
+  };
+  run();
+  return done;
+};
+
+// Флаги голоса на сокете относятся к одному сеансу в канале.
+const resetVoiceFlags = (socket) => {
+  socket.isScreenSharing = false;
+  socket.isVideoOn = false;
+};
+
+/*
+ * Короткий обрыв сокета (смена сети, сон ноутбука, перезапуск Wi-Fi) не должен
+ * выглядеть как выход из голоса. Голос идёт через LiveKit и переживает такой
+ * обрыв, а сокет через секунду-другую переподключается и заходит обратно.
+ * Раньше выход объявлялся сразу — собеседники видели «вышел — вошёл» и
+ * слышали звуки, а сессия голоса дробилась. Теперь выход откладывается на
+ * VOICE_GRACE_MS: вернулся за это время — для остальных ничего не случилось.
+ */
+const VOICE_GRACE_MS = 15000;
+const pendingVoiceLeaves = new Map(); // userId -> { channelId, timer, finish }
+const pendingDmLeaves = new Map();    // `${userId}:${dmId}` -> { timer }
+
+/** Кто сейчас в звонке переписки (по сокетам в комнате dm-call-<id>). */
+const dmCallUserIds = (dmId) => {
+  const room = io.sockets.adapter.rooms.get(`dm-call-${dmId}`);
+  const ids = new Set();
+  if (room) for (const sid of room) {
+    const s = io.sockets.sockets.get(sid);
+    if (s?.userId) ids.add(String(s.userId));
+  }
+  return [...ids];
+};
+
+/**
+ * Состояние звонка переписки всем её участникам: по нему в чате и в списке
+ * переписок видно, что идёт звонок, и к нему можно присоединиться. Раньше об
+ * идущем групповом звонке знал только тот, кому дошёл вызов.
+ */
+const broadcastDmCallState = async (dmId) => {
   try {
-    const channel = await Channel.findById(channelId);
-    if (channel) {
-      const users = await getVoiceChannelUsers(channelId);
-      io.to(`server-${channel.server}`).emit('voice-channel-users-update', { channelId, users });
-    }
-  } catch (err) { }
+    const DirectMessage = require('./models/DirectMessage');
+    const dm = await DirectMessage.findById(dmId).select('participants').lean();
+    if (!dm) return;
+    const payload = { dmId: String(dmId), userIds: dmCallUserIds(dmId) };
+    dm.participants.forEach(p => io.to(`user-${String(p)}`).emit('dm-call-state', payload));
+  } catch (e) { /* не критично */ }
+};
+
+const userSocketInRoom = (roomName, userId) => {
+  const room = io.sockets.adapter.rooms.get(roomName);
+  if (!room) return false;
+  for (const sid of room) {
+    const s = io.sockets.sockets.get(sid);
+    if (s && String(s.userId) === String(userId)) return true;
+  }
+  return false;
 };
 
 app.get('/api/channels/:id/voice-participants', async (req, res) => {
@@ -504,6 +580,7 @@ const disconnectOtherVoiceSessions = async (userId, exceptSocketId) => {
     s.emit('force-disconnect-voice', { reason: 'other-device' });
     s.leave(`voice-channel-${oldChannelId}`);
     s.voiceChannelId = null;
+    resetVoiceFlags(s);
     io.to(`voice-channel-${oldChannelId}`).emit('voice-user-left', { userId: String(userId) });
     removeRoomPosition(oldChannelId, userId);
     io.to(`voice-channel-${oldChannelId}`).emit('room-position-removed', { channelId: oldChannelId, userId: String(userId) });
@@ -531,6 +608,7 @@ setInterval(async () => {
             finalizeVoiceSession(s, channelId);
             s.leave(roomName);
             s.voiceChannelId = null;
+            resetVoiceFlags(s);
           } else {
             sockets.delete(sid);
           }
@@ -718,7 +796,7 @@ io.on('connection', (socket) => {
         // Основной путь отправки идёт именно через сокет, поэтому без этой
         // проверки чёрный список не работал бы вовсе (см. пояснение в
         // routes/directMessages.js).
-        if (dm.participants.length === 2) {
+        if (dm.participants.length === 2 && !dm.isGroup && !dm.name) {
           const other = dm.participants.find(p => String(p) !== String(socket.userId));
           if (other && await isCommunicationBlocked(socket.userId, other)) {
             return socket.emit('error', { message: 'Отправка сообщений недоступна', blocked: true });
@@ -1125,7 +1203,7 @@ io.on('connection', (socket) => {
            * приводит, но проверка на клиенте ничего не стоит обойти: запрос
            * можно отправить и напрямую.
            */
-          if (dm.participants.length === 2) {
+          if (dm.participants.length === 2 && !dm.isGroup && !dm.name) {
             const other = dm.participants.find(p => String(p) !== String(socket.userId));
             if (other && await isCommunicationBlocked(socket.userId, other)) {
               return socket.emit('error', { message: 'Звонок недоступен', blocked: true });
@@ -1133,7 +1211,11 @@ io.on('connection', (socket) => {
           }
 
           console.log(`[Call] Group offer from ${socket.userId} in DM ${data.dmId}`);
-          const callerName = user?.username || 'Кто-то';
+          const callerName = user?.displayName || user?.username || 'Кто-то';
+          // Раньше здесь использовался callerAvatar, объявленный только в ветке
+          // личного звонка: на первом же участнике ReferenceError обрывал цикл
+          // (ошибку глотал catch ниже), и вызов доходил лишь до одного человека.
+          const callerAvatar = user?.avatar || null;
           dm.participants.forEach(p => {
             if (String(p) !== String(socket.userId)) {
               io.to(`user-${String(p)}`).emit('call-offer', {
@@ -1154,7 +1236,7 @@ io.on('connection', (socket) => {
             }
           });
         }
-      } catch (err) { }
+      } catch (err) { console.error('[Call] групповой вызов:', err.message); }
     } else {
       /*
        * Личный звонок при блокировке не проходит — в любую сторону.
@@ -1199,6 +1281,10 @@ io.on('connection', (socket) => {
 
   socket.on('join-dm-call', (data) => {
     console.log(`[Call] User ${socket.userId} joined DM room ${data.dmId}`);
+    // Возвращение в звонок после обрыва сокета — сессия продолжается.
+    const pendingKey = `${socket.userId}:${data.dmId}`;
+    const pendingDm = pendingDmLeaves.get(pendingKey);
+    if (pendingDm) { clearTimeout(pendingDm.timer); pendingDmLeaves.delete(pendingKey); }
     socket.join(`dm-call-${data.dmId}`);
     socket.dmCallId = data.dmId;
     const requestedJoinedAt = Number(data?.joinedVoiceAt);
@@ -1218,15 +1304,36 @@ io.on('connection', (socket) => {
       channelId: `call-${data.dmId}`,
       presences: getPresencesSnapshot(`call-${data.dmId}`),
     });
+    broadcastDmCallState(data.dmId);
+  });
+
+  // Снимок идущих звонков в переписках пользователя — при запуске клиента и
+  // после переподключения сокета.
+  socket.on('get-dm-call-states', async (_data, ack) => {
+    if (typeof ack !== 'function') return;
+    try {
+      const DirectMessage = require('./models/DirectMessage');
+      const dms = await DirectMessage.find({ participants: socket.userId }).select('_id').lean();
+      const states = {};
+      dms.forEach(d => {
+        const ids = dmCallUserIds(d._id);
+        if (ids.length) states[String(d._id)] = ids;
+      });
+      ack(states);
+    } catch (e) { ack({}); }
   });
 
   socket.on('leave-dm-call', (data) => {
     const dmId = data?.dmId || socket.dmCallId;
+    // Обработчик один: второй такой же ниже по файлу рассылал
+    // dm-call-user-left повторно, и у собеседника звонок «завершался» дважды.
     if (dmId) {
+      console.log(`[Call] User ${socket.userId} left DM room ${dmId}`);
       finalizeVoiceSession(socket, null, dmId);
       cleanupUserPresencesInChannel('call-' + dmId, socket.userId, io);
       socket.leave(`dm-call-${dmId}`);
       socket.to(`dm-call-${dmId}`).emit('dm-call-user-left', { userId: socket.userId });
+      broadcastDmCallState(dmId);
     }
     socket.dmCallId = null;
     socket.joinedVoiceAt = null;
@@ -1309,14 +1416,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('leave-dm-call', (data) => {
-    cleanupUserPresencesInChannel('call-' + data.dmId, socket.userId, io);
-    console.log(`[Call] User ${socket.userId} left DM room ${data.dmId}`);
-    socket.leave(`dm-call-${data.dmId}`);
-    socket.dmCallId = null;
-    socket.to(`dm-call-${data.dmId}`).emit('dm-call-user-left', { userId: socket.userId });
-  });
-
   socket.on('join-voice-channel', async (data) => {
     try {
       const user = await User.findById(socket.userId);
@@ -1342,11 +1441,26 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Возвращение после обрыва сокета: отложенный выход отменяем. Если человек
+      // вернулся в другой канал — прежний выход завершаем сразу.
+      const userKey = String(socket.userId);
+      const pendingLeave = pendingVoiceLeaves.get(userKey);
+      const returning = !!pendingLeave && pendingLeave.channelId === String(channelId);
+      if (pendingLeave) {
+        clearTimeout(pendingLeave.timer);
+        pendingVoiceLeaves.delete(userKey);
+        if (!returning) pendingLeave.finish();
+      }
+      // Повторный вход того же сокета в тот же канал (переподключение LiveKit,
+      // повтор события клиентом) — не новый вход для остальных.
+      const alreadyHere = String(socket.voiceChannelId || '') === String(channelId);
+
       if (socket.voiceChannelId && socket.voiceChannelId !== channelId) {
         finalizeVoiceSession(socket, socket.voiceChannelId);
         cleanupUserPresencesInChannel('channel-' + socket.voiceChannelId, socket.userId, io);
         endWatchIfHost(socket.voiceChannelId, socket.userId, io);
         socket.leave(`voice-channel-${socket.voiceChannelId}`);
+        resetVoiceFlags(socket);
         io.to(`voice-channel-${socket.voiceChannelId}`).emit('voice-user-left', { userId: socket.userId });
         removeRoomPosition(socket.voiceChannelId, socket.userId);
         io.to(`voice-channel-${socket.voiceChannelId}`).emit('room-position-removed', { channelId: socket.voiceChannelId, userId: String(socket.userId) });
@@ -1361,6 +1475,14 @@ io.on('connection', (socket) => {
       const isValidJoinedAt = requestedJoinedAt && !isNaN(requestedJoinedAt) && requestedJoinedAt > 0 && requestedJoinedAt <= (Date.now() + 5000);
 
       socket.join(`voice-channel-${channelId}`); socket.voiceChannelId = channelId;
+      // Состояние присылает клиент: при обычном входе демонстрации и камеры нет,
+      // при повторном входе после переподключения сокета — то, что идёт сейчас.
+      // Раньше флаги оставались от прошлого сеанса: вышел, не остановив эфир, —
+      // и при следующем входе «эфир» висел у ника, хотя трансляции не было.
+      socket.isScreenSharing = !!data?.isScreenSharing;
+      socket.isVideoOn = !!data?.isVideoOn;
+      if (typeof data?.isMuted === 'boolean') socket.isMuted = data.isMuted;
+      if (typeof data?.isDeafened === 'boolean') socket.isDeafened = data.isDeafened;
       socket.joinedVoiceAt = isValidJoinedAt ? requestedJoinedAt : Date.now();
       const existingUsers = await getVoiceChannelUsers(channelId);
       // Presence хранятся под ключом LiveKit-комнаты ('channel-<id>'), а не под сырым id —
@@ -1370,7 +1492,7 @@ io.on('connection', (socket) => {
       const memberRec = (fullServer.members || []).find(m => String(m.user) === String(socket.userId));
       const serverNickname = memberRec?.nickname || null;
       await user.populate('displayedTag.server', 'name icon tag');
-      socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', {
+      if (!returning && !alreadyHere) socket.to(`voice-channel-${channelId}`).emit('voice-user-joined', {
         userId: socket.userId,
         user: {
           _id: user._id,
@@ -1456,6 +1578,7 @@ io.on('connection', (socket) => {
             s.emit('force-disconnect-voice');
             s.leave(`voice-channel-${channelId}`);
             s.voiceChannelId = null;
+            resetVoiceFlags(s);
             io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId });
             await notifyVoiceChannelUpdate(channelId);
             
@@ -1528,6 +1651,7 @@ io.on('connection', (socket) => {
     socket.leave(`voice-channel-${channelId}`);
     socket.voiceChannelId = null;
     socket.joinedVoiceAt = null;
+    resetVoiceFlags(socket);
     io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
     removeRoomPosition(channelId, socket.userId);
     io.to(`voice-channel-${channelId}`).emit('room-position-removed', { channelId, userId: String(socket.userId) });
@@ -1723,17 +1847,40 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async () => {
     if (socket.voiceChannelId) {
       const channelId = socket.voiceChannelId;
-      finalizeVoiceSession(socket, channelId);
-      cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
-      endWatchIfHost(channelId, socket.userId, io);
-      io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
-      removeRoomPosition(channelId, socket.userId);
-      io.to(`voice-channel-${channelId}`).emit('room-position-removed', { channelId, userId: String(socket.userId) });
-      await notifyVoiceChannelUpdate(channelId);
+      const userKey = String(socket.userId);
+      const finish = async () => {
+        const cur = pendingVoiceLeaves.get(userKey);
+        if (cur && cur.finish === finish) pendingVoiceLeaves.delete(userKey);
+        // Вернулся в этот же канал другим сокетом — выхода не было.
+        if (userSocketInRoom(`voice-channel-${channelId}`, userKey)) return;
+        finalizeVoiceSession(socket, channelId);
+        cleanupUserPresencesInChannel('channel-' + channelId, socket.userId, io);
+        endWatchIfHost(channelId, socket.userId, io);
+        io.to(`voice-channel-${channelId}`).emit('voice-user-left', { userId: socket.userId });
+        removeRoomPosition(channelId, socket.userId);
+        io.to(`voice-channel-${channelId}`).emit('room-position-removed', { channelId, userId: String(socket.userId) });
+        await notifyVoiceChannelUpdate(channelId);
+      };
+      const prev = pendingVoiceLeaves.get(userKey);
+      if (prev) { clearTimeout(prev.timer); prev.finish(); }
+      pendingVoiceLeaves.set(userKey, { channelId: String(channelId), finish, timer: setTimeout(finish, VOICE_GRACE_MS) });
     }
     if (socket.dmCallId) {
-      finalizeVoiceSession(socket, null, socket.dmCallId);
-      cleanupUserPresencesInChannel('call-' + socket.dmCallId, socket.userId, io);
+      const dmId = socket.dmCallId;
+      const key = `${socket.userId}:${dmId}`;
+      const prev = pendingDmLeaves.get(key);
+      if (prev) clearTimeout(prev.timer);
+      pendingDmLeaves.set(key, {
+        timer: setTimeout(() => {
+          pendingDmLeaves.delete(key);
+          if (userSocketInRoom(`dm-call-${dmId}`, socket.userId)) return;
+          finalizeVoiceSession(socket, null, dmId);
+          cleanupUserPresencesInChannel('call-' + dmId, socket.userId, io);
+          // Не вернулся — для остальных это выход из звонка.
+          io.to(`dm-call-${dmId}`).emit('dm-call-user-left', { userId: socket.userId });
+          broadcastDmCallState(dmId);
+        }, VOICE_GRACE_MS)
+      });
     }
     cleanupUserPresencesEverywhere(socket.userId, io);
     const connections = io.sockets.adapter.rooms.get(`user-${String(socket.userId)}`);
@@ -1824,6 +1971,9 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').th
  * отдельной машине). Менять его стоит, только когда порт закрыт фаерволом.
  */
 const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
+// Страна по IP для «Устройств»: локальная база DB-IP, обновляется раз в месяц.
+require('./utils/geoDb').start();
+
 server.listen(process.env.PORT || 5000, BIND_HOST, () => {
   console.log(`Server running on ${BIND_HOST}:${process.env.PORT || 5000}`);
   // Проверяем почту при старте: через неё идут коды входа и 2FA, и неверные

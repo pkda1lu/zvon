@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import PinnedMessagesModal from './PinnedMessagesModal';
+import FloatingEmojiPicker, { EmojiAnchor } from './FloatingEmojiPicker';
 import { ChatScrollEngine, ChatScrollEngineHandle } from './ChatScrollEngine';
 import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
@@ -15,8 +17,9 @@ import './ChannelView.css';
 import { useServerMemberMap } from '../utils/serverMembers';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
-import CustomVideoPlayer from './CustomVideoPlayer';
-import CustomAudioPlayer from './CustomAudioPlayer';
+import MessageAttachment from './MessageAttachment';
+import { isVisualMedia } from '../utils/mediaKind';
+import { uploadFiles, downloadFile } from '../utils/transfers';
 import MediaLightbox from './MediaLightbox';
 import MentionAutocomplete from './MentionAutocomplete';
 import ChannelAutocomplete from './ChannelAutocomplete';
@@ -25,7 +28,6 @@ import { SkeletonList } from './Skeleton';
 import { Role } from '../types';
 import { computePermissions, hasPermission, Permissions } from '../utils/permissions';
 import { useChatSettings } from '../contexts/ChatSettingsContext';
-import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import Reactions from './Reactions';
 import { recordRecentReaction } from '../utils/recentReactions';
@@ -49,6 +51,7 @@ import { SmileIcon } from './Icons';
 import ServerInviteCard from './ServerInviteCard';
 import { extractInviteCodes, matchInviteCode, openInviteInApp } from '../utils/inviteLinks';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { consumeNavIntent, NAV_INTENT_EVENT } from '../utils/navIntents';
 
 // Helper for inline markdown shared across components
 const renderInlineMarkdown = (
@@ -179,6 +182,17 @@ const MessageItem = React.memo<{
 }) => {
   const { confirm: customConfirm } = useDialog();
   const { interfaceScale } = useAppearance();
+
+  // Лайтбокс: все картинки и видео ленты, с позиции нужного вложения.
+  const openMediaAt = (att: any, startTime?: number) => {
+    const allMedia = allMessages.flatMap((m: any) => m.attachments || []).filter((a: any) => isVisualMedia(a)).map((a: any) => ({ ...a }));
+    const idx = allMedia.findIndex((a: any) => a.url === att.url);
+    if (idx === -1) return;
+    if (startTime) allMedia[idx].startTime = startTime;
+    setLightboxMedia(allMedia);
+    setLightboxIndex(idx);
+    setLightboxOpen(true);
+  };
   const { settings: gestureSettings } = useGestureSettings();
 
   const gestures = useMessageGestures({
@@ -364,7 +378,7 @@ const MessageItem = React.memo<{
       </div>
     );
   };
-  const [showEmojiPicker, setShowEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<EmojiAnchor | null>(null);
 
   const shouldShowDate = (current: Message, previous: Message | undefined) => {
     if (!previous) return true;
@@ -560,7 +574,7 @@ const MessageItem = React.memo<{
                 {canReact && (
                   <button
                     className={`msg-action-btn ${grouped ? 'mini' : ''}`}
-                    onClick={(e) => setShowEmojiPicker({ x: e.clientX, y: e.clientY, msgId: msg._id })}
+                    onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setShowEmojiPicker({ x: r.left, y: r.bottom, rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } }); }}
                     title="Добавить реакцию"
                   >
                     <SmileIcon size={grouped ? 14 : 16} />
@@ -635,49 +649,7 @@ const MessageItem = React.memo<{
             <div className="message-attachments">
               {msg.attachments.map((att, i) => (
                 <div key={i} className="attachment-item">
-                  {att.type.startsWith('image/') ? (
-                    <div className="attachment-image-container">
-                      <img src={getFullUrl(att.url)!} alt="" className="attachment-image" onClick={() => {
-                        const allMedia = allMessages.flatMap((m: any) => m.attachments || []).filter((a: any) => a.type.startsWith('image/') || a.type.startsWith('video/'));
-                        setLightboxMedia(allMedia);
-                        setLightboxIndex(allMedia.findIndex((a: any) => a.url === att.url));
-                        setLightboxOpen(true);
-                      }} />
-                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn" title="Скачать">
-                        <DownloadIcon size={16} />
-                      </button>
-                    </div>
-                  ) : att.type.startsWith('video/') ? (
-                    <div className="attachment-video-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
-                      <CustomVideoPlayer src={getFullUrl(att.url)!} onExpand={(currentTime) => {
-                        const allMedia = allMessages.flatMap((m: any) => m.attachments || []).filter((a: any) => a.type.startsWith('image/') || a.type.startsWith('video/')).map((a: any) => ({ ...a }));
-                        const idx = allMedia.findIndex((a: any) => a.url === att.url);
-                        if (idx !== -1) (allMedia[idx] as any).startTime = currentTime;
-                        setLightboxMedia(allMedia);
-                        setLightboxIndex(idx);
-                        setLightboxOpen(true);
-                      }} />
-                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn video" title="Скачать">
-                        <DownloadIcon size={16} />
-                      </button>
-                    </div>
-                  ) : (att.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(att.filename || '')) ? (
-                    <div className="attachment-audio-container">
-                      <CustomAudioPlayer src={getFullUrl(att.url)!} filename={att.filename} />
-                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn audio" title="Скачать">
-                        <DownloadIcon size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="attachment-file-container">
-                      <a href={getFullUrl(att.url)!} target="_blank" rel="noopener noreferrer" className="attachment-file">
-                        <DocumentIcon size={18} /><span>{att.filename}</span>
-                      </a>
-                      <button onClick={(e) => handleDownload(e, getFullUrl(att.url)!, att.filename)} className="attachment-download-btn file" title="Скачать">
-                        <DownloadIcon size={16} />
-                      </button>
-                    </div>
-                  )}
+                  <MessageAttachment att={att as any} iconScale={1} onOpenMedia={(a, t) => openMediaAt(a, t)} />
                 </div>
               ))}
             </div>
@@ -703,30 +675,16 @@ const MessageItem = React.memo<{
         </div>
       </MessageBox>
 
-      {showEmojiPicker && createPortal(
-        <div
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
-          onClick={() => setShowEmojiPicker(null)}
-        >
-          <div
-            style={{
-              position: 'fixed',
-              top: Math.min(showEmojiPicker.y, window.innerHeight - 420),
-              left: Math.min(showEmojiPicker.x, window.innerWidth - 340),
-              zIndex: 10000
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <EmojiPicker
-              server={server}
-              onSelect={(emoji) => {
-                onReact(msg._id, emoji);
-                setShowEmojiPicker(null);
-              }}
-            />
-          </div>
-        </div>,
-        document.body
+      {showEmojiPicker && (
+        <FloatingEmojiPicker
+          anchor={showEmojiPicker}
+          server={server}
+          onClose={() => setShowEmojiPicker(null)}
+          onSelect={(emoji) => {
+            onReact(msg._id, emoji);
+            setShowEmojiPicker(null);
+          }}
+        />
       )}
     </React.Fragment>
   );
@@ -857,7 +815,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User, messageId?: string } | null>(null);
   const [messageMenu, setMessageMenu] = useState<{ msg: Message, x: number, y: number } | null>(null);
   const [doubleTapPop, setDoubleTapPop] = useState<{ emoji: string, x: number, y: number } | null>(null);
-  const [menuEmojiPicker, setMenuEmojiPicker] = useState<{ x: number, y: number, msgId: string } | null>(null);
+  const [menuEmojiPicker, setMenuEmojiPicker] = useState<(EmojiAnchor & { msgId: string }) | null>(null);
   const { settings: gestureSettings } = useGestureSettings();
 
   const handleReact = useCallback((messageId: string, emoji: string) => {
@@ -943,13 +901,19 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       try {
         let fetched: Message[] = [...currentList];
         let attempts = 0;
-        const maxAttempts = 15;
+        // Закрепы бывают глубоко в истории: 15 страниц по 50 (~750 сообщений)
+        // хватало не всегда, и переход к старому закрепу молча не срабатывал.
+        // Грузим страницами по 100, пока не дойдём до даты сообщения.
+        const maxAttempts = 100;
+        const targetTime = new Date(createdAt).getTime();
 
         while (!fetched.some(m => m._id === messageId) && attempts < maxAttempts) {
           attempts++;
           const oldestMsg = fetched[0];
-          const beforeParam = oldestMsg ? oldestMsg.createdAt : new Date(new Date(createdAt).getTime() + 1000).toISOString();
-          const res = await axios.get(`/api/messages/channel/${channel._id}`, { params: { before: beforeParam, limit: 50 } });
+          // История уже старше искомого — сообщения нет (удалено).
+          if (oldestMsg && new Date(oldestMsg.createdAt).getTime() < targetTime) break;
+          const beforeParam = oldestMsg ? oldestMsg.createdAt : new Date(targetTime + 1000).toISOString();
+          const res = await axios.get(`/api/messages/channel/${channel._id}`, { params: { before: beforeParam, limit: 100 } });
           const newBatch: Message[] = res.data;
           if (!newBatch || newBatch.length === 0) break;
 
@@ -1005,6 +969,22 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       await jumpToMessage(msgId, createdAt);
     }
   }, [messages, jumpToMessage]);
+
+  // Переход по уведомлению об упоминании: прокрутить к сообщению и подсветить.
+  // Цель забираем, когда сообщения канала уже есть (или по событию, если
+  // канал был открыт в момент клика).
+  const hasMessages = messages.length > 0;
+  useEffect(() => {
+    const tryJump = () => {
+      if (!hasMessages) return;
+      const intent = consumeNavIntent('jump', j => String(j.channelId) === String(channel._id));
+      if (intent) scrollToMessage(intent.messageId, intent.createdAt);
+    };
+    tryJump();
+    const onIntent = (e: Event) => { if ((e as CustomEvent).detail === 'jump') tryJump(); };
+    window.addEventListener(NAV_INTENT_EVENT, onIntent);
+    return () => window.removeEventListener(NAV_INTENT_EVENT, onIntent);
+  }, [channel._id, hasMessages, scrollToMessage]);
 
   useEffect(() => {
     if (!socket) return;
@@ -1106,13 +1086,11 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
     }));
     setUploadingFiles(prev => [...prev, ...pending]);
-    const formData = new FormData();
-    files.forEach(file => formData.append('files', file));
-    try {
-      const response = await axios.post('/api/upload-files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        try {
+      const response = await uploadFiles(files);
       setAttachments(prev => [...prev, ...response.data]);
-    } catch (error) {
-      await alert('Ошибка загрузки файла');
+    } catch (error: any) {
+      if (!error?.canceled) await alert('Ошибка загрузки файла');
     } finally {
       pending.forEach(p => { if (p.previewUrl) URL.revokeObjectURL(p.previewUrl); });
       setUploadingFiles(prev => prev.filter(p => !pending.some(pp => pp.id === p.id)));
@@ -1407,25 +1385,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const handleDownload = useCallback(async (e: React.MouseEvent, url: string, filename: string) => {
     e.preventDefault();
     e.stopPropagation();
-    try {
-      const response = await fetch(url, { mode: 'cors' });
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      console.warn('Fetch download failed, falling back to direct link:', error);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.target = "_blank";
-      link.click();
-    }
+    await downloadFile(url, filename);
   }, []);
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -1543,69 +1503,43 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         )}
       </div>
 
-      {showPins && (
-        <div className="pins-overlay" onClick={() => setShowPins(false)}>
-          <div className="pins-modal glass-panel-base" onClick={e => e.stopPropagation()}>
-            <div className="pins-header">
-              <h3>Закрепленные сообщения</h3>
-              <button className="close-pins" onClick={() => setShowPins(false)}>×</button>
-            </div>
-            <div className="pins-list">
-              {pinnedMessages.length === 0 ? (
-                <div className="empty-pins">Нет закрепленных сообщений</div>
-              ) : (
-                pinnedMessages.map(msg => {
-                  const member = memberMap.get(String(msg.author._id));
-                  return (
-                    <div key={msg._id} className="pin-item">
-                      <div className="pin-author">
-                        <UserAvatar user={msg.author} avatarOverride={member?.avatar || undefined} size={24 * interfaceScale} className="pin-avatar-comp" />
-                        <span className="pin-name">{member?.nickname || msg.author.displayName || msg.author.username}</span>
-                        <UserBadges badges={msg.author.badges} serverTag={resolveServerTag(msg.author)} size={12 * interfaceScale} />
-                        <span className="pin-date">{formatDate(msg.createdAt)}</span>
-                      </div>
-                      <div className="pin-content">
-                        {msg.content}
-                        {msg.attachments?.some(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')) && (
-                          <div className="pin-media-preview" style={{ marginTop: '8px', display: 'flex', gap: '5px', overflowX: 'auto' }}>
-                            {msg.attachments.filter(a => a.type?.startsWith('image/') || a.type?.startsWith('video/')).map((a, i) => (
-                              <div key={i} className="pin-media-item" style={{ width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--glass-border)' }}>
-                                {a.type?.startsWith('image/') ? (
-                                  <img 
-                                    src={getFullUrl(a.url)!} 
-                                    alt="" 
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                                    onClick={() => {
-                                      setLightboxMedia(msg.attachments!.filter(att => att.type?.startsWith('image/') || att.type?.startsWith('video/')).map(att => ({ 
-                                        url: getFullUrl(att.url)!, 
-                                        type: att.type?.startsWith('video/') ? 'video' : 'image', 
-                                        filename: att.filename 
-                                      })));
-                                      setLightboxIndex(i);
-                                      setLightboxOpen(true);
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="pin-video-placeholder" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
-                                    <CameraIcon size={20 * interfaceScale} color="var(--primary-neon)" />
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <button className="unpin-btn" onClick={() => handleTogglePin(msg._id)}>Открепить</button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <PinnedMessagesModal
+        open={showPins}
+        onClose={() => setShowPins(false)}
+        messages={pinnedMessages}
+        resolveAuthor={(msg) => {
+          const member = memberMap.get(String(msg.author._id));
+          return {
+            user: msg.author,
+            name: member?.nickname || msg.author.displayName || msg.author.username,
+            avatarOverride: member?.avatar || undefined,
+          };
+        }}
+        renderContent={renderMessageContent}
+        formatDate={formatDate}
+        onJump={(msg) => jumpToMessage(msg._id, msg.createdAt)}
+          onOpenMedia={(msg, i) => {
+            const visual = (msg.attachments || []).filter(isVisualMedia);
+            setLightboxMedia(visual.map(att => ({
+              url: getFullUrl(att.url)!,
+              type: att.type?.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(att.filename || '') ? 'video' : 'image',
+              filename: att.filename,
+            })));
+            setLightboxIndex(i);
+            setLightboxOpen(true);
+          }}
+        onUnpin={handleTogglePin}
+      />
 
-      <StickyPins pinnedMessages={pinnedMessages} onOpenPins={() => setShowPins(true)} />
+      <StickyPins
+        pinnedMessages={pinnedMessages}
+        onOpenPins={() => setShowPins(true)}
+        onJump={(msg) => jumpToMessage(msg._id, msg.createdAt)}
+        authorName={(msg) => {
+          const member = memberMap.get(String(msg.author._id));
+          return member?.nickname || msg.author.displayName || msg.author.username;
+        }}
+      />
 
       <div className="messages-container">
         {messages.length > 0 && (
@@ -1863,34 +1797,20 @@ const ChannelView: React.FC<ChannelViewProps> = ({
           server={server}
           onUserClick={onUserClick}
           onMention={handleMention}
-          onOpenEmojiPicker={(pos) => setMenuEmojiPicker({ x: pos.x, y: pos.y, msgId: pos.msgId })}
+          onOpenEmojiPicker={(pos) => setMenuEmojiPicker(pos)}
         />
       )}
-      {menuEmojiPicker && createPortal(
-        <div
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
-          onClick={() => setMenuEmojiPicker(null)}
-        >
-          <div
-            style={{
-              position: 'fixed',
-              top: Math.min(menuEmojiPicker.y, window.innerHeight - 420),
-              left: Math.min(menuEmojiPicker.x, window.innerWidth - 340),
-              zIndex: 10000
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <EmojiPicker
-              server={server}
-              onSelect={(emoji) => {
-                handleReact(menuEmojiPicker.msgId, emoji);
-                recordRecentReaction(emoji, server?._id);
-                setMenuEmojiPicker(null);
-              }}
-            />
-          </div>
-        </div>,
-        document.body
+      {menuEmojiPicker && (
+        <FloatingEmojiPicker
+          anchor={menuEmojiPicker}
+          server={server}
+          onClose={() => setMenuEmojiPicker(null)}
+          onSelect={(emoji) => {
+            handleReact(menuEmojiPicker.msgId, emoji);
+            recordRecentReaction(emoji, server?._id);
+            setMenuEmojiPicker(null);
+          }}
+        />
       )}
       {doubleTapPop && (
         <div

@@ -1,191 +1,296 @@
-.custom-video-player {
+/* =============================================================================
+   Медиаплеер Zvon: видео (.zv-video) и аудио (.zv-audio, CustomAudioPlayer.css).
+
+   Раньше плееры держались на глобальных классах (.control-btn, .seek-bar,
+   .time-display), которые пересекались между собой и с заголовком окна, а
+   видео было жёстко 16:9 шириной 400 px — вертикальные ролики сжимались в
+   полоску, широкие обрезались полями. Теперь всё под своими именами, видео
+   берёт собственные пропорции и масштабируется под окно.
+
+   Позиция полос прогресса задаётся переменными --zv-played / --zv-buffered
+   (проценты), их выставляет плеер через ref, без перерисовки React.
+   ========================================================================== */
+
+.zv-video {
     position: relative;
-    width: 100%;
-    max-width: 400px;
-    /* Default limit, overrideable */
-    background: #000;
-    border-radius: 4px;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
+    display: inline-flex;
     align-items: center;
-    aspect-ratio: 16 / 9;
+    justify-content: center;
+    /* Контейнерные единицы, а не проценты: у <video> с процентным max-width
+       внутри сжимающейся по содержимому карточки ширина схлопывается в ноль.
+       100cqw — ширина списка вложений (.message-attachments — контейнер),
+       вне контейнера — ширина окна. */
+    max-width: min(560px, 100cqw);
+    min-width: min(260px, 100cqw);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
     user-select: none;
+    outline: none;
+    line-height: 0;
+    isolation: isolate;
 }
 
-.video-element {
-    width: 100%;
-    height: 100%;
+.zv-video:focus-visible {
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.55);
+}
+
+.zv-video__media {
+    display: block;
+    max-width: min(560px, 100cqw);
+    max-height: min(60vh, 520px);
+    width: auto;
+    height: auto;
     object-fit: contain;
+    background: #000;
     cursor: pointer;
 }
 
-.play-overlay {
+/* Лайтбокс: крупнее, но всё равно по окну. */
+.zv-video--expanded {
+    max-width: 92vw;
+    min-width: min(420px, 92vw);
+    border-radius: 18px;
+}
+
+.zv-video--expanded .zv-video__media {
+    max-height: 80vh;
+    max-width: 92vw;
+}
+
+/* Полноэкранный режим. */
+.zv-video:fullscreen {
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+}
+
+.zv-video:fullscreen .zv-video__media {
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+}
+
+/* --- Центральная кнопка и загрузка -------------------------------------------- */
+.zv-video__center {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 64px;
-    height: 64px;
-    background: rgba(0, 0, 0, 0.6);
-    border-radius: 50%;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: none;
-    transition: all 0.2s;
+    z-index: 2;
 }
 
-.play-overlay svg {
-    margin-left: 5px;
-    /* Optical centering for the play triangle */
-}
-
-.custom-video-player:hover .play-overlay {
-    background: rgba(0, 0, 0, 0.8);
-    transform: translate(-50%, -50%) scale(1.1);
-}
-
-.video-controls {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
-    padding: 10px;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.video-controls.visible {
-    opacity: 1;
-}
-
-.seek-bar-container {
-    width: 100%;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-    position: relative;
-    cursor: pointer;
-}
-
-.seek-bar {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 100%;
-    background: transparent;
-    position: absolute;
-    top: 0;
-    left: 0;
-    margin: 0;
-    outline: none;
-    cursor: pointer;
-}
-
-/* Track filling logic handled via JS backgroundSize or custom impl. 
-   Here we use a trick with background-image on the input for simple styling */
-.seek-bar {
-    background-image: linear-gradient(#5865F2, #5865F2);
-    background-repeat: no-repeat;
-    /* size set in JS */
-}
-
-.seek-bar::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    height: 12px;
-    width: 12px;
+.zv-video__big-play {
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-    opacity: 1;
-    /* Always visible for user clarity */
-}
-
-.controls-bottom {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.controls-left,
-.controls-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.control-btn {
-    background: none;
-    border: none;
-    color: #bcbec0;
-    cursor: pointer;
-    padding: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.1s;
-}
-
-.control-btn:hover {
+    background: rgba(10, 10, 16, 0.55);
+    backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     color: #fff;
+    transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
-.time-display {
-    color: #fff;
-    font-size: 12px;
-    font-family: monospace;
-    margin-left: 4px;
+.zv-video__big-play svg { margin-left: 4px; }
+
+.zv-video:hover .zv-video__big-play {
+    transform: scale(1.06);
+    background: rgba(0, 106, 255, 0.55);
 }
 
-.volume-control {
+.zv-video__spinner {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.18);
+    border-top-color: var(--primary-neon, #006aff);
+    animation: zvPlayerSpin 0.8s linear infinite;
+}
+
+@keyframes zvPlayerSpin { to { transform: rotate(360deg); } }
+
+/* --- Панель управления ----------------------------------------------------------- */
+.zv-video__controls {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 28px 10px 8px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.35) 60%, transparent);
+    line-height: normal;
+    /* Контейнер для адаптации панели. Не на самом .zv-video: сдерживание по
+       ширине заставило бы плеер игнорировать размер ролика. */
+    container-type: inline-size;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.zv-video--controls .zv-video__controls {
+    opacity: 1;
+    transform: none;
+}
+
+.zv-video--hide-cursor { cursor: none; }
+.zv-video--hide-cursor .zv-video__media { cursor: none; }
+
+.zv-player__row {
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-left: 8px;
-    width: 100px;
+    min-width: 0;
 }
 
-.volume-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 60px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-    outline: none;
-    background-image: linear-gradient(#fff, #fff);
-    background-repeat: no-repeat;
-}
+.zv-player__spacer { flex: 1; }
 
-.volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    height: 10px;
-    width: 10px;
-    border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
-}
-
-/* Fullscreen overrides */
-.custom-video-player:fullscreen {
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    aspect-ratio: auto;
-    background: black;
-    display: flex;
+.zv-player__btn {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.custom-video-player:fullscreen .video-element {
+.zv-player__btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.zv-player__btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.55);
+}
+
+.zv-player__speed {
+    width: auto;
+    min-width: 36px;
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 800;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+.zv-player__time {
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* --- Полоса перемотки ------------------------------------------------------------ */
+.zv-player__seek {
+    --zv-played: 0%;
+    --zv-buffered: 0%;
+    position: relative;
+    flex: 1;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.zv-player__track {
+    position: relative;
     width: 100%;
-    height: 100%;
-    object-fit: contain;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+    transition: height 0.15s ease;
+}
+
+.zv-player__seek:hover .zv-player__track { height: 6px; }
+
+.zv-player__buffered,
+.zv-player__played {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: inherit;
+}
+
+.zv-player__buffered {
+    width: var(--zv-buffered);
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.zv-player__played {
+    width: var(--zv-played);
+    background: linear-gradient(90deg, var(--primary-neon, #006aff), var(--secondary-neon, #7000ff));
+}
+
+.zv-player__thumb {
+    position: absolute;
+    left: var(--zv-played);
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(0, 106, 255, 0.35), 0 2px 6px rgba(0, 0, 0, 0.5);
+    transform: scale(0);
+    transition: transform 0.15s ease;
+    pointer-events: none;
+}
+
+.zv-player__seek:hover .zv-player__thumb,
+.zv-player__seek.is-dragging .zv-player__thumb { transform: scale(1); }
+
+/* --- Громкость -------------------------------------------------------------------- */
+.zv-player__volume {
+    display: flex;
+    align-items: center;
+}
+
+.zv-player__volume-range {
+    width: 0;
+    opacity: 0;
+    margin: 0;
+    accent-color: #fff;
+    cursor: pointer;
+    transition: width 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+}
+
+.zv-player__volume:hover .zv-player__volume-range,
+.zv-player__volume:focus-within .zv-player__volume-range {
+    width: 72px;
+    opacity: 1;
+    margin: 0 6px 0 2px;
+}
+
+/* --- Узкий плеер: только главное -------------------------------------------------- */
+@container (max-width: 340px) {
+    .zv-video__controls .zv-player__volume-range,
+    .zv-video__controls .zv-player__speed { display: none; }
+    .zv-video__controls .zv-player__time { padding: 0 2px; font-size: 11px; }
+}
+
+@container (max-width: 250px) {
+    .zv-video__controls .zv-player__time { display: none; }
 }

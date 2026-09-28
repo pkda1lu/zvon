@@ -578,7 +578,9 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
         <ChannelSettingsModal
           isOpen={!!editingChannel}
           onClose={() => setEditingChannel(null)}
-          channel={editingChannel}
+          // Актуальная версия канала из данных сервера, а не снимок на момент
+          // открытия — иначе сохранённые изменения не отражались в окне.
+          channel={editingChannel ? (server.channels.find(c => String(c._id) === String(editingChannel._id)) || editingChannel) : editingChannel}
           server={server}
           onChannelUpdate={() => { if (onChannelCreated) onChannelCreated(); }}
           onChannelDelete={() => { if (onChannelCreated) onChannelCreated(); }}

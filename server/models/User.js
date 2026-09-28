@@ -238,6 +238,10 @@ const userSchema = new mongoose.Schema({
       channelMentions: { type: Boolean, default: true },
       voiceCalls: { type: Boolean, default: true },
       friendRequests: { type: Boolean, default: true },
+      // Уведомления модерации (только для модераторов и админов).
+      modReports: { type: Boolean, default: true },
+      modProblems: { type: Boolean, default: true },
+      modVlyneApps: { type: Boolean, default: true },
       showPreview: { type: Boolean, default: true },
       showAttachments: { type: Boolean, default: true }
     },

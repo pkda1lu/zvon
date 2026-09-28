@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Server } from '../../types';
 import { SettingsToggle } from '../settings/SettingsUI';
+import ZvSelect from '../../components/ZvSelect';
 
 interface Props {
     server: Server;
@@ -104,9 +105,9 @@ const PrivacySettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                                 value={amount}
                                 onChange={(e) => handleAmountChange(parseInt(e.target.value))}
                             />
-                            <select className="settings-input" style={{ flex: 1 }} value={unit} onChange={(e) => handleUnitChange(parseInt(e.target.value))}>
+                            <ZvSelect className="settings-input" style={{ flex: 1 }} value={unit} onChange={(e) => handleUnitChange(parseInt(e.target.value))}>
                                 {UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                            </select>
+                            </ZvSelect>
                         </div>
                     </>
                 )}

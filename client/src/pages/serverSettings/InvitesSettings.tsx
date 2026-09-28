@@ -4,6 +4,7 @@ import { Server, Invite } from '../../types';
 import { useDialog } from '../../contexts/DialogContext';
 import { CopyIcon, TrashIcon, PlusIcon } from '../../components/Icons';
 import { getInviteUrl } from '../../utils/inviteLinks';
+import ZvSelect from '../../components/ZvSelect';
 
 interface Props {
     server: Server;
@@ -103,15 +104,15 @@ const InvitesSettings: React.FC<Props> = ({ server }) => {
                         <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
                         <div className="settings-row">
                             <div className="settings-row-text"><h3>Срок действия</h3></div>
-                            <select className="settings-input" style={{ width: '200px' }} value={expiresIn} onChange={(e) => setExpiresIn(parseInt(e.target.value))}>
+                            <ZvSelect className="settings-input" style={{ width: '200px' }} value={expiresIn} onChange={(e) => setExpiresIn(parseInt(e.target.value))}>
                                 {EXPIRY_OPTIONS.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}
-                            </select>
+                            </ZvSelect>
                         </div>
                         <div className="settings-row">
                             <div className="settings-row-text"><h3>Лимит использований</h3></div>
-                            <select className="settings-input" style={{ width: '200px' }} value={maxUses} onChange={(e) => setMaxUses(parseInt(e.target.value))}>
+                            <ZvSelect className="settings-input" style={{ width: '200px' }} value={maxUses} onChange={(e) => setMaxUses(parseInt(e.target.value))}>
                                 {USES_OPTIONS.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}
-                            </select>
+                            </ZvSelect>
                         </div>
                         <div className="settings-btn-group" style={{ marginTop: '12px' }}>
                             <button className="settings-btn" onClick={handleCreate}>Создать приглашение</button>
@@ -133,14 +134,14 @@ const InvitesSettings: React.FC<Props> = ({ server }) => {
                             </span>
                             {editingCode === invite.code && (
                                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                                    <select className="settings-input" defaultValue="" onChange={(e) => e.target.value && handleUpdate(invite.code, { expiresIn: parseInt(e.target.value) || null })}>
+                                    <ZvSelect className="settings-input" defaultValue="" onChange={(e) => e.target.value && handleUpdate(invite.code, { expiresIn: parseInt(e.target.value) || null })}>
                                         <option value="" disabled>Изменить срок...</option>
                                         {EXPIRY_OPTIONS.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}
-                                    </select>
-                                    <select className="settings-input" defaultValue="" onChange={(e) => e.target.value !== '' && handleUpdate(invite.code, { maxUses: parseInt(e.target.value) || null })}>
+                                    </ZvSelect>
+                                    <ZvSelect className="settings-input" defaultValue="" onChange={(e) => e.target.value !== '' && handleUpdate(invite.code, { maxUses: parseInt(e.target.value) || null })}>
                                         <option value="" disabled>Изменить лимит...</option>
                                         {USES_OPTIONS.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}
-                                    </select>
+                                    </ZvSelect>
                                 </div>
                             )}
                         </div>

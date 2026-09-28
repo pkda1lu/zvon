@@ -90,13 +90,28 @@ const ReportedContent: React.FC<{ report: any }> = ({ report }) => {
     );
 };
 
-const ModerationSettings: React.FC = () => {
+/** Цель перехода по уведомлению: какую запись открыть и подсветить. */
+export interface ModerationFocus { kind: 'problem' | 'vlyne' | 'report'; id: string }
+
+const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) => {
     const { user } = useAuth();
     const { confirm, prompt, alert } = useDialog();
     const [reports, setReports] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
-    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid'>('reports');
+    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid'>(
+        () => focus?.kind === 'problem' ? 'problems' : focus?.kind === 'vlyne' ? 'vlyneid' : 'reports'
+    );
+    // Жалоба, к которой перешли из уведомления: прокручиваем к ней и подсвечиваем.
+    const [focusProblemId, setFocusProblemId] = useState<string | null>(focus?.kind === 'problem' ? focus.id : null);
+    const [focusReportId, setFocusReportId] = useState<string | null>(focus?.kind === 'report' ? focus.id : null);
+    useEffect(() => {
+        if (!focus) return;
+        if (focus.kind === 'problem') { setMainTab('problems'); setProblemFilter('pending'); setFocusProblemId(focus.id); }
+        else if (focus.kind === 'vlyne') setMainTab('vlyneid');
+        else if (focus.kind === 'report') { setMainTab('reports'); setFilter('pending'); setFocusReportId(focus.id); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focus?.kind, focus?.id]);
     // Сколько заявок Vlyne ID ждёт решения. Показывается на самой вкладке:
     // уведомление о новой заявке может не долететь (модератор был офлайн, push
     // не настроен, заявку подал сам модератор), а очередь молчать не должна.
@@ -175,7 +190,38 @@ const ModerationSettings: React.FC = () => {
         if (mainTab === 'problems') fetchProblems(problemFilter);
     }, [mainTab, problemFilter]);
 
-    const resolveProblem = async (id: string, status: 'resolved' | 'dismissed', note: string) => {
+    // То же для жалобы на контент.
+    useEffect(() => {
+        if (!focusReportId || loading || mainTab !== 'reports') return;
+        if (reports.some(r => String(r._id) === focusReportId)) {
+            const t = setTimeout(() => {
+                document.getElementById(`report-${focusReportId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 60);
+            const clear = setTimeout(() => setFocusReportId(null), 4000);
+            return () => { clearTimeout(t); clearTimeout(clear); };
+        }
+        const order: ('pending' | 'resolved' | 'dismissed')[] = ['pending', 'resolved', 'dismissed'];
+        const next = order[order.indexOf(filter) + 1];
+        if (next) setFilter(next); else setFocusReportId(null);
+    }, [focusReportId, reports, loading, mainTab, filter]);
+
+    // Нужной жалобы нет среди ожидающих (её уже решили) — ищем в остальных
+    // списках; нашли — прокручиваем и подсвечиваем.
+    useEffect(() => {
+        if (!focusProblemId || problemLoading || mainTab !== 'problems') return;
+        if (problems.some(p => String(p._id) === focusProblemId)) {
+            const t = setTimeout(() => {
+                document.getElementById(`problem-${focusProblemId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 60);
+            const clear = setTimeout(() => setFocusProblemId(null), 4000);
+            return () => { clearTimeout(t); clearTimeout(clear); };
+        }
+        const order: ('pending' | 'resolved' | 'dismissed')[] = ['pending', 'resolved', 'dismissed'];
+        const next = order[order.indexOf(problemFilter) + 1];
+        if (next) setProblemFilter(next); else setFocusProblemId(null);
+    }, [focusProblemId, problems, problemLoading, mainTab, problemFilter]);
+
+    const resolveProblem = async (id: string, status: 'resolved' | 'dismissed' | 'pending', note: string) => {
         try {
             await axios.post(`/api/moderation/problem-reports/${id}/resolve`, { status, note });
             fetchProblems(problemFilter);
@@ -221,72 +267,39 @@ const ModerationSettings: React.FC = () => {
             <h2 className="settings-page-title">Модерация</h2>
             <p className="settings-description">Управление жалобами на сообщения, профили пользователей, сервера и витрину.</p>
 
-            <div style={{ marginBottom: '24px', display: 'flex', gap: '10px', borderBottom: '1px solid var(--glass-border)' }}>
+            <div className="zv-tabs" style={{ marginBottom: '24px' }}>
                 <button
+                    className={`zv-tab ${mainTab === 'reports' ? 'active' : ''}`}
                     onClick={() => setMainTab('reports')}
-                    style={{
-                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: mainTab === 'reports' ? 'var(--primary-neon)' : 'var(--text-dim)',
-                        fontWeight: 700, fontSize: '14px',
-                        borderBottom: `2px solid ${mainTab === 'reports' ? 'var(--primary-neon)' : 'transparent'}`,
-                        marginBottom: '-1px'
-                    }}
                 >
                     Жалобы
                 </button>
                 <button
+                    className={`zv-tab ${mainTab === 'marketplace' ? 'active' : ''}`}
                     onClick={() => setMainTab('marketplace')}
-                    style={{
-                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: mainTab === 'marketplace' ? 'var(--primary-neon)' : 'var(--text-dim)',
-                        fontWeight: 700, fontSize: '14px',
-                        borderBottom: `2px solid ${mainTab === 'marketplace' ? 'var(--primary-neon)' : 'transparent'}`,
-                        marginBottom: '-1px'
-                    }}
                 >
                     Витрина
                 </button>
                 <button
+                    className={`zv-tab ${mainTab === 'vlyneid' ? 'active' : ''}`}
                     onClick={() => setMainTab('vlyneid')}
-                    style={{
-                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: mainTab === 'vlyneid' ? 'var(--primary-neon)' : 'var(--text-dim)',
-                        fontWeight: 700, fontSize: '14px',
-                        borderBottom: `2px solid ${mainTab === 'vlyneid' ? 'var(--primary-neon)' : 'transparent'}`,
-                        marginBottom: '-1px'
-                    }}
                 >
                     Vlyne ID
                     {vlyneIdOpen > 0 && (
-                        <span style={{
-                            marginLeft: '7px', padding: '1px 7px', fontSize: '11px', fontWeight: 800,
-                            borderRadius: '999px', color: '#fff', background: 'var(--danger, #f04747)'
-                        }}>
+                        <span className="zv-tab-count accent">
                             {vlyneIdOpen}
                         </span>
                     )}
                 </button>
                 <button
+                    className={`zv-tab ${mainTab === 'problems' ? 'active' : ''}`}
                     onClick={() => setMainTab('problems')}
-                    style={{
-                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: mainTab === 'problems' ? 'var(--primary-neon)' : 'var(--text-dim)',
-                        fontWeight: 700, fontSize: '14px',
-                        borderBottom: `2px solid ${mainTab === 'problems' ? 'var(--primary-neon)' : 'transparent'}`,
-                        marginBottom: '-1px'
-                    }}
                 >
                     Проблемы
                 </button>
                 <button
+                    className={`zv-tab ${mainTab === 'posts' ? 'active' : ''}`}
                     onClick={() => setMainTab('posts')}
-                    style={{
-                        padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: mainTab === 'posts' ? 'var(--primary-neon)' : 'var(--text-dim)',
-                        fontWeight: 700, fontSize: '14px',
-                        borderBottom: `2px solid ${mainTab === 'posts' ? 'var(--primary-neon)' : 'transparent'}`,
-                        marginBottom: '-1px'
-                    }}
                 >
                     Посты
                 </button>
@@ -296,7 +309,7 @@ const ModerationSettings: React.FC = () => {
                 <PostsModeration />
             ) : mainTab === 'marketplace' ? (
                 <>
-                    <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <div className="zv-tabs" style={{ marginBottom: '20px' }}>
                         {([
                             ['pending', 'На модерации'],
                             ['reports', 'Жалобы'],
@@ -306,7 +319,7 @@ const ModerationSettings: React.FC = () => {
                             <div
                                 key={key}
                                 onClick={() => setMpTab(key)}
-                                style={{ cursor: 'pointer', padding: '10px 20px', background: mpTab === key ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: mpTab === key ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
+                                className={`zv-tab ${mpTab === key ? 'active' : ''}`}
                             >
                                 {label}
                             </div>
@@ -342,7 +355,7 @@ const ModerationSettings: React.FC = () => {
                                         <ReportedContent report={report} />
                                     </div>
                                     <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
-                                        <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => resolveMpReport(report._id, 'dismissed', 'Отклонено модератором')}>Отклонить жалобу</button>
+                                        <button className="settings-btn secondary" onClick={() => resolveMpReport(report._id, 'dismissed', 'Отклонено модератором')}>Отклонить жалобу</button>
                                         {report.reportedMiniApp?._id && !report.reportedMiniApp?.isBlocked && (
                                             <button className="settings-btn settings-btn-danger" onClick={async () => {
                                                 await blockApp(report.reportedMiniApp._id);
@@ -400,14 +413,14 @@ const ModerationSettings: React.FC = () => {
                                     )}
                                     <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
                                         {mpTab === 'pending' && (<>
-                                            <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => rejectItem('theme', t._id)}>Отклонить</button>
+                                            <button className="settings-btn secondary" onClick={() => rejectItem('theme', t._id)}>Отклонить</button>
                                             <button className="settings-btn success-glass" onClick={() => approveItem('theme', t._id)}>Одобрить</button>
                                         </>)}
                                         {mpTab === 'approved' && (
                                             <button className="settings-btn danger-glass" onClick={() => blockItem('theme', t._id)}>Заблокировать</button>
                                         )}
                                         {mpTab === 'blocked' && (
-                                            <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => unblockItem('theme', t._id)}>Разблокировать</button>
+                                            <button className="settings-btn secondary" onClick={() => unblockItem('theme', t._id)}>Разблокировать</button>
                                         )}
                                     </div>
                                 </div>
@@ -429,7 +442,7 @@ const ModerationSettings: React.FC = () => {
                                     <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
                                         {mpTab === 'pending' && (
                                             <>
-                                                <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => rejectApp(app._id)}>Отклонить</button>
+                                                <button className="settings-btn secondary" onClick={() => rejectApp(app._id)}>Отклонить</button>
                                                 <button className="settings-btn success-glass" onClick={() => approveApp(app._id)}>Одобрить</button>
                                             </>
                                         )}
@@ -447,10 +460,10 @@ const ModerationSettings: React.FC = () => {
                     </div>
                 </>
             ) : mainTab === 'vlyneid' ? (
-                <VlyneIdModeration />
+                <VlyneIdModeration focusId={focus?.kind === 'vlyne' ? focus.id : undefined} />
             ) : mainTab === 'problems' ? (
                 <>
-                    <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
+                    <div className="zv-tabs" style={{ marginBottom: '20px' }}>
                         {([
                             ['pending', 'Ожидают'],
                             ['resolved', 'Решено'],
@@ -459,7 +472,7 @@ const ModerationSettings: React.FC = () => {
                             <div
                                 key={key}
                                 onClick={() => setProblemFilter(key)}
-                                style={{ cursor: 'pointer', padding: '10px 20px', background: problemFilter === key ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: problemFilter === key ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
+                                className={`zv-tab ${problemFilter === key ? 'active' : ''}`}
                             >
                                 {label}
                             </div>
@@ -472,7 +485,7 @@ const ModerationSettings: React.FC = () => {
                         ) : problems.length === 0 ? (
                             <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>{problemFilter === 'pending' ? 'Жалоб на проблемы нет. 🛡️' : 'Список пока пуст.'}</div>
                         ) : problems.map(p => (
-                            <div key={p._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
+                            <div key={p._id} id={`problem-${p._id}`} className={`settings-card ${String(p._id) === focusProblemId ? 'mod-focus-flash' : ''}`} style={{ margin: 0, padding: '20px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
                                     <div style={{ minWidth: 0 }}>
                                         <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '16px' }}>{p.subject}</div>
@@ -517,11 +530,11 @@ const ModerationSettings: React.FC = () => {
                                         <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
                                             <strong>Обработал ({p.resolvedBy?.username || '—'}):</strong> {p.resolutionNote || 'Без комментария'}
                                         </div>
-                                        <button className="settings-btn" style={{ fontSize: '12px', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={() => resolveProblem(p._id, 'resolved' as any, '')}>Вернуть в ожидание</button>
+                                        <button className="settings-btn secondary zv-btn--sm" onClick={() => resolveProblem(p._id, 'pending', '')}>Вернуть в ожидание</button>
                                     </div>
                                 ) : (
                                     <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
-                                        <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={async () => {
+                                        <button className="settings-btn secondary" onClick={async () => {
                                             const note = await prompt('Комментарий (необязательно):', 'Не является проблемой');
                                             if (note === null) return;
                                             resolveProblem(p._id, 'dismissed', note);
@@ -539,22 +552,22 @@ const ModerationSettings: React.FC = () => {
                 </>
             ) : (
                 <>
-                    <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
+                    <div className="zv-tabs" style={{ marginBottom: '20px' }}>
                         <div
                             onClick={() => setFilter('pending')}
-                            style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'pending' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'pending' ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
+                            className={`zv-tab ${filter === 'pending' ? 'active' : ''}`}
                         >
                             Ожидают ({filter === 'pending' ? reports.length : '...'})
                         </div>
                         <div 
                             onClick={() => setFilter('resolved')} 
-                            style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'resolved' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'resolved' ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
+                            className={`zv-tab ${filter === 'resolved' ? 'active' : ''}`}
                         >
                             Решено
                         </div>
                         <div 
                             onClick={() => setFilter('dismissed')} 
-                            style={{ cursor: 'pointer', padding: '10px 20px', background: filter === 'dismissed' ? 'var(--primary-neon)' : 'rgba(255,255,255,0.05)', color: filter === 'dismissed' ? 'black' : 'white', borderRadius: '12px', fontWeight: 600, fontSize: '14px', transition: 'all 0.2s' }}
+                            className={`zv-tab ${filter === 'dismissed' ? 'active' : ''}`}
                         >
                             Отклонено
                         </div>
@@ -567,7 +580,7 @@ const ModerationSettings: React.FC = () => {
                             <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>{filter === 'pending' ? 'Жалоб нет. Всё спокойно! 🛡️' : 'Список пока пуст.'}</div>
                         ) : (
                             reports.map(report => (
-                                <div key={report._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
+                                <div key={report._id} id={`report-${report._id}`} className={`settings-card ${String(report._id) === focusReportId ? 'mod-focus-flash' : ''}`} style={{ margin: 0, padding: '20px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                                         <div>
                                             <div style={{ fontSize: '14px', marginBottom: '6px' }}>
@@ -602,7 +615,7 @@ const ModerationSettings: React.FC = () => {
                                             <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
                                                 <strong>Решение модератора ({report.resolvedBy?.username}):</strong> {report.resolutionNote || 'Без комментария'}
                                             </div>
-                                            <button className="settings-btn" style={{ fontSize: '12px', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={async () => {
+                                            <button className="settings-btn secondary zv-btn--sm" onClick={async () => {
                                                 if (await confirm('Вы уверены, что хотите отменить вердикт и вернуть жалобу в список ожидания?')) {
                                                     try {
                                                         await axios.post(`/api/moderation/reports/${report._id}/unresolve`);
@@ -619,14 +632,14 @@ const ModerationSettings: React.FC = () => {
 
                                     {report.status === 'pending' && (
                                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
-                                            <button className="settings-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }} onClick={async () => {
+                                            <button className="settings-btn secondary" onClick={async () => {
                                                 try {
                                                     await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'dismissed', note: 'Отклонено модератором' });
                                                     fetchReports(filter);
                                                 } catch (e) { }
                                             }}>Отклонить</button>
                                             
-                                            <button className="settings-btn" style={{ background: 'rgba(240, 178, 50, 0.2)', color: '#f0b232', boxShadow: 'none' }} onClick={async () => {
+                                            <button className="settings-btn zv-btn--warning" onClick={async () => {
                                                 const reason = await prompt('Укажите причину временного бана:', 'Нарушение правил сообщества');
                                                 if (reason) {
                                                     try {

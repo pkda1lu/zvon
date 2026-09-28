@@ -11,7 +11,7 @@
   box-shadow: var(--shadow-deep);
   z-index: 5000;
   padding: 15px;
-  animation: slideInFromRight 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideInFromRight 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .notification-content {
@@ -105,9 +105,13 @@
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(40px);
   z-index: 4000;
-  display: flex;
-  flex-direction: column;
-  animation: fadeIn 0.4s ease;
+  /* Три строки: шапка, плитки, панель кнопок. Панель раньше висела
+     absolute в 50 px от низа отдельно от плиток — между ними зияла пустота,
+     а в невысоком окне плитки уходили под кнопки. */
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  --call-chrome: 250px; /* шапка + панель кнопок с отступами — для расчёта плиток */
+  animation: fadeIn 0.25s ease;
   will-change: opacity;
 }
 
@@ -117,17 +121,25 @@
 }
 
 .call-topbar {
-  display: flex;
+  /* Кнопка «назад» слева, название и статус — по центру экрана. */
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
   align-items: center;
-  justify-content: space-between;
-  padding: 30px 40px;
+  gap: 16px;
+  padding: 24px 32px 12px;
   z-index: 10;
 }
 
 .call-topbar-left {
+  display: contents;
+}
+
+.call-topbar-center {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .back-to-app-btn {
@@ -151,10 +163,17 @@
 }
 
 .call-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
   font-size: 22px;
   font-weight: 800;
   color: white;
   letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .call-duration {
@@ -170,18 +189,18 @@
 }
 
 .call-main {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 60px 100px;
+  min-height: 0;
+  padding: 12px 40px;
 }
 
 .video-grid {
   width: 100%;
   max-width: 1300px;
-  height: 100%;
-  max-height: 800px;
+  max-height: 100%;
+  margin: 0 auto;
   position: relative;
   will-change: transform;
   display: grid;
@@ -478,10 +497,8 @@
 
 /* --- CONTROL BAR --- */
 .call-controls-bar {
-  position: absolute;
-  bottom: 50px;
-  left: 50%;
-  transform: translateX(-50%);
+  justify-self: center;
+  margin: 8px 0 32px;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -749,14 +766,21 @@
 }
 
 /* Specific layouts for common counts */
+/* Ширина сетки ограничена ещё и высотой окна: плитки 16:9 целиком помещаются
+   между шапкой и панелью кнопок и стоят по центру, а не вылезают вниз. */
 .video-grid.count-1 {
   grid-template-columns: 1fr;
-  max-width: 900px;
+  max-width: min(900px, calc((100vh - var(--call-chrome)) * 16 / 9));
 }
 
 .video-grid.count-2 {
-  grid-template-columns: repeat(2, 1fr);
-  max-width: 1400px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: min(1400px, calc((100vh - var(--call-chrome)) * 32 / 9 + 20px));
+}
+
+.video-grid.count-3,
+.video-grid.count-4 {
+  max-width: min(1300px, calc((100vh - var(--call-chrome) - 20px) / 2 * 32 / 9 + 20px));
 }
 
 .video-grid.has-screenshare {
@@ -965,4 +989,51 @@
     transform: scale(1);
     opacity: 0.3;
   }
+}
+/* Выключенный микрофон участника: значок в углу плитки и в подписи. */
+.participant-mic-off {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 11;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(242, 63, 66, 0.5);
+  color: #f23f42;
+}
+
+.participant-label-mic {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-right: 6px;
+  color: #f23f42;
+}
+
+.dm-call-mic-off {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 6px;
+  color: #f23f42;
+}
+
+/* Узкое окно или телефон: плитки в столбец, шапка и кнопки компактнее. */
+@media (max-width: 760px) {
+  .voice-call-full-view { --call-chrome: 210px; }
+  .call-topbar { padding: 16px 16px 8px; grid-template-columns: 40px minmax(0, 1fr) 40px; }
+  .call-title { font-size: 17px; }
+  .call-main { padding: 8px 16px; }
+  .video-grid.count-2,
+  .video-grid.count-3,
+  .video-grid.count-4 {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: min(100%, calc((100vh - var(--call-chrome) - 20px) / 2 * 16 / 9));
+  }
+  .call-controls-bar { gap: 12px; padding: 10px 16px; margin-bottom: 16px; }
+  .control-circle { width: 48px; height: 48px; border-radius: 18px; }
+  .end-call-circle { width: 64px; }
 }

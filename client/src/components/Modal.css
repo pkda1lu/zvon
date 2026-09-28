@@ -127,51 +127,5 @@
 }
 
 /* --- BUTTON PRIMITIVES FOR MODAL ACTIONS --- */
-.zv-btn {
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: var(--fast-transition);
-  border: 1px solid transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-}
+/* Кнопки .zv-btn — в styles/buttons.css. */
 
-.zv-btn--ghost {
-  background: transparent;
-  color: var(--text-dim);
-}
-.zv-btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-main);
-}
-
-.zv-btn--primary {
-  background: var(--primary-neon);
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(0, 106, 255, 0.35);
-}
-.zv-btn--primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 106, 255, 0.5);
-}
-.zv-btn--primary:active { transform: translateY(0); }
-.zv-btn--primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.zv-btn--danger {
-  background: var(--danger);
-  color: #fff;
-}
-.zv-btn--danger:hover {
-  filter: brightness(1.1);
-}

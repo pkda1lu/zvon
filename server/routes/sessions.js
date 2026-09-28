@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const Session = require('../models/Session');
 const auth = require('../middleware/auth');
+const { lookupCountryName } = require('../utils/deviceInfo');
 
 // Маскируем IP для отображения (не отдаём полный адрес целиком в открытую,
 // но достаточно для распознавания пользователем).
 function publicSession(s, currentId) {
+  const geo = lookupCountryName(s.ip);
   return {
     id: s._id,
     browser: s.browser,
@@ -14,9 +16,11 @@ function publicSession(s, currentId) {
     deviceName: s.deviceName,
     deviceId: s.deviceId || '',
     ip: s.ip,
-    country: s.country,
-    countryCode: s.countryCode,
-    city: s.city,
+    // Страна — по текущей базе, а не сохранённая при входе: в старых записях
+    // она определена по устаревшей базе и бывает неверной.
+    // Город сбрасываем вместе с ней: он из той же старой базы (DB-IP Lite
+    // городов не знает) и мог бы противоречить стране.
+    ...(geo ? { ...geo, city: '' } : { country: s.country, countryCode: s.countryCode, city: s.city }),
     createdAt: s.createdAt,
     lastActiveAt: s.lastActiveAt,
     current: String(s._id) === String(currentId)

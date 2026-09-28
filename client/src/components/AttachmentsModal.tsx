@@ -8,10 +8,13 @@ import {
   DocumentIcon, 
   SpeakerIcon, 
   VideoIcon, 
-  CameraIcon, 
+  ImageIcon,
   CloseIcon,
   EllipsisIcon
 } from './Icons';
+import MediaLightbox from './MediaLightbox';
+import { getMediaKind } from '../utils/mediaKind';
+import { downloadFile } from '../utils/transfers';
 import './AttachmentsModal.css';
 
 interface AttachmentsModalProps {
@@ -36,6 +39,7 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'images' | 'videos' | 'audio' | 'files'>('all');
+  const [lightbox, setLightbox] = useState<{ media: AttachmentItem[]; index: number } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -45,13 +49,14 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      // Пока открыт просмотрщик, Esc закрывает только его.
+      if (e.key === 'Escape' && isOpen && !lightbox) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, lightbox]);
 
   const fetchAttachments = async () => {
     setIsLoading(true);
@@ -68,12 +73,10 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
     }
   };
 
+  // Тип — тем же правилом, что у вложений в сообщениях (utils/mediaKind).
   const getAttachmentType = (filename: string, contentType: string): 'images' | 'videos' | 'audio' | 'files' => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic'].includes(ext || '') || contentType.startsWith('image/')) return 'images';
-    if (['mp4', 'mov', 'avi', 'webm', 'mkv', 'flv'].includes(ext || '') || contentType.startsWith('video/')) return 'videos';
-    if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext || '') || contentType.startsWith('audio/')) return 'audio';
-    return 'files';
+    const kind = getMediaKind({ filename, type: contentType });
+    return kind === 'image' ? 'images' : kind === 'video' ? 'videos' : kind === 'audio' ? 'audio' : 'files';
   };
 
   const allAttachments = useMemo(() => {
@@ -119,21 +122,21 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const handleDownload = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-       window.open(url, '_blank');
+  /**
+   * Клик по карточке: фото и видео открываются в просмотрщике (листаются все
+   * картинки и видео текущего списка, там же «Скачать»), аудио и остальные
+   * файлы скачиваются с прогрессом (utils/transfers).
+   */
+  const openCard = (att: AttachmentItem, type: string) => {
+    if (type === 'images' || type === 'videos') {
+      const media = filteredAttachments.filter(a => {
+        const t = getAttachmentType(a.filename, a.type);
+        return t === 'images' || t === 'videos';
+      });
+      setLightbox({ media, index: Math.max(0, media.indexOf(att)) });
+      return;
     }
+    downloadFile(getFullUrl(att.url) || att.url, att.filename);
   };
 
   return (
@@ -156,7 +159,7 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
             <span>Все вложения</span>
           </div>
           <div className={`sidebar-item ${activeTab === 'images' ? 'active' : ''}`} onClick={() => setActiveTab('images')}>
-            <CameraIcon size={20} />
+            <ImageIcon size={20} />
             <span>Фотографии</span>
           </div>
           <div className={`sidebar-item ${activeTab === 'videos' ? 'active' : ''}`} onClick={() => setActiveTab('videos')}>
@@ -207,22 +210,35 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
                       <div key={type} className="type-group">
                         <div className="attachments-grid">
                           {items.map((att, idx) => (
-                            <div key={`${att.messageId}-${idx}`} className="attachment-card">
+                            <div
+                              key={`${att.messageId}-${idx}`}
+                              className={`attachment-card ${type === 'images' || type === 'videos' ? 'is-media' : 'is-file'}`}
+                              role="button"
+                              tabIndex={0}
+                              title={type === 'images' || type === 'videos' ? 'Открыть' : 'Скачать'}
+                              onClick={() => openCard(att, type)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCard(att, type); } }}
+                            >
                               <div className="card-preview">
                                 {type === 'images' ? (
                                   <img src={getFullUrl(att.url) || ''} alt={att.filename} loading="lazy" />
                                 ) : type === 'videos' ? (
-                                  <video src={getFullUrl(att.url) || ''} />
+                                  <>
+                                    {/* #t=0.1 — показать первый кадр вместо чёрного прямоугольника. */}
+                                    <video src={`${getFullUrl(att.url) || ''}#t=0.1`} preload="metadata" muted playsInline />
+                                    <div className="card-play-badge"><VideoIcon size={18} /></div>
+                                  </>
                                 ) : type === 'audio' ? (
                                   <div className="audio-icon"><SpeakerIcon size={40} /></div>
                                 ) : (
                                   <div className="file-icon"><DocumentIcon size={40} /></div>
                                 )}
-                                <div className="card-overlay">
-                                  <button className="download-btn" onClick={() => handleDownload(getFullUrl(att.url) || '', att.filename)} title="Скачать">
-                                    <DownloadIcon size={22} />
-                                  </button>
-                                </div>
+                                {/* Значок скачивания — только у аудио и файлов: фото и видео открываются, скачать их можно в просмотрщике. */}
+                                {type !== 'images' && type !== 'videos' && (
+                                  <div className="card-overlay">
+                                    <span className="download-btn" aria-hidden="true"><DownloadIcon size={22} /></span>
+                                  </div>
+                                )}
                               </div>
                               <div className="card-info">
                                 <span className="file-name" title={att.filename}>{att.filename}</span>
@@ -242,6 +258,12 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
            </div>
         </div>
       </div>
+      <MediaLightbox
+        isOpen={!!lightbox}
+        onClose={() => setLightbox(null)}
+        media={lightbox?.media || []}
+        initialIndex={lightbox?.index || 0}
+      />
     </AnimatedOverlay>
   );
 };

@@ -92,7 +92,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Без transform: масштаб ведёт framer (pressFeedback), CSS-переход поверх
+     него замедлял и смазывал пружину. */
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, border-radius 0.3s ease;
   color: var(--text-muted);
   font-weight: 800;
   font-size: calc(18px * var(--interface-scale, 1));
@@ -185,7 +187,7 @@
 .home-icon:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: var(--primary-neon);
-  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
 }
 
 .friends-sidebar-icon {
@@ -199,7 +201,6 @@
   background: rgba(255, 255, 255, 0.08);
   border-color: #ffffff;
   color: #ffffff;
-  transform: translateY(-2px);
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
 }
 
@@ -219,7 +220,6 @@
 .showcase-sidebar-icon.active {
   background: rgba(255, 255, 255, 0.08);
   border-color: var(--accent-pink);
-  transform: translateY(-2px);
   box-shadow: 0 0 20px rgba(255, 0, 200, 0.3);
 }
 
@@ -341,23 +341,23 @@
   z-index: 10;
 }
 .status-indicator.online {
-  background: #23a559;
-  box-shadow: 0 0 10px #23a559;
+  background: var(--status-online);
+  box-shadow: 0 0 10px var(--status-online);
 }
 .status-indicator.away {
-  background: #faa61a;
-  box-shadow: 0 0 10px #faa61a;
+  background: var(--status-away);
+  box-shadow: 0 0 10px var(--status-away);
 }
 .status-indicator.busy {
-  background: #f04747;
-  box-shadow: 0 0 10px #f04747;
+  background: var(--status-busy);
+  box-shadow: 0 0 10px var(--status-busy);
 }
 .status-indicator.streaming {
   background: var(--secondary-neon, #7000ff);
   box-shadow: 0 0 10px var(--secondary-neon, #7000ff);
 }
 .status-indicator.offline {
-  background: #747f8d;
+  background: var(--status-offline);
 }
 
 .logout-button {
@@ -373,7 +373,7 @@
   align-items: center;
   justify-content: center;
   border-radius: calc(4px * var(--interface-scale, 1));
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   flex-shrink: 0;
 }
 
@@ -381,7 +381,6 @@
   color: var(--primary-neon);
   background: rgba(0, 229, 255, 0.1);
   box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
-  transform: scale(1.1);
 }
 
 .sidebar-user-actions {
@@ -499,4 +498,21 @@
 .server-icon-avatar.is-muted:hover {
   opacity: 1;
   filter: none;
+}
+
+/* Своя аватарка в левой панели: масштаб даёт обёртка (framer, как у
+   серверов). Общее правило .user-avatar:hover добавляло ещё scale(1.1) и
+   поворот — аватарка увеличивалась дважды и наклонялась. */
+.sidebar-user .user-avatar:hover,
+.sidebar-user .user-avatar.user-avatar-container:hover {
+  transform: none;
+}
+
+.sidebar-user .user-avatar-wrapper:hover .user-avatar {
+  border-color: var(--primary-neon);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+}
+
+.sidebar-user .user-avatar {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }

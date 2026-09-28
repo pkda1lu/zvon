@@ -196,3 +196,79 @@
     opacity: 0.05;
     pointer-events: none;
 }
+/* --- ПЕРЕДАЧА ФАЙЛОВ (TransferToasts) ---
+   Тот же стеклянный тост, что у уведомлений, плюс строка файла и полоса
+   прогресса. Клик по самому тосту ничего не делает — действие только у ×. */
+.notification-toast.transfer-toast {
+    cursor: default;
+}
+
+.notification-toast.transfer-toast:hover {
+    transform: none;
+}
+
+.transfer-toast-icon.success { background: linear-gradient(135deg, var(--success), #15a35a); }
+.transfer-toast-icon.error { background: linear-gradient(135deg, var(--danger), #c23040); }
+.transfer-toast-icon.warning { background: linear-gradient(135deg, var(--warning, #f0b232), #b9861c); }
+
+.transfer-toast-name {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 18px;
+}
+
+.transfer-toast-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    font-variant-numeric: tabular-nums;
+}
+
+.transfer-toast-progress {
+    appearance: none;
+    -webkit-appearance: none;
+    display: block;
+    width: 100%;
+    height: 6px;
+    margin-top: 8px;
+    border: none;
+    border-radius: 3px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.transfer-toast-progress::-webkit-progress-bar {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+
+.transfer-toast-progress::-webkit-progress-value {
+    background: linear-gradient(90deg, var(--primary-neon), var(--secondary-neon));
+    border-radius: 3px;
+    box-shadow: 0 0 10px rgba(0, 106, 255, 0.45);
+    transition: width 0.2s ease;
+}
+
+.transfer-toast-progress::-moz-progress-bar {
+    background: linear-gradient(90deg, var(--primary-neon), var(--secondary-neon));
+    border-radius: 3px;
+}
+
+/* Размер неизвестен — бегущая полоска. */
+.transfer-toast-progress:indeterminate {
+    background-image: linear-gradient(90deg, transparent, var(--primary-neon), transparent);
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: transferIndeterminate 1.2s ease-in-out infinite;
+}
+
+.transfer-toast-progress:indeterminate::-webkit-progress-bar { background: transparent; }
+
+@keyframes transferIndeterminate {
+    from { background-position: -40% 0; }
+    to { background-position: 140% 0; }
+}
