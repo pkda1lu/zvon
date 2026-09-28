@@ -53,13 +53,21 @@ pub fn start(app: &AppHandle) {
         say(&app, "Проверка обновлений...");
 
         let check = async {
-            let updater = app.updater().map_err(|e| e.to_string())?;
-            updater.check().await.map_err(|e| e.to_string())
+            let updater = app.updater()?;
+            updater.check().await
         };
         let result = tokio::time::timeout(Duration::from_secs(10), check).await;
 
         match result {
             Err(_) => proceed(&app, &opened),
+            // В последнем релизе нет latest.json (или GitHub ответил не 200) —
+            // значит, обновлений для этой версии нет, это не ошибка.
+            Ok(Err(tauri_plugin_updater::Error::ReleaseNotFound)) => {
+                log::info!("[updater] манифест обновления не найден — обновлений нет");
+                say(&app, "У вас последняя версия");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                proceed(&app, &opened);
+            }
             Ok(Err(e)) => {
                 log::warn!("[updater] ошибка проверки: {e}");
                 say(&app, "Ошибка при поиске обновлений");
@@ -93,7 +101,7 @@ pub fn start(app: &AppHandle) {
                     Ok(()) => app.restart(),
                     Err(e) => {
                         log::error!("[updater] установка не удалась: {e}");
-                        say(&app, "Ошибка при поиске обновлений");
+                        say(&app, "Не удалось установить обновление");
                         tokio::time::sleep(Duration::from_secs(2)).await;
                         proceed(&app, &opened);
                     }
