@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { PlusIcon, CheckIcon, BlockIcon, AlertIcon } from './Icons';
 import { popoverVariants, popoverTransition, modalPopVariants, modalPopTransition, quickExit, overlayTransition } from '../animations/transitions';
 import ProfilePreview from './ProfilePreview';
+import { useFreezeAppBackground } from '../animations/useFreezeAppBackground';
 import './UserProfileCard.css';
 
 import { useAppearance } from '../contexts/AppearanceContext';
@@ -50,6 +51,13 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
     const [isVisible, setIsVisible] = useState(false);
 
     const isPopout = !isMobile && Boolean(position) && !forceFull;
+
+    // Полный профиль лежит поверх размытого фона: пока он открыт, живой фон
+    // стоит, иначе размытие пересчитывается каждый кадр и под окном рябит.
+    useFreezeAppBackground(!isPopout);
+    // Скелетон уже «выехал» — готовый профиль встаёт на его место без
+    // повторной анимации появления.
+    const skeletonShownRef = useRef(false);
 
     useEffect(() => {
         if (!isPopout || !position || !cardRef.current) return;
@@ -193,9 +201,36 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         }
     };
 
-        if (error) return (
-        <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose}>
-            <div
+    /*
+     * Одна оболочка-затемнение на все состояния карточки (загрузка, ошибка,
+     * профиль). Раньше скелетон и ошибка рисовались в обычном <div>, а профиль —
+     * в motion.div: тип элемента менялся, React пересоздавал затемнение с
+     * размытием, оно гасло и заново проявлялось — фон под ним мерцал.
+     */
+    const shell = (card: React.ReactNode) => (
+        <motion.div
+            className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`}
+            onClick={onClose}
+            style={{ zIndex: 4000 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, pointerEvents: 'none', transition: quickExit }}
+            transition={overlayTransition}
+        >
+            {card}
+        </motion.div>
+    );
+    const stateCardMotion = {
+        variants: isPopout ? popoverVariants : modalPopVariants,
+        initial: 'initial',
+        animate: isPopout ? (isVisible ? 'animate' : 'initial') : 'animate',
+        exit: 'exit',
+        transition: isPopout ? popoverTransition : modalPopTransition,
+    };
+
+        if (error) { skeletonShownRef.current = true; return shell(
+            <motion.div
+                {...stateCardMotion}
                 className={`user-profile-card error ${isPopout ? 'popout' : ''}`}
                 onClick={e => e.stopPropagation()}
                 style={isPopout ? {
@@ -203,7 +238,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     top: adjustedPos.top,
                     left: adjustedPos.left,
                     visibility: isVisible ? 'visible' : 'hidden',
-                    opacity: isVisible ? 1 : 0
                 } : undefined}
                 ref={cardRef}
             >
@@ -216,13 +250,12 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                         <button className="profile-action-btn secondary" onClick={onClose}>Закрыть</button>
                     </div>
                 </div>
-            </div>
-        </div>
-    );
+            </motion.div>
+        ); }
 
-    if (loading || !profileData) return (
-        <div className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`} onClick={onClose}>
-            <div
+    if (loading || !profileData) { skeletonShownRef.current = true; return shell(
+            <motion.div
+                {...stateCardMotion}
                 className={`user-profile-card loading-skeleton ${isPopout ? 'popout' : ''}`}
                 onClick={e => e.stopPropagation()}
                 style={isPopout ? {
@@ -230,7 +263,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     top: adjustedPos.top,
                     left: adjustedPos.left,
                     visibility: isVisible ? 'visible' : 'hidden',
-                    opacity: isVisible ? 1 : 0
                 } : undefined}
                 ref={cardRef}
             >
@@ -239,9 +271,8 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     <div className="profile-header"><div className="profile-avatar-container"><div className="profile-avatar skeleton"></div></div></div>
                     <div className="profile-body"><div className="skeleton-text large" style={{ width: '60%' }}></div></div>
                 </div>
-            </div>
-        </div>
-    );
+            </motion.div>
+        ); }
 
     const { user, mutualServers, mutualFriends, friendship, developments } = profileData;
     const isMe = currentUser?._id === userId;
@@ -385,16 +416,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
         </>
     );
 
-    return (
-        <motion.div
-            className={`user-profile-overlay ${isPopout ? 'transparent' : ''}`}
-            onClick={onClose}
-            style={{ zIndex: 4000 }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, pointerEvents: 'none', transition: quickExit }}
-            transition={overlayTransition}
-        >
+    return shell(
             <motion.div
                 onClick={e => e.stopPropagation()}
                 style={isPopout ? {
@@ -406,7 +428,7 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                 } : { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}
                 ref={cardRef}
                 variants={isPopout ? popoverVariants : modalPopVariants}
-                initial="initial"
+                initial={!isPopout && skeletonShownRef.current ? false : 'initial'}
                 animate={isPopout ? (isVisible ? 'animate' : 'initial') : 'animate'}
                 exit="exit"
                 transition={isPopout ? popoverTransition : modalPopTransition}
@@ -425,7 +447,6 @@ const UserProfileCard: React.FC<UserProfileCardProps> = ({ userId, onClose, serv
                     notice={blockedNotice}
                 />
             </motion.div>
-        </motion.div>
     );
 };
 

@@ -235,6 +235,18 @@ const Main: React.FC = () => {
   const [showFriends, setShowFriends] = useState(false);
   const [selectedDM, setSelectedDM] = useState<DirectMessage | null>(null);
   const [dmMessages, setDmMessages] = useState<Message[]>([]);
+  /*
+   * Снимок сообщений каждой открытой переписки в памяти. При переключении
+   * чатов сообщения прежнего оставались на экране, пока не ответит кэш
+   * (IndexedDB, асинхронно) или сеть, — мелькала чужая переписка. Теперь чат
+   * сразу показывает свои сообщения, а опоздавший ответ от уже закрытого
+   * чата текущий не перезаписывает.
+   */
+  const dmMemoryRef = useRef(new Map<string, Message[]>());
+  const dmOwnerRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (dmOwnerRef.current) dmMemoryRef.current.set(dmOwnerRef.current, dmMessages);
+  }, [dmMessages]);
   const [dms, setDms] = useState<DirectMessage[]>([]);
   // Для обработчика сообщений сокета: список переписок нужен ему для тоста,
   // но переподписываться на каждое изменение списка незачем.
@@ -1045,20 +1057,28 @@ const Main: React.FC = () => {
 
   const fetchDMMessages = useCallback(async (dmId: string) => {
     const cacheKey = `dm_${dmId}`;
+    const current = () => dmOwnerRef.current === dmId;
+    const fromMemory = dmMemoryRef.current.get(dmId);
+    if (dmOwnerRef.current !== dmId) {
+      dmOwnerRef.current = dmId;
+      setDmMessages(fromMemory || []);
+    }
     chatCache.getMessages(cacheKey).then((cachedMsgs) => {
-      if (cachedMsgs && cachedMsgs.length > 0) setDmMessages(cachedMsgs);
+      if (current() && !fromMemory && cachedMsgs && cachedMsgs.length > 0) setDmMessages(cachedMsgs);
     });
     chatCache.getPins(cacheKey).then((cachedPins) => {
-      if (cachedPins) setPinnedMessages(cachedPins);
+      if (current() && cachedPins) setPinnedMessages(cachedPins);
     });
 
     try {
       const response = await axios.get(`/api/direct-messages/${dmId}/messages`);
+      if (!current()) return;
       setDmMessages(response.data);
       chatCache.saveMessages(cacheKey, response.data);
       setHasMore(response.data.length === 50);
 
       const pinsRes = await axios.get(`/api/direct-messages/${dmId}/pins`);
+      if (!current()) return;
       setPinnedMessages(pinsRes.data);
       chatCache.savePins(cacheKey, pinsRes.data);
     } catch (error) { }
@@ -1551,7 +1571,8 @@ const Main: React.FC = () => {
     try {
       const response = await axios.get(`/api/direct-messages/user/${userId}`);
       setInitialUnreadCount(unreadCounts[response.data._id] || 0);
-      setDmMessages([]);
+      dmOwnerRef.current = response.data._id;
+      setDmMessages(dmMemoryRef.current.get(response.data._id) || []);
       setSelectedDM(response.data);
       setSelectedChannel(null);
       setSelectedServer(null);
@@ -1744,6 +1765,10 @@ const Main: React.FC = () => {
   const handleOpenCreateGroupModal = useCallback(() => setShowCreateGroupModal(true), []);
 
   const handleDMSelect = useCallback((dm: DirectMessage) => {
+    if (dmOwnerRef.current !== dm._id) {
+      dmOwnerRef.current = dm._id;
+      setDmMessages(dmMemoryRef.current.get(dm._id) || []);
+    }
     setSelectedDM(dm);
     setShowFriends(false);
     setShowShowcase(false);
@@ -2254,7 +2279,13 @@ const Main: React.FC = () => {
                     initial="initial" animate="animate" exit="exit"
                     transition={iosSpring}
                   >
-                    <div key={selectedDM._id} className="content-inner-layer">
+                    <motion.div
+                      key={selectedDM._id}
+                      className="content-inner-layer"
+                      initial={{ opacity: 0, x: 8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ type: 'tween', ease: [0.22, 0.8, 0.3, 1], duration: 0.22 }}
+                    >
                       <Suspense fallback={<LazyViewFallback />}>
                       <DMView
                         dm={selectedDM}
@@ -2276,7 +2307,7 @@ const Main: React.FC = () => {
                         isMobile={isMobile}
                       />
                       </Suspense>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )}
 

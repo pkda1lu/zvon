@@ -11,7 +11,8 @@
     align-items: center;
     justify-content: center;
     z-index: 3000;
-    animation: fadeIn 0.3s ease-out;
+    /* Появление ведёт framer (UserProfileCard): CSS-анимация поверх неё
+       проигрывала затемнение второй раз. */
 }
 
 .user-profile-overlay.transparent {

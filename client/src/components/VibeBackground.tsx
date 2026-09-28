@@ -205,7 +205,11 @@ const VibeBackground: React.FC<VibeBackgroundProps> = ({ className = '', colors,
         // поэтому здесь следим за классом руками. Шейдер — самый дорогой из
         // декоративных слоёв, и выигрыш от паузы у него наибольший.
         const root = document.documentElement;
-        const shouldRun = () => !document.hidden && !root.classList.contains('app-idle');
+        // Пока открыто окно поверх размытого фона (useFreezeAppBackground ставит
+        // body[data-modal-open]), шейдер тоже стоит: CSS-пауза его цикл не
+        // останавливала, и размытие под окном пересчитывалось каждый кадр —
+        // фон мерцал, например, при открытии своего профиля.
+        const shouldRun = () => !document.hidden && !root.classList.contains('app-idle') && !document.body.dataset.modalOpen;
 
         const sync = () => {
             if (shouldRun()) {
@@ -226,6 +230,7 @@ const VibeBackground: React.FC<VibeBackgroundProps> = ({ className = '', colors,
         document.addEventListener('visibilitychange', sync);
         const idleObserver = new MutationObserver(sync);
         idleObserver.observe(root, { attributes: true, attributeFilter: ['class'] });
+        idleObserver.observe(document.body, { attributes: true, attributeFilter: ['data-modal-open'] });
 
         resize();
         if (shouldRun()) raf = requestAnimationFrame(frame);
