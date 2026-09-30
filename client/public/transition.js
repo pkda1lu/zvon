@@ -318,14 +318,26 @@ function launchInstaller(setupPath) {
     // BOM: Windows PowerShell 5.1 читает скрипт без него в системной кодировке.
     fs.writeFileSync(script, '﻿' + INSTALL_SCRIPT, 'utf8');
     const log = path.join(app.getPath('userData'), 'transition.log');
-    const child = spawn('powershell.exe', [
+    const args = [
         '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
         '-File', script,
         '-ElectronPid', String(process.pid),
         '-Setup', setupPath,
         '-OldDir', path.dirname(process.execPath),
         '-Log', log,
-    ], { detached: true, stdio: 'ignore', windowsHide: true });
+    ];
+    // Запуск через `start`, а не spawn('powershell.exe', …, { detached }):
+    //  • с detached libuv создаёт процесс без консоли (DETACHED_PROCESS), и
+    //    PowerShell 5.1 без консоли тихо не стартует — так 2.9.2 скачивала
+    //    установщик, но переход не начинался;
+    //  • без detached процесс попадает в job-объект libuv и погибает вместе с
+    //    Electron, не дождавшись его выхода.
+    // `start` создаёт PowerShell с собственной консолью (её прячет
+    // -WindowStyle Hidden) и вне job-объекта приложения.
+    const quoted = args.map(a => `"${a}"`).join(' ');
+    const child = spawn('cmd.exe', ['/d', '/s', '/c', `"start "" /min powershell.exe ${quoted}"`], {
+        detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true,
+    });
     child.unref();
 }
 

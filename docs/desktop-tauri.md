@@ -49,13 +49,13 @@ Electron. Интерфейс не менялся: это тот же React-ба�
 Установленные клиенты на Electron умеют читать только `latest.yml`. Цепочка:
 
 ```
-Electron ≤ 2.8.x ──latest.yml──▶ Electron 2.9.2 (переходная) ──latest.json──▶ Tauri 3.x
+Electron ≤ 2.8.x ──latest.yml──▶ Electron 2.9.3 (переходная) ──latest.json──▶ Tauri 3.x
 ```
 
-1. Старый клиент видит в `latest.yml` версию **2.9.2** и обновляется до неё
+1. Старый клиент видит в `latest.yml` версию **2.9.3** и обновляется до неё
    обычным путём (для установки «для всех пользователей» — с запросом UAC, как
    и всегда).
-2. 2.9.2 при запуске (`client/public/transition.js`):
+2. 2.9.3 при запуске (`client/public/transition.js`):
    - выгружает localStorage интерфейса (вход, настройки звука, клавиши…) в
      `%APPDATA%\zvon-client\zvon-migration.json`;
    - читает `latest.json`, скачивает установщик новой версии и проверяет
@@ -76,7 +76,7 @@ Electron ≤ 2.8.x ──latest.yml──▶ Electron 2.9.2 (переходна�
 
 ### Правило для всех будущих релизов
 
-**В каждом релизе должны лежать `latest.yml` и `Zvon-Setup-2.9.2.exe`.**
+**В каждом релизе должны лежать `latest.yml` и `Zvon-Setup-2.9.3.exe`.**
 Клиент, не запускавшийся со времён Electron, читает `latest.yml` последнего
 релиза; если его там нет, он не обновится никогда. Скрипт
 `release-assets.mjs` кладёт их автоматически.
@@ -95,7 +95,7 @@ npm run tauri:build
 
 # 2. Переходная версия — один раз; результат хранится в release-transition/
 npm run electron:build:transition
-mkdir -p release-transition && cp dist/Zvon-Setup-2.9.2.exe* dist/latest.yml release-transition/
+mkdir -p release-transition && cp dist/Zvon-Setup-2.9.3.exe* dist/latest.yml release-transition/
 
 # 3. Файлы релиза
 npm run release:assets        # → release/v<версия>/
@@ -114,7 +114,7 @@ gh release create v<версия> release/v<версия>/* --title <верси�
    добавлен origin `http://tauri.localhost`.
 2. **Релиз v3.0.0** со всеми файлами из `release/v3.0.0/`.
 3. Проверить на чистой машине (виртуалке) с установленной 2.8.x: обновление
-   до 2.9.2 → переход → Tauri открылся вошедшим, в «Программах и компонентах»
+   до 2.9.3 → переход → Tauri открылся вошедшим, в «Программах и компонентах»
    один Zvon, ярлыки ведут на новую версию, `zvon://` открывает её.
 
 ### Ключ подписи
@@ -136,10 +136,15 @@ npm run tauri:dev
 трогает автозапуск и регистрацию `zvon://`. Если на диске C: мало места,
 можно вынести кэш Cargo и временные файлы: `CARGO_HOME`, `TEMP`, `TMP`.
 
-### Почему переходная — 2.9.2, а не 2.9.1
+### Почему переходная — 2.9.3
 
 2.9.1 проверяла подпись установщика через `crypto.createHash('blake2b512')`,
 а в Electron (crypto на BoringSSL) BLAKE2 нет — «Digest method not supported»,
 и переход молча откладывался. В 2.9.2 BLAKE2b-512 реализован в `transition.js`
 на чистом JS. 2.9.1 обновляется до 2.9.2 обычным electron-updater (он
 сверяет sha512 из `latest.yml`, minisign ему не нужен).
+
+2.9.2 проверяла подпись, но сценарий установки не запускался: PowerShell,
+созданный через `spawn(..., { detached: true })`, остаётся без консоли и
+тихо не стартует, а без `detached` попадает в job-объект libuv и гибнет вместе
+с Electron. С 2.9.3 сценарий запускается через `cmd /c start`.
