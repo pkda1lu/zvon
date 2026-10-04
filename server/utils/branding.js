@@ -81,6 +81,17 @@ const initBrands = async () => {
   }
 };
 
+const cleanDomain = (d) => {
+  if (!d || typeof d !== 'string') return '';
+  return d
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .split(':')[0]
+    .trim();
+};
+
 /**
  * Reloads all brands from database into memory cache
  */
@@ -94,7 +105,7 @@ const reloadBrands = async () => {
       freshBrands[b.id] = {
         id: b.id,
         name: b.name,
-        domain: b.domain || '',
+        domain: cleanDomain(b.domain),
         domainBehavior: b.domainBehavior || 'open',
         supportEmail: b.supportEmail || '',
         logo: b.logo || 'zvonlogonew.png',
@@ -148,12 +159,14 @@ const getBrand = (req) => {
     return BRANDS.zvon || DEFAULT_BRANDS.zvon;
   }
 
-  const host = (req.get ? req.get('host') : req.headers?.host) || '';
+  const rawHost = (req.get ? req.get('host') : req.headers?.host) || '';
+  const rawXForwardedHost = (req.get ? req.get('x-forwarded-host') : req.headers?.['x-forwarded-host']) || '';
+  const host = cleanDomain(rawHost);
+  const xForwardedHost = cleanDomain(rawXForwardedHost);
   const origin = (req.get ? req.get('origin') : req.headers?.origin) || '';
   const referer = (req.get ? req.get('referer') : req.headers?.referer) || '';
-  const xForwardedHost = (req.get ? req.get('x-forwarded-host') : req.headers?.['x-forwarded-host']) || '';
 
-  const fullHeaderStr = `${host} ${origin} ${referer} ${xForwardedHost}`.toLowerCase();
+  const fullHeaderStr = `${rawHost} ${origin} ${referer} ${rawXForwardedHost}`.toLowerCase();
 
   // localhost и 127.0.0.1 всегда относятся к Zvon
   if (fullHeaderStr.includes('localhost') || fullHeaderStr.includes('127.0.0.1')) {
@@ -169,9 +182,18 @@ const getBrand = (req) => {
   } else {
     // Проверяем все включенные бренды по домену
     for (const [key, brand] of Object.entries(BRANDS)) {
-      if (key !== 'zvon' && brand.enabled !== false && brand.domainBehavior !== 'disabled' && brand.domain && fullHeaderStr.includes(brand.domain.toLowerCase())) {
-        resolved = brand;
-        break;
+      if (key !== 'zvon' && brand.enabled !== false && brand.domainBehavior !== 'disabled' && brand.domain) {
+        const cleanBrandDomain = cleanDomain(brand.domain);
+        if (cleanBrandDomain && (
+          host === cleanBrandDomain ||
+          host.endsWith('.' + cleanBrandDomain) ||
+          xForwardedHost === cleanBrandDomain ||
+          xForwardedHost.endsWith('.' + cleanBrandDomain) ||
+          fullHeaderStr.includes(cleanBrandDomain)
+        )) {
+          resolved = brand;
+          break;
+        }
       }
     }
   }

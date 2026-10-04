@@ -89,7 +89,16 @@ adminRouter.post('/', [auth, isModerator], async (req, res) => {
       parsedIcons[0].isPrimary = true;
     }
 
-    const primaryIcon = parsedIcons.find(i => i.isPrimary) || parsedIcons[0];
+const cleanDomain = (d) => {
+  if (!d || typeof d !== 'string') return '';
+  return d
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .split(':')[0]
+    .trim();
+};
 
     const zvon = BRANDS.zvon || { logo: 'zvonlogonew.png', favicon: 'icon.png', supportEmail: 'support@zvonserver.ru' };
     const finalBehavior = ['open', 'redirect', 'disabled'].includes(domainBehavior) ? domainBehavior : 'open';
@@ -97,7 +106,7 @@ adminRouter.post('/', [auth, isModerator], async (req, res) => {
     const brand = await Brand.create({
       id: cleanId,
       name: name.trim(),
-      domain: (domain || '').trim().toLowerCase(),
+      domain: cleanDomain(domain),
       domainBehavior: finalBehavior,
       supportEmail: (supportEmail || '').trim() || zvon.supportEmail,
       logo: (logo || '').trim() || zvon.logo,
@@ -150,7 +159,7 @@ adminRouter.put('/:id', [auth, isModerator], async (req, res) => {
     }
 
     if (name !== undefined) brand.name = String(name).trim();
-    if (domain !== undefined) brand.domain = String(domain).trim().toLowerCase();
+    if (domain !== undefined) brand.domain = cleanDomain(domain);
     if (domainBehavior !== undefined && brandId !== 'zvon' && ['open', 'redirect', 'disabled'].includes(domainBehavior)) {
       brand.domainBehavior = domainBehavior;
       brand.enabled = domainBehavior !== 'disabled';
@@ -250,7 +259,7 @@ adminRouter.get('/nginx/config', [auth, isModerator], async (req, res) => {
     const brands = await Brand.find({ domainBehavior: { $ne: 'disabled' } }).lean();
     const domains = Array.from(new Set(
       brands
-        .map(b => (b.domain || '').trim().toLowerCase())
+        .map(b => cleanDomain(b.domain))
         .filter(d => d && !d.includes('localhost') && !d.includes('127.0.0.1'))
     ));
     if (!domains.includes('zvonserver.ru')) {

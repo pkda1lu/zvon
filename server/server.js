@@ -229,8 +229,50 @@ app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
   }
 }));
 
-// Serve static assets from the React app
-app.use(express.static(path.join(__dirname, '../client/build')));
+// Middleware проверки поведения доменов для брендов:
+// Если домен настроен на редирект на основной или отключен,
+// перенаправляем браузер до отдачи статики или рендеринга страницы.
+app.use((req, res, next) => {
+  // Не трогаем API, OAuth, well-known и SDK
+  if (
+    req.path.startsWith('/api') || 
+    req.path.startsWith('/oauth') || 
+    req.path.startsWith('/.well-known') ||
+    req.path === '/zvon-sdk.js'
+  ) {
+    return next();
+  }
+
+  const rawHost = (req.get('x-forwarded-host') || req.get('host') || '').toLowerCase();
+  const host = rawHost.split(':')[0].trim();
+  if (!host || host === 'localhost' || host === '127.0.0.1' || host === 'tauri.localhost') {
+    return next();
+  }
+
+  const { BRANDS } = require('./utils/branding');
+  for (const [k, b] of Object.entries(BRANDS)) {
+    if (k !== 'zvon' && b.domain) {
+      const cleanBrandDomain = b.domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0].trim().toLowerCase();
+      if (cleanBrandDomain && (host === cleanBrandDomain || host.endsWith('.' + cleanBrandDomain))) {
+        if (b.domainBehavior === 'redirect') {
+          const rawTarget = BRANDS.zvon?.domain || 'zvonserver.ru';
+          const targetHost = rawTarget.replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0].trim();
+          if (host !== targetHost.toLowerCase()) {
+            return res.redirect(302, `https://${targetHost}${req.originalUrl || ''}`);
+          }
+        }
+        if (b.domainBehavior === 'disabled') {
+          return res.status(503).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Сайт недоступен</title><style>body{background:#0b0c10;color:#fff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}div{text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.03);}</style></head><body><div><h2>Домен временно недоступен</h2><p style="color:#888;">Обслуживание сайта по этому домену приостановлено.</p></div></body></html>`);
+        }
+      }
+    }
+  }
+
+  next();
+});
+
+// Serve static assets from the React app (без отдачи index.html для корня, чтобы корень шёл в catchall с динамической подстановкой брендинга)
+app.use(express.static(path.join(__dirname, '../client/build'), { index: false }));
 
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
@@ -241,18 +283,25 @@ app.get(/^(?!\/api).+/, (req, res) => {
   
   const indexPath = path.join(__dirname, '../client/build/index.html');
   if (fs.existsSync(indexPath)) {
-      const host = (req.get('x-forwarded-host') || req.get('host') || '').toLowerCase();
+      const rawHost = (req.get('x-forwarded-host') || req.get('host') || '').toLowerCase();
+      const host = rawHost.split(':')[0].trim();
       const { BRANDS } = require('./utils/branding');
 
       // Check domain behavior for incoming request host
       for (const [k, b] of Object.entries(BRANDS)) {
-        if (k !== 'zvon' && b.domain && host.includes(b.domain.toLowerCase())) {
-          if (b.domainBehavior === 'redirect') {
-            const targetHost = BRANDS.zvon?.domain || 'zvonserver.ru';
-            return res.redirect(302, `https://${targetHost}${req.originalUrl || ''}`);
-          }
-          if (b.domainBehavior === 'disabled') {
-            return res.status(503).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Сайт недоступен</title><style>body{background:#0b0c10;color:#fff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}div{text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.03);}</style></head><body><div><h2>Домен временно недоступен</h2><p style="color:#888;">Обслуживание сайта по этому домену приостановлено.</p></div></body></html>`);
+        if (k !== 'zvon' && b.domain) {
+          const cleanBrandDomain = b.domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0].trim().toLowerCase();
+          if (cleanBrandDomain && (host === cleanBrandDomain || host.endsWith('.' + cleanBrandDomain))) {
+            if (b.domainBehavior === 'redirect') {
+              const rawTarget = BRANDS.zvon?.domain || 'zvonserver.ru';
+              const targetHost = rawTarget.replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0].trim();
+              if (host !== targetHost.toLowerCase()) {
+                return res.redirect(302, `https://${targetHost}${req.originalUrl || ''}`);
+              }
+            }
+            if (b.domainBehavior === 'disabled') {
+              return res.status(503).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Сайт недоступен</title><style>body{background:#0b0c10;color:#fff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}div{text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.03);}</style></head><body><div><h2>Домен временно недоступен</h2><p style="color:#888;">Обслуживание сайта по этому домену приостановлено.</p></div></body></html>`);
+            }
           }
         }
       }

@@ -477,11 +477,20 @@ server {
         if (icons.length > 0 && !icons.some(i => i.isPrimary)) {
             icons[0].isPrimary = true;
         }
+        const cleanDomain = (editingBrand.domain || '')
+            .trim()
+            .toLowerCase()
+            .replace(/^https?:\/\//, '')
+            .replace(/\/.*$/, '')
+            .split(':')[0]
+            .trim();
+
         const primary = icons.find(i => i.isPrimary) || icons[0];
         const behavior = editingBrand.domainBehavior || 'open';
 
         const payload: BrandConfig = {
             ...editingBrand,
+            domain: cleanDomain,
             logo: editingBrand.logo.trim() ? editingBrand.logo.trim() : defaultLogo,
             favicon: primary?.img ? primary.img.trim() : defaultFavicon,
             supportEmail: editingBrand.supportEmail?.trim() ? editingBrand.supportEmail.trim() : defaultSupportEmail,

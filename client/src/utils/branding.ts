@@ -138,6 +138,7 @@ export const updateBrandInRegistry = (brand: BrandConfig) => {
             localStorage.setItem('zvon_cached_brands', JSON.stringify(BRANDS));
         } catch { /* ignore cache write error */ }
         window.dispatchEvent(new CustomEvent('zvon-brand-updated', { detail: brand }));
+        checkAndPerformDomainRedirect();
     }
 };
 
@@ -153,9 +154,54 @@ export const removeBrandFromRegistry = (brandId: string) => {
 };
 
 /**
+ * Normalizes a domain name: lowercases, trims, and strips protocols, paths and ports.
+ */
+export const normalizeDomain = (domain?: string): string => {
+    if (!domain || typeof domain !== 'string') return '';
+    return domain
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/.*$/, '')
+        .split(':')[0]
+        .trim();
+};
+
+/**
+ * Checks if the current client hostname belongs to a brand configured to redirect.
+ * If so, redirects immediately to the primary brand (Zvon) domain preserving path, search and hash.
+ */
+export const checkAndPerformDomainRedirect = (): boolean => {
+    if (typeof window === 'undefined' || (window as any).electron) return false;
+    const rawHost = window.location.hostname || '';
+    const host = normalizeDomain(rawHost);
+    if (!host || host === 'localhost' || host === '127.0.0.1' || host === 'tauri.localhost') {
+        return false;
+    }
+
+    const zvonDomain = normalizeDomain(BRANDS.zvon?.domain || 'zvonserver.ru') || 'zvonserver.ru';
+
+    for (const [key, brand] of Object.entries(BRANDS)) {
+        if (key !== 'zvon' && brand.domain) {
+            const cleanBrandDomain = normalizeDomain(brand.domain);
+            if (cleanBrandDomain && (host === cleanBrandDomain || host.endsWith('.' + cleanBrandDomain))) {
+                if (brand.domainBehavior === 'redirect') {
+                    if (host !== zvonDomain) {
+                        const targetUrl = `https://${zvonDomain}${window.location.pathname}${window.location.search}${window.location.hash}`;
+                        window.location.replace(targetUrl);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+};
+
+/**
  * Resolves the currently active brand.
  * Zvon is always available.
- * If another brand is disabled, falls back to Zvon.
+ * If another brand is disabled or redirects, falls back to Zvon.
  */
 export const getBrand = (): BrandConfig => {
     // In Electron, default to Zvon
@@ -167,8 +213,8 @@ export const getBrand = (): BrandConfig => {
         return BRANDS.zvon;
     }
 
-    const host = window.location.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') {
+    const host = normalizeDomain(window.location.hostname || '');
+    if (!host || host === 'localhost' || host === '127.0.0.1' || host === 'tauri.localhost') {
         return BRANDS.zvon;
     }
 
@@ -183,8 +229,18 @@ export const getBrand = (): BrandConfig => {
 
     // Match enabled brands by domain
     for (const [key, brand] of Object.entries(BRANDS)) {
-        if (key !== 'zvon' && brand.enabled !== false && brand.domainBehavior !== 'disabled' && brand.domain && host.includes(brand.domain.toLowerCase())) {
-            return withZvonFallback(brand);
+        if (key !== 'zvon' && brand.enabled !== false && brand.domain) {
+            const cleanBrandDomain = normalizeDomain(brand.domain);
+            if (cleanBrandDomain && (host === cleanBrandDomain || host.endsWith('.' + cleanBrandDomain))) {
+                if (brand.domainBehavior === 'redirect') {
+                    checkAndPerformDomainRedirect();
+                    return BRANDS.zvon;
+                }
+                if (brand.domainBehavior === 'disabled') {
+                    return BRANDS.zvon;
+                }
+                return withZvonFallback(brand);
+            }
         }
     }
     return BRANDS.zvon;
@@ -201,7 +257,7 @@ export const getIconBrand = (): BrandConfig => {
     try {
         const params = new URLSearchParams(window.location.search);
         const forced = params.get('brand')?.toLowerCase();
-        if (forced && BRANDS[forced] && BRANDS[forced].enabled !== false) {
+        if (forced && BRANDS[forced] && BRANDS[forced].enabled !== false && BRANDS[forced].domainBehavior !== 'disabled' && BRANDS[forced].domainBehavior !== 'redirect') {
             return BRANDS[forced];
         }
     } catch { /* malformed URL — fall through */ }
@@ -213,6 +269,7 @@ export const getIconBrand = (): BrandConfig => {
  */
 export const applyBranding = () => {
     if (typeof document === 'undefined') return;
+    if (checkAndPerformDomainRedirect()) return;
     const brand = getBrand();
     document.title = brand.name;
 
@@ -236,6 +293,7 @@ export const applyBranding = () => {
  */
 export const fetchAndApplyBranding = async () => {
     if (typeof window === 'undefined') return;
+    if (checkAndPerformDomainRedirect()) return;
     try {
         const [currentRes, publicRes] = await Promise.all([
             // Через axios: у него baseURL на сервер (AuthContext). Относительный
@@ -251,6 +309,8 @@ export const fetchAndApplyBranding = async () => {
         if (currentRes && currentRes.id) {
             updateBrandInRegistry(currentRes);
         }
+
+        if (checkAndPerformDomainRedirect()) return;
 
         applyBranding();
     } catch (e) {
