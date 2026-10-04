@@ -400,6 +400,28 @@ adminRouter.post('/nginx/config', [auth, isModerator], async (req, res) => {
       });
     }
 
+    // 1. Проверяем наличие существующих сертификатов, если конфиг содержит директивы ssl_certificate
+    const sslCertMatches = configText.match(/ssl_certificate\s+([^;]+);/g);
+    if (sslCertMatches) {
+      for (const match of sslCertMatches) {
+        const certFile = match.replace(/ssl_certificate\s+/, '').replace(';', '').trim();
+        if (certFile && !fs.existsSync(certFile)) {
+          return res.status(400).json({
+            success: false,
+            message: `Файл SSL сертификата не найден на сервере: ${certFile}. Сначала получите сертификат через certbot или отключите SSL-шаблон перед сохранением.`
+          });
+        }
+      }
+    }
+
+    // 2. Делаем бэкап текущего рабочего конфига, чтобы в случае сбоя мгновенно откатить
+    let backupConfig = null;
+    if (fs.existsSync(nginxPath)) {
+      try {
+        backupConfig = fs.readFileSync(nginxPath, 'utf8');
+      } catch { /* ignore */ }
+    }
+
     fs.writeFileSync(nginxPath, configText, 'utf8');
 
     // Обеспечиваем наличие симлинка в sites-enabled
@@ -413,31 +435,75 @@ adminRouter.post('/nginx/config', [auth, isModerator], async (req, res) => {
       }
     }
 
-    const reloadCmd = 'nginx -t && systemctl reload nginx';
-    const fallbackCmd = 'sudo nginx -t && sudo systemctl reload nginx';
+    const testCmd = 'nginx -t';
+    const testFallbackCmd = 'sudo nginx -t';
+    const reloadCmd = 'systemctl reload nginx';
+    const reloadFallbackCmd = 'sudo systemctl reload nginx';
 
-    exec(reloadCmd, (error, stdout, stderr) => {
+    const rollback = (originalErr) => {
+      if (backupConfig !== null) {
+        try {
+          fs.writeFileSync(nginxPath, backupConfig, 'utf8');
+          // Проверяем и восстанавливаем старый конфиг
+          exec('nginx -t && systemctl reload nginx || sudo nginx -t && sudo systemctl reload nginx', () => {});
+        } catch { /* ignore rollback error */ }
+      }
+    };
+
+    // Сначала только тестируем nginx -t, чтобы не сломать рабочий сервис при ошибках
+    exec(testCmd, (error, stdout, stderr) => {
       if (error) {
-        // Попробуем с sudo на случай, если процесс запущен не от root
-        exec(fallbackCmd, (sudoError, sudoStdout, sudoStderr) => {
+        exec(testFallbackCmd, (sudoError, sudoStdout, sudoStderr) => {
           if (sudoError) {
+            rollback();
             return res.status(400).json({
               success: false,
-              message: 'Ошибка проверки Nginx (nginx -t): ' + (sudoStderr || stderr || sudoError.message || error.message)
+              message: 'Ошибка синтаксиса Nginx (nginx -t): ' + (sudoStderr || stderr || sudoError.message || error.message) + '. Изменения автоматически откатаны к предыдущему рабочему конфигу.'
             });
           }
-          res.json({
-            success: true,
-            message: 'Конфигурация Nginx успешно обновлена и перезагружена',
-            output: sudoStdout || stdout
+          // Тест прошёл через sudo, перезагружаем
+          exec(reloadFallbackCmd, (rlErr, rlOut, rlStderr) => {
+            if (rlErr) {
+              rollback();
+              return res.status(400).json({
+                success: false,
+                message: 'Ошибка перезагрузки Nginx: ' + (rlStderr || rlErr.message)
+              });
+            }
+            res.json({
+              success: true,
+              message: 'Конфигурация Nginx успешно проверена и перезагружена',
+              output: sudoStdout
+            });
           });
         });
         return;
       }
-      res.json({
-        success: true,
-        message: 'Конфигурация Nginx успешно обновлена и перезагружена',
-        output: stdout
+
+      // Тест nginx -t прошёл успешно, применяем reload
+      exec(reloadCmd, (rlError, rlStdout, rlStderr) => {
+        if (rlError) {
+          exec(reloadFallbackCmd, (sudoRlErr, sudoRlOut, sudoRlStderr) => {
+            if (sudoRlErr) {
+              rollback();
+              return res.status(400).json({
+                success: false,
+                message: 'Ошибка перезагрузки Nginx: ' + (sudoRlStderr || rlStderr || sudoRlErr.message || rlError.message)
+              });
+            }
+            res.json({
+              success: true,
+              message: 'Конфигурация Nginx успешно проверена и перезагружена',
+              output: stdout
+            });
+          });
+          return;
+        }
+        res.json({
+          success: true,
+          message: 'Конфигурация Nginx успешно проверена и перезагружена',
+          output: stdout
+        });
       });
     });
   } catch (err) {
