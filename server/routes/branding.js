@@ -349,12 +349,37 @@ adminRouter.post('/nginx/config', [auth, isModerator], async (req, res) => {
 
     fs.writeFileSync(nginxPath, configText, 'utf8');
 
-    exec('nginx -t && systemctl reload nginx', (error, stdout, stderr) => {
+    // Обеспечиваем наличие симлинка в sites-enabled
+    const nginxEnabledDir = '/etc/nginx/sites-enabled';
+    const nginxEnabledLink = '/etc/nginx/sites-enabled/zvon';
+    if (fs.existsSync(nginxEnabledDir) && !fs.existsSync(nginxEnabledLink)) {
+      try {
+        fs.symlinkSync(nginxPath, nginxEnabledLink);
+      } catch (symlinkErr) {
+        console.warn('Не удалось создать симлинк в sites-enabled:', symlinkErr.message);
+      }
+    }
+
+    const reloadCmd = 'nginx -t && systemctl reload nginx';
+    const fallbackCmd = 'sudo nginx -t && sudo systemctl reload nginx';
+
+    exec(reloadCmd, (error, stdout, stderr) => {
       if (error) {
-        return res.status(400).json({
-          success: false,
-          message: 'Ошибка проверки Nginx (nginx -t): ' + (stderr || error.message)
+        // Попробуем с sudo на случай, если процесс запущен не от root
+        exec(fallbackCmd, (sudoError, sudoStdout, sudoStderr) => {
+          if (sudoError) {
+            return res.status(400).json({
+              success: false,
+              message: 'Ошибка проверки Nginx (nginx -t): ' + (sudoStderr || stderr || sudoError.message || error.message)
+            });
+          }
+          res.json({
+            success: true,
+            message: 'Конфигурация Nginx успешно обновлена и перезагружена',
+            output: sudoStdout || stdout
+          });
         });
+        return;
       }
       res.json({
         success: true,
@@ -363,7 +388,10 @@ adminRouter.post('/nginx/config', [auth, isModerator], async (req, res) => {
       });
     });
   } catch (err) {
-    res.status(500).json({ message: 'Ошибка сохранения Nginx: ' + err.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Ошибка сохранения Nginx: ' + err.message 
+    });
   }
 });
 

@@ -188,20 +188,39 @@ server {
             setNginxSaving(true);
             setNginxStatusMsg(null);
             const res = await axios.post('/api/admin/branding/nginx/config', { configText: nginxConfigText });
-            if (res.data.success) {
-                setNginxStatusMsg({ text: res.data.message || 'Конфиг успешно применён и Nginx перезагружен!' });
+            const data = (res && typeof res.data === 'object' && res.data !== null) ? res.data : { message: String(res.data || '') };
+
+            const isSuccess = data.success === true || data.ok === true || (typeof res.data === 'string' && res.data.trim().toUpperCase() === 'OK');
+            const rawMsg = data.message || (typeof res.data === 'string' ? res.data : '');
+            const isOkLiteral = typeof rawMsg === 'string' && rawMsg.trim().toUpperCase() === 'OK';
+
+            if (isSuccess) {
+                const messageText = (!rawMsg || isOkLiteral) 
+                    ? 'Конфигурация Nginx успешно сохранена и перезагружена на сервере!' 
+                    : rawMsg;
+                setNginxStatusMsg({ text: messageText, isError: false });
                 setHasServerNginx(true);
-            } else if (res.data.isLocalEnv) {
+            } else if (data.isLocalEnv) {
                 setNginxStatusMsg({
-                    text: res.data.message || 'Локальная разработка: файл Nginx на этом компьютере не установлен. Скопируйте конфиг для боевого сервера.',
+                    text: data.message || 'Локальная разработка: файл Nginx на этом компьютере не установлен. Скопируйте конфиг для боевого сервера.',
                     isError: false
                 });
             } else {
-                setNginxStatusMsg({ text: res.data.message || 'Ошибка применения конфига', isError: true });
+                const errorText = (!rawMsg || isOkLiteral) ? 'Ошибка применения конфигурации Nginx' : rawMsg;
+                setNginxStatusMsg({ text: errorText, isError: true });
             }
         } catch (err: any) {
+            const errData = err.response?.data;
+            let errMsg = 'Не удалось применить конфиг на сервере';
+            if (typeof errData === 'string') {
+                errMsg = errData.trim().toUpperCase() === 'OK' ? 'Конфигурация Nginx применена' : errData;
+            } else if (errData && errData.message) {
+                errMsg = errData.message.trim().toUpperCase() === 'OK' ? 'Конфигурация Nginx применена' : errData.message;
+            } else if (err.message) {
+                errMsg = err.message;
+            }
             setNginxStatusMsg({
-                text: err.response?.data?.message || 'Не удалось применить конфиг на сервере',
+                text: errMsg,
                 isError: true
             });
         } finally {
