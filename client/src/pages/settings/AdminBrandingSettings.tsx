@@ -62,14 +62,18 @@ const AdminBrandingSettings: React.FC = () => {
             return `# Конфигурация Nginx для Zvon и подключенных брендов (SSL HTTPS)
 # Сгенерировано: ${new Date().toLocaleString('ru-RU')}
 
-# HTTP -> HTTPS redirect
+# ============================================================
+# РЕДИРЕКТ С HTTP НА HTTPS
+# ============================================================
 server {
     listen 80;
     server_name ${serverNames};
     return 301 https://$host$request_uri;
 }
 
-# HTTPS Server
+# ============================================================
+# HTTPS СЕРВЕР (ПРОКСИРОВАНИЕ НА NODE.JS)
+# ============================================================
 server {
     listen 443 ssl http2;
     server_name ${serverNames};
@@ -80,29 +84,56 @@ server {
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     client_max_body_size 50M;
+    proxy_read_timeout 86400s;
+    proxy_connect_timeout 86400s;
 
     # Gzip сжатие
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
+    location /health {
+        access_log off;
+        return 200 "healthy\\n";
+        add_header Content-Type text/plain;
+    }
+
+    # API и WebSockets - проксируем в Node.js
     location / {
         proxy_pass http://localhost:${port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection $http_connection;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 86400;
     }
 
-    location /api/uploads {
-        alias /var/www/zvon/server/uploads;
+    # Статические загрузки и медиафайлы с поддержкой CORS
+    location /api/uploads/ {
+        alias /var/www/zvon/server/uploads/;
         expires 30d;
         add_header Cache-Control "public, immutable";
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Range, Content-Type, Authorization, X-Device-Id, x-device-id" always;
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin "*";
+            add_header Access-Control-Allow-Methods "GET, OPTIONS";
+            add_header Access-Control-Allow-Headers "Range, Content-Type, Authorization, X-Device-Id, x-device-id";
+            add_header Access-Control-Max-Age 1728000;
+            return 204;
+        }
+        autoindex off;
+        try_files $uri $uri/ =404;
     }
+
+    # Заголовки безопасности
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 }
 `;
         }
@@ -115,29 +146,53 @@ server {
     server_name ${serverNames};
 
     client_max_body_size 50M;
+    proxy_read_timeout 86400s;
+    proxy_connect_timeout 86400s;
 
     # Gzip сжатие
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
+    location /health {
+        access_log off;
+        return 200 "healthy\\n";
+        add_header Content-Type text/plain;
+    }
+
     location / {
         proxy_pass http://localhost:${port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection $http_connection;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 86400;
     }
 
-    location /api/uploads {
-        alias /var/www/zvon/server/uploads;
+    location /api/uploads/ {
+        alias /var/www/zvon/server/uploads/;
         expires 30d;
         add_header Cache-Control "public, immutable";
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Range, Content-Type, Authorization, X-Device-Id, x-device-id" always;
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin "*";
+            add_header Access-Control-Allow-Methods "GET, OPTIONS";
+            add_header Access-Control-Allow-Headers "Range, Content-Type, Authorization, X-Device-Id, x-device-id";
+            add_header Access-Control-Max-Age 1728000;
+            return 204;
+        }
+        autoindex off;
+        try_files $uri $uri/ =404;
     }
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 }
 `;
     };
