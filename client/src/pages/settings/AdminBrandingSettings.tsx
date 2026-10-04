@@ -46,7 +46,7 @@ const AdminBrandingSettings: React.FC = () => {
     const [nginxConfigText, setNginxConfigText] = useState('');
     const [nginxDomains, setNginxDomains] = useState<string[]>([]);
     const [backendPort, setBackendPort] = useState(5000);
-    const [nginxSslMode, setNginxSslMode] = useState(false);
+    const [nginxSslMode, setNginxSslMode] = useState(true);
     const [nginxSaving, setNginxSaving] = useState(false);
     const [nginxStatusMsg, setNginxStatusMsg] = useState<{ text: string; isError?: boolean } | null>(null);
     const [hasServerNginx, setHasServerNginx] = useState(false);

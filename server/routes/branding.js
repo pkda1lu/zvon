@@ -267,7 +267,60 @@ adminRouter.get('/nginx/config', [auth, isModerator], async (req, res) => {
     }
 
     const domainList = domains.length > 0 ? domains.join(' ') : 'zvonserver.ru';
-    const generatedConfig = `# Автоматически сгенерированная конфигурация Nginx для Zvon и брендов
+    const primary = domains[0] || 'zvonserver.ru';
+    const isLinux = process.platform === 'linux';
+    const hasSslCert = isLinux && fs.existsSync(`/etc/letsencrypt/live/${primary}/fullchain.pem`);
+
+    let generatedConfig = '';
+    if (hasSslCert) {
+      generatedConfig = `# Конфигурация Nginx для Zvon и подключенных брендов (SSL HTTPS)
+# Сгенерировано: ${new Date().toLocaleString('ru-RU')}
+
+# HTTP -> HTTPS redirect
+server {
+    listen 80;
+    server_name ${domainList};
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS Server
+server {
+    listen 443 ssl http2;
+    server_name ${domainList};
+
+    ssl_certificate /etc/letsencrypt/live/${primary}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${primary}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    client_max_body_size 50M;
+
+    # Gzip сжатие
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+    }
+
+    location /api/uploads {
+        alias /var/www/zvon/server/uploads;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+`;
+    } else {
+      generatedConfig = `# Автоматически сгенерированная конфигурация Nginx для Zvon и брендов (HTTP)
 # Сгенерировано: ${new Date().toLocaleString('ru-RU')}
 
 server {
@@ -300,8 +353,8 @@ server {
     }
 }
 `;
+    }
 
-    const isLinux = process.platform === 'linux';
     const nginxPath = '/etc/nginx/sites-available/zvon';
     const hasNginxFile = isLinux && fs.existsSync(nginxPath);
     let serverConfig = '';
