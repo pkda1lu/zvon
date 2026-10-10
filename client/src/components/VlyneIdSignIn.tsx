@@ -22,6 +22,7 @@ const VlyneIdSignIn: React.FC<{ title?: string; lead?: string }> = ({
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [code, setCode] = useState('');
+    const [rememberMe, setRememberMe] = useState(true);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
 
@@ -31,7 +32,7 @@ const VlyneIdSignIn: React.FC<{ title?: string; lead?: string }> = ({
         setBusy(true);
         try {
             if (step === 'password') {
-                const data = await login(email, password);
+                const data = await login(email, password, rememberMe);
                 // Двухфакторная включена — сервер не выдал токен, а прислал
                 // признак и адрес, на который ушёл код.
                 if (data?.requires2FA) {
@@ -39,7 +40,7 @@ const VlyneIdSignIn: React.FC<{ title?: string; lead?: string }> = ({
                     setStep('code');
                 }
             } else {
-                await verifyLogin(email, code);
+                await verifyLogin(email, code, rememberMe);
             }
         } catch (err: any) {
             setError(err?.response?.data?.message || 'Не удалось войти. Проверьте данные.');
@@ -80,6 +81,15 @@ const VlyneIdSignIn: React.FC<{ title?: string; lead?: string }> = ({
                                 autoComplete="current-password"
                                 required
                             />
+                        </label>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none', fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                            <input
+                                type="checkbox"
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                style={{ accentColor: 'var(--primary-neon, #00e5ff)', cursor: 'pointer', width: '16px', height: '16px' }}
+                            />
+                            <span style={{ color: rememberMe ? '#ffffff' : 'var(--text-dim)' }}>Запомнить меня</span>
                         </label>
                     </>
                 ) : (

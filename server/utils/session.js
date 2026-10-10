@@ -33,7 +33,7 @@ function fillGeoInBackground(sessionId, ip) {
  *
  * @returns {Promise<{ token: string, session: object }>}
  */
-async function createSession(user, req, { days = 7 } = {}) {
+async function createSession(user, req, { days = 7, rememberMe = false } = {}) {
   const ua = req.header?.('user-agent') || req.headers?.['user-agent'] || '';
   const ip = getClientIp(req);
   const info = getClientInfo(req);
@@ -52,6 +52,7 @@ async function createSession(user, req, { days = 7 } = {}) {
     deviceName: info.deviceName,
     deviceId,
     ip,
+    rememberMe: Boolean(rememberMe),
     expiresAt
   });
 

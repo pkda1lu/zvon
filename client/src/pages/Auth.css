@@ -137,3 +137,69 @@
 .sa-chevron { flex-shrink: 0; color: var(--text-dim); transition: transform .25s ease; }
 .sa-trigger.open .sa-chevron { transform: rotate(180deg); }
 .sa-list-inner { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; }
+
+/* ===== Галочка "Запомнить меня" и строка действий ===== */
+.auth-row-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.auth-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: var(--text-dim);
+  transition: color 0.15s ease;
+}
+
+.auth-checkbox-label:hover {
+  color: #ffffff;
+}
+
+.auth-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.auth-checkbox:hover {
+  border-color: var(--primary-neon, #00e5ff);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.auth-checkbox:checked {
+  background: var(--primary-neon, #00e5ff);
+  border-color: var(--primary-neon, #00e5ff);
+}
+
+.auth-checkbox:checked::before {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #000;
+  border-bottom: 2px solid #000;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.auth-checkbox:focus-visible {
+  outline: 2px solid var(--primary-neon, #00e5ff);
+  outline-offset: 2px;
+}
+

@@ -31,6 +31,8 @@ const sessionSchema = new mongoose.Schema({
 
   createdAt: { type: Date, default: Date.now },
   lastActiveAt: { type: Date, default: Date.now, index: true },
+  // Признак «Запомнить меня» (долговечная сессия)
+  rememberMe: { type: Boolean, default: false },
   // TTL: сессия сама удаляется по истечении срока жизни токена.
   expiresAt: { type: Date, required: true }
 });
