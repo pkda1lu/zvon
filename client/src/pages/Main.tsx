@@ -1024,6 +1024,25 @@ const Main: React.FC = () => {
     } catch (error) { }
   }, []);
 
+  /*
+   * Статусы «в сети» клиент узнаёт только из событий user-updated. Пока сокет
+   * лежал, эти события до нас не доходили: при обрыве у сервера (или перезапуске)
+   * все уходят «не в сети», а «снова в сети» от тех, кто переподключился раньше
+   * нас, улетало в пустоту. Люди висели офлайн, пока что-нибудь не перезагружало
+   * списки. Поэтому после переподключения забираем серверы, друзей и личные
+   * сообщения заново — вместе с актуальными статусами.
+   */
+  const refreshAfterReconnect = useCallback(async () => {
+    try {
+      const { data } = await axios.get('/api/servers/me');
+      setServers(data);
+      chatCache.saveServers(data);
+      setSelectedServer((prev: Server | null) => prev ? (data.find((s: Server) => s._id === prev._id) || prev) : prev);
+    } catch { /* сеть ещё не поднялась — статусы догонят события */ }
+    fetchDMs();
+    fetchFriends();
+  }, [fetchDMs, fetchFriends]);
+
   const fetchMessages = useCallback(async (channelId: string) => {
     // Immediate display from cache
     chatCache.getMessages(channelId).then((cachedMsgs) => {
@@ -1332,6 +1351,7 @@ const Main: React.FC = () => {
     const requestDmCalls = () => socket.emit('get-dm-call-states', null, (states: Record<string, string[]>) => setDmCalls(states || {}));
     socket.on('dm-call-state', handleDmCallState);
     socket.io.on('reconnect', requestDmCalls);
+    socket.io.on('reconnect', refreshAfterReconnect);
     requestDmCalls();
     socket.on('user-verified', handleUserVerified);
     return () => {
@@ -1348,9 +1368,10 @@ const Main: React.FC = () => {
       socket.off('dm-updated', handleDmUpdated);
       socket.off('dm-call-state', handleDmCallState);
       socket.io.off('reconnect', requestDmCalls);
+      socket.io.off('reconnect', refreshAfterReconnect);
       socket.off('user-verified', handleUserVerified);
     };
-  }, [socket, activeCall, user, updateUser, handleServerUpdate]);
+  }, [socket, activeCall, user, updateUser, handleServerUpdate, refreshAfterReconnect]);
 
   useEffect(() => {
     if (!socket || !user) return;
@@ -1562,6 +1583,21 @@ const Main: React.FC = () => {
     setMobileView('content');
 
   }, [unreadCounts]);
+  // «Вернуться в Zvon» из всплывающего окна трансляции (utils/streamPip):
+  // открываем голосовой канал, из которого оно вышло.
+  useEffect(() => {
+    const onOpenVoiceChannel = (e: Event) => {
+      const channelId = (e as CustomEvent<{ channelId: string }>).detail?.channelId;
+      const server = servers.find((s: Server) => s.channels?.some((c: any) => String(c._id) === String(channelId)));
+      const channel = server?.channels.find((c: any) => String(c._id) === String(channelId));
+      if (!server || !channel) return;
+      setSelectedServer(server);
+      handleChannelSelect(channel as Channel);
+    };
+    window.addEventListener('zvon:open-voice-channel', onOpenVoiceChannel);
+    return () => window.removeEventListener('zvon:open-voice-channel', onOpenVoiceChannel);
+  }, [servers, handleChannelSelect]);
+
   /*
    * Блокировка из меню чата. Помечаем переписку сразу, не дожидаясь
    * перезагрузки списка: иначе человек нажимает «Заблокировать», а поле ввода

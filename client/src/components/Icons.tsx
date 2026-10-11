@@ -323,6 +323,13 @@ export const FullscreenIcon: React.FC<{ size?: number; color?: string; className
     </svg>
 );
 
+export const PictureInPictureIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 20, color = 'var(--icon-color)', className = "" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M21 10V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5" />
+        <rect x="13" y="13" width="9" height="7" rx="1.5" />
+    </svg>
+);
+
 export const ChevronLeftIcon: React.FC<{ size?: number; color?: string; className?: string }> = ({ size = 24, color = 'var(--icon-color)', className = "" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <polyline points="15 18 9 12 15 6" />

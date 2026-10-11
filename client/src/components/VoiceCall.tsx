@@ -10,7 +10,8 @@ import { getAvatarUrl } from '../utils/avatar';
 import { createNoiseProcessor } from '../utils/audioProcessing';
 import { SOUNDS, soundManager } from '../utils/sounds';
 import { useDialog } from '../contexts/DialogContext';
-import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon } from './Icons';
+import { PhoneIcon, MicIcon, MicMutedIcon, VideoIcon, CameraIcon, CloseIcon, CheckIcon, ScreenShareIcon, StopScreenShareIcon, MonitorIcon, PictureInPictureIcon } from './Icons';
+import { isStreamPipSupported, openStreamPip, closeStreamPip, closeAutoStreamPip, isCallPipKey, subscribeStreamPip, getStreamPipUserId } from '../utils/streamPip';
 // Выбор источника экрана нужен только при старте демонстрации — ленивый чанк.
 const ScreenSourceSelector = React.lazy(() => import('./ScreenSourceSelector'));
 import UserAvatar from './UserAvatar';
@@ -163,6 +164,17 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
   const [remoteSharingScreen, setRemoteSharingScreen] = useState<Set<string>>(new Set());
   const [watchingParticipants, setWatchingParticipants] = useState<Set<string>>(new Set());
+  // Чья демонстрация открыта во всплывающем окне (ключ `call:<identity>`).
+  const [pipKey, setPipKey] = useState<string | null>(getStreamPipUserId);
+  useEffect(() => {
+    const unsubscribe = subscribeStreamPip(setPipKey);
+    return () => {
+      unsubscribe();
+      // Звонок закрыт — окно его демонстрации тоже.
+      const key = getStreamPipUserId();
+      if (key?.startsWith('call:')) closeStreamPip(key);
+    };
+  }, []);
   const [participantsMetadata, setParticipantsMetadata] = useState<Map<string, User>>(new Map());
   // id видеотреков, которые на паузе/завершены (нативный mute/ended) — чтобы не показывать застывший кадр
   const [mutedVideoIds, setMutedVideoIds] = useState<Set<string>>(new Set());
@@ -176,6 +188,21 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   // Свёрнутый режим: звонок остаётся подключённым, показываем компактный
   // перетаскиваемый виджет поверх интерфейса вместо полноэкранного вида.
   const [isMinimized, setIsMinimized] = useState(false);
+  // Свёрнутый звонок: чужая демонстрация, которую смотрели, сама уходит во
+  // всплывающее окно; развернули — окно закрывается (см. эффект ниже).
+  const pipNameOf = (id: string) => (isGroup ? participantsMetadata.get(id)?.username : otherUser?.username) || id;
+  const autoPipRef = useRef({ watching: new Set<string>(), screens: new Map<string, MediaStream>(), nameOf: (_id: string): string => '' });
+  autoPipRef.current = { watching: watchingParticipants, screens: remoteScreenStreams, nameOf: pipNameOf };
+  useEffect(() => {
+    if (!isMinimized) { closeAutoStreamPip(isCallPipKey); return; }
+    if (!isStreamPipSupported() || getStreamPipUserId()) return;
+    const { watching, screens } = autoPipRef.current;
+    const identity = [...watching].find(id => screens.get(id)?.getVideoTracks().some(t => t.readyState === 'live'));
+    const stream = identity ? screens.get(identity) : null;
+    if (!identity || !stream) return;
+    openStreamPip(`call:${identity}`, stream, { muted: false, volume: 1, auto: true, title: autoPipRef.current.nameOf(identity), onReturn: () => setIsMinimized(false) })
+      .catch(err => console.warn('[PiP] окно не открылось само:', err));
+  }, [isMinimized]);
   // На узком экране виджет не должен начинаться за левым краем.
   const [widgetPos, setWidgetPos] = useState({ x: Math.max(8, window.innerWidth - 320), y: Math.max(8, window.innerHeight - 180) });
   const [isDraggingWidget, setIsDraggingWidget] = useState(false);
@@ -985,13 +1012,32 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
                 {screenShare && hasLiveVideo(screenShare) && (
                   <div className="participant-screenshare">
                     <video
-                      autoPlay playsInline muted={p.isMe}
-                      ref={el => { if (el && el.srcObject !== screenShare) el.srcObject = screenShare; }}
+                      autoPlay playsInline
+                      // Во всплывающем окне звук играет оно — плитка молчит.
+                      ref={el => {
+                        if (!el) return;
+                        if (el.srcObject !== screenShare) el.srcObject = screenShare;
+                        el.muted = p.isMe || pipKey === `call:${p.identity}`;
+                      }}
                     />
+                    {isStreamPipSupported() && (
+                      <button
+                        className={`stop-watching-btn pip-btn ${p.isMe ? 'pip-btn--solo' : ''} ${pipKey === `call:${p.identity}` ? 'is-active' : ''}`}
+                        onClick={() => {
+                          const key = `call:${p.identity}`;
+                          if (pipKey === key) closeStreamPip(key);
+                          else openStreamPip(key, screenShare, { muted: p.isMe, volume: 1, title: p.isMe ? 'Ваша демонстрация' : (userMeta?.username || String(p.identity)), onReturn: () => setIsMinimized(false) }).catch(err => console.warn('[PiP] окно не открылось:', err));
+                        }}
+                        title={pipKey === `call:${p.identity}` ? 'Вернуть в Zvon' : 'Всплывающее окно'}
+                      >
+                        <PictureInPictureIcon size={18} />
+                      </button>
+                    )}
                     {!p.isMe && (
                       <button
                         className="stop-watching-btn"
                         onClick={() => {
+                          closeStreamPip(`call:${p.identity}`);
                           const pub = p.participant?.getTrackPublication(Track.Source.ScreenShare);
                           if (pub && 'setSubscribed' in pub) (pub as any).setSubscribed(false);
                           setWatchingParticipants(prev => {

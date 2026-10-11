@@ -128,6 +128,13 @@ pub async fn ipc_send(app: AppHandle, channel: String, args: Vec<Value>) {
         }
         // Клик по уведомлению, когда Zvon свёрнут или в трее.
         "focus-main-window" => crate::windows::reveal_main(&app),
+        // Всплывающее окно трансляции без рамки: перетаскивание за видео
+        // (utils/streamPip.ts). Своего IPC у окна нет — просит основное.
+        "stream-pip-drag" => crate::windows::drag_stream_pip(&app),
+        // Закрыть его — только так, не window.close() из страницы: wry на
+        // window.close() уничтожает лишь внутреннее окно WebView в обход Tauri,
+        // пустая рамка остаётся, а общий процесс отрисовки с основным окном виснет.
+        "stream-pip-close" => crate::windows::close_stream_pip(&app),
         "minimize-to-tray" => {
             if let Some(w) = main_window(&app) { let _ = w.hide(); }
             crate::power::refresh(&app);

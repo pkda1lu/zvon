@@ -48,7 +48,12 @@ app.use(compression());
 const io = socketIo(server, {
   cors: { origin: [process.env.CLIENT_URL || "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000"], methods: ["GET", "POST"] },
   pingInterval: 10000,
-  pingTimeout: 5000,
+  // Ответ на пинг идёт тем же сокетом, что и всё остальное: за крупной
+  // отправкой, подвисшей на пару секунд страницей или в плохой сети он легко
+  // опаздывает. При 5 с сервер «терял» живых клиентов — их выкидывало из
+  // голоса, а остальные видели, как люди пропадают из сети. 20 с — значение
+  // socket.io по умолчанию.
+  pingTimeout: 20000,
 });
 
 const corsOptions = {

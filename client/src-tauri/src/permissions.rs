@@ -40,6 +40,63 @@ pub fn install(window: &WebviewWindow) {
     }
 }
 
+/// Полноэкранный режим элемента (демонстрация, видео, плеер мини-приложения).
+///
+/// Окно за страницей во весь экран переводит сам Tauri (tauri-runtime-wry,
+/// ContainsFullScreenElementChanged). Но наше окно без рамки и обычно
+/// развёрнуто, а для развёрнутого окна без рамки tao оставляет снизу пиксель
+/// под автоскрываемую панель задач — и в «полноэкранном» режиме окно так и
+/// остаётся развёрнутым: панель задач вылезает поверх демонстрации полосой
+/// снизу. Поэтому на время полного экрана снимаем «развёрнуто» и ставим полный
+/// экран заново, а после выхода разворачиваем окно обратно.
+pub fn install_fullscreen(window: &WebviewWindow) {
+    #[cfg(windows)]
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let target = window.clone();
+        let was_maximized = Arc::new(AtomicBool::new(false));
+        let res = window.with_webview(move |wv| unsafe {
+            use webview2_com::ContainsFullScreenElementChangedEventHandler;
+
+            let Ok(core) = wv.controller().CoreWebView2() else { return };
+            let handler = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
+                let Some(sender) = sender else { return Ok(()) };
+                let mut contains = windows::core::BOOL::default();
+                sender.ContainsFullScreenElement(&mut contains)?;
+                let full = contains.as_bool();
+                let w = target.clone();
+                let was_maximized = was_maximized.clone();
+                // Не изнутри обработчика WebView2 и после того, как своё
+                // сообщение обработает Tauri.
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    if full {
+                        if w.is_maximized().unwrap_or(false) {
+                            was_maximized.store(true, Ordering::SeqCst);
+                            let _ = w.set_fullscreen(false);
+                            let _ = w.unmaximize();
+                            let _ = w.set_fullscreen(true);
+                        }
+                    } else if was_maximized.swap(false, Ordering::SeqCst) {
+                        let _ = w.set_fullscreen(false);
+                        let _ = w.maximize();
+                    }
+                });
+                Ok(())
+            }));
+            let mut token = Default::default();
+            if let Err(e) = core.add_ContainsFullScreenElementChanged(&handler, &mut token) {
+                log::error!("[fullscreen] обработчик не установлен: {e}");
+            }
+        });
+        if let Err(e) = res {
+            log::error!("[fullscreen] with_webview: {e}");
+        }
+    }
+}
+
 /// Стандартное контекстное меню движка («Назад», «Обновить», «Сохранить как»,
 /// «Проверить элемент») в приложении не нужно. В полях ввода и на выделенном
 /// тексте оставляем только правку, в остальных местах меню не показываем.

@@ -478,6 +478,22 @@
   transform: scale(1.1);
 }
 
+/* Всплывающее окно — слева от «Прекратить просмотр» */
+.stop-watching-btn.pip-btn {
+  right: 64px;
+}
+
+.stop-watching-btn.pip-btn--solo {
+  right: 20px;
+}
+
+.stop-watching-btn.pip-btn:hover,
+.stop-watching-btn.pip-btn.is-active {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: var(--accent, #006aff);
+  color: var(--accent, #006aff);
+}
+
 .participant-screenshare {
   position: absolute;
   inset: 0;

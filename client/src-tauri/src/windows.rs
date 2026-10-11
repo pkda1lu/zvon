@@ -81,8 +81,115 @@ fn base<'a>(app: &'a AppHandle, label: &str, url: &str) -> WebviewWindowBuilder<
         .visible(false)
 }
 
+/// Метка `window.open` всплывающего окна трансляции (utils/streamPip.ts).
+const STREAM_PIP_URL: &str = "about:blank#zvon-stream-pip";
+
+/*
+ * Всплывающее окно трансляции. Системное «картинка в картинке» Chromium в
+ * WebView2 несёт кнопки «Вернуться на вкладку» и «Параметры», которые здесь
+ * ничего не делают: вкладки и страницы настроек у приложения нет. Поэтому
+ * страница открывает своё окно через window.open, а мы отвечаем на запрос
+ * настоящим окном Tauri поверх остальных. Окно связано со страницей (opener,
+ * то же окружение WebView2): она сама кладёт в него <video> с трансляцией и
+ * свои кнопки. Прочие window.open обрабатываются как раньше.
+ */
+fn stream_pip_window(
+    app: &AppHandle,
+    features: tauri::webview::NewWindowFeatures,
+) -> tauri::Result<WebviewWindow> {
+    // Окно одно: прежние закрываем — но не здесь. Уничтожение окна внутри
+    // обработчика NewWindowRequested вешало и новое окно, и сам Zvon (общий
+    // процесс отрисовки ждал завершения запроса). Закрываем после возврата из
+    // обработчика, сообщением в цикл событий. Метки у окон разные: destroy()
+    // освобождает метку не сразу.
+    let stale: Vec<String> = app
+        .webview_windows()
+        .into_keys()
+        .filter(|label| label.starts_with("stream-pip"))
+        .collect();
+    if !stale.is_empty() {
+        let handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            for label in stale {
+                if let Some(w) = handle.get_webview_window(&label) {
+                    let _ = w.destroy();
+                }
+            }
+        });
+    }
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+    let label = format!("stream-pip-{}", NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    // Позицию и размер из window.open не берём: WebView2 отдаёт там значения,
+    // на которых tao переполняется и роняет процесс (window.rs, «attempt to add
+    // with overflow»). Ставим сами — правый нижний угол монитора с Zvon.
+    let (width, height) = (480.0, 270.0);
+    let (x, y) = app
+        .get_webview_window("main")
+        .and_then(|w| w.current_monitor().ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .map(|m| {
+            let scale = m.scale_factor();
+            let area = m.work_area();
+            let pos = area.position.to_logical::<f64>(scale);
+            let size = area.size.to_logical::<f64>(scale);
+            (pos.x + size.width - width - 24.0, pos.y + size.height - height - 56.0)
+        })
+        .unwrap_or((100.0, 100.0));
+    WebviewWindowBuilder::new(app, label, WebviewUrl::External("about:blank".parse().unwrap()))
+        .window_features(features)
+        .inner_size(width, height)
+        .position(x, y)
+        .additional_browser_args(&browser_args())
+        .user_agent(USER_AGENT)
+        .title("Трансляция — Zvon")
+        .min_inner_size(240.0, 135.0)
+        .always_on_top(true)
+        // Как в Discord: без системной рамки и кнопок, закрытие — своей
+        // кнопкой в окне, клик разворачивает голосовой чат.
+        .decorations(false)
+        .shadow(true)
+        .resizable(true)
+        .skip_taskbar(true)
+        .background_color(Color(0, 0, 0, 0xff))
+        .build()
+}
+
+/// Закрыть окно трансляции (см. "stream-pip-close" в ipc.rs).
+pub fn close_stream_pip(app: &AppHandle) {
+    for (label, w) in app.webview_windows() {
+        if label.starts_with("stream-pip") {
+            let _ = w.destroy();
+        }
+    }
+}
+
+/// Начать перетаскивание окна трансляции (кнопка мыши уже нажата в окне).
+pub fn drag_stream_pip(app: &AppHandle) {
+    for (label, w) in app.webview_windows() {
+        if label.starts_with("stream-pip") {
+            let _ = w.start_dragging();
+        }
+    }
+}
+
 pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let handle = app.clone();
     let w = base(app, "main", "index.html")
+        .on_new_window(move |url, features| {
+            // Остальные window.open, как и до этого обработчика, не открываем:
+            // без него wry отклонял их все (ссылки уходят в браузер своим путём).
+            // Allow открывал бы голое окно WebView2 без нашей обвязки.
+            if url.as_str() != STREAM_PIP_URL {
+                return tauri::webview::NewWindowResponse::Deny;
+            }
+            match stream_pip_window(&handle, features) {
+                Ok(window) => tauri::webview::NewWindowResponse::Create { window },
+                Err(e) => {
+                    log::warn!("[stream-pip] окно не создано: {e}");
+                    tauri::webview::NewWindowResponse::Deny
+                }
+            }
+        })
         .title("Zvon")
         .inner_size(1280.0, 800.0)
         .min_inner_size(800.0, 600.0)
@@ -91,6 +198,7 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .background_color(Color(0x1e, 0x1f, 0x22, 0xff))
         .build()?;
     crate::permissions::install(&w);
+    crate::permissions::install_fullscreen(&w);
     crate::permissions::install_context_menu(&w);
     crate::netfilter::install(&w);
     Ok(w)

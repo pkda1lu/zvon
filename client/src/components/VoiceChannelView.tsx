@@ -7,7 +7,7 @@ import { Channel, User, Server, Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, ChatIcon, CloseIcon, FullscreenIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon } from './Icons';
+import { SpeakerIcon, PhoneIcon, MicMutedIcon, MicIcon, DeafenedIcon, MonitorIcon, PlayIcon, ChatIcon, CloseIcon, FullscreenIcon, MinimizeIcon, VolumeHighIcon, VolumeLowIcon, PictureInPictureIcon } from './Icons';
 // См. VoiceCall — модалка выбора экрана грузится по требованию.
 const ScreenSourceSelector = React.lazy(() => import('./ScreenSourceSelector'));
 import axios from 'axios';
@@ -19,6 +19,7 @@ import './panel-hero.css';
 import './VoiceChannelView.css';
 import { useServerMemberMap } from '../utils/serverMembers';
 import { useStillImage } from '../utils/stillImage';
+import { isStreamPipSupported, openStreamPip, closeStreamPip, closeAutoStreamPip, isCallPipKey, setStreamPipVolume, subscribeStreamPip, getStreamPipUserId } from '../utils/streamPip';
 
 
 
@@ -180,27 +181,46 @@ const VoiceStreamCard: React.FC<{
   screenVolumes: Map<string, number>;
   setScreenVolume: (userId: string, volume: number) => void;
   stopScreenShare: () => void;
-}> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isPrimary = false, isExpanded, onToggleExpand, screenVolumes, setScreenVolume, stopScreenShare }) => {
+  channelId: string;
+}> = ({ item, getDisplayName, remoteScreenStreams, watchedScreenIds, setWatchingScreen, onClick, screenStream, isPrimary = false, isExpanded, onToggleExpand, screenVolumes, setScreenVolume, stopScreenShare, channelId }) => {
   const isMe = item.isMe;
   const stream = isMe ? screenStream : remoteScreenStreams.get(item.userId);
   const isWatching = isMe || watchedScreenIds.has(item.userId);
   const volume = screenVolumes.get(item.userId) ?? 1;
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const viewportRef = React.useRef<HTMLDivElement>(null);
+  // Эта трансляция сейчас во всплывающем окне: звук играет окно, плитка молчит.
+  const [pipUserId, setPipUserId] = useState<string | null>(getStreamPipUserId);
+  useEffect(() => subscribeStreamPip(setPipUserId), []);
+  const inPip = pipUserId === item.userId;
 
   useEffect(() => {
     if (videoRef.current && stream && isWatching && videoRef.current.srcObject !== stream) {
       videoRef.current.srcObject = stream;
-      videoRef.current.muted = isMe;
       videoRef.current.play().catch(() => {});
     }
   }, [stream, isMe, isWatching, isExpanded]);
 
   useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = isMe || inPip;
+  }, [isMe, inPip, stream, isWatching, isExpanded]);
+
+  useEffect(() => {
     if (videoRef.current) {
         videoRef.current.volume = volume;
     }
-  }, [volume]);
+    setStreamPipVolume(item.userId, volume);
+  }, [volume, item.userId]);
+
+  const togglePip = () => {
+    if (!stream) return;
+    if (inPip) { closeStreamPip(item.userId); return; }
+    if (isExpanded) onToggleExpand();
+    openStreamPip(item.userId, stream, {
+      muted: isMe, volume, title: isMe ? 'Ваша трансляция' : item.participantName,
+      onReturn: () => window.dispatchEvent(new CustomEvent('zvon:open-voice-channel', { detail: { channelId } })),
+    }).catch(err => console.warn('[PiP] окно не открылось:', err));
+  };
 
   useEffect(() => {
     if (isExpanded && viewportRef.current) {
@@ -258,6 +278,15 @@ const VoiceStreamCard: React.FC<{
                   )}
                 </div>
                 <div className="stream-controls-right">
+                  {isStreamPipSupported() && (
+                    <button
+                      className={`stream-control-btn ${inPip ? 'is-active' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); togglePip(); }}
+                      title={inPip ? 'Вернуть в Zvon' : 'Всплывающее окно'}
+                    >
+                      <PictureInPictureIcon size={18} />
+                    </button>
+                  )}
                   <button
                     className="stream-control-btn"
                     onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
@@ -280,6 +309,7 @@ const VoiceStreamCard: React.FC<{
                       // исчезает из портала, не сняв фуллскрин, и остаётся
                       // чёрный экран.
                       if (isExpanded) onToggleExpand();
+                      closeStreamPip(item.userId);
                       if (isMe) stopScreenShare();
                       else setWatchingScreen(item.userId, false);
                     }}
@@ -353,6 +383,32 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
       || u.displayName || u.username;
   };
   const isConnectedToThisChannel = isConnected && activeChannelId === channel._id;
+
+  /*
+   * Всплывающее окно трансляции, как у смотрящих в Discord: ушли со страницы
+   * канала, где идёт голос и открыта чужая демонстрация, — она сама уходит в
+   * окно поверх всего. Вернулись — окно закрывается, видео снова в плитке.
+   */
+  const autoPipRef = useRef({ connected: false, focusedItemId: null as string | null, watched: new Set<string>(), streams: new Map<string, MediaStream>(), volumes: new Map<string, number>(), nameOf: (_id: string): string => '' });
+  autoPipRef.current = { connected: isConnectedToThisChannel, focusedItemId, watched: watchedScreenIds, streams: remoteScreenStreams, volumes: screenVolumes, nameOf: (id: string) => getDisplayName(activeConnectedUsers.find((u: any) => String(u._id) === String(id)) as any) };
+  useEffect(() => {
+    closeAutoStreamPip(key => !isCallPipKey(key));
+    return () => {
+      const { connected, focusedItemId, watched, streams, volumes, nameOf } = autoPipRef.current;
+      const channelId = channel._id;
+      if (!connected || !isStreamPipSupported() || getStreamPipUserId()) return;
+      const live = (id: string) => watched.has(id) && streams.get(id)?.getVideoTracks().some(t => t.readyState === 'live');
+      const focused = focusedItemId?.startsWith('stream-') ? focusedItemId.slice('stream-'.length) : null;
+      const userId = (focused && live(focused)) ? focused : [...watched].find(live);
+      const stream = userId ? streams.get(userId) : null;
+      if (!userId || !stream) return;
+      openStreamPip(userId, stream, {
+        muted: false, volume: volumes.get(userId) ?? 1, auto: true, title: nameOf(userId),
+        onReturn: () => window.dispatchEvent(new CustomEvent('zvon:open-voice-channel', { detail: { channelId } })),
+      })
+        .catch(err => console.warn('[PiP] окно не открылось само:', err));
+    };
+  }, [channel._id]);
   
   useEffect(() => {
     axios.get(`/api/channels/${channel._id}/voice-participants`).then(res => setExternalParticipants(res.data)).catch(() => {});
@@ -425,7 +481,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         const user = activeConnectedUsers.find(u => u._id === item.userId)
           || externalParticipants.find(u => u._id === item.userId)
           || (item.isMe ? currentUser : null);
-        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} screenVolumes={screenVolumes} setScreenVolume={setScreenVolume} stopScreenShare={stopScreenShare} />;
+        return <VoiceStreamCard key={item._id} item={{ ...item, participantName: getDisplayName(user) }} getDisplayName={getDisplayName} remoteScreenStreams={remoteScreenStreams} watchedScreenIds={watchedScreenIds} setWatchingScreen={setWatchingScreen} onClick={clickHandler} screenStream={screenStream} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} screenVolumes={screenVolumes} setScreenVolume={setScreenVolume} stopScreenShare={stopScreenShare} channelId={channel._id} />;
       }
       case 'presence':
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
