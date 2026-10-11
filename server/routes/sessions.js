@@ -23,6 +23,8 @@ function publicSession(s, currentId) {
     ...(geo ? { ...geo, city: '' } : { country: s.country, countryCode: s.countryCode, city: s.city }),
     createdAt: s.createdAt,
     lastActiveAt: s.lastActiveAt,
+    expiresAt: s.expiresAt,
+    rememberMe: Boolean(s.rememberMe),
     current: String(s._id) === String(currentId)
   };
 }

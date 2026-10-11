@@ -26,6 +26,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [actualEmail, setActualEmail] = useState(''); // Store the real email from server response
   const [code, setCode] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [mode, setMode] = useState<'login' | 'mfa' | 'forgot' | 'reset'>('login');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -118,8 +119,10 @@ const Login: React.FC = () => {
         return;
       }
       try {
-        const data = await verifyLogin(actualEmail || email, code);
-        rememberAccount(data);
+        const data = await verifyLogin(actualEmail || email, code, rememberMe);
+        if (rememberMe) {
+          rememberAccount(data);
+        }
         goAfterAuth();
       } catch (err: any) {
         setError(err.response?.data?.message || 'Неверный код');
@@ -173,13 +176,15 @@ const Login: React.FC = () => {
     }
 
     try {
-      const data = await login(email.trim(), password);
+      const data = await login(email.trim(), password, rememberMe);
       if (data.requires2FA) {
         setActualEmail(data.email); // Use email from server response
         handleModeChange('mfa');
         setSuccess('Код подтверждения отправлен на вашу почту');
       } else if (data.token) {
-        rememberAccount(data);
+        if (rememberMe) {
+          rememberAccount(data);
+        }
         goAfterAuth();
       }
     } catch (err: any) {
@@ -327,7 +332,16 @@ const Login: React.FC = () => {
                     autoComplete="current-password"
                     required
                   />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <div className="auth-row-actions">
+                    <label className="auth-checkbox-label">
+                      <input
+                        type="checkbox"
+                        className="auth-checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                      />
+                      <span>Запомнить меня</span>
+                    </label>
                     <span
                       onClick={() => handleModeChange('forgot')}
                       style={{ fontSize: '12px', color: '#ffffff', cursor: 'pointer', fontWeight: 600, display: 'inline-block', padding: '4px' }}

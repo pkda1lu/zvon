@@ -176,7 +176,11 @@ router.post('/login', loginLimiter, [
       targetModel: 'User'
     });
 
-    const { token } = await createSession(user, req, { days: 7 });
+    const isRemembered = req.body.rememberMe === true || req.body.rememberMe === 'true';
+    const isExplicitFalse = req.body.rememberMe === false || req.body.rememberMe === 'false';
+    const sessionDays = isRemembered ? 60 : (isExplicitFalse ? 1 : 7);
+
+    const { token } = await createSession(user, req, { days: sessionDays, rememberMe: isRemembered });
 
     return res.json({
       token,
@@ -217,7 +221,11 @@ router.post('/verify-login', codeLimiter, [
     user.status = user.statusPreference || 'online';
     await user.save();
 
-    const { token } = await createSession(user, req, { days: 60 });
+    const isRemembered = req.body.rememberMe === true || req.body.rememberMe === 'true';
+    const isExplicitFalse = req.body.rememberMe === false || req.body.rememberMe === 'false';
+    const sessionDays = isExplicitFalse ? 1 : 60;
+
+    const { token } = await createSession(user, req, { days: sessionDays, rememberMe: isRemembered });
     res.json({
       token,
       user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar, status: user.status }

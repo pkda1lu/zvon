@@ -7,10 +7,10 @@ import { getBrand } from '../utils/branding';
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<any>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<any>;
   loginWithToken: (token: string) => Promise<boolean>;
   register: (username: string, email: string, password: string, consent: { personalData: boolean; marketing: boolean }) => Promise<any>;
-  verifyLogin: (email: string, code: string) => Promise<any>;
+  verifyLogin: (email: string, code: string, rememberMe?: boolean) => Promise<any>;
   logout: () => void;
   loading: boolean;
   updateUser: (updatedUser: Partial<User>) => void;
@@ -174,8 +174,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [token]);
 
-  const login = async (email: string, password: string) => {
-    const response = await axios.post('/api/auth/login', { email, password });
+  const login = async (email: string, password: string, rememberMe: boolean = true) => {
+    const response = await axios.post('/api/auth/login', { email, password, rememberMe });
     const { token: newToken, user: userData } = response.data;
     localStorage.setItem('token', newToken);
     setToken(newToken);
@@ -221,8 +221,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return response.data;
   };
 
-  const verifyLogin = async (email: string, code: string) => {
-    const response = await axios.post('/api/auth/verify-login', { email, code });
+  const verifyLogin = async (email: string, code: string, rememberMe: boolean = true) => {
+    const response = await axios.post('/api/auth/verify-login', { email, code, rememberMe });
     const { token: newToken, user: userData } = response.data;
     localStorage.setItem('token', newToken);
     setToken(newToken);
