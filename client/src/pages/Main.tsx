@@ -7,6 +7,9 @@ import { useVoice } from '../contexts/VoiceContext';
 import axios from 'axios';
 import { Server, Channel, Message, DirectMessage, User, MiniApp } from '../types';
 import { chatCache } from '../utils/chatCache';
+import { useReadStates } from '../utils/useReadStates';
+import { restoreOutbox } from '../utils/outbox';
+import QuickSwitcher from '../components/QuickSwitcher';
 import Sidebar from '../components/Sidebar';
 import ServerSidebar from '../components/ServerSidebar';
 import ActiveVoiceOverlay from '../components/ActiveVoiceOverlay';
@@ -282,6 +285,20 @@ const Main: React.FC = () => {
     applyPendingChannel();
   }, [servers, applyPendingChannel]);
   useEffect(() => { activeChannelIdRef.current = activeChannelId; }, [activeChannelId]);
+
+  const openChatId = selectedDM?._id || selectedChannel?._id || null;
+  const { markRead, unreadPropsFor } = useReadStates({
+    socket,
+    userId: user?._id,
+    serversRef,
+    openChatId,
+    unreadCounts,
+    setUnreadCounts,
+    activitySignal: messages.length + dmMessages.length,
+  });
+
+  // Неотправленные сообщения прошлого запуска (см. utils/outbox).
+  useEffect(() => { if (user?._id) restoreOutbox(user._id); }, [user?._id]);
 
   // Покидаем голосовой канал только если он принадлежит указанному серверу
   const leaveVoiceIfInServer = (serverId: string) => {
@@ -714,29 +731,12 @@ const Main: React.FC = () => {
           break;
         }
         case 'mark-chat-read': {
-          if (selectedChannel) {
-            setUnreadCounts(prev => {
-              const next = { ...prev };
-              delete next[selectedChannel._id];
-              return next;
-            });
-          } else if (selectedDM) {
-            setUnreadCounts(prev => {
-              const next = { ...prev };
-              delete next[selectedDM._id];
-              return next;
-            });
-          }
+          if (selectedChannel) markRead([selectedChannel._id]);
+          else if (selectedDM) markRead([selectedDM._id]);
           break;
         }
         case 'mark-server-read': {
-          if (selectedServer) {
-            setUnreadCounts(prev => {
-              const next = { ...prev };
-              selectedServer.channels.forEach(c => delete next[c._id]);
-              return next;
-            });
-          }
+          if (selectedServer) markRead(selectedServer.channels.map(c => c._id));
           break;
         }
         case 'open-notifications': {
@@ -835,7 +835,7 @@ const Main: React.FC = () => {
       window.removeEventListener('open-forward', handleOpenForwardEvent);
       window.removeEventListener('zvon-keybind-action', handleKeybindAction);
     };
-  }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId, showServerProfile, showUserServerProfile, inviteServerId, forwardMessage]);
+  }, [servers, selectedServer, selectedChannel, selectedDM, showSettingsModal, showServerSettings, showJoinModal, showCreateGroupModal, showInbox, showProfileUserId, showServerProfile, showUserServerProfile, inviteServerId, forwardMessage, markRead]);
 
 
   // --- Activity orchestration ---
@@ -1515,6 +1515,7 @@ const Main: React.FC = () => {
       const handleNewMessage = (message: Message) => {
         if (message.channel === selectedChannel._id) {
           setMessages((prev: Message[]) => {
+            if (prev.some((m: Message) => m._id === message._id)) return prev;
             const updated = [...prev, message];
             chatCache.saveMessages(selectedChannel._id, updated);
             return updated;
@@ -1546,6 +1547,7 @@ const Main: React.FC = () => {
     const handleNewMessage = (message: Message) => {
       if (message.directMessage === selectedDM._id) {
         setDmMessages((prev: Message[]) => {
+          if (prev.some((m: Message) => m._id === message._id)) return prev;
           const updated = [...prev, message];
           chatCache.saveMessages(`dm_${selectedDM._id}`, updated);
           return updated;
@@ -2119,7 +2121,8 @@ const Main: React.FC = () => {
                         messages={messages}
                         socket={socket}
                         onUserClick={handleUserClick}
-                        initialUnreadCount={unreadCounts[selectedChannel._id]}
+                        {...unreadPropsFor(selectedChannel._id)}
+                        onMarkRead={() => markRead([selectedChannel._id])}
                         hasMore={hasMore}
                         isLoadingMore={isLoadingMore}
                         onLoadMore={loadMoreMessages}
@@ -2188,7 +2191,8 @@ const Main: React.FC = () => {
                                 messages={messages}
                                 socket={socket}
                                 onUserClick={handleUserClick}
-                                initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                {...unreadPropsFor(selectedChannel._id)}
+                        onMarkRead={() => markRead([selectedChannel._id])}
                                 hasMore={hasMore}
                                 isLoadingMore={isLoadingMore}
                                 onLoadMore={loadMoreMessages}
@@ -2215,7 +2219,8 @@ const Main: React.FC = () => {
                                   messages={messages}
                                   socket={socket}
                                   onUserClick={handleUserClick}
-                                  initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                  {...unreadPropsFor(selectedChannel._id)}
+                        onMarkRead={() => markRead([selectedChannel._id])}
                                   hasMore={hasMore}
                                   isLoadingMore={isLoadingMore}
                                   onLoadMore={loadMoreMessages}
@@ -2272,7 +2277,8 @@ const Main: React.FC = () => {
                                 messages={messages}
                                 socket={socket}
                                 onUserClick={handleUserClick}
-                                initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                {...unreadPropsFor(selectedChannel._id)}
+                        onMarkRead={() => markRead([selectedChannel._id])}
                                 hasMore={hasMore}
                                 isLoadingMore={isLoadingMore}
                                 onLoadMore={loadMoreMessages}
@@ -2299,7 +2305,8 @@ const Main: React.FC = () => {
                                   messages={messages}
                                   socket={socket}
                                   onUserClick={handleUserClick}
-                                  initialUnreadCount={unreadCounts[selectedChannel._id]}
+                                  {...unreadPropsFor(selectedChannel._id)}
+                        onMarkRead={() => markRead([selectedChannel._id])}
                                   hasMore={hasMore}
                                   isLoadingMore={isLoadingMore}
                                   onLoadMore={loadMoreMessages}
@@ -2344,7 +2351,8 @@ const Main: React.FC = () => {
                         callUserIds={dmCalls[selectedDM._id]}
                         inThisCall={activeCall?.dmId === selectedDM._id}
                         onUserClick={handleUserClick}
-                        initialUnreadCount={unreadCounts[selectedDM._id]}
+                        {...unreadPropsFor(selectedDM._id)}
+                        onMarkRead={() => markRead([selectedDM._id])}
                         hasMore={hasMore}
                         isLoadingMore={isLoadingMore}
                         onLoadMore={loadMoreDMMessages}
@@ -2644,6 +2652,24 @@ const Main: React.FC = () => {
         )}
       </AnimatePresence>
       <div id="voice-controls-portal" />
+
+      {user && (
+        <QuickSwitcher
+          servers={servers}
+          dms={dms}
+          friends={friends}
+          currentUser={user}
+          unreadCounts={unreadCounts}
+          onSelectChannel={(server, channel) => {
+            setSelectedServer(server);
+            setShowShowcase(false);
+            handleChannelSelect(channel);
+          }}
+          onSelectDM={handleDMSelect}
+          onStartDM={handleStartDM}
+          onSelectServer={(server) => { handleSidebarServerSelect(server); setMobileView('sidebar'); }}
+        />
+      )}
 
         {openMiniApps.length > 0 && (
           <LazyOverlay>

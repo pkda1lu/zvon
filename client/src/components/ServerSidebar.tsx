@@ -4,7 +4,9 @@ import { Server, Channel, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useCachedAvatar } from '../utils/avatarCache';
 import { useSocket } from '../contexts/SocketContext';
-import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon } from './Icons';
+import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon, EditIcon } from './Icons';
+import { useDraftChatIds } from '../utils/drafts';
+import './ChatReliability.css';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice, useIsSpeaking } from '../contexts/VoiceContext';
 import { Permissions, hasPermission, computePermissions } from '../utils/permissions';
@@ -153,6 +155,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const { user: currentUser } = useAuth();
   const { socket } = useSocket();
   const { joinChannel, userStates, activeChannelId, roomConnectionState } = useVoice();
+  // Каналы с неотправленным текстом — помечаем карандашом (utils/drafts).
+  const draftIds = useDraftChatIds();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalCategoryId, setCreateModalCategoryId] = useState<string | undefined>(undefined);
@@ -351,6 +355,11 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           )}
 
           <div className="channel-actions">
+            {draftIds.has(channel._id) && selectedChannel?._id !== channel._id && (
+              <span className="draft-marker" title="Есть неотправленный текст" aria-label="Черновик">
+                <EditIcon size={13} color="currentColor" />
+              </span>
+            )}
             {(channel.type === 'text' || channel.type === 'room') && unreadCounts[channel._id] > 0 && (
               <div className="channel-unread-badge" style={{ marginRight: '4px' }}>{unreadCounts[channel._id]}</div>
             )}

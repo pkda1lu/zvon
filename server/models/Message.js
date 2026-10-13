@@ -131,6 +131,12 @@ const messageSchema = new mongoose.Schema({
   pinnedAt: {
     type: Date
   },
+  // Метка, которую клиент выдаёт сообщению до отправки. Возвращается в
+  // new-message, и клиент по ней заменяет своё «отправляется…» настоящим
+  // сообщением, а не дорисовывает второе такое же.
+  nonce: {
+    type: String
+  },
   createdAt: {
     type: Date,
     default: Date.now

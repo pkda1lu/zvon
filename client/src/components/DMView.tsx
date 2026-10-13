@@ -44,6 +44,10 @@ import './panel-hero.css';
 import './ChannelView.css';
 import './DMView.css';
 import './Attachments.css';
+import { isPendingMessage, sendChatMessage, useOutboxMessages, PendingMessage } from '../utils/outbox';
+import { useComposerDraft } from '../utils/useComposerDraft';
+import PendingMessageStatus from './PendingMessageStatus';
+import UnreadJumpBar, { useUnreadAnchor } from './UnreadJumpBar';
 
 // Helper for inline markdown shared across components
 const renderInlineMarkdown = (
@@ -127,6 +131,9 @@ interface DMViewProps {
   inThisCall?: boolean;
   onUserClick: (userId: string, event?: React.MouseEvent) => void;
   initialUnreadCount?: number;
+  /** Когда чат был дочитан в момент открытия — от этого места рисуем «Новые сообщения». */
+  unreadSince?: string | null;
+  onMarkRead?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => Promise<void>;
@@ -169,6 +176,8 @@ const DMMessageItem = React.memo<{
 }) => {
   const { confirm: customConfirm } = useDialog();
   const { interfaceScale } = useAppearance();
+  // Своё сообщение, которое сервер ещё не подтвердил (см. utils/outbox).
+  const pending = isPendingMessage(msg);
 
   // Лайтбокс: все картинки и видео ленты, с позиции нужного вложения.
   const openMediaAt = (att: any, startTime?: number) => {
@@ -186,8 +195,8 @@ const DMMessageItem = React.memo<{
   const gestures = useMessageGestures({
     doubleTapEnabled: gestureSettings.enabled && gestureSettings.doubleTapReaction !== false,
     hapticFeedback: gestureSettings.hapticFeedback,
-    onLongPress: (pos) => onOpenMessageMenu(msg, pos),
-    onDoubleTap: (pos) => onDoubleTapReact(msg, pos),
+    onLongPress: (pos) => { if (!pending) onOpenMessageMenu(msg, pos); },
+    onDoubleTap: (pos) => { if (!pending) onDoubleTapReact(msg, pos); },
   });
 
   const openLink = (url: string) => {
@@ -370,10 +379,10 @@ const DMMessageItem = React.memo<{
       {showDate && <div className="message-date-divider"><span>{formatDate(msg.createdAt)}</span></div>}
       <MessageBox
         id={`msg-${msg._id}`}
-        className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''} ${gestureClass}`}
+        className={`message ${grouped ? 'grouped' : 'with-author'} ${highlightMentions && msg.mentions?.some(m => m._id === user?._id) ? 'mention-highlight' : ''} ${msg.replyTo ? 'has-reply' : ''} ${pending ? ((msg as PendingMessage)._pending === 'failed' ? 'message-failed' : 'message-pending') : ''} ${gestureClass}`}
         onContextMenu={(e: React.MouseEvent) => {
           e.preventDefault();
-          onOpenMessageMenu(msg, { x: e.clientX, y: e.clientY });
+          if (!pending) onOpenMessageMenu(msg, { x: e.clientX, y: e.clientY });
         }}
         {...gestureProps}
         {...messageProps}
@@ -421,7 +430,7 @@ const DMMessageItem = React.memo<{
               </div>
             )}
 
-            {showHoverBar && (
+            {showHoverBar && !pending && (
               <div className={`message-actions-hover ${grouped ? 'mini' : ''}`}>
                 <button
                   className={`msg-action-btn ${grouped ? 'mini' : ''}`}
@@ -512,13 +521,15 @@ const DMMessageItem = React.memo<{
             </div>
           )}
 
-          {msg.poll && (
+          {msg.poll && (pending ? (
+            <div className="message-text">📊 {msg.poll.question}</div>
+          ) : (
             <MessagePoll
               messageId={msg._id}
               poll={msg.poll}
               currentUserId={user?._id || ''}
             />
-          )}
+          ))}
 
           {msg.buttons && msg.buttons.length > 0 && (
             <div className="message-interactive-buttons">
@@ -576,11 +587,15 @@ const DMMessageItem = React.memo<{
             </div>
           )}
 
-          <Reactions
-            reactions={msg.reactions || []}
-            currentUserId={user?._id || ''}
-            onReact={(emoji) => onReact(msg._id, emoji)}
-          />
+          {pending ? (
+            <PendingMessageStatus msg={msg as PendingMessage} />
+          ) : (
+            <Reactions
+              reactions={msg.reactions || []}
+              currentUserId={user?._id || ''}
+              onReact={(emoji) => onReact(msg._id, emoji)}
+            />
+          )}
         </div>
       </MessageBox>
 
@@ -608,7 +623,7 @@ const UNKNOWN_AUTHOR = {
 };
 
 const DMView: React.FC<DMViewProps> = ({
-  dm, messages, socket, onClose, onStartCall, onStartGroupCall, callUserIds, inThisCall, onUserClick, initialUnreadCount = 0,
+  dm, messages, socket, onClose, onStartCall, onStartGroupCall, callUserIds, inThisCall, onUserClick, initialUnreadCount = 0, unreadSince = null, onMarkRead,
   hasMore = false, isLoadingMore = false, onLoadMore, pinnedMessages = [], setMessages,
   onBack, isMobile
 }) => {
@@ -696,15 +711,44 @@ const DMView: React.FC<DMViewProps> = ({
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
   const [showPollModal, setShowPollModal] = useState(false);
 
+  // Лента вместе со своими ещё не подтверждёнными сообщениями (utils/outbox).
+  const pendingMessages = useOutboxMessages(dm._id, messages);
+  const displayMessages = useMemo(
+    () => (pendingMessages.length ? [...messages, ...pendingMessages] : messages),
+    [messages, pendingMessages]
+  );
+  const getMessageKey = useCallback((item: Message) => item.nonce || item._id, []);
+
   const lastSeenIdRef = useRef<string | null>(null);
   const prevLastSeenId = lastSeenIdRef.current;
   const lastSeenIdx = prevLastSeenId
-    ? messages.findIndex(m => m._id === prevLastSeenId)
+    ? displayMessages.findIndex(m => getMessageKey(m) === prevLastSeenId)
     : -1;
   const hasBaseline = prevLastSeenId !== null && lastSeenIdx !== -1;
   useEffect(() => {
-    if (messages.length > 0) lastSeenIdRef.current = messages[messages.length - 1]._id;
-  }, [messages]);
+    if (displayMessages.length > 0) lastSeenIdRef.current = getMessageKey(displayMessages[displayMessages.length - 1]);
+  }, [displayMessages, getMessageKey]);
+
+  const unread = useUnreadAnchor(dm._id, messages, unreadSince, user?._id);
+  const unreadAnchorIndex = unread.anchorId ? displayMessages.findIndex(m => m._id === unread.anchorId) : -1;
+  const [visibleStart, setVisibleStart] = useState(-1);
+  const handleRangeChanged = useCallback((start: number) => setVisibleStart(start), []);
+
+  useComposerDraft(dm._id, {
+    message, setMessage,
+    replyTo: replyToMessage, setReplyTo: setReplyToMessage,
+    attachments, setAttachments,
+    inputRef,
+  });
+
+  // Отправка через очередь: сообщение сразу появляется в ленте, а при
+  // обрыве связи или отказе сервера остаётся в ней с кнопкой «Повторить».
+  const sendPayload = (payload: Record<string, any>) => {
+    if (!socket || !user) return;
+    chatEngineRef.current?.setJustSent();
+    sendChatMessage(socket, dm._id, { ...payload, dmId: dm._id, replyToId: replyToMessage?._id }, user, replyToMessage);
+    unread.dismiss();
+  };
 
   useEffect(() => {
     if (!socket) return;
@@ -1127,13 +1171,7 @@ const DMView: React.FC<DMViewProps> = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
-    chatEngineRef.current?.setJustSent();
-    socket.emit('send-message', {
-      content: message.trim(),
-      dmId: dm._id,
-      attachments,
-      replyToId: replyToMessage?._id
-    });
+    sendPayload({ content: message.trim(), attachments });
     setMessage('');
     setAttachments([]);
     setReplyToMessage(null);
@@ -1144,13 +1182,7 @@ const DMView: React.FC<DMViewProps> = ({
 
   const handleCreatePoll = (poll: ChatPoll) => {
     if (!socket) return;
-    chatEngineRef.current?.setJustSent();
-    socket.emit('send-message', {
-      content: '',
-      dmId: dm._id,
-      poll,
-      replyToId: replyToMessage?._id
-    });
+    sendPayload({ content: '', poll });
     setShowPollModal(false);
     setReplyToMessage(null);
   };
@@ -1158,13 +1190,7 @@ const DMView: React.FC<DMViewProps> = ({
   const handleGifSelect = (url: string) => {
     if (!socket) return;
     const attachment = { url, filename: 'tenor.gif', type: 'image/gif', size: 0 };
-    chatEngineRef.current?.setJustSent();
-    socket.emit('send-message', {
-      content: '',
-      dmId: dm._id,
-      attachments: [attachment],
-      replyToId: replyToMessage?._id
-    });
+    sendPayload({ content: '', attachments: [attachment] });
     setShowGifPicker(null);
     setReplyToMessage(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -1374,18 +1400,27 @@ const DMView: React.FC<DMViewProps> = ({
       />
 
       <div className="messages-container">
-        {messages.length > 0 && (
+        {unreadAnchorIndex >= 0 && visibleStart > unreadAnchorIndex && (
+          <UnreadJumpBar
+            count={Math.max(unread.count, initialUnreadCount)}
+            since={unread.since}
+            onJump={() => chatEngineRef.current?.scrollToIndex(unreadAnchorIndex, 'start')}
+            onDismiss={() => { unread.dismiss(); onMarkRead?.(); }}
+          />
+        )}
+        {displayMessages.length > 0 && (
           <ChatScrollEngine
             ref={chatEngineRef}
             chatId={dm._id}
-            items={messages}
-            getItemKey={(item) => item._id}
+            items={displayMessages}
+            getItemKey={getMessageKey}
             interfaceScale={interfaceScale}
             hasMore={hasMore}
             isLoadingMore={isLoadingMore}
             onLoadMore={onLoadMore}
-            initialUnreadCount={initialUnreadCount}
+            unreadAnchorIndex={unreadAnchorIndex}
             onAtBottomStateChange={handleAtBottomStateChange}
+            onRangeChanged={handleRangeChanged}
             header={
               isLoadingMore ? (
                 <div className="loading-more">
@@ -1422,9 +1457,9 @@ const DMView: React.FC<DMViewProps> = ({
               })()
             }
             renderItem={(msg, idx, prev) => {
-              const showUnread = initialUnreadCount > 0 && idx === messages.length - initialUnreadCount;
+              const showUnread = idx === unreadAnchorIndex;
               return (
-                <React.Fragment key={msg._id}>
+                <React.Fragment key={getMessageKey(msg)}>
                   {showUnread && (
                     <div className="new-messages-marker" ref={unreadRef}>
                       <div className="new-messages-line" />
@@ -1451,7 +1486,7 @@ const DMView: React.FC<DMViewProps> = ({
                     setLightboxMedia={setLightboxMedia}
                     setLightboxIndex={setLightboxIndex}
                     setLightboxOpen={setLightboxOpen}
-                    allMessages={messages}
+                    allMessages={displayMessages}
                     onReact={handleReact}
                     onReply={handleReply}
                     scrollToMessage={scrollToMessage}

@@ -43,6 +43,18 @@ const server = http.createServer(app);
 // Медленный режим: последний таймстемп отправки сообщения, ключ `${channelId}:${userId}`.
 const slowModeTracker = new Map();
 
+// Повторные отправки одного и того же сообщения, ключ `${userId}:${nonce}`.
+// Клиент повторяет отправку, если не дождался ответа (обрыв связи, таймаут),
+// а первая попытка при этом могла и дойти. По метке отдаём уже сохранённое
+// сообщение вместо второй копии. Значение — промис результата, чтобы
+// одновременная повторная попытка дождалась первой, а не обогнала её.
+const sendNonces = new Map();
+const SEND_NONCE_TTL = 10 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of sendNonces) if (now - entry.at > SEND_NONCE_TTL) sendNonces.delete(key);
+}, 60 * 1000).unref();
+
 app.use(compression());
 
 const io = socketIo(server, {
@@ -139,6 +151,7 @@ app.use('/api/messages', require('./routes/messages'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/friends', require('./routes/friends'));
 app.use('/api/direct-messages', require('./routes/directMessages'));
+app.use('/api/read-states', require('./routes/readStates'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/gifs', require('./routes/gifs'));
@@ -795,7 +808,59 @@ io.on('connection', (socket) => {
   socket.on('join-channel', (channelId) => socket.join(`channel-${channelId}`));
   socket.on('leave-channel', (channelId) => socket.leave(`channel-${channelId}`));
 
+  // Отметка «прочитано» для одного чата или пачки (сочетание «прочитать
+  // сервер»). Время ставит сервер — часы клиента могут врать. Остальным
+  // устройствам человека сообщаем, чтобы и у них погасли счётчики.
+  socket.on('mark-read', async (data) => {
+    try {
+      const ids = (Array.isArray(data?.chatIds) ? data.chatIds : [data?.chatId])
+        .map(String)
+        .filter(id => mongoose.Types.ObjectId.isValid(id))
+        .slice(0, 500);
+      if (ids.length === 0) return;
+      const ReadState = require('./models/ReadState');
+      const lastReadAt = new Date();
+      await ReadState.bulkWrite(ids.map(chat => ({
+        updateOne: {
+          filter: { user: socket.userId, chat },
+          update: { $max: { lastReadAt } },
+          upsert: true,
+        },
+      })), { ordered: false });
+      io.to(`user-${String(socket.userId)}`).emit('read-state', { chatIds: ids, lastReadAt });
+    } catch (err) { }
+  });
+
   socket.on('send-message', async (data, callback) => {
+    const reply = typeof callback === 'function' ? callback : null;
+    const nonce = typeof data?.nonce === 'string' && data.nonce.length <= 64 ? data.nonce : null;
+    const nonceKey = nonce ? `${socket.userId}:${nonce}` : null;
+    if (nonceKey && sendNonces.has(nonceKey)) {
+      const result = await sendNonces.get(nonceKey).promise;
+      if (reply) reply(result);
+      return;
+    }
+    let settle = null;
+    if (nonceKey) {
+      const promise = new Promise(resolve => { settle = resolve; });
+      sendNonces.set(nonceKey, { promise, at: Date.now() });
+    }
+    const finish = (result) => {
+      if (settle) {
+        settle(result);
+        // Отказ не запоминаем: повтор после него — это новая попытка.
+        if (result.error) sendNonces.delete(nonceKey);
+      }
+      if (reply) reply(result);
+    };
+    // Клиент с меткой показывает отказ прямо у сообщения («Не отправлено»),
+    // и общий тост был бы вторым сообщением о том же. Ботам и старым
+    // клиентам по-прежнему отвечаем событием 'error'.
+    const fail = (payload) => {
+      if (!(nonce && reply)) socket.emit('error', payload);
+      finish({ error: payload.message, blocked: !!payload.blocked });
+    };
+    let activityServerId = null;
     try {
       const user = await User.findById(socket.userId);
       if (user && user.isBanned) {
@@ -805,7 +870,7 @@ io.on('connection', (socket) => {
           user.banReason = undefined;
           await user.save();
         } else {
-          return socket.emit('error', { message: 'Ваш аккаунт заблокирован. Вы не можете отправлять сообщения.' });
+          return fail({ message: 'Ваш аккаунт заблокирован. Вы не можете отправлять сообщения.' });
         }
       }
 
@@ -823,7 +888,8 @@ io.on('connection', (socket) => {
           style: b.style || 'primary',
           row: b.row || 0
         })) : [],
-        replyTo: data.replyToId || null
+        replyTo: data.replyToId || null,
+        nonce: nonce || undefined
       };
 
       if (data.attachments) {
@@ -850,24 +916,25 @@ io.on('connection', (socket) => {
       }
       if (data.channelId) {
         const channel = await Channel.findById(data.channelId);
-        if (!channel) return socket.emit('error', { message: 'Channel not found' });
+        if (!channel) return fail({ message: 'Channel not found' });
         const server = await Server.findById(channel.server);
-        if (!server) return socket.emit('error', { message: 'Server not found' });
+        if (!server) return fail({ message: 'Server not found' });
+        activityServerId = server._id;
         const perms = computePermissions(socket.userId, server, channel);
         if (!hasPermission(perms, Permissions.SEND_MESSAGES)) {
-          return socket.emit('error', { message: 'У вас нет прав для отправки сообщений в этот канал' });
+          return fail({ message: 'У вас нет прав для отправки сообщений в этот канал' });
         }
         // Мут / кулдаун новичков (не действуют на владельца)
         if (String(server.owner) !== String(socket.userId)) {
           const member = server.members.find(m => String(m.user) === String(socket.userId));
           if (member) {
             if (member.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date()) {
-              return socket.emit('error', { message: 'Вы временно не можете отправлять сообщения на этом сервере (мут)' });
+              return fail({ message: 'Вы временно не можете отправлять сообщения на этом сервере (мут)' });
             }
             if (server.newcomerCooldownSeconds > 0) {
               const remainingMs = new Date(member.joinedAt).getTime() + server.newcomerCooldownSeconds * 1000 - Date.now();
               if (remainingMs > 0) {
-                return socket.emit('error', { message: `Подождите ещё ${Math.ceil(remainingMs / 1000)} с. после присоединения к серверу` });
+                return fail({ message: `Подождите ещё ${Math.ceil(remainingMs / 1000)} с. после присоединения к серверу` });
               }
             }
           }
@@ -885,7 +952,7 @@ io.on('connection', (socket) => {
             const now = Date.now();
             const waitMs = slow * 1000 - (now - (slowModeTracker.get(key) || 0));
             if (waitMs > 0) {
-              return socket.emit('error', { message: `Медленный режим: подождите ${Math.ceil(waitMs / 1000)} с.` });
+              return fail({ message: `Медленный режим: подождите ${Math.ceil(waitMs / 1000)} с.` });
             }
             slowModeTracker.set(key, now);
           }
@@ -895,9 +962,9 @@ io.on('connection', (socket) => {
       if (data.dmId) {
         const DirectMessage = require('./models/DirectMessage');
         const dm = await DirectMessage.findById(data.dmId);
-        if (!dm) return socket.emit('error', { message: 'DM not found' });
+        if (!dm) return fail({ message: 'DM not found' });
         if (!dm.participants.some(p => String(p) === String(socket.userId))) {
-          return socket.emit('error', { message: 'Нет доступа к этому чату' });
+          return fail({ message: 'Нет доступа к этому чату' });
         }
         // Блокировка в любую сторону закрывает переписку один на один.
         // Основной путь отправки идёт именно через сокет, поэтому без этой
@@ -906,7 +973,7 @@ io.on('connection', (socket) => {
         if (dm.participants.length === 2 && !dm.isGroup && !dm.name) {
           const other = dm.participants.find(p => String(p) !== String(socket.userId));
           if (other && await isCommunicationBlocked(socket.userId, other)) {
-            return socket.emit('error', { message: 'Отправка сообщений недоступна', blocked: true });
+            return fail({ message: 'Отправка сообщений недоступна', blocked: true });
           }
         }
       }
@@ -915,7 +982,7 @@ io.on('connection', (socket) => {
       // сохраняя снимок об авторе исходника.
       if (data.forwardOf) {
         const original = await Message.findById(data.forwardOf).populate('author', 'username avatar');
-        if (!original) return socket.emit('error', { message: 'Исходное сообщение не найдено' });
+        if (!original) return fail({ message: 'Исходное сообщение не найдено' });
         messageData.content = original.content || '';
         messageData.attachments = (original.attachments || []).map(a => ({ url: a.url, filename: a.filename, size: a.size, type: a.type }));
         messageData.embeds = Array.isArray(original.embeds) ? original.embeds.map(e => (e.toObject ? e.toObject() : e)) : [];
@@ -1030,6 +1097,19 @@ io.on('connection', (socket) => {
             populate: { path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }
           });
         io.to(`channel-${data.channelId}`).emit('new-message', fullMessage);
+        // Открытый канал сокет слушает через комнату channel-*, а об остальных
+        // каналах сервера клиент иначе не узнал бы вовсе — и счётчики
+        // непрочитанного в боковой панели стояли бы на нуле. Шлём короткий
+        // сигнал без текста: содержимое приедет, когда канал откроют.
+        if (activityServerId) {
+          io.to(`server-${activityServerId}`).except(`channel-${data.channelId}`).emit('channel-activity', {
+            channelId: String(data.channelId),
+            serverId: String(activityServerId),
+            authorId: String(socket.userId),
+            messageId: String(message._id),
+            createdAt: message.createdAt,
+          });
+        }
 
         // Название канала для текста уведомления. Отдельным запросом, потому что
         // в fullMessage поле channel не populate-ится (там ObjectId), а
@@ -1099,8 +1179,8 @@ io.on('connection', (socket) => {
           });
         }
       }
-        if (typeof callback === 'function') callback({ messageId: message._id });
-      } catch (error) { socket.emit('error', { message: 'Failed to send message' }); }
+        finish({ messageId: String(message._id) });
+      } catch (error) { fail({ message: 'Не удалось отправить сообщение' }); }
   });
 
   socket.on('interactive-button-click', async (data) => {

@@ -315,6 +315,9 @@ export interface Message {
   type?: 'default' | 'missed-call' | 'call-ended' | 'server-join';
   pinned?: boolean;
   pinnedAt?: string;
+  // Метка отправки (см. utils/outbox): по ней ответ сервера находит своё
+  // «отправляется…» в ленте.
+  nonce?: string;
   createdAt: string;
 }
 

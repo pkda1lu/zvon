@@ -93,6 +93,13 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Server'
   }],
+  // С какого момента считать непрочитанное в чатах, где отметки «прочитано»
+  // ещё нет (см. models/ReadState). Ставится при первом запросе отметок:
+  // иначе вся история всех чатов разом стала бы «новой».
+  readBaselineAt: {
+    type: Date,
+    default: null
+  },
   notes: {
     type: Map,
     of: String, // Key is target ID (user, etc.), value is the note

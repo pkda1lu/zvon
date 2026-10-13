@@ -14,6 +14,7 @@ export interface ChatScrollEngineHandle {
   scrollToBottom: (smooth?: boolean) => void;
   scrollToMessage: (messageId: string) => void;
   scrollBy: (options: { top: number; behavior?: 'smooth' | 'auto' }) => void;
+  scrollToIndex: (index: number, align?: 'start' | 'center' | 'end') => void;
   getScrollerElement: () => HTMLElement | null;
   setJustSent: () => void;
 }
@@ -28,14 +29,27 @@ export interface ChatScrollEngineProps<T> {
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
-  initialUnreadCount?: number;
+  /** Индекс первого непрочитанного: лента откроется на нём. -1 — нет. */
+  unreadAnchorIndex?: number;
   interfaceScale?: number;
   className?: string;
   style?: React.CSSProperties;
   onAtBottomStateChange?: (atBottom: boolean) => void;
+  /** Видимый диапазон ленты (индексы в items). */
+  onRangeChanged?: (startIndex: number, endIndex: number) => void;
 }
 
+/*
+ * Где человек был в каждом чате за эту сессию. Лента пересоздаётся при смене
+ * чата и раньше всегда открывалась в самом низу — вернувшись в канал, где
+ * читал историю, приходилось листать к тому месту заново.
+ */
+const savedPositions = new Map<string, { key: string | null; atBottom: boolean }>();
+
 const INITIAL_FIRST_ITEM_INDEX = 100000;
+// Сколько после открытия чата ещё можно перенести ленту к первому
+// непрочитанному: позже человек уже читает, и прыжок бы ему мешал.
+const ANCHOR_LATE_WINDOW = 3000;
 
 interface VirtuosoContext {
   header?: React.ReactNode;
@@ -71,10 +85,11 @@ function ChatScrollEngineInner<T>(
     hasMore = false,
     isLoadingMore = false,
     onLoadMore,
-    initialUnreadCount = 0,
+    unreadAnchorIndex = -1,
     className = '',
     style = {},
     onAtBottomStateChange,
+    onRangeChanged,
   } = props;
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -179,6 +194,10 @@ function ChatScrollEngineInner<T>(
           }, 200);
         }
       },
+      scrollToIndex: (index: number, align: 'start' | 'center' | 'end' = 'start') => {
+        if (index < 0 || index >= items.length || !virtuosoRef.current) return;
+        virtuosoRef.current.scrollToIndex({ index, align, behavior: 'smooth' });
+      },
       scrollBy: ({ top, behavior = 'smooth' }) => {
         if (scrollerRef.current) {
           scrollerRef.current.scrollBy({ top, behavior });
@@ -192,17 +211,42 @@ function ChatScrollEngineInner<T>(
     [items, getItemKey, scrollToBottom]
   );
 
-  const initialTopMostItemIndex = useMemo(() => {
-    if (items.length === 0) return 0;
-    const targetIdx =
-      initialUnreadCount > 0
-        ? Math.max(0, items.length - initialUnreadCount)
-        : Math.max(0, items.length - 1);
-    return {
-      index: targetIdx,
-      align: 'end' as const,
+  // Откуда открыть ленту: с первого непрочитанного, иначе там, где человек
+  // остановился в прошлый раз, иначе снизу. Считаем один раз на чат —
+  // Virtuoso всё равно читает это только при создании.
+  const initialPlacementRef = useRef<{ chatId: string; value: any } | null>(null);
+  const anchorAppliedRef = useRef<{ chatId: string; at: number; done: boolean } | null>(null);
+  if (items.length > 0 && initialPlacementRef.current?.chatId !== chatId) {
+    let value: any = { index: items.length - 1, align: 'end' as const };
+    if (unreadAnchorIndex >= 0 && unreadAnchorIndex < items.length) {
+      value = { index: unreadAnchorIndex, align: 'start' as const, offset: -48 };
+    } else {
+      const saved = savedPositions.get(chatId);
+      if (saved && !saved.atBottom && saved.key) {
+        const idx = items.findIndex((item, i) => getItemKey(item, i) === saved.key);
+        if (idx !== -1) value = { index: idx, align: 'start' as const };
+      }
+    }
+    initialPlacementRef.current = { chatId, value };
+    anchorAppliedRef.current = {
+      chatId,
+      at: Date.now(),
+      done: unreadAnchorIndex >= 0 && unreadAnchorIndex < items.length,
     };
-  }, [initialUnreadCount, items.length]);
+  }
+  const initialTopMostItemIndex = initialPlacementRef.current?.value ?? 0;
+
+  // Лента часто открывается из кэша, где новых сообщений ещё нет, и первое
+  // непрочитанное находится, только когда приедет ответ сервера. Если это
+  // случилось сразу после открытия — переносим ленту к нему и теперь.
+  useEffect(() => {
+    const state = anchorAppliedRef.current;
+    if (!state || state.chatId !== chatId || state.done) return;
+    if (unreadAnchorIndex < 0 || unreadAnchorIndex >= items.length) return;
+    state.done = true;
+    if (Date.now() - state.at > ANCHOR_LATE_WINDOW) return;
+    virtuosoRef.current?.scrollToIndex({ index: unreadAnchorIndex, align: 'start', offset: -48 });
+  }, [chatId, unreadAnchorIndex, items.length]);
 
   const virtuosoContext = useMemo<VirtuosoContext>(
     () => ({ header, footer }),
@@ -220,8 +264,29 @@ function ChatScrollEngineInner<T>(
     (atBottom: boolean) => {
       isAtBottomRef.current = atBottom;
       onAtBottomStateChange?.(atBottom);
+      const saved = savedPositions.get(chatId);
+      savedPositions.set(chatId, { key: saved?.key ?? null, atBottom });
     },
-    [onAtBottomStateChange]
+    [onAtBottomStateChange, chatId]
+  );
+
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const handleRangeChanged = useCallback(
+    (range: { startIndex: number; endIndex: number }) => {
+      const start = range.startIndex - firstItemIndexRef.current;
+      const end = range.endIndex - firstItemIndexRef.current;
+      const list = itemsRef.current;
+      const first = list[Math.max(0, start)];
+      if (first) {
+        savedPositions.set(chatId, {
+          key: getItemKey(first, Math.max(0, start)),
+          atBottom: isAtBottomRef.current,
+        });
+      }
+      onRangeChanged?.(start, end);
+    },
+    [chatId, getItemKey, onRangeChanged]
   );
 
   const followOutput = useCallback(
@@ -283,6 +348,7 @@ function ChatScrollEngineInner<T>(
       components={VIRTUOSO_COMPONENTS}
       startReached={handleStartReached}
       atBottomStateChange={handleAtBottomStateChange}
+      rangeChanged={handleRangeChanged}
       atBottomThreshold={60}
       onScroll={(e) => {
         const target = e.target as HTMLElement;

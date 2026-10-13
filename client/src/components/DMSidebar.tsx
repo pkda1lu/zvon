@@ -3,7 +3,9 @@ import { isGroupDM } from '../utils/dm';
 import { motion } from 'framer-motion';
 import { iosSpring } from '../animations/transitions';
 import { DirectMessage, User, Server } from '../types';
-import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, ChatIcon, BellOffIcon, BlockIcon, PhoneIcon, SearchIcon, CloseIcon } from './Icons';
+import { PlusIcon, ShieldIcon, ChevronDownIcon, ChevronRightIcon, ChatIcon, BellOffIcon, BlockIcon, PhoneIcon, SearchIcon, CloseIcon, EditIcon } from './Icons';
+import { useDraftChatIds } from '../utils/drafts';
+import './ChatReliability.css';
 import UserAvatar from './UserAvatar';
 import VoiceControlPanel from './VoiceControlPanel';
 import UserBadges, { resolveServerTag } from './UserBadges';
@@ -120,6 +122,8 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
     onUserBlocked, dmCalls
 }) => {
     const { interfaceScale, reduceMotion } = useAppearance();
+    // Переписки с неотправленным текстом — помечаем карандашом (utils/drafts).
+    const draftIds = useDraftChatIds();
     // Чаты «от имени модерации», где текущий пользователь — модератор.
     // Их прячем из общего списка и собираем в один хаб «Модерация».
     const myModerationDMs = dms.filter(dm => {
@@ -296,6 +300,11 @@ const DMSidebar: React.FC<DMSidebarProps> = ({
                             : <span className="dm-preview-empty">Нет сообщений</span>}
                     </span>
                 </div>
+                {draftIds.has(dm._id) && !isSelected && (
+                    <span className="draft-marker" title="Есть неотправленный текст" aria-label="Черновик">
+                        <EditIcon size={13 * interfaceScale} color="currentColor" />
+                    </span>
+                )}
                 {/* У приглушённого чата счётчик приглушён же: непрочитанное
                     видно, но не притягивает взгляд наравне с остальными. */}
                 {unreadCount > 0 && (
