@@ -1,6 +1,6 @@
 [package]
 name = "zvon"
-version = "3.0.1"
+version = "3.0.2"
 description = "Zvon - Real-time communication platform"
 authors = ["pkda1lu"]
 edition = "2021"
