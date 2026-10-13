@@ -201,6 +201,8 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     crate::permissions::install_fullscreen(&w);
     crate::permissions::install_context_menu(&w);
     crate::netfilter::install(&w);
+    #[cfg(windows)]
+    crate::maximized_edge::install(&w);
     Ok(w)
 }
 

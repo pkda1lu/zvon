@@ -6,6 +6,8 @@ mod activity;
 mod audio;
 mod capture;
 mod ipc;
+#[cfg(windows)]
+mod maximized_edge;
 mod migrate;
 mod netfilter;
 mod overlay;
