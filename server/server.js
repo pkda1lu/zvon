@@ -2164,6 +2164,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/zvon').th
     );
     console.log(`[Presence] Сброшено зависших статусов при старте: ${reset.modifiedCount}`);
   } catch (e) { console.error('[Presence] Не удалось сбросить статусы при старте:', e); }
+  try { await require('./bootstrap/userIndexes')(); }
+  catch (e) { console.error('[Users] index migration failed:', e.message); }
   try { await require('./bootstrap/systemMiniApps')(); }
   catch (e) { console.error('[MiniApps] bootstrap failed:', e.message); }
   try { await require('./bootstrap/storeProducts')(); }

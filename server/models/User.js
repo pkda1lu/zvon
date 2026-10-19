@@ -55,9 +55,9 @@ const userSchema = new mongoose.Schema({
   // Привязка к аккаунту Telegram экосистемы Vlyne. VPN-подписка (ключ, трафик,
   // рефералка) живёт в боте и принадлежит телеграм-аккаунту; Zvon — второй
   // интерфейс к ней. Уникальность telegram.id не даёт двум пользователям Zvon
-  // распоряжаться одной и той же подпиской.
+  // распоряжаться одной и той же подпиской (индекс — ниже, у остальных).
   telegram: {
-    id:       { type: Number, default: null, index: { unique: true, sparse: true } },
+    id:       { type: Number },
     username: { type: String, default: '' },
     linkedAt: { type: Date, default: null },
   },
@@ -375,6 +375,21 @@ const userSchema = new mongoose.Schema({
 // Обратный поиск «кто меня заблокировал»: без индекса это перебор всей
 // коллекции пользователей, а запрос нужен при каждой загрузке списка переписок.
 userSchema.index({ blockedUsers: 1 });
+
+/*
+ * Одна подписка Vlyne — один пользователь Zvon. Индекс частичный: в него
+ * попадают только настоящие (числовые) telegram.id.
+ *
+ * Раньше был sparse-индекс при default: null. Sparse пропускает лишь
+ * документы без поля, а явный null индексирует — и каждый новый пользователь
+ * записывался с telegram.id: null. Первый проходил, на втором регистрация
+ * падала с E11000 (ответ 500 на verify-registration). Старый индекс
+ * telegram.id_1 снимается при запуске — bootstrap/userIndexes.js.
+ */
+userSchema.index(
+  { 'telegram.id': 1 },
+  { name: 'telegram_id_unique', unique: true, partialFilterExpression: { 'telegram.id': { $type: 'number' } } }
+);
 
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
