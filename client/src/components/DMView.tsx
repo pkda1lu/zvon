@@ -1567,7 +1567,10 @@ const DMView: React.FC<DMViewProps> = ({
                 ) : (
                   <MentionAutocomplete
                     query={mentionQuery}
-                    items={friends}
+                    items={[
+                      ...((dm.participants || []).filter((p): p is User => Boolean(p && typeof p === 'object'))),
+                      ...friends.filter(f => f && !dm.participants?.some(p => p && (typeof p === 'object' ? p._id : p) === f._id))
+                    ]}
                     onSelect={handleMentionSelect}
                     onClose={() => setShowMentions(false)}
                   />

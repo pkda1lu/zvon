@@ -129,6 +129,39 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
     const member = server.members.find(m => String((m.user as any)?._id || m.user) === String(targetUser?._id || ''));
 
+    const isTextMuted = Boolean(member?.communicationDisabledUntil && new Date(member.communicationDisabledUntil) > new Date());
+    const canManageMutes = hasPermission(userPerms, Permissions.MODERATE_MEMBERS) || isOwner;
+
+    const isVoiceMuted = Boolean(isServerMuted);
+    const canManageVoiceMutes = hasPermission(userPerms, Permissions.MUTE_MEMBERS) || isOwner;
+
+    const canUnmuteText = isSelf && isTextMuted && canManageMutes;
+    const canUnmuteVoice = isSelf && isVoiceMuted && canManageVoiceMutes;
+    const canUnmuteSelf = canUnmuteText || canUnmuteVoice;
+
+    const handleUnmute = async (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        try {
+            if (canUnmuteText) {
+                await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { communicationDisabledUntil: null });
+            }
+            if (canUnmuteVoice) {
+                setLocalServerMuted(false);
+                if (socket) {
+                    socket.emit('admin-voice-mute', { userId: targetUser._id, muted: false, serverId: server._id }, (res: any) => {
+                        if (res && res.ok === false) {
+                            setLocalServerMuted(true);
+                            alert(res.error || 'Не удалось изменить состояние микрофона.');
+                        }
+                    });
+                }
+            }
+        } catch (err) {
+            await alert('Не удалось снять мут.');
+        }
+        onClose();
+    };
+
     // 3D-комнаты — такие же голосовые каналы, в них тоже перемещают.
     // Текущий канал участника из списка убираем: перемещать в него некуда.
     const voiceChannels = server.channels.filter(c =>
@@ -520,6 +553,12 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     <>
                         {renderVolumeSection("Громкость в голосовой")}
 
+                        {isSelf && canUnmuteSelf && (
+                            <div className="menu-group">
+                                <div className="menu-item" onClick={handleUnmute}>Снять мут</div>
+                            </div>
+                        )}
+
                         {!isSelf && (hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) || hasPermission(userPerms, Permissions.MOVE_MEMBERS)) && (
                             <>
                                 <div className="menu-separator" />
@@ -592,6 +631,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     <>
                         <div className="menu-group">
                             {isSelf && <div className="menu-item" onClick={() => handleAction('server-profile')}>Настроить профиль на сервере</div>}
+                            {isSelf && canUnmuteSelf && <div className="menu-item" onClick={handleUnmute}>Снять мут</div>}
                             {!isSelf && (
                                 <>
                                     <div className="menu-item" onClick={() => handleAction('mention')}>Упомянуть</div>
@@ -615,59 +655,63 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                         {/* Volume slider for user */}
                         {renderVolumeSection("Громкость пользователя")}
 
-                        <div className="menu-separator" />
+                        {!isSelf && (
+                            <>
+                                <div className="menu-separator" />
 
-                        <div className="menu-group">
-                            {!isSelf && canManageNicknames && (
-                                <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
-                            )}
-                            {canManageRoles && !isSelf && (
-                                <div
-                                    className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}
-                                    onClick={(e) => {
-                                        if (isMobile) {
-                                            e.stopPropagation();
-                                            setActiveView('roles');
-                                        }
-                                    }}
-                                >
-                                    <span>Роли</span>
-                                    <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
-                                    <div className="submenu">
-                                        {(server.roles || []).filter(r => r.name !== '@everyone').map(role => {
-                                            const m = server.members.find(me => String(me.user._id || me.user) === String(targetUser._id));
-                                            const hasRole = (m?.roles || []).includes(role._id);
-                                            return (
-                                                <div
-                                                    key={role._id}
-                                                    className="menu-item role-item"
-                                                    onClick={async (e) => {
-                                                        e.stopPropagation();
-                                                        const newRoles = hasRole
-                                                            ? (m?.roles || []).filter(rid => rid !== role._id)
-                                                            : [...(m?.roles || []), role._id];
-                                                        try {
-                                                            await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { roles: newRoles });
-                                                        } catch (err) { }
-                                                    }}
-                                                >
-                                                    <div className="role-info">
-                                                        <div className={`role-checkbox ${hasRole ? 'checked' : ''}`}>
-                                                            {hasRole && '✓'}
+                                <div className="menu-group">
+                                    {canManageNicknames && (
+                                        <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
+                                    )}
+                                    {canManageRoles && (
+                                        <div
+                                            className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}
+                                            onClick={(e) => {
+                                                if (isMobile) {
+                                                    e.stopPropagation();
+                                                    setActiveView('roles');
+                                                }
+                                            }}
+                                        >
+                                            <span>Роли</span>
+                                            <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
+                                            <div className="submenu">
+                                                {(server.roles || []).filter(r => r.name !== '@everyone').map(role => {
+                                                    const m = server.members.find(me => String(me.user._id || me.user) === String(targetUser._id));
+                                                    const hasRole = (m?.roles || []).includes(role._id);
+                                                    return (
+                                                        <div
+                                                            key={role._id}
+                                                            className="menu-item role-item"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                const newRoles = hasRole
+                                                                    ? (m?.roles || []).filter(rid => rid !== role._id)
+                                                                    : [...(m?.roles || []), role._id];
+                                                                try {
+                                                                    await axios.put(`/api/servers/${server._id}/members/${targetUser._id}`, { roles: newRoles });
+                                                                } catch (err) { }
+                                                            }}
+                                                        >
+                                                            <div className="role-info">
+                                                                <div className={`role-checkbox ${hasRole ? 'checked' : ''}`}>
+                                                                    {hasRole && '✓'}
+                                                                </div>
+                                                                <div className="role-dot-mini" style={{ backgroundColor: role.color, color: role.color }} />
+                                                                <span className="role-name-text" style={{ color: role.color }}>{role.name}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="role-dot-mini" style={{ backgroundColor: role.color, color: role.color }} />
-                                                        <span className="role-name-text" style={{ color: role.color }}>{role.name}</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {isFriend ? <div className="menu-item destructive" onClick={() => handleAction('remove-friend')}>Удалить из друзей</div> : <div className="menu-item" onClick={() => handleAction('add-friend')}>Добавить в друзья</div>}
+                                    <div className="menu-item destructive" onClick={() => handleAction('block')}>Заблокировать</div>
+                                    <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>
                                 </div>
-                            )}
-                            {!isSelf && (isFriend ? <div className="menu-item destructive" onClick={() => handleAction('remove-friend')}>Удалить из друзей</div> : <div className="menu-item" onClick={() => handleAction('add-friend')}>Добавить в друзья</div>)}
-                            {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('block')}>Заблокировать</div>}
-                            {!isSelf && <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>}
-                        </div>
+                            </>
+                        )}
 
                         {(currentUser?.role === 'moderator' || currentUser?.role === 'admin') && !isSelf && (
                             <>

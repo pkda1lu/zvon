@@ -1760,7 +1760,13 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                 <MentionAutocomplete
                   query={mentionQuery}
                   items={[
-                    ...server.members.map(m => m.user),
+                    ...(server.members || [])
+                      .filter(m => m && m.user)
+                      .map(m => ({
+                        ...m.user,
+                        nickname: m.nickname,
+                        avatar: m.avatar || m.user.avatar
+                      })),
                     ...(server.roles || []).filter(r => (canMentionEveryone || r.mentionable) && r.name !== '@everyone' && r.name !== 'everyone'),
                     ...(canMentionEveryone ? [
                       { _id: 'everyone', name: 'everyone', color: 'var(--primary-neon)' } as any,
