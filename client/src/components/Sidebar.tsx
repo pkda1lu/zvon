@@ -220,7 +220,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               size={38 * interfaceScale}
               className="user-avatar"
             />
-            <div className={`status-indicator ${user.activity?.type === 'streaming' ? 'streaming' : user.status}`}></div>
+            <div className={`status-indicator ${user.status === 'offline' ? 'offline' : (user.activity?.type === 'streaming' ? 'streaming' : user.status)}`}></div>
           </motion.div>
           <div className="sidebar-user-actions">
             <motion.button

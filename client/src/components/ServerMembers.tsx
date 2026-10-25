@@ -130,7 +130,7 @@ const MemberItem: React.FC<{
                     size={32 * interfaceScale}
                     className="member-avatar"
                 />
-                <div className={`status-indicator ${member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status}`}></div>
+                <div className={`status-indicator ${offline || member.user.status === 'offline' ? 'offline' : (member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status)}`}></div>
             </>}
             extra={!offline && primaryActivity ? (
                 <div className="member-activity">

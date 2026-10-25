@@ -143,6 +143,10 @@
     background: var(--secondary-neon, #7000ff);
 }
 
+.status-indicator.offline {
+    background: var(--status-offline, #747f8d);
+}
+
 .member-name-row {
     display: flex;
     align-items: center;
