@@ -96,6 +96,8 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
     const waveformScrollRef = useRef<HTMLDivElement | null>(null);
     const composerBarRef = useRef<HTMLDivElement | null>(null);
     const [containerRect, setContainerRect] = useState<{ left: number; top: number; right: number; bottom: number } | null>(null);
+    const globalMoveRef = useRef<((e: PointerEvent) => void) | null>(null);
+    const globalUpRef = useRef<((e: PointerEvent) => void) | null>(null);
 
     // Keep refs in sync for event listeners
     isLockedRef.current = isLocked;
@@ -181,6 +183,15 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
     }, []);
 
     const cleanupRecording = useCallback(() => {
+        if (globalMoveRef.current) {
+            window.removeEventListener('pointermove', globalMoveRef.current);
+            globalMoveRef.current = null;
+        }
+        if (globalUpRef.current) {
+            window.removeEventListener('pointerup', globalUpRef.current);
+            window.removeEventListener('pointercancel', globalUpRef.current);
+            globalUpRef.current = null;
+        }
         if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
@@ -602,15 +613,107 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
         }
     };
 
+    // Global pointer move listener during drag
+    const handleGlobalPointerMove = useCallback((e: PointerEvent) => {
+        if (!pointerDownRef.current) return;
+        if (isLockedRef.current) return;
+
+        const deltaX = e.clientX - startXRef.current;
+        const deltaY = e.clientY - startYRef.current;
+
+        // Pulling UP towards lock
+        const clampedY = Math.max(-85, Math.min(0, deltaY));
+        // Pulling LEFT towards trash: allow freely dragging up to 260px to the left
+        const clampedX = Math.max(-260, Math.min(0, deltaX));
+
+        dragOffsetRef.current = { x: clampedX, y: clampedY };
+        setDragOffset({ x: clampedX, y: clampedY });
+
+        // If pulled UP by 45+ pixels -> lock recording!
+        if (deltaY <= -45) {
+            setIsLocked(true);
+            isLockedRef.current = true;
+            dragOffsetRef.current = { x: 0, y: 0 };
+            setDragOffset({ x: 0, y: 0 });
+        }
+    }, []);
+
+    // Global pointer up listener
+    const handleGlobalPointerUp = useCallback((e: PointerEvent) => {
+        if (globalMoveRef.current) {
+            window.removeEventListener('pointermove', globalMoveRef.current);
+            globalMoveRef.current = null;
+        }
+        if (globalUpRef.current) {
+            window.removeEventListener('pointerup', globalUpRef.current);
+            window.removeEventListener('pointercancel', globalUpRef.current);
+            globalUpRef.current = null;
+        }
+
+        if (!pointerDownRef.current) return;
+        pointerDownRef.current = false;
+
+        if (holdTimeoutRef.current) {
+            clearTimeout(holdTimeoutRef.current);
+            holdTimeoutRef.current = null;
+        }
+
+        // Tap without starting recording (switch voice/video mode on mobile / non-PC)
+        if (!isRecordingRef.current) {
+            if (!isPC) {
+                setRecordMode(m => (m === 'voice' ? 'video' : 'voice'));
+            }
+            return;
+        }
+
+        // If locked, releasing pointer does NOT stop recording
+        if (isLockedRef.current) {
+            return;
+        }
+
+        const deltaX = e.clientX - startXRef.current;
+        const currentOffset = dragOffsetRef.current;
+
+        // 1. If dragged LEFT towards trash (offset <= -35px or deltaX <= -35px) -> Cancel / delete recording!
+        if (currentOffset.x <= -35 || deltaX <= -35) {
+            cleanupRecording();
+            return;
+        }
+
+        // 2. If held and released:
+        // Duration >= 2 seconds -> send to chat!
+        // Duration < 2 seconds -> cancel!
+        const elapsedMs = recordStartTimeRef.current > 0 ? (Date.now() - recordStartTimeRef.current) : 0;
+        if (elapsedMs >= 2000) {
+            stopAndSend();
+        } else {
+            cleanupRecording();
+        }
+    }, [isPC, cleanupRecording, stopAndSend]);
+
     // Pointer events: press & hold, drag up with pointer to lock, drag left to delete
     const handlePointerDown = (e: React.PointerEvent) => {
         if (disabled || isRecording) return;
         pointerDownRef.current = true;
         startXRef.current = e.clientX;
         startYRef.current = e.clientY;
+        dragOffsetRef.current = { x: 0, y: 0 };
         setDragOffset({ x: 0, y: 0 });
 
-        e.currentTarget.setPointerCapture?.(e.pointerId);
+        if (globalMoveRef.current) {
+            window.removeEventListener('pointermove', globalMoveRef.current);
+        }
+        if (globalUpRef.current) {
+            window.removeEventListener('pointerup', globalUpRef.current);
+            window.removeEventListener('pointercancel', globalUpRef.current);
+        }
+
+        globalMoveRef.current = handleGlobalPointerMove;
+        globalUpRef.current = handleGlobalPointerUp;
+
+        window.addEventListener('pointermove', handleGlobalPointerMove, { passive: false });
+        window.addEventListener('pointerup', handleGlobalPointerUp);
+        window.addEventListener('pointercancel', handleGlobalPointerUp);
 
         // Long press detection: after 200ms, start recording
         holdTimeoutRef.current = setTimeout(() => {
@@ -620,72 +723,12 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
         }, 200);
     };
 
-    const handlePointerMove = (e: React.PointerEvent) => {
-        if (!pointerDownRef.current || !isRecordingRef.current || isLockedRef.current) return;
-        const deltaX = e.clientX - startXRef.current;
-        const deltaY = e.clientY - startYRef.current;
-
-        // If pulling UP: button travels upward with pointer
-        const clampedY = Math.max(-80, Math.min(0, deltaY));
-        // If pulling LEFT: button travels left with pointer
-        const clampedX = Math.max(-90, Math.min(0, deltaX));
-
-        setDragOffset({ x: clampedX, y: clampedY });
-
-        // If pulled UP by 55+ pixels -> lock recording!
-        if (deltaY <= -55) {
-            setIsLocked(true);
-            setDragOffset({ x: 0, y: 0 });
-        }
-    };
-
-    const handlePointerUp = () => {
-        if (!pointerDownRef.current) return;
-        pointerDownRef.current = false;
-
-        if (holdTimeoutRef.current) {
-            clearTimeout(holdTimeoutRef.current);
-            holdTimeoutRef.current = null;
-        }
-
-        // Was a tap/click without recording start?
-        if (!isRecordingRef.current) {
-            // For PC version: do not switch to video message!
-            if (!isPC) {
-                setRecordMode(m => (m === 'voice' ? 'video' : 'voice'));
-            }
-            return;
-        }
-
-        // If recording was locked, do not stop on pointer up
-        if (isLockedRef.current) {
-            return;
-        }
-
-        const currentOffset = dragOffsetRef.current;
-
-        // 1. If dragged LEFT into trash (<= -65px) -> Delete / Cancel recording!
-        if (currentOffset.x <= -65) {
-            cleanupRecording();
-            return;
-        }
-
-        // 2. If held and released: check duration
-        // Requirement: if duration is 2+ seconds -> send to chat! If < 2 seconds -> cancel!
-        const elapsedMs = recordStartTimeRef.current > 0 ? (Date.now() - recordStartTimeRef.current) : 0;
-        if (elapsedMs >= 2000) {
-            stopAndSend();
-        } else {
-            cleanupRecording();
-        }
-    };
-
     const handleCancelRecording = () => {
         cleanupRecording();
     };
 
-    const isNearTrash = dragOffset.x <= -45;
-    const isNearLock = dragOffset.y <= -40;
+    const isNearTrash = dragOffset.x <= -35;
+    const isNearLock = dragOffset.y <= -35;
     const buttonTitle = recordMode === 'video' ? 'Видеосообщение' : 'Голосовое сообщение';
 
     const getBackdropClipStyle = (): React.CSSProperties => {
@@ -771,24 +814,38 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
                     document.body
                 )}
 
-                {/* Left side: if locked -> trash button; if holding -> slide-cancel indicator */}
+                {/* Left side: if locked -> trash button; if holding -> clickable slide-cancel track */}
                 {isLocked ? (
                     <button
                         type="button"
                         className="zv-rec-cancel-btn"
                         onClick={handleCancelRecording}
+                        onPointerDown={(e) => {
+                            e.stopPropagation();
+                            handleCancelRecording();
+                        }}
                         title="Удалить запись"
                         aria-label="Удалить запись"
                     >
                         <Trash2 size={18 * interfaceScale} />
                     </button>
                 ) : (
-                    <div className={`zv-slide-cancel-track ${isNearTrash ? 'is-near-trash' : ''}`}>
+                    <button
+                        type="button"
+                        className={`zv-slide-cancel-track ${isNearTrash ? 'is-near-trash' : ''}`}
+                        onClick={handleCancelRecording}
+                        onPointerDown={(e) => {
+                            e.stopPropagation();
+                            handleCancelRecording();
+                        }}
+                        title="Удалить запись"
+                        aria-label="Удалить запись"
+                    >
                         <div className="zv-slide-cancel-icon">
                             <Trash2 size={16 * interfaceScale} />
                         </div>
                         <span className="zv-slide-cancel-arrow">‹‹</span>
-                    </div>
+                    </button>
                 )}
 
                 {/* Center waveform and timer stretching across full width */}
@@ -868,10 +925,6 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
                                 style={{
                                     transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`
                                 }}
-                                onPointerDown={handlePointerDown}
-                                onPointerMove={handlePointerMove}
-                                onPointerUp={handlePointerUp}
-                                onPointerCancel={handlePointerUp}
                                 title={buttonTitle}
                                 aria-label={buttonTitle}
                             >
@@ -895,9 +948,6 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
                 type="button"
                 className="voice-video-btn"
                 onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
                 disabled={disabled}
                 title={buttonTitle}
                 aria-label={buttonTitle}

@@ -1,6 +1,6 @@
 /* Recording button & composer overlay styles */
 
-/* Square with rounded corners matching .send-button */
+/* Square with rounded corners matching the inactive .send-button */
 .voice-video-btn {
   width: calc(38px * var(--interface-scale, 1));
   height: calc(38px * var(--interface-scale, 1));
@@ -9,30 +9,40 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid transparent;
+  border: 1px solid var(--glass-border);
   border-radius: calc(12px * var(--interface-scale, 1));
-  background: var(--primary-neon, #006aff);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
   cursor: pointer;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease, filter 0.15s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
   position: relative;
   z-index: 230;
 }
 
 .voice-video-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  filter: brightness(1.08);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-main);
+  transform: scale(1.04);
 }
 
 .voice-video-btn:active:not(:disabled) {
   transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.voice-video-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .voice-video-btn.is-active-recording {
   background: var(--danger, #ff4757);
+  border-color: transparent;
+  color: #fff;
   box-shadow: 0 0 16px rgba(255, 71, 87, 0.5);
   animation: zv-pulse 1.5s infinite;
 }
@@ -90,7 +100,7 @@
   box-shadow: 0 0 12px var(--primary-neon, #00e5ff);
 }
 
-/* Left cancel/trash drag indicator (shown on left while holding to drag LEFT into delete) */
+/* Left cancel/trash track & button (shown on left while holding: drag LEFT into delete OR click/tap to cancel) */
 .zv-slide-cancel-track {
   display: flex;
   align-items: center;
@@ -101,9 +111,25 @@
   border-radius: calc(12px * var(--interface-scale, 1));
   color: var(--text-dim, rgba(255, 255, 255, 0.7));
   font-size: 13px;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
   flex-shrink: 0;
+  outline: none;
   transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.zv-slide-cancel-track:hover {
+  background: rgba(255, 71, 87, 0.2);
+  border-color: rgba(255, 71, 87, 0.4);
+  color: var(--danger, #ff4757);
+  transform: scale(1.03);
+}
+
+.zv-slide-cancel-track:active {
+  transform: scale(0.97);
+  background: rgba(255, 71, 87, 0.3);
 }
 
 .zv-slide-cancel-track.is-near-trash {
