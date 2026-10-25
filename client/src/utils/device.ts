@@ -42,3 +42,17 @@ export const getDeviceLabel = (key: string): string => {
     }
     return key;
 };
+
+/**
+ * Checks whether the current client is a PC version (Desktop EXE, or desktop browser).
+ * Returns true if PC platform, false if mobile.
+ */
+export const isPCPlatform = (isMobileProp?: boolean): boolean => {
+    if (isMobileProp === true) return false;
+    if (typeof window === 'undefined') return true;
+    if ((window as any).electron) return true;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobileUA) return false;
+    if (window.innerWidth <= 768) return false;
+    return true;
+};

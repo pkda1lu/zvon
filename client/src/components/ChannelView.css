@@ -643,6 +643,11 @@
   pointer-events: none;
 }
 
+.message-input-container.is-recording-media,
+.message-input-container.zv-recording-video-active {
+  z-index: 99999;
+}
+
 .message-input-container > * {
   pointer-events: auto;
 }
@@ -683,6 +688,12 @@
   border-color: var(--primary-neon);
   box-shadow: 0 0 calc(20px * var(--interface-scale, 1)) rgba(0, 229, 255, 0.1);
   transform: translateY(-2px);
+}
+
+.message-form.is-recording-mode {
+  border-color: rgba(255, 71, 87, 0.4);
+  box-shadow: 0 0 24px rgba(255, 71, 87, 0.15);
+  background: rgba(25, 20, 24, 0.95);
 }
 
 :root.performance-mode .message-form {

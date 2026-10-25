@@ -18,6 +18,7 @@ import { useServerMemberMap } from '../utils/serverMembers';
 import './Attachments.css';
 import MemberContextMenu from './MemberContextMenu';
 import MessageAttachment from './MessageAttachment';
+import VoiceVideoRecorder from './VoiceVideoRecorder';
 import { isVisualMedia } from '../utils/mediaKind';
 import { uploadFiles, downloadFile } from '../utils/transfers';
 import MediaLightbox from './MediaLightbox';
@@ -729,6 +730,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [articleInitialText, setArticleInitialText] = useState('');
   const [editingArticleMessage, setEditingArticleMessage] = useState<Message | null>(null);
   const [articleInitialAttachments, setArticleInitialAttachments] = useState<any[]>([]);
+  const [isRecordingMedia, setIsRecordingMedia] = useState(false);
 
   // Лента вместе со своими ещё не подтверждёнными сообщениями (utils/outbox).
   const pendingMessages = useOutboxMessages(channel._id, messages);
@@ -1193,6 +1195,17 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     }
   };
 
+  const handleSendRecordedMedia = async (file: File) => {
+    try {
+      const response = await uploadFiles([file]);
+      if (response.data && response.data.length > 0) {
+        sendPayload({ content: '', attachments: response.data });
+      }
+    } catch (error: any) {
+      if (!error?.canceled) await alert('Ошибка загрузки записи');
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
@@ -1645,7 +1658,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       </div>
 
       {!(isMobile && showMembersSidebar) && (
-      <div className="message-input-container">
+      <div className={`message-input-container ${isRecordingMedia ? 'is-recording-media' : ''}`}>
         {editingMessage && (
           <div className="reply-input-preview edit-input-preview">
             <div className="reply-input-content">
@@ -1722,105 +1735,118 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             </span>
           </div>
         ) : (
-        <form onSubmit={handleSendMessage} className="message-form">
-          <ComposerAddMenu
-            onAttach={() => fileInputRef.current?.click()}
-            onGif={(pos) => setShowGifPicker(pos)}
-            onPoll={() => setShowPollModal(true)}
-            onArticle={handleOpenArticleEditor}
+        <form onSubmit={handleSendMessage} className={`message-form ${isRecordingMedia ? 'is-recording-mode' : ''}`}>
+          {!isRecordingMedia && (
+            <>
+              <ComposerAddMenu
+                onAttach={() => fileInputRef.current?.click()}
+                onGif={(pos) => setShowGifPicker(pos)}
+                onPoll={() => setShowPollModal(true)}
+                onArticle={handleOpenArticleEditor}
+              />
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
+              <input type="file" ref={replaceFileInputRef} onChange={handleReplaceFile} style={{ display: 'none' }} />
+              <div style={{ flex: 1, position: 'relative' }}>
+                {showScrollBottom && (
+                  <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)}>
+                    <ArrowDownIcon size={20 * interfaceScale} />
+                    <span>Новые сообщения</span>
+                  </button>
+                )}
+                {showMentions && (
+                  autocompleteType === 'channel' ? (
+                    <ChannelAutocomplete
+                      query={mentionQuery}
+                      items={(server.channels || []).filter(c => c.type === 'text' || c.type === 'voice' || c.type === 'room')}
+                      onSelect={handleMentionSelect}
+                      onClose={() => setShowMentions(false)}
+                    />
+                  ) : autocompleteType === 'emoji' ? (
+                    <EmojiAutocomplete
+                      query={mentionQuery}
+                      items={server.emojis || []}
+                      onSelect={handleMentionSelect}
+                      onClose={() => setShowMentions(false)}
+                    />
+                  ) : (
+                    <MentionAutocomplete
+                      query={mentionQuery}
+                      items={[
+                        ...(server.members || [])
+                          .filter(m => m && m.user)
+                          .map(m => ({
+                            ...m.user,
+                            nickname: m.nickname,
+                            avatar: m.avatar || m.user.avatar
+                          })),
+                        ...(server.roles || []).filter(r => (canMentionEveryone || r.mentionable) && r.name !== '@everyone' && r.name !== 'everyone'),
+                        ...(canMentionEveryone ? [
+                          { _id: 'everyone', name: 'everyone', color: 'var(--primary-neon)' } as any,
+                          { _id: 'here', name: 'here', color: 'var(--primary-neon)' } as any
+                        ] : [])
+                      ]}
+                      onSelect={handleMentionSelect}
+                      onClose={() => setShowMentions(false)}
+                    />
+                  )
+                )}
+                <textarea
+                  ref={inputRef}
+                  rows={1}
+                  placeholder={`Написать в #${channel.name}`}
+                  value={message}
+                  onChange={(e) => {
+                    handleTyping(e);
+                    const el = e.currentTarget;
+                    el.style.height = 'auto';
+                    const maxHeight = window.innerHeight * 0.3 - 24;
+                    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp' && !message && attachments.length === 0 && !editingMessage) {
+                      e.preventDefault();
+                      handleEditLast();
+                      return;
+                    }
+                    if (e.key === 'Escape' && editingMessage) {
+                      e.preventDefault();
+                      cancelEditing();
+                      return;
+                    }
+                    const isMobileClient = isMobile || window.innerWidth <= 768;
+                    if (isMobileClient) return;
+                    const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
+                    if (shouldSend) {
+                      e.preventDefault();
+                      handleSendMessage(e as any);
+                      if (inputRef.current) inputRef.current.style.height = 'auto';
+                    }
+                  }}
+                  onPaste={handlePaste}
+                  className="message-input"
+                  style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
+                />
+              </div>
+              {(message.trim().length > 0 || attachments.length > 0 || editingMessage) && (
+                <button
+                  type="submit"
+                  className="send-button mobile-send-button"
+                  title="Отправить сообщение"
+                  aria-label="Отправить сообщение"
+                >
+                  <SendIcon size={18 * interfaceScale} />
+                </button>
+              )}
+            </>
+          )}
+          <VoiceVideoRecorder
+            isMobile={isMobile}
+            interfaceScale={interfaceScale}
+            disabled={!socket}
+            style={isRecordingMedia ? { flex: 1, width: '100%' } : ((message.trim().length > 0 || attachments.length > 0 || !!editingMessage) ? { display: 'none' } : undefined)}
+            onSendMedia={handleSendRecordedMedia}
+            onRecordingActiveChange={setIsRecordingMedia}
           />
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
-          <input type="file" ref={replaceFileInputRef} onChange={handleReplaceFile} style={{ display: 'none' }} />
-          <div style={{ flex: 1, position: 'relative' }}>
-            {showScrollBottom && (
-              <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)}>
-                <ArrowDownIcon size={20 * interfaceScale} />
-                <span>Новые сообщения</span>
-              </button>
-            )}
-            {showMentions && (
-              autocompleteType === 'channel' ? (
-                <ChannelAutocomplete
-                  query={mentionQuery}
-                  items={(server.channels || []).filter(c => c.type === 'text' || c.type === 'voice' || c.type === 'room')}
-                  onSelect={handleMentionSelect}
-                  onClose={() => setShowMentions(false)}
-                />
-              ) : autocompleteType === 'emoji' ? (
-                <EmojiAutocomplete
-                  query={mentionQuery}
-                  items={server.emojis || []}
-                  onSelect={handleMentionSelect}
-                  onClose={() => setShowMentions(false)}
-                />
-              ) : (
-                <MentionAutocomplete
-                  query={mentionQuery}
-                  items={[
-                    ...(server.members || [])
-                      .filter(m => m && m.user)
-                      .map(m => ({
-                        ...m.user,
-                        nickname: m.nickname,
-                        avatar: m.avatar || m.user.avatar
-                      })),
-                    ...(server.roles || []).filter(r => (canMentionEveryone || r.mentionable) && r.name !== '@everyone' && r.name !== 'everyone'),
-                    ...(canMentionEveryone ? [
-                      { _id: 'everyone', name: 'everyone', color: 'var(--primary-neon)' } as any,
-                      { _id: 'here', name: 'here', color: 'var(--primary-neon)' } as any
-                    ] : [])
-                  ]}
-                  onSelect={handleMentionSelect}
-                  onClose={() => setShowMentions(false)}
-                />
-              )
-            )}
-            <textarea
-              ref={inputRef}
-              rows={1}
-              placeholder={`Написать в #${channel.name}`}
-              value={message}
-              onChange={(e) => {
-                handleTyping(e);
-                const el = e.currentTarget;
-                el.style.height = 'auto';
-                const maxHeight = window.innerHeight * 0.3 - 24;
-                el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowUp' && !message && attachments.length === 0 && !editingMessage) {
-                  e.preventDefault();
-                  handleEditLast();
-                  return;
-                }
-                if (e.key === 'Escape' && editingMessage) {
-                  e.preventDefault();
-                  cancelEditing();
-                  return;
-                }
-                const isMobileClient = isMobile || window.innerWidth <= 768;
-                if (isMobileClient) return;
-                const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
-                if (shouldSend) {
-                  e.preventDefault();
-                  handleSendMessage(e as any);
-                  if (inputRef.current) inputRef.current.style.height = 'auto';
-                }
-              }}
-              onPaste={handlePaste}
-              className="message-input"
-              style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
-            />
-          </div>
-          <button
-            type="submit"
-            className="send-button mobile-send-button"
-            disabled={!message.trim() && attachments.length === 0}
-            title="Отправить сообщение"
-            aria-label="Отправить сообщение"
-          >
-            <SendIcon size={18 * interfaceScale} />
-          </button>
         </form>
         )}
       </div>

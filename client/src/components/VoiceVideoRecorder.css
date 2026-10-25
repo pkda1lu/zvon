@@ -1,0 +1,422 @@
+/* Recording button & composer overlay styles */
+
+/* Square with rounded corners matching .send-button */
+.voice-video-btn {
+  width: calc(38px * var(--interface-scale, 1));
+  height: calc(38px * var(--interface-scale, 1));
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: calc(12px * var(--interface-scale, 1));
+  background: var(--primary-neon, #006aff);
+  color: #fff;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease, filter 0.15s ease, box-shadow 0.2s ease;
+  position: relative;
+  z-index: 230;
+}
+
+.voice-video-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  filter: brightness(1.08);
+}
+
+.voice-video-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.voice-video-btn.is-active-recording {
+  background: var(--danger, #ff4757);
+  box-shadow: 0 0 16px rgba(255, 71, 87, 0.5);
+  animation: zv-pulse 1.5s infinite;
+}
+
+@keyframes zv-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.6); }
+  70% { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+}
+
+/* Vertical lock track (shown while holding to drag UP into lock) */
+.zv-lock-drag-rail {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: calc(38px * var(--interface-scale, 1));
+  height: 120px;
+  background: rgba(20, 20, 25, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(14px * var(--interface-scale, 1));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 220;
+  animation: zv-rail-appear 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes zv-rail-appear {
+  from { opacity: 0; transform: scaleY(0.6); transform-origin: bottom center; }
+  to { opacity: 1; transform: scaleY(1); transform-origin: bottom center; }
+}
+
+.zv-lock-drag-target {
+  width: calc(28px * var(--interface-scale, 1));
+  height: calc(28px * var(--interface-scale, 1));
+  border-radius: calc(8px * var(--interface-scale, 1));
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim, rgba(255, 255, 255, 0.7));
+  transition: all 0.15s ease;
+}
+
+.zv-lock-drag-target.is-near-lock {
+  background: var(--primary-neon, #00e5ff);
+  color: #000;
+  transform: scale(1.15);
+  box-shadow: 0 0 12px var(--primary-neon, #00e5ff);
+}
+
+/* Left cancel/trash drag indicator (shown on left while holding to drag LEFT into delete) */
+.zv-slide-cancel-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(12px * var(--interface-scale, 1));
+  color: var(--text-dim, rgba(255, 255, 255, 0.7));
+  font-size: 13px;
+  pointer-events: none;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.zv-slide-cancel-track.is-near-trash {
+  background: rgba(255, 71, 87, 0.25);
+  border-color: var(--danger, #ff4757);
+  color: var(--danger, #ff4757);
+  transform: scale(1.05);
+  box-shadow: 0 0 14px rgba(255, 71, 87, 0.4);
+}
+
+.zv-slide-cancel-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+
+.zv-slide-cancel-track.is-near-trash .zv-slide-cancel-icon {
+  transform: rotate(-15deg) scale(1.2);
+}
+
+.zv-slide-cancel-arrow {
+  letter-spacing: 2px;
+  animation: zv-nudge-left 1s infinite alternate ease-in-out;
+}
+
+@keyframes zv-nudge-left {
+  0% { transform: translateX(0); opacity: 0.6; }
+  100% { transform: translateX(-4px); opacity: 1; }
+}
+
+/* Floating round video camera preview IN THE EXACT CENTER OF THE SCREEN (React Portal) */
+.zv-rec-video-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 99998;
+  pointer-events: none;
+  animation: zv-fade-in 0.2s ease;
+  transition: clip-path 0.08s ease, -webkit-clip-path 0.08s ease;
+}
+
+/* Ensure message-input-container sits on top of the blur */
+.message-input-container.zv-recording-video-active {
+  position: relative;
+  z-index: 99999 !important;
+}
+
+.message-input-container.zv-recording-video-active .message-form.is-recording-mode {
+  border-color: rgba(0, 229, 255, 0.45);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.6), 0 0 24px rgba(0, 229, 255, 0.25);
+  background: rgba(18, 18, 24, 0.96);
+}
+
+@keyframes zv-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.zv-rec-video-preview-wrapper {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 99999;
+  pointer-events: none;
+  animation: zv-circle-appear 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes zv-circle-appear {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.zv-rec-video-circle {
+  width: 280px;
+  height: 280px;
+  max-width: 80vw;
+  max-height: 80vw;
+  border-radius: 50%;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  background: #000;
+  border: 4px solid var(--primary-neon, #00e5ff);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 229, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.zv-rec-video-circle video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.zv-rec-video-badge {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  padding: 4px 14px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Active recording composer bar - stretches 100% width, controls stay anchored on right */
+.zv-rec-composer-bar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  flex: 1;
+  gap: 10px;
+  padding: 0;
+  min-height: calc(38px * var(--interface-scale, 1));
+  box-sizing: border-box;
+}
+
+/* Square with rounded corners matching .send-button */
+.zv-rec-cancel-btn {
+  width: calc(38px * var(--interface-scale, 1));
+  height: calc(38px * var(--interface-scale, 1));
+  flex-shrink: 0;
+  border-radius: calc(12px * var(--interface-scale, 1));
+  border: 1px solid rgba(255, 71, 87, 0.25);
+  background: rgba(255, 71, 87, 0.14);
+  color: var(--danger, #ff4757);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.zv-rec-cancel-btn:hover {
+  background: rgba(255, 71, 87, 0.28);
+  transform: scale(1.05);
+}
+
+/* Center timer and full-width waveform track */
+.zv-rec-center-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: calc(38px * var(--interface-scale, 1));
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(12px * var(--interface-scale, 1));
+  padding: 0 10px;
+  overflow: hidden;
+}
+
+.zv-rec-indicator-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger, #ff4757);
+  flex-shrink: 0;
+  animation: zv-pulse-dot 1s infinite alternate;
+}
+
+.zv-rec-indicator-dot.is-paused {
+  background: #f1c40f;
+  animation: none;
+}
+
+@keyframes zv-pulse-dot {
+  0% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1.2); }
+}
+
+.zv-rec-timer-text {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main, #fff);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.zv-rec-paused-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #f1c40f;
+  flex-shrink: 0;
+}
+
+/* Full-width voice waveform track with live filling and auto-scrolling */
+.zv-rec-waveform-track {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0 2px;
+}
+
+.zv-rec-waveform-track::-webkit-scrollbar {
+  display: none;
+}
+
+.zv-rec-voice-bar {
+  width: 3px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--primary-neon, #00e5ff);
+  transition: height 0.06s ease;
+  min-height: 3px;
+  max-height: 28px;
+}
+
+/* Right controls row: ALWAYS anchored on the right */
+.zv-rec-right-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto; /* Guarantees controls never shift to the left */
+}
+
+/* Square with rounded corners: Flip camera button */
+.zv-rec-flip-btn {
+  width: calc(38px * var(--interface-scale, 1));
+  height: calc(38px * var(--interface-scale, 1));
+  border-radius: calc(12px * var(--interface-scale, 1));
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.15s ease;
+}
+
+.zv-rec-flip-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: rotate(180deg);
+}
+
+/* Square with rounded corners: Pause button (icon only, no text) */
+.zv-rec-pause-btn {
+  width: calc(38px * var(--interface-scale, 1));
+  height: calc(38px * var(--interface-scale, 1));
+  border-radius: calc(12px * var(--interface-scale, 1));
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.zv-rec-pause-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.05);
+}
+
+.zv-rec-pause-btn.is-paused {
+  background: rgba(241, 196, 15, 0.2);
+  color: #f1c40f;
+  border-color: rgba(241, 196, 15, 0.4);
+}
+
+/* Square with rounded corners: Send button */
+.zv-rec-send-btn {
+  width: calc(38px * var(--interface-scale, 1));
+  height: calc(38px * var(--interface-scale, 1));
+  border-radius: calc(12px * var(--interface-scale, 1));
+  border: 1px solid transparent;
+  background: var(--primary-neon, #006aff);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 106, 255, 0.4);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.zv-rec-send-btn:hover {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}

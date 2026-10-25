@@ -16,6 +16,7 @@ import { formatClockTime, formatDateTime } from '../utils/time';
 import { SmileIcon, PinIcon, ReplyIcon, EditIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon, PaperclipIcon, EllipsisIcon, UsersIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import MessageAttachment from './MessageAttachment';
+import VoiceVideoRecorder from './VoiceVideoRecorder';
 import { isVisualMedia } from '../utils/mediaKind';
 import { uploadFiles, downloadFile } from '../utils/transfers';
 import MediaLightbox from './MediaLightbox';
@@ -647,6 +648,7 @@ const DMView: React.FC<DMViewProps> = ({
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [editingArticleMessage, setEditingArticleMessage] = useState<Message | null>(null);
   const [articleInitialAttachments, setArticleInitialAttachments] = useState<any[]>([]);
+  const [isRecordingMedia, setIsRecordingMedia] = useState(false);
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
   const replaceIndexRef = useRef<number | null>(null);
 
@@ -1171,6 +1173,17 @@ const DMView: React.FC<DMViewProps> = ({
     }
   }, [messages, jumpToMessage]);
 
+  const handleSendRecordedMedia = async (file: File) => {
+    try {
+      const response = await uploadFiles([file]);
+      if (response.data && response.data.length > 0) {
+        sendPayload({ content: '', attachments: response.data });
+      }
+    } catch (error: any) {
+      if (!error?.canceled) await alert('Ошибка загрузки записи');
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
@@ -1562,7 +1575,7 @@ const DMView: React.FC<DMViewProps> = ({
         )}
       </div>
 
-      <div className="message-input-container">
+      <div className={`message-input-container ${isRecordingMedia ? 'is-recording-media' : ''}`}>
         {editingMessage && (
           <div className="reply-input-preview edit-input-preview">
             <div className="reply-input-content">
@@ -1628,88 +1641,102 @@ const DMView: React.FC<DMViewProps> = ({
             <span>{blockNotice}</span>
           </div>
         ) : (
-          <form onSubmit={handleSendMessage} className="message-form">
-            <ComposerAddMenu
-              onAttach={() => fileInputRef.current?.click()}
-              onGif={(pos) => setShowGifPicker(pos)}
-              onPoll={() => setShowPollModal(true)}
-              onArticle={handleOpenArticleEditor}
+          <form onSubmit={handleSendMessage} className={`message-form ${isRecordingMedia ? 'is-recording-mode' : ''}`}>
+            {!isRecordingMedia && (
+              <>
+                <ComposerAddMenu
+                  onAttach={() => fileInputRef.current?.click()}
+                  onGif={(pos) => setShowGifPicker(pos)}
+                  onPoll={() => setShowPollModal(true)}
+                  onArticle={handleOpenArticleEditor}
+                />
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
+                <input type="file" ref={replaceFileInputRef} onChange={handleReplaceFile} style={{ display: 'none' }} />
+                <div style={{ flex: 1, position: 'relative' }}>
+                  {showScrollBottom && (
+                    <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)}>
+                      <ArrowDownIcon size={20 * interfaceScale} />
+                      <span>Новые сообщения</span>
+                    </button>
+                  )}
+                  {showMentions && (
+                    autocompleteType === 'emoji' ? (
+                      <EmojiAutocomplete
+                        query={mentionQuery}
+                        items={[]}
+                        onSelect={handleMentionSelect}
+                        onClose={() => setShowMentions(false)}
+                      />
+                    ) : (
+                      <MentionAutocomplete
+                        query={mentionQuery}
+                        items={[
+                          ...((dm.participants || []).filter((p): p is User => Boolean(p && typeof p === 'object'))),
+                          ...friends.filter(f => f && !dm.participants?.some(p => p && (typeof p === 'object' ? p._id : p) === f._id))
+                        ]}
+                        onSelect={handleMentionSelect}
+                        onClose={() => setShowMentions(false)}
+                      />
+                    )
+                  )}
+                  <textarea
+                    ref={inputRef}
+                    rows={1}
+                    placeholder={maskModeration ? 'Написать модерации...' : `Написать ${otherUser?.displayName || otherUser?.username || ''}...`}
+                    value={message}
+                    onChange={(e) => {
+                      handleTyping(e);
+                      const el = e.currentTarget;
+                      el.style.height = 'auto';
+                      const maxHeight = window.innerHeight * 0.3 - 24;
+                      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowUp' && !message && attachments.length === 0 && !editingMessage) {
+                        e.preventDefault();
+                        handleEditLast();
+                        return;
+                      }
+                      if (e.key === 'Escape' && editingMessage) {
+                        e.preventDefault();
+                        cancelEditing();
+                        return;
+                      }
+                      const isMobileClient = isMobile || window.innerWidth <= 768;
+                      if (isMobileClient) return;
+                      const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
+                      if (shouldSend) {
+                        e.preventDefault();
+                        handleSendMessage(e as any);
+                        if (inputRef.current) inputRef.current.style.height = 'auto';
+                      }
+                    }}
+                    onPaste={handlePaste}
+                    className="message-input"
+                    style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
+                  />
+                </div>
+                {(message.trim().length > 0 || attachments.length > 0 || editingMessage) && (
+                  <button
+                    type="submit"
+                    className="send-button mobile-send-button"
+                    disabled={!message.trim() && attachments.length === 0}
+                    title="Отправить сообщение"
+                    aria-label="Отправить сообщение"
+                  >
+                    <SendIcon size={18 * interfaceScale} />
+                  </button>
+                )}
+              </>
+            )}
+            <VoiceVideoRecorder
+              isMobile={isMobile}
+              interfaceScale={interfaceScale}
+              disabled={!socket}
+              style={isRecordingMedia ? { flex: 1, width: '100%' } : ((message.trim().length > 0 || attachments.length > 0 || !!editingMessage) ? { display: 'none' } : undefined)}
+              onSendMedia={handleSendRecordedMedia}
+              onRecordingActiveChange={setIsRecordingMedia}
             />
-            <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
-            <input type="file" ref={replaceFileInputRef} onChange={handleReplaceFile} style={{ display: 'none' }} />
-            <div style={{ flex: 1, position: 'relative' }}>
-              {showScrollBottom && (
-                <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)}>
-                  <ArrowDownIcon size={20 * interfaceScale} />
-                  <span>Новые сообщения</span>
-                </button>
-              )}
-              {showMentions && (
-                autocompleteType === 'emoji' ? (
-                  <EmojiAutocomplete
-                    query={mentionQuery}
-                    items={[]}
-                    onSelect={handleMentionSelect}
-                    onClose={() => setShowMentions(false)}
-                  />
-                ) : (
-                  <MentionAutocomplete
-                    query={mentionQuery}
-                    items={[
-                      ...((dm.participants || []).filter((p): p is User => Boolean(p && typeof p === 'object'))),
-                      ...friends.filter(f => f && !dm.participants?.some(p => p && (typeof p === 'object' ? p._id : p) === f._id))
-                    ]}
-                    onSelect={handleMentionSelect}
-                    onClose={() => setShowMentions(false)}
-                  />
-                )
-              )}
-              <textarea
-                ref={inputRef}
-                rows={1}
-                placeholder={maskModeration ? 'Написать модерации...' : `Написать ${otherUser?.displayName || otherUser?.username || ''}...`}
-                value={message}
-                onChange={(e) => {
-                  handleTyping(e);
-                  const el = e.currentTarget;
-                  el.style.height = 'auto';
-                  const maxHeight = window.innerHeight * 0.3 - 24;
-                  el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowUp' && !message && attachments.length === 0 && !editingMessage) {
-                    e.preventDefault();
-                    handleEditLast();
-                    return;
-                  }
-                  if (e.key === 'Escape' && editingMessage) {
-                    e.preventDefault();
-                    cancelEditing();
-                    return;
-                  }
-                  const isMobileClient = isMobile || window.innerWidth <= 768;
-                  if (isMobileClient) return;
-                  const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
-                  if (shouldSend) {
-                    e.preventDefault();
-                    handleSendMessage(e as any);
-                    if (inputRef.current) inputRef.current.style.height = 'auto';
-                  }
-                }}
-                onPaste={handlePaste}
-                className="message-input"
-                style={{ width: '100%', resize: 'none', overflowY: 'auto' }}
-              />
-            </div>
-            <button
-              type="submit"
-              className="send-button mobile-send-button"
-              disabled={!message.trim() && attachments.length === 0}
-              title="Отправить сообщение"
-              aria-label="Отправить сообщение"
-            >
-              <SendIcon size={18 * interfaceScale} />
-            </button>
           </form>
         )}
       </div>

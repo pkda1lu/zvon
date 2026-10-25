@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import CustomAudioPlayer from './CustomAudioPlayer';
+import RoundVideoPlayer from './RoundVideoPlayer';
 import { DocumentIcon, DownloadIcon } from './Icons';
 import { getFullUrl } from '../utils/avatar';
 import { getMediaKind, formatBytes } from '../utils/mediaKind';
@@ -11,6 +12,8 @@ export interface AttachmentData {
     type: string;
     filename?: string;
     size?: number;
+    isRoundVideo?: boolean;
+    isVoiceMessage?: boolean;
 }
 
 interface MessageAttachmentProps {
@@ -65,7 +68,29 @@ const MessageAttachment: React.FC<MessageAttachmentProps> = ({ att, onOpenMedia,
         );
     }
 
+    const isRoundVideo = !failed && (
+        Boolean(att.filename?.includes('video-message')) ||
+        Boolean(att.filename?.includes('video-note')) ||
+        Boolean((att as any).isRoundVideo) ||
+        Boolean(att.type?.includes('round')) ||
+        Boolean(att.type?.includes('video-message'))
+    );
+
     if (kind === 'video') {
+        if (isRoundVideo) {
+            return (
+                <div className="attachment-round-video-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
+                    <RoundVideoPlayer
+                        src={url}
+                        filename={filename}
+                        onExpand={onOpenMedia ? (t) => onOpenMedia(att, t) : undefined}
+                        onError={() => setFailed(true)}
+                    />
+                    {downloadBtn('round-video')}
+                </div>
+            );
+        }
+
         return (
             <div className="attachment-video-wrapper">
                 <CustomVideoPlayer
@@ -79,9 +104,11 @@ const MessageAttachment: React.FC<MessageAttachmentProps> = ({ att, onOpenMedia,
     }
 
     if (kind === 'audio') {
+        const isVoice = Boolean(att.filename?.includes('voice-message')) || Boolean((att as any).isVoiceMessage);
+        const displayName = isVoice ? 'Голосовое сообщение' : filename;
         return (
             <div className="attachment-audio-container">
-                <CustomAudioPlayer src={url} filename={filename} onError={() => setFailed(true)} />
+                <CustomAudioPlayer src={url} filename={displayName} onError={() => setFailed(true)} />
                 {downloadBtn('audio')}
             </div>
         );
