@@ -10,8 +10,10 @@ interface ArticleEditorModalProps {
   onClose: (draft?: string) => void;
   onSend: (content: string, attachments?: any[]) => void;
   initialContent?: string;
+  initialAttachments?: any[];
   server?: Server;
   mentions?: User[];
+  isEditing?: boolean;
 }
 
 const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
@@ -19,11 +21,13 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
   onClose,
   onSend,
   initialContent = '',
+  initialAttachments = [],
   server,
   mentions = [],
+  isEditing = false,
 }) => {
   const [content, setContent] = useState(initialContent);
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<any[]>(initialAttachments);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -34,7 +38,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setContent(initialContent || '');
-      setAttachments([]);
+      setAttachments(initialAttachments ? [...initialAttachments] : []);
       setActiveTab('edit');
       // Focus textarea shortly after opening
       setTimeout(() => {
@@ -243,8 +247,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
       onClose={handleClose}
       size="md"
       className="article-editor-modal"
-      title="Написать статью"
-      subtitle="Полноценный Markdown: заголовки, таблицы, списки, картинки и форматирование"
+      title={isEditing ? 'Редактировать статью' : 'Написать статью'}
       footer={
         <>
           <div className="article-editor__footer-info">
@@ -267,7 +270,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
               onClick={handleSubmit}
               disabled={!content.trim() || uploading}
             >
-              Отправить
+              {isEditing ? 'Сохранить' : 'Отправить'}
             </button>
           </div>
         </>

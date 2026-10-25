@@ -97,7 +97,7 @@ const MessageItem = React.memo<{
   onTogglePin: (id: string) => void;
   onDelete: (id: string) => void;
   formatDate: (d: string) => string;
-  renderMessageContent: (c: string, m?: User[]) => any;
+  renderMessageContent: (c: string, m?: User[], onImageClick?: (url: string, alt?: string) => void) => any;
   handleDownload: (e: React.MouseEvent, url: string, filename: string) => void;
   setLightboxMedia: (m: any[]) => void;
   setLightboxIndex: (i: number) => void;
@@ -128,9 +128,29 @@ const MessageItem = React.memo<{
 
   // Лайтбокс: все картинки и видео ленты, с позиции нужного вложения.
   const openMediaAt = (att: any, startTime?: number) => {
-    const allMedia = allMessages.flatMap((m: any) => m.attachments || []).filter((a: any) => isVisualMedia(a)).map((a: any) => ({ ...a }));
-    const idx = allMedia.findIndex((a: any) => a.url === att.url);
-    if (idx === -1) return;
+    const allMedia = allMessages.flatMap((m: any) => {
+      const atts = m.attachments || [];
+      const mdImages: any[] = [];
+      if (m.content) {
+        const regex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+|[^\s)]+)(?:\s+"([^"]*)")?\)/g;
+        let match;
+        while ((match = regex.exec(m.content)) !== null) {
+          const rawUrl = match[2];
+          const full = getFullUrl(rawUrl) || rawUrl;
+          if (!atts.some((a: any) => (getFullUrl(a.url) || a.url) === full)) {
+            mdImages.push({ url: full, filename: match[1] || 'image', type: 'image/jpeg' });
+          }
+        }
+      }
+      return [...atts, ...mdImages];
+    }).filter((a: any) => isVisualMedia(a)).map((a: any) => ({ ...a, url: getFullUrl(a.url) || a.url }));
+
+    const targetUrl = getFullUrl(att.url) || att.url;
+    let idx = allMedia.findIndex((a: any) => (getFullUrl(a.url) || a.url) === targetUrl);
+    if (idx === -1) {
+      allMedia.push({ ...att, url: targetUrl, type: att.type || 'image/jpeg', filename: att.filename || 'image' });
+      idx = allMedia.length - 1;
+    }
     if (startTime) allMedia[idx].startTime = startTime;
     setLightboxMedia(allMedia);
     setLightboxIndex(idx);
@@ -593,7 +613,7 @@ const MessageItem = React.memo<{
 
           {(msg.content || msg.edited) && (
             <div className="message-text">
-              {msg.content ? renderMessageContent(msg.content, msg.mentions) : null}
+              {msg.content ? renderMessageContent(msg.content, msg.mentions, (url, alt) => openMediaAt({ url, filename: alt })) : null}
               {msg.edited && <span className="message-edited"> (изменено)</span>}
             </div>
           )}
@@ -602,15 +622,23 @@ const MessageItem = React.memo<{
             <ServerInviteCard key={code} code={code} />
           ))}
 
-          {showPreview && msg.attachments && msg.attachments.length > 0 && (
-            <div className="message-attachments">
-              {msg.attachments.map((att, i) => (
-                <div key={i} className="attachment-item">
-                  <MessageAttachment att={att as any} iconScale={1} onOpenMedia={(a, t) => openMediaAt(a, t)} />
-                </div>
-              ))}
-            </div>
-          )}
+          {(() => {
+            if (!showPreview || !msg.attachments || msg.attachments.length === 0) return null;
+            const isMd = msg.content?.startsWith(ARTICLE_MARKER);
+            const visibleAttachments = isMd
+              ? msg.attachments.filter(att => !att.url || !msg.content.includes(att.url))
+              : msg.attachments;
+            if (visibleAttachments.length === 0) return null;
+            return (
+              <div className="message-attachments">
+                {visibleAttachments.map((att, i) => (
+                  <div key={i} className="attachment-item">
+                    <MessageAttachment att={att as any} iconScale={1} onOpenMedia={(a, t) => openMediaAt(a, t)} />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {showPreview && msg.embeds && msg.embeds.length > 0 && (
             <div className="message-embeds">
@@ -699,6 +727,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const [showPollModal, setShowPollModal] = useState(false);
   const [showArticleModal, setShowArticleModal] = useState(false);
   const [articleInitialText, setArticleInitialText] = useState('');
+  const [editingArticleMessage, setEditingArticleMessage] = useState<Message | null>(null);
+  const [articleInitialAttachments, setArticleInitialAttachments] = useState<any[]>([]);
 
   // Лента вместе со своими ещё не подтверждёнными сообщениями (utils/outbox).
   const pendingMessages = useOutboxMessages(channel._id, messages);
@@ -833,6 +863,14 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   const replaceIndexRef = useRef<number | null>(null);
 
   const startEditing = useCallback((targetMessage: Message) => {
+    if (targetMessage.content?.startsWith(ARTICLE_MARKER)) {
+      setEditingArticleMessage(targetMessage);
+      setArticleInitialText(targetMessage.content.slice(ARTICLE_MARKER.length));
+      setArticleInitialAttachments(targetMessage.attachments ? [...targetMessage.attachments] : []);
+      setShowArticleModal(true);
+      return;
+    }
+
     setEditingMessage(targetMessage);
     setMessage(targetMessage.content || '');
     setAttachments(targetMessage.attachments ? [...targetMessage.attachments] : []);
@@ -1199,6 +1237,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const handleOpenArticleEditor = () => {
+    setEditingArticleMessage(null);
+    setArticleInitialAttachments([]);
     setArticleInitialText(message);
     if (message) {
       setMessage('');
@@ -1208,13 +1248,28 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
   const handleCloseArticleEditor = (draft?: string) => {
     setShowArticleModal(false);
-    if (draft && !message) {
+    if (editingArticleMessage) {
+      setEditingArticleMessage(null);
+    } else if (draft && !message) {
       setMessage(draft.replace(ARTICLE_MARKER, ''));
     }
   };
 
   const handleSendArticle = (content: string, articleAttachments: any[] = []) => {
     if (!socket || !content.trim()) return;
+
+    if (editingArticleMessage) {
+      socket.emit('edit-message', {
+        messageId: editingArticleMessage._id,
+        content: ARTICLE_MARKER + content.trim(),
+        attachments: articleAttachments,
+        channelId: channel._id
+      });
+      setEditingArticleMessage(null);
+      setShowArticleModal(false);
+      return;
+    }
+
     sendPayload({
       content: ARTICLE_MARKER + content.trim(),
       attachments: articleAttachments
@@ -1307,7 +1362,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
+  const renderMessageContent = useCallback((content: string, mentions: User[] = [], onImageClick?: (url: string, alt?: string) => void) => {
     return (
       <MarkdownContent
         content={content}
@@ -1316,6 +1371,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         onUserClick={onUserClick}
         customConfirm={customConfirm}
         openLink={openLink}
+        onImageClick={onImageClick}
       />
     );
   }, [server, onUserClick, customConfirm, openLink]);
@@ -1775,6 +1831,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
         onClose={handleCloseArticleEditor}
         onSend={handleSendArticle}
         initialContent={articleInitialText}
+        initialAttachments={articleInitialAttachments}
+        isEditing={!!editingArticleMessage}
         server={server}
         mentions={server.members?.map(m => m.user).filter(Boolean) as any}
       />
