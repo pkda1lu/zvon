@@ -1202,7 +1202,7 @@ io.on('connection', (socket) => {
 
   socket.on('edit-message', async (data) => {
     try {
-      const { messageId, content } = data;
+      const { messageId, content, attachments } = data;
       const message = await Message.findById(messageId);
       if (!message) return;
 
@@ -1211,6 +1211,7 @@ io.on('connection', (socket) => {
       }
 
       message.content = content !== undefined ? content : message.content;
+      if (Array.isArray(attachments)) message.attachments = attachments;
       if (data.embeds) message.embeds = data.embeds;
       
       // Re-extract URL Previews on edit if content changed
@@ -1224,10 +1225,10 @@ io.on('connection', (socket) => {
             const previewPromises = uniqueUrls.slice(0, 3).map(getUrlPreview);
             const previews = await Promise.all(previewPromises);
             const validPreviews = previews.filter(p => p !== null);
-            if (validPreviews.length > 0) {
-              message.embeds = [...(message.embeds || []), ...validPreviews];
-            }
+            message.embeds = validPreviews;
           } catch (err) { }
+        } else {
+          message.embeds = [];
         }
       }
 
@@ -1235,15 +1236,21 @@ io.on('connection', (socket) => {
       message.edited = true;
       message.editedAt = new Date();
       await message.save();
-      await message.populate({ path: 'author', select: 'username avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
-      await message.populate('mentions', 'username');
+      await message.populate({ path: 'author', select: 'username displayName avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      await message.populate({ path: 'mentions', select: 'username displayName badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+      if (message.replyTo) {
+        await message.populate({
+          path: 'replyTo',
+          populate: { path: 'author', select: 'username displayName avatar activity badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }
+        });
+      }
 
       if (message.channel) {
         io.to(`channel-${message.channel}`).emit('message-updated', message);
       } else if (message.directMessage) {
         const DirectMessage = require('./models/DirectMessage');
         const dm = await DirectMessage.findById(message.directMessage);
-        if (dm) dm.participants.forEach(p => io.to(`user-${p._id}`).emit('message-updated', message));
+        if (dm) dm.participants.forEach(p => io.to(`user-${p._id || p}`).emit('message-updated', message));
       }
     } catch (error) { socket.emit('error', { message: 'Failed to edit message' }); }
   });

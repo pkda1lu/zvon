@@ -57,6 +57,7 @@ const PinContent: React.FC<{ msg: Message; render: Props['renderContent'] }> = (
         <>
             <div ref={ref} className={`pinned-text ${expanded ? 'expanded' : ''}`}>
                 {render(msg.content, (msg as any).mentions || [])}
+                {msg.edited && <span className="message-edited"> (изменено)</span>}
             </div>
             {(overflows || expanded) && (
                 <button

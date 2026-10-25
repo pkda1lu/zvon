@@ -143,7 +143,7 @@ export const KeybindsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleWebKeybind = useCallback((e: KeyboardEvent) => {
         const target = e.target as HTMLElement;
         const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-        const isArrowUpInInput = target.tagName === 'INPUT' && e.key === 'ArrowUp' && (target as HTMLInputElement).value === '';
+        const isArrowUpInInput = (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && e.key === 'ArrowUp' && (target as HTMLInputElement | HTMLTextAreaElement).value === '';
         
         if (isInput && !isArrowUpInInput && e.key !== 'Escape') return;
 

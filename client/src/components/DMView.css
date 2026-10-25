@@ -602,6 +602,14 @@
   white-space: pre-wrap;
 }
 
+.message-edited {
+  color: var(--text-muted, #8e9297);
+  font-size: calc(0.75rem * var(--interface-scale, 1));
+  font-style: italic;
+  margin-left: calc(4px * var(--interface-scale, 1));
+  user-select: none;
+}
+
 /* Input Area */
 .message-input-container {
   padding: 0 calc(30px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));

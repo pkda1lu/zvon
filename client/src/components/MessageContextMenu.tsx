@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Message, User, Server } from '../types';
 import {
   ReplyIcon,
+  EditIcon,
   CopyIcon,
   PinIcon,
   ForwardIcon,
@@ -28,11 +29,13 @@ export interface MessageContextMenuProps {
   onClose: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onReply: (message: Message) => void;
+  onEdit?: (message: Message) => void;
   onTogglePin?: (messageId: string) => void;
   onDelete?: (messageId: string) => void;
   canPin?: boolean;
   canReact?: boolean;
   canDelete?: boolean;
+  canEdit?: boolean;
   user: User | null;
   server?: Server;
   onUserClick?: (userId: string, event?: React.MouseEvent) => void;
@@ -48,11 +51,13 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   onClose,
   onReact,
   onReply,
+  onEdit,
   onTogglePin,
   onDelete,
   canPin = false,
   canReact = true,
   canDelete = false,
+  canEdit,
   user,
   server,
   onUserClick,
@@ -71,7 +76,8 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   );
 
   const targetUser = message.author;
-  const isSelf = user?._id === targetUser._id;
+  const isSelf = user?._id === (typeof targetUser === 'object' ? targetUser?._id : targetUser);
+  const canEditMessage = canEdit !== undefined ? canEdit : isSelf;
   const authorName = targetUser.displayName || targetUser.username;
 
   // Guard against ghost-clicks: on mobile, ignore any clicks/taps until the user
@@ -295,6 +301,21 @@ const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
 
         {/* --- MESSAGE ACTIONS GROUP --- */}
         <div className="message-context-group">
+          {canEditMessage && onEdit && (
+            <button
+              type="button"
+              className="message-context-item"
+              onClick={() => {
+                if (!isInteractive) return;
+                onEdit(message);
+                onClose();
+              }}
+            >
+              <EditIcon size={16} />
+              <span>Редактировать сообщение</span>
+            </button>
+          )}
+
           <button
             type="button"
             className="message-context-item"

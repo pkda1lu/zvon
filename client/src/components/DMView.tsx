@@ -13,7 +13,7 @@ import { useDialog } from '../contexts/DialogContext';
 import axios from 'axios';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import { formatClockTime, formatDateTime } from '../utils/time';
-import { SmileIcon, PinIcon, ReplyIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon, PaperclipIcon, EllipsisIcon, UsersIcon } from './Icons';
+import { SmileIcon, PinIcon, ReplyIcon, EditIcon, TrashIcon, DownloadIcon, DocumentIcon, PlusIcon, PhoneIcon, ArrowDownIcon, CopyIcon, CameraIcon, SearchIcon, ForwardIcon, SendIcon, BlockIcon, PaperclipIcon, EllipsisIcon, UsersIcon } from './Icons';
 import MessageSearchPanel from './MessageSearchPanel';
 import MessageAttachment from './MessageAttachment';
 import { isVisualMedia } from '../utils/mediaKind';
@@ -163,6 +163,7 @@ const DMMessageItem = React.memo<{
   allMessages: Message[];
   onReact: (messageId: string, emoji: string) => void;
   onReply: (msg: Message) => void;
+  onEdit: (msg: Message) => void;
   scrollToMessage: (msgId: string, createdAt?: string) => void;
   onInteractiveButtonClick?: (messageId: string, actionId: string) => void;
   isFresh?: boolean;
@@ -172,7 +173,7 @@ const DMMessageItem = React.memo<{
   msg, prev, user, dmId, showPreview, showHoverBar, highlightMentions,
   dispAuthor, onUserClick, onTogglePin, onDelete, formatDate, renderMessageContent,
   handleDownload, setLightboxMedia, setLightboxIndex, setLightboxOpen, allMessages,
-  onReact, onReply, scrollToMessage, onInteractiveButtonClick, isFresh, onOpenMessageMenu, onDoubleTapReact
+  onReact, onReply, onEdit, scrollToMessage, onInteractiveButtonClick, isFresh, onOpenMessageMenu, onDoubleTapReact
 }) => {
   const { confirm: customConfirm } = useDialog();
   const { interfaceScale } = useAppearance();
@@ -446,6 +447,15 @@ const DMMessageItem = React.memo<{
                 >
                   <SmileIcon size={(grouped ? 14 : 16) * interfaceScale} />
                 </button>
+                {dispAuthor(msg.author)._id === user?._id && (
+                  <button
+                    className={`msg-action-btn ${grouped ? 'mini' : ''}`}
+                    onClick={() => onEdit(msg)}
+                    title="Редактировать"
+                  >
+                    <EditIcon size={(grouped ? 14 : 16) * interfaceScale} />
+                  </button>
+                )}
                 <button
                   className={`msg-action-btn ${grouped ? 'mini' : ''}`}
                   onClick={() => onReply(msg)}
@@ -505,7 +515,12 @@ const DMMessageItem = React.memo<{
             </div>
           )}
 
-          <div className="message-text">{renderMessageContent(msg.content, msg.mentions)}</div>
+          {(msg.content || msg.edited) && (
+            <div className="message-text">
+              {msg.content ? renderMessageContent(msg.content, msg.mentions) : null}
+              {msg.edited && <span className="message-edited"> (изменено)</span>}
+            </div>
+          )}
 
           {extractInviteCodes(msg.content).map((code) => (
             <ServerInviteCard key={code} code={code} />
@@ -666,6 +681,75 @@ const DMView: React.FC<DMViewProps> = ({
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [friends, setFriends] = useState<User[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
+  const replaceIndexRef = useRef<number | null>(null);
+
+  const startEditing = useCallback((targetMessage: Message) => {
+    setEditingMessage(targetMessage);
+    setMessage(targetMessage.content || '');
+    setAttachments(targetMessage.attachments ? [...targetMessage.attachments] : []);
+    setReplyToMessage(null);
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const len = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(len, len);
+        inputRef.current.style.height = 'auto';
+        const maxHeight = window.innerHeight * 0.3 - 24;
+        inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, maxHeight)}px`;
+      }
+    }, 50);
+  }, []);
+
+  const cancelEditing = useCallback(() => {
+    setEditingMessage(null);
+    setMessage('');
+    setAttachments([]);
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+  }, []);
+
+  useEffect(() => {
+    cancelEditing();
+  }, [dm._id, cancelEditing]);
+
+  const handleTriggerReplaceAttachment = (index: number) => {
+    replaceIndexRef.current = index;
+    replaceFileInputRef.current?.click();
+  };
+
+  const handleReplaceFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || replaceIndexRef.current === null) return;
+    const targetIndex = replaceIndexRef.current;
+    const pendingId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+    setUploadingFiles(prev => [...prev, { id: pendingId, name: file.name, previewUrl }]);
+    try {
+      const response = await uploadFiles([file]);
+      if (response.data && response.data.length > 0) {
+        const newAtt = response.data[0];
+        setAttachments(prev => prev.map((att, i) => i === targetIndex ? newAtt : att));
+      }
+    } catch (error: any) {
+      if (!error?.canceled) await alert('Ошибка загрузки файла');
+    } finally {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setUploadingFiles(prev => prev.filter(p => p.id !== pendingId));
+      replaceIndexRef.current = null;
+      if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
+    }
+  };
+
+  const handleEditLast = useCallback(() => {
+    const myLastMsg = [...messages].reverse().find(m => {
+      const authorId = typeof m.author === 'object' ? m.author?._id : m.author;
+      return authorId === user?._id && !m._id.startsWith?.('temp-');
+    });
+    if (myLastMsg) {
+      startEditing(myLastMsg);
+    }
+  }, [messages, user?._id, startEditing]);
   const [showPins, setShowPins] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -783,16 +867,20 @@ const DMView: React.FC<DMViewProps> = ({
     socket.on('user-typing', handleTyping);
     socket.on('user-stopped-typing', handleStoppedTyping);
 
+    const handleMessageUpdated = (updatedMsg: Message) => {
+      if (setMessages) {
+        setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
+      }
+    };
+    socket.on('message-updated', handleMessageUpdated);
+
     const handleScrollChat = (e: any) => {
       const { direction } = e.detail;
       chatEngineRef.current?.scrollBy({ top: direction === 'up' ? -300 : 300, behavior: 'smooth' });
     };
 
-    const handleEditLast = () => {
-      const myLastMsg = [...messages].reverse().find(m => m.author._id === user?._id);
-      if (myLastMsg) {
-        window.dispatchEvent(new CustomEvent('zvon-edit-message', { detail: { message: myLastMsg } }));
-      }
+    const handleEditMessageEvent = (e: any) => {
+      if (e.detail?.message) startEditing(e.detail.message);
     };
 
     const handleDeleteLast = async () => {
@@ -804,18 +892,21 @@ const DMView: React.FC<DMViewProps> = ({
 
     window.addEventListener('zvon-scroll-chat', handleScrollChat);
     window.addEventListener('zvon-edit-last-message', handleEditLast);
+    window.addEventListener('zvon-edit-message', handleEditMessageEvent);
     window.addEventListener('zvon-delete-last-message', handleDeleteLast);
 
     return () => {
+      socket.off('message-updated', handleMessageUpdated);
       socket.off('message-reactions-update', handleReactionsUpdate);
       socket.off('message-poll-update', handlePollUpdate);
       socket.off('user-typing', handleTyping);
       socket.off('user-stopped-typing', handleStoppedTyping);
       window.removeEventListener('zvon-scroll-chat', handleScrollChat);
       window.removeEventListener('zvon-edit-last-message', handleEditLast);
+      window.removeEventListener('zvon-edit-message', handleEditMessageEvent);
       window.removeEventListener('zvon-delete-last-message', handleDeleteLast);
     };
-  }, [socket, setMessages, messages, user?._id, dm._id, customConfirm]);
+  }, [socket, setMessages, messages, user?._id, dm._id, customConfirm, startEditing, handleEditLast]);
 
   const pendingJumpIdRef = useRef<string | null>(null);
 
@@ -1171,6 +1262,20 @@ const DMView: React.FC<DMViewProps> = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || !socket) return;
+
+    if (editingMessage) {
+      socket.emit('edit-message', {
+        messageId: editingMessage._id,
+        content: message.trim(),
+        attachments,
+        dmId: dm._id
+      });
+      cancelEditing();
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      socket.emit('typing-stop', { dmId: dm._id });
+      return;
+    }
+
     sendPayload({ content: message.trim(), attachments });
     setMessage('');
     setAttachments([]);
@@ -1489,6 +1594,7 @@ const DMView: React.FC<DMViewProps> = ({
                     allMessages={displayMessages}
                     onReact={handleReact}
                     onReply={handleReply}
+                    onEdit={startEditing}
                     scrollToMessage={scrollToMessage}
                     onInteractiveButtonClick={handleInteractiveButtonClick}
                     onOpenMessageMenu={handleOpenMessageMenu}
@@ -1502,7 +1608,24 @@ const DMView: React.FC<DMViewProps> = ({
       </div>
 
       <div className="message-input-container">
-        {replyToMessage && (
+        {editingMessage && (
+          <div className="reply-input-preview edit-input-preview">
+            <div className="reply-input-content">
+              <EditIcon size={20 * interfaceScale} color="var(--primary-neon)" />
+              <div className="reply-input-text">
+                <div className="reply-input-author">
+                  <span>Редактирование сообщения</span>
+                  <span className="edit-input-hint" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #8e9297)', marginLeft: 8 }}>
+                    (Escape для отмены)
+                  </span>
+                </div>
+                <div className="reply-input-snippet">{editingMessage.content || (editingMessage.attachments?.length ? 'Вложения' : '')}</div>
+              </div>
+            </div>
+            <button type="button" className="cancel-reply-btn" onClick={cancelEditing} title="Отменить редактирование">×</button>
+          </div>
+        )}
+        {replyToMessage && !editingMessage && (
           <div className="reply-input-preview">
             <div className="reply-input-content">
               <ReplyIcon size={22 * interfaceScale} color="var(--primary-neon)" />
@@ -1522,7 +1645,15 @@ const DMView: React.FC<DMViewProps> = ({
               {attachments.map((att, i) => (
                 <div key={i} className="input-attachment-preview">
                   {att.type.startsWith('image/') ? <img src={getFullUrl(att.url)!} alt="" /> : <div className="file-icon"><DocumentIcon size={24 * interfaceScale} /></div>}
-                  <button type="button" className="remove-attachment-btn" onClick={() => removeAttachment(i)}>×</button>
+                  <button
+                    type="button"
+                    className="replace-attachment-btn"
+                    onClick={() => handleTriggerReplaceAttachment(i)}
+                    title="Заменить файл"
+                  >
+                    <EditIcon size={12 * interfaceScale} />
+                  </button>
+                  <button type="button" className="remove-attachment-btn" onClick={() => removeAttachment(i)} title="Удалить файл">×</button>
                 </div>
               ))}
               {uploadingFiles.map(f => (
@@ -1549,6 +1680,7 @@ const DMView: React.FC<DMViewProps> = ({
               onPoll={() => setShowPollModal(true)}
             />
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
+            <input type="file" ref={replaceFileInputRef} onChange={handleReplaceFile} style={{ display: 'none' }} />
             <div style={{ flex: 1, position: 'relative' }}>
               {showScrollBottom && (
                 <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)}>
@@ -1589,6 +1721,16 @@ const DMView: React.FC<DMViewProps> = ({
                   el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
                 }}
                 onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp' && !message && attachments.length === 0 && !editingMessage) {
+                    e.preventDefault();
+                    handleEditLast();
+                    return;
+                  }
+                  if (e.key === 'Escape' && editingMessage) {
+                    e.preventDefault();
+                    cancelEditing();
+                    return;
+                  }
                   const isMobileClient = isMobile || window.innerWidth <= 768;
                   if (isMobileClient) return;
                   const shouldSend = sendHotkey === 'shiftEnter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
@@ -1686,11 +1828,13 @@ const DMView: React.FC<DMViewProps> = ({
           onClose={() => setMessageMenu(null)}
           onReact={handleReact}
           onReply={handleReply}
+          onEdit={startEditing}
           onTogglePin={handleTogglePin}
           onDelete={handleDeleteMessage}
           canPin={true}
           canReact={true}
-          canDelete={messageMenu.msg.author._id === user?._id}
+          canDelete={dispAuthor(messageMenu.msg.author)._id === user?._id}
+          canEdit={dispAuthor(messageMenu.msg.author)._id === user?._id}
           user={user}
           onUserClick={onUserClick}
           onOpenEmojiPicker={(pos) => setMenuEmojiPicker(pos)}

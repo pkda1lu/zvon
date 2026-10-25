@@ -87,15 +87,32 @@ router.post('/', auth, async (req, res) => {
 
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, attachments } = req.body;
     const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ message: 'Message not found' });
     if (message.author.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'You can only edit your own messages' });
-    message.content = content;
+    if (content !== undefined) message.content = content;
+    if (Array.isArray(attachments)) message.attachments = attachments;
     message.edited = true;
     message.editedAt = new Date();
     await message.save();
     await message.populate({ path: 'author', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } });
+    if (message.replyTo) {
+      await message.populate({
+        path: 'replyTo',
+        populate: { path: 'author', select: 'username displayName avatar badges displayedTag', populate: { path: 'displayedTag.server', select: 'name icon tag' } }
+      });
+    }
+    const io = req.app.get('io');
+    if (io) {
+      if (message.channel) {
+        io.to(`channel-${message.channel}`).emit('message-updated', message);
+      } else if (message.directMessage) {
+        const DirectMessage = require('../models/DirectMessage');
+        const dm = await DirectMessage.findById(message.directMessage);
+        if (dm) dm.participants.forEach(p => io.to(`user-${p._id || p}`).emit('message-updated', message));
+      }
+    }
     res.json(message);
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
