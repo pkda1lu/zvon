@@ -9,6 +9,7 @@ interface ComposerAddMenuProps {
   onAttach: () => void;
   onGif: (pos: { x: number; y: number }) => void;
   onPoll: () => void;
+  onArticle?: () => void;
 }
 
 const PollGlyph: React.FC<{ size?: number }> = ({ size = 18 }) => (
@@ -19,7 +20,17 @@ const PollGlyph: React.FC<{ size?: number }> = ({ size = 18 }) => (
   </svg>
 );
 
-const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPoll }) => {
+const ArticleGlyph: React.FC<{ size?: number }> = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+);
+
+const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPoll, onArticle }) => {
   const { interfaceScale } = useAppearance();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -83,6 +94,12 @@ const ComposerAddMenu: React.FC<ComposerAddMenuProps> = ({ onAttach, onGif, onPo
               <span className="composer-add-icon"><PollGlyph size={18 * interfaceScale} /></span>
               <span>Создать опрос</span>
             </button>
+            {onArticle && (
+              <button type="button" className="composer-add-item" onClick={() => run(onArticle)}>
+                <span className="composer-add-icon"><ArticleGlyph size={18 * interfaceScale} /></span>
+                <span>Написать статью</span>
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

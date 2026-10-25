@@ -31,6 +31,8 @@ import { recordRecentReaction } from '../utils/recentReactions';
 import MessagePoll from './MessagePoll';
 import CreatePollModal from './CreatePollModal';
 import ComposerAddMenu from './ComposerAddMenu';
+import ArticleEditorModal from './ArticleEditorModal';
+import MarkdownContent, { renderInlineMarkdown, ARTICLE_MARKER } from './MarkdownContent';
 import type { ChatPoll } from './MessagePoll';
 import StickyPins from './StickyPins';
 import UserBadges, { resolveServerTag } from './UserBadges';
@@ -49,74 +51,7 @@ import { useComposerDraft } from '../utils/useComposerDraft';
 import PendingMessageStatus from './PendingMessageStatus';
 import UnreadJumpBar, { useUnreadAnchor } from './UnreadJumpBar';
 
-// Helper for inline markdown shared across components
-const renderInlineMarkdown = (
-  text: string, 
-  customConfirm: (msg: string, title?: string, confirmText?: string, cancelText?: string) => Promise<boolean>,
-  openLink: (url: string) => void
-) => {
-  if (!text) return null;
-  
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|__.*?__|`.*?`|https?:\/\/[^\s]+)/g);
-  
-  return parts.map((part, i) => {
-    if (!part) return null;
-    
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    }
-    if (part.startsWith('__') && part.endsWith('__')) {
-      return <u key={i}>{part.slice(2, -2)}</u>;
-    }
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={i} className="inline-code">{part.slice(1, -1)}</code>;
-    }
-    if (part.match(/^https?:\/\//)) {
-      const inviteCode = matchInviteCode(part);
-      if (inviteCode) {
-        return (
-          <a
-            key={i}
-            href={part}
-            className="message-link"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openInviteInApp(inviteCode);
-            }}
-          >
-            {part}
-          </a>
-        );
-      }
-      return (
-        <a
-          key={i}
-          href={part}
-          className="message-link"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            customConfirm(
-              `Вы собираетесь перейти на внешний ресурс: ${part}. Продолжить?`,
-              'Внешняя ссылка',
-              'Перейти',
-              'Отмена'
-            ).then((ok: boolean) => {
-              if (ok) openLink(part);
-            });
-          }}
-        >
-          {part}
-        </a>
-      );
-    }
-    return part;
-  });
-};
+
 
 interface DMViewProps {
   dm: DirectMessage;
@@ -794,6 +729,8 @@ const DMView: React.FC<DMViewProps> = ({
   useEffect(() => { if (showAttachments) setAttachmentsEverOpened(true); }, [showAttachments]);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [showArticleModal, setShowArticleModal] = useState(false);
+  const [articleInitialText, setArticleInitialText] = useState('');
 
   // Лента вместе со своими ещё не подтверждёнными сообщениями (utils/outbox).
   const pendingMessages = useOutboxMessages(dm._id, messages);
@@ -1021,78 +958,14 @@ const DMView: React.FC<DMViewProps> = ({
     return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} в ${timeStr}`;
   }, []);
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
-    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@+[\p{L}\p{N}_.-]+)/gu);
-
     return (
-      <>
-        {parts.map((part, i) => {
-          if (!part) return null;
-          if (typeof part !== 'string') return null;
-
-          if (part.startsWith('```') && part.endsWith('```')) {
-            const match = part.match(/```(\w*)\n?([\s\S]*?)```/);
-            if (match) {
-              const lang = match[1] || 'text';
-              const code = match[2];
-              return (
-                <div
-                  key={`code-${i}`}
-                  className="code-block-wrapper"
-                  onClick={e => e.stopPropagation()}
-                  style={{
-                    margin: '8px 0',
-                    borderRadius: '6px',
-                    background: '#1e1e1e',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    padding: '12px',
-                    overflowX: 'auto',
-                    fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-                    fontSize: '13px',
-                    color: '#d4d4d4'
-                  }}
-                >
-                  {lang && <div style={{ color: '#569cd6', marginBottom: '8px', fontSize: '11px', textTransform: 'uppercase', userSelect: 'none' }}>{lang}</div>}
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    <code>{code.replace(/^\n/, '').replace(/\n$/, '')}</code>
-                  </pre>
-                </div>
-              );
-            }
-          }
-
-          if (part.startsWith('@')) {
-            const name = part.replace(/^@+/, '');
-            const userMentionByName = mentions.find(m => m.username === name);
-            const userMentionIndex = userMentionByName ? -1 : mentions.findIndex((m, idx) => {
-              const prevUserMentions = parts.slice(0, i).filter(p => p.startsWith('@'));
-              return prevUserMentions.length === idx;
-            });
-            const userMention = userMentionByName || (userMentionIndex !== -1 ? mentions[userMentionIndex] : undefined);
-            if (userMention) {
-              return (
-                <span
-                  key={`mention-${i}`}
-                  className="mention-tag user-mention"
-                  onClick={(e) => {
-                    if (userMention) {
-                      e.stopPropagation();
-                      onUserClick(userMention._id);
-                    }
-                  }}
-                >
-                  @{name}
-                </span>
-              );
-            }
-          }
-
-          return (
-            <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>
-              {renderInlineMarkdown(part, customConfirm, openLink)}
-            </span>
-          );
-        })}
-      </>
+      <MarkdownContent
+        content={content}
+        mentions={mentions}
+        onUserClick={onUserClick}
+        customConfirm={customConfirm}
+        openLink={openLink}
+      />
     );
   }, [onUserClick, customConfirm, openLink]);
 
@@ -1300,6 +1173,31 @@ const DMView: React.FC<DMViewProps> = ({
     setReplyToMessage(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit('typing-stop', { dmId: dm._id });
+  };
+
+  const handleOpenArticleEditor = () => {
+    setArticleInitialText(message);
+    if (message) {
+      setMessage('');
+    }
+    setShowArticleModal(true);
+  };
+
+  const handleCloseArticleEditor = (draft?: string) => {
+    setShowArticleModal(false);
+    if (draft && !message) {
+      setMessage(draft.replace(ARTICLE_MARKER, ''));
+    }
+  };
+
+  const handleSendArticle = (content: string, articleAttachments: any[] = []) => {
+    if (!socket || !content.trim()) return;
+    sendPayload({
+      content: ARTICLE_MARKER + content.trim(),
+      attachments: articleAttachments
+    });
+    setShowArticleModal(false);
+    setReplyToMessage(null);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1678,6 +1576,7 @@ const DMView: React.FC<DMViewProps> = ({
               onAttach={() => fileInputRef.current?.click()}
               onGif={(pos) => setShowGifPicker(pos)}
               onPoll={() => setShowPollModal(true)}
+              onArticle={handleOpenArticleEditor}
             />
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
             <input type="file" ref={replaceFileInputRef} onChange={handleReplaceFile} style={{ display: 'none' }} />
@@ -1759,6 +1658,13 @@ const DMView: React.FC<DMViewProps> = ({
       </div>
 
       <CreatePollModal isOpen={showPollModal} onClose={() => setShowPollModal(false)} onCreate={handleCreatePoll} />
+      <ArticleEditorModal
+        isOpen={showArticleModal}
+        onClose={handleCloseArticleEditor}
+        onSend={handleSendArticle}
+        initialContent={articleInitialText}
+        mentions={dm.participants || []}
+      />
 
       {showGifPicker && createPortal(
         <div

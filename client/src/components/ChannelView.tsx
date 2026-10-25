@@ -34,6 +34,8 @@ import { recordRecentReaction } from '../utils/recentReactions';
 import MessagePoll from './MessagePoll';
 import CreatePollModal from './CreatePollModal';
 import ComposerAddMenu from './ComposerAddMenu';
+import ArticleEditorModal from './ArticleEditorModal';
+import MarkdownContent, { renderInlineMarkdown, ARTICLE_MARKER } from './MarkdownContent';
 import type { ChatPoll } from './MessagePoll';
 import { createPortal } from 'react-dom';
 import UserAvatar from './UserAvatar';
@@ -57,77 +59,7 @@ import { useComposerDraft } from '../utils/useComposerDraft';
 import PendingMessageStatus from './PendingMessageStatus';
 import UnreadJumpBar, { useUnreadAnchor } from './UnreadJumpBar';
 
-// Helper for inline markdown shared across components
-const renderInlineMarkdown = (
-  text: string, 
-  customConfirm: (msg: string, title?: string, confirmText?: string, cancelText?: string) => Promise<boolean>,
-  openLink: (url: string) => void
-) => {
-  if (!text) return null;
-  
-  // Split by markdown patterns: **bold**, *italic*, __underline__, `code`
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|__.*?__|`.*?`|https?:\/\/[^\s]+)/g);
-  
-  return parts.map((part, i) => {
-    if (!part) return null;
-    
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    }
-    if (part.startsWith('__') && part.endsWith('__')) {
-      return <u key={i}>{part.slice(2, -2)}</u>;
-    }
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={i} className="inline-code">{part.slice(1, -1)}</code>;
-    }
-    if (part.match(/^https?:\/\//)) {
-      const inviteCode = matchInviteCode(part);
-      // Ссылка-приглашение: внутри приложения открываем модалку-приглашение,
-      // снаружи (в браузере) та же ссылка ведёт на страницу /invite/<code>.
-      if (inviteCode) {
-        return (
-          <a
-            key={i}
-            href={part}
-            className="message-link"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openInviteInApp(inviteCode);
-            }}
-          >
-            {part}
-          </a>
-        );
-      }
-      return (
-        <a
-          key={i}
-          href={part}
-          className="message-link"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            customConfirm(
-              `Вы собираетесь перейти на внешний ресурс: ${part}. Продолжить?`,
-              'Внешняя ссылка',
-              'Перейти',
-              'Отмена'
-            ).then((ok: boolean) => {
-              if (ok) openLink(part);
-            });
-          }}
-        >
-          {part}
-        </a>
-      );
-    }
-    return part;
-  });
-};
+
 
 interface ChannelViewProps {
   channel: Channel;
@@ -765,6 +697,8 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   useEffect(() => { if (showAttachments) setAttachmentsEverOpened(true); }, [showAttachments]);
   const [showGifPicker, setShowGifPicker] = useState<{ x: number, y: number } | null>(null);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [showArticleModal, setShowArticleModal] = useState(false);
+  const [articleInitialText, setArticleInitialText] = useState('');
 
   // Лента вместе со своими ещё не подтверждёнными сообщениями (utils/outbox).
   const pendingMessages = useOutboxMessages(channel._id, messages);
@@ -1264,6 +1198,31 @@ const ChannelView: React.FC<ChannelViewProps> = ({
     socket.emit('typing-stop', { channelId: channel._id });
   };
 
+  const handleOpenArticleEditor = () => {
+    setArticleInitialText(message);
+    if (message) {
+      setMessage('');
+    }
+    setShowArticleModal(true);
+  };
+
+  const handleCloseArticleEditor = (draft?: string) => {
+    setShowArticleModal(false);
+    if (draft && !message) {
+      setMessage(draft.replace(ARTICLE_MARKER, ''));
+    }
+  };
+
+  const handleSendArticle = (content: string, articleAttachments: any[] = []) => {
+    if (!socket || !content.trim()) return;
+    sendPayload({
+      content: ARTICLE_MARKER + content.trim(),
+      attachments: articleAttachments
+    });
+    setShowArticleModal(false);
+    setReplyToMessage(null);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       await uploadComposerFiles(Array.from(e.target.files));
@@ -1349,153 +1308,15 @@ const ChannelView: React.FC<ChannelViewProps> = ({
   };
 
   const renderMessageContent = useCallback((content: string, mentions: User[] = []) => {
-    const parts = content.split(/(```[\s\S]*?```|:[a-zA-Z0-9_+-]+:|@+[\p{L}\p{N}_.-]+|#[\p{L}\p{N}_-]+)/gu);
-
     return (
-      <>
-        {parts.map((part, i) => {
-          if (!part) return null;
-
-          if (typeof part !== 'string') return null;
-
-          if (part.startsWith('```') && part.endsWith('```')) {
-            const match = part.match(/```(\w*)\n?([\s\S]*?)```/);
-            if (match) {
-              const lang = match[1] || 'text';
-              const code = match[2];
-              return (
-                <div
-                  key={`code-${i}`}
-                  className="code-block-wrapper"
-                  onClick={e => e.stopPropagation()}
-                  style={{
-                    margin: '8px 0',
-                    borderRadius: '6px',
-                    background: '#1e1e1e',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    padding: '12px',
-                    overflowX: 'auto',
-                    fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-                    fontSize: '13px',
-                    color: '#d4d4d4'
-                  }}
-                >
-                  {lang && <div style={{ color: '#569cd6', marginBottom: '8px', fontSize: '11px', textTransform: 'uppercase', userSelect: 'none' }}>{lang}</div>}
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    <code>{code.replace(/^\n/, '').replace(/\n$/, '')}</code>
-                  </pre>
-                </div>
-              );
-            }
-          }
-
-          if (part.startsWith('#')) {
-            const channelName = part.substring(1);
-            const targetChannel = server.channels?.find(
-              c => c.name.toLowerCase() === channelName.toLowerCase()
-            );
-
-            if (targetChannel) {
-              return (
-                <span
-                  key={`channel-mention-${i}`}
-                  className="mention-tag channel-mention"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.dispatchEvent(new CustomEvent('select-server', {
-                      detail: { serverId: server._id, channelId: targetChannel._id }
-                    }));
-                  }}
-                >
-                  #{targetChannel.name}
-                </span>
-              );
-            }
-          }
-
-          if (part.startsWith(':') && part.endsWith(':')) {
-            const emojiName = part.slice(1, -1);
-            const serverEmoji = server.emojis?.find(e => e.name === emojiName);
-
-            if (serverEmoji) {
-              return (
-                <img
-                  key={`emoji-${i}`}
-                  src={getFullUrl(serverEmoji.url) || serverEmoji.url}
-                  alt={part}
-                  title={`:${emojiName}:`}
-                  style={{
-                    width: '1.3em',
-                    height: '1.3em',
-                    verticalAlign: 'middle',
-                    objectFit: 'contain',
-                    display: 'inline-block',
-                    margin: '0 2px'
-                  }}
-                />
-              );
-            }
-          }
-
-          if (part.startsWith('@')) {
-            const rawName = part.replace(/^@+/, '');
-            const isSpecialMention = rawName === 'everyone' || rawName === 'here';
-            const role = !isSpecialMention
-              ? server.roles?.find(r => r.name === rawName || r.name.replace(/^@+/, '') === rawName)
-              : undefined;
-            const userMentionByName = (!isSpecialMention && !role)
-              ? mentions.find(m => m.username === rawName)
-              : undefined;
-
-            // Find mention by order/index if username changed
-            let userMention = userMentionByName;
-            if (!isSpecialMention && !role && !userMentionByName) {
-              const prevUserMentions = parts.slice(0, i).filter(p => {
-                if (!p.startsWith('@')) return false;
-                const pName = p.replace(/^@+/, '');
-                if (pName === 'everyone' || pName === 'here') return false;
-                if (server.roles?.some(r => r.name === pName || r.name.replace(/^@+/, '') === pName)) return false;
-                return true;
-              });
-              const userMentionIndex = mentions.findIndex((_, idx) => prevUserMentions.length === idx);
-              if (userMentionIndex !== -1) {
-                userMention = mentions[userMentionIndex];
-              }
-            }
-            const isUserMention = !!userMention;
-
-            if (isUserMention || role || isSpecialMention) {
-              const color = role ? role.color : (isSpecialMention ? 'var(--primary-neon)' : 'inherit');
-              const displayText = `@${role ? role.name.replace(/^@+/, '') : rawName}`;
-
-              return (
-                <span
-                  key={`mention-${i}`}
-                  className={`mention-tag ${role ? 'role-mention' : (isSpecialMention ? 'special-mention' : 'user-mention')}`}
-                  style={{
-                    ...(color !== 'inherit' ? { color } : {}),
-                    ...((isSpecialMention || role) ? { cursor: 'default' } : {})
-                  }}
-                  onClick={(e) => {
-                    if (!isSpecialMention && !role && userMention) {
-                      e.stopPropagation();
-                      onUserClick(userMention._id, e);
-                    }
-                  }}
-                >
-                  {displayText}
-                </span>
-              );
-            }
-          }
-
-          return (
-            <span key={`text-${i}`} style={{ whiteSpace: 'pre-wrap' }}>
-              {renderInlineMarkdown(part, customConfirm, openLink)}
-            </span>
-          );
-        })}
-      </>
+      <MarkdownContent
+        content={content}
+        mentions={mentions}
+        server={server}
+        onUserClick={onUserClick}
+        customConfirm={customConfirm}
+        openLink={openLink}
+      />
     );
   }, [server, onUserClick, customConfirm, openLink]);
 
@@ -1850,6 +1671,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             onAttach={() => fileInputRef.current?.click()}
             onGif={(pos) => setShowGifPicker(pos)}
             onPoll={() => setShowPollModal(true)}
+            onArticle={handleOpenArticleEditor}
           />
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
           <input type="file" ref={replaceFileInputRef} onChange={handleReplaceFile} style={{ display: 'none' }} />
@@ -1948,6 +1770,14 @@ const ChannelView: React.FC<ChannelViewProps> = ({
       </div>
       )}
       <CreatePollModal isOpen={showPollModal} onClose={() => setShowPollModal(false)} onCreate={handleCreatePoll} />
+      <ArticleEditorModal
+        isOpen={showArticleModal}
+        onClose={handleCloseArticleEditor}
+        onSend={handleSendArticle}
+        initialContent={articleInitialText}
+        server={server}
+        mentions={server.members?.map(m => m.user).filter(Boolean) as any}
+      />
       {contextMenu && (
         <MemberContextMenu user={contextMenu.user} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onMention={handleMention} onOpenProfile={onUserClick} reportMessageId={contextMenu.messageId} />
       )}
