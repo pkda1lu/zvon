@@ -23,7 +23,7 @@ const VlyneIdAccount = React.lazy(() => import('./pages/VlyneIdAccount'));
 const VlyneIdDevCabinet = React.lazy(() => import('./pages/VlyneIdDevCabinet'));
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import './App.css';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import TitleBar from './components/TitleBar';
 import Landing3D from './components/Landing3D';
 import VibeBackground from './components/VibeBackground';
@@ -191,6 +191,26 @@ const APP_SHADER_COLORS = ['#06060e', '#12122f', '#3c1599', '#0c6d9e'];
  */
 const APP_SHADER_COLORS_AMOLED = ['#000000', '#04040c', '#1d0a5c', '#053a55'];
 
+/**
+ * Серая палитра — тот же рисунок без цвета (как darkPalette в iOS-клиенте).
+ * Только внутри приложения: лендинг и публичные страницы остаются фирменными.
+ */
+const APP_SHADER_COLORS_GRAY = ['#050506', '#111113', '#2b2b30', '#45454c'];
+
+/** Тёмная ли тема в системе — для backgroundTheme: 'auto'. Следит за сменой на лету. */
+const useSystemDark = () => {
+  const query = '(prefers-color-scheme: dark)';
+  const [dark, setDark] = useState(() => window.matchMedia?.(query).matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const onChange = (e: MediaQueryListEvent) => setDark(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return dark;
+};
+
 const AppBackground: React.FC = () => {
   const location = useLocation();
   const {
@@ -200,8 +220,11 @@ const AppBackground: React.FC = () => {
     backgroundDim,
     backgroundBlur,
     reduceMotion,
-    liveBackground
+    liveBackground,
+    backgroundTheme
   } = useAppearance();
+  const { user } = useAuth();
+  const systemDark = useSystemDark();
   const currentPath = (location.pathname + (location.hash || '')).toLowerCase();
 
   // Checking for login, register, and invite.
@@ -214,6 +237,11 @@ const AppBackground: React.FC = () => {
   if (isOverlay) return null;
 
   const isAmoled = theme === 'amoled';
+
+  // Лендинг (гость на «/») и публичные страницы серым не красим никогда.
+  const isPublicPage = !user || PUBLIC_ROUTE_PREFIXES.some(p => location.pathname.startsWith(p));
+  const isGray = !isPublicPage && !isAmoled &&
+    (backgroundTheme === 'gray' || (backgroundTheme === 'auto' && systemDark));
 
   const showShader =
     liveBackground &&
@@ -228,10 +256,10 @@ const AppBackground: React.FC = () => {
     <div
       id="global-liquid-bg"
       className={[performanceMode ? 'perf-mode' : '', showShader ? 'has-live-bg' : ''].filter(Boolean).join(' ') || undefined}
-      style={{ backgroundColor: isAmoled ? '#000000' : '#020205' }}
+      style={{ backgroundColor: isAmoled ? '#000000' : isGray ? '#0a0a0b' : '#020205' }}
     >
       <div
-        className={`bg-gradient${isAmoled ? ' amoled' : ''}`}
+        className={`bg-gradient${isAmoled ? ' amoled' : ''}${isGray ? ' gray' : ''}`}
         style={{ opacity: isAuthPage ? 0.4 : 1 }}
       />
 
@@ -284,7 +312,7 @@ const AppBackground: React.FC = () => {
       {showShader && (
         <VibeBackground
           className="vibe-bg--layer app-bg-shader"
-          colors={isAmoled ? APP_SHADER_COLORS_AMOLED : APP_SHADER_COLORS}
+          colors={isAmoled ? APP_SHADER_COLORS_AMOLED : isGray ? APP_SHADER_COLORS_GRAY : APP_SHADER_COLORS}
           veil={false}
         />
       )}

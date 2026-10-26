@@ -276,6 +276,8 @@ const userSchema = new mongoose.Schema({
       // личная настройка нагрузки, не часть темы, но переносить её между
       // устройствами нужно, поэтому поле объявлено явно.
       liveBackground: { type: Boolean, default: true },
+      // Палитра живого фона: auto (серая при тёмной теме системы) | brand | gray.
+      backgroundTheme: { type: String, enum: ['auto', 'brand', 'gray'], default: 'auto' },
       deviceScales: { type: mongoose.Schema.Types.Mixed, default: {} }
     },
     chat: {

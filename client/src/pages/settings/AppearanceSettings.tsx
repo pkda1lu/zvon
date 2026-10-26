@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { useAppearance, AppIconType, ThemeObject, CustomColors } from '../../contexts/AppearanceContext';
+import { useAppearance, AppIconType, ThemeObject, CustomColors, BackgroundThemeType } from '../../contexts/AppearanceContext';
 import { ChoiceGroup, GridPicker, RangeSlider, SettingsToggle } from './SettingsUI';
 import { getIconBrand } from '../../utils/branding';
 import { PlusIcon, TrashIcon, CheckIcon, LockIcon, BellIcon, PinIcon, UsersIcon, SmileIcon, EditIcon } from '../../components/Icons';
@@ -121,6 +121,7 @@ const AppearanceSettings: React.FC = () => {
         customBackground, setCustomBackground,
         glassOpacity, setGlassOpacity,
         liveBackground, setLiveBackground,
+        backgroundTheme, setBackgroundTheme,
         performanceMode, reduceMotion,
         backgroundDim, setBackgroundDim,
         backgroundBlur, setBackgroundBlur,
@@ -541,6 +542,24 @@ const AppearanceSettings: React.FC = () => {
                             </p>
                         </div>
                         <SettingsToggle checked={liveBackground} onChange={setLiveBackground} />
+                    </div>
+                    <div className="settings-row">
+                        <div className="settings-row-text">
+                            <h3>Цвет фона</h3>
+                            <p>
+                                «Как в системе» — чёрно-серый фон, когда в Windows включена тёмная тема,
+                                и фирменный в светлой. На стартовой странице фон всегда фирменный.
+                            </p>
+                        </div>
+                        <ChoiceGroup
+                            options={[
+                                { value: 'auto', label: 'Как в системе' },
+                                { value: 'brand', label: 'Фирменный' },
+                                { value: 'gray', label: 'Серый' },
+                            ]}
+                            value={backgroundTheme}
+                            onChange={(v) => setBackgroundTheme(v as BackgroundThemeType)}
+                        />
                     </div>
                 </div>
 
