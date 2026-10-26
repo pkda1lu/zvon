@@ -244,6 +244,8 @@ pub fn reveal_main(app: &AppHandle) {
         }
         let _ = w.show();
         let _ = w.set_focus();
+        #[cfg(windows)]
+        crate::maximized_edge::refresh(&w);
     }
     crate::power::refresh(app);
 }

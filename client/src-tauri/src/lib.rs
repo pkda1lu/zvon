@@ -55,6 +55,8 @@ pub fn on_main_loaded(window: &tauri::WebviewWindow, event: PageLoadEvent) {
     if !MAIN_SHOWN.swap(true, Ordering::SeqCst) && !windows::should_start_hidden(app) {
         let _ = window.show();
         let _ = window.set_focus();
+        #[cfg(windows)]
+        maximized_edge::refresh(window);
     }
     power::refresh(app);
     app.state::<AppState>().scan_now();
