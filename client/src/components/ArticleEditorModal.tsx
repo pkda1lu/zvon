@@ -84,6 +84,40 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
     }, 0);
   };
 
+  const hasDelimBefore = (text: string, pos: number, delim: string): boolean => {
+    if (pos < delim.length) return false;
+    const chunk = text.slice(pos - delim.length, pos);
+    if (chunk !== delim) return false;
+    if (delim === '*') {
+      let starCount = 0;
+      for (let i = pos - 1; i >= 0 && text[i] === '*'; i--) starCount++;
+      return starCount % 2 === 1;
+    }
+    if (delim === '**') {
+      let starCount = 0;
+      for (let i = pos - 1; i >= 0 && text[i] === '*'; i--) starCount++;
+      return starCount >= 2;
+    }
+    return true;
+  };
+
+  const hasDelimAfter = (text: string, pos: number, delim: string): boolean => {
+    if (pos + delim.length > text.length) return false;
+    const chunk = text.slice(pos, pos + delim.length);
+    if (chunk !== delim) return false;
+    if (delim === '*') {
+      let starCount = 0;
+      for (let i = pos; i < text.length && text[i] === '*'; i++) starCount++;
+      return starCount % 2 === 1;
+    }
+    if (delim === '**') {
+      let starCount = 0;
+      for (let i = pos; i < text.length && text[i] === '*'; i++) starCount++;
+      return starCount >= 2;
+    }
+    return true;
+  };
+
   const applyFormat = (
     prefix: string,
     suffix: string = '',
@@ -97,10 +131,6 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
     const end = textarea.selectionEnd;
     const selected = content.slice(start, end);
 
-    let insertion = '';
-    let cursorOffset = 0;
-    let selectionLen = 0;
-
     if (isBlock) {
       const before = content.slice(0, start);
       const needPrefixNewline = before.length > 0 && !before.endsWith('\n');
@@ -109,33 +139,91 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
       const pre = needPrefixNewline ? `\n${prefix}` : prefix;
       const suf = needSuffixNewline ? `${suffix}\n` : suffix;
 
+      let insertion = '';
+      let cursorOffset = pre.length;
+      let selectionLen = 0;
+
       if (selected) {
         insertion = `${pre}${selected}${suf}`;
-        cursorOffset = pre.length;
         selectionLen = selected.length;
       } else {
         insertion = `${pre}${defaultText}${suf}`;
-        cursorOffset = pre.length;
         selectionLen = defaultText.length;
       }
-    } else {
-      if (selected) {
-        insertion = `${prefix}${selected}${suffix}`;
-        cursorOffset = prefix.length;
-        selectionLen = selected.length;
-      } else {
-        insertion = `${prefix}${defaultText}${suffix}`;
-        cursorOffset = prefix.length;
-        selectionLen = defaultText.length;
-      }
+
+      const newContent = content.slice(0, start) + insertion + content.slice(end);
+      setContent(newContent);
+
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + cursorOffset, start + cursorOffset + selectionLen);
+      }, 0);
+      return;
     }
 
-    const newContent = content.slice(0, start) + insertion + content.slice(end);
-    setContent(newContent);
+    // Inline formatting: supports smart toggle, nesting, and consecutive formatting applications
+    if (!selected) {
+      if (hasDelimBefore(content, start, prefix) && hasDelimAfter(content, end, suffix)) {
+        const newContent = content.slice(0, start - prefix.length) + content.slice(end + suffix.length);
+        const newPos = start - prefix.length;
+        setContent(newContent);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(newPos, newPos);
+        }, 0);
+        return;
+      }
 
+      const insertion = `${prefix}${defaultText}${suffix}`;
+      const newContent = content.slice(0, start) + insertion + content.slice(end);
+      setContent(newContent);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + prefix.length, start + prefix.length + defaultText.length);
+      }, 0);
+      return;
+    }
+
+    // If selected text itself is wrapped in prefix & suffix -> toggle off (unwrap)
+    const isSelfWrapped =
+      selected.length >= prefix.length + suffix.length &&
+      selected.startsWith(prefix) &&
+      selected.endsWith(suffix) &&
+      (prefix !== '*' || (selected.startsWith('***') || !selected.startsWith('**')));
+
+    if (isSelfWrapped) {
+      const unwrapped = selected.slice(prefix.length, selected.length - suffix.length);
+      const newContent = content.slice(0, start) + unwrapped + content.slice(end);
+      setContent(newContent);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start, start + unwrapped.length);
+      }, 0);
+      return;
+    }
+
+    // If selection is immediately surrounded by prefix and suffix -> toggle off (remove outer)
+    if (hasDelimBefore(content, start, prefix) && hasDelimAfter(content, end, suffix)) {
+      const newContent = content.slice(0, start - prefix.length) + selected + content.slice(end + suffix.length);
+      const newStart = start - prefix.length;
+      const newEnd = newStart + selected.length;
+      setContent(newContent);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(newStart, newEnd);
+      }, 0);
+      return;
+    }
+
+    // Otherwise wrap selection and retain selection on the text
+    const insertion = `${prefix}${selected}${suffix}`;
+    const newContent = content.slice(0, start) + insertion + content.slice(end);
+    const newStart = start + prefix.length;
+    const newEnd = newStart + selected.length;
+    setContent(newContent);
     setTimeout(() => {
       textarea.focus();
-      textarea.setSelectionRange(start + cursorOffset, start + cursorOffset + selectionLen);
+      textarea.setSelectionRange(newStart, newEnd);
     }, 0);
   };
 
@@ -215,6 +303,41 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleSubmit();
+      return;
+    }
+
+    // Ctrl+B / Cmd+B -> Bold
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B' || e.key === 'и' || e.key === 'И')) {
+      e.preventDefault();
+      applyFormat('**', '**', 'жирный текст');
+      return;
+    }
+
+    // Ctrl+I / Cmd+I -> Italic
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I' || e.key === 'ш' || e.key === 'Ш')) {
+      e.preventDefault();
+      applyFormat('*', '*', 'курсив');
+      return;
+    }
+
+    // Ctrl+U / Cmd+U -> Underline
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г')) {
+      e.preventDefault();
+      applyFormat('__', '__', 'подчёркнутый');
+      return;
+    }
+
+    // Ctrl+Shift+S / Ctrl+Shift+X -> Strikethrough
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы' || e.key === 'x' || e.key === 'X' || e.key === 'ч' || e.key === 'Ч')) {
+      e.preventDefault();
+      applyFormat('~~', '~~', 'зачёркнутый');
+      return;
+    }
+
+    // Ctrl+K -> Link
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.key === 'л' || e.key === 'Л')) {
+      e.preventDefault();
+      applyFormat('[', '](https://example.com)', 'текст ссылки');
       return;
     }
 
@@ -309,6 +432,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('# ', '', 'Заголовок 1', true)}
               title="Заголовок H1"
             >
@@ -317,6 +441,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('## ', '', 'Заголовок 2', true)}
               title="Заголовок H2"
             >
@@ -325,6 +450,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('### ', '', 'Заголовок 3', true)}
               title="Заголовок H3"
             >
@@ -336,8 +462,9 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('**', '**', 'жирный текст')}
-              title="Жирный (**текст**)"
+              title="Жирный (**текст**) [Ctrl+B]"
               style={{ fontWeight: 700 }}
             >
               B
@@ -345,8 +472,9 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('*', '*', 'курсив')}
-              title="Курсив (*текст*)"
+              title="Курсив (*текст*) [Ctrl+I]"
               style={{ fontStyle: 'italic' }}
             >
               I
@@ -354,8 +482,19 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('__', '__', 'подчёркнутый')}
+              title="Подчёркнутый (__текст__) [Ctrl+U]"
+              style={{ textDecoration: 'underline' }}
+            >
+              U
+            </button>
+            <button
+              type="button"
+              className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('~~', '~~', 'зачёркнутый')}
-              title="Зачёркнутый (~~текст~~)"
+              title="Зачёркнутый (~~текст~~) [Ctrl+Shift+S]"
               style={{ textDecoration: 'line-through' }}
             >
               S
@@ -363,6 +502,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('||', '||', 'секретный спойлер')}
               title="Спойлер (||текст||)"
             >
@@ -374,6 +514,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('> ', '', 'Цитата', true)}
               title="Цитата (> текст)"
             >
@@ -382,6 +523,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('`', '`', 'код')}
               title="Встроенный код (`код`)"
             >
@@ -390,6 +532,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('```ts\n', '\n```', 'console.log("hello");', true)}
               title="Блок кода (```)"
             >
@@ -401,14 +544,16 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('[', '](https://example.com)', 'Текст ссылки')}
-              title="Ссылка [текст](url)"
+              title="Ссылка [текст](url) [Ctrl+K]"
             >
               🔗
             </button>
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => fileInputRef.current?.click()}
               title="Загрузить картинку (или вставьте через Ctrl+V)"
             >
@@ -417,6 +562,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat(tableTemplate, '', '', true)}
               title="Таблица"
             >
@@ -428,6 +574,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('- ', '', 'Пункт списка', true)}
               title="Маркированный список (- )"
             >
@@ -436,6 +583,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('1. ', '', 'Первый пункт', true)}
               title="Нумерованный список (1. )"
             >
@@ -444,6 +592,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('- [ ] ', '', 'Новая задача', true)}
               title="Чеклист (- [ ] )"
             >
@@ -452,6 +601,7 @@ const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
             <button
               type="button"
               className="article-editor__btn"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => applyFormat('---\n', '', '', true)}
               title="Разделитель (---)"
             >

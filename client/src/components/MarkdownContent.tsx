@@ -318,12 +318,12 @@ function tokenizeInline(text: string, server?: Server): InlineToken[] {
     { type: 'image', regex: /!\[([^\]]*)\]\((https?:\/\/[^\s)]+|[^\s)]+)(?:\s+"([^"]*)")?\)/ },
     { type: 'link', regex: /\[([^\]]+)\]\((https?:\/\/[^\s)]+|[^\s)]+)(?:\s+"([^"]*)")?\)/ },
     { type: 'autolink', regex: /https?:\/\/[^\s<]+[^<.,:;"')\]\s]/ },
-    { type: 'spoiler', regex: /\|\|([\s\S]+?)\|\|/ },
-    { type: 'bold_italic', regex: /\*\*\*([^*]+)\*\*\*|___([^_]+)___/ },
-    { type: 'bold', regex: /\*\*([^*]+)\*\*|__([^_]+)__/ },
-    { type: 'italic', regex: /(?<!\*)\*([^*]+)\*(?!\*)|(?<!_)_([^_]+)_(?!_)/ },
-    { type: 'strike', regex: /~~([^~]+)~~/ },
-    { type: 'underline', regex: /<u>([\s\S]+?)<\/u>/ },
+    { type: 'spoiler', regex: /\|\|(?![\s|])([\s\S]+?)(?<![\s|])\|\|/ },
+    { type: 'bold_italic', regex: /(?<!\*)\*\*\*(?![\s*])([\s\S]+?)(?<![\s*])\*\*\*(?!\*)|(?<!_)___(?![\s_])([\s\S]+?)(?<![\s_])___(?!_)/ },
+    { type: 'bold', regex: /(?<!\*)\*\*(?![\s*])([\s\S]+?)(?<![\s*])\*\*(?!\*)/ },
+    { type: 'underline', regex: /<u>([\s\S]+?)<\/u>|(?<!_)__(?![\s_])([\s\S]+?)(?<![\s_])__(?!_)/ },
+    { type: 'italic', regex: /(?<!\*)\*(?![\s*])([\s\S]+?)(?<![\s*])\*(?!\*)|(?<!_)_(?![\s_])([\s\S]+?)(?<![\s_])_(?!_)/ },
+    { type: 'strike', regex: /~~(?![\s~])([\s\S]+?)(?<![\s~])~~/ },
     { type: 'server_emoji', regex: /:([a-zA-Z0-9_+-]+):/ },
     { type: 'channel_mention', regex: /#([\p{L}\p{N}_-]+)/u },
     { type: 'user_mention', regex: /@+([\p{L}\p{N}_.-]+)/u },
@@ -379,7 +379,7 @@ function tokenizeInline(text: string, server?: Server): InlineToken[] {
         tokens.push({ type: 'bold_italic', content: m[1] || m[2] });
         break;
       case 'bold':
-        tokens.push({ type: 'bold', content: m[1] || m[2] });
+        tokens.push({ type: 'bold', content: m[1] });
         break;
       case 'italic':
         tokens.push({ type: 'italic', content: m[1] || m[2] });
@@ -388,7 +388,7 @@ function tokenizeInline(text: string, server?: Server): InlineToken[] {
         tokens.push({ type: 'strike', content: m[1] });
         break;
       case 'underline':
-        tokens.push({ type: 'underline', content: m[1] });
+        tokens.push({ type: 'underline', content: m[1] || m[2] });
         break;
       case 'server_emoji':
         tokens.push({ type: 'server_emoji', name: m[1] });
@@ -411,75 +411,129 @@ function tokenizeInline(text: string, server?: Server): InlineToken[] {
 
 /**
  * Basic inline formatting shared with embeds and regular chat messages:
- * **bold**, *italic*, __underline__, `code`, https:// links
+ * **bold**, *italic*, __underline__, `code`, https:// links, ~~strike~~, ||spoiler||
+ * Supports nested inline formatting (e.g. ***bold italic***, ~~**strike bold**~~).
  */
 export const renderBasicInline = (
   text: string,
   customConfirm?: (msg: string, title?: string, confirmText?: string, cancelText?: string) => Promise<boolean>,
   openLink: (url: string) => void = defaultOpenLink
-) => {
+): React.ReactNode => {
   if (!text) return null;
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|__.*?__|`.*?`|https?:\/\/[^\s]+)/g);
 
-  return parts.map((part, i) => {
-    if (!part) return null;
+  const basicPatterns: { type: string; regex: RegExp }[] = [
+    { type: 'code', regex: /`([^`]+)`/ },
+    { type: 'spoiler', regex: /\|\|(?![\s|])([\s\S]+?)(?<![\s|])\|\|/ },
+    { type: 'bold_italic', regex: /(?<!\*)\*\*\*(?![\s*])([\s\S]+?)(?<![\s*])\*\*\*(?!\*)|(?<!_)___(?![\s_])([\s\S]+?)(?<![\s_])___(?!_)/ },
+    { type: 'bold', regex: /(?<!\*)\*\*(?![\s*])([\s\S]+?)(?<![\s*])\*\*(?!\*)/ },
+    { type: 'underline', regex: /<u>([\s\S]+?)<\/u>|(?<!_)__(?![\s_])([\s\S]+?)(?<![\s_])__(?!_)/ },
+    { type: 'italic', regex: /(?<!\*)\*(?![\s*])([\s\S]+?)(?<![\s*])\*(?!\*)|(?<!_)_(?![\s_])([\s\S]+?)(?<![\s_])_(?!_)/ },
+    { type: 'strike', regex: /~~(?![\s~])([\s\S]+?)(?<![\s~])~~/ },
+    { type: 'link', regex: /https?:\/\/[^\s<]+[^<.,:;"')\]\s]/ },
+  ];
 
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    }
-    if (part.startsWith('__') && part.endsWith('__')) {
-      return <u key={i}>{part.slice(2, -2)}</u>;
-    }
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={i} className="inline-code">{part.slice(1, -1)}</code>;
-    }
-    if (part.match(/^https?:\/\//)) {
-      const inviteCode = matchInviteCode(part);
-      if (inviteCode) {
-        return (
-          <a
-            key={i}
-            href={part}
-            className="message-link"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openInviteInApp(inviteCode);
-            }}
-          >
-            {part}
-          </a>
-        );
+  let cursor = 0;
+  const elements: React.ReactNode[] = [];
+  let keyIdx = 0;
+
+  while (cursor < text.length) {
+    const sub = text.slice(cursor);
+    let bestMatch: { type: string; match: RegExpExecArray; index: number } | null = null;
+
+    for (const p of basicPatterns) {
+      p.regex.lastIndex = 0;
+      const m = p.regex.exec(sub);
+      if (m && (bestMatch === null || m.index < bestMatch.index)) {
+        bestMatch = { type: p.type, match: m, index: m.index };
       }
-      return (
-        <a
-          key={i}
-          href={part}
-          className="message-link"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (customConfirm) {
-              customConfirm(
-                `Вы собираетесь перейти на внешний ресурс: ${part}. Продолжить?`,
-                'Внешняя ссылка',
-                'Перейти',
-                'Отмена'
-              ).then(ok => { if (ok) openLink(part); });
-            } else {
-              openLink(part);
-            }
-          }}
-        >
-          {part}
-        </a>
-      );
     }
-    return part;
-  });
+
+    if (!bestMatch) {
+      elements.push(sub);
+      break;
+    }
+
+    if (bestMatch.index > 0) {
+      elements.push(sub.slice(0, bestMatch.index));
+    }
+
+    const m = bestMatch.match;
+    const inner = m[1] || m[2] || '';
+    const curKey = `bi-${keyIdx++}`;
+
+    switch (bestMatch.type) {
+      case 'code':
+        elements.push(<code key={curKey} className="inline-code">{m[1]}</code>);
+        break;
+      case 'spoiler':
+        elements.push(<Spoiler key={curKey}>{renderBasicInline(inner, customConfirm, openLink)}</Spoiler>);
+        break;
+      case 'bold_italic':
+        elements.push(<strong key={curKey}><em>{renderBasicInline(inner, customConfirm, openLink)}</em></strong>);
+        break;
+      case 'bold':
+        elements.push(<strong key={curKey}>{renderBasicInline(inner, customConfirm, openLink)}</strong>);
+        break;
+      case 'underline':
+        elements.push(<u key={curKey}>{renderBasicInline(inner, customConfirm, openLink)}</u>);
+        break;
+      case 'italic':
+        elements.push(<em key={curKey}>{renderBasicInline(inner, customConfirm, openLink)}</em>);
+        break;
+      case 'strike':
+        elements.push(<del key={curKey}>{renderBasicInline(inner, customConfirm, openLink)}</del>);
+        break;
+      case 'link': {
+        const url = m[0];
+        const inviteCode = matchInviteCode(url);
+        if (inviteCode) {
+          elements.push(
+            <a
+              key={curKey}
+              href={url}
+              className="message-link"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openInviteInApp(inviteCode);
+              }}
+            >
+              {url}
+            </a>
+          );
+        } else {
+          elements.push(
+            <a
+              key={curKey}
+              href={url}
+              className="message-link"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (customConfirm) {
+                  customConfirm(
+                    `Вы собираетесь перейти на внешний ресурс: ${url}. Продолжить?`,
+                    'Внешняя ссылка',
+                    'Перейти',
+                    'Отмена'
+                  ).then((ok) => { if (ok) openLink(url); });
+                } else {
+                  openLink(url);
+                }
+              }}
+            >
+              {url}
+            </a>
+          );
+        }
+        break;
+      }
+    }
+
+    cursor += bestMatch.index + m[0].length;
+  }
+
+  return elements;
 };
 
 // Aliased export for compatibility
