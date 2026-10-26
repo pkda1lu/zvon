@@ -6,6 +6,7 @@ import { DocumentIcon, DownloadIcon } from './Icons';
 import { getFullUrl } from '../utils/avatar';
 import { getMediaKind, formatBytes } from '../utils/mediaKind';
 import { downloadFile } from '../utils/transfers';
+import { parseDurationFromFilename } from './MediaControls';
 
 export interface AttachmentData {
     url: string;
@@ -83,6 +84,7 @@ const MessageAttachment: React.FC<MessageAttachmentProps> = ({ att, onOpenMedia,
                     <RoundVideoPlayer
                         src={url}
                         filename={filename}
+                        initialDuration={parseDurationFromFilename(att.filename)}
                         onExpand={onOpenMedia ? (t) => onOpenMedia(att, t) : undefined}
                         onError={() => setFailed(true)}
                     />
@@ -108,7 +110,12 @@ const MessageAttachment: React.FC<MessageAttachmentProps> = ({ att, onOpenMedia,
         const displayName = isVoice ? 'Голосовое сообщение' : filename;
         return (
             <div className="attachment-audio-container">
-                <CustomAudioPlayer src={url} filename={displayName} onError={() => setFailed(true)} />
+                <CustomAudioPlayer
+                    src={url}
+                    filename={displayName}
+                    initialDuration={parseDurationFromFilename(att.filename)}
+                    onError={() => setFailed(true)}
+                />
                 {downloadBtn('audio')}
             </div>
         );

@@ -2,33 +2,71 @@ import React, { useRef, useState, useEffect } from 'react';
 import './RoundVideoPlayer.css';
 import { PlayIcon, PauseIcon } from './Icons';
 import { Volume2, VolumeX } from 'lucide-react';
-import { formatTime } from './MediaControls';
+import { formatTime, parseDurationFromFilename } from './MediaControls';
 
 interface RoundVideoPlayerProps {
     src: string;
     filename?: string;
+    initialDuration?: number;
     onError?: () => void;
     onExpand?: (currentTime?: number) => void;
 }
 
 const RoundVideoPlayer: React.FC<RoundVideoPlayerProps> = ({
     src,
+    filename,
+    initialDuration = 0,
     onError,
     onExpand
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0);
+    const parsedDuration = initialDuration > 0 ? initialDuration : parseDurationFromFilename(filename);
+    const [duration, setDuration] = useState<number>(parsedDuration);
     const [isMuted, setIsMuted] = useState(false);
+
+    useEffect(() => {
+        if (initialDuration > 0) {
+            setDuration(prev => (prev > 0 ? prev : initialDuration));
+        }
+    }, [initialDuration]);
 
     useEffect(() => {
         const v = videoRef.current;
         if (!v) return;
 
+        let isDisposed = false;
+        let hasResolved = false;
+
+        const updateDur = (newDur: number) => {
+            if (isDisposed) return;
+            if (isFinite(newDur) && newDur > 0) {
+                hasResolved = true;
+                setDuration(newDur);
+            }
+        };
+
         const onTime = () => setCurrentTime(v.currentTime);
-        const onLoaded = () => {
-            if (isFinite(v.duration)) setDuration(v.duration);
+        const onDur = () => {
+            if (isFinite(v.duration) && v.duration > 0) {
+                updateDur(v.duration);
+            } else if ((v.duration === Infinity || isNaN(v.duration) || v.duration === 0) && !hasResolved) {
+                // Chromium workaround для MediaRecorder: прыжок в конец заставляет
+                // демуксер рассчитать реальную длину видео по последнему ключевому кадру.
+                const onSeeked = () => {
+                    v.removeEventListener('seeked', onSeeked);
+                    if (isDisposed) return;
+                    if (isFinite(v.duration) && v.duration > 0) {
+                        updateDur(v.duration);
+                    }
+                    v.currentTime = 0;
+                };
+                v.addEventListener('seeked', onSeeked, { once: true });
+                try {
+                    v.currentTime = 1e101;
+                } catch {}
+            }
         };
         const onEnded = () => {
             setIsPlaying(false);
@@ -38,16 +76,23 @@ const RoundVideoPlayer: React.FC<RoundVideoPlayerProps> = ({
         const onPause = () => setIsPlaying(false);
 
         v.addEventListener('timeupdate', onTime);
-        v.addEventListener('loadedmetadata', onLoaded);
-        v.addEventListener('durationchange', onLoaded);
+        v.addEventListener('loadedmetadata', onDur);
+        v.addEventListener('loadeddata', onDur);
+        v.addEventListener('durationchange', onDur);
         v.addEventListener('ended', onEnded);
         v.addEventListener('play', onPlay);
         v.addEventListener('pause', onPause);
 
+        if (v.readyState >= 1) {
+            onDur();
+        }
+
         return () => {
+            isDisposed = true;
             v.removeEventListener('timeupdate', onTime);
-            v.removeEventListener('loadedmetadata', onLoaded);
-            v.removeEventListener('durationchange', onLoaded);
+            v.removeEventListener('loadedmetadata', onDur);
+            v.removeEventListener('loadeddata', onDur);
+            v.removeEventListener('durationchange', onDur);
             v.removeEventListener('ended', onEnded);
             v.removeEventListener('play', onPlay);
             v.removeEventListener('pause', onPause);

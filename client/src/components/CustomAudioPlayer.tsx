@@ -1,12 +1,13 @@
 import React, { useRef, useState } from 'react';
 import './CustomAudioPlayer.css';
 import { PlayIcon, PauseIcon } from './Icons';
-import { SeekBar, VolumeControl, formatTime, useMediaTime } from './MediaControls';
+import { SeekBar, VolumeControl, formatTime, useMediaTime, parseDurationFromFilename } from './MediaControls';
 
 interface CustomAudioPlayerProps {
     src: string;
     filename?: string;
     className?: string;
+    initialDuration?: number;
     /** Файл не воспроизводится — родитель покажет карточку файла. */
     onError?: () => void;
 }
@@ -16,10 +17,11 @@ interface CustomAudioPlayerProps {
  * файла, перемоткой с буфером и громкостью. Клавиши при фокусе: пробел —
  * пауза, ←/→ — 5 с, M — звук.
  */
-const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, filename, className, onError }) => {
+const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, filename, className, initialDuration, onError }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const { current, duration } = useMediaTime(audioRef);
+    const parsedDur = initialDuration || parseDurationFromFilename(filename);
+    const { current, duration } = useMediaTime(audioRef, parsedDur);
 
     const toggle = (e?: React.MouseEvent) => {
         e?.stopPropagation();
@@ -34,7 +36,7 @@ const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, filename, cl
         if (!a) return;
         const key = e.key.toLowerCase();
         if (key === ' ' || key === 'k') toggle();
-        else if (key === 'arrowright') a.currentTime = Math.min(a.duration || 0, a.currentTime + 5);
+        else if (key === 'arrowright') a.currentTime = Math.min(a.duration || duration || 0, a.currentTime + 5);
         else if (key === 'arrowleft') a.currentTime = Math.max(0, a.currentTime - 5);
         else if (key === 'm') a.muted = !a.muted;
         else return;
@@ -62,7 +64,7 @@ const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, filename, cl
                 <div className="zv-audio__name" title={filename}>{filename || 'Аудио'}</div>
                 <div className="zv-player__row">
                     <span className="zv-player__time">{formatTime(current)}</span>
-                    <SeekBar mediaRef={audioRef} />
+                    <SeekBar mediaRef={audioRef} duration={duration} />
                     <span className="zv-player__time zv-player__time--end">{formatTime(duration)}</span>
                     <VolumeControl mediaRef={audioRef} iconSize={16} />
                 </div>

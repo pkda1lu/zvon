@@ -601,12 +601,15 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
         if (recorder && recorder.state !== 'inactive') {
             recorder.onstop = () => {
                 const chunks = recordedChunksRef.current;
-                const mimeType = recorder.mimeType || (recordMode === 'video' ? 'video/webm' : 'audio/webm');
-                const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('aac') ? 'aac' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+                const mimeType = recorder.mimeType || (recordMode === 'video' ? 'video/mp4' : 'audio/mp4');
+                const ext = recordMode === 'video'
+                    ? (mimeType.includes('webm') ? 'webm' : mimeType.includes('m4a') ? 'm4a' : 'mp4')
+                    : (mimeType.includes('aac') ? 'aac' : mimeType.includes('ogg') ? 'ogg' : mimeType.includes('webm') ? 'webm' : 'm4a');
+                const recordedDuration = duration > 0 ? duration : Math.max(1, Math.round((Date.now() - recordStartTimeRef.current) / 1000));
                 const blob = new Blob(chunks, { type: mimeType });
                 const filename = recordMode === 'video'
-                    ? `video-message-${Date.now()}.${ext}`
-                    : `voice-message-${Date.now()}.${ext}`;
+                    ? `video-message-${Date.now()}-dur${recordedDuration}.${ext}`
+                    : `voice-message-${Date.now()}-dur${recordedDuration}.${ext}`;
 
                 // Drop codec params: clients detect the kind by the audio/ or video/ prefix
                 const file = new File([blob], filename, { type: mimeType.split(';')[0] });

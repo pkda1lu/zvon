@@ -16,34 +16,86 @@ export const formatTime = (seconds: number) => {
     return `${m}:${ss}`;
 };
 
+/** Извлечь предварительную длительность из имени файла (-dur14.mp4 / _dur14.m4a). */
+export const parseDurationFromFilename = (filename?: string): number => {
+    if (!filename) return 0;
+    const match = filename.match(/[-_]dur(\d+(?:\.\d+)?)/i);
+    return match ? parseFloat(match[1]) : 0;
+};
+
 /** Длительность, у потоковых файлов часто сначала Infinity. */
-const finiteDuration = (m: HTMLMediaElement) => (isFinite(m.duration) ? m.duration : 0);
+export const finiteDuration = (m: HTMLMediaElement, fallback = 0) => {
+    if (isFinite(m.duration) && m.duration > 0) return m.duration;
+    if (fallback && isFinite(fallback) && fallback > 0) return fallback;
+    return 0;
+};
 
 /**
  * Время воспроизведения для подписи. Обновляется раз в секунду воспроизведения,
  * а не на каждый timeupdate, — подпись показывает целые секунды.
  */
-export const useMediaTime = (mediaRef: React.RefObject<HTMLMediaElement | null>) => {
+export const useMediaTime = (mediaRef: React.RefObject<HTMLMediaElement | null>, initialDuration = 0) => {
     const [current, setCurrent] = useState(0);
-    const [duration, setDuration] = useState(0);
+    const [duration, setDuration] = useState(initialDuration);
+
+    useEffect(() => {
+        if (initialDuration > 0) {
+            setDuration(prev => (prev > 0 ? prev : initialDuration));
+        }
+    }, [initialDuration]);
+
     useEffect(() => {
         const m = mediaRef.current;
         if (!m) return;
         const onTime = () => setCurrent(prev => (Math.floor(prev) === Math.floor(m.currentTime) ? prev : m.currentTime));
-        const onDur = () => setDuration(finiteDuration(m));
+        let isDisposed = false;
+        let hasResolved = false;
+
+        const updateDur = (newDur: number) => {
+            if (isDisposed) return;
+            if (isFinite(newDur) && newDur > 0) {
+                hasResolved = true;
+                setDuration(newDur);
+            }
+        };
+
+        const onDur = () => {
+            if (isFinite(m.duration) && m.duration > 0) {
+                updateDur(m.duration);
+            } else if ((m.duration === Infinity || isNaN(m.duration) || m.duration === 0) && !hasResolved) {
+                const onSeeked = () => {
+                    m.removeEventListener('seeked', onSeeked);
+                    if (isDisposed) return;
+                    if (isFinite(m.duration) && m.duration > 0) {
+                        updateDur(m.duration);
+                    }
+                    m.currentTime = 0;
+                };
+                m.addEventListener('seeked', onSeeked, { once: true });
+                try {
+                    m.currentTime = 1e101;
+                } catch {}
+            }
+        };
+
         m.addEventListener('timeupdate', onTime);
         m.addEventListener('seeked', onTime);
         m.addEventListener('durationchange', onDur);
         m.addEventListener('loadedmetadata', onDur);
+        m.addEventListener('loadeddata', onDur);
         onDur();
+
         return () => {
             m.removeEventListener('timeupdate', onTime);
             m.removeEventListener('seeked', onTime);
             m.removeEventListener('durationchange', onDur);
             m.removeEventListener('loadedmetadata', onDur);
+            m.removeEventListener('loadeddata', onDur);
+            isDisposed = true;
         };
     }, [mediaRef]);
-    return { current, duration };
+
+    return { current, duration: duration || initialDuration };
 };
 
 /**
@@ -52,7 +104,7 @@ export const useMediaTime = (mediaRef: React.RefObject<HTMLMediaElement | null>)
  * медиа, без перерисовки React. Перетаскивание — указателем (мышь и палец),
  * стрелки на клавиатуре — по 5 секунд.
  */
-export const SeekBar: React.FC<{ mediaRef: React.RefObject<HTMLMediaElement | null> }> = ({ mediaRef }) => {
+export const SeekBar: React.FC<{ mediaRef: React.RefObject<HTMLMediaElement | null>; duration?: number }> = ({ mediaRef, duration: fallbackDuration }) => {
     const rootRef = useRef<HTMLDivElement>(null);
     const draggingRef = useRef(false);
     const [dragging, setDragging] = useState(false);
@@ -61,7 +113,7 @@ export const SeekBar: React.FC<{ mediaRef: React.RefObject<HTMLMediaElement | nu
         const m = mediaRef.current;
         const root = rootRef.current;
         if (!m || !root) return;
-        const d = finiteDuration(m);
+        const d = finiteDuration(m, fallbackDuration);
         const played = playedFraction ?? (d ? m.currentTime / d : 0);
         let buffered = 0;
         try {
@@ -71,7 +123,7 @@ export const SeekBar: React.FC<{ mediaRef: React.RefObject<HTMLMediaElement | nu
         root.style.setProperty('--zv-buffered', `${Math.min(100, Math.max(0, buffered * 100))}%`);
         root.setAttribute('aria-valuenow', String(Math.round(m.currentTime)));
         root.setAttribute('aria-valuemax', String(Math.round(d)));
-    }, [mediaRef]);
+    }, [mediaRef, fallbackDuration]);
 
     useEffect(() => {
         const m = mediaRef.current;
@@ -91,7 +143,7 @@ export const SeekBar: React.FC<{ mediaRef: React.RefObject<HTMLMediaElement | nu
     const seekTo = (fraction: number) => {
         const m = mediaRef.current;
         if (!m) return;
-        const d = finiteDuration(m);
+        const d = finiteDuration(m, fallbackDuration);
         if (d) m.currentTime = fraction * d;
     };
 
@@ -117,7 +169,8 @@ export const SeekBar: React.FC<{ mediaRef: React.RefObject<HTMLMediaElement | nu
     const onKeyDown = (e: React.KeyboardEvent) => {
         const m = mediaRef.current;
         if (!m) return;
-        if (e.key === 'ArrowRight') { m.currentTime = Math.min(finiteDuration(m), m.currentTime + 5); e.preventDefault(); e.stopPropagation(); }
+        const d = finiteDuration(m, fallbackDuration);
+        if (e.key === 'ArrowRight') { m.currentTime = Math.min(d, m.currentTime + 5); e.preventDefault(); e.stopPropagation(); }
         if (e.key === 'ArrowLeft') { m.currentTime = Math.max(0, m.currentTime - 5); e.preventDefault(); e.stopPropagation(); }
     };
 
