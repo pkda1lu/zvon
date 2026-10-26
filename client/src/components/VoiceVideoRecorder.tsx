@@ -18,13 +18,17 @@ interface VoiceVideoRecorderProps {
     onRecordingActiveChange?: (isActive: boolean) => void;
 }
 
+// MP4 (H.264 + AAC) first: iOS AVPlayer can't play WebM, so voice and round
+// messages recorded here must stay playable in the native iOS client.
+// WebM is only a fallback for engines without an MP4 MediaRecorder.
 const getSupportedVideoMime = (): string => {
     const types = [
+        'video/mp4;codecs=avc1,mp4a.40.2',
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4',
         'video/webm;codecs=vp9,opus',
         'video/webm;codecs=vp8,opus',
-        'video/webm',
-        'video/mp4;codecs=avc1,mp4a.40.2',
-        'video/mp4'
+        'video/webm'
     ];
     for (const t of types) {
         if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) {
@@ -36,11 +40,12 @@ const getSupportedVideoMime = (): string => {
 
 const getSupportedAudioMime = (): string => {
     const types = [
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/mp4',
+        'audio/aac',
         'audio/webm;codecs=opus',
         'audio/webm',
-        'audio/ogg;codecs=opus',
-        'audio/mp4',
-        'audio/aac'
+        'audio/ogg;codecs=opus'
     ];
     for (const t of types) {
         if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) {
@@ -597,13 +602,14 @@ export const VoiceVideoRecorder: React.FC<VoiceVideoRecorderProps> = ({
             recorder.onstop = () => {
                 const chunks = recordedChunksRef.current;
                 const mimeType = recorder.mimeType || (recordMode === 'video' ? 'video/webm' : 'audio/webm');
-                const ext = mimeType.includes('mp4') ? 'mp4' : (mimeType.includes('ogg') ? 'ogg' : 'webm');
+                const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('aac') ? 'aac' : mimeType.includes('ogg') ? 'ogg' : 'webm';
                 const blob = new Blob(chunks, { type: mimeType });
                 const filename = recordMode === 'video'
                     ? `video-message-${Date.now()}.${ext}`
                     : `voice-message-${Date.now()}.${ext}`;
 
-                const file = new File([blob], filename, { type: mimeType });
+                // Drop codec params: clients detect the kind by the audio/ or video/ prefix
+                const file = new File([blob], filename, { type: mimeType.split(';')[0] });
                 cleanupRecording();
                 onSendMedia(file);
             };
