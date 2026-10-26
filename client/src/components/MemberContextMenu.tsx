@@ -64,7 +64,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     const { streamerModeEnabled, censorInfo } = useWindowSettings();
     const shouldCensor = streamerModeEnabled && censorInfo;
     const { socket } = useSocket();
-    const { userVolumes, setUserVolume, localMutes, toggleLocalMute } = useVoice();
+    const { userVolumes, setUserVolume, localMutes, toggleLocalMute, isMuted, isDeafened, toggleMute, toggleDeafen, leaveChannel, joinChannel } = useVoice();
     const { confirm, alert } = useDialog();
     const [isFriend, setIsFriend] = useState(false);
     const [friendshipId, setFriendshipId] = useState<string | null>(null);
@@ -165,7 +165,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
     // 3D-комнаты — такие же голосовые каналы, в них тоже перемещают.
     // Текущий канал участника из списка убираем: перемещать в него некуда.
     const voiceChannels = server.channels.filter(c =>
-        (c.type === 'voice' || c.type === 'room') && String(c._id) !== String(voiceChannelId || '')
+        (c.type === 'voice' || c.type === 'room') && String(c._id) !== String(voiceChannelId || (isSelf ? activeChannelId : (targetVoiceState as any)?.channelId) || '')
     );
 
     const handleServerMute = (e: React.MouseEvent) => {
@@ -196,7 +196,16 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
         }
     };
 
-    const handleMoveTo = (channelId: string) => {
+    const handleMoveTo = async (channelId: string) => {
+        if (isSelf) {
+            try {
+                await joinChannel(channelId);
+            } catch (err) {
+                alert('Не удалось переместиться в канал.');
+            }
+            onClose();
+            return;
+        }
         if (socket) {
             // Сервер подтверждает перемещение. Без подтверждения отказ (участник
             // успел выйти из голосового, не хватает прав) выглядел как «ничего
@@ -336,7 +345,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 case 'toggle-role':
                     return;
                 case 'server-profile':
-                    window.dispatchEvent(new CustomEvent('open-server-profile-settings', { detail: { serverId: server._id } }));
+                    window.dispatchEvent(new CustomEvent('open-server-profile-settings', { detail: { serverId: server._id, ...(isSelf ? {} : { targetUserId: targetUser._id, targetUser }) } }));
                     break;
                 case 'report':
                     setShowReportModal(true);
@@ -551,32 +560,18 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                 ) : isVoice ? (
                     /* ====== CASE 1: ГОЛОСОВОЙ КОНТЕКСТ ====== */
                     <>
-                        {renderVolumeSection("Громкость в голосовой")}
-
-                        {isSelf && canUnmuteSelf && (
-                            <div className="menu-group">
-                                <div className="menu-item" onClick={handleUnmute}>Снять мут</div>
-                            </div>
-                        )}
-
-                        {!isSelf && (hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) || hasPermission(userPerms, Permissions.MOVE_MEMBERS)) && (
+                        {isSelf ? (
                             <>
-                                <div className="menu-separator" />
                                 <div className="menu-group">
-                                    <div className="menu-label">Управление в канале</div>
-                                    {hasPermission(userPerms, Permissions.MUTE_MEMBERS) && (
-                                        <div className="menu-item check-item" onClick={handleServerMute}>
-                                            <span>Отключить микрофон (Сервер)</span>
-                                            <div className={`checkbox ${isServerMuted ? 'checked' : ''}`}>{isServerMuted && '✓'}</div>
-                                        </div>
-                                    )}
-                                    {hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) && (
-                                        <div className="menu-item check-item" onClick={handleServerDeafen}>
-                                            <span>Отключить звук (Сервер)</span>
-                                            <div className={`checkbox ${isServerDeafened ? 'checked' : ''}`}>{isServerDeafened && '✓'}</div>
-                                        </div>
-                                    )}
-                                    {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && voiceChannels.length > 0 && (
+                                    <div className="menu-item check-item" onClick={(e) => { e.stopPropagation(); toggleMute(); }}>
+                                        <span>Отключить микрофон</span>
+                                        <div className={`checkbox ${isMuted ? 'checked' : ''}`}>{isMuted && '✓'}</div>
+                                    </div>
+                                    <div className="menu-item check-item" onClick={(e) => { e.stopPropagation(); toggleDeafen(); }}>
+                                        <span>Отключить звук</span>
+                                        <div className={`checkbox ${isDeafened ? 'checked' : ''}`}>{isDeafened && '✓'}</div>
+                                    </div>
+                                    {voiceChannels.length > 0 && (
                                         <div
                                             className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}
                                             onClick={(e) => {
@@ -597,32 +592,113 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                                             </div>
                                         </div>
                                     )}
-                                    {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && (
-                                        <div className="menu-item destructive" onClick={handleVoiceKick}>
-                                            Отключить от голосового
-                                        </div>
-                                    )}
+                                    <div className="menu-item destructive" onClick={() => { leaveChannel(); onClose(); }}>
+                                        Отключить
+                                    </div>
+                                    <div className="menu-item" onClick={() => handleAction('server-profile')}>
+                                        Изменить профиль на сервере
+                                    </div>
                                 </div>
-                            </>
-                        )}
 
-                        {!isSelf && (
+                                {canUnmuteSelf && (
+                                    <>
+                                        <div className="menu-separator" />
+                                        <div className="menu-group">
+                                            <div className="menu-item" onClick={handleUnmute}>Снять мут</div>
+                                        </div>
+                                    </>
+                                )}
+
+                                {(hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS)) && (
+                                    <>
+                                        <div className="menu-separator" />
+                                        <div className="menu-group">
+                                            <div className="menu-label">Модерация</div>
+                                            {hasPermission(userPerms, Permissions.MUTE_MEMBERS) && (
+                                                <div className="menu-item check-item" onClick={handleServerMute}>
+                                                    <span>Отключить микрофон (Сервер)</span>
+                                                    <div className={`checkbox ${isServerMuted ? 'checked' : ''}`}>{isServerMuted && '✓'}</div>
+                                                </div>
+                                            )}
+                                            {hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) && (
+                                                <div className="menu-item check-item" onClick={handleServerDeafen}>
+                                                    <span>Отключить звук (Сервер)</span>
+                                                    <div className={`checkbox ${isServerDeafened ? 'checked' : ''}`}>{isServerDeafened && '✓'}</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </>
+                        ) : (
                             <>
+                                {renderVolumeSection("Громкость в голосовой")}
+
+                                {(hasPermission(userPerms, Permissions.MUTE_MEMBERS) || hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) || hasPermission(userPerms, Permissions.MOVE_MEMBERS)) && (
+                                    <>
+                                        <div className="menu-separator" />
+                                        <div className="menu-group">
+                                            <div className="menu-label">Управление в канале</div>
+                                            {hasPermission(userPerms, Permissions.MUTE_MEMBERS) && (
+                                                <div className="menu-item check-item" onClick={handleServerMute}>
+                                                    <span>Отключить микрофон (Сервер)</span>
+                                                    <div className={`checkbox ${isServerMuted ? 'checked' : ''}`}>{isServerMuted && '✓'}</div>
+                                                </div>
+                                            )}
+                                            {hasPermission(userPerms, Permissions.DEAFEN_MEMBERS) && (
+                                                <div className="menu-item check-item" onClick={handleServerDeafen}>
+                                                    <span>Отключить звук (Сервер)</span>
+                                                    <div className={`checkbox ${isServerDeafened ? 'checked' : ''}`}>{isServerDeafened && '✓'}</div>
+                                                </div>
+                                            )}
+                                            {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && voiceChannels.length > 0 && (
+                                                <div
+                                                    className={`menu-item has-submenu ${flipSubmenu ? 'flip-left' : ''}`}
+                                                    onClick={(e) => {
+                                                        if (isMobile) {
+                                                            e.stopPropagation();
+                                                            setActiveView('move_channel');
+                                                        }
+                                                    }}
+                                                >
+                                                    <span>Переместить в</span>
+                                                    <span className="submenu-arrow">{flipSubmenu ? '‹' : '›'}</span>
+                                                    <div className="submenu">
+                                                        {voiceChannels.map(vc => (
+                                                            <div key={vc._id} className="menu-item" onClick={(e) => { e.stopPropagation(); handleMoveTo(vc._id); }}>
+                                                                {vc.name}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {hasPermission(userPerms, Permissions.MOVE_MEMBERS) && (
+                                                <div className="menu-item destructive" onClick={handleVoiceKick}>
+                                                    Отключить от голосового
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+
                                 <div className="menu-separator" />
                                 <div className="menu-group">
                                     <div className="menu-item" onClick={() => handleAction('mention')}>Упомянуть</div>
                                     <div className="menu-item" onClick={() => handleAction('message')}>Написать сообщение</div>
+                                    {canManageNicknames && (
+                                        <div className="menu-item" onClick={() => handleAction('server-profile')}>Изменить профиль на сервере</div>
+                                    )}
                                     <div className="menu-item destructive" onClick={() => handleAction('report')}>Пожаловаться</div>
                                 </div>
-                            </>
-                        )}
 
-                        {!isSelf && canBan && (
-                            <>
-                                <div className="menu-separator" />
-                                <div className="menu-group">
-                                    <div className="menu-item destructive" onClick={handleBan}>Забанить на сервере</div>
-                                </div>
+                                {canBan && (
+                                    <>
+                                        <div className="menu-separator" />
+                                        <div className="menu-group">
+                                            <div className="menu-item destructive" onClick={handleBan}>Забанить на сервере</div>
+                                        </div>
+                                    </>
+                                )}
                             </>
                         )}
                     </>
@@ -630,7 +706,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
                     /* ====== CASE 3: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЕМ (СПИСОК / ЧАТ) ====== */
                     <>
                         <div className="menu-group">
-                            {isSelf && <div className="menu-item" onClick={() => handleAction('server-profile')}>Настроить профиль на сервере</div>}
+                            {isSelf && <div className="menu-item" onClick={() => handleAction('server-profile')}>Изменить профиль на сервере</div>}
                             {isSelf && canUnmuteSelf && <div className="menu-item" onClick={handleUnmute}>Снять мут</div>}
                             {!isSelf && (
                                 <>
@@ -661,7 +737,7 @@ const MemberContextMenu: React.FC<MemberContextMenuProps> = ({
 
                                 <div className="menu-group">
                                     {canManageNicknames && (
-                                        <div className="menu-item" onClick={() => handleAction('nickname')}>Изменить никнейм</div>
+                                        <div className="menu-item" onClick={() => handleAction('server-profile')}>Изменить профиль на сервере</div>
                                     )}
                                     {canManageRoles && (
                                         <div
