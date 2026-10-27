@@ -265,6 +265,14 @@
     object-fit: cover;
 }
 
+/* Видеосообщение остаётся кружком и в превью. */
+.card-preview video.is-round {
+    width: auto;
+    height: 86%;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+}
+
 .audio-icon, .file-icon {
     color: var(--primary-neon);
     opacity: 0.6;

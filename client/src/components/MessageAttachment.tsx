@@ -4,8 +4,8 @@ import CustomAudioPlayer from './CustomAudioPlayer';
 import RoundVideoPlayer from './RoundVideoPlayer';
 import { DocumentIcon, DownloadIcon } from './Icons';
 import { getFullUrl } from '../utils/avatar';
-import { getMediaKind, formatBytes } from '../utils/mediaKind';
-import { downloadFile } from '../utils/transfers';
+import { getMediaKind, formatBytes, isRoundVideo } from '../utils/mediaKind';
+import { downloadFile, downloadRoundVideo } from '../utils/transfers';
 import { parseDurationFromFilename } from './MediaControls';
 
 export interface AttachmentData {
@@ -43,7 +43,9 @@ const MessageAttachment: React.FC<MessageAttachmentProps> = ({ att, onOpenMedia,
     const download = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        downloadFile(url, filename);
+        // Видеосообщение сохраняется кружком, остальное — как есть.
+        if (!failed && isRoundVideo(att as any)) downloadRoundVideo(url, filename);
+        else downloadFile(url, filename);
     };
 
     const downloadBtn = (variant: string) => (
@@ -69,16 +71,8 @@ const MessageAttachment: React.FC<MessageAttachmentProps> = ({ att, onOpenMedia,
         );
     }
 
-    const isRoundVideo = !failed && (
-        Boolean(att.filename?.includes('video-message')) ||
-        Boolean(att.filename?.includes('video-note')) ||
-        Boolean((att as any).isRoundVideo) ||
-        Boolean(att.type?.includes('round')) ||
-        Boolean(att.type?.includes('video-message'))
-    );
-
     if (kind === 'video') {
-        if (isRoundVideo) {
+        if (!failed && isRoundVideo(att as any)) {
             return (
                 <div className="attachment-round-video-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
                     <RoundVideoPlayer

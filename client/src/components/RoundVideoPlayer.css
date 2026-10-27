@@ -29,6 +29,18 @@
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
+/* Просмотрщик: тот же кружок, только крупный. */
+.round-video-wrapper--large {
+  margin: 0;
+  align-items: center;
+}
+.round-video-wrapper--large .round-video-container {
+  width: min(70vh, 80vw);
+  height: min(70vh, 80vw);
+  max-width: none;
+  max-height: none;
+}
+
 .round-video-element {
   width: 100%;
   height: 100%;

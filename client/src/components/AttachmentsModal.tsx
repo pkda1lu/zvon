@@ -13,7 +13,7 @@ import {
   EllipsisIcon
 } from './Icons';
 import MediaLightbox from './MediaLightbox';
-import { getMediaKind } from '../utils/mediaKind';
+import { getMediaKind, isRoundVideo } from '../utils/mediaKind';
 import { downloadFile } from '../utils/transfers';
 import './AttachmentsModal.css';
 
@@ -225,7 +225,11 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
                                 ) : type === 'videos' ? (
                                   <>
                                     {/* #t=0.1 — показать первый кадр вместо чёрного прямоугольника. */}
-                                    <video src={`${getFullUrl(att.url) || ''}#t=0.1`} preload="metadata" muted playsInline />
+                                    <video
+                                      src={`${getFullUrl(att.url) || ''}#t=0.1`}
+                                      preload="metadata" muted playsInline
+                                      className={isRoundVideo(att) ? 'is-round' : undefined}
+                                    />
                                     <div className="card-play-badge"><VideoIcon size={18} /></div>
                                   </>
                                 ) : type === 'audio' ? (

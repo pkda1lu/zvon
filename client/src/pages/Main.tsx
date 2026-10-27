@@ -1825,6 +1825,10 @@ const Main: React.FC = () => {
       setDmMessages(dmMemoryRef.current.get(dm._id) || []);
     }
     setSelectedDM(dm);
+    // Канал сбрасывается вместе с сервером: выбранный канал важнее ЛС при
+    // выборе экрана (contentKey), и из Ctrl+K, где ЛС открывают прямо со
+    // страницы канала, ChannelView рисовался без сервера и ронял приложение.
+    setSelectedChannel(null);
     setShowFriends(false);
     setShowShowcase(false);
     setSelectedServer(null);
@@ -2674,6 +2678,8 @@ const Main: React.FC = () => {
           unreadCounts={unreadCounts}
           onSelectChannel={(server, channel) => {
             setSelectedServer(server);
+            setSelectedDM(null);
+            setShowFriends(false);
             setShowShowcase(false);
             handleChannelSelect(channel);
           }}

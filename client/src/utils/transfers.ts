@@ -160,3 +160,25 @@ export async function downloadFile(url: string, filename: string): Promise<void>
         a.click();
     }
 }
+
+/**
+ * Видеосообщение сохраняется кружком (utils/roundVideoExport): кадры
+ * перерисовываются, поэтому прогресс — по времени ролика, а не по байтам.
+ * Если перерисовать не вышло (нет WebGL/MediaRecorder), скачиваем исходный
+ * файл как есть.
+ */
+export async function downloadRoundVideo(url: string, filename: string): Promise<void> {
+    const controller = new AbortController();
+    const id = start('download', `${filename} · кружок`, 100, controller);
+    try {
+        const { renderRoundVideo, roundExportFilename } = await import('./roundVideoExport');
+        const { blob, ext } = await renderRoundVideo(url, filename, (p) => patch(id, { loaded: Math.round(p * 100), total: 100 }), controller.signal);
+        saveBlob(blob, roundExportFilename(filename, ext));
+        finish(id, 'done');
+    } catch (e) {
+        if ((e as any)?.name === 'AbortError') { finish(id, 'canceled'); return; }
+        console.warn('[download] кружок не перерисован, сохраняю исходный файл:', e);
+        dismissTransfer(id);
+        await downloadFile(url, filename);
+    }
+}

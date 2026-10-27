@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import CustomVideoPlayer from './CustomVideoPlayer';
+import RoundVideoPlayer from './RoundVideoPlayer';
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon } from './Icons';
 import { getFullUrl } from '../utils/avatar';
-import { getMediaKind } from '../utils/mediaKind';
-import { downloadFile } from '../utils/transfers';
+import { getMediaKind, isRoundVideo } from '../utils/mediaKind';
+import { downloadFile, downloadRoundVideo } from '../utils/transfers';
 import {
   overlayVariants,
   overlayTransition,
@@ -69,7 +70,9 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ isOpen, onClose, media, i
         e.stopPropagation();
         const item = media[currentIndex];
         const isVid = getMediaKind(item) === 'video';
-        downloadFile(getFullUrl(item.url)!, item.filename || (isVid ? 'video.mp4' : 'image.jpg'));
+        const name = item.filename || (isVid ? 'video.mp4' : 'image.jpg');
+        if (isRoundVideo(item)) downloadRoundVideo(getFullUrl(item.url)!, name);
+        else downloadFile(getFullUrl(item.url)!, name);
     };
 
     const currentItem = isOpen ? media[currentIndex] : null;
@@ -94,7 +97,16 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ isOpen, onClose, media, i
             >
                 {/* Image or Video */}
                 <div className="media-display-area">
-                    {isVideo ? (
+                    {isVideo && isRoundVideo(currentItem) ? (
+                        <RoundVideoPlayer
+                            key={currentItem.url}
+                            src={getFullUrl(currentItem.url)!}
+                            filename={currentItem.filename}
+                            large
+                            autoPlay
+                            startTime={currentItem.startTime || 0}
+                        />
+                    ) : isVideo ? (
                         <CustomVideoPlayer
                             src={getFullUrl(currentItem.url)!}
                             autoPlay

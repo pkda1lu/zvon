@@ -190,6 +190,29 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                 }
             }
         })
+        // Скачивания (ссылка с download, в т. ч. на blob:): без обработчика
+        // WebView2 молча ничего не сохранял. Кладём в «Загрузки», не
+        // перезаписывая файлы с тем же именем.
+        .on_download(|webview, event| {
+            match event {
+                tauri::webview::DownloadEvent::Requested { destination, .. } => {
+                    if let Some(dir) = webview.app_handle().path().download_dir().ok() {
+                        let name = destination
+                            .file_name()
+                            .map(|n| n.to_owned())
+                            .unwrap_or_else(|| "download".into());
+                        *destination = unique_path(&dir, std::path::Path::new(&name));
+                    }
+                    log::info!("[download] сохраняю в {}", destination.display());
+                    true
+                }
+                tauri::webview::DownloadEvent::Finished { path, success, .. } => {
+                    log::info!("[download] {}: {:?}", if success { "готово" } else { "не удалось" }, path);
+                    true
+                }
+                _ => true,
+            }
+        })
         .title("Zvon")
         .inner_size(1280.0, 800.0)
         .min_inner_size(800.0, 600.0)
@@ -204,6 +227,20 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     #[cfg(windows)]
     crate::maximized_edge::install(&w);
     Ok(w)
+}
+
+/// «имя.ext», а если занято — «имя (1).ext», «имя (2).ext»…
+fn unique_path(dir: &std::path::Path, name: &std::path::Path) -> std::path::PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let stem = name.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let ext = name.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    (1..1000)
+        .map(|i| dir.join(format!("{stem} ({i}){ext}")))
+        .find(|p| !p.exists())
+        .unwrap_or(first)
 }
 
 pub fn create_updater(app: &AppHandle) -> tauri::Result<WebviewWindow> {

@@ -104,14 +104,14 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                 className="profile-card-banner" 
                 style={bot.banner
                     ? { backgroundImage: `url(${getFullUrl(bot.banner)})` }
-                    : { background: 'linear-gradient(135deg, rgba(49, 92, 255, 0.45), rgba(118, 28, 255, 0.28))' }}
+                    : { background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03))' }}
             >
                 <div className="profile-card-badge bot">Бот</div>
             </div>
             <div className="profile-card-content">
                 <div className="profile-card-header">
                     <div className="profile-card-avatar">
-                        {bot.avatar ? <img src={getFullUrl(bot.avatar)!} alt="" /> : <BotIcon size={26 * interfaceScale} color="var(--sc-accent-blue, #315cff)" />}
+                        {bot.avatar ? <img src={getFullUrl(bot.avatar)!} alt="" /> : <BotIcon size={26 * interfaceScale} color="rgba(255,255,255,0.75)" />}
                     </div>
                     <div className="profile-card-main-info">
                         <div className="profile-card-name">{bot.username}</div>
@@ -156,14 +156,14 @@ const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onOpenMiniApp, onBack, isMo
                 className="profile-card-banner" 
                 style={app.banner
                     ? { backgroundImage: `url(${getFullUrl(app.banner)})` }
-                    : { background: 'linear-gradient(135deg, rgba(118, 28, 255, 0.42), rgba(49, 92, 255, 0.24))' }}
+                    : { background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03))' }}
             >
                 <div className="profile-card-badge app">Приложение</div>
             </div>
             <div className="profile-card-content">
                 <div className="profile-card-header">
                     <div className="profile-card-avatar">
-                        {app.avatar ? <img src={getFullUrl(app.avatar)!} alt="" /> : <LayoutGridIcon size={26 * interfaceScale} color="var(--sc-accent-purple, #761cff)" />}
+                        {app.avatar ? <img src={getFullUrl(app.avatar)!} alt="" /> : <LayoutGridIcon size={26 * interfaceScale} color="rgba(255,255,255,0.75)" />}
                     </div>
                     <div className="profile-card-main-info">
                         <div className="profile-card-name">{app.name}</div>

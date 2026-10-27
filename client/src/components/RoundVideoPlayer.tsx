@@ -10,6 +10,10 @@ interface RoundVideoPlayerProps {
     initialDuration?: number;
     onError?: () => void;
     onExpand?: (currentTime?: number) => void;
+    /** Крупный кружок для просмотрщика (MediaLightbox). */
+    large?: boolean;
+    autoPlay?: boolean;
+    startTime?: number;
 }
 
 const RoundVideoPlayer: React.FC<RoundVideoPlayerProps> = ({
@@ -17,7 +21,10 @@ const RoundVideoPlayer: React.FC<RoundVideoPlayerProps> = ({
     filename,
     initialDuration = 0,
     onError,
-    onExpand
+    onExpand,
+    large = false,
+    autoPlay = false,
+    startTime = 0
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -60,7 +67,7 @@ const RoundVideoPlayer: React.FC<RoundVideoPlayerProps> = ({
                     if (isFinite(v.duration) && v.duration > 0) {
                         updateDur(v.duration);
                     }
-                    v.currentTime = 0;
+                    v.currentTime = startTime;
                 };
                 v.addEventListener('seeked', onSeeked, { once: true });
                 try {
@@ -86,6 +93,9 @@ const RoundVideoPlayer: React.FC<RoundVideoPlayerProps> = ({
         if (v.readyState >= 1) {
             onDur();
         }
+
+        if (startTime > 0) v.currentTime = startTime;
+        if (autoPlay) v.play().catch(() => {});
 
         return () => {
             isDisposed = true;
@@ -139,7 +149,7 @@ const RoundVideoPlayer: React.FC<RoundVideoPlayerProps> = ({
 
     return (
         <div
-            className="round-video-wrapper"
+            className={`round-video-wrapper${large ? ' round-video-wrapper--large' : ''}`}
             tabIndex={0}
             onKeyDown={onKeyDown}
             role="region"

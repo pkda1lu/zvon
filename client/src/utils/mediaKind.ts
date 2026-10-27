@@ -35,6 +35,22 @@ export const getMediaKind = (att: AttachmentLike): MediaKind => {
     return 'file';
 };
 
+/**
+ * Видеосообщение («кружок»). Признак — в имени или типе файла, его ставит
+ * запись видеосообщения. Кружком оно остаётся везде: в чате, в окне
+ * вложений, в просмотрщике.
+ */
+export const isRoundVideo = (att: AttachmentLike & { isRoundVideo?: boolean }): boolean => {
+    if (getMediaKind(att) !== 'video') return false;
+    const name = String(att.filename || '');
+    const type = String(att.type || '');
+    return name.includes('video-message')
+        || name.includes('video-note')
+        || Boolean(att.isRoundVideo)
+        || type.includes('round')
+        || type.includes('video-message');
+};
+
 /** Картинки и видео — то, что листается в лайтбоксе. */
 export const isVisualMedia = (att: AttachmentLike) => {
     const kind = getMediaKind(att);
