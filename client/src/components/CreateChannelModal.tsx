@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Channel } from '../types';
 import './CreateChannelModal.css';
 import ZvSelect from './ZvSelect';
+import { SettingsToggle } from '../pages/settings/SettingsUI';
+import '../pages/settings/Settings.css';
 
 interface CreateChannelModalProps {
   isOpen: boolean;
@@ -36,6 +38,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   const [channelType, setChannelType] = useState<'text' | 'voice' | 'room'>('text');
   const [channelName, setChannelName] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [lonelyScreen, setLonelyScreen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -79,7 +82,8 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           name: channelName.trim(),
           type: channelType,
           serverId: serverId,
-          category: selectedCategoryId || undefined
+          category: selectedCategoryId || undefined,
+          ...(channelType === 'voice' ? { lonelyScreen } : {})
         });
       }
 
@@ -246,6 +250,18 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 <option key={cat._id} value={cat._id}>{cat.name}</option>
               ))}
             </ZvSelect>
+          </div>
+        )}
+
+        {entityType === 'channel' && channelType === 'voice' && (
+          <div className="form-section">
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <h3>Экран одинокого</h3>
+                <p>Пока в канале никого или один человек — за стеклом кто-то есть.</p>
+              </div>
+              <SettingsToggle checked={lonelyScreen} onChange={setLonelyScreen} />
+            </div>
           </div>
         )}
 

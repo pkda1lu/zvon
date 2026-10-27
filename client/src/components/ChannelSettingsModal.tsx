@@ -64,6 +64,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 
     const [bitrate, setBitrate] = useState(64);
     const [userLimit, setUserLimit] = useState(0);
+    const [lonelyScreen, setLonelyScreen] = useState(false);
 
     const initialSlow = (channel as any).slowMode || 0;
     const initialDecomposed = decomposeSlowMode(initialSlow);
@@ -87,6 +88,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
         if (channel.type === 'voice') {
             setBitrate(((channel as any).bitrate || 64000) / 1000);
             setUserLimit((channel as any).userLimit || 0);
+            setLonelyScreen(!!channel.lonelyScreen);
         }
         setActiveTab('overview');
     }, [channel]);
@@ -96,7 +98,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
         channelStateRef.current = { name, topic, overwrites, slowModeEnabled, slowAmount, slowUnit, bitrate, userLimit };
     }, [name, topic, overwrites, slowModeEnabled, slowAmount, slowUnit, bitrate, userLimit]);
 
-    const saveField = useCallback(async (updates: Partial<{ name: string; topic: string; permissionOverwrites: PermissionOverwrite[]; slowMode: number; bitrate: number; userLimit: number; category?: string | null }>) => {
+    const saveField = useCallback(async (updates: Partial<{ name: string; topic: string; permissionOverwrites: PermissionOverwrite[]; slowMode: number; bitrate: number; userLimit: number; lonelyScreen: boolean; category?: string | null }>) => {
         try {
             const res = await axios.put(`/api/channels/${channel._id}`, updates);
             onChannelUpdate(res.data);
@@ -438,6 +440,16 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                 value={userLimit}
                                                 onChange={(val) => { setUserLimit(val); saveField({ userLimit: val }); }}
                                             />
+                                        </div>
+
+                                        <div className="settings-card">
+                                            <div className="settings-row">
+                                                <div className="settings-row-text">
+                                                    <h3>Экран одинокого</h3>
+                                                    <p>Пока в канале никого или один человек, на фоне — силуэт за матовым стеклом.</p>
+                                                </div>
+                                                <SettingsToggle checked={lonelyScreen} onChange={(val) => { setLonelyScreen(val); saveField({ lonelyScreen: val }); }} />
+                                            </div>
                                         </div>
                                     </>
                                 )}

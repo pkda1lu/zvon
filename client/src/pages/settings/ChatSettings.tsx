@@ -13,7 +13,8 @@ const ChatSettings: React.FC = () => {
         highlightMentions, setHighlightMentions,
         emojiAutocomplete, setEmojiAutocomplete,
         showHoverBar, setShowHoverBar,
-        textToSpeech, setTextToSpeech
+        textToSpeech, setTextToSpeech,
+        callLonelyScreen, setCallLonelyScreen
     } = useChatSettings();
 
     const { 
@@ -133,6 +134,16 @@ const ChatSettings: React.FC = () => {
                         <p>Разрешить воспроизведение текстовых сообщений синтезатором голоса.</p>
                     </div>
                     <SettingsToggle checked={textToSpeech} onChange={setTextToSpeech} />
+                </div>
+            </div>
+
+            <div className="settings-card">
+                <div className="settings-row">
+                    <div className="settings-row-text">
+                        <h3>Экран одинокого в звонках</h3>
+                        <p>Фон с силуэтом за матовым стеклом в личных и групповых звонках.</p>
+                    </div>
+                    <SettingsToggle checked={callLonelyScreen} onChange={setCallLonelyScreen} />
                 </div>
             </div>
         </div>

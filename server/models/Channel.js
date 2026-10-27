@@ -73,6 +73,12 @@ const channelSchema = new mongoose.Schema({
     min: 0,
     max: 99
   },
+  // «Экран одинокого»: фон «человек за стеклом», пока в канале никого
+  // или один человек. По умолчанию выключен.
+  lonelyScreen: {
+    type: Boolean,
+    default: false
+  },
   permissionOverwrites: [permissionOverwriteSchema],
   createdAt: {
     type: Date,

@@ -15,6 +15,7 @@ import MemberContextMenu from './MemberContextMenu';
 import UserAvatar from './UserAvatar';
 import PresenceTile from './PresenceTile';
 import ChannelView from './ChannelView';
+import LiminalBackdrop from './LiminalBackdrop';
 import './panel-hero.css';
 import './VoiceChannelView.css';
 import { useServerMemberMap } from '../utils/serverMembers';
@@ -493,6 +494,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   };
   
   const focusedItem = focusedItemId ? displayParticipants.find(p => p._id === focusedItemId) : null;
+  // «Экран одинокого» (настройка канала): в канале никого или один человек —
+  // за стеклом «кто-то есть» (LiminalBackdrop).
+  const isLonely = !!channel.lonelyScreen && displayParticipants.filter(p => p.type === 'user').length <= 1;
   const gridDimensions = getGridDimensions(displayParticipants.length);
 
   const renderLayout = () => {
@@ -518,8 +522,9 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
   };
 
   return (
-    <div className="voice-channel-view panel-hero" ref={viewRef}>
+    <div className={`voice-channel-view panel-hero${isLonely ? ' liminal-host' : ''}`} ref={viewRef}>
       <div className="panel-hero-bg" aria-hidden="true"><div className="blob cyan" /><div className="blob purple" /><div className="blob pink" /></div>
+      <LiminalBackdrop active={isLonely} />
       <header className="voice-hdr">
         <div className="hdr-left"><h1><div className="voice-status-indicator inline"><div className="pulse-ring"></div><div className="status-dot"></div></div>{channel.name}</h1></div>
         <div className="hdr-right">{channel.topic && <div className="channel-topic-tag">{channel.topic}</div>}<button className={`voice-chat-toggle-btn`} onClick={onToggleChat} title={'Открыть чат'}><ChatIcon size={18} /></button></div>

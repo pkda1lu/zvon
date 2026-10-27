@@ -1,0 +1,63 @@
+/* Фон «человек за матовым стеклом» (LiminalBackdrop.tsx).
+   Слой ложится под содержимое родителя: z-index: -1 внутри контекста
+   наложения родителя. Если родитель его не создаёт (голосовой канал),
+   родителю ставится .liminal-host — иначе слой уходит под фон страницы.
+   Окно звонка (position: fixed + z-index) контекст создаёт само. */
+.liminal-host { isolation: isolate; }
+.liminal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  /* Цвет фона съёмки после инверсии — края кадра с ним сливаются. */
+  background: #000;
+}
+.liminal-backdrop.is-active { opacity: 1; }
+
+/* Кадр на всю площадь: вертикальная съёмка обрезается сверху и снизу,
+   в широком окне видны лицо и ладони крупным планом. */
+.liminal-backdrop__film {
+  position: absolute;
+  inset: 0;
+  transform: scale(1.04);
+  /* Светлая съёмка → тёмная: светлая фигура выступает из тумана.
+     Небольшое размытие добавляет глубины поверх уже матового кадра. */
+  filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(1.12) blur(2px);
+}
+.liminal-backdrop__film video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Только cover: поля вокруг видео WebView2 заливает чёрным, а после
+     инверсии они становились светлыми полосами. Центр кадра чуть выше
+     середины — там лицо и ладони. */
+  object-fit: cover;
+  object-position: 50% 32%;
+  opacity: 0;
+  transition: opacity 1s linear;
+}
+.liminal-backdrop__film video.is-front { opacity: 1; }
+
+/* Дымка сверху и снизу, виньетка по краям — плитки и кнопки остаются читаемыми. */
+.liminal-backdrop__haze {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8, 8, 13, .72) 0%, rgba(8, 8, 13, .18) 26%, rgba(8, 8, 13, .12) 60%, rgba(8, 8, 13, .78) 100%),
+    radial-gradient(120% 90% at 50% 45%, transparent 45%, rgba(4, 4, 8, .7) 100%);
+}
+
+.liminal-backdrop__grain {
+  position: absolute;
+  inset: 0;
+  opacity: .08;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1.2 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+:root.performance-mode .liminal-backdrop { display: none; }

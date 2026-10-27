@@ -235,6 +235,8 @@ export interface Channel {
   position: number;
   topic?: string;
   permissionOverwrites?: PermissionOverwrite[];
+  /** Голосовой канал: фон «человек за стеклом», пока в канале ≤ 1 человека. */
+  lonelyScreen?: boolean;
   createdAt: string;
 }
 

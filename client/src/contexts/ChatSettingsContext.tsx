@@ -13,6 +13,8 @@ interface ChatSettings {
     showHoverBar: boolean;
     textToSpeech: boolean;
     showStickers: boolean;
+    /** Фон «человек за стеклом» в личных и групповых звонках. */
+    callLonelyScreen: boolean;
 }
 
 interface ChatSettingsContextType extends ChatSettings {
@@ -25,6 +27,7 @@ interface ChatSettingsContextType extends ChatSettings {
     setShowHoverBar: (value: boolean) => void;
     setTextToSpeech: (value: boolean) => void;
     setShowStickers: (value: boolean) => void;
+    setCallLonelyScreen: (value: boolean) => void;
 }
 
 const ChatSettingsContext = createContext<ChatSettingsContextType | undefined>(undefined);
@@ -44,6 +47,7 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 showHoverBar: parsed.showHoverBar ?? parsed.showHoverActions ?? true,
                 textToSpeech: parsed.textToSpeech ?? parsed.enableTTS ?? false,
                 showStickers: parsed.showStickers ?? true,
+                callLonelyScreen: parsed.callLonelyScreen ?? false,
             };
         }
         return {
@@ -56,6 +60,7 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
             showHoverBar: true,
             textToSpeech: false,
             showStickers: true,
+            callLonelyScreen: false,
         };
     });
 
@@ -75,6 +80,7 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const setShowHoverBar = (showHoverBar: boolean) => setSettings(prev => ({ ...prev, showHoverBar }));
     const setTextToSpeech = (textToSpeech: boolean) => setSettings(prev => ({ ...prev, textToSpeech }));
     const setShowStickers = (showStickers: boolean) => setSettings(prev => ({ ...prev, showStickers }));
+    const setCallLonelyScreen = (callLonelyScreen: boolean) => setSettings(prev => ({ ...prev, callLonelyScreen }));
 
     return (
         <ChatSettingsContext.Provider value={{
@@ -87,7 +93,8 @@ export const ChatSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
             setEmojiAutocomplete,
             setShowHoverBar,
             setTextToSpeech,
-            setShowStickers
+            setShowStickers,
+            setCallLonelyScreen
         }}>
             {children}
         </ChatSettingsContext.Provider>

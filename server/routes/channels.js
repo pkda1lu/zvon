@@ -9,7 +9,7 @@ const { logAction } = require('../utils/auditLogger');
 
 router.post('/', auth, checkPermission(Permissions.MANAGE_CHANNELS, 'body.serverId'), async (req, res) => {
   try {
-    const { name, type, serverId, category, position, topic } = req.body;
+    const { name, type, serverId, category, position, topic, lonelyScreen } = req.body;
     // 3D-комнаты пока в разработке — создавать их могут только модераторы/админы Zvon.
     // Гейт дублирует клиентскую проверку, т.к. запрос можно отправить в обход UI.
     if (type === 'room' && !['admin', 'moderator'].includes(req.user.role)) {
@@ -18,6 +18,7 @@ router.post('/', auth, checkPermission(Permissions.MANAGE_CHANNELS, 'body.server
     const server = await Server.findById(serverId);
     if (!server) return res.status(404).json({ message: 'Server not found' });
     const channel = new Channel({ name, type: type || 'text', server: serverId, category, position: position || server.channels.length, topic });
+    if (channel.type === 'voice' && lonelyScreen !== undefined) channel.lonelyScreen = !!lonelyScreen;
     await channel.save();
     server.channels.push(channel._id);
     await server.save();
@@ -105,7 +106,7 @@ router.put('/:id', auth, async (req, res, next) => {
 }, checkPermission(Permissions.MANAGE_CHANNELS), async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id);
-    const { name, topic, position, category, permissionOverwrites, slowMode, bitrate, userLimit } = req.body;
+    const { name, topic, position, category, permissionOverwrites, slowMode, bitrate, userLimit, lonelyScreen } = req.body;
     if (name) channel.name = name;
     if (topic !== undefined) channel.topic = topic;
     if (position !== undefined) channel.position = position;
@@ -114,6 +115,7 @@ router.put('/:id', auth, async (req, res, next) => {
     if (slowMode !== undefined) channel.slowMode = Math.max(0, Math.min(21600, parseInt(slowMode, 10) || 0));
     if (bitrate !== undefined) channel.bitrate = parseInt(bitrate, 10) || 64000;
     if (userLimit !== undefined) channel.userLimit = Math.max(0, Math.min(99, parseInt(userLimit, 10) || 0));
+    if (lonelyScreen !== undefined) channel.lonelyScreen = !!lonelyScreen;
     await channel.save();
 
     await logAction({

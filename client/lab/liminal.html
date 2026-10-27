@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Liminal · Zvon lab</title>
+<!--
+  Тестовая страница: «человек за матовым стеклом» в духе liminal.
+
+  Глубина передаётся размытием по слоям: чем ближе к стеклу, тем резче.
+  Тело далеко (сильное размытие), рука ближе, а места, где ладонь
+  прижата к стеклу, почти резкие и светлее (кожа бледнеет от нажима).
+  Поверх — молочная дымка, иней и зерно; интерфейс — светлое стекло
+  с backdrop-filter.
+
+  Нажмите и держите на экране — рука потянется к этому месту и прижмётся.
+  Кнопка «?» справа вверху открывает настройки и загрузку своего фото/видео.
+
+  Открывается через dev-сервер клиента: /lab/liminal.html. В сборку не входит.
+-->
+<style>
+  :root {
+    --bg: #eeedeb;
+    --bg-2: #f6f5f3;
+    --cloth: #5f5f66;
+    --cloth-2: #6b6b72;
+    --hair: #2f2e33;
+    --skin: #d6c4ba;
+    --skin-shade: #b9a59b;
+    --skin-press: #f1e5de;
+    --haze: 246, 245, 243;
+    --ink: #1d1c1f;
+    --ink-2: #4b4a50;
+    --accent: #7c2f2b;
+    --accent-soft: rgba(176, 106, 100, .55);
+    --glass-top: rgba(255, 255, 255, .62);
+    --glass-bottom: rgba(255, 255, 255, .28);
+    --glass-edge: rgba(255, 255, 255, .85);
+    --glass-shadow: rgba(40, 30, 30, .10);
+    --grain-opacity: .07;
+    --frost: .35;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c0c11;
+    --bg-2: #14141b;
+    --cloth: #2c2c35;
+    --cloth-2: #33333d;
+    --hair: #0e0e12;
+    --skin: #a9978e;
+    --skin-shade: #85756e;
+    --skin-press: #d9cbc4;
+    --haze: 26, 26, 34;
+    --ink: #f1eff2;
+    --ink-2: #b3b0b8;
+    --accent: #e2a29b;
+    --accent-soft: rgba(226, 162, 155, .45);
+    --glass-top: rgba(40, 40, 52, .55);
+    --glass-bottom: rgba(20, 20, 28, .35);
+    --glass-edge: rgba(255, 255, 255, .14);
+    --glass-shadow: rgba(0, 0, 0, .45);
+    --grain-opacity: .09;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.35 "Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* ---------- сцена ---------- */
+  .scene {
+    position: fixed; inset: 0; overflow: hidden;
+    background:
+      radial-gradient(120% 70% at 50% 35%, var(--bg-2), var(--bg) 70%);
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .figure {
+    position: absolute; left: 50%; bottom: 0;
+    height: 100%; aspect-ratio: 1 / 2;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  @media (min-aspect-ratio: 1/1) {
+    .figure { height: 112%; bottom: -6%; }
+  }
+  .layer { position: absolute; will-change: transform, filter; overflow: visible; }
+  .layer.full { inset: 0; width: 100%; height: 100%; }
+  /* рука и пятна касания — только своя область, чтобы размытие считалось дёшево */
+  .layer.hand { left: 37.5%; top: 25%; width: 62.5%; height: 50%; }
+
+  .media {
+    position: absolute; inset: -4%; width: 108%; height: 108%;
+    object-fit: cover; display: none; will-change: filter, transform;
+  }
+  /* настоящая съёмка: два видео по очереди, чтобы повтор шёл без рывка */
+  .real { position: absolute; inset: -3%; display: none; will-change: filter, transform; }
+  .real video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; object-position: 50% 40%;
+    opacity: 0; transition: opacity .9s linear;
+  }
+  .real video.on { opacity: 1; }
+  .scene[data-source="video"] .real { display: block; }
+  .scene[data-source="video"] .figure,
+  .scene[data-source="custom"] .figure { display: none; }
+  .scene[data-source="custom"] .media.active { display: block; }
+
+  /* ---------- стекло ---------- */
+  .veil, .haze, .drift, .grain { position: absolute; inset: 0; pointer-events: none; }
+  .veil { background: rgba(var(--haze), calc(var(--frost) * .42)); }
+  .haze {
+    background:
+      linear-gradient(to bottom,
+        rgba(var(--haze), calc(var(--frost) * 1.5)) 0%,
+        rgba(var(--haze), 0) 30%,
+        rgba(var(--haze), 0) 58%,
+        rgba(var(--haze), calc(var(--frost) * 1.6)) 100%),
+      radial-gradient(60% 40% at 0% 50%, rgba(var(--haze), calc(var(--frost) * 1.1)), transparent 70%),
+      radial-gradient(60% 40% at 100% 60%, rgba(var(--haze), calc(var(--frost) * 1.0)), transparent 70%);
+  }
+  /* неровный иней: медленно плывущие пятна плотности */
+  .drift {
+    opacity: calc(var(--frost) * .9);
+    background:
+      radial-gradient(28% 22% at 30% 40%, rgba(var(--haze), .55), transparent 70%),
+      radial-gradient(24% 26% at 70% 70%, rgba(var(--haze), .45), transparent 70%),
+      radial-gradient(30% 20% at 55% 20%, rgba(var(--haze), .5), transparent 70%);
+    animation: drift 38s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    from { transform: translate3d(-3%, -2%, 0) scale(1.05); }
+    to   { transform: translate3d(3%, 2%, 0) scale(1.12); }
+  }
+  .grain {
+    opacity: var(--grain-opacity);
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1.2 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  :root[data-theme="dark"] .grain { mix-blend-mode: overlay; }
+
+  /* ---------- интерфейс ---------- */
+  .ui {
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+  }
+  .ui > * { pointer-events: auto; }
+
+  .glass {
+    position: relative;
+    background: linear-gradient(160deg, var(--glass-top), var(--glass-bottom));
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    backdrop-filter: blur(22px) saturate(140%);
+    border: 1px solid var(--glass-edge);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .55),
+      inset 0 -1px 1px rgba(0, 0, 0, .04),
+      0 14px 40px var(--glass-shadow);
+  }
+  :root[data-theme="dark"] .glass { box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 14px 40px var(--glass-shadow); }
+
+  .topbar {
+    width: 100%; max-width: 760px;
+    display: flex; justify-content: space-between; gap: 12px;
+  }
+  .pill { border-radius: 999px; display: flex; align-items: center; height: 54px; padding: 0 8px; }
+  .brand { gap: 10px; padding: 0 22px 0 14px; }
+  .brand .sep { width: 1px; height: 26px; background: rgba(127,127,127,.35); }
+  .brand b { font-size: 22px; letter-spacing: -.02em; font-weight: 800; }
+  .brand b i { font-style: normal; color: var(--accent); }
+  .icon-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 0; background: transparent; color: var(--ink);
+    display: grid; place-items: center; cursor: pointer;
+    transition: background .2s;
+  }
+  .icon-btn:hover, .icon-btn[aria-pressed="true"] { background: rgba(127,127,127,.14); }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  .toast {
+    margin-top: 14px; border-radius: 999px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 6px 6px 6px 20px; font-size: 15px; color: var(--ink-2);
+    transition: opacity .4s, transform .4s;
+  }
+  .toast.hidden { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+  .toast button {
+    border: 0; border-radius: 999px; padding: 9px 18px; cursor: pointer;
+    font: inherit; font-weight: 700; color: var(--accent);
+    background: rgba(214, 150, 145, .22);
+  }
+
+  .spacer { flex: 1; }
+
+  .card {
+    width: 100%; max-width: 440px; border-radius: 34px;
+    padding: 24px 22px 22px;
+  }
+  .card-head { display: flex; justify-content: space-between; gap: 16px; }
+  .eyebrow { font-size: 14px; color: var(--ink-2); }
+  .title { font-size: 46px; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; margin-top: 4px; }
+  .meta { text-align: right; font-size: 14px; color: var(--ink-2); line-height: 1.7; }
+  .meta strong { display: block; font-size: 17px; color: var(--ink); }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 20px; }
+  .chip {
+    height: 46px; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 15px; color: var(--ink-2);
+    background: linear-gradient(160deg, rgba(255,255,255,.35), rgba(255,255,255,.08));
+    border: 1px solid var(--glass-edge);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+    transition: color .2s, border-color .2s, box-shadow .2s;
+  }
+  :root[data-theme="dark"] .chip { background: rgba(255,255,255,.04); }
+  .chip[aria-pressed="true"] {
+    color: var(--accent); border-color: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent-soft), inset 0 1px 0 rgba(255,255,255,.4);
+  }
+  .cta {
+    margin-top: 10px; width: 100%; height: 56px; border-radius: 999px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 22px;
+    font: inherit; font-size: 18px; font-weight: 700; color: var(--accent);
+    background: linear-gradient(160deg, rgba(255,255,255,.55), rgba(255,255,255,.2));
+    border: 1px solid var(--glass-edge);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 4px 14px var(--glass-shadow);
+  }
+  :root[data-theme="dark"] .cta { background: rgba(255,255,255,.06); }
+  .cta svg { width: 20px; height: 20px; }
+
+  /* ---------- настройки ---------- */
+  .panel {
+    position: fixed; top: calc(max(16px, env(safe-area-inset-top)) + 66px); right: 16px;
+    width: min(300px, calc(100vw - 32px));
+    border-radius: 24px; padding: 16px 18px; font-size: 14px;
+    display: none;
+  }
+  .panel.open { display: block; }
+  .panel h2 { margin: 0 0 10px; font-size: 15px; }
+  .panel label { display: block; margin: 10px 0 4px; color: var(--ink-2); }
+  .panel input[type=range] { width: 100%; accent-color: var(--accent); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .row .chip { height: 34px; padding: 0 12px; font-size: 13px; }
+  .file { font-size: 13px; color: var(--ink-2); width: 100%; }
+  .hint { margin-top: 12px; color: var(--ink-2); font-size: 12.5px; }
+
+  @media (max-width: 420px) {
+    .topbar { gap: 8px; }
+    .pill { height: 48px; padding: 0 4px; }
+    .brand { gap: 6px; padding: 0 14px 0 6px; }
+    .brand b { font-size: 19px; }
+    .icon-btn { width: 38px; height: 38px; }
+    .icon-btn svg { width: 20px; height: 20px; }
+    .title { font-size: 40px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drift { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene" data-source="video">
+  <div class="figure" id="figure">
+    <!-- тело: дальше всех от стекла -->
+    <svg class="layer full" id="body" viewBox="0 0 400 800" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <defs>
+        <radialGradient id="faceShade" cx="45%" cy="40%" r="70%">
+          <stop offset="0" stop-color="var(--skin)"/>
+          <stop offset="1" stop-color="var(--skin-shade)"/>
+        </radialGradient>
+      </defs>
+      <g id="torso">
+        <path fill="var(--cloth)" d="M8 800 L16 610 C24 520 82 470 150 456 L204 456 C272 466 330 512 350 604 L364 800 Z"/>
+        <rect x="146" y="372" width="52" height="96" rx="20" fill="var(--skin-shade)"/>
+      </g>
+      <g id="head">
+        <ellipse cx="172" cy="302" rx="74" ry="92" fill="url(#faceShade)"/>
+        <!-- черты лица: под размытием остаются только тени -->
+        <ellipse cx="148" cy="296" rx="11" ry="6" fill="#5b4e4b" opacity=".45"/>
+        <ellipse cx="196" cy="296" rx="11" ry="6" fill="#5b4e4b" opacity=".45"/>
+        <path d="M168 300 C 166 320, 164 334, 174 338" stroke="#8d7a73" stroke-width="5" fill="none" opacity=".35"/>
+        <ellipse cx="172" cy="360" rx="16" ry="5" fill="#8a6d68" opacity=".4"/>
+        <path fill="var(--hair)" d="M92 306 C 82 205, 138 176, 180 180 C 242 186, 264 240, 252 330 C 248 382, 256 432, 266 470 L 228 462 C 236 404, 242 336, 228 292 C 210 254, 150 246, 124 292 C 110 340, 118 420, 104 476 L 72 468 C 90 420, 96 364, 92 306 Z"/>
+      </g>
+    </svg>
+
+    <!-- рука от плеча до запястья: между телом и ладонью -->
+    <svg class="layer full" id="arm" viewBox="0 0 400 800" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <path fill="var(--cloth-2)" d="M268 520 C 300 560, 322 640, 336 800 L 404 800 C 396 650, 372 560, 330 470 Z"/>
+    </svg>
+
+    <!-- ладонь: ближе к стеклу -->
+    <svg class="layer hand" id="hand" viewBox="150 200 250 400" aria-hidden="true">
+      <defs>
+        <linearGradient id="palmShade" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="var(--skin)"/>
+          <stop offset="1" stop-color="var(--skin-shade)"/>
+        </linearGradient>
+        <!-- пальцы темнеют к основанию: так они читаются отдельно, а не трубками -->
+        <linearGradient id="fingerShade" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stop-color="var(--skin-shade)"/>
+          <stop offset=".55" stop-color="var(--skin)"/>
+          <stop offset="1" stop-color="var(--skin)"/>
+        </linearGradient>
+        <linearGradient id="wristFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--skin-shade)"/>
+          <stop offset=".55" stop-color="var(--skin-shade)" stop-opacity=".6"/>
+          <stop offset="1" stop-color="var(--cloth-2)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <g transform="translate(290 400)" fill="url(#palmShade)">
+        <path d="M18 58 C 26 96, 36 130, 44 168 L 96 168 C 86 128, 70 90, 56 50 Z" fill="url(#wristFade)"/>
+        <path d="M-50 -40 C -56 10 -40 62 2 72 C 42 70 56 22 52 -46 C 30 -62 -30 -62 -50 -40 Z"/>
+        <rect fill="url(#fingerShade)" x="-15" y="-95" width="26" height="95" rx="13" transform="translate(-34 -46) rotate(-13)"/>
+        <rect fill="url(#fingerShade)" x="-13.5" y="-110" width="27" height="110" rx="13.5" transform="translate(-6 -56) rotate(-3)"/>
+        <rect fill="url(#fingerShade)" x="-13" y="-101" width="26" height="101" rx="13" transform="translate(21 -52) rotate(7)"/>
+        <rect fill="url(#fingerShade)" x="-11" y="-80" width="22" height="80" rx="11" transform="translate(44 -36) rotate(19)"/>
+        <rect fill="url(#fingerShade)" x="-15" y="-80" width="30" height="80" rx="15" transform="translate(-46 18) rotate(-58)"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Видео: Ron Lach, Pexels (pexels.com/video/8259633), лицензия Pexels -->
+  <div class="real" id="real">
+    <video id="v1" src="media/frosted-glass-hands.mp4" muted playsinline preload="auto" class="on"></video>
+    <video id="v2" src="media/frosted-glass-hands.mp4" muted playsinline preload="auto"></video>
+  </div>
+  <img class="media" id="mediaImg" alt="">
+  <video class="media" id="mediaVid" muted loop playsinline></video>
+
+  <div class="veil"></div>
+  <div class="drift"></div>
+  <div class="haze"></div>
+
+  <!-- пятна касания: кожа, прижатая к стеклу, видна сквозь иней -->
+  <div class="figure" id="figureFront">
+    <svg class="layer hand" id="contact" viewBox="150 200 250 400" aria-hidden="true">
+      <g transform="translate(290 400)" fill="var(--skin-press)">
+        <ellipse cx="-6" cy="34" rx="30" ry="20" opacity=".55"/>
+        <ellipse cx="-2" cy="-34" rx="40" ry="13" opacity=".45"/>
+        <g transform="translate(-34 -46) rotate(-13)"><ellipse cx="-1" cy="-82" rx="10" ry="14"/></g>
+        <g transform="translate(-6 -56) rotate(-3)"><ellipse cx="0" cy="-96" rx="10.5" ry="15"/></g>
+        <g transform="translate(21 -52) rotate(7)"><ellipse cx="0" cy="-88" rx="10" ry="14"/></g>
+        <g transform="translate(44 -36) rotate(19)"><ellipse cx="0" cy="-68" rx="8.5" ry="12"/></g>
+        <g transform="translate(-46 18) rotate(-58)"><ellipse cx="0" cy="-66" rx="11" ry="14"/></g>
+      </g>
+    </svg>
+  </div>
+
+  <div class="grain"></div>
+</div>
+
+<div class="ui">
+  <div class="topbar">
+    <div class="glass pill brand">
+      <button class="icon-btn" aria-label="Назад" title="Назад">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H4M10 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="sep"></span>
+      <b>zvon<i>.</i>lab</b>
+    </div>
+    <div class="glass pill">
+      <button class="icon-btn" aria-label="Профиль" title="Профиль">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+      </button>
+      <button class="icon-btn" aria-label="Голос" title="Голос">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>
+      </button>
+      <button class="icon-btn" id="themeBtn" aria-label="Тема" title="Светлая / тёмная">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+      </button>
+      <button class="icon-btn" id="panelBtn" aria-label="Настройки" title="Настройки" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5v.4M12 17h.01" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="glass toast" id="toast">
+    Там кто-то есть
+    <button id="toastOk">Ок</button>
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="glass card">
+    <div class="card-head">
+      <div>
+        <div class="eyebrow">Голосовой канал</div>
+        <div class="title">Лобби</div>
+      </div>
+      <div class="meta">
+        <strong>3 участника</strong>
+        Пинг 24 мс<br>
+        Качество: высокое
+      </div>
+    </div>
+    <div class="seg" role="group" aria-label="Режим">
+      <button class="chip" aria-pressed="true">Голос</button>
+      <button class="chip" aria-pressed="false">Видео</button>
+      <button class="chip" aria-pressed="false">Экран</button>
+    </div>
+    <button class="cta">Присоединиться
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="glass panel" id="panel">
+  <h2>Стекло</h2>
+  <label for="depth">Глубина размытия</label>
+  <input id="depth" type="range" min="0.4" max="1.8" step="0.05" value="1">
+  <label for="frost">Иней</label>
+  <input id="frost" type="range" min="0" max="1" step="0.01" value="0.35">
+  <label for="speed">Скорость</label>
+  <input id="speed" type="range" min="0" max="2" step="0.05" value="1">
+  <label>Тема</label>
+  <div class="row" id="themeRow">
+    <button class="chip" data-theme="light">Светлая</button>
+    <button class="chip" data-theme="dark">Тёмная</button>
+    <button class="chip" data-theme="auto">Как в системе</button>
+  </div>
+  <label>За стеклом</label>
+  <div class="row" id="sourceRow">
+    <button class="chip" data-source="video">Съёмка</button>
+    <button class="chip" data-source="drawn">Рисунок</button>
+    <button class="chip" data-source="custom" disabled>Своё</button>
+  </div>
+  <label for="file">Загрузить своё фото или видео</label>
+  <input class="file" id="file" type="file" accept="image/*,video/*">
+  <div class="hint">Нажмите и держите на экране — тот, кто за стеклом, подойдёт ближе.<br>Видео: Ron Lach, Pexels.</div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const scene = $('scene'), figure = $('figure'), figureFront = $('figureFront');
+  const body = $('body'), arm = $('arm'), hand = $('hand'), contact = $('contact');
+  const mediaImg = $('mediaImg'), mediaVid = $('mediaVid');
+  const root = document.documentElement;
+
+  const settings = { depth: 1, frost: .35, speed: 1 };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // --- тема ---
+  const systemDark = matchMedia('(prefers-color-scheme: dark)');
+  let themeMode = 'auto';
+  try { themeMode = localStorage.getItem('liminal-theme') || 'auto'; } catch (e) {}
+  function applyTheme() {
+    const dark = themeMode === 'dark' || (themeMode === 'auto' && systemDark.matches);
+    root.dataset.theme = dark ? 'dark' : 'light';
+    document.querySelectorAll('#themeRow .chip').forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.theme === themeMode)));
+  }
+  function setTheme(mode) {
+    themeMode = mode;
+    try { localStorage.setItem('liminal-theme', mode); } catch (e) {}
+    applyTheme();
+  }
+  systemDark.addEventListener('change', applyTheme);
+  $('themeBtn').addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+  $('themeRow').addEventListener('click', (e) => { const b = e.target.closest('[data-theme]'); if (b) setTheme(b.dataset.theme); });
+  applyTheme();
+
+  // --- интерфейс ---
+  $('toastOk').addEventListener('click', () => $('toast').classList.add('hidden'));
+  const panel = $('panel'), panelBtn = $('panelBtn');
+  panelBtn.addEventListener('click', () => {
+    const open = panel.classList.toggle('open');
+    panelBtn.setAttribute('aria-pressed', String(open));
+  });
+  document.querySelector('.seg').addEventListener('click', (e) => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    b.parentElement.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
+  });
+  for (const key of ['depth', 'frost', 'speed']) {
+    $(key).addEventListener('input', (e) => {
+      settings[key] = parseFloat(e.target.value);
+      if (key === 'frost') root.style.setProperty('--frost', settings.frost);
+    });
+  }
+
+  // --- что за стеклом: съёмка, рисунок или своё ---
+  const real = $('real'), v1 = $('v1'), v2 = $('v2');
+  let active = v1;
+  // Повтор без рывка: за секунду до конца запускаем второе видео с начала
+  // и плавно меняем их местами.
+  function watchLoop(v) {
+    v.addEventListener('timeupdate', () => {
+      if (v !== active || !v.duration || v.currentTime < v.duration - 1) return;
+      const next = v === v1 ? v2 : v1;
+      next.currentTime = 0;
+      next.play().catch(() => {});
+      next.classList.add('on');
+      v.classList.remove('on');
+      active = next;
+      setTimeout(() => { if (active !== v) v.pause(); }, 1000);
+    });
+  }
+  watchLoop(v1); watchLoop(v2);
+
+  function setSource(src) {
+    scene.dataset.source = src;
+    document.querySelectorAll('#sourceRow .chip').forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.source === src)));
+    if (src === 'video') active.play().catch(() => {});
+    else { v1.pause(); v2.pause(); }
+    if (src !== 'custom') mediaVid.pause();
+    else if (mediaVid.classList.contains('active')) mediaVid.play().catch(() => {});
+  }
+  $('sourceRow').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-source]');
+    if (b && !b.disabled) setSource(b.dataset.source);
+  });
+
+  let mediaUrl = null;
+  $('file').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (mediaUrl) URL.revokeObjectURL(mediaUrl);
+    mediaUrl = URL.createObjectURL(f);
+    const isVideo = f.type.startsWith('video/');
+    mediaImg.classList.toggle('active', !isVideo);
+    mediaVid.classList.toggle('active', isVideo);
+    if (isVideo) { mediaVid.src = mediaUrl; mediaImg.removeAttribute('src'); }
+    else { mediaImg.src = mediaUrl; mediaVid.pause(); mediaVid.removeAttribute('src'); }
+    document.querySelector('#sourceRow [data-source="custom"]').disabled = false;
+    setSource('custom');
+  });
+  setSource('video');
+
+  // --- касание стекла ---
+  // Рука в координатах фигуры (viewBox 400×800): центр ладони по умолчанию (290, 400).
+  const HAND_HOME = { x: 290, y: 400 };
+  let pointer = null;           // {x, y} в координатах фигуры, пока палец/кнопка нажаты
+  let hover = { x: 0, y: 0 };   // -1..1, лёгкий поворот к курсору
+
+  function toFigure(ev) {
+    const r = figure.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) / r.width * 400, y: (ev.clientY - r.top) / r.height * 800 };
+  }
+  scene.addEventListener('pointerdown', (ev) => {
+    scene.setPointerCapture(ev.pointerId);
+    pointer = toFigure(ev);
+  });
+  scene.addEventListener('pointermove', (ev) => {
+    hover.x = ev.clientX / innerWidth * 2 - 1;
+    hover.y = ev.clientY / innerHeight * 2 - 1;
+    if (pointer) pointer = toFigure(ev);
+  });
+  const release = () => { pointer = null; };
+  scene.addEventListener('pointerup', release);
+  scene.addEventListener('pointercancel', release);
+
+  // --- анимация ---
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smooth = (t) => t * t * (3 - 2 * t);
+
+  // Сам по себе: подходит, прижимает ладонь, держит, отходит, пауза.
+  function idlePress(p) {
+    if (p < .32) return smooth(p / .32);
+    if (p < .6) return 1;
+    if (p < .86) return 1 - smooth((p - .6) / .26);
+    return 0;
+  }
+
+  const cur = { press: 0, hx: 0, hy: 0, sway: 0, lean: 0, px: 0, py: 0 };
+  let clock = 0, last = performance.now();
+
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000);
+    last = now;
+    const speed = reduced.matches ? 0 : settings.speed;
+    clock += dt * speed;
+
+    const unit = figure.getBoundingClientRect().height / 800; // CSS px на единицу viewBox
+    const d = settings.depth;
+
+    // цели
+    const cycle = 9;
+    let press = scene.dataset.source === 'drawn' ? idlePress((clock % cycle) / cycle) : 0;
+    let hx = Math.sin(clock * .35) * 6, hy = Math.cos(clock * .27) * 5;
+    if (pointer) {
+      press = 1;
+      hx = clamp(pointer.x, 175, 375) - HAND_HOME.x;
+      hy = clamp(pointer.y, 240, 560) - HAND_HOME.y;
+    }
+    const k = 1 - Math.pow(.0015, dt);             // плавность ~ полсекунды
+    cur.press = lerp(cur.press, press, pointer ? k * 1.6 : k);
+    cur.hx = lerp(cur.hx, hx, k);
+    cur.hy = lerp(cur.hy, hy, k);
+    cur.px = lerp(cur.px, hover.x, k * .5);
+    cur.py = lerp(cur.py, hover.y, k * .5);
+    const sway = Math.sin(clock * .42) * 5 + cur.px * 8;
+    const P = cur.press;
+
+    // тело: подаётся к стеклу вместе с рукой
+    const lean = 1 + P * .025;
+    body.style.transform = `translate(${sway * unit}px, ${cur.py * 6 * unit}px) scale(${lean})`;
+    body.style.filter = `blur(${(21 - P * 3) * d * unit}px)`;
+    body.style.transformOrigin = '45% 70%';
+
+    arm.style.transform = `translate(${(sway + cur.hx * .45) * unit}px, ${cur.hy * .35 * unit}px)`;
+    arm.style.filter = `blur(${lerp(22, 15, P) * d * unit}px)`;
+
+    // ладонь: чем сильнее прижата, тем резче, крупнее и светлее
+    const hs = lerp(.9, 1.04, P);
+    const handT = `translate(${cur.hx * unit}px, ${cur.hy * unit}px) scale(${hs})`;
+    hand.style.transformOrigin = '56% 50%';
+    hand.style.transform = handT;
+    hand.style.filter = `blur(${lerp(19, 6, P) * d * unit}px) brightness(${lerp(.94, 1.04, P)})`;
+
+    contact.style.transformOrigin = '56% 50%';
+    contact.style.transform = handT;
+    contact.style.filter = `blur(${lerp(8, 3, P) * d * unit}px)`;
+    contact.style.opacity = String(Math.pow(clamp((P - .35) / .65, 0, 1), 1.6) * .6);
+
+    // Съёмка уже сделана через матовое стекло — своё размытие ей нужно
+    // небольшое. Нажатие: человек будто подходит ближе — резче и крупнее.
+    // В тёмной теме кадр инвертируется: светлая фигура в тёмном тумане.
+    const dark = root.dataset.theme === 'dark';
+    const tone = dark ? ' invert(1) hue-rotate(180deg) brightness(.9) contrast(1.1)' : '';
+    if (scene.dataset.source === 'video') {
+      real.style.filter = `blur(${lerp(4, 0, P) * d}px) brightness(${lerp(1, 1.04, P)})${tone}`;
+      real.style.transform = `translate(${cur.px * -12}px, ${cur.py * -8}px) scale(${1.02 + P * .05})`;
+    } else if (scene.dataset.source === 'custom') {
+      const m = mediaVid.classList.contains('active') ? mediaVid : mediaImg;
+      m.style.filter = `blur(${lerp(18, 10, P) * d}px)`;
+      m.style.transform = `translate(${cur.px * -10}px, ${cur.py * -6}px) scale(${1 + P * .03})`;
+    }
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -32,6 +32,8 @@ import {
 import { openDesktopSource } from '../utils/desktopCapture';
 import './VoiceCall.css';
 import './MemberContextMenu.css';
+import LiminalBackdrop from './LiminalBackdrop';
+import { useChatSettings } from '../contexts/ChatSettingsContext';
 
 interface VoiceCallProps {
   socket: Socket | null;
@@ -149,6 +151,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const { alert } = useDialog();
   const brand = getBrand();
   const { noiseSuppressionMode, setNoiseSuppressionMode, userVolumes, setUserVolume, localMutes, toggleLocalMute, isDeafened: isGlobalDeafened } = useVoice();
+  const { callLonelyScreen } = useChatSettings();
   const [isCallActive, setIsCallActive] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -960,6 +963,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ type: 'spring', stiffness: 320, damping: 32 }}
     >
+      <LiminalBackdrop active={callLonelyScreen} />
       <header className="call-topbar">
         <button className="back-to-app-btn" onClick={() => setIsMinimized(true)} title="Свернуть звонок">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
