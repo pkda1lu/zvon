@@ -488,7 +488,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         return <PresenceTile key={item._id} presence={item.presence} videoStream={presenceVideoStreams.get(item.presence.sessionId)} volume={presenceVolumes.get(item.presence.sessionId) ?? 1} onVolumeChange={(v) => setPresenceVolume(item.presence.sessionId, v)} onControl={(cid, val) => sendPresenceControl(item.presence.channelId, item.presence.sessionId, cid, val)} />;
       default: {
         const member = memberMap.get(String(item._id));
-        return <VoiceParticipantCard key={item._id} participant={item} avatarOverride={member?.avatar || undefined} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); if (!item.isMe) setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
+        return <VoiceParticipantCard key={item._id} participant={item} avatarOverride={member?.avatar || undefined} getDisplayName={getDisplayName} onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, userId: item._id }); }} onClick={clickHandler} isPrimary={isFocused} isExpanded={expandedStreamId === item._id} onToggleExpand={() => setExpandedStreamId(prev => prev === item._id ? null : item._id)} />;
       }
     }
   };
@@ -529,7 +529,7 @@ const VoiceChannelView: React.FC<VoiceChannelViewProps> = ({ channel, server, on
         <div className="hdr-left"><h1><div className="voice-status-indicator inline"><div className="pulse-ring"></div><div className="status-dot"></div></div>{channel.name}</h1></div>
         <div className="hdr-right">{channel.topic && <div className="channel-topic-tag">{channel.topic}</div>}<button className={`voice-chat-toggle-btn`} onClick={onToggleChat} title={'Открыть чат'}><ChatIcon size={18} /></button></div>
       </header>
-      {contextMenu && <MemberContextMenu user={displayParticipants.find(p => p._id === contextMenu.userId)} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onOpenProfile={onUserClick} voiceChannelId={channel._id} isVoiceContext={true} />}
+      {contextMenu && <MemberContextMenu user={displayParticipants.find(p => p._id === contextMenu.userId) || (currentUser && contextMenu.userId === currentUser._id ? currentUser : undefined)} server={server} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onOpenProfile={onUserClick} voiceChannelId={channel._id} isVoiceContext={true} />}
       <div className="voice-body">
         <main className="voice-canvas">{displayParticipants.length > 0 ? renderLayout() : <div className="v-empty"><div className="v-empty-icon"><SpeakerIcon size={64} /></div>{!isConnectedToThisChannel && <div className="v-empty-sub">Нажмите кнопку соединения внизу, чтобы начать</div>}</div>}</main>
       </div>

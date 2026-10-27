@@ -343,12 +343,37 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                     {isServerType && memberData ? (
                         <section>
                             <h4>ДАТА ВСТУПЛЕНИЯ НА СЕРВЕР</h4>
-                            <p>{new Date(memberData.joinedAt || user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                            <p>{(() => {
+                                const dVal = memberData.joinedAt || user.createdAt;
+                                if (dVal) {
+                                    const d = new Date(dVal);
+                                    if (!isNaN(d.getTime())) return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                                }
+                                if (user._id && typeof user._id === 'string' && user._id.length === 24) {
+                                    try {
+                                        const d = new Date(parseInt(user._id.substring(0, 8), 16) * 1000);
+                                        if (!isNaN(d.getTime())) return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                                    } catch {}
+                                }
+                                return 'Не указана';
+                            })()}</p>
                         </section>
                     ) : (
                         <section>
                             <h4>ДАТА РЕГИСТРАЦИИ</h4>
-                            <p>{new Date(user.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                            <p>{(() => {
+                                if (user.createdAt) {
+                                    const d = new Date(user.createdAt);
+                                    if (!isNaN(d.getTime())) return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                                }
+                                if (user._id && typeof user._id === 'string' && user._id.length === 24) {
+                                    try {
+                                        const d = new Date(parseInt(user._id.substring(0, 8), 16) * 1000);
+                                        if (!isNaN(d.getTime())) return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                                    } catch {}
+                                }
+                                return 'Не указана';
+                            })()}</p>
                         </section>
                     )}
                 </div>

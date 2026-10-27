@@ -631,7 +631,11 @@ const Main: React.FC = () => {
     };
     const handleStartCallEvent = (e: any) => { handleStartDirectCall(e.detail.user, e.detail.dmId); };
     const handleOpenServerProfileSettings = (e: any) => {
-      handleOpenSettings('server-profiles', { serverId: e.detail.serverId });
+      handleOpenSettings('server-profiles', {
+        serverId: e.detail.serverId,
+        targetUserId: e.detail.targetUserId,
+        targetUser: e.detail.targetUser
+      });
     };
     const handleStartDMById = async (e: any) => {
       try {
@@ -1803,6 +1807,8 @@ const Main: React.FC = () => {
 
   const handleOpenSettingsModal = useCallback(() => {
     import('../components/SettingsModal');
+    setSettingsInitialData(null);
+    setSettingsInitialTab('profile');
     setShowSettingsModal(true);
   }, []);
   const handleToggleInbox = useCallback(() => setShowInbox(prev => !prev), []);
@@ -2441,12 +2447,14 @@ const Main: React.FC = () => {
 
         const goChats = () => {
           setShowSettingsModal(false);
+          setSettingsInitialData(null);
           setShowFriends(false); setShowShowcase(false);
           setSelectedServer(null); setSelectedChannel(null);
           setMobileView('sidebar');
         };
         const goFriends = () => {
           setShowSettingsModal(false);
+          setSettingsInitialData(null);
           setShowFriends(true); setShowShowcase(false);
           setSelectedServer(null); setSelectedChannel(null); setSelectedDM(null);
           setMobileView('content');
@@ -2466,7 +2474,7 @@ const Main: React.FC = () => {
               <LayoutGridIcon size={22} />
               <span>Витрина</span>
             </button>
-            <button className={`mbn-item ${active === 'settings' ? 'active' : ''}`} onClick={() => setShowSettingsModal(true)}>
+            <button className={`mbn-item ${active === 'settings' ? 'active' : ''}`} onClick={() => { setSettingsInitialData(null); setSettingsInitialTab('profile'); setShowSettingsModal(true); }}>
               <SettingsIcon size={22} />
               <span>Настройки</span>
             </button>
@@ -2594,7 +2602,11 @@ const Main: React.FC = () => {
         <LazyOverlay key="settings">
           <SettingsModal
             isOpen={showSettingsModal}
-            onClose={() => setShowSettingsModal(false)}
+            onClose={() => {
+              setShowSettingsModal(false);
+              setSettingsInitialData(null);
+              setSettingsInitialTab('profile');
+            }}
             initialTab={settingsInitialTab}
             initialData={settingsInitialData}
           />

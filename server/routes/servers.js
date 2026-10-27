@@ -629,12 +629,16 @@ router.put('/:id/members/:userId', auth, async (req, res) => {
     const isSelf = req.user._id.toString() === req.params.userId;
     const userPerms = computePermissions(req.user._id, server);
 
-    // Hierarchy Check (if modifying someone else)
+    // Hierarchy & Permission Check (if modifying someone else)
     if (!isSelf && String(server.owner) !== String(req.user._id)) {
       const actorHigh = getHighestRolePosition(req.user._id, server);
       const targetHigh = getHighestRolePosition(req.params.userId, server);
       if (targetHigh >= actorHigh) {
         return res.status(403).json({ message: 'You cannot manage this user (hierarchy)' });
+      }
+      const canManageOthers = (userPerms & Permissions.MANAGE_NICKNAMES) || (userPerms & Permissions.MANAGE_GUILD) || (userPerms & Permissions.ADMINISTRATOR);
+      if (!canManageOthers && !roles && communicationDisabledUntil === undefined) {
+        return res.status(403).json({ message: 'Insufficient permissions to manage member profile' });
       }
     }
 
@@ -705,8 +709,21 @@ router.delete('/:id/members/:userId/avatar', auth, async (req, res) => {
     const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
     if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
     
-    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
+    const isSelf = req.user._id.toString() === req.params.userId;
+    const isOwner = String(server.owner) === String(req.user._id);
+    const userPerms = computePermissions(req.user._id, server);
+    const canManageOthers = (userPerms & Permissions.MANAGE_NICKNAMES) || (userPerms & Permissions.MANAGE_GUILD) || (userPerms & Permissions.ADMINISTRATOR) || isOwner;
+    if (!isSelf) {
+      if (!canManageOthers) {
+        return res.status(403).json({ message: 'Insufficient permissions' });
+      }
+      if (!isOwner) {
+        const actorHigh = getHighestRolePosition(req.user._id, server);
+        const targetHigh = getHighestRolePosition(req.params.userId, server);
+        if (targetHigh >= actorHigh) {
+          return res.status(403).json({ message: 'You cannot manage this user (hierarchy)' });
+        }
+      }
     }
 
     server.members[memberIndex].avatar = null;
@@ -725,8 +742,21 @@ router.delete('/:id/members/:userId/banner', auth, async (req, res) => {
     const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
     if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
     
-    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
+    const isSelf = req.user._id.toString() === req.params.userId;
+    const isOwner = String(server.owner) === String(req.user._id);
+    const userPerms = computePermissions(req.user._id, server);
+    const canManageOthers = (userPerms & Permissions.MANAGE_NICKNAMES) || (userPerms & Permissions.MANAGE_GUILD) || (userPerms & Permissions.ADMINISTRATOR) || isOwner;
+    if (!isSelf) {
+      if (!canManageOthers) {
+        return res.status(403).json({ message: 'Insufficient permissions' });
+      }
+      if (!isOwner) {
+        const actorHigh = getHighestRolePosition(req.user._id, server);
+        const targetHigh = getHighestRolePosition(req.params.userId, server);
+        if (targetHigh >= actorHigh) {
+          return res.status(403).json({ message: 'You cannot manage this user (hierarchy)' });
+        }
+      }
     }
 
     server.members[memberIndex].banner = null;
@@ -751,8 +781,21 @@ router.post('/:id/members/:userId/avatar', auth, (req, res, next) => {
     const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
     if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
 
-    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
+    const isSelf = req.user._id.toString() === req.params.userId;
+    const isOwner = String(server.owner) === String(req.user._id);
+    const userPerms = computePermissions(req.user._id, server);
+    const canManageOthers = (userPerms & Permissions.MANAGE_NICKNAMES) || (userPerms & Permissions.MANAGE_GUILD) || (userPerms & Permissions.ADMINISTRATOR) || isOwner;
+    if (!isSelf) {
+      if (!canManageOthers) {
         return res.status(403).json({ message: 'Unauthorized' });
+      }
+      if (!isOwner) {
+        const actorHigh = getHighestRolePosition(req.user._id, server);
+        const targetHigh = getHighestRolePosition(req.params.userId, server);
+        if (targetHigh >= actorHigh) {
+          return res.status(403).json({ message: 'You cannot manage this user (hierarchy)' });
+        }
+      }
     }
 
     const avatarUrl = `/api/uploads/${req.file.filename}`;
@@ -779,8 +822,21 @@ router.post('/:id/members/:userId/banner', auth, (req, res, next) => {
     const memberIndex = server.members.findIndex(m => m.user.toString() === req.params.userId);
     if (memberIndex === -1) return res.status(404).json({ message: 'Member not found' });
 
-    if (req.user._id.toString() !== req.params.userId && String(server.owner) !== String(req.user._id)) {
+    const isSelf = req.user._id.toString() === req.params.userId;
+    const isOwner = String(server.owner) === String(req.user._id);
+    const userPerms = computePermissions(req.user._id, server);
+    const canManageOthers = (userPerms & Permissions.MANAGE_NICKNAMES) || (userPerms & Permissions.MANAGE_GUILD) || (userPerms & Permissions.ADMINISTRATOR) || isOwner;
+    if (!isSelf) {
+      if (!canManageOthers) {
         return res.status(403).json({ message: 'Unauthorized' });
+      }
+      if (!isOwner) {
+        const actorHigh = getHighestRolePosition(req.user._id, server);
+        const targetHigh = getHighestRolePosition(req.params.userId, server);
+        if (targetHigh >= actorHigh) {
+          return res.status(403).json({ message: 'You cannot manage this user (hierarchy)' });
+        }
+      }
     }
 
     const bannerUrl = `/api/uploads/${req.file.filename}`;

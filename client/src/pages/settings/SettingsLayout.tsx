@@ -93,6 +93,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     const [pendingTab, setPendingTab] = React.useState<string | null>(null);
     const [isSidebarExpanded, setIsSidebarExpanded] = React.useState(false);
     const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+    const [serverProfileTarget, setServerProfileTarget] = React.useState<{ targetUserId?: string; targetUser?: any; serverId?: string } | null>(null);
 
     const { user, logout } = useAuth();
     const { streamerModeEnabled, confirmSettingsAccess } = useWindowSettings();
@@ -108,21 +109,37 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
         if (isOpen) {
             setActiveTab(initialTab);
             setIsSidebarExpanded(false);
+            if (initialData?.targetUserId) {
+                setServerProfileTarget({
+                    targetUserId: initialData.targetUserId,
+                    targetUser: initialData.targetUser,
+                    serverId: initialData.serverId
+                });
+            } else {
+                setServerProfileTarget(null);
+            }
+        } else {
+            setServerProfileTarget(null);
         }
-    }, [isOpen, initialTab]);
+    }, [isOpen, initialTab, initialData]);
+
+    const handleClose = React.useCallback(() => {
+        setServerProfileTarget(null);
+        onClose();
+    }, [onClose]);
 
     React.useEffect(() => {
         if (!isOpen) return;
         const handleKeybindAction = (e: any) => {
             if (e.detail?.action === 'close-window') {
-                onClose();
+                handleClose();
             }
         };
         window.addEventListener('zvon-keybind-action', handleKeybindAction);
         return () => {
             window.removeEventListener('zvon-keybind-action', handleKeybindAction);
         };
-    }, [isOpen, onClose]);
+    }, [isOpen, handleClose]);
     
     const isWindows = !!(window as any).electron;
     const isModerator = user?.role === 'admin' || user?.role === 'moderator';
@@ -135,6 +152,9 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
     const handleTabChange = (id: string) => {
         if (isMobile) setIsSidebarExpanded(false);
+        if (id !== 'server-profiles') {
+            setServerProfileTarget(null);
+        }
         const sensitiveTabs = ['account', 'devices', 'connected-apps', 'bots', 'miniapps'];
         if (streamerModeEnabled && confirmSettingsAccess && sensitiveTabs.includes(id)) {
             setPendingTab(id);
@@ -145,6 +165,9 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
     const confirmTabChange = () => {
         if (pendingTab) {
+            if (pendingTab !== 'server-profiles') {
+                setServerProfileTarget(null);
+            }
             setActiveTab(pendingTab);
             setPendingTab(null);
         }
@@ -153,7 +176,14 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
     const renderContent = () => {
         switch (activeTab) {
             case 'profile': return <ProfileSettings />;
-            case 'server-profiles': return <ServerProfilesSettings initialServerId={initialData?.serverId} />;
+            case 'server-profiles': return (
+                <ServerProfilesSettings
+                    key={serverProfileTarget?.targetUserId || 'self'}
+                    initialServerId={serverProfileTarget?.serverId || initialData?.serverId}
+                    targetUserId={serverProfileTarget?.targetUserId}
+                    targetUser={serverProfileTarget?.targetUser}
+                />
+            );
             case 'account': return <AccountSettings />;
             case 'devices': return <DevicesSettings />;
             case 'connected-apps': return <ConnectedAppsSettings />;
@@ -360,7 +390,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
             <div className="settings-content-wrapper">
                 {!isMobile && (
-                    <button className="settings-close-btn" onClick={onClose} title="Закрыть">
+                    <button className="settings-close-btn" onClick={handleClose} title="Закрыть">
                         <CloseIcon size={20} />
                     </button>
                 )}

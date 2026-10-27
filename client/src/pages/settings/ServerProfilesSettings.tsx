@@ -5,20 +5,28 @@ import ProfilePreview from '../../components/ProfilePreview';
 import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { CustomSelect } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
+import { getFullUrl } from '../../utils/avatar';
 
 interface ServerProfilesSettingsProps {
     initialServerId?: string;
+    targetUserId?: string;
+    targetUser?: any;
 }
 
-const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initialServerId }) => {
+const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initialServerId, targetUserId, targetUser }) => {
     const { user, refreshUser } = useAuth();
     const [selectedServerId, setSelectedServerId] = useState(initialServerId || '');
+    const [fetchedServer, setFetchedServer] = useState<any>(null);
     const [nickname, setNickname] = useState('');
     const [bio, setBio] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
     const [banner, setBanner] = useState<string | null>(null);
     const [bannerColor, setBannerColor] = useState<string | null>(null);
+    const [joinedAt, setJoinedAt] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    const isEditingOther = Boolean(targetUserId && user?._id && targetUserId !== user._id);
+    const effectiveUserId = (isEditingOther ? targetUserId : user?._id) || '';
 
     // Cropping State
     const [cropModal, setCropModal] = useState<{ isOpen: boolean; image: string; target: 'avatar' | 'banner' }>({
@@ -39,7 +47,7 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
     const userServers = (user?.servers || []) as any[];
 
     useEffect(() => {
-        if (selectedServerId) {
+        if (selectedServerId && effectiveUserId) {
             fetchServerProfile();
         } else {
             setNickname('');
@@ -47,19 +55,28 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
             setAvatar(null);
             setBanner(null);
             setBannerColor(null);
+            setJoinedAt(null);
         }
-    }, [selectedServerId]);
+    }, [selectedServerId, effectiveUserId]);
 
     const fetchServerProfile = async () => {
+        if (!selectedServerId || !effectiveUserId) return;
         setLoading(true);
         try {
-            const res = await axios.get(`/api/servers/${selectedServerId}/members/${user?._id}`);
-            const member = res.data;
+            const [memberRes, serverRes] = await Promise.all([
+                axios.get(`/api/servers/${selectedServerId}/members/${effectiveUserId}`),
+                axios.get(`/api/servers/${selectedServerId}`).catch(() => null)
+            ]);
+            const member = memberRes.data;
+            if (serverRes?.data) {
+                setFetchedServer(serverRes.data);
+            }
             setNickname(member.nickname || '');
             setBio(member.bio || '');
             setAvatar(member.avatar || null);
             setBanner(member.banner || null);
             setBannerColor(member.bannerColor || null);
+            setJoinedAt(member.joinedAt || null);
         } catch (e) {
             console.error("Failed to fetch server profile", e);
         }
@@ -67,32 +84,34 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
     };
 
     const saveField = useCallback(async (field: string, value: any) => {
-        if (!selectedServerId) return;
+        if (!selectedServerId || !effectiveUserId) return;
         try {
-            await axios.put(`/api/servers/${selectedServerId}/members/${user?._id}`, {
+            await axios.put(`/api/servers/${selectedServerId}/members/${effectiveUserId}`, {
                 [field]: value
             });
-            await refreshUser();
+            if (!isEditingOther) {
+                await refreshUser();
+            }
         } catch (e) {
             console.error(`Failed to auto-save server ${field}`, e);
         }
-    }, [selectedServerId, user?._id, refreshUser]);
+    }, [selectedServerId, effectiveUserId, isEditingOther, refreshUser]);
 
     useEffect(() => {
-        if (!selectedServerId) return;
+        if (!selectedServerId || loading) return;
         const timer = setTimeout(() => {
             saveField('nickname', nickname || null);
         }, 1000);
         return () => clearTimeout(timer);
-    }, [nickname, selectedServerId, saveField]);
+    }, [nickname, selectedServerId, saveField, loading]);
 
     useEffect(() => {
-        if (!selectedServerId) return;
+        if (!selectedServerId || loading) return;
         const timer = setTimeout(() => {
             saveField('bio', bio || null);
         }, 1000);
         return () => clearTimeout(timer);
-    }, [bio, selectedServerId, saveField]);
+    }, [bio, selectedServerId, saveField, loading]);
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'banner') => {
         const file = event.target.files?.[0];
@@ -107,18 +126,20 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
 
     const handleCropComplete = async (croppedBlob: Blob) => {
         const { target } = cropModal;
-        if (!selectedServerId) return;
+        if (!selectedServerId || !effectiveUserId) return;
         
         const formData = new FormData();
         formData.append(target, croppedBlob, target === 'avatar' ? 'avatar.jpg' : 'banner.jpg');
         
         try {
-            const res = await axios.post(`/api/servers/${selectedServerId}/members/${user?._id}/${target}`, formData, {
+            const res = await axios.post(`/api/servers/${selectedServerId}/members/${effectiveUserId}/${target}`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             if (target === 'avatar') setAvatar(res.data.avatar);
             else setBanner(res.data.banner);
-            await refreshUser();
+            if (!isEditingOther) {
+                await refreshUser();
+            }
             setCropModal({ ...cropModal, isOpen: false });
         } catch (e) {
             console.error(`Failed to upload server ${target}`, e);
@@ -126,19 +147,31 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
     };
 
     const handleDeleteAsset = async (type: 'avatar' | 'banner') => {
-        if (!selectedServerId) return;
+        if (!selectedServerId || !effectiveUserId) return;
         try {
-            await axios.delete(`/api/servers/${selectedServerId}/members/${user?._id}/${type}`);
+            await axios.delete(`/api/servers/${selectedServerId}/members/${effectiveUserId}/${type}`);
             if (type === 'avatar') setAvatar(null);
             else setBanner(null);
-            await refreshUser();
+            if (!isEditingOther) {
+                await refreshUser();
+            }
         } catch (e) {
             console.error(`Failed to delete server ${type}`, e);
         }
     };
 
-    const selectedServer = userServers.find(s => s._id === selectedServerId);
-    const currentMember = selectedServer?.members?.find((m: any) => (m.user?._id || m.user) === user?._id);
+    const selectedServer = userServers.find(s => s._id === selectedServerId) || fetchedServer;
+    const currentMember = selectedServer?.members?.find((m: any) => String(m.user?._id || m.user) === String(effectiveUserId));
+    const effectiveJoinedAt = joinedAt || currentMember?.joinedAt;
+
+    const basePreviewUser = isEditingOther
+        ? (targetUser || (typeof currentMember?.user === 'object' ? currentMember.user : null) || { _id: effectiveUserId, username: nickname || 'Пользователь' })
+        : user;
+
+    const previewUser = basePreviewUser ? {
+        ...basePreviewUser,
+        createdAt: basePreviewUser.createdAt || (effectiveUserId && effectiveUserId.length === 24 ? new Date(parseInt(effectiveUserId.substring(0, 8), 16) * 1000).toISOString() : undefined)
+    } : null;
 
     const serverOptions = userServers.map(s => ({
         id: s._id,
@@ -152,17 +185,40 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
     return (
         <div className="settings-content-inner with-preview">
             <div className="settings-main-column">
-                <h2 className="settings-page-title">Профили на серверах</h2>
+                <h2 className="settings-page-title">
+                    {isEditingOther ? `Профиль на сервере: ${previewUser?.displayName || previewUser?.username || 'Участник'}` : 'Профили на серверах'}
+                </h2>
+                {isEditingOther && (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '-8px', marginBottom: '16px' }}>
+                        Вы редактируете профиль пользователя @{previewUser?.username} на сервере <strong>{selectedServer?.name}</strong>.
+                    </p>
+                )}
                 
-                <div className="settings-card">
-                    <h3 className="settings-section-title" style={{marginTop: 0}}>Выберите сервер</h3>
-                    <CustomSelect 
-                        options={serverOptions} 
-                        value={selectedServerId} 
-                        onChange={setSelectedServerId}
-                        placeholder="Выберите сервер для настройки..."
-                    />
-                </div>
+                {isEditingOther ? (
+                    <div className="settings-card">
+                        <h3 className="settings-section-title" style={{ marginTop: 0 }}>Сервер</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {selectedServer?.icon ? (
+                                <img src={getFullUrl(selectedServer.icon) || undefined} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} alt="" />
+                            ) : (
+                                <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: '#5865f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '13px', fontWeight: 600 }}>
+                                    {selectedServer?.name?.charAt(0) || 'S'}
+                                </div>
+                            )}
+                            <span style={{ fontWeight: 600 }}>{selectedServer?.name}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="settings-card">
+                        <h3 className="settings-section-title" style={{ marginTop: 0 }}>Выберите сервер</h3>
+                        <CustomSelect 
+                            options={serverOptions} 
+                            value={selectedServerId} 
+                            onChange={setSelectedServerId}
+                            placeholder="Выберите сервер для настройки..."
+                        />
+                    </div>
+                )}
 
                 {selectedServerId && (
                     <>
@@ -256,7 +312,7 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
                                 className="settings-input" 
                                 value={nickname} 
                                 onChange={(e) => setNickname(e.target.value)} 
-                                placeholder={user?.username}
+                                placeholder={previewUser?.username || user?.username}
                             />
                         </div>
 
@@ -287,16 +343,17 @@ const ServerProfilesSettings: React.FC<ServerProfilesSettingsProps> = ({ initial
                 baseWidth={320} 
                 title={selectedServer ? `Предпросмотр: ${selectedServer.name}` : 'Предпросмотр'}
             >
-                {user && selectedServerId && (
+                {previewUser && selectedServerId && (
                     <ProfilePreview 
-                        user={user} 
+                        user={previewUser} 
                         memberData={{ 
                             nickname: nickname || undefined, 
                             bio: bio || undefined, 
                             avatar: avatar || undefined, 
                             banner: banner || undefined, 
                             bannerColor: bannerColor || undefined, 
-                            roles: currentMember?.roles 
+                            roles: currentMember?.roles,
+                            joinedAt: effectiveJoinedAt || undefined
                         }} 
                         server={selectedServer}
                         type="server-compact" 
