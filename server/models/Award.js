@@ -1,14 +1,15 @@
 const mongoose = require('mongoose');
+const { OPTIONS } = require('../utils/awardCollectibles');
 const schema = new mongoose.Schema({
   name: { type: String, required: true, maxlength: 80 },
   description: { type: String, default: '', maxlength: 500 },
-  model: { type: String, enum: ['trophy', 'medal', 'crystal'], required: true },
+  model: { type: String, enum: ['trophy', 'medal', 'crystal', 'rose', 'star', 'bell'], required: true },
   color: { type: String, default: '#ffc65c' },
   appearance: {
-    palette: { type: String, enum: ['random', 'graphite', 'cobalt', 'aurora', 'rose', 'amber', 'amethyst'], default: 'random' },
-    background: { type: String, enum: ['random', 'midnight', 'ocean', 'forest', 'sunset', 'nebula', 'pearl'], default: 'random' },
-    pattern: { type: String, enum: ['random', 'signal', 'stars', 'orbits', 'zvon'], default: 'random' },
-    finish: { type: String, enum: ['random', 'polished', 'satin', 'frosted'], default: 'random' }
+    palette: { type: String, enum: ['random', ...OPTIONS.palette], default: 'random' },
+    background: { type: String, enum: ['random', ...OPTIONS.background], default: 'random' },
+    pattern: { type: String, enum: ['random', ...OPTIONS.pattern], default: 'random' },
+    finish: { type: String, enum: ['random', ...OPTIONS.finish], default: 'random' }
   },
   rule: { type: String, enum: ['manual', 'registered_before', 'visited_before'], default: 'manual' },
   cutoff: { type: Date, default: null },

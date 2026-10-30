@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import axios from 'axios';
+import type { AwardNotice } from '../components/AwardNotification';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
@@ -9,7 +11,8 @@ import { OPEN_NOTIFICATION_EVENT } from '../utils/navIntents';
 
 export interface InboxItem {
     id: string;
-    type: 'mention' | 'dm' | 'friend_request' | 'moderation';
+    type: 'mention' | 'dm' | 'friend_request' | 'moderation' | 'award';
+    awardNotice?: AwardNotice;
     title: string;
     content: string;
     timestamp: Date;
@@ -44,6 +47,11 @@ interface InboxContextType {
 }
 
 const InboxContext = createContext<InboxContextType | undefined>(undefined);
+const saveAwardNotice = (item: InboxItem | undefined, action: 'read' | 'dismiss') => {
+    if (!item?.awardNotice) return;
+    const { grantId, noticeAt } = item.awardNotice;
+    axios.patch(`/api/awards/notifications/${grantId}`, { action, noticeAt }).catch(() => {});
+};
 
 export const useInbox = () => {
     const context = useContext(InboxContext);
@@ -60,14 +68,56 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                return parsed.map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) }));
+                return parsed.filter((item: any) => item.type !== 'award').map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) }));
             } catch (e) { return []; }
         }
         return [];
     });
+    const itemsRef = useRef(items);
+    itemsRef.current = items;
 
     useEffect(() => {
-        localStorage.setItem('zvon_inbox', JSON.stringify(items));
+        // Award notices belong to the authenticated account, including on shared devices.
+        setItems(prev => prev.filter(item => item.type !== 'award'));
+        if (!user?._id) return;
+        let cancelled = false, loading = false, initialized = false;
+        const seen = new Set<string>();
+        const load = async () => {
+            if (loading) return;
+            loading = true;
+            try {
+                const { data } = await axios.get<AwardNotice[]>('/api/awards/notifications');
+                if (cancelled || !Array.isArray(data)) return;
+                const notices: InboxItem[] = data.map(notice => ({
+                    id: notice.id, type: 'award', title: 'Вам присвоена новая награда', content: notice.award.name,
+                    timestamp: new Date(notice.noticeAt), read: notice.read, awardNotice: notice,
+                    target: { kind: 'awards', id: user._id }
+                }));
+                setItems(prev => [...notices, ...prev.filter(item => item.type !== 'award')].sort((a, b) => +b.timestamp - +a.timestamp).slice(0, 50));
+                for (const item of notices) {
+                    if (initialized && !seen.has(item.id) && !item.read) {
+                        addNotification({ title: 'Новая награда в вашей коллекции', content: item.content, type: 'info', onClick: () => {
+                            saveAwardNotice(item, 'read');
+                            setItems(prev => prev.map(i => i.id === item.id ? { ...i, read: true } : i));
+                            window.dispatchEvent(new CustomEvent(OPEN_NOTIFICATION_EVENT, { detail: item }));
+                        } });
+                        soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.4);
+                    }
+                    seen.add(item.id);
+                }
+                initialized = true;
+            } catch { /* Keep cached notices until the next reconnect or poll. */ }
+            finally { loading = false; }
+        };
+        void load();
+        const interval = window.setInterval(load, 30000);
+        socket?.on('award-granted', load);
+        socket?.on('connect', load);
+        return () => { cancelled = true; clearInterval(interval); socket?.off('award-granted', load); socket?.off('connect', load); };
+    }, [user?._id, socket, addNotification]);
+
+    useEffect(() => {
+        localStorage.setItem('zvon_inbox', JSON.stringify(items.filter(item => item.type !== 'award')));
     }, [items]);
 
     useEffect(() => {
@@ -82,6 +132,7 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
      * по системному уведомлению кликают, когда Zvon свёрнут или в трее.
      */
     const openItem = useCallback((item: InboxItem) => {
+        saveAwardNotice(item, 'read');
         setItems(prev => prev.map(i => i.id === item.id ? { ...i, read: true } : i));
         (window as any).electron?.ipc?.send('focus-main-window');
         window.focus();
@@ -133,18 +184,22 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [addNotification, sendNativeNotification, openItem]);
 
     const markAsRead = useCallback((id: string) => {
+        saveAwardNotice(itemsRef.current.find(item => item.id === id), 'read');
         setItems(prev => prev.map(item => item.id === id ? { ...item, read: true } : item));
     }, []);
 
     const markAllAsRead = useCallback(() => {
+        itemsRef.current.filter(item => !item.read).forEach(item => saveAwardNotice(item, 'read'));
         setItems(prev => prev.map(item => ({ ...item, read: true })));
     }, []);
 
     const removeItem = useCallback((id: string) => {
+        saveAwardNotice(itemsRef.current.find(item => item.id === id), 'dismiss');
         setItems(prev => prev.filter(item => item.id !== id));
     }, []);
 
     const clearInbox = useCallback(() => {
+        itemsRef.current.forEach(item => saveAwardNotice(item, 'dismiss'));
         setItems([]);
     }, []);
 

@@ -1,9 +1,9 @@
 const crypto = require('crypto');
 const OPTIONS = {
-  palette: ['graphite', 'cobalt', 'aurora', 'rose', 'amber', 'amethyst'],
-  background: ['midnight', 'ocean', 'forest', 'sunset', 'nebula', 'pearl'],
-  pattern: ['signal', 'stars', 'orbits', 'zvon'],
-  finish: ['polished', 'satin', 'frosted']
+  palette: ['graphite', 'cobalt', 'aurora', 'rose', 'amber', 'amethyst', 'ruby', 'ice', 'copper', 'lime', 'obsidian', 'porcelain'],
+  background: ['midnight', 'ocean', 'forest', 'sunset', 'nebula', 'pearl', 'cherry', 'glacier', 'sand', 'lagoon', 'eclipse', 'lavender'],
+  pattern: ['signal', 'stars', 'orbits', 'zvon', 'diamonds', 'waves', 'lightning', 'constellation'],
+  finish: ['polished', 'satin', 'frosted', 'ceramic', 'brushed']
 };
 function validAppearance(value) {
   return value === undefined || (value !== null && typeof value === 'object' && !Array.isArray(value) &&

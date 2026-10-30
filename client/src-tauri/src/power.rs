@@ -102,6 +102,7 @@ fn apply_webview(app: &AppHandle, mode: Mode) {
     {
         let Some(w) = app.get_webview_window("main") else { return };
         let background = mode == Mode::Background;
+        let restored_window = w.clone();
         let res = w.with_webview(move |wv| unsafe {
             use webview2_com::Microsoft::Web::WebView2::Win32::*;
             use windows::core::Interface;
@@ -109,6 +110,11 @@ fn apply_webview(app: &AppHandle, mode: Mode) {
             let controller = wv.controller();
             if let Err(e) = controller.SetIsVisible(!background) {
                 log::warn!("[power] видимость WebView: {e}");
+            }
+            if !background {
+                // WebView2 can repaint the native edge after reveal_main has
+                // already refreshed it. Repair once its visibility is restored.
+                crate::maximized_edge::refresh(&restored_window);
             }
             if let Ok(core) = controller.CoreWebView2() {
                 if let Ok(core19) = core.cast::<ICoreWebView2_19>() {

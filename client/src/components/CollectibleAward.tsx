@@ -8,6 +8,10 @@ const Pattern: React.FC<{ kind: CollectibleTraits['pattern'] }> = ({ kind }) => 
         {kind === 'signal' ? <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M-8 -6V6M0 -12V12M8 -6V6" /></g>
             : kind === 'stars' ? <path fill="currentColor" d="M0-12 3-3 12 0 3 3 0 12-3 3-12 0-3-3Z" />
             : kind === 'orbits' ? <g fill="none" stroke="currentColor" strokeWidth="1.6"><ellipse rx="15" ry="7" transform="rotate(-35)" /><circle r="3" fill="currentColor" /></g>
+            : kind === 'diamonds' ? <path d="M0-14 12 0 0 14-12 0ZM-12 0H12M0-14V14" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            : kind === 'waves' ? <path d="M-17-5Q-9-15 0-5T17-5M-17 5Q-9-5 0 5T17 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            : kind === 'lightning' ? <path d="M2-15-10 2H-1L-3 15 11-3H2Z" fill="currentColor" />
+            : kind === 'constellation' ? <g stroke="currentColor" strokeWidth="1.4"><path d="M-12 7-3-10 12-3 5 12" fill="none" />{[[-12,7],[-3,-10],[12,-3],[5,12]].map(([x,y],j)=><circle key={j} cx={x} cy={y} r="2.5" fill="currentColor" />)}</g>
             : <path d="M-8-9H6Q12-9 8-3L-5 8H9L12 12 7 9H-6Q-12 9-7 3L5-7" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />}
     </g>)}
 </svg>;

@@ -17,6 +17,24 @@ const moderator = (req, res, next) => ['admin', 'moderator'].includes(req.user.r
 const validId = id => mongoose.isValidObjectId(id);
 const audit = (req, details) => logGlobalAction({ executorId: req.user._id, action: 'AWARD_MANAGE', details, req });
 
+router.get('/notifications', run(async (req, res) => {
+  await syncAwards(req.user);
+  const grants = await Grant.find({ user: req.user._id, revoked: false, noticeAt: { $ne: null }, noticeDismissedAt: null })
+    .populate('award').sort({ noticeAt: -1 }).limit(50).lean();
+  res.json(grants.filter(g => g.award).map(g => ({
+    id: `award-${g._id}-${new Date(g.noticeAt).getTime()}`, grantId: g._id, noticeAt: g.noticeAt,
+    read: !!g.noticeReadAt, award: { _id: g.award._id, name: g.award.name, description: g.award.description, model: g.award.model, color: g.award.color },
+    collectible: g.collectible || createCollectible(g.award, String(g._id)), edition: editionNumber(g._id)
+  })));
+}));
+router.patch('/notifications/:id', run(async (req, res) => {
+  const { action, noticeAt } = req.body;
+  const date = typeof noticeAt === 'string' ? new Date(noticeAt) : new Date(NaN);
+  if (!validId(req.params.id) || !['read', 'dismiss'].includes(action) || !Number.isFinite(+date)) return res.sendStatus(400);
+  await Grant.updateOne({ _id: req.params.id, user: req.user._id, noticeAt: date }, { $set: action === 'read' ? { noticeReadAt: new Date() } : { noticeDismissedAt: new Date() } });
+  res.sendStatus(204);
+}));
+
 router.get('/user/:id', run(async (req, res) => {
   if (!validId(req.params.id)) return res.status(400).json({ message: 'Неверный ID' });
   const user = await User.findById(req.params.id);
@@ -65,7 +83,7 @@ router.post('/', run(async (req, res) => {
   const { name, description = '', model, color, rule, date, appearance } = req.body;
   const cutoff = rule === 'manual' ? null : new Date(`${date}T00:00:00+03:00`);
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || typeof description !== 'string' || description.length > 500 ||
-      !['trophy', 'medal', 'crystal'].includes(model) || !/^#[0-9a-f]{6}$/i.test(color || '') ||
+      !['trophy', 'medal', 'crystal', 'rose', 'star', 'bell'].includes(model) || !/^#[0-9a-f]{6}$/i.test(color || '') ||
       !['manual', 'registered_before', 'visited_before'].includes(rule) || !validAppearance(appearance) ||
       (rule !== 'manual' && (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Number.isFinite(+cutoff) || new Date(+cutoff + 3 * 3600000).toISOString().slice(0, 10) !== date))) {
     return res.status(400).json({ message: 'Проверьте название, модель и дату условия' });
@@ -87,7 +105,7 @@ router.post('/:id/apply', run(async (req, res) => {
   const flush = async () => { if (ops.length) { const result = await insertGrants(ops); count += result?.upsertedCount || 0; ops = []; } };
   for await (const item of cursor) {
     if (award.rule === 'visited_before' && !await User.exists({ _id: item.user, isBot: { $ne: true }, isDeleted: { $ne: true } })) continue;
-    ops.push({ updateOne: { filter: { user: item.user || item._id, award: award._id }, update: { $setOnInsert: { source: 'rule', revoked: false, collectible: createCollectible(award) } }, upsert: true } });
+    ops.push({ updateOne: { filter: { user: item.user || item._id, award: award._id }, update: { $setOnInsert: { source: 'rule', revoked: false, collectible: createCollectible(award), noticeAt: new Date() } }, upsert: true } });
     if (ops.length >= 200) await flush();
   }
   await flush();
@@ -109,7 +127,13 @@ router.post('/:id/grant', run(async (req, res) => {
   const escaped = typeof username === 'string' ? username.trim().replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
   const user = await User.findOne({ ...(userId ? { _id: userId } : { username: new RegExp(`^${escaped}$`, 'i') }), isBot: { $ne: true }, isDeleted: { $ne: true } });
   if (!user) return res.status(404).json({ message: 'Пользователь не найден. Выберите получателя заново.' });
-  await Grant.updateOne({ user: user._id, award: award._id }, { $set: { source: 'manual', grantedBy: req.user._id, revoked: req.body.revoke === true }, $setOnInsert: { collectible: createCollectible(award) } }, { upsert: true });
+  const now = new Date();
+  const previous = await Grant.findOneAndUpdate({ user: user._id, award: award._id }, { $set: { source: 'manual', grantedBy: req.user._id, revoked: revoke === true }, $setOnInsert: { collectible: createCollectible(award), noticeAt: revoke ? null : now } }, { upsert: true, new: false });
+  if (!revoke && previous?.revoked) {
+    const restoredAt = new Date(Math.max(+now, +(previous.noticeAt || 0) + 1));
+    await Grant.updateOne({ _id: previous._id }, { $set: { noticeAt: restoredAt, noticeReadAt: null, noticeDismissedAt: null } });
+  }
+  if (revoke || !previous || previous.revoked) req.app.get('io')?.to(`user-${user._id}`).emit('award-granted');
   await audit(req, { operation: req.body.revoke ? 'revoke' : 'grant', awardId: award._id, userId: user._id });
   res.json({ message: req.body.revoke ? 'Награда отозвана' : 'Награда выдана' });
 }));

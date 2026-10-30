@@ -12,10 +12,11 @@ use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, W
 use windows::Win32::Graphics::Gdi::{
     ClientToScreen, CreateSolidBrush, DeleteObject, FillRect, GetWindowDC, ReleaseDC,
 };
-use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW};
-use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
+use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_FRAME, RDW_INVALIDATE, RDW_NOCHILDREN, RDW_UPDATENOW};
+use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClientRect, GetWindowRect, IsZoomed, PostMessageW, WM_APP, WM_NCACTIVATE, WM_NCPAINT, WM_SIZE,
+    GetClientRect, GetWindowRect, IsWindowVisible, IsZoomed, PostMessageW, WM_APP, WM_NCACTIVATE,
+    WM_NCPAINT, WM_NCDESTROY, WM_PAINT, WM_ERASEBKGND, WM_SHOWWINDOW, WM_DPICHANGED, WM_SIZE,
     WM_WINDOWPOSCHANGED,
 };
 
@@ -35,17 +36,24 @@ unsafe extern "system" fn subclass_proc(
     _data: usize,
 ) -> LRESULT {
     if msg == WM_REPAINT_EDGE {
-        // Заставляет Windows перерисовать рамку — закраска пройдёт в WM_NCPAINT.
-        let _ = RedrawWindow(Some(hwnd), None, None, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW);
+        // RedrawWindow may skip WM_NCPAINT if it considers the nonclient region
+        // clean after ShowWindow/WebView restoration. Always paint explicitly,
+        // after the default repaint has finished. Do not invalidate WebView children.
+        let _ = RedrawWindow(Some(hwnd), None, None, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOCHILDREN);
+        paint_edge(hwnd);
         return LRESULT(0);
+    }
+    if msg == WM_NCDESTROY {
+        let _ = RemoveWindowSubclass(hwnd, Some(subclass_proc), SUBCLASS_ID);
+        return DefSubclassProc(hwnd, msg, wparam, lparam);
     }
     let result = DefSubclassProc(hwnd, msg, wparam, lparam);
     match msg {
         // Обе эти перерисовки рамки закрашивают строку заново — красим после них.
-        WM_NCPAINT | WM_NCACTIVATE => paint_edge(hwnd),
+        WM_NCPAINT | WM_NCACTIVATE | WM_PAINT | WM_ERASEBKGND => paint_edge(hwnd),
         // Первый показ уже развёрнутого окна (восстановленное состояние) и
         // разворачивание: строку Windows рисует сама, без WM_NCPAINT к нам.
-        WM_WINDOWPOSCHANGED | WM_SIZE if IsZoomed(hwnd).as_bool() => {
+        WM_WINDOWPOSCHANGED | WM_SIZE | WM_SHOWWINDOW | WM_DPICHANGED if IsZoomed(hwnd).as_bool() => {
             let _ = PostMessageW(Some(hwnd), WM_REPAINT_EDGE, WPARAM(0), LPARAM(0));
         }
         _ => {}
@@ -54,7 +62,7 @@ unsafe extern "system" fn subclass_proc(
 }
 
 unsafe fn paint_edge(hwnd: HWND) {
-    if !IsZoomed(hwnd).as_bool() {
+    if !IsZoomed(hwnd).as_bool() || !IsWindowVisible(hwnd).as_bool() {
         return;
     }
     let mut window = RECT::default();
@@ -63,16 +71,11 @@ unsafe fn paint_edge(hwnd: HWND) {
         return;
     }
     let mut client_bottom = POINT { x: 0, y: client.bottom };
-    if !ClientToScreen(hwnd, &mut client_bottom).as_bool() || client_bottom.y >= window.bottom {
+    if !ClientToScreen(hwnd, &mut client_bottom).as_bool() {
         return;
     }
+    let Some(strip) = bottom_strip(window, client_bottom.y) else { return };
     // Координаты контекста окна отсчитываются от его левого верхнего угла.
-    let strip = RECT {
-        left: 0,
-        top: client_bottom.y - window.top,
-        right: window.right - window.left,
-        bottom: window.bottom - window.top,
-    };
     let dc = GetWindowDC(Some(hwnd));
     if dc.is_invalid() {
         return;
@@ -81,6 +84,13 @@ unsafe fn paint_edge(hwnd: HWND) {
     FillRect(dc, &strip, brush);
     let _ = DeleteObject(brush.into());
     ReleaseDC(Some(hwnd), dc);
+}
+
+fn bottom_strip(window: RECT, client_bottom_y: i32) -> Option<RECT> {
+    if window.right <= window.left || client_bottom_y <= window.top || client_bottom_y >= window.bottom {
+        return None;
+    }
+    Some(RECT { left: 0, top: client_bottom_y - window.top, right: window.right - window.left, bottom: window.bottom - window.top })
 }
 
 /// Вызывать в потоке окна (при его создании).
@@ -112,4 +122,23 @@ pub fn refresh(window: &tauri::WebviewWindow) {
             post();
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn paints_only_the_nonclient_bottom_strip() {
+        let strip = bottom_strip(RECT { left: 0, top: -8, right: 1920, bottom: 1041 }, 1040).unwrap();
+        assert_eq!((strip.left, strip.top, strip.right, strip.bottom), (0, 1048, 1920, 1049));
+    }
+    #[test]
+    fn handles_monitor_offsets_without_touching_client_content() {
+        let window = RECT { left: -1928, top: -8, right: 8, bottom: 1041 };
+        let strip = bottom_strip(window, 1040).unwrap();
+        assert_eq!((strip.left, strip.right, strip.bottom - strip.top), (0, 1936, 1));
+        assert!(bottom_strip(window, 1041).is_none());
+        assert!(bottom_strip(window, 1042).is_none());
+        assert!(bottom_strip(window, -8).is_none());
+    }
 }

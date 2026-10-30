@@ -7,6 +7,7 @@
  * при монтировании или по событию, если уже открыт.
  */
 export interface NavIntents {
+    profileAwards?: string;
     friendsTab?: 'friends' | 'pending';
     jump?: { channelId: string; messageId: string; createdAt?: string };
 }

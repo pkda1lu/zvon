@@ -215,6 +215,9 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         })
         .title("Zvon")
         .inner_size(1280.0, 800.0)
+        // The interface is dark even when Windows uses a light theme. Native
+        // frame restoration must not fall back to a light system border.
+        .theme(Some(tauri::Theme::Dark))
         .min_inner_size(800.0, 600.0)
         .center()
         .decorations(false)

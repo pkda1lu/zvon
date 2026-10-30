@@ -60,7 +60,7 @@ const AwardsModeration: React.FC = () => {
             <div className="collectible-form-preview"><CollectibleAward model={model} color={color} name={name || 'Новая награда'} traits={previewTraits(appearance, sample)} preview /></div>
             <label>Название<input required maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label>
             <label>Описание<textarea maxLength={500} value={description} onChange={e => setDescription(e.target.value)} /></label>
-            <label>3D-модель<select value={model} onChange={e => setModel(e.target.value as AwardShape)}><option value="trophy">Кубок</option><option value="medal">Медаль</option><option value="crystal">Кристалл</option></select></label>
+            <label>3D-модель<select value={model} onChange={e => setModel(e.target.value as AwardShape)}><option value="trophy">Кубок</option><option value="medal">Медаль</option><option value="crystal">Кристалл</option><option value="rose">Роза</option><option value="star">Звезда</option><option value="bell">Колокольчик</option></select></label>
             <fieldset className="collectible-editor"><legend>Оформление экземпляров</legend>
                 <p className="awards-hint">Выберите свойства коллекции или оставьте случайными: сочетание создаётся при выдаче и сохраняется за владельцем.</p>
                 {([

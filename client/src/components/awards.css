@@ -37,6 +37,17 @@
 .collectible-editor { display: grid; gap: 12px; border: 1px solid var(--glass-border, #ffffff18); border-radius: 12px; padding: 14px; min-width: 0; }
 .collectible-editor legend { padding: 0 6px; font-weight: 600; font-size: 13px; }
 .collectible-editor > p { margin: 0; line-height: 1.5; }
+.inbox-item.award { display: block; padding: 18px; background: linear-gradient(135deg, #8b8dff0d, #ffffff03); border-color: #b7a3ff25; }
+.inbox-item.award .inbox-item-actions { position: absolute; top: 12px; right: 12px; }
+.award-notice { width: 100%; min-width: 0; }
+.award-notice-eyebrow { color: #c4b6ff; font-size: 10px; letter-spacing: .13em; font-weight: 700; padding-right: 55px; }
+.award-notice-eyebrow > span { font-size: 16px; vertical-align: middle; margin-right: 5px; }
+.award-notice > h4 { margin: 12px 0 6px; font-size: 17px; color: var(--text-main); }
+.award-notice > p { margin: 0 0 16px; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+.award-notice .collectible-art { max-width: 290px; margin: auto; }
+.award-notice .award-model { max-width: 190px; }
+.award-notice-open { display: flex; justify-content: center; gap: 12px; align-items: center; width: 100%; border: 1px solid #b6a2ff35; border-radius: 12px; background: #b6a2ff12; color: var(--text-main); padding: 12px 14px; margin-top: 14px; font-size: 12px; cursor: pointer; }
+.award-notice-open:hover { background: #b6a2ff25; }
 
 .profile-awards > h3 { margin: 0 0 6px; font-size: 20px; font-weight: 700; }
 .profile-awards > .awards-hint { margin: 0 0 20px; line-height: 1.5; }

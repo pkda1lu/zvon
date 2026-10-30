@@ -6,6 +6,7 @@ import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import { iosSpring } from '../animations/transitions';
 import './Inbox.css';
+import AwardNotification from './AwardNotification';
 
 interface InboxProps {
     onClose: () => void;
@@ -14,11 +15,12 @@ interface InboxProps {
 
 const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
     const { items, markAsRead, markAllAsRead, removeItem, clearInbox } = useInbox();
-    const [activeTab, setActiveTab] = React.useState<'all' | 'mentions'>('all');
+    const [activeTab, setActiveTab] = React.useState<'all' | 'mentions' | 'awards'>('all');
     const isMobile = window.innerWidth <= 768;
 
     const filteredItems = items.filter(item => {
         if (activeTab === 'mentions') return item.type === 'mention';
+        if (activeTab === 'awards') return item.type === 'award';
         return true;
     });
 
@@ -56,6 +58,7 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
             <div className="inbox-tabs">
                 <div className={`inbox-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>Все</div>
                 <div className={`inbox-tab ${activeTab === 'mentions' ? 'active' : ''}`} onClick={() => setActiveTab('mentions')}>Упоминания</div>
+                <div className={`inbox-tab ${activeTab === 'awards' ? 'active' : ''}`} onClick={() => setActiveTab('awards')}>Награды</div>
             </div>
 
             <div className="inbox-list">
@@ -74,7 +77,7 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                                 markAsRead(item.id);
                             }}
                         >
-                            <div className="inbox-item-avatar">
+                            {item.type === 'award' && item.awardNotice ? <AwardNotification notice={item.awardNotice} onOpen={() => { onItemClick(item); markAsRead(item.id); }} /> : <><div className="inbox-item-avatar">
                                 <UserAvatar user={item.author} size={48} />
                             </div>
                             <div className="inbox-item-body">
@@ -86,6 +89,7 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                                     <span>{formatDate(item.timestamp)}</span>
                                 </div>
                             </div>
+                            </>}
                             <div className="inbox-item-actions">
                                 {!item.read && (
                                     <button

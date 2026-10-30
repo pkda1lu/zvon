@@ -1778,6 +1778,11 @@ const Main: React.FC = () => {
       setNavIntent('friendsTab', target?.kind === 'friend_accepted' ? 'friends' : 'pending');
       setShowFriends(true);
       openHome();
+    } else if (item.type === 'award' && target?.id) {
+      setNavIntent('profileAwards', target.id);
+      setProfileScopeless(true);
+      setProfilePosition(null);
+      setShowProfileUserId(target.id);
     } else if (item.type === 'moderation') {
       if (target?.kind === 'content_report' && target.id) {
         handleOpenSettings('moderation', { focus: { kind: 'report', id: target.id } });

@@ -16,7 +16,7 @@ async function syncAwards(user) {
   ]);
   const ops = awards.filter(a => eligible(a, user, visit)).map(a => ({ updateOne: {
     filter: { user: user._id, award: a._id },
-    update: { $setOnInsert: { source: 'rule', revoked: false, collectible: createCollectible(a) } }, upsert: true
+    update: { $setOnInsert: { source: 'rule', revoked: false, collectible: createCollectible(a), noticeAt: new Date() } }, upsert: true
   } }));
   if (ops.length) await insertGrants(ops);
 }

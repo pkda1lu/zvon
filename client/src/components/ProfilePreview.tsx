@@ -1,5 +1,6 @@
 import CloseButton from './CloseButton';
 import ProfileAwards from './ProfileAwards';
+import { consumeNavIntent, NAV_INTENT_EVENT } from '../utils/navIntents';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { tabSwapVariants, tabSwapTransition } from '../animations/transitions';
@@ -201,6 +202,12 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
     const { user: currentUser } = useAuth();
     const isSelf = !!currentUser && currentUser._id === user._id;
     const [activeTab, setActiveTab] = useState<'contacts' | 'activity' | 'developments' | 'awards'>(() => isSelf ? 'activity' : 'contacts');
+    useEffect(() => {
+        const openAwards = () => { if (consumeNavIntent('profileAwards', id => id === user._id)) setActiveTab('awards'); };
+        openAwards();
+        window.addEventListener(NAV_INTENT_EVENT, openAwards);
+        return () => window.removeEventListener(NAV_INTENT_EVENT, openAwards);
+    }, [user._id]);
     const { streamerModeEnabled, censorInfo } = useWindowSettings();
 
     const isServerType = type.startsWith('server-');
@@ -313,6 +320,22 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                 <div className="profile-divider"></div>
 
                 <div className="info-tab">
+                    {isCompact && !user.isBot && user.activity && (
+                        <section className="compact-profile-activity" aria-label="Активность пользователя">
+                            <div className="compact-profile-activity__text">
+                            <h4>{getActivityTitle(user.activity.type)}</h4>
+                            <div className="compact-profile-activity__heading">
+                                <strong>{user.activity.name}</strong>
+                            </div>
+                            {user.activity.state && <p>{user.activity.state}</p>}
+                            {user.activity.details && <p>{user.activity.details}</p>}
+                            {user.activity.timestamps?.start && <ActivityTimer startTime={user.activity.timestamps.start} />}
+                            </div>
+                            {user.activity.assets?.largeImage && /[./]|^https?:/.test(user.activity.assets.largeImage) && (
+                                <img className="compact-profile-activity__icon" src={getFullUrl(user.activity.assets.largeImage)!} alt="" />
+                            )}
+                        </section>
+                    )}
                     {bio && (
                         <section>
                             <h4>О СЕБЕ</h4>
