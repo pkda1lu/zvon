@@ -4,6 +4,7 @@ import { AwardShape } from './AwardModel';
 import { CollectibleAward, CollectibleProperties } from './CollectibleAward';
 import { AppearanceSettings, CollectibleTraits, DEFAULT_COLLECTIBLE } from '../data/awardCollectibles';
 import './awards.css';
+import { AwardsEmptyState } from './AwardFeedback';
 export interface Award { _id: string; name: string; description: string; model: AwardShape; color: string; rule: string; cutoff: string | null; enabled: boolean; appearance?: AppearanceSettings }
 const ProfileAwards: React.FC<{ userId: string }> = ({ userId }) => {
     const [grants, setGrants] = useState<{ _id: string; award: Award; createdAt: string; collectible?: CollectibleTraits; edition?: string }[]>([]);
@@ -19,7 +20,7 @@ const ProfileAwards: React.FC<{ userId: string }> = ({ userId }) => {
         return () => { cancelled = true; };
     }, [userId, retry]);
     return <section className="profile-awards"><h3>Награды</h3><p className="awards-hint">Знаки участия и вклада в сообщество. Потяните модель, чтобы рассмотреть.</p>
-        {status && <p role="status">{status}{status.startsWith('Не удалось') && <button onClick={() => setRetry(v => v + 1)}>Повторить</button>}</p>}
+        {status && <AwardsEmptyState kind={status.startsWith('Не удалось') ? 'error' : status.startsWith('Загружаем') ? 'loading' : 'empty'} onRetry={() => setRetry(v => v + 1)} />}
         <div className="awards-grid">{grants.map(g => <article className="award-card collectible-card" key={g._id}>
             <CollectibleAward model={g.award.model} color={g.award.color} name={g.award.name} traits={g.collectible || DEFAULT_COLLECTIBLE} edition={g.edition} />
             <div className="collectible-card-body"><p>{g.award.description}</p>

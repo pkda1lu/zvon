@@ -48,6 +48,18 @@ router.get('/user/:id', run(async (req, res) => {
   res.json(visible);
 }));
 router.use(moderator);
+router.get('/recipients', run(async (req, res) => {
+  if (req.query.q !== undefined && (typeof req.query.q !== 'string' || req.query.q.length > 80)) return res.status(400).json({ message: 'Слишком длинный поисковый запрос' });
+  const query = (req.query.q || '').trim().replace(/^@/, '');
+  const filter = { isBot: { $ne: true }, isDeleted: { $ne: true } };
+  if (query) {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [{ username: new RegExp(escaped, 'i') }, { displayName: new RegExp(escaped, 'i') }];
+    if (validId(query)) filter.$or.push({ _id: query });
+  }
+  const users = await User.find(filter).select('_id username displayName avatar').sort({ username: 1 }).limit(20).lean();
+  res.json(users);
+}));
 router.get('/', run(async (req, res) => res.json(await Award.find().sort({ createdAt: -1 }).lean())));
 router.post('/', run(async (req, res) => {
   const { name, description = '', model, color, rule, date, appearance } = req.body;
@@ -90,10 +102,13 @@ router.patch('/:id', run(async (req, res) => {
   res.json(award);
 }));
 router.post('/:id/grant', run(async (req, res) => {
-  if (!validId(req.params.id) || typeof req.body.username !== 'string' || !req.body.username.trim() || (req.body.revoke !== undefined && typeof req.body.revoke !== 'boolean')) return res.sendStatus(400);
+  const { userId, username, revoke } = req.body;
+  if (!validId(req.params.id) || (userId !== undefined ? typeof userId !== 'string' || !validId(userId) : typeof username !== 'string' || !username.trim() || username.length > 80) || (revoke !== undefined && typeof revoke !== 'boolean')) return res.status(400).json({ message: 'Выберите получателя из списка пользователей' });
   const award = await Award.findById(req.params.id);
-  const user = await User.findOne({ username: req.body.username, isBot: { $ne: true }, isDeleted: { $ne: true } });
-  if (!award || !user) return res.status(404).json({ message: 'Награда или пользователь не найдены' });
+  if (!award) return res.status(404).json({ message: 'Награда не найдена. Обновите список наград.' });
+  const escaped = typeof username === 'string' ? username.trim().replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+  const user = await User.findOne({ ...(userId ? { _id: userId } : { username: new RegExp(`^${escaped}$`, 'i') }), isBot: { $ne: true }, isDeleted: { $ne: true } });
+  if (!user) return res.status(404).json({ message: 'Пользователь не найден. Выберите получателя заново.' });
   await Grant.updateOne({ user: user._id, award: award._id }, { $set: { source: 'manual', grantedBy: req.user._id, revoked: req.body.revoke === true }, $setOnInsert: { collectible: createCollectible(award) } }, { upsert: true });
   await audit(req, { operation: req.body.revoke ? 'revoke' : 'grant', awardId: award._id, userId: user._id });
   res.json({ message: req.body.revoke ? 'Награда отозвана' : 'Награда выдана' });

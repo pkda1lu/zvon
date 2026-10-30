@@ -6,6 +6,8 @@ import './CloseButton.css';
 // Click exactly one visible control so nested windows close one at a time.
 function handleEscape(event: KeyboardEvent) {
   if (event.key !== 'Escape' || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+  // An open searchable selector consumes the first Escape itself.
+  if (event.target instanceof Element && event.target.closest('[role="combobox"][aria-expanded="true"]')) return;
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button.zv-close'));
   const visible = buttons.filter(button => {
     if (button.disabled) return false;

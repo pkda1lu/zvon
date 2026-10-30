@@ -5,13 +5,18 @@ import { CollectibleAward, CollectibleProperties } from '../../components/Collec
 import { AWARD_PALETTES, AWARD_BACKGROUNDS, AWARD_PATTERNS, AWARD_FINISHES, AppearanceSettings, RANDOM_APPEARANCE, previewTraits } from '../../data/awardCollectibles';
 import { Award } from '../../components/ProfileAwards';
 import '../../components/awards.css';
+import AwardRecipientSelect, { AwardRecipient } from '../../components/AwardRecipientSelect';
+import { AwardFeedback, AwardNotice } from '../../components/AwardFeedback';
 
-const AwardEntry: React.FC<{ award: Award; busy: boolean; act: (fn: () => Promise<string>) => void; reload: () => Promise<void> }> = ({ award: a, busy, act, reload }) => {
-    const [username, setUsername] = useState('');
+type AwardAction = (fn: () => Promise<string>, report?: (notice: AwardNotice | null) => void) => Promise<void>;
+const AwardEntry: React.FC<{ award: Award; busy: boolean; act: AwardAction; reload: () => Promise<void> }> = ({ award: a, busy, act, reload }) => {
+    const [recipient, setRecipient] = useState<AwardRecipient | null>(null);
+    const [notice, setNotice] = useState<AwardNotice | null>(null);
     const grant = (revoke: boolean) => act(async () => {
-        const { data } = await axios.post(`/api/awards/${a._id}/grant`, { username: username.trim(), revoke });
-        return data.message;
-    });
+        if (!recipient) throw new Error('Выберите получателя');
+        const { data } = await axios.post(`/api/awards/${a._id}/grant`, { userId: recipient._id, revoke });
+        return `${data.message} · @${recipient.username}`;
+    }, setNotice);
     return <article className="award-card collectible-card"><CollectibleAward model={a.model} color={a.color} name={a.name} traits={previewTraits(a.appearance)} preview /><div className="collectible-card-body"><p>{a.description}</p>
         <CollectibleProperties traits={previewTraits(a.appearance)} />
         <p>{a.rule === 'manual' ? 'Ручная выдача' : `${a.rule === 'registered_before' ? 'Регистрация' : 'Первый визит'} до ${new Date(a.cutoff!).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)`}</p>
@@ -19,9 +24,14 @@ const AwardEntry: React.FC<{ award: Award; busy: boolean; act: (fn: () => Promis
             <button disabled={busy} className="settings-btn secondary" onClick={() => act(async () => { await axios.patch(`/api/awards/${a._id}`, { enabled: !a.enabled }); await reload(); return a.enabled ? 'Условие отключено. Выданные награды сохранены.' : 'Условие включено'; })}>{a.enabled ? 'Отключить условие' : 'Включить условие'}</button>
             <button disabled={busy || !a.enabled} className="settings-btn secondary" onClick={() => act(async () => { const { data } = await axios.post(`/api/awards/${a._id}/apply`); return `Выдано новых наград: ${data.count}`; })}>Выдать всем по условию</button>
         </div>}
-        <div className="award-actions"><input aria-label={`Имя получателя награды ${a.name}`} placeholder="Точное имя пользователя" value={username} onChange={e => setUsername(e.target.value)} />
-            <button className="settings-btn secondary" disabled={busy || !username.trim()} onClick={() => grant(false)}>Выдать</button>
-            <button className="settings-btn secondary" disabled={busy || !username.trim()} onClick={() => grant(true)}>Отозвать</button>
+        <div className="award-grant-panel">
+        <AwardRecipientSelect value={recipient} onChange={user => { setRecipient(user); setNotice(null); }} disabled={busy} />
+        <div className="award-grant-panel__actions">
+            <span className="awards-hint">{recipient ? 'Получатель выбран' : 'Выберите пользователя для выдачи или отзыва'}</span>
+            <button className="settings-btn primary" disabled={busy || !recipient} onClick={() => grant(false)}>Выдать</button>
+            <button className="settings-btn secondary" disabled={busy || !recipient} onClick={() => grant(true)}>Отозвать</button>
+        </div>
+        {notice && <AwardFeedback notice={notice} />}
         </div>
     </div></article>;
 };
@@ -36,12 +46,12 @@ const AwardsModeration: React.FC = () => {
     const [rule, setRule] = useState('manual');
     const [date, setDate] = useState('');
     const [busy, setBusy] = useState(false);
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState<AwardNotice | null>(null);
     const reload = async () => { const { data } = await axios.get('/api/awards'); if (!Array.isArray(data)) throw new Error('Invalid awards response'); setAwards(data); };
-    useEffect(() => { let live = true; axios.get('/api/awards').then(({ data }) => { if (!Array.isArray(data)) throw new Error('Invalid awards response'); if (live) setAwards(data); }).catch(() => { if (live) setMessage('Не удалось загрузить награды. Откройте вкладку повторно.'); }); return () => { live = false; }; }, []);
-    const act = async (fn: () => Promise<string>) => {
-        setBusy(true); setMessage('');
-        try { setMessage(await fn()); } catch (e: any) { setMessage(e.response?.data?.message || 'Не удалось выполнить действие. Попробуйте ещё раз.'); }
+    useEffect(() => { let live = true; axios.get('/api/awards').then(({ data }) => { if (!Array.isArray(data)) throw new Error('Invalid awards response'); if (live) setAwards(data); }).catch(() => { if (live) setMessage({ kind: 'error', text: 'Не удалось загрузить награды. Откройте вкладку повторно.' }); }); return () => { live = false; }; }, []);
+    const act: AwardAction = async (fn, report = setMessage) => {
+        setBusy(true); setMessage(null); report(null);
+        try { report({ kind: 'success', text: await fn() }); } catch (e: any) { report({ kind: 'error', text: e.response?.data?.message || 'Не удалось выполнить действие. Попробуйте ещё раз.' }); }
         finally { setBusy(false); }
     };
     return <div><h3>Награды сообщества</h3>
@@ -66,7 +76,7 @@ const AwardsModeration: React.FC = () => {
             {rule !== 'manual' && <><label>До начала дня (МСК)<input required type="date" value={date} onChange={e => setDate(e.target.value)} /></label><p className="awards-hint">Например, до 2026 года — 01.01.2026. До 12 декабря — 12.12 нужного года. Учёт визитов начинается после установки этой функции; старые входы не восстанавливаются.</p></>}
             <button className="settings-btn primary" disabled={busy || !name.trim()}>Создать награду</button>
         </form>
-        {message && <p role="status">{message}</p>}
+        {message && <AwardFeedback notice={message} />}
         <div className="awards-grid">{awards.map(a => <AwardEntry key={a._id} award={a} busy={busy} act={act} reload={reload} />)}</div>
     </div>;
 };
