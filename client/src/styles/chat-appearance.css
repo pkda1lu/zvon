@@ -1,0 +1,105 @@
+/* Main workspace only: keep custom theme colors and panel opacity settings. */
+.main-container {
+  --workspace-border: rgba(255, 255, 255, .065);
+  --workspace-hover: rgba(255, 255, 255, .045);
+  --workspace-selected: rgba(255, 255, 255, .085);
+  --workspace-secondary: var(--text-dim);
+}
+
+.main-container :is(.sidebar, .dm-sidebar, .server-sidebar, .server-members) {
+  border-color: var(--workspace-border);
+  box-shadow: none;
+}
+
+.main-container :is(.dm-view, .channel-view) {
+  border-color: rgba(255, 255, 255, .09);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .12);
+}
+
+/* One outer frame for the conversation, rather than two nested glass cards. */
+.main-container .dm-container {
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+}
+
+.main-container :is(.dm-header, .channel-header) {
+  height: calc(64px * var(--interface-scale, 1));
+  min-height: calc(64px * var(--interface-scale, 1));
+  background: rgba(255, 255, 255, .015);
+  border-bottom-color: var(--workspace-border);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.main-container :is(.server-header, .dm-sidebar-header) {
+  border-bottom-color: var(--workspace-border);
+  box-shadow: none;
+}
+
+.main-container .server-header::after { display: none; }
+
+.main-container :is(.dm-item, .channel-item) {
+  background: transparent;
+  border-color: transparent;
+  border-radius: calc(12px * var(--interface-scale, 1));
+  box-shadow: none;
+  transition: background-color .18s ease, color .18s ease;
+}
+
+.main-container :is(.dm-item, .channel-item):hover {
+  background: var(--workspace-hover);
+  box-shadow: none;
+}
+
+.main-container :is(.dm-item, .channel-item).active,
+.main-container .friends-tab-button.active {
+  background: var(--workspace-selected);
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-main);
+}
+
+.main-container .channel-item.active .channel-name {
+  font-weight: 600;
+  letter-spacing: normal;
+  text-shadow: none;
+}
+
+.main-container :is(.dm-list-title, .category-header) {
+  color: var(--workspace-secondary);
+  font-size: calc(12px * var(--interface-scale, 1));
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+
+.main-container :is(.dm-tab, .friends-tab-button, .dm-name, .server-header h2) {
+  font-weight: 600;
+}
+
+.main-container .dm-preview {
+  font-size: calc(13px * var(--interface-scale, 1));
+  line-height: 1.45;
+}
+
+.main-container .server-item.active .pill span { box-shadow: none; }
+.main-container .server-icon.active { box-shadow: none; }
+
+.main-container :is(.dm-view, .channel-view) .message-form:not(.is-recording-mode) {
+  background: rgba(255, 255, 255, .04);
+  border-color: rgba(255, 255, 255, .09);
+  border-radius: calc(16px * var(--interface-scale, 1));
+  box-shadow: none;
+  transition: background-color .18s ease, border-color .18s ease;
+}
+
+.main-container :is(.dm-view, .channel-view) .message-form:not(.is-recording-mode):focus-within {
+  background: rgba(255, 255, 255, .055);
+  border-color: color-mix(in srgb, var(--primary-neon) 55%, transparent);
+  box-shadow: none;
+  transform: none;
+}
+
+/* Preserve edge-to-edge mobile navigation and the pure-black theme. */
+.main-container.is-mobile :is(.dm-view, .channel-view) { box-shadow: none; }
+:root[data-theme="amoled"] .main-container :is(.dm-header, .channel-header) { background: transparent; }

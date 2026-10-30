@@ -26,6 +26,7 @@ pub struct AppState {
     pub opened_hidden: bool,
     pub overlay_enabled: AtomicBool,
     pub activity: Mutex<ActivityState>,
+    pub gsi: Mutex<crate::gsi::State>,
     pub scan_notify: Arc<Notify>,
     /// Последнее значение канала для окна: отдаётся подписчику, который
     /// подключился позже отправки (ключ — метка окна и имя канала).
@@ -45,6 +46,7 @@ impl AppState {
             opened_hidden,
             overlay_enabled: AtomicBool::new(true),
             activity: Mutex::new(ActivityState::default()),
+            gsi: Mutex::new(crate::gsi::State::default()),
             scan_notify: Arc::new(Notify::new()),
             sticky: Mutex::new(HashMap::new()),
             was_maximized: AtomicBool::new(false),

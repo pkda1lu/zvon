@@ -6,6 +6,7 @@ import { ThemeObject, ThemeType, CustomColors } from '../contexts/AppearanceCont
 import { RangeSlider, ChoiceGroup } from '../pages/settings/SettingsUI';
 import InterfacePreview from './InterfacePreview';
 import './ThemeEditorModal.css';
+import CloseButton from './CloseButton';
 
 /**
  * Окно создания и правки темы.
@@ -98,13 +99,14 @@ const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({
     };
 
     return (
-        <motion.div className="settings-modal-overlay" onClick={onClose} {...backdropMotion}>
-            <motion.div className="settings-modal-glass theme-editor" onClick={e => e.stopPropagation()} {...popMotion}>
+        <motion.div className="settings-modal-overlay zv-dialog-overlay" onClick={onClose} {...backdropMotion}>
+            <motion.div className="settings-modal-glass theme-editor zv-dialog-surface" onClick={e => e.stopPropagation()} {...popMotion}>
                 <div className="theme-editor-head">
                     <h3>{existing ? 'Правка темы' : 'Новая тема'}</h3>
                     {!existing && baseName && (
                         <span className="theme-editor-base">за основу взята «{baseName}»</span>
                     )}
+                    <CloseButton onClick={onClose} disabled={!!busy} />
                 </div>
 
                 <div className="theme-editor-body">

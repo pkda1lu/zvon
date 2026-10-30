@@ -126,6 +126,14 @@ pub struct ActivityState {
 }
 
 impl ActivityState {
+    fn replace(&mut self, found: Option<Value>) -> bool {
+        let changed = self.last != found;
+        let name = found.as_ref().map(|m| meta_name(m).to_string());
+        let previous = self.last.as_ref().map(|m| meta_name(m).to_string());
+        if name != previous { self.start_ms = found.as_ref().map(|_| now_ms()); }
+        self.last = found;
+        changed
+    }
     pub fn current(&self) -> Value {
         match (&self.last, self.start_ms) {
             (Some(a), Some(t)) => {
@@ -212,16 +220,11 @@ fn allowed(meta: Option<Value>) -> Option<Value> {
 }
 
 pub fn update_activity(app: &AppHandle, found: Option<Value>, is_foreground: bool, fg_exe: &str) {
+    let found = found.map(|meta| crate::gsi::enrich(app, meta));
     let state = app.state::<AppState>();
     let (changed, payload, last_is_game) = {
         let mut a = state.activity.lock();
-        let cur_name = found.as_ref().map(|m| meta_name(m).to_string());
-        let last_name = a.last.as_ref().map(|m| meta_name(m).to_string());
-        let changed = cur_name != last_name;
-        if changed {
-            a.last = found.clone();
-            a.start_ms = found.as_ref().map(|_| now_ms());
-        }
+        let changed = a.replace(found.clone());
         let last_is_game = a.last.as_ref().map(|m| meta_type(m) == "game").unwrap_or(false);
         (changed, a.current(), last_is_game)
     };
@@ -353,6 +356,22 @@ pub async fn run(app: AppHandle) {
             _ = tokio::time::sleep(Duration::from_millis(wait)) => {}
             _ = notify.notified() => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod rich_activity_tests {
+    use super::*;
+    #[test]
+    fn details_change_without_restarting_playtime() {
+        let mut state = ActivityState::default();
+        assert!(state.replace(Some(json!({"name":"Dota 2","type":"game","state":"Главное меню"}))));
+        state.start_ms = Some(123);
+        assert!(state.replace(Some(json!({"name":"Dota 2","type":"game","state":"В матче","details":"24:38"}))));
+        assert_eq!(state.start_ms, Some(123));
+        assert!(!state.replace(state.last.clone()));
+        assert!(state.replace(None));
+        assert_eq!(state.current(), Value::Null);
     }
 }
 

@@ -106,14 +106,14 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
 
     return ReactDOM.createPortal(
         <motion.div
-            className="screen-source-selector-overlay"
+            className="screen-source-selector-overlay zv-dialog-overlay"
             onClick={onClose}
             variants={overlayVariants}
             initial="initial" animate="animate"
             transition={overlayTransition}
         >
             <motion.div
-                className="screen-source-selector-modal"
+                className="screen-source-selector-modal zv-dialog-surface"
                 onClick={e => e.stopPropagation()}
                 variants={modalPopVariants}
                 initial="initial" animate="animate"

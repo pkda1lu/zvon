@@ -74,8 +74,8 @@ const ConsentGate: React.FC = () => {
     if (!needed) return null;
 
     return (
-        <motion.div className="consent-gate-backdrop" role="dialog" aria-modal="true" aria-label="Согласие на обработку персональных данных" {...backdropMotion}>
-            <motion.div className="consent-gate-panel" {...popMotion}>
+        <motion.div className="consent-gate-backdrop zv-dialog-overlay" role="dialog" aria-modal="true" aria-label="Согласие на обработку персональных данных" {...backdropMotion}>
+            <motion.div className="consent-gate-panel zv-dialog-surface" {...popMotion}>
                 <h2 className="consent-gate-title">Обновились условия обработки персональных данных</h2>
                 <p className="consent-gate-lead">
                     Чтобы продолжить пользоваться Zvon, ознакомьтесь с документом и подтвердите согласие.

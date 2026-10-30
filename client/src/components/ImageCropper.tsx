@@ -168,14 +168,14 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ image, cropShape = 'round',
 
     return (
         <motion.div
-            className={`cropper-overlay cropper-target-${cropShape === 'round' ? 'avatar' : 'banner'}`}
+            className={`cropper-overlay zv-dialog-overlay cropper-target-${cropShape === 'round' ? 'avatar' : 'banner'}`}
             variants={overlayVariants}
             initial="initial"
             animate="animate"
             transition={overlayTransition}
         >
             <motion.div
-                className="cropper-container"
+                className="cropper-container zv-dialog-surface"
                 variants={modalPopVariants}
                 initial="initial"
                 animate="animate"

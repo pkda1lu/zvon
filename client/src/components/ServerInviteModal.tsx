@@ -59,8 +59,8 @@ const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, onClose, 
         <AnimatedOverlay
             isOpen={isOpen}
             onClose={onClose}
-            overlayClassName="modal-overlay"
-            contentClassName="glass-panel-base"
+            overlayClassName="modal-overlay zv-dialog-overlay"
+            contentClassName="glass-panel-base zv-dialog-surface"
             contentStyle={{
                 width: '100%',
                 maxWidth: '460px',

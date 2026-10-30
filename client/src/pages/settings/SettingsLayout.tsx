@@ -408,8 +408,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
             <AnimatePresence>
             {pendingTab && (
-                <motion.div key="streamer-confirm" className="settings-modal-overlay" {...backdropMotion}>
-                    <motion.div className="settings-modal-glass" {...popMotion}>
+                <motion.div key="streamer-confirm" className="settings-modal-overlay zv-dialog-overlay" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass zv-dialog-surface" {...popMotion}>
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                             <div style={{ 
                                 width: '60px', 

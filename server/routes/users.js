@@ -386,6 +386,26 @@ router.put('/settings', auth, async (req, res) => {
   try {
     const { settings } = req.body;
     if (!settings) return res.status(400).json({ message: 'Settings required' });
+
+    if (settings.serverFolders !== undefined) {
+      const folders = settings.serverFolders;
+      const folderIds = new Set();
+      const assignedServers = new Set();
+      if (!Array.isArray(folders) || folders.length > 50 || folders.some(folder => {
+        if (!folder || typeof folder.id !== 'string' || !folder.id || folder.id.length > 80 || folderIds.has(folder.id)
+          || typeof folder.name !== 'string' || !folder.name.trim() || folder.name.trim().length > 40
+          || typeof folder.isolated !== 'boolean' || !Array.isArray(folder.serverIds) || folder.serverIds.length > 500) return true;
+        folderIds.add(folder.id);
+        return folder.serverIds.some(id => {
+          if (typeof id !== 'string' || !id || id.length > 80 || assignedServers.has(id)) return true;
+          assignedServers.add(id);
+          return false;
+        });
+      })) return res.status(400).json({ message: 'Invalid server folders' });
+      req.user.settings.serverFolders = folders.map(folder => ({
+        id: folder.id, name: folder.name.trim(), serverIds: folder.serverIds, isolated: folder.isolated
+      }));
+    }
     
     // Simple deep merge for known interface settings
     if (settings.appearance) {

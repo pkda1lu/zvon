@@ -206,6 +206,16 @@ const userSchema = new mongoose.Schema({
     }
   },
   settings: {
+    serverFolders: {
+      type: [{
+        _id: false,
+        id: { type: String, required: true, maxlength: 80 },
+        name: { type: String, required: true, maxlength: 40 },
+        serverIds: [{ type: String, maxlength: 80 }],
+        isolated: { type: Boolean, default: false }
+      }],
+      default: []
+    },
     showActivityStatus: {
       type: Boolean,
       default: true

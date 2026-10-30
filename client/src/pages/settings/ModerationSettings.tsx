@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import VlyneIdModeration from './VlyneIdModeration';
+import AwardsModeration from './AwardsModeration';
 import { getFullUrl } from '../../utils/avatar';
 import PostsModeration from '../../components/posts/PostsModeration';
 
@@ -99,7 +100,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
     const [reports, setReports] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
-    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid'>(
+    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid' | 'awards'>(
         () => focus?.kind === 'problem' ? 'problems' : focus?.kind === 'vlyne' ? 'vlyneid' : 'reports'
     );
     // Жалоба, к которой перешли из уведомления: прокручиваем к ней и подсвечиваем.
@@ -268,6 +269,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
             <p className="settings-description">Управление жалобами на сообщения, профили пользователей, сервера и витрину.</p>
 
             <div className="zv-tabs" style={{ marginBottom: '24px' }}>
+                <button className={`zv-tab ${mainTab === 'awards' ? 'active' : ''}`} onClick={() => setMainTab('awards')}>Награды</button>
                 <button
                     className={`zv-tab ${mainTab === 'reports' ? 'active' : ''}`}
                     onClick={() => setMainTab('reports')}
@@ -305,7 +307,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                 </button>
             </div>
 
-            {mainTab === 'posts' ? (
+            {mainTab === 'awards' ? <AwardsModeration /> : mainTab === 'posts' ? (
                 <PostsModeration />
             ) : mainTab === 'marketplace' ? (
                 <>

@@ -10,6 +10,7 @@ const globalAuditLogSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
+      'AWARD_MANAGE',
       'USER_REGISTER',
       'USER_LOGIN',
       'USER_DELETE',

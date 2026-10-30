@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import './styles/buttons.css';
+import './styles/dialogs.css';
 import './Mobile.css';
 import App from './App';
 import { applyBranding, fetchAndApplyBranding } from './utils/branding';

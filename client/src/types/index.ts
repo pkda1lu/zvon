@@ -48,6 +48,7 @@ export interface User {
   lastActiveAt?: string;
   joinedVoiceAt?: number;
   settings?: {
+    serverFolders?: import('../utils/serverFolders').ServerFolder[];
     showActivityStatus: boolean;
     activityVisibility: 'everyone' | 'friends' | 'none';
     hiddenActivities: string[];

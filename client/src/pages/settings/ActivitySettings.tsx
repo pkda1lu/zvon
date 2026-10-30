@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import { SettingsToggle } from './SettingsUI';
+import GameIntegrationSettings from './GameIntegrationSettings';
 import { GamepadIcon, MusicIcon, VideoIcon, LayoutGridIcon, PlusIcon, CloseIcon } from '../../components/Icons';
 
 interface ProcessItem {
@@ -99,6 +100,8 @@ const ActivitySettings: React.FC = () => {
                     <SettingsToggle checked={activityDetectionEnabled} onChange={setActivityDetectionEnabled} />
                 </div>
             </div>
+
+            <GameIntegrationSettings />
 
             <div className="settings-section-title">Категории и приложения</div>
             <div className="settings-card" style={{ padding: '0', position: 'relative' }}>

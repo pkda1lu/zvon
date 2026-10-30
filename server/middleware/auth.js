@@ -91,6 +91,12 @@ const auth = async (req, res, next) => {
       }
     }
 
+    if (!isBot && !user.isBot) {
+      // Keep the earliest observed visit even when sessions expire or are revoked.
+      await require('../models/AwardVisit').updateOne(
+        { user: user._id }, { $setOnInsert: { firstVisitedAt: new Date() } }, { upsert: true }
+      ).catch(error => { if (error.code !== 11000) console.error('Award visit tracking failed:', error.message); });
+    }
     req.user = user;
     next();
   } catch (error) {

@@ -215,6 +215,9 @@
     object-fit: cover;
 }
 
+.member-activity-lines { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.member-activity-lines .activity-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .activity-text {
     opacity: 0.8;
     font-weight: 500;

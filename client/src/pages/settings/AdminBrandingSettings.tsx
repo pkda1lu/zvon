@@ -712,8 +712,8 @@ server {
             {/* Modal for Creating or Editing Brand */}
             <AnimatePresence>
             {isModalOpen && editingBrand && (
-                <motion.div className="branding-modal-overlay" onClick={closeModal} key="brand-modal" {...backdropMotion}>
-                    <motion.div className="branding-modal-card" onClick={e => e.stopPropagation()} {...popMotion}>
+                <motion.div className="branding-modal-overlay zv-dialog-overlay" onClick={closeModal} key="brand-modal" {...backdropMotion}>
+                    <motion.div className="branding-modal-card zv-dialog-surface" onClick={e => e.stopPropagation()} {...popMotion}>
                         <div className="branding-modal-header">
                             <h3 className="branding-modal-title">
                                 {isCreating ? 'Новый бренд' : `Настройка: ${editingBrand.name}`}
@@ -1035,8 +1035,8 @@ server {
 
             {/* Modal for Nginx Configuration */}
             {isNginxModalOpen && (
-                <div className="branding-modal-overlay" onClick={() => setIsNginxModalOpen(false)}>
-                    <div className="branding-modal-card" style={{ maxWidth: '800px' }} onClick={e => e.stopPropagation()}>
+                <div className="branding-modal-overlay zv-dialog-overlay" onClick={() => setIsNginxModalOpen(false)}>
+                    <div className="branding-modal-card zv-dialog-surface" style={{ maxWidth: '800px' }} onClick={e => e.stopPropagation()}>
                         <div className="branding-modal-header">
                             <div>
                                 <h3 className="branding-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

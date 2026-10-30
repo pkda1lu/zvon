@@ -17,7 +17,7 @@ use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
-use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
+use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RRF_RT_REG_SZ};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -178,6 +178,20 @@ pub fn steam_running_app_id() -> Option<u32> {
         )
     };
     if res.is_ok() && value != 0 { Some(value) } else { None }
+}
+
+pub fn steam_path() -> Option<std::path::PathBuf> {
+    let mut buffer = [0u16; 2048];
+    let mut size = (buffer.len() * 2) as u32;
+    let key = wide("Software\\Valve\\Steam");
+    let name = wide("SteamPath");
+    unsafe {
+        RegGetValueW(HKEY_CURRENT_USER, windows::core::PCWSTR(key.as_ptr()),
+            windows::core::PCWSTR(name.as_ptr()), RRF_RT_REG_SZ, None,
+            Some(buffer.as_mut_ptr() as *mut c_void), Some(&mut size)).ok().ok()?;
+    }
+    let len = buffer.iter().position(|c| *c == 0)?;
+    Some(std::path::PathBuf::from(String::from_utf16_lossy(&buffer[..len])))
 }
 
 /// Значок файла (32×32) как data:image/png;base64,…

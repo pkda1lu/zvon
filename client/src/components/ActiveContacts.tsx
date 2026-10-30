@@ -261,6 +261,7 @@ const ActiveContacts: React.FC<ActiveContactsProps> = ({ friends, servers = [], 
                                     </div>
                                     <div className="active-game-subtitle">
                                         {friend.activity?.state || (friend.activity?.type === 'playing' ? 'Играет' : 'В эфире')}
+                                        {friend.activity?.details && <> · {friend.activity.details}</>}
                                     </div>
                                 </div>
                             </div>

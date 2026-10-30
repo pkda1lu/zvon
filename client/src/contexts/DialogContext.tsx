@@ -8,6 +8,7 @@ import {
 } from '../animations/transitions';
 import { useFreezeAppBackground } from '../animations/useFreezeAppBackground';
 import './Dialog.css'; // Create this CSS file next
+import CloseButton from '../components/CloseButton';
 
 export interface DialogOptions {
     title: string;
@@ -131,18 +132,21 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             <AnimatePresence>
                 {dialogOpen && dialogState && (
                     <motion.div
-                        className="custom-dialog-overlay"
+                        className="custom-dialog-overlay zv-dialog-overlay"
                         variants={overlayVariants}
                         initial="initial" animate="animate" exit="exit"
                         transition={overlayTransition}
                     >
                         <motion.div
-                            className="custom-dialog-container"
+                            className="custom-dialog-container zv-dialog-surface"
                             variants={modalPopVariants}
                             initial="initial" animate="animate" exit="exit"
                             transition={modalPopTransition}
                         >
-                            <h3 className="custom-dialog-title">{dialogState.title}</h3>
+                            <div className="custom-dialog-header">
+                                <h3 className="custom-dialog-title">{dialogState.title}</h3>
+                                <CloseButton onClick={handleCancel} />
+                            </div>
                             <p className="custom-dialog-message">{dialogState.message}</p>
 
                             {dialogState.type === 'prompt' && (

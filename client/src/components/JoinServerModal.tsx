@@ -45,8 +45,8 @@ const JoinServerModal: React.FC<JoinServerModalProps> = ({ isOpen, onClose, onJo
         <AnimatedOverlay
             isOpen={isOpen}
             onClose={onClose}
-            overlayClassName="modal-overlay"
-            contentClassName="glass-panel-base"
+            overlayClassName="modal-overlay zv-dialog-overlay"
+            contentClassName="glass-panel-base zv-dialog-surface"
             contentStyle={{
                 width: '100%',
                 maxWidth: '480px',

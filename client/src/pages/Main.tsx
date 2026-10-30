@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { shouldShowUpdateIntro } from '../utils/updateIntro';
 import { isGroupDM } from '../utils/dm';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
@@ -37,6 +36,7 @@ import {
   iosFade,
 } from '../animations/transitions';
 import './Main.css';
+import '../styles/chat-appearance.css';
 
 import { useAppearance } from '../contexts/AppearanceContext';
 
@@ -70,8 +70,6 @@ const JoinServerModal = React.lazy(() => import('../components/JoinServerModal')
 const ServerInviteModal = React.lazy(() => import('../components/ServerInviteModal'));
 const ForwardMessageModal = React.lazy(() => import('../components/ForwardMessageModal'));
 const SettingsModal = React.lazy(() => import('../components/SettingsModal'));
-// Ролик «Zvon 3.0» — один раз при первом запуске клиента 3.0 (см. UpdateIntro)
-const UpdateIntro = React.lazy(() => import('../components/UpdateIntro'));
 const Inbox = React.lazy(() => import('../components/Inbox'));
 const CreateGroupDMModal = React.lazy(() => import('../components/CreateGroupDMModal'));
 
@@ -345,14 +343,6 @@ const Main: React.FC = () => {
   const [inviteServerId, setInviteServerId] = useState<string | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showUpdateIntro, setShowUpdateIntro] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    shouldShowUpdateIntro()
-      .then(show => { if (!cancelled && show) setShowUpdateIntro(true); })
-      .catch(() => { });
-    return () => { cancelled = true; };
-  }, []);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('profile');
   const [settingsInitialData, setSettingsInitialData] = useState<any>(null);
 
@@ -855,6 +845,8 @@ const Main: React.FC = () => {
       electron.getCurrentActivity?.().then((activity: any) => {
         if (activity) setCurrentGameActivity({
           name: activity.name,
+          state: activity.state,
+          details: activity.details,
           type: mapCategoryToActivityType(activity.type),
           assets: { largeImage: activity.icon },
           timestamps: { start: activity.startTime },
@@ -864,6 +856,8 @@ const Main: React.FC = () => {
         if (activity) {
           setCurrentGameActivity({
             name: activity.name,
+            state: activity.state,
+            details: activity.details,
             type: mapCategoryToActivityType(activity.type),
             assets: { largeImage: activity.icon },
             timestamps: { start: activity.startTime },
@@ -2612,12 +2606,6 @@ const Main: React.FC = () => {
       </AnimatePresence>
 
       <PostAnnouncements />
-
-      {showUpdateIntro && (
-        <LazyOverlay>
-          <UpdateIntro onDone={() => setShowUpdateIntro(false)} />
-        </LazyOverlay>
-      )}
 
       <AnimatePresence>
       {showCreateGroupModal && (

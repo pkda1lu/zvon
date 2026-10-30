@@ -353,14 +353,14 @@ const AccountSettings: React.FC = () => {
             <AnimatePresence>
                 {showDeleteModal && (
                     <motion.div 
-                        className="custom-dialog-overlay"
+                        className="custom-dialog-overlay zv-dialog-overlay"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         style={{ zIndex: 20000 }}
                     >
                         <motion.div 
-                            className="custom-dialog-container"
+                            className="custom-dialog-container zv-dialog-surface"
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}

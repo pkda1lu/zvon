@@ -374,6 +374,8 @@
 }
 
 .channel-unread-badge {
+  flex-shrink: 0;
+  margin-right: calc(4px * var(--interface-scale, 1));
   background: #ff3b30;
   color: white;
   border-radius: calc(8px * var(--interface-scale, 1));

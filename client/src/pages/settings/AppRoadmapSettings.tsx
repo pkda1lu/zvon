@@ -370,8 +370,8 @@ const AppRoadmapSettings: React.FC = () => {
             {/* Modal for Add / Edit */}
             <AnimatePresence>
             {isModalOpen && (
-                <motion.div className="settings-modal-overlay" key="roadmap-modal" {...backdropMotion}>
-                    <motion.div className="settings-modal-glass roadmap-v-modal" {...popMotion}>
+                <motion.div className="settings-modal-overlay zv-dialog-overlay" key="roadmap-modal" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass roadmap-v-modal zv-dialog-surface" {...popMotion}>
                         <div className="roadmap-modal-header">
                             <h3 className="roadmap-modal-title">
                                 {editingItem ? 'Редактировать идею' : 'Новая идея'}

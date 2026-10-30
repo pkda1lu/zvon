@@ -105,7 +105,7 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
   return (
     <>
       <motion.div
-        className="modal-overlay"
+        className="modal-overlay zv-dialog-overlay"
         style={{
           zIndex: 2500,
           background: 'rgba(0,0,0,0.92)',
@@ -119,7 +119,7 @@ const VerificationWarning: React.FC<VerificationWarningProps> = ({ onOpenSetting
         transition={overlayTransition}
       >
         <motion.div
-          className="glass-panel-base verification-modal"
+          className="glass-panel-base verification-modal zv-dialog-surface"
           style={{
             width: '100%',
             maxWidth: '440px',

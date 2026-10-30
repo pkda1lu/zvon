@@ -46,6 +46,16 @@ pub async fn ipc_invoke(app: AppHandle, window: WebviewWindow, channel: String, 
         "toggle-autostart" => Ok(json!(toggle_autostart(&app, arg(&args, 0).as_bool().unwrap_or(false)))),
         "get-autostart-status" => Ok(json!(autostart_enabled(&app))),
         "get-current-activity" => Ok(state.activity.lock().current()),
+        "game-integration:status" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn_blocking(move || crate::gsi::status(&app)).await.map_err(|e| e.to_string())
+        }
+        "game-integration:enabled" => crate::gsi::set_enabled(&app, arg(&args, 0).as_bool().unwrap_or(false)),
+        "game-integration:install" => {
+            let app = app.clone();
+            let game = arg(&args, 0).as_str().unwrap_or_default().to_string();
+            tauri::async_runtime::spawn_blocking(move || crate::gsi::install(&app, &game)).await.map_err(|e| e.to_string())?
+        }
         "toggle-fullscreen" => {
             let Some(w) = main_window(&app) else { return Ok(json!(false)) };
             let want = arg(&args, 0).as_bool().unwrap_or(false);

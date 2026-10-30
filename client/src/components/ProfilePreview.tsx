@@ -1,4 +1,5 @@
 import CloseButton from './CloseButton';
+import ProfileAwards from './ProfileAwards';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { tabSwapVariants, tabSwapTransition } from '../animations/transitions';
@@ -199,7 +200,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
 }) => {
     const { user: currentUser } = useAuth();
     const isSelf = !!currentUser && currentUser._id === user._id;
-    const [activeTab, setActiveTab] = useState<'contacts' | 'activity' | 'developments'>(() => isSelf ? 'activity' : 'contacts');
+    const [activeTab, setActiveTab] = useState<'contacts' | 'activity' | 'developments' | 'awards'>(() => isSelf ? 'activity' : 'contacts');
     const { streamerModeEnabled, censorInfo } = useWindowSettings();
 
     const isServerType = type.startsWith('server-');
@@ -408,6 +409,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
             
             <div className="full-profile-right">
                 <div className="profile-tabs-sidebar">
+                    {!user.isBot && <button className={`profile-tab-item ${activeTab === 'awards' ? 'active' : ''}`} onClick={() => setActiveTab('awards')}>Награды</button>}
                     {!isSelf && (
                         <button className={`profile-tab-item ${activeTab === 'contacts' ? 'active' : ''}`} onClick={() => setActiveTab('contacts')}>
                             <span>Общие контакты</span>
@@ -426,6 +428,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                 </div>
 
                 <motion.div className="profile-tab-content-full" key={activeTab} variants={tabSwapVariants} initial="initial" animate="animate" transition={tabSwapTransition}>
+                    {activeTab === 'awards' && !user.isBot && <ProfileAwards userId={user._id} />}
                     {activeTab === 'contacts' && !isSelf && (
                         <div className="contacts-tab">
                             <section>
@@ -482,6 +485,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                                         <div className="activity-details-full">
                                             <div className="activity-name-full">{user.activity.name}</div>
                                             <div className="activity-state-full">{user.activity.state || `В приложении ${user.activity.name}`}</div>
+                                            {user.activity.details && <div className="activity-state-full">{user.activity.details}</div>}
                                             {user.activity.timestamps?.start && <ActivityTimer startTime={user.activity.timestamps.start} />}
                                             
                                             <div className="activity-actions-full" style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>

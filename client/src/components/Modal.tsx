@@ -89,7 +89,7 @@ const Modal: React.FC<ModalProps> = ({
     <AnimatePresence onExitComplete={presence.onExitComplete}>
       {presence.open && (
         <motion.div
-          className="zv-modal-overlay"
+          className="zv-modal-overlay zv-dialog-overlay"
           onMouseDown={onBackdropClick}
           role="dialog"
           aria-modal="true"
@@ -101,7 +101,7 @@ const Modal: React.FC<ModalProps> = ({
         >
           <motion.div
             ref={contentRef}
-            className={`zv-modal zv-modal--${size} ${className}`}
+            className={`zv-modal zv-dialog-surface zv-modal--${size} ${className}`}
             onMouseDown={(e) => e.stopPropagation()}
             variants={modalPopVariants}
             initial="initial"

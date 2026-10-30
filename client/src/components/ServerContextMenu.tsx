@@ -14,9 +14,10 @@ interface ServerContextMenuProps {
     y: number;
     onClose: () => void;
     onLeave: (serverId: string) => void;
+    onOrganize?: () => void;
 }
 
-const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ server, x, y, onClose, onLeave }) => {
+const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ server, x, y, onClose, onLeave, onOrganize }) => {
     const menuRef = useRef<HTMLDivElement>(null);
     const { confirm, alert } = useDialog();
     const { user, refreshUser } = useAuth();
@@ -78,6 +79,7 @@ const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ server, x, y, onC
             transition={popoverTransition}
         >
             <div className="menu-group">
+                {onOrganize && <div className="menu-item" onClick={onOrganize}>Папки серверов</div>}
                 <div className="menu-item" onClick={handleMute}>
                     {isMuted ? 'Включить уведомления' : 'Заглушить сервер'}
                 </div>

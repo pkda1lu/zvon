@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { Folder, FolderOpen, FolderPlus, ArrowLeft } from 'lucide-react';
+import ServerFolderManager from './ServerFolderManager';
+import { useServerFolders } from '../utils/useServerFolders';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Server, MiniApp } from '../types';
 import JoinServerModal from './JoinServerModal';
@@ -95,6 +98,46 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (server) setContextMenu({ x, y, server });
   });
 
+  const { folders, saveFolders, synced } = useServerFolders(user);
+  const [folderManager, setFolderManager] = useState<{ serverId?: string; folderId?: string } | null>(null);
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
+  const openFolder = folders.find(f => f.id === openFolderId);
+  const isolated = !!openFolder?.isolated;
+  const groupedIds = new Set(folders.flatMap(f => f.serverIds));
+
+  // External navigation (quick switcher, notification, keyboard) reveals its folder.
+  React.useEffect(() => {
+    if (!selectedServer) return;
+    const folder = folders.find(f => f.serverIds.includes(selectedServer._id));
+    setOpenFolderId(folder?.id || null);
+  }, [selectedServer?._id, folders]);
+
+  const renderServer = (server: Server) => (
+          <div key={server._id} className={`server-item ${selectedServer?._id === server._id ? 'active' : ''}`}>
+            <div className="pill"><span /></div>
+            <motion.div
+              {...pressFeedback}
+              {...longPress}
+              className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''} ${longPress.className}`}
+              onClick={() => onServerSelect(server)}
+              onContextMenu={(e) => handleContextMenu(e, server)}
+              title={server.name}
+              onTouchStart={(e) => { pressTargetRef.current = server; longPress.onTouchStart(e); }}
+            >
+              <UserAvatar
+                user={{ username: server.name, avatar: server.icon }}
+                size={48 * interfaceScale}
+                className={`server-icon-avatar${mutedServerIds.has(String(server._id)) ? ' is-muted' : ''}`}
+              />
+              {/* У заглушённого сервера индикатор не показываем — в этом и смысл
+                  заглушения. Сам сервер остаётся на месте, только тусклее. */}
+              {!mutedServerIds.has(String(server._id)) && server.channels.some(c => unreadCounts[c._id] > 0) && (
+                <div className="unread-badge"></div>
+              )}
+            </motion.div>
+          </div>
+  );
+
   return (
     <div className="sidebar panel-hero">
       <div className="panel-hero-bg" aria-hidden="true">
@@ -179,31 +222,31 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="sidebar-divider" />
         
-        {servers.map((server) => (
-          <div key={server._id} className={`server-item ${selectedServer?._id === server._id ? 'active' : ''}`}>
-            <div className="pill"><span /></div>
-            <motion.div
-              {...pressFeedback}
-              {...longPress}
-              className={`server-icon ${selectedServer?._id === server._id ? 'active' : ''} ${longPress.className}`}
-              onClick={() => onServerSelect(server)}
-              onContextMenu={(e) => handleContextMenu(e, server)}
-              title={server.name}
-              onTouchStart={(e) => { pressTargetRef.current = server; longPress.onTouchStart(e); }}
-            >
-              <UserAvatar
-                user={{ username: server.name, avatar: server.icon }}
-                size={48 * interfaceScale}
-                className={`server-icon-avatar${mutedServerIds.has(String(server._id)) ? ' is-muted' : ''}`}
-              />
-              {/* У заглушённого сервера индикатор не показываем — в этом и смысл
-                  заглушения. Сам сервер остаётся на месте, только тусклее. */}
-              {!mutedServerIds.has(String(server._id)) && server.channels.some(c => unreadCounts[c._id] > 0) && (
-                <div className="unread-badge"></div>
-              )}
-            </motion.div>
-          </div>
-        ))}
+        <div className="server-item">
+          <button className="server-folder__button" onClick={() => setFolderManager({})} title="Папки серверов" aria-label="Папки серверов"><FolderPlus size={24 * interfaceScale} /></button>
+        </div>
+        {isolated && <button className="server-folder__button server-folder__all" onClick={() => setOpenFolderId(null)} title="Все серверы" aria-label="Все серверы"><ArrowLeft size={24 * interfaceScale} /></button>}
+        {folders.filter(folder => !isolated || folder.id === openFolderId).map(folder => {
+          const members = servers.filter(server => folder.serverIds.includes(server._id));
+          const expanded = folder.id === openFolderId;
+          const hasUnread = members.some(server => !mutedServerIds.has(String(server._id)) && server.channels.some(channel => unreadCounts[channel._id] > 0));
+          return <div className="server-folder" key={folder.id}>
+            <button className={`server-folder__button ${members.some(server => server._id === selectedServer?._id) ? 'has-selected' : ''}`}
+              aria-label={`${folder.name}, серверов: ${members.length}`} aria-expanded={expanded}
+              title={`${folder.name} · ${members.length}${folder.isolated ? ' · изоляция' : ''}`}
+              onClick={() => setOpenFolderId(expanded ? null : folder.id)}
+              onContextMenu={event => { event.preventDefault(); setFolderManager({ folderId: folder.id }); }}>
+              {expanded ? <FolderOpen size={26 * interfaceScale} /> : <Folder size={26 * interfaceScale} />}
+              <span className="server-folder__count">{members.length}</span>
+              {hasUnread && <span className="unread-badge" />}
+            </button>
+            {expanded && <div className="server-folder__children" role="group" aria-label={folder.name}>
+              {members.map(renderServer)}
+              {!members.length && <span className="server-folder__empty">Папка пуста</span>}
+            </div>}
+          </div>;
+        })}
+        {!isolated && servers.filter(server => !groupedIds.has(server._id)).map(renderServer)}
       </div>
 
       {!isMobile && (
@@ -261,9 +304,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
           onLeave={onServerLeave}
+          onOrganize={() => { setFolderManager({ serverId: contextMenu.server._id }); setContextMenu(null); }}
         />
       )}
 
+      {folderManager && <ServerFolderManager key={user._id} folders={folders} servers={servers} initialServerId={folderManager.serverId} initialFolderId={folderManager.folderId} synced={synced} onClose={() => setFolderManager(null)} onSave={saveFolders} />}
       <ProblemReportModal isOpen={showReport} onClose={() => setShowReport(false)} />
     </div>
   );

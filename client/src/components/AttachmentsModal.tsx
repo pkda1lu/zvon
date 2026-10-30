@@ -143,8 +143,8 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
     <AnimatedOverlay
       isOpen={isOpen}
       onClose={onClose}
-      overlayClassName="attachments-modal-overlay"
-      contentClassName="attachments-modal-container glass-panel-base"
+      overlayClassName="attachments-modal-overlay zv-dialog-overlay"
+      contentClassName="attachments-modal-container glass-panel-base zv-dialog-surface"
     >
       <div style={{ display: 'contents' }}>
         <div className="attachments-sidebar">

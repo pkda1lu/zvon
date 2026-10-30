@@ -79,8 +79,8 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
     if (!isOpen || !server || loading || !user) return null;
 
     return (
-        <motion.div className="user-server-profile-overlay" onClick={onClose} {...backdropMotion}>
-            <motion.div className="user-server-profile-modal" onClick={e => e.stopPropagation()} {...popMotion}>
+        <motion.div className="user-server-profile-overlay zv-dialog-overlay" onClick={onClose} {...backdropMotion}>
+            <motion.div className="user-server-profile-modal zv-dialog-surface" onClick={e => e.stopPropagation()} {...popMotion}>
                 <div className="modal-header"><h3>Профиль сервера</h3><CloseButton className="close-btn" onClick={onClose} /></div>
                 <div className="user-server-profile-content">
                     <div className="profile-preview-section">

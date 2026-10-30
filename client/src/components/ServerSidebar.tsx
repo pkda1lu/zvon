@@ -354,14 +354,16 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             <VoiceChannelTimer startedAt={voiceStartTimesRef.current[channel._id]} />
           )}
 
+          {(channel.type === 'text' || channel.type === 'room') && unreadCounts[channel._id] > 0 && (
+            <div className="channel-unread-badge" aria-label={`Непрочитанных сообщений: ${unreadCounts[channel._id]}`}>
+              {unreadCounts[channel._id]}
+            </div>
+          )}
           <div className="channel-actions">
             {draftIds.has(channel._id) && selectedChannel?._id !== channel._id && (
               <span className="draft-marker" title="Есть неотправленный текст" aria-label="Черновик">
                 <EditIcon size={13} color="currentColor" />
               </span>
-            )}
-            {(channel.type === 'text' || channel.type === 'room') && unreadCounts[channel._id] > 0 && (
-              <div className="channel-unread-badge" style={{ marginRight: '4px' }}>{unreadCounts[channel._id]}</div>
             )}
             {canEditThisChannel && (
               <button className="channel-settings-icon" onClick={(e) => { e.stopPropagation(); setEditingChannel(channel); }}>

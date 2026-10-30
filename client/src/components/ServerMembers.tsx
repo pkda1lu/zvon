@@ -106,7 +106,7 @@ const MemberItem: React.FC<{
     serverRoles: any[];
     isLive: boolean;
     serverTag: any;
-    primaryActivity: { text: string; icon: string | null } | null;
+    primaryActivity: { text: string; icon: string | null; details?: string } | null;
     onUserClick: (userId: string, event?: React.MouseEvent) => void;
     onContextMenu: (e: React.MouseEvent, user: User) => void;
 }> = ({ member, offline, serverRoles, isLive, serverTag, primaryActivity, onUserClick, onContextMenu }) => {
@@ -133,11 +133,14 @@ const MemberItem: React.FC<{
                 <div className={`status-indicator ${offline || member.user.status === 'offline' ? 'offline' : (member.user.activity?.type === 'streaming' ? 'streaming' : member.user.status)}`}></div>
             </>}
             extra={!offline && primaryActivity ? (
-                <div className="member-activity">
+                <div className="member-activity" title={[primaryActivity.text, primaryActivity.details].filter(Boolean).join(' · ')}>
                     {primaryActivity.icon && (
                         <img src={getFullUrl(primaryActivity.icon)!} alt="" className="member-activity-icon" />
                     )}
-                    <span className="activity-text">{primaryActivity.text}</span>
+                    <div className="member-activity-lines">
+                        <span className="activity-text">{primaryActivity.text}</span>
+                        {primaryActivity.details && <span className="activity-text">{primaryActivity.details}</span>}
+                    </div>
                 </div>
             ) : undefined}
         >
@@ -200,15 +203,16 @@ const ServerMembers: React.FC<ServerMembersProps> = ({ server, onUserClick, onBa
 
     // Единственная "свежая" строка события пользователя: активность (с известным временем начала)
     // или войс-канал (без метки времени на клиенте — считается менее свежим, чем активная активность).
-    const getPrimaryActivity = (u: User): { text:string; icon: string | null } | null => {
+    const getPrimaryActivity = (u: User): { text:string; icon: string | null; details?: string } | null => {
         if (!showActivity) return null;
 
-        const candidates: { text:string; icon: string | null; timestamp: number }[] = [];
+        const candidates: { text:string; icon: string | null; timestamp: number; details?: string }[] = [];
 
         if (u.activity?.name) {
             const verb = ACTIVITY_VERBS[u.activity.type as string] || 'Играет в';
             candidates.push({
                 text: `${verb} ${u.activity.name}`,
+                details: [u.activity.state, u.activity.details].filter(Boolean).join(' · '),
                 icon: u.activity.assets?.largeImage || null,
                 timestamp: u.activity.timestamps?.start || 0
             });

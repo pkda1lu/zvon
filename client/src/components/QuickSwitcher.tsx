@@ -211,9 +211,9 @@ const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   };
 
   return createPortal(
-    <div className="qs-overlay" onMouseDown={close}>
+    <div className="qs-overlay zv-dialog-overlay" onMouseDown={close}>
       <div
-        className="qs-dialog"
+        className="qs-dialog zv-dialog-surface"
         role="dialog"
         aria-modal="true"
         aria-label="Быстрый переход"

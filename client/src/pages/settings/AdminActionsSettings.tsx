@@ -38,6 +38,7 @@ const ACTION_MAP: Record<string, string> = {
     'MODERATION_UNBAN': 'Разбан модератором',
     'MODERATION_NOTIFY': 'Предупреждение модератора',
     'MODERATION_ROLE_ASSIGN': 'Назначение системной роли',
+    'AWARD_MANAGE': 'Управление наградами',
     'PROBLEM_REPORT_RESOLVE': 'Решение по обращению',
     'MARKETPLACE_APPROVE': 'Витрина: одобрено',
     'MARKETPLACE_REJECT': 'Витрина: отклонено',

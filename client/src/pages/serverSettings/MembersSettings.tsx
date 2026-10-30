@@ -256,8 +256,8 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
 
             <AnimatePresence>
             {muteModalFor && (
-                <motion.div className="settings-modal-overlay" key="mute-modal" {...backdropMotion}>
-                    <motion.div className="settings-modal-glass" {...popMotion}>
+                <motion.div className="settings-modal-overlay zv-dialog-overlay" key="mute-modal" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass zv-dialog-surface" {...popMotion}>
                         <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Замутить {muteModalFor.username}?</h3>
                         <p style={{ fontSize: '13px', marginBottom: '8px', color: 'var(--text-dim)' }}>Срок</p>
                         <ZvSelect
@@ -284,8 +284,8 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
 
             <AnimatePresence>
             {banModalFor && (
-                <motion.div className="settings-modal-overlay" key="ban-modal" {...backdropMotion}>
-                    <motion.div className="settings-modal-glass" {...popMotion}>
+                <motion.div className="settings-modal-overlay zv-dialog-overlay" key="ban-modal" {...backdropMotion}>
+                    <motion.div className="settings-modal-glass zv-dialog-surface" {...popMotion}>
                         <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Забанить {banModalFor.username}?</h3>
                         <p style={{ fontSize: '13px', marginBottom: '8px', color: 'var(--text-dim)' }}>Причина (необязательно)</p>
                         <input className="settings-input" style={{ marginBottom: '16px' }} value={banReason} onChange={(e) => setBanReason(e.target.value)} maxLength={500} />
@@ -306,8 +306,8 @@ const MembersSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
             </AnimatePresence>
 
             {transferFor && (
-                <div className="settings-modal-overlay">
-                    <div className="settings-modal-glass">
+                <div className="settings-modal-overlay zv-dialog-overlay">
+                    <div className="settings-modal-glass zv-dialog-surface">
                         <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Передать сервер?</h3>
                         <p className="settings-description" style={{ marginBottom: '20px' }}>
                             Вы потеряете права владельца сервера «{server.name}». Это действие нельзя отменить самостоятельно.

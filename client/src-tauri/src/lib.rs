@@ -3,6 +3,7 @@
 //! что раньше делал Node, — здесь.
 
 mod activity;
+mod gsi;
 mod audio;
 mod capture;
 mod ipc;
@@ -178,6 +179,8 @@ pub fn run() {
             }
 
             tauri::async_runtime::spawn(power::run());
+            gsi::initialize(&handle);
+            tauri::async_runtime::spawn(gsi::run(handle.clone()));
             tauri::async_runtime::spawn(activity::run(handle));
             Ok(())
         })

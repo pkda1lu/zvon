@@ -14,8 +14,8 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, mes
     <AnimatedOverlay
       isOpen={isOpen}
       onClose={onClose}
-      overlayClassName="modal-overlay success-overlay"
-      contentClassName="glass-panel-base success-modal-content"
+      overlayClassName="modal-overlay success-overlay zv-dialog-overlay"
+      contentClassName="glass-panel-base success-modal-content zv-dialog-surface"
       contentStyle={{ zIndex: 6000 }}
     >
       <div className="success-checkmark-wrapper">

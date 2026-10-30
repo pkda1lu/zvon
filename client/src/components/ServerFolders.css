@@ -1,0 +1,28 @@
+.server-folder { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.server-folder__button { position: relative; display: flex; align-items: center; justify-content: center; width: calc(54px * var(--interface-scale, 1)); height: calc(54px * var(--interface-scale, 1)); border: 1px solid var(--glass-border); border-radius: 18px; background: rgba(255,255,255,.04); color: var(--text-dim); cursor: pointer; flex-shrink: 0; }
+.server-folder__button:hover, .server-folder__button[aria-expanded="true"] { background: rgba(255,255,255,.09); color: var(--primary-neon); border-color: color-mix(in srgb, var(--primary-neon) 45%, transparent); }
+.server-folder__button.has-selected { color: var(--primary-neon); }
+.server-folder__count { position: absolute; right: 3px; bottom: 3px; background: var(--bg-dark); border-radius: 6px; padding: 2px 4px; font-size: 10px; line-height: 1.2; color: var(--text-dim); }
+.server-folder__children { width: calc(100% - 8px); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0; border-radius: 18px; background: rgba(255,255,255,.035); }
+.server-folder__empty { font-size: 10px; color: var(--text-dim); text-align: center; padding: 6px; }
+.server-folder__all { border-style: dashed; }
+.server-folder-manager { display: flex; flex-direction: column; gap: 18px; }
+.server-folder-manager__tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.server-folder-manager__tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; max-width: 100%; overflow-wrap: anywhere; border: 1px solid var(--glass-border); border-radius: 10px; background: transparent; color: var(--text-dim); cursor: pointer; font: inherit; font-size: 13px; }
+.server-folder-manager__tabs button.selected { background: rgba(255,255,255,.08); color: var(--text-main); border-color: var(--primary-neon); }
+.server-folder-manager__tabs button span { opacity: .6; }
+.server-folder-manager__editor { display: flex; flex-direction: column; gap: 16px; padding: 0; margin: 0; min-width: 0; border: 0; }
+.server-folder-manager__name { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-dim); }
+.server-folder-manager__name input { padding: 12px; border: 1px solid var(--glass-border); border-radius: 10px; background: rgba(255,255,255,.04); color: var(--text-main); font: inherit; }
+.server-folder-manager__name input:focus { border-color: var(--primary-neon); }
+.server-folder-manager__isolation { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; color: var(--text-main); font-size: 14px; }
+.server-folder-manager small { display: block; margin-top: 4px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+.server-folder-manager input[type="checkbox"] { accent-color: var(--primary-neon); width: 17px; height: 17px; flex-shrink: 0; }
+.server-folder-manager__servers { display: flex; flex-direction: column; max-height: 280px; overflow: auto; gap: 4px; }
+.server-folder-manager__servers label { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; cursor: pointer; color: var(--text-main); font-size: 14px; overflow-wrap: anywhere; }
+.server-folder-manager__servers label:hover { background: rgba(255,255,255,.04); }
+.server-folder-manager__hint { color: var(--text-dim); font-size: 12px; margin: 0; }
+.server-folder-manager__delete { display: inline-flex; align-self: flex-start; align-items: center; gap: 8px; border: 0; background: transparent; padding: 6px 0; color: var(--danger); font: inherit; font-size: 13px; cursor: pointer; }
+.server-folder-manager__empty { display: flex; flex-direction: column; align-items: center; padding: 24px 0; color: var(--text-dim); text-align: center; }
+.server-folder-manager__empty > .zv-btn { margin-top: 14px; }
+.server-folder-manager__error { color: var(--danger); font-size: 13px; }
