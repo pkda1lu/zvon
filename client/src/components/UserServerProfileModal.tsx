@@ -1,3 +1,4 @@
+import CloseButton from './CloseButton';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { backdropMotion, popMotion } from '../animations/transitions';
@@ -6,7 +7,7 @@ import { Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
-import { CloseIcon, PlusIcon } from './Icons';
+import { PlusIcon } from './Icons';
 import UserAvatar from './UserAvatar';
 import './UserServerProfileModal.css';
 import { uploadFiles } from '../utils/transfers';
@@ -80,7 +81,7 @@ const UserServerProfileModal: React.FC<UserServerProfileModalProps> = ({ isOpen,
     return (
         <motion.div className="user-server-profile-overlay" onClick={onClose} {...backdropMotion}>
             <motion.div className="user-server-profile-modal" onClick={e => e.stopPropagation()} {...popMotion}>
-                <div className="modal-header"><h3>Профиль сервера</h3><button className="close-btn" onClick={onClose}><CloseIcon /></button></div>
+                <div className="modal-header"><h3>Профиль сервера</h3><CloseButton className="close-btn" onClick={onClose} /></div>
                 <div className="user-server-profile-content">
                     <div className="profile-preview-section">
                         <div className="section-label">ПРЕДПРОСМОТР</div>

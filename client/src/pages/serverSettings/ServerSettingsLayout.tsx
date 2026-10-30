@@ -1,3 +1,4 @@
+import CloseButton from '../../components/CloseButton';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +8,7 @@ import { Server } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { Permissions, hasPermission, computePermissions } from '../../utils/permissions';
 import {
-    CloseIcon, UsersIcon, ShieldIcon, GamepadIcon, GlobeIcon, DocumentIcon,
+    UsersIcon, ShieldIcon, GamepadIcon, GlobeIcon, DocumentIcon,
     LockIcon, EyeIcon, LayoutGridIcon, SmileIcon, MedalIcon, BarChartIcon, TrashIcon
 } from '../../components/Icons';
 import '../settings/Settings.css';
@@ -230,9 +231,7 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                 </div>
 
                 <div className="settings-content-wrapper">
-                    <button className="settings-close-btn" onClick={onClose} title="Закрыть">
-                        <CloseIcon size={20} />
-                    </button>
+                    <CloseButton className="settings-close-btn" onClick={onClose} />
                     <React.Suspense fallback={<SettingsTabFallback />}>
                         <motion.div
                             key={activeTab}

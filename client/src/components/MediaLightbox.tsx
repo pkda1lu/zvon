@@ -1,9 +1,10 @@
+import CloseButton from './CloseButton';
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import CustomVideoPlayer from './CustomVideoPlayer';
 import RoundVideoPlayer from './RoundVideoPlayer';
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon } from './Icons';
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from './Icons';
 import { getFullUrl } from '../utils/avatar';
 import { getMediaKind, isRoundVideo } from '../utils/mediaKind';
 import { downloadFile, downloadRoundVideo } from '../utils/transfers';
@@ -138,9 +139,7 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ isOpen, onClose, media, i
             </motion.div>
 
             {/* Controls */}
-            <button className="lightbox-close-btn" onClick={onClose}>
-                <CloseIcon size={24} />
-            </button>
+            <CloseButton className="lightbox-close-btn" onClick={onClose} />
 
             {media.length > 1 && (
                 <>

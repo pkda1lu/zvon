@@ -1,3 +1,4 @@
+import CloseButton from '../../components/CloseButton';
 import React, { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { backdropMotion, popMotion } from '../../animations/transitions';
@@ -12,7 +13,7 @@ import {
     BRANDS
 } from '../../utils/branding';
 import { useAppearance } from '../../contexts/AppearanceContext';
-import { CloseIcon, PlusIcon, GlobeIcon } from '../../components/Icons';
+import { PlusIcon, GlobeIcon } from '../../components/Icons';
 import './AdminBrandingSettings.css';
 import { uploadFiles } from '../../utils/transfers';
 
@@ -717,13 +718,7 @@ server {
                             <h3 className="branding-modal-title">
                                 {isCreating ? 'Новый бренд' : `Настройка: ${editingBrand.name}`}
                             </h3>
-                            <button 
-                                type="button" 
-                                onClick={closeModal} 
-                                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}
-                            >
-                                <CloseIcon size={20} />
-                            </button>
+                            <CloseButton onClick={closeModal} />
                         </div>
 
                         <div className="branding-modal-body">
@@ -1054,13 +1049,7 @@ server {
                                         : 'Генератор настроек для реверс-прокси Nginx и привязки доменов.'}
                                 </div>
                             </div>
-                            <button 
-                                type="button" 
-                                onClick={() => setIsNginxModalOpen(false)} 
-                                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}
-                            >
-                                <CloseIcon size={20} />
-                            </button>
+                            <CloseButton onClick={() => setIsNginxModalOpen(false)} />
                         </div>
 
                         <div className="branding-modal-body">

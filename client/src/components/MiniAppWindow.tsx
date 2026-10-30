@@ -1,8 +1,9 @@
+import CloseButton from './CloseButton';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { MiniApp } from '../types';
-import { CloseIcon, MaximizeIcon, LayoutGridIcon, MonitorIcon } from './Icons';
+import { MaximizeIcon, LayoutGridIcon, MonitorIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useVoice } from '../contexts/VoiceContext';
 import { useSocket } from '../contexts/SocketContext';
@@ -708,9 +709,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                             </svg>
                         </button>
                     )}
-                    <button className="header-btn" onClick={() => onClose(app._id)} onMouseDown={e => e.stopPropagation()}>
-                        <CloseIcon size={18} />
-                    </button>
+                    <CloseButton className="header-btn" onClick={() => onClose(app._id)} onMouseDown={e => e.stopPropagation()} />
                 </div>
             </div>
             <div className="miniapp-content" style={{ position: 'relative' }}>

@@ -1,10 +1,10 @@
+import CloseButton from '../../components/CloseButton';
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { heavyModalVariants, heavyModalTransition, tabSwapVariants, tabSwapTransition, backdropMotion, popMotion } from '../../animations/transitions';
 import { useFreezeAppBackground } from '../../animations/useFreezeAppBackground';
 import './Settings.css';
 import { 
-    CloseIcon, 
     ShieldIcon, 
     PaletteIcon, 
     ChatIcon, 
@@ -390,9 +390,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
 
             <div className="settings-content-wrapper">
                 {!isMobile && (
-                    <button className="settings-close-btn" onClick={handleClose} title="Закрыть">
-                        <CloseIcon size={20} />
-                    </button>
+                    <CloseButton className="settings-close-btn" onClick={handleClose} />
                 )}
                 <React.Suspense fallback={<SettingsTabFallback />}>
                     <motion.div

@@ -1,3 +1,4 @@
+import CloseButton from './CloseButton';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { tabSwapVariants, tabSwapTransition } from '../animations/transitions';
@@ -6,7 +7,7 @@ import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
 import UserBadges, { resolveServerTag } from './UserBadges';
-import { MonitorIcon, CloseIcon } from './Icons';
+import { MonitorIcon, } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { formatClockTime } from '../utils/time';
@@ -398,11 +399,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
             </div>
 
             {onClose && (
-                <div className="profile-close-wrapper" onClick={onClose}>
-                    <div className="profile-close-circle">
-                        <CloseIcon />
-                    </div>
-                </div>
+                <CloseButton className="profile-close-wrapper" onClick={onClose} />
             )}
 
             <div className="full-profile-left">

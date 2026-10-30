@@ -1,3 +1,4 @@
+import CloseButton from './CloseButton';
 import React, { useState, useCallback, useMemo } from 'react';
 import { getFullUrl } from '../utils/avatar';
 import { downloadFile } from '../utils/transfers';
@@ -1080,14 +1081,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({
             className="md-image-lightbox__content"
             onClick={e => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="md-image-lightbox__close"
-              onClick={() => setLightboxImage(null)}
-              aria-label="Закрыть"
-            >
-              ×
-            </button>
+            <CloseButton className="md-image-lightbox__close" onClick={() => setLightboxImage(null)} />
             <img
               src={lightboxImage.url}
               alt={lightboxImage.alt || ''}

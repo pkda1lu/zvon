@@ -1,3 +1,4 @@
+import CloseButton from '../../components/CloseButton';
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { backdropMotion, popMotion } from '../../animations/transitions';
@@ -9,7 +10,6 @@ import {
     EditIcon, 
     ArrowUpIcon, 
     ArrowDownIcon, 
-    CloseIcon, 
     RoadmapIcon, 
     LockIcon,
     CheckIcon
@@ -376,9 +376,7 @@ const AppRoadmapSettings: React.FC = () => {
                             <h3 className="roadmap-modal-title">
                                 {editingItem ? 'Редактировать идею' : 'Новая идея'}
                             </h3>
-                            <button className="settings-close-btn" onClick={closeModal} title="Закрыть">
-                                <CloseIcon size={18} />
-                            </button>
+                            <CloseButton className="settings-close-btn" onClick={closeModal} />
                         </div>
 
                         {modalError && (

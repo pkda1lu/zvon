@@ -1,3 +1,4 @@
+import CloseButton from './CloseButton';
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import AnimatedOverlay from '../animations/AnimatedOverlay';
@@ -9,7 +10,6 @@ import {
   SpeakerIcon, 
   VideoIcon, 
   ImageIcon,
-  CloseIcon,
   EllipsisIcon
 } from './Icons';
 import MediaLightbox from './MediaLightbox';
@@ -184,10 +184,7 @@ const AttachmentsModal: React.FC<AttachmentsModalProps> = ({ isOpen, onClose, ch
                  <h2>{activeTab === 'all' ? 'Все вложения' : activeTab === 'images' ? 'Фотографии' : activeTab === 'videos' ? 'Видеофайлы' : activeTab === 'audio' ? 'Аудиозаписи' : 'Документы'}</h2>
                  <p>{filteredAttachments.length} объектов найдено</p>
               </div>
-              <div className="close-x-btn" onClick={onClose}>
-                <div className="close-circle"><CloseIcon size={20} /></div>
-                <span className="close-text">ESC</span>
-              </div>
+              <CloseButton className="close-x-btn" onClick={onClose} />
            </div>
 
            <div className="attachments-scroll-area">

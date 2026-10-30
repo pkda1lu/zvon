@@ -1,3 +1,4 @@
+import CloseButton from './CloseButton';
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -115,14 +116,12 @@ const Modal: React.FC<ModalProps> = ({
                   {subtitle && <div className="zv-modal__subtitle">{subtitle}</div>}
                 </div>
                 {showCloseButton && (
-                  <button
+                  <CloseButton
                     type="button"
                     className="zv-modal__close"
                     onClick={onClose}
                     aria-label="Закрыть"
-                  >
-                    ×
-                  </button>
+                   />
                 )}
               </header>
             )}

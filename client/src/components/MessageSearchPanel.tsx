@@ -1,3 +1,4 @@
+import CloseButton from './CloseButton';
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -148,9 +149,7 @@ const MessageSearchPanel: React.FC<MessageSearchPanelProps> = ({ open, onClose, 
                                 </button>
                             )}
                         </div>
-                        <button className="msg-search-close" onClick={onClose} title="Закрыть">
-                            <CloseIcon size={18} />
-                        </button>
+                        <CloseButton className="msg-search-close" onClick={onClose} />
                     </div>
 
                     <div className="msg-search-meta">

@@ -1,9 +1,10 @@
+import CloseButton from './CloseButton';
 import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { motion } from 'framer-motion';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
-import { CloseIcon } from './Icons';
+import { } from './Icons';
 import {
   overlayVariants,
   overlayTransition,
@@ -185,9 +186,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ image, cropShape = 'round',
                         <h3>{title}</h3>
                         {isGif && <span className="cropper-gif-badge">GIF</span>}
                     </div>
-                    <button className="cropper-close" onClick={onCancel} disabled={processing}>
-                        <CloseIcon size={18} />
-                    </button>
+                    <CloseButton className="cropper-close" onClick={onCancel} disabled={processing} />
                 </div>
                 <div className="cropper-content">
                     <div className="cropper-wrapper">

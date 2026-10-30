@@ -44,7 +44,8 @@
 }
 
 .miniapp-header {
-    height: 40px;
+    min-height: 92px;
+    flex-shrink: 0;
     background: rgba(255, 255, 255, 0.05);
     display: flex;
     align-items: center;
@@ -70,6 +71,7 @@
 
 .header-actions {
     display: flex;
+    align-items: center;
     gap: 4px;
 }
 

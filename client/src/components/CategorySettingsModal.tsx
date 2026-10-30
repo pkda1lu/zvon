@@ -1,10 +1,11 @@
+import CloseButton from './CloseButton';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import AnimatedOverlay from '../animations/AnimatedOverlay';
 import { Channel, Server, Role, PermissionOverwrite } from '../types';
 import { Permissions } from '../utils/permissions';
 import { useDialog } from '../contexts/DialogContext';
-import { CloseIcon, TrashIcon, PlusIcon, LayoutGridIcon, ShieldIcon } from './Icons';
+import { TrashIcon, PlusIcon, LayoutGridIcon, ShieldIcon } from './Icons';
 import './ChannelSettingsModal.css';
 import UserAvatar from "./UserAvatar";
 import { SettingsToggle } from '../pages/settings/SettingsUI';
@@ -226,9 +227,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({
                 </div>
 
                 <div className="settings-content-wrapper">
-                    <button className="settings-close-btn" onClick={handleCloseModal} title="Закрыть">
-                        <CloseIcon size={20} />
-                    </button>
+                    <CloseButton className="settings-close-btn" onClick={handleCloseModal} />
 
                         <div className={`settings-content-inner ${activeTab === 'permissions' ? 'full-width-layout' : ''}`}>
                             {activeTab === 'overview' && (

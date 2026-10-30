@@ -1,3 +1,4 @@
+import CloseButton from './CloseButton';
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import ReactDOM from 'react-dom';
 import { motion } from 'framer-motion';
@@ -120,7 +121,7 @@ const ScreenSourceSelector: React.FC<ScreenSourceSelectorProps> = ({ onSelect, o
             >
                 <div className="screen-source-selector-header">
                     <h2>Выберите, что транслировать</h2>
-                    <button className="close-button" onClick={onClose}>&times;</button>
+                    <CloseButton className="close-button" onClick={onClose} />
                 </div>
 
                 <div className="screen-source-tabs">

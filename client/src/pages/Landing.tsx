@@ -1,3 +1,4 @@
+import CloseButton from '../components/CloseButton';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getBrand } from '../utils/branding';
@@ -269,7 +270,7 @@ const Landing: React.FC = () => {
                 {videoOpen && (
                     <motion.div className="video-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVideoOpen(false)}>
                         <motion.div className="video-modal" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }} onClick={(e) => e.stopPropagation()}>
-                            <button className="video-modal-close" onClick={() => setVideoOpen(false)} aria-label="Закрыть">✕</button>
+                            <CloseButton className="video-modal-close" onClick={() => setVideoOpen(false)} />
                             <div className="video-modal-player"><ScreenshotReel slides={SHOTS} /></div>
                         </motion.div>
                     </motion.div>

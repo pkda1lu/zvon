@@ -774,13 +774,6 @@ const Main: React.FC = () => {
           else if (showUserServerProfile) setShowUserServerProfile(false);
           else if (inviteServerId) setInviteServerId(null);
           else if (forwardMessage) setForwardMessage(null);
-          else {
-              // @ts-ignore
-              if (window.electron && window.electron.ipc) {
-                  // @ts-ignore
-                  window.electron.ipc.send('close-window');
-              }
-          }
           break;
         }
         case 'minimize-to-tray': {
