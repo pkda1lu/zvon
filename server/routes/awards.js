@@ -83,7 +83,7 @@ router.post('/', run(async (req, res) => {
   const { name, description = '', model, color, rule, date, appearance } = req.body;
   const cutoff = rule === 'manual' ? null : new Date(`${date}T00:00:00+03:00`);
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || typeof description !== 'string' || description.length > 500 ||
-      !['trophy', 'medal', 'crystal', 'rose', 'star', 'bell'].includes(model) || !/^#[0-9a-f]{6}$/i.test(color || '') ||
+      !['trophy', 'medal', 'crystal', 'rose', 'star', 'bell', 'bug'].includes(model) || !/^#[0-9a-f]{6}$/i.test(color || '') ||
       !['manual', 'registered_before', 'visited_before'].includes(rule) || !validAppearance(appearance) ||
       (rule !== 'manual' && (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Number.isFinite(+cutoff) || new Date(+cutoff + 3 * 3600000).toISOString().slice(0, 10) !== date))) {
     return res.status(400).json({ message: 'Проверьте название, модель и дату условия' });

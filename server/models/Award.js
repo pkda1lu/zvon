@@ -3,7 +3,7 @@ const { OPTIONS } = require('../utils/awardCollectibles');
 const schema = new mongoose.Schema({
   name: { type: String, required: true, maxlength: 80 },
   description: { type: String, default: '', maxlength: 500 },
-  model: { type: String, enum: ['trophy', 'medal', 'crystal', 'rose', 'star', 'bell'], required: true },
+  model: { type: String, enum: ['trophy', 'medal', 'crystal', 'rose', 'star', 'bell', 'bug'], required: true },
   color: { type: String, default: '#ffc65c' },
   appearance: {
     palette: { type: String, enum: ['random', ...OPTIONS.palette], default: 'random' },

@@ -3,7 +3,7 @@ import { buildAward, createAwardEnvironment } from './awardGeometry';
 import { CollectibleTraits } from '../data/awardCollectibles';
 import { awardRenderSize } from './awardRenderSize';
 
-export type AwardShape = 'trophy' | 'medal' | 'crystal' | 'rose' | 'star' | 'bell';
+export type AwardShape = 'trophy' | 'medal' | 'crystal' | 'rose' | 'star' | 'bell' | 'bug';
 // A single GPU context serves all cards. Idle cards retain a canvas snapshot.
 let studio: { renderer: any; environment: any; users: number } | null = null;
 const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: CollectibleTraits['palette']; finish?: CollectibleTraits['finish'] }> = ({ model, color, palette, finish }) => {
@@ -88,7 +88,7 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
                 const weight = reducedMotion.matches ? 0 : idleWeight;
                 group.rotation.set(pitch + Math.sin(elapsed * 0.65) * 0.025 * weight, yaw + Math.sin(elapsed * 0.4) * 0.14 * weight, Math.sin(elapsed * 0.5) * 0.014 * weight);
                 group.position.y = restingY + Math.sin(elapsed * 0.8) * 0.025 * weight;
-                for (const part of movingParts) part.rotation.z = Math.sin(elapsed * 1.4) * 0.07 * weight;
+                for (const part of movingParts) part.rotation.z = Math.sin(elapsed * 1.4 + (part.userData.awardPhase || 0)) * (part.userData.awardSwingAmplitude ?? 0.07) * weight;
                 renderer.render(scene, camera);
                 context.clearRect(0, 0, canvas.width, canvas.height);
                 context.drawImage(renderer.domElement, 0, renderer.domElement.height - size.height, size.width, size.height, 0, 0, size.width, size.height);
@@ -167,7 +167,7 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
         return () => { disposed = true; cleanup(); };
     }, [model, color, palette, finish]);
     return <div ref={host} className="award-model" style={{ '--award-color': color } as React.CSSProperties}>
-        {failed && <span role="img" aria-label="Награда" style={{ color, fontSize: 64 }}>{{ trophy: '🏆', medal: '🏅', crystal: '💎', rose: '🌹', star: '⭐', bell: '🔔' }[model]}</span>}
+        {failed && <span role="img" aria-label="Награда" style={{ color, fontSize: 64 }}>{{ trophy: '🏆', medal: '🏅', crystal: '💎', rose: '🌹', star: '⭐', bell: '🔔', bug: '🪲' }[model]}</span>}
     </div>;
 };
 export default AwardModel;

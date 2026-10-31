@@ -35,7 +35,7 @@ test('medal uses microstructure maps and sufficiently sampled bevels', () => {
   assert.ok(mapped >= 4); assert.ok(bevelled >= 4);
 });
 
-for (const model of ['trophy', 'medal', 'crystal', 'rose', 'star', 'bell']) {
+for (const model of ['trophy', 'medal', 'crystal', 'rose', 'star', 'bell', 'bug']) {
   test(`${model} has finite renderable geometry and fits the shared camera`, () => {
     const root = buildAward(THREE, model, '#8b8dff', 'rose', 'polished');
     root.updateMatrixWorld(true);
@@ -120,4 +120,19 @@ test('bell clapper keeps clearance above the foot while retaining its swing pivo
     clapper.parent.rotation.z = angle; bell.updateMatrixWorld(true);
     assert.ok(new THREE.Box3().setFromObject(clapper).min.y > new THREE.Box3().setFromObject(foot).max.y + 0.05);
   }
+});
+
+test('developer beetle has six articulated legs, two closed wings and opposed antennae', () => {
+  const bug = buildAward(THREE, 'bug', '#8b8dff', 'cobalt', 'polished');
+  const parts = name => { const result = []; bug.traverse(part => { if (part.name === name) result.push(part); }); return result; };
+  assert.equal(parts('bug-articulated-leg').length, 6);
+  const wings = parts('bug-sculpted-wing'); assert.equal(wings.length, 2);
+  for (const wing of wings) { assert.ok(wing.geometry.userData.closedSheet); assert.ok(wing.geometry.getAttribute('uv')); assert.ok(wing.material.normalMap); }
+  const antennae = parts('bug-antenna'); assert.equal(antennae.length, 2);
+  assert.ok(antennae.every(part => part.userData.awardSwing));
+  assert.equal(Math.abs(antennae[0].userData.awardPhase - antennae[1].userData.awardPhase), Math.PI);
+  assert.ok(bug.getObjectByName('bug-code-emblem'));
+  assert.ok(bug.getObjectByName('bug-zvon-crest'));
+  assert.equal(parts('bug-eye').length, 2);
+  assert.equal(parts('bug-ventral-rib').length, 4);
 });

@@ -223,6 +223,71 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
         orbit.name = 'star-orbit';
         orbit.rotation.set(0.6, -0.4, -0.3);
         for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.5; add(new T.SphereGeometry(0.033, 32, 20), mark, Math.cos(a) * 0.9, Math.sin(a) * 0.9, 0, orbit).name = 'star-orbit-inlay'; }
+    } else if (model === 'bug') {
+        base();
+        lathe([[0, -0.97], [0.2, -0.97], [0.16, -0.85], [0.09, -0.72], [0.08, -0.64], [0, -0.64]], graphite, true).name = 'bug-display-mount';
+        const abdomen = add(new T.SphereGeometry(1, 80, 56), black, 0, -0.08, 0.07);
+        abdomen.scale.set(0.49, 0.63, 0.22); abdomen.name = 'bug-abdomen';
+        const onShell = (x: number, y: number, lift = 0.012) => new T.Vector3(x, y, 0.15 + 0.26 * Math.sqrt(Math.max(0, 1 - (x / 0.48) ** 2 - ((y + 0.08) / 0.6) ** 2)) + lift);
+        for (const side of [-1, 1]) {
+            const shell = solidAwardSheet(T, 36, 48, (u, v) => {
+                const a = side < 0 ? 0.025 + (u + 1) / 2 * (Math.PI / 2 - 0.06) : Math.PI / 2 + 0.035 + (u + 1) / 2 * (Math.PI / 2 - 0.06);
+                const t = 0.035 + v * (Math.PI - 0.07);
+                return new T.Vector3(-0.48 * Math.cos(a) * Math.sin(t), -0.08 + 0.6 * Math.cos(t), 0.15 + 0.26 * Math.sin(a) * Math.sin(t));
+            }, 0.018);
+            add(shell, graphite).name = 'bug-sculpted-wing';
+            // Circuit traces follow the dome rather than floating on a flat decal.
+            for (const route of [ [[side * 0.24, 0.3], [side * 0.34, 0.19], [side * 0.34, -0.22]], [[side * 0.3, -0.34], [side * 0.28, -0.43], [side * 0.17, -0.49]] ]) {
+                const path = route.map(([x, y]) => onShell(x, y));
+                add(new T.TubeGeometry(new T.CatmullRomCurve3(path), 64, 0.006, 12, false), accent).name = 'bug-circuit-trace';
+                const end = path[path.length - 1];
+                add(new T.SphereGeometry(0.016, 24, 16), silver, end.x, end.y, end.z);
+            }
+        }
+        const thoraxRim = add(new T.SphereGeometry(1, 64, 48), silver, 0, 0.43, 0.09); thoraxRim.scale.set(0.4, 0.19, 0.23);
+        const thorax = add(new T.SphereGeometry(1, 64, 48), graphite, 0, 0.44, 0.115); thorax.scale.set(0.37, 0.16, 0.23);
+        logo(0.21, 0, 0.44, 0.35).name = 'bug-zvon-crest';
+        const head = add(new T.SphereGeometry(1, 72, 48), graphite, 0, 0.66, 0.085); head.scale.set(0.31, 0.205, 0.215); head.name = 'bug-head';
+        logo(0.12, 0, 0.66, -0.135).rotation.y = Math.PI;
+        for (let rib = 0; rib < 4; rib++) {
+            const y = -0.46 + rib * 0.18, width = 0.49 * Math.sqrt(1 - ((y + 0.08) / 0.63) ** 2) * 0.83;
+            const points = Array.from({ length: 21 }, (_, i) => {
+                const x = (i / 20 * 2 - 1) * width;
+                return new T.Vector3(x, y, 0.07 - 0.22 * Math.sqrt(Math.max(0, 1 - (x / 0.49) ** 2 - ((y + 0.08) / 0.63) ** 2)) - 0.008);
+            });
+            add(new T.TubeGeometry(new T.CatmullRomCurve3(points), 64, 0.006, 12, false), silver).name = 'bug-ventral-rib';
+        }
+        for (const side of [-1, 1]) {
+            const bezel = add(new T.SphereGeometry(0.064, 40, 28), silver, side * 0.165, 0.69, 0.268); bezel.scale.set(1, 0.85, 0.5);
+            const eye = add(new T.SphereGeometry(0.042, 40, 28), accent, side * 0.165, 0.69, 0.292); eye.scale.set(1, 0.85, 0.6); eye.name = 'bug-eye';
+            const antenna = new T.Group(); antenna.position.set(side * 0.17, 0.79, 0.085); root.add(antenna);
+            antenna.name = 'bug-antenna'; antenna.userData.awardSwing = true; antenna.userData.awardPhase = side < 0 ? 0 : Math.PI; antenna.userData.awardSwingAmplitude = 0.04;
+            add(new T.SphereGeometry(0.028, 32, 20), silver, 0, 0, 0, antenna);
+            add(new T.TubeGeometry(new T.CatmullRomCurve3([new T.Vector3(), new T.Vector3(side * 0.07, 0.16, 0.015), new T.Vector3(side * 0.2, 0.25, 0.04)]), 80, 0.013, 20, false), silver, 0, 0, 0, antenna);
+            add(new T.SphereGeometry(0.037, 40, 28), accent, side * 0.2, 0.25, 0.04, antenna);
+            for (let leg = 0; leg < 3; leg++) {
+                const limb = new T.Group(); limb.name = 'bug-articulated-leg'; root.add(limb);
+                const y = 0.28 - leg * 0.34;
+                const points = [new T.Vector3(side * 0.35, y, 0.085), new T.Vector3(side * 0.64, y + (leg === 0 ? 0.13 : 0.05), 0.015), new T.Vector3(side * 0.8, y - 0.12, 0.09), new T.Vector3(side * (leg === 1 ? 0.94 : 0.9), y - (leg === 0 ? 0.14 : 0.25), 0.16)];
+                points.forEach((point, i) => add(new T.SphereGeometry(i === 0 ? 0.052 : 0.034, 32, 24), i === 0 ? graphite : silver, point.x, point.y, point.z, limb));
+                for (let j = 0; j < points.length - 1; j++) {
+                    const a = points[j], b = points[j + 1], direction = b.clone().sub(a), radius = j === 0 ? 0.027 : 0.019;
+                    const segment = add(new T.CapsuleGeometry(radius, Math.max(0.001, direction.length() - radius * 2), 12, 32), j === 1 ? silver : graphite, 0, 0, 0, limb);
+                    segment.position.copy(a).add(b).multiplyScalar(0.5); segment.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), direction.normalize());
+                }
+            }
+        }
+        plate(0.52, 0.32, 0.065, 0.025, silver, 0, -0.065, 0.39).name = 'bug-processor-frame';
+        plate(0.46, 0.26, 0.05, 0.018, black, 0, -0.065, 0.438);
+        const code = new T.Group(); code.name = 'bug-code-emblem'; root.add(code);
+        for (const points of [ [[-0.105, 0.07], [-0.17, 0], [-0.105, -0.07]], [[-0.028, -0.085], [0.028, 0.085]], [[0.105, 0.07], [0.17, 0], [0.105, -0.07]] ]) {
+            const path = points.map(([x, y]) => new T.Vector3(x, y - 0.065, 0.49));
+            add(new T.TubeGeometry(new T.CatmullRomCurve3(path), 48, 0.01, 16, false), mark, 0, 0, 0, code);
+            for (const p of [path[0], path[path.length - 1]]) add(new T.SphereGeometry(0.01, 20, 16), mark, p.x, p.y, p.z, code);
+        }
+        for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
+            const pin = add(new T.CapsuleGeometry(0.006, 0.045, 8, 20), silver, side * 0.283, -0.16 + i * 0.063, 0.433); pin.rotation.z = Math.PI / 2;
+        }
     } else if (model === 'bell') {
         base();
         // Hollow bell with a rolled mouth, crown and an actual hanging clapper.

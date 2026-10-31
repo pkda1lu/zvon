@@ -19,6 +19,26 @@ const router = require('../routes/awards');
 require.cache[authPath].exports = originalAuth;
 require.cache[auditPath].exports = originalAudit;
 
+test('moderators can create a developer beetle collection with its appearance settings', async t => {
+  const app = express(); app.use(express.json()); app.use('/api/awards', router);
+  const server = app.listen(0, '127.0.0.1');
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  await new Promise(resolve => server.once('listening', resolve));
+  let saved;
+  t.mock.method(Award, 'create', async value => {
+    saved = value;
+    const document = new Award(value); await document.validate();
+    return document;
+  });
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/awards`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'test-role': 'moderator' },
+    body: JSON.stringify({ name: 'Кодовый жук', description: 'За вклад в разработку', model: 'bug', color: '#8b8dff', rule: 'manual', appearance: { palette: 'aurora', background: 'forest', pattern: 'signal', finish: 'polished' } })
+  });
+  assert.equal(response.status, 201);
+  assert.equal(saved.model, 'bug'); assert.equal(saved.appearance.palette, 'aurora');
+  assert.equal((await response.json()).name, 'Кодовый жук');
+});
+
 test('award management rejects ordinary users and invalid moderator input', async t => {
   const app = express(); app.use(express.json()); app.use('/api/awards', router);
   const server = app.listen(0, '127.0.0.1');
