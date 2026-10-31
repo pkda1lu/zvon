@@ -91,7 +91,7 @@ const AdminUsersSettings: React.FC = () => {
     };
 
     return (
-        <div className="settings-content-inner">
+        <div className="settings-content-inner admin-users-settings">
             <h2 className="settings-page-title">Управление сообществом</h2>
             <p className="settings-description">Полный список пользователей и серверов с инструментами администрирования.</p>
 
@@ -110,7 +110,7 @@ const AdminUsersSettings: React.FC = () => {
                 </button>
             </div>
 
-            <form onSubmit={handleSearch} style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+            <form className="admin-users-search" onSubmit={handleSearch} style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
                 <input 
                     type="text" 
                     className="auth-input-glass" 

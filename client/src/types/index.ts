@@ -38,7 +38,7 @@ export interface User {
   isBot?: boolean;
     isPublished?: boolean;
     badges?: string[];
-  displayedTag?: { type: 'badge' | 'serverTag'; server?: string | Server | null };
+  displayedTag?: { type: 'badge' | 'serverTag' | 'award'; award?: { id: string; name: string; model: string; color: string } | null; server?: string | Server | null };
   is2FAEnabled?: boolean;
   role?: 'user' | 'moderator' | 'admin';
   isVerified?: boolean;

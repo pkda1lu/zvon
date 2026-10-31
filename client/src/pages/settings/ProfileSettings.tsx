@@ -8,7 +8,7 @@ import ImageCropper from '../../components/ImageCropper';
 import { useWindowSettings } from '../../contexts/WindowSettingsContext';
 import StreamerBlur from '../../components/StreamerBlur';
 import { AVAILABLE_BADGES } from '../../data/badges';
-import UserBadges from '../../components/UserBadges';
+import UserBadges, { AwardBadge } from '../../components/UserBadges';
 
 const ProfileSettings: React.FC = () => {
     const { user, refreshUser } = useAuth();
@@ -20,12 +20,25 @@ const ProfileSettings: React.FC = () => {
     const [primaryServer, setPrimaryServer] = useState(user?.primaryServer || '');
     const [bannerColor, setBannerColor] = useState(user?.bannerColor || '#5865f2');
     const [selectedBadges, setSelectedBadges] = useState<string[]>(user?.badges || []);
-    const [tagSource, setTagSource] = useState<'badge' | 'serverTag'>(user?.displayedTag?.type || 'badge');
+    const [tagSource, setTagSource] = useState<'badge' | 'serverTag' | 'award'>(user?.displayedTag?.type || 'badge');
     const [tagServerId, setTagServerId] = useState<string>(() => {
         const s = user?.displayedTag?.server;
         return typeof s === 'string' ? s : (s as any)?._id || '';
     });
 
+    const [awardId, setAwardId] = useState(user?.displayedTag?.award?.id || '');
+    const [ownedAwards, setOwnedAwards] = useState<any[]>([]);
+    const [awardStatus, setAwardStatus] = useState('');
+    const [awardRetry, setAwardRetry] = useState(0);
+    useEffect(() => {
+        if (!user?._id || tagSource !== 'award') return;
+        let cancelled = false;
+        setAwardStatus('Загружаем награды…');
+        axios.get('/api/awards/user/' + user._id).then(({ data }) => {
+            if (!cancelled) { setOwnedAwards(data); setAwardStatus(data.length ? '' : 'У вас пока нет наград.'); }
+        }).catch(() => { if (!cancelled) setAwardStatus('Не удалось загрузить награды.'); });
+        return () => { cancelled = true; };
+    }, [user?._id, tagSource, awardRetry]);
     // Cropping State
     const [cropModal, setCropModal] = useState<{ isOpen: boolean; image: string; target: 'avatar' | 'banner' }>({
         isOpen: false,
@@ -51,6 +64,7 @@ const ProfileSettings: React.FC = () => {
             const pId = typeof user.primaryServer === 'string' ? user.primaryServer : user.primaryServer?._id;
             setPrimaryServer(pId || '');
             setTagSource(user.displayedTag?.type || 'badge');
+            setAwardId(user.displayedTag?.award?.id || '');
             const tId = user.displayedTag?.server;
             setTagServerId(typeof tId === 'string' ? tId : (tId as any)?._id || '');
         }
@@ -153,9 +167,9 @@ const ProfileSettings: React.FC = () => {
     };
 
     const handleTagSourceChange = (source: string) => {
-        const s = source as 'badge' | 'serverTag';
+        const s = source as 'badge' | 'serverTag' | 'award';
         setTagSource(s);
-        saveField('displayedTag', { type: s, server: s === 'serverTag' ? (tagServerId || null) : null });
+        saveField('displayedTag', { type: s, server: s === 'serverTag' ? (tagServerId || null) : null, award: s === 'award' && awardId ? { id: awardId } : null });
     };
 
     const handleTagServerChange = (serverId: string) => {
@@ -328,12 +342,13 @@ const ProfileSettings: React.FC = () => {
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{marginTop: 0}}>Значок рядом с ником</h3>
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                        Что показывать рядом с ником: свой значок профиля или значок одного из ваших серверов.
+                        Что показывать рядом с ником: свой значок профиля, значок сервера или полученную награду.
                     </p>
                     <ChoiceGroup
                         options={[
                             { value: 'badge', label: 'Свой значок' },
-                            { value: 'serverTag', label: 'Значок сервера' }
+                            { value: 'serverTag', label: 'Значок сервера' },
+                            { value: 'award', label: 'Награды' }
                         ]}
                         value={tagSource}
                         onChange={handleTagSourceChange}
@@ -341,7 +356,18 @@ const ProfileSettings: React.FC = () => {
 
                     <div className="settings-sidebar-divider" style={{ margin: '20px 0' }} />
 
-                    {tagSource === 'badge' ? (
+                    {tagSource === 'award' ? (
+                        <div>
+                            {awardStatus && <p role="status" className="settings-description">{awardStatus}</p>}
+                            {awardStatus.startsWith('Не удалось') && <button type="button" className="settings-btn" onClick={() => setAwardRetry(v => v + 1)}>Повторить</button>}
+                            {ownedAwards.length > 0 && <CustomSelect
+                                options={ownedAwards.map(g => ({ id: g.award._id, name: g.award.name, iconComponent: <AwardBadge award={g.award} size={24} /> }))}
+                                value={awardId}
+                                onChange={id => { setAwardId(id); saveField('displayedTag', { type: 'award', award: { id } }); }}
+                                placeholder="Выберите награду…"
+                            />}
+                        </div>
+                    ) : tagSource === 'badge' ? (
                         <GridPicker
                             items={AVAILABLE_BADGES}
                             selectedIds={selectedBadges}

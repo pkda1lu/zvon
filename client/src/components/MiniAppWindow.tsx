@@ -709,7 +709,7 @@ const MiniAppWindow: React.FC<MiniAppWindowProps> = ({ app, onClose, onMinimize,
                             </svg>
                         </button>
                     )}
-                    <CloseButton className="header-btn" onClick={() => onClose(app._id)} onMouseDown={e => e.stopPropagation()} />
+                    <CloseButton className="header-btn miniapp-close-btn" onClick={() => onClose(app._id)} onMouseDown={e => e.stopPropagation()} />
                 </div>
             </div>
             <div className="miniapp-content" style={{ position: 'relative' }}>

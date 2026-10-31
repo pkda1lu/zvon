@@ -1,3 +1,4 @@
+import ProblemReportModal from '../../components/ProblemReportModal';
 import CloseButton from '../../components/CloseButton';
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -89,6 +90,7 @@ const SettingsTabFallback: React.FC = () => (
 );
 
 const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initialTab = 'profile', initialData }) => {
+    const [showReport, setShowReport] = React.useState(false);
     const [activeTab, setActiveTab] = React.useState(initialTab);
     const [pendingTab, setPendingTab] = React.useState<string | null>(null);
     const [isSidebarExpanded, setIsSidebarExpanded] = React.useState(false);
@@ -378,6 +380,9 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 <NavItem id="app-version" label="Текущая версия" icon={InfoIcon} />
                 <NavItem id="app-changelog" label="История обновлений" icon={HistoryIcon} />
                 <NavItem id="app-roadmap" label="План разработки" icon={RoadmapIcon} />
+                <button type="button" className="settings-sidebar-item" onClick={() => setShowReport(true)} title="Сообщить о проблеме">
+                    <div className="sidebar-item-content"><ChatIcon size={18} />{(!isMobile || isSidebarExpanded) && <span>Сообщить о проблеме</span>}</div>
+                </button>
 
                 <Divider />
                 <div className="settings-sidebar-item logout" onClick={logout} title="Выйти из аккаунта">
@@ -392,6 +397,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 {!isMobile && (
                     <CloseButton className="settings-close-btn" onClick={handleClose} />
                 )}
+                <ProblemReportModal isOpen={showReport} onClose={() => setShowReport(false)} />
                 <React.Suspense fallback={<SettingsTabFallback />}>
                     <motion.div
                         key={activeTab}

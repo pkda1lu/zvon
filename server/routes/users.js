@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const User = require('../models/User');
+const AwardGrant = require('../models/AwardGrant');
 const Friendship = require('../models/Friendship');
 const Server = require('../models/Server');
 const upload = require('../middleware/upload');
@@ -198,8 +199,16 @@ router.put('/profile', auth, async (req, res) => {
     if (badges !== undefined) req.user.badges = badges;
     if (bannerColor !== undefined) req.user.bannerColor = bannerColor;
     if (displayedTag !== undefined) {
+      let award = null;
+      if (displayedTag?.type === 'award' && displayedTag.award?.id) {
+        if (typeof displayedTag.award.id !== 'string' || !mongoose.isValidObjectId(displayedTag.award.id)) return res.status(400).json({ message: 'Некорректная награда' });
+        const grant = await AwardGrant.findOne({ user: req.user._id, award: displayedTag.award.id, revoked: false }).populate('award');
+        if (!grant?.award) return res.status(400).json({ message: 'Можно выбрать только полученную награду' });
+        award = { id: grant.award._id, name: grant.award.name, model: grant.award.model, color: grant.award.color };
+      }
       req.user.displayedTag = {
-        type: displayedTag?.type === 'serverTag' ? 'serverTag' : 'badge',
+        award,
+        type: ['serverTag', 'award'].includes(displayedTag?.type) ? displayedTag.type : 'badge',
         server: displayedTag?.type === 'serverTag' ? (displayedTag.server || null) : null
       };
     }

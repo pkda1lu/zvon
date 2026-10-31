@@ -4364,3 +4364,13 @@ input[type=range]:disabled::-webkit-slider-thumb {
     text-decoration: underline;
     text-underline-offset: 2px;
 }
+
+@media (max-width: 768px) {
+ .admin-users-settings .admin-users-search input { min-width: 0; width: 0; }
+ .admin-users-settings .settings-list-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; }
+ .admin-users-settings .settings-list-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; width: 100%; }
+ .admin-users-settings .settings-list-row-actions button { flex: 1 1 auto; min-height: 40px; white-space: normal; }
+ .admin-users-settings .settings-list-row-title { flex-wrap: wrap; white-space: normal; overflow-wrap: anywhere; }
+ .admin-users-settings .settings-list-row-meta { overflow-wrap: anywhere; }
+}
+button.settings-sidebar-item { background: transparent; font-family: inherit; width: 100%; text-align: left; }

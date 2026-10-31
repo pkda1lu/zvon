@@ -44,9 +44,12 @@
 }
 
 .miniapp-header {
-    min-height: 92px;
+    height: 40px;
+    min-height: 40px;
+    box-sizing: border-box;
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(30, 31, 36, 0.95);
+    backdrop-filter: blur(20px);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -60,7 +63,8 @@
     cursor: grabbing;
 }
 
-.header-info {
+.miniapp-header .header-info {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -69,10 +73,29 @@
     font-weight: 600;
 }
 
-.header-actions {
+.miniapp-header .header-actions {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.miniapp-header .header-info > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.miniapp-header button.zv-close.miniapp-close-btn {
+    width: 28px; min-width: 28px; height: 28px; min-height: 28px;
+    padding: 4px; gap: 0; border-radius: 6px; color: var(--text-dim);
+}
+.miniapp-header .miniapp-close-btn > .zv-close__circle {
+    width: 20px; height: 20px; border: 0; border-radius: 0;
+    background: transparent; backdrop-filter: none; box-shadow: none;
+}
+.miniapp-header .miniapp-close-btn .zv-close__label { display: none; }
+.miniapp-header .miniapp-close-btn svg { width: 16px; height: 16px; }
+.miniapp-header .miniapp-close-btn:hover > .zv-close__circle {
+    background: transparent; box-shadow: none; transform: none; color: var(--danger);
+}
+@media (max-width: 768px) {
+    .miniapp-window .miniapp-header { height: calc(40px + env(safe-area-inset-top, 0px)); min-height: calc(40px + env(safe-area-inset-top, 0px)); }
 }
 
 .header-btn {

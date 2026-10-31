@@ -133,6 +133,10 @@ router.post('/:id/grant', run(async (req, res) => {
     const restoredAt = new Date(Math.max(+now, +(previous.noticeAt || 0) + 1));
     await Grant.updateOne({ _id: previous._id }, { $set: { noticeAt: restoredAt, noticeReadAt: null, noticeDismissedAt: null } });
   }
+  if (revoke) {
+    const cleared = await User.updateOne({ _id: user._id, 'displayedTag.type': 'award', 'displayedTag.award.id': award._id }, { $set: { displayedTag: { type: 'badge', server: null } } });
+    if (cleared.modifiedCount) req.app.get('io')?.emit('user-updated', { _id: user._id, displayedTag: { type: 'badge', server: null } });
+  }
   if (revoke || !previous || previous.revoked) req.app.get('io')?.to(`user-${user._id}`).emit('award-granted');
   await audit(req, { operation: req.body.revoke ? 'revoke' : 'grant', awardId: award._id, userId: user._id });
   res.json({ message: req.body.revoke ? 'Награда отозвана' : 'Награда выдана' });

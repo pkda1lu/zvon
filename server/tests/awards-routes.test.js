@@ -72,6 +72,8 @@ test('grant accepts selected user IDs and legacy usernames with trimmed case-ins
   await new Promise(resolve => server.once('listening', resolve));
   const awardId = '507f1f77bcf86cd799439012', userId = '507f1f77bcf86cd799439013';
   let filter, update;
+  let cleared;
+  t.mock.method(User, 'updateOne', async (where, value) => { cleared = { where, value }; return { modifiedCount: 1 }; });
   t.mock.method(Award, 'findById', async () => ({ _id: awardId }));
   t.mock.method(User, 'findOne', async value => { filter = value; return { _id: userId }; });
   t.mock.method(Grant, 'findOneAndUpdate', async (where, value) => { update = { where, value }; return null; });
@@ -81,6 +83,9 @@ test('grant accepts selected user IDs and legacy usernames with trimmed case-ins
   assert.equal(update.where.user, userId); assert.equal(update.value.$set.revoked, false);
   assert.equal((await post({ userId, revoke: true })).status, 200);
   assert.equal(update.value.$set.revoked, true);
+  assert.equal(cleared.where._id, userId);
+  assert.equal(cleared.where['displayedTag.award.id'], awardId);
+  assert.equal(cleared.value.$set.displayedTag.type, 'badge');
   assert.equal((await post({ username: '  @Test.User  ' })).status, 200);
   assert.equal(filter.username.test('test.user'), true);
   assert.equal(filter.username.test('testXuser'), false);

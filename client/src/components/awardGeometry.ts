@@ -1,5 +1,5 @@
 import { AWARD_PALETTES, CollectibleTraits } from '../data/awardCollectibles';
-import { createAwardSurface, smoothAwardNormals } from './awardSurface';
+import { createAwardSurface, smoothAwardNormals, solidAwardSheet, subdivideAwardRelief } from './awardSurface';
 /**
  * Zvon award family: smoked metal, polished silver, rounded chat silhouettes
  * and a sculpted Z matching public/zvonlogonew.png.
@@ -31,12 +31,21 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
         const mesh = new T.Mesh(geometry, material);
         mesh.position.set(x, y, z); parent.add(mesh); return mesh;
     };
-    const lathe = (points: number[][], material: any) => add(new T.LatheGeometry(points.map(([r, y]) => new T.Vector2(r, y)), 96), material);
+    const lathe = (points: number[][], material: any, roundProfile = false) => {
+        const profile: any[] = [];
+        const source = points.map(([r, y]) => new T.Vector2(r, y));
+        source.forEach((point, i) => {
+            if (!roundProfile || i === 0 || i === source.length - 1) { profile.push(point); return; }
+            const a = point.clone().lerp(source[i - 1], 0.18), b = point.clone().lerp(source[i + 1], 0.18);
+            profile.push(...new T.QuadraticBezierCurve(a, point, b).getPoints(6));
+        });
+        return add(new T.LatheGeometry(profile, 192), material);
+    };
     const ring = (radius: number, tube: number, y: number, material = silver) => {
         const part = add(new T.TorusGeometry(radius, tube, 24, 192), material, 0, y);
         part.rotation.x = Math.PI / 2; return part;
     };
-    const curve = (points: number[][], radius: number, material: any) => add(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p => new T.Vector3(...p))), 48, radius, 12, false), material);
+    const curve = (points: number[][], radius: number, material: any) => add(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p => new T.Vector3(...p))), 96, radius, 20, false), material);
     const rounded = (w: number, h: number, r: number) => {
         const s = new T.Shape(), x = -w / 2, y = -h / 2;
         s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
@@ -67,10 +76,24 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
         bezier(231, 214, 261, 183, 310, 183); s.closePath();
         const geometry = smoothAwardNormals(T, new T.ExtrudeGeometry(s, { depth: 24, bevelEnabled: true, bevelSize: 7, bevelThickness: 7, bevelSegments: 10, curveSegments: 64 }));
         geometry.scale(width / 450, width / 450, width / 450);
+        const vertices = geometry.getAttribute('position'), uv = geometry.getAttribute('uv');
+        for (let i = 0; i < vertices.count; i++) uv.setXY(i, vertices.getX(i) / width + 0.5, vertices.getY(i) / width + 0.5);
         return add(geometry, material, x, y, z);
     };
+    const conformCrest = (crest: any, profile: number[][]) => {
+        crest.geometry = subdivideAwardRelief(T, crest.geometry);
+        const vertices = crest.geometry.getAttribute('position');
+        for (let i = 0; i < vertices.count; i++) {
+            const x = vertices.getX(i), y = vertices.getY(i) + crest.position.y;
+            let r = profile[profile.length - 1][1];
+            for (let j = 1; j < profile.length; j++) if (y <= profile[j][0]) { const a = profile[j - 1], b = profile[j], t = Math.max(0, Math.min(1, (y - a[0]) / (b[0] - a[0]))); r = a[1] + (b[1] - a[1]) * t; break; }
+            vertices.setZ(i, vertices.getZ(i) + Math.sqrt(Math.max(0, r * r - x * x)) + 0.012 - crest.position.z);
+        }
+        smoothAwardNormals(T, crest.geometry, Math.PI / 3, false);
+        crest.geometry.userData.conformedRelief = true;
+    };
     const base = () => {
-        lathe([[0, -1.15], [0.57, -1.15], [0.62, -1.1], [0.62, -1.01], [0.56, -0.96], [0, -0.96]], black);
+        lathe([[0, -1.15], [0.57, -1.15], [0.62, -1.1], [0.62, -1.01], [0.56, -0.96], [0, -0.96]], black, true);
         ring(0.58, 0.018, -0.99);
         ring(0.6, 0.008, -1.09, accent);
         // Three small equalizer bars are milled into the front of each plinth.
@@ -80,16 +103,26 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
     if (model === 'trophy') {
         base();
         // A flowing, dark cup with a polished mouth and a silver Z crest.
-        lathe([[0, -0.96], [0.28, -0.96], [0.3, -0.91], [0.2, -0.84], [0.095, -0.72], [0.085, -0.41], [0.16, -0.29], [0.28, -0.23], [0.4, -0.08], [0.51, 0.16], [0.58, 0.47], [0.6, 0.7], [0.58, 0.74], [0.54, 0.73], [0.53, 0.49], [0.46, 0.2], [0.35, -0.04], [0.22, -0.19], [0, -0.23]], graphite);
+        const cup = lathe([[0, -0.96], [0.28, -0.96], [0.3, -0.91], [0.2, -0.84], [0.095, -0.72], [0.085, -0.41], [0.16, -0.29], [0.28, -0.23], [0.4, -0.08], [0.51, 0.16], [0.58, 0.47], [0.6, 0.7], [0.58, 0.74], [0.54, 0.73], [0.53, 0.49], [0.46, 0.2], [0.35, -0.04], [0.22, -0.19], [0, -0.23]], graphite, true);
+        cup.name = 'trophy-hollow-cup';
         ring(0.574, 0.03, 0.73);
         ring(0.092, 0.015, -0.57, accent);
         ring(0.265, 0.018, -0.92);
         // Open, swept side handles repeat the rounded return strokes of the logo.
         for (const side of [-1, 1]) {
-            curve([[side * 0.56, 0.58, 0], [side * 0.83, 0.67, 0], [side * 0.96, 0.48, 0], [side * 0.88, 0.16, 0], [side * 0.65, -0.05, 0], [side * 0.37, -0.1, 0]], 0.048, silver);
+            const handle = curve([[side * 0.56, 0.58, 0], [side * 0.83, 0.67, 0], [side * 0.96, 0.48, 0], [side * 0.88, 0.16, 0], [side * 0.65, -0.05, 0], [side * 0.37, -0.1, 0]], 0.048, silver);
+            handle.name = 'trophy-sculpted-handle';
+            const vertices = handle.geometry.getAttribute('position'), centerline = handle.geometry.parameters.path;
+            for (let i = 0; i < vertices.count; i++) {
+                const t = Math.floor(i / 21) / 96, center = centerline.getPointAt(t), swell = 0.85 + Math.sin(t * Math.PI) * 0.32;
+                vertices.setXYZ(i, center.x + (vertices.getX(i) - center.x) * swell, center.y + (vertices.getY(i) - center.y) * swell, center.z + (vertices.getZ(i) - center.z) * swell);
+            }
+            handle.geometry.computeVertexNormals();
+            for (const [x, y] of [[0.56, 0.58], [0.37, -0.1]]) { const joint = add(new T.SphereGeometry(0.067, 40, 24), silver, side * x, y); joint.scale.set(0.7, 1, 0.7); }
             curve([[side * 0.81, 0.47, 0], [side * 0.78, 0.28, 0], [side * 0.63, 0.13, 0]], 0.012, accent);
         }
-        logo(0.37, 0, 0.32, 0.573);
+        const crest = logo(0.37, 0, 0.32, 0.573);
+        conformCrest(crest, [[-0.08, 0.4], [0.16, 0.51], [0.47, 0.58], [0.7, 0.6]]);
         // Sound-wave grooves form a restrained signature below the crest.
         for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
             const x = side * (0.28 + i * 0.065);
@@ -122,6 +155,7 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
         const petals = new T.MeshPhysicalMaterial({ color: new T.Color(swatch.body).lerp(new T.Color(swatch.metal), 0.23), metalness: finish === 'ceramic' ? 0.12 : 0.3, roughness: Math.max(0.32, roughness), clearcoat: 0.5, side: T.DoubleSide });
         const petalEdge = new T.MeshPhysicalMaterial({ color: new T.Color(swatch.body).lerp(new T.Color(swatch.metal), 0.4), metalness: 0.32, roughness: 0.35, side: T.DoubleSide });
         const foliage = new T.MeshPhysicalMaterial({ color: new T.Color(swatch.body).lerp(new T.Color('#368571'), 0.45), metalness: 0.5, roughness: 0.34, side: T.DoubleSide });
+        for (const material of [petals, petalEdge, foliage]) { material.normalMap = surface.normal; material.roughnessMap = surface.roughness; material.normalScale = new T.Vector2(0.15, 0.15); }
         curve([[0, -0.96, 0], [-0.07, -0.5, 0], [0.04, 0, 0], [0, 0.42, 0]], 0.027, silver);
         const bloom = new T.Group(); bloom.position.set(0, 0.35, 0); bloom.rotation.x = 0.45; root.add(bloom);
         // Individually curved, overlapping petals form an open spiral bud.
@@ -129,33 +163,39 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
             const count = 8 - layer;
             for (let p = 0; p < count; p++) {
                 const angle = p * Math.PI * 2 / count + layer * 0.47;
-                const positions: number[] = [], indices: number[] = [];
-                const rows = 18, cols = 18;
-                for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
-                    const v = j / rows, u = i / cols * 2 - 1;
+                const geometry = solidAwardSheet(T, 24, 32, (u, v) => {
                     const spread = (0.67 - layer * 0.075) * (0.18 + 0.82 * Math.sin(v * Math.PI / 2));
                     const a = angle + u * spread;
-                    const radius = 0.025 + (0.37 - layer * 0.085) * Math.sin(v * 1.4) + 0.035 * u * u * v + 0.065 * Math.pow(v, 6);
-                    const y = -0.21 + (0.7 + layer * 0.04) * v - 0.12 * u * u * v - 0.12 * Math.pow(v, 6) * (1 - layer / 4);
-                    positions.push(Math.sin(a) * radius, y, Math.cos(a) * radius);
-                    if (j < rows && i < cols) { const k = j * (cols + 1) + i; indices.push(k, k + 1, k + cols + 1, k + 1, k + cols + 2, k + cols + 1); }
-                }
-                const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); geometry.setIndex(indices); geometry.computeVertexNormals();
-                add(geometry, layer % 3 === 0 ? petalEdge : petals, 0, 0, 0, bloom);
+                    const tip = Math.pow(v, 6);
+                    const radius = 0.025 + (0.37 - layer * 0.085) * Math.sin(v * 1.4) + 0.035 * u * u * v + 0.065 * tip + Math.sin(u * 3 + p * 0.7) * tip * 0.016;
+                    const y = -0.21 + (0.7 + layer * 0.04) * v - 0.12 * u * u * v - 0.12 * tip * (1 - layer / 4) + Math.sin(u * 2 + p) * tip * 0.012;
+                    return new T.Vector3(Math.sin(a) * radius, y, Math.cos(a) * radius);
+                }, 0.007);
+                const petal = add(geometry, layer % 3 === 0 ? petalEdge : petals, 0, 0, 0, bloom); petal.name = 'rose-solid-petal';
             }
         }
         // A curled central petal, with a visible polished spiral edge.
-        const spiral: number[][] = [];
-        for (let i = 0; i <= 60; i++) { const t = i / 60, a = t * Math.PI * 3; const r = 0.012 + t * 0.08; spiral.push([Math.sin(a) * r, 0.53 - t * 0.2, Math.cos(a) * r]); }
-        const spiralMesh = curve(spiral, 0.019, petals); root.remove(spiralMesh); bloom.add(spiralMesh);
+        add(solidAwardSheet(T, 10, 64, (u, v) => { const a = v * Math.PI * 3 + u * 0.23, r = 0.018 + v * 0.085 + u * 0.012; return new T.Vector3(Math.sin(a) * r, 0.53 - v * 0.2 + u * 0.025, Math.cos(a) * r); }, 0.005), petals, 0, 0, 0, bloom).name = 'rose-curled-heart';
         for (const side of [-1, 1]) {
-            const leaf = new T.Shape(); leaf.moveTo(0, 0); leaf.bezierCurveTo(-0.16, 0.14, -0.13, 0.39, 0, 0.5); leaf.bezierCurveTo(0.15, 0.31, 0.17, 0.12, 0, 0);
-            const leafMesh = add(new T.ExtrudeGeometry(leaf, { depth: 0.014, bevelSize: 0.01, bevelThickness: 0.008, bevelSegments: 2, curveSegments: 20 }), foliage, side * 0.02, side === 1 ? -0.62 : -0.31, 0);
+            const leafMesh = add(solidAwardSheet(T, 20, 40, (u, t) => { const v = 0.002 + t * 0.996; const width = 0.145 * Math.pow(Math.sin(v * Math.PI), 0.85) * (1 + Math.sin(v * Math.PI * 18) * 0.035); return new T.Vector3(u * width, v * 0.5, Math.sin(v * Math.PI) * 0.065 + u * u * 0.025); }, 0.01), foliage, side * 0.02, side === 1 ? -0.62 : -0.31, 0);
+            leafMesh.name = 'rose-curved-leaf';
             leafMesh.rotation.z = -side * 0.95; leafMesh.rotation.y = side * 0.24;
-            const vein = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([new T.Vector3(0, 0, 0.035), new T.Vector3(0.01, 0.25, 0.035), new T.Vector3(0, 0.47, 0.035)]), 20, 0.008, 6, false), silver);
-            leafMesh.add(vein);
+            const midrib = new T.CatmullRomCurve3([new T.Vector3(0, 0.01, 0.018), new T.Vector3(0, 0.25, 0.082), new T.Vector3(0, 0.49, 0.018)]);
+            leafMesh.add(new T.Mesh(new T.TubeGeometry(midrib, 48, 0.005, 10, false), petalEdge));
+            for (const sign of [-1, 1]) for (let j = 1; j <= 4; j++) {
+                const v = j / 6;
+                const path = new T.CatmullRomCurve3([new T.Vector3(0, v * 0.5, Math.sin(v * Math.PI) * 0.065 + 0.015), new T.Vector3(sign * 0.07, v * 0.5 + 0.04, 0.075), new T.Vector3(sign * 0.11 * Math.sin(v * Math.PI), v * 0.5 + 0.065, 0.06)]);
+                leafMesh.add(new T.Mesh(new T.TubeGeometry(path, 20, 0.0025, 6, false), foliage));
+            }
         }
-        for (const side of [-1, 1]) { const thorn = add(new T.ConeGeometry(0.028, 0.1, 12), graphite, side * 0.045, -0.15 - side * 0.13); thorn.rotation.z = -side * 1.1; }
+        for (const side of [-1, 1]) {
+            const thornShape = new T.Shape(); thornShape.moveTo(0, -0.035); thornShape.quadraticCurveTo(0.065, -0.015, 0.1, 0.05); thornShape.quadraticCurveTo(0.025, 0.02, 0, 0.035); thornShape.closePath();
+            const thorn = add(smoothAwardNormals(T, new T.ExtrudeGeometry(thornShape, { depth: 0.015, bevelSize: 0.005, bevelThickness: 0.005, bevelSegments: 6, curveSegments: 32 })), graphite, 0, -0.15 - side * 0.13); thorn.rotation.z = side === -1 ? Math.PI : 0;
+        }
+        for (let i = 0; i < 5; i++) {
+            const a = i * Math.PI * 2 / 5;
+            add(solidAwardSheet(T, 8, 16, (u, v) => { const r = 0.04 + v * 0.17, angle = a + u * Math.sin(v * Math.PI) * 0.26; return new T.Vector3(Math.sin(angle) * r, 0.17 - v * 0.1, Math.cos(angle) * r); }, 0.007), foliage);
+        }
         plate(0.2, 0.24, 0.055, 0.025, graphite, 0.05, -0.58, 0.06);
         logo(0.13, 0.05, -0.57, 0.115);
     } else if (model === 'star') {
@@ -172,46 +212,65 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
             }
             shape.closePath(); return shape;
         };
-        lathe([[0, -0.97], [0.22, -0.97], [0.18, -0.84], [0.08, -0.75], [0.07, -0.52], [0, -0.52]], graphite);
-        add(new T.ExtrudeGeometry(starShape(0.86), { depth: 0.16, bevelEnabled: true, bevelSize: 0.045, bevelThickness: 0.04, bevelSegments: 4, curveSegments: 12 }), silver, 0, 0.12, -0.1);
-        add(new T.ExtrudeGeometry(starShape(0.72), { depth: 0.035, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.02, bevelSegments: 3, curveSegments: 12 }), graphite, 0, 0.12, 0.105);
+        lathe([[0, -0.97], [0.22, -0.97], [0.18, -0.84], [0.08, -0.75], [0.07, -0.52], [0.07, -0.27], [0, -0.27]], graphite, true).name = 'star-connected-stand';
+        ring(0.19, 0.012, -0.91);
+        add(smoothAwardNormals(T, new T.ExtrudeGeometry(starShape(0.86), { depth: 0.16, bevelEnabled: true, bevelSize: 0.045, bevelThickness: 0.04, bevelSegments: 10, curveSegments: 48 })), silver, 0, 0.12, -0.1).name = 'star-rounded-frame';
+        add(smoothAwardNormals(T, new T.ExtrudeGeometry(starShape(0.72), { depth: 0.035, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.02, bevelSegments: 10, curveSegments: 48 })), graphite, 0, 0.12, 0.105).name = 'star-inlaid-face';
+        const back = add(smoothAwardNormals(T, new T.ExtrudeGeometry(starShape(0.68), { depth: 0.02, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.015, bevelSegments: 10, curveSegments: 48 })), graphite, 0, 0.12, -0.125); back.rotation.y = Math.PI;
         logo(0.39, 0, 0.1, 0.18);
-        const orbit = add(new T.TorusGeometry(0.9, 0.016, 12, 96), accent, 0, 0.12);
+        logo(0.28, 0, 0.1, -0.17).rotation.y = Math.PI;
+        const orbit = add(new T.TorusGeometry(0.9, 0.016, 24, 192), accent, 0, 0.12);
+        orbit.name = 'star-orbit';
         orbit.rotation.set(0.6, -0.4, -0.3);
-        for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.5; add(new T.SphereGeometry(0.033, 16, 12), mark, Math.cos(a) * 0.9, 0.12 + Math.sin(a) * 0.74, Math.sin(a) * 0.45); }
+        for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.5; add(new T.SphereGeometry(0.033, 32, 20), mark, Math.cos(a) * 0.9, Math.sin(a) * 0.9, 0, orbit).name = 'star-orbit-inlay'; }
     } else if (model === 'bell') {
         base();
         // Hollow bell with a rolled mouth, crown and an actual hanging clapper.
-        lathe([[0.13, 0.64], [0.22, 0.6], [0.33, 0.46], [0.38, 0.24], [0.42, -0.05], [0.52, -0.35], [0.68, -0.51], [0.69, -0.58], [0.63, -0.61], [0.57, -0.53], [0.46, -0.33], [0.36, 0.02], [0.32, 0.28], [0.24, 0.44], [0.12, 0.5]], graphite);
+        lathe([[0.13, 0.64], [0.22, 0.6], [0.33, 0.46], [0.38, 0.24], [0.42, -0.05], [0.52, -0.35], [0.68, -0.51], [0.69, -0.58], [0.63, -0.61], [0.57, -0.53], [0.46, -0.33], [0.36, 0.02], [0.32, 0.28], [0.24, 0.44], [0.12, 0.5], [0.1, 0.54], [0.1, 0.61], [0.13, 0.64]], graphite, true).name = 'bell-hollow-shell';
         ring(0.65, 0.028, -0.57);
         ring(0.51, 0.011, -0.34, accent);
         ring(0.225, 0.018, 0.58);
-        const hanger = add(new T.TorusGeometry(0.14, 0.037, 16, 48), silver, 0, 0.78); hanger.rotation.y = 0.1;
-        const rod = add(new T.CylinderGeometry(0.02, 0.025, 0.82, 16), silver, 0, -0.04);
-        const clapper = add(new T.SphereGeometry(0.1, 24, 16), mark, 0, -0.64);
+        const hanger = add(new T.TorusGeometry(0.14, 0.037, 32, 160), silver, 0, 0.78); hanger.rotation.y = 0.1;
+        lathe([[0.12, 0.6], [0.16, 0.62], [0.16, 0.65], [0.12, 0.68], [0.1, 0.65], [0.12, 0.6]], silver, true);
+        const rod = add(new T.CapsuleGeometry(0.022, 0.78, 12, 32), silver, 0, -0.04);
+        const clapper = add(new T.SphereGeometry(0.1, 64, 40), mark, 0, -0.5); clapper.scale.set(0.9, 1.14, 0.9);
+        clapper.name = 'bell-rounded-clapper';
         const swing = new T.Group(); swing.position.y = 0.36; root.add(swing);
         root.remove(rod, clapper); swing.add(rod, clapper); rod.position.y -= 0.36; clapper.position.y -= 0.36;
         swing.userData.awardSwing = true;
-        logo(0.32, 0, 0.12, 0.405);
+        add(new T.TorusGeometry(0.045, 0.011, 16, 64), silver, 0, 0, 0, swing).rotation.y = Math.PI / 2;
+        conformCrest(logo(0.32, 0, 0.12, 0.405), [[-0.35, 0.52], [-0.05, 0.42], [0.24, 0.38], [0.46, 0.33]]);
         for (const side of [-1, 1]) for (let i = 0; i < 2; i++) {
             curve([[side * (0.47 + i * 0.17), 0.46 + i * 0.04, -0.02], [side * (0.6 + i * 0.17), 0.27, -0.02], [side * (0.61 + i * 0.17), 0.04, -0.02]], 0.015, silver);
         }
-        lathe([[0, -0.97], [0.19, -0.97], [0.12, -0.85], [0.07, -0.7], [0, -0.7]], silver);
+        lathe([[0, -0.97], [0.19, -0.97], [0.12, -0.85], [0.07, -0.7], [0, -0.7]], silver, true).name = 'bell-foot';
     } else {
         base();
         // A smoked crystal monolith. The Z is its silver core, visible through the face.
-        const glass = new T.MeshPhysicalMaterial({ color: new T.Color(swatch.body).lerp(new T.Color(swatch.metal), 0.4), metalness: 0.12, roughness: finish === 'frosted' ? 0.4 : finish === 'satin' ? 0.23 : 0.12, transmission: 0.72, thickness: 0.35, ior: 1.45, clearcoat: 1, transparent: true, opacity: 0.5, depthWrite: false });
+        // Alpha also reveals the CSS collection backdrop, which is outside the 3D scene.
+        const glass = new T.MeshPhysicalMaterial({ color: new T.Color(swatch.metal).lerp(new T.Color('#ffffff'), 0.65), metalness: 0, roughness: finish === 'frosted' ? 0.28 : finish === 'satin' ? 0.17 : 0.045, transmission: 0.92, thickness: 0.42, ior: 1.48, clearcoat: 1, attenuationColor: new T.Color(swatch.metal), attenuationDistance: 2.2, transparent: true, opacity: finish === 'frosted' ? 0.5 : finish === 'satin' ? 0.38 : 0.25, depthWrite: false, envMapIntensity: 0.7 });
         const points = [[-0.47, -0.68], [0.47, -0.68], [0.58, 0.51], [0.28, 0.96], [-0.28, 0.96], [-0.58, 0.51]];
         const shape = new T.Shape();
         points.forEach(([x, y], i) => i ? shape.lineTo(x, y) : shape.moveTo(x, y)); shape.closePath();
-        const body = add(new T.ExtrudeGeometry(shape, { depth: 0.34, bevelEnabled: true, bevelSize: 0.065, bevelThickness: 0.045, bevelSegments: 1 }), glass, 0, 0, -0.17);
-        const outline = new T.LineSegments(new T.EdgesGeometry(body.geometry, 25), new T.LineBasicMaterial({ color: '#bfc8dc', transparent: true, opacity: 0.5 }));
-        outline.position.copy(body.position); root.add(outline);
+        const body = add(smoothAwardNormals(T, new T.ExtrudeGeometry(shape, { depth: 0.34, bevelEnabled: true, bevelSize: 0.055, bevelThickness: 0.045, bevelSegments: 10, curveSegments: 48 })), glass, 0, 0, -0.17);
+        body.name = 'crystal-bevelled-glass';
+        // Keep the clear faces and reflective cut edges separately shaded, without a wire outline.
+        const cap = body.geometry.groups.find((group: any) => group.materialIndex === 0);
+        const wall = body.geometry.groups.find((group: any) => group.materialIndex === 1);
+        if (cap && wall) {
+            const facets = body.geometry.clone(); facets.setDrawRange(wall.start, wall.count);
+            body.geometry.setDrawRange(cap.start, cap.count);
+            const cutGlass = new T.MeshPhysicalMaterial({ color: swatch.metal, metalness: 0.12, roughness: 0.09, transmission: 0.25, thickness: 0.1, ior: 1.48, clearcoat: 1, envMapIntensity: 1.4, transparent: true, opacity: 0.8, depthWrite: false });
+            add(facets, cutGlass, 0, 0, -0.17).name = 'crystal-polished-facets';
+        }
         logo(0.62, 0, 0.07, 0.04);
         plate(0.84, 0.13, 0.045, 0.42, graphite, 0, -0.79, -0.21);
         plate(0.62, 0.018, 0.008, 0.012, accent, 0, -0.79, 0.24);
-        for (const side of [-1, 1]) curve([[side * 0.47, -0.67, 0.21], [side * 0.51, -0.1, 0.21], [side * 0.56, 0.48, 0.21], [side * 0.27, 0.94, 0.21]], 0.012, silver);
-        lathe([[0, -0.97], [0.32, -0.97], [0.27, -0.87], [0, -0.87]], graphite);
+        for (const side of [-1, 1]) {
+            curve([[side * 0.37, -0.84, 0.12], [side * 0.47, -0.69, 0.24], [side * 0.48, -0.49, 0.24]], 0.024, silver).name = 'crystal-setting-prong';
+            const tip = add(new T.SphereGeometry(0.031, 32, 20), silver, side * 0.48, -0.49, 0.24); tip.scale.set(0.8, 1.1, 0.8);
+        }
+        lathe([[0, -0.97], [0.32, -0.97], [0.27, -0.87], [0, -0.87]], graphite, true);
     }
     return root;
 }
