@@ -293,8 +293,7 @@
   }
 
   .voice-ctrls {
-    scale: 0.9;
-    bottom: 20px !important;
+    scale: 1;
   }
 
   /* Bottom navigation bar (mobile shell) */
@@ -320,6 +319,7 @@
   }
 
   .mbn-item {
+    min-width: 0;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -339,6 +339,13 @@
   .mbn-item span {
     line-height: 1;
   }
+
+  .mbn-icon { position: relative; display: inline-flex; }
+  .mbn-item .mbn-badge { position: absolute; top: -5px; left: 14px; padding: 2px 4px; min-width: 14px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 9px; text-align: center; }
+  body:has(.voice-call-full-view) .mobile-bottom-nav,
+  body:has(.inbox-overlay.is-mobile) .mobile-bottom-nav,
+  body:has(.zv-dialog-overlay) .mobile-bottom-nav { display: none !important; }
+  .mobile-bottom-nav .mbn-item { font-size: 10px; }
 
   .mbn-item:active {
     transform: scale(0.92);

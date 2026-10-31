@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { buildAward, createAwardEnvironment } from './awardGeometry';
 import { CollectibleTraits } from '../data/awardCollectibles';
+import { awardRenderSize } from './awardRenderSize';
 
 export type AwardShape = 'trophy' | 'medal' | 'crystal' | 'rose' | 'star' | 'bell';
 // A single GPU context serves all cards. Idle cards retain a canvas snapshot.
@@ -18,11 +19,13 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
             if (disposed || !host.current) return;
             if (!studio) {
                 const renderer = new T.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                renderer.setPixelRatio(1);
                 renderer.setSize(240, 240);
                 renderer.toneMapping = T.ACESFilmicToneMapping;
                 renderer.toneMappingExposure = 1.15;
                 renderer.outputColorSpace = T.SRGBColorSpace;
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = T.VSMShadowMap;
                 studio = { renderer, environment: createAwardEnvironment(T, renderer), users: 0 };
             }
             const stage = studio;
@@ -40,9 +43,23 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
             const camera = new T.PerspectiveCamera(31, 1, 0.1, 30);
             camera.position.set(0, 0.9, 5.5); camera.lookAt(0, 0.04, 0);
             const group = buildAward(T, model, color, palette, finish);
+            group.traverse((part: any) => {
+                // Thin metallic bevels use environment shading; avoid shadow-map acne on the rim.
+                if (part.isMesh) { part.castShadow = true; part.receiveShadow = model === 'rose'; }
+                if (part.material) for (const value of Object.values(part.material)) {
+                    if ((value as any)?.isTexture) (value as any).anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+                }
+            });
             scene.add(group);
             scene.add(new T.HemisphereLight(0xe2ecff, 0x172038, 0.7));
-            const key = new T.DirectionalLight(0xfff3dc, 3); key.position.set(-3, 4, 5); scene.add(key);
+            const key = new T.DirectionalLight(0xfff3dc, 3); key.position.set(-3, 6, 5); scene.add(key);
+            key.castShadow = true;
+            key.shadow.mapSize.set(1024, 1024);
+            Object.assign(key.shadow.camera, { left: -1.8, right: 1.8, top: 1.8, bottom: -1.8, near: 0.1, far: 16 });
+            key.shadow.bias = -0.00015; key.shadow.normalBias = 0.015;
+            key.shadow.radius = 5; key.shadow.blurSamples = 8;
+            const floor = new T.Mesh(new T.PlaneGeometry(12, 12), new T.ShadowMaterial({ opacity: 0.14 }));
+            floor.rotation.x = -Math.PI / 2; floor.position.y = -1.21; floor.receiveShadow = true; scene.add(floor);
             const rim = new T.DirectionalLight(0xabcfff, 2.8); rim.position.set(3, 2, -3); scene.add(rim);
             const fill = new T.DirectionalLight(0xffffff, 0.7); fill.position.set(3, 0, 4); scene.add(fill);
             let yaw = -0.27;
@@ -60,13 +77,21 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
             const movingParts: any[] = [];
             group.traverse((part: any) => { if (part.userData.awardSwing) movingParts.push(part); });
             const draw = () => {
+                const bounds = canvas.getBoundingClientRect();
+                const size = awardRenderSize(bounds.width || 240, bounds.height || 240, window.devicePixelRatio);
+                if (canvas.width !== size.width || canvas.height !== size.height) { canvas.width = size.width; canvas.height = size.height; }
+                // One shared backing buffer grows to the largest view, without reallocating per card.
+                if (renderer.domElement.width < size.width || renderer.domElement.height < size.height) renderer.setSize(Math.max(size.width, renderer.domElement.width), Math.max(size.height, renderer.domElement.height), false);
+                renderer.setViewport(0, 0, size.width, size.height);
+                renderer.setScissor(0, 0, size.width, size.height); renderer.setScissorTest(true);
+                camera.aspect = size.width / size.height; camera.updateProjectionMatrix();
                 const weight = reducedMotion.matches ? 0 : idleWeight;
                 group.rotation.set(pitch + Math.sin(elapsed * 0.65) * 0.025 * weight, yaw + Math.sin(elapsed * 0.4) * 0.14 * weight, Math.sin(elapsed * 0.5) * 0.014 * weight);
                 group.position.y = restingY + Math.sin(elapsed * 0.8) * 0.025 * weight;
                 for (const part of movingParts) part.rotation.z = Math.sin(elapsed * 1.4) * 0.07 * weight;
                 renderer.render(scene, camera);
                 context.clearRect(0, 0, canvas.width, canvas.height);
-                context.drawImage(renderer.domElement, 0, 0);
+                context.drawImage(renderer.domElement, 0, renderer.domElement.height - size.height, size.width, size.height, 0, 0, size.width, size.height);
                 // Materialize the snapshot before the shared drawing buffer is reused.
                 context.putImageData(context.getImageData(0, 0, canvas.width, canvas.height), 0, 0);
             };
@@ -92,7 +117,10 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
             observer.observe(canvas);
             document.addEventListener('visibilitychange', updateAnimation);
             reducedMotion.addEventListener('change', updateAnimation);
-            const scheduleDraw = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; draw(); }); };
+            const scheduleDraw = () => { if (!disposed && !frame) frame = requestAnimationFrame(() => { frame = 0; if (!disposed) draw(); }); };
+            const resizeObserver = new ResizeObserver(scheduleDraw);
+            resizeObserver.observe(canvas);
+            window.addEventListener('resize', scheduleDraw);
             const down = (e: PointerEvent) => { lastInteraction = performance.now(); start = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); };
             const move = (e: PointerEvent) => {
                 if (!start) return;
@@ -119,6 +147,8 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
                 cancelAnimationFrame(frame);
                 cancelAnimationFrame(animationFrame);
                 observer.disconnect();
+                resizeObserver.disconnect();
+                window.removeEventListener('resize', scheduleDraw);
                 document.removeEventListener('visibilitychange', updateAnimation);
                 reducedMotion.removeEventListener('change', updateAnimation);
                 canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move);
@@ -127,8 +157,9 @@ const AwardModel: React.FC<{ model: AwardShape; color: string; palette?: Collect
                 const materials = new Set<any>();
                 group.traverse((item: any) => { item.geometry?.dispose(); if (item.material) materials.add(item.material); });
                 const textures = new Set<any>();
-                materials.forEach(material => { if (material.bumpMap) textures.add(material.bumpMap); material.dispose(); });
+                materials.forEach(material => { for (const value of Object.values(material)) if ((value as any)?.isTexture) textures.add(value); material.dispose(); });
                 textures.forEach(texture => texture.dispose());
+                floor.geometry.dispose(); floor.material.dispose(); key.shadow.map?.dispose(); key.shadow.mapPass?.dispose();
                 canvas.remove();
                 if (--stage.users === 0) { stage.environment.dispose(); renderer.dispose(); renderer.forceContextLoss(); studio = null; }
             };

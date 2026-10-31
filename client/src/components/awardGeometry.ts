@@ -1,4 +1,5 @@
 import { AWARD_PALETTES, CollectibleTraits } from '../data/awardCollectibles';
+import { createAwardSurface, smoothAwardNormals } from './awardSurface';
 /**
  * Zvon award family: smoked metal, polished silver, rounded chat silhouettes
  * and a sculpted Z matching public/zvonlogonew.png.
@@ -11,6 +12,11 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
     const silver = new T.MeshPhysicalMaterial({ color: swatch.metal, metalness: 0.96, roughness, clearcoat: 0.5 });
     const mark = new T.MeshPhysicalMaterial({ color: swatch.mark, metalness: 0.58, roughness: Math.max(0.25, roughness), clearcoat: 0.7, emissive: swatch.metal, emissiveIntensity: 0.15 });
     const graphite = new T.MeshPhysicalMaterial({ color: swatch.body, metalness: finish === 'ceramic' ? 0.08 : 0.8, roughness: finish === 'ceramic' ? 0.16 : Math.max(0.23, roughness), clearcoat: finish === 'frosted' ? 0.1 : 1 });
+    const surface = createAwardSurface(T);
+    for (const material of [silver, mark, graphite]) {
+        material.normalMap = surface.normal; material.roughnessMap = surface.roughness;
+        material.normalScale = new T.Vector2(finish === 'polished' ? 0.1 : 0.22, finish === 'polished' ? 0.1 : 0.22);
+    }
     if (finish === 'brushed') {
         const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
         const context = canvas.getContext('2d')!;
@@ -27,7 +33,7 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
     };
     const lathe = (points: number[][], material: any) => add(new T.LatheGeometry(points.map(([r, y]) => new T.Vector2(r, y)), 96), material);
     const ring = (radius: number, tube: number, y: number, material = silver) => {
-        const part = add(new T.TorusGeometry(radius, tube, 12, 96), material, 0, y);
+        const part = add(new T.TorusGeometry(radius, tube, 24, 192), material, 0, y);
         part.rotation.x = Math.PI / 2; return part;
     };
     const curve = (points: number[][], radius: number, material: any) => add(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p => new T.Vector3(...p))), 48, radius, 12, false), material);
@@ -39,7 +45,7 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
         s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y); s.closePath(); return s;
     };
     const plate = (w: number, h: number, r: number, depth: number, material: any, x: number, y: number, z: number) =>
-        add(new T.ExtrudeGeometry(rounded(w, h, r), { depth, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.025, bevelSegments: 4, curveSegments: 24 }), material, x, y, z);
+        add(smoothAwardNormals(T, new T.ExtrudeGeometry(rounded(w, h, r), { depth, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.025, bevelSegments: 10, curveSegments: 64 })), material, x, y, z);
     const logo = (width: number, x: number, y: number, z: number, material = mark) => {
         // Rounded Z with the distinctive speech-tail, traced from the app mark.
         const s = new T.Shape();
@@ -59,7 +65,7 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
         line(449, 339); line(310, 339);
         bezier(261, 339, 231, 310, 231, 262);
         bezier(231, 214, 261, 183, 310, 183); s.closePath();
-        const geometry = new T.ExtrudeGeometry(s, { depth: 24, bevelEnabled: true, bevelSize: 7, bevelThickness: 7, bevelSegments: 4, curveSegments: 24 });
+        const geometry = smoothAwardNormals(T, new T.ExtrudeGeometry(s, { depth: 24, bevelEnabled: true, bevelSize: 7, bevelThickness: 7, bevelSegments: 10, curveSegments: 64 }));
         geometry.scale(width / 450, width / 450, width / 450);
         return add(geometry, material, x, y, z);
     };
@@ -91,14 +97,19 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
         }
     } else if (model === 'medal') {
         // The medal is a physical version of Zvon's rounded-square app icon.
-        const ribbon = new T.MeshPhysicalMaterial({ color: '#2c2d39', roughness: 0.58, sheen: 0.6, sheenColor: new T.Color('#9ba2be') });
+        const ribbon = new T.MeshPhysicalMaterial({ color: '#34374a', roughness: 0.72, metalness: 0, sheen: 0.85, sheenColor: new T.Color('#aab2d1'), normalMap: surface.normal, normalScale: new T.Vector2(0.55, 0.55), roughnessMap: surface.roughness });
         for (const side of [-1, 1]) {
-            const strip = plate(0.28, 0.88, 0.035, 0.025, ribbon, side * 0.2, 0.91, -0.09);
-            strip.rotation.z = -side * 0.32;
-            const seam = add(new T.BoxGeometry(0.018, 0.84, 0.008), accent, side * 0.2, 0.91, -0.025);
-            seam.rotation.z = -side * 0.32;
+            const stripGroup = new T.Group(); stripGroup.position.set(side * 0.2, 0.91, -0.09); stripGroup.rotation.z = -side * 0.32; root.add(stripGroup);
+            const geometry = new T.ExtrudeGeometry(rounded(0.28, 0.88, 0.055), { depth: 0.024, steps: 32, bevelSize: 0.009, bevelThickness: 0.009, bevelSegments: 8, curveSegments: 48 });
+            const position = geometry.getAttribute('position');
+            for (let i = 0; i < position.count; i++) { const y = position.getY(i); position.setZ(i, position.getZ(i) + Math.sin((y + 0.44) / 0.88 * Math.PI) * 0.04); }
+            add(smoothAwardNormals(T, geometry), ribbon, 0, 0, 0, stripGroup);
+            for (const x of [-0.105, 0.105]) {
+                const points = Array.from({ length: 33 }, (_, i) => { const y = -0.28 + i * 0.68 / 32; return new T.Vector3(x, y, 0.035 + Math.sin((y + 0.44) / 0.88 * Math.PI) * 0.04); });
+                add(new T.TubeGeometry(new T.CatmullRomCurve3(points), 48, 0.004, 8, false), silver, 0, 0, 0, stripGroup);
+            }
         }
-        add(new T.TorusGeometry(0.085, 0.023, 12, 40), silver, 0, 0.56);
+        const hanger = add(new T.TorusGeometry(0.09, 0.021, 24, 128), silver, 0, 0.56); hanger.rotation.y = 0.12;
         plate(1.22, 1.22, 0.32, 0.14, silver, 0, -0.16, -0.08);
         plate(1.12, 1.12, 0.29, 0.075, graphite, 0, -0.16, 0.054);
         logo(0.68, 0, -0.12, 0.16);
@@ -206,17 +217,27 @@ export function buildAward(T: any, model: string, color: string, palette?: Colle
 }
 
 export function createAwardEnvironment(T: any, renderer: any) {
-    const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
-    const gradient = ctx.createLinearGradient(0, 0, 0, 512);
-    gradient.addColorStop(0, '#aebdd0'); gradient.addColorStop(0.48, '#323b50'); gradient.addColorStop(1, '#111523');
-    ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1024, 512);
-    // Reflections of large photographic softboxes, rather than point-light dots.
-    ctx.filter = 'blur(12px)';
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(130, 70, 120, 220);
-    ctx.fillStyle = '#cadcff'; ctx.fillRect(650, 110, 65, 250);
-    ctx.fillStyle = '#fff0d2'; ctx.fillRect(400, 25, 280, 35);
-    const texture = new T.CanvasTexture(canvas); texture.mapping = T.EquirectangularReflectionMapping; texture.colorSpace = T.SRGBColorSpace;
+    // Scene-linear HDR radiance, including bright studio softboxes above 1.0.
+    const width = 1024, height = 512, data = new Float32Array(width * height * 4);
+    const panel = (u: number, v: number, cx: number, cy: number, w: number, h: number) => {
+        const dx = Math.max(0, Math.abs(u - cx) - w / 2);
+        const dy = Math.max(0, Math.abs(v - cy) - h / 2);
+        return Math.exp(-(dx * dx + dy * dy) / 0.00018);
+    };
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const u = x / width, v = y / height, i = (y * width + x) * 4;
+        const key = panel(u, v, 0.19, 0.34, 0.085, 0.3) * 8;
+        const rim = panel(u, v, 0.69, 0.38, 0.035, 0.32) * 5;
+        const top = panel(u, v, 0.47, 0.12, 0.25, 0.025) * 4;
+        const base = 0.06 + (1 - v) * 0.16;
+        data[i] = base + key + rim * 0.72 + top;
+        data[i + 1] = base * 1.08 + key * 0.95 + rim * 0.85 + top * 0.96;
+        data[i + 2] = base * 1.3 + key * 0.87 + rim + top * 0.9;
+        data[i + 3] = 1;
+    }
+    const texture = new T.DataTexture(data, width, height, T.RGBAFormat, T.FloatType);
+    texture.mapping = T.EquirectangularReflectionMapping;
+    texture.colorSpace = T.LinearSRGBColorSpace; texture.needsUpdate = true;
     const generator = new T.PMREMGenerator(renderer);
     const target = generator.fromEquirectangular(texture);
     generator.dispose(); texture.dispose();

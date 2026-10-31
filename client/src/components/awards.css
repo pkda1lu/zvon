@@ -1,8 +1,8 @@
 .awards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 16px; }
 .award-card { padding: 18px; border: 1px solid var(--glass-border, #ffffff18); background: linear-gradient(150deg, #ffffff07, #ffffff01); border-radius: 20px; text-align: center; min-width: 0; overflow-wrap: anywhere; }
 .award-model { position: relative; isolation: isolate; width: 100%; max-width: 240px; aspect-ratio: 1; display: grid; place-items: center; margin: auto; background: radial-gradient(ellipse at 50% 43%, color-mix(in srgb, var(--award-color, #ffc65c) 10%, transparent), transparent 65%); }
-.award-model::after { content: ''; position: absolute; width: 45%; height: 5%; bottom: 8%; left: 27.5%; background: #0008; border-radius: 50%; filter: blur(8px); z-index: -1; }
-.award-model canvas { width: 100%; height: auto; display: block; cursor: grab; touch-action: pan-y; }
+.award-model::after { display: none; }
+.award-model canvas { width: 100%; height: 100%; min-width: 0; min-height: 0; display: block; cursor: grab; touch-action: pan-y; }
 .award-model canvas:focus-visible { outline: 2px solid var(--award-color, #ffc65c); outline-offset: -2px; border-radius: 16px; }
 .award-model canvas:active { cursor: grabbing; }
 .award-card h4 { margin: 8px 0; color: var(--text-main); }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useInbox, InboxItem } from '../contexts/InboxContext';
 import { TrashIcon, CheckIcon, MailIcon } from './Icons';
@@ -16,7 +17,13 @@ interface InboxProps {
 const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
     const { items, markAsRead, markAllAsRead, removeItem, clearInbox } = useInbox();
     const [activeTab, setActiveTab] = React.useState<'all' | 'mentions' | 'awards'>('all');
-    const isMobile = window.innerWidth <= 768;
+    const [isMobile, setIsMobile] = React.useState(() => window.matchMedia('(max-width: 768px)').matches);
+    React.useEffect(() => {
+        const media = window.matchMedia('(max-width: 768px)');
+        const update = () => setIsMobile(media.matches);
+        media.addEventListener('change', update);
+        return () => media.removeEventListener('change', update);
+    }, []);
 
     const filteredItems = items.filter(item => {
         if (activeTab === 'mentions') return item.type === 'mention';
@@ -33,7 +40,7 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
         return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
     };
 
-    return (
+    return createPortal(
         <motion.div
             className={`inbox-overlay ${isMobile ? 'is-mobile' : ''}`}
             initial={isMobile ? { x: '100%', opacity: 0 } : { x: 24, opacity: 0, scale: 0.98 }}
@@ -118,7 +125,7 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                     ))
                 )}
             </div>
-        </motion.div>
+        </motion.div>, document.body
     );
 };
 

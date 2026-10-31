@@ -26,7 +26,7 @@ import { useWindowSettings } from '../contexts/WindowSettingsContext';
 import { useGestureSettings } from '../contexts/GestureSettingsContext';
 import VerificationWarning from '../components/VerificationWarning';
 import PostAnnouncements from '../components/posts/PostAnnouncements';
-import { ChatIcon, UsersIcon, LayoutGridIcon, SettingsIcon } from '../components/Icons';
+import { ChatIcon, UsersIcon, LayoutGridIcon, SettingsIcon, BellIcon } from '../components/Icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   sidebarSwapVariants,
@@ -37,6 +37,7 @@ import {
 } from '../animations/transitions';
 import './Main.css';
 import '../styles/chat-appearance.css';
+import '../styles/mobile-overlays.css';
 
 import { useAppearance } from '../contexts/AppearanceContext';
 
@@ -463,7 +464,7 @@ const Main: React.FC = () => {
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [mobileView, setMobileView] = useState<'sidebar' | 'content' | 'members'>('sidebar');
   const [showMembersSidebar, setShowMembersSidebar] = useState<boolean>(true);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(() => {
     if (!isMobile || !gestureSettings.enabled) return;
 
@@ -578,7 +579,7 @@ const Main: React.FC = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 768;
+      const mobile = window.innerWidth <= 768;
       setIsMobile(mobile);
       if (!mobile) setMobileView('content'); // Default to content on desktop, though CSS will handle it
     };
@@ -2435,8 +2436,9 @@ const Main: React.FC = () => {
         const inConversation = !!(selectedChannel || selectedDM) && mobileView === 'content';
         if (inConversation || mobileView === 'members' || showServerSettings) return null;
 
-        const active: 'chats' | 'friends' | 'showcase' | 'settings' | null =
-          showSettingsModal ? 'settings'
+        const active: 'chats' | 'friends' | 'showcase' | 'settings' | 'inbox' | null =
+          showInbox ? 'inbox'
+          : showSettingsModal ? 'settings'
           : showShowcase ? 'showcase'
           : showFriends ? 'friends'
           : (!selectedServer ? 'chats' : null);
@@ -2469,6 +2471,10 @@ const Main: React.FC = () => {
             <button className={`mbn-item ${active === 'showcase' ? 'active' : ''}`} onClick={handleShowShowcase}>
               <LayoutGridIcon size={22} />
               <span>Витрина</span>
+            </button>
+            <button className={`mbn-item ${active === 'inbox' ? 'active' : ''}`} onClick={() => setShowInbox(true)} aria-label={`Уведомления${inboxUnreadCount ? `, непрочитанных: ${inboxUnreadCount}` : ''}`}>
+              <span className="mbn-icon"><BellIcon size={22} />{inboxUnreadCount > 0 && <span className="mbn-badge">{inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}</span>}</span>
+              <span>Уведомления</span>
             </button>
             <button className={`mbn-item ${active === 'settings' ? 'active' : ''}`} onClick={() => { setSettingsInitialData(null); setSettingsInitialTab('profile'); setShowSettingsModal(true); }}>
               <SettingsIcon size={22} />

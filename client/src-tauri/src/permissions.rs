@@ -52,11 +52,12 @@ pub fn install(window: &WebviewWindow) {
 pub fn install_fullscreen(window: &WebviewWindow) {
     #[cfg(windows)]
     {
-        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
         use std::sync::Arc;
 
         let target = window.clone();
         let was_maximized = Arc::new(AtomicBool::new(false));
+        let fullscreen_generation = Arc::new(AtomicU64::new(0));
         let res = window.with_webview(move |wv| unsafe {
             use webview2_com::ContainsFullScreenElementChangedEventHandler;
 
@@ -66,12 +67,15 @@ pub fn install_fullscreen(window: &WebviewWindow) {
                 let mut contains = windows::core::BOOL::default();
                 sender.ContainsFullScreenElement(&mut contains)?;
                 let full = contains.as_bool();
+                let generation = fullscreen_generation.fetch_add(1, Ordering::SeqCst) + 1;
+                let fullscreen_generation = fullscreen_generation.clone();
                 let w = target.clone();
                 let was_maximized = was_maximized.clone();
                 // Не изнутри обработчика WebView2 и после того, как своё
                 // сообщение обработает Tauri.
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    if fullscreen_generation.load(Ordering::SeqCst) != generation { return; }
                     if full {
                         if w.is_maximized().unwrap_or(false) {
                             was_maximized.store(true, Ordering::SeqCst);

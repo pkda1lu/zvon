@@ -10,6 +10,8 @@
 }
 
 .voice-channel-view {
+  min-width: 0;
+  min-height: 0;
   position: relative;
   flex: 1;
   /* Match channel-view flex */
@@ -160,6 +162,7 @@
 
 /* --- MAIN CANVAS --- */
 .voice-canvas {
+  min-height: 0;
   flex: 1;
   min-width: 0;
   position: relative;

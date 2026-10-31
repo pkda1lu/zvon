@@ -46,6 +46,25 @@ pub async fn ipc_invoke(app: AppHandle, window: WebviewWindow, channel: String, 
         "toggle-autostart" => Ok(json!(toggle_autostart(&app, arg(&args, 0).as_bool().unwrap_or(false)))),
         "get-autostart-status" => Ok(json!(autostart_enabled(&app))),
         "get-current-activity" => Ok(state.activity.lock().current()),
+        "stream-pip:prepare" => {
+            let window = main_window(&app).ok_or("Основное окно не найдено")?;
+            let mut stable = 0;
+            for _ in 0..40 {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                if !window.is_fullscreen().map_err(|e| e.to_string())? { stable += 1; } else { stable = 0; }
+                // Allow deferred fullscreen/maximize handlers to finish first.
+                if stable >= 3 { return Ok(json!(true)); }
+            }
+            Err("Окно ещё выходит из полноэкранного режима. Повторите открытие трансляции.".into())
+        }
+        "stream-pip:clear" => {
+            crate::windows::close_stream_pip(&app);
+            for _ in 0..40 {
+                if !app.webview_windows().keys().any(|label| label.starts_with("stream-pip")) { return Ok(json!(true)); }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Err("Прежнее миниокно трансляции ещё закрывается. Повторите попытку.".into())
+        }
         "game-integration:status" => {
             let app = app.clone();
             tauri::async_runtime::spawn_blocking(move || crate::gsi::status(&app)).await.map_err(|e| e.to_string())

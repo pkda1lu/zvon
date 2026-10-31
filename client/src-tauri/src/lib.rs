@@ -3,6 +3,7 @@
 //! что раньше делал Node, — здесь.
 
 mod activity;
+mod pip_geometry;
 mod gsi;
 mod audio;
 mod capture;
@@ -132,6 +133,7 @@ pub fn run() {
                     tauri_plugin_window_state::StateFlags::all() & !tauri_plugin_window_state::StateFlags::VISIBLE,
                 )
                 .with_denylist(&["overlay", "updater"])
+                .with_filter(|label| label == "main")
                 .build(),
         )
         .plugin(tauri_plugin_autostart::init(

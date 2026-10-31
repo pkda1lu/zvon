@@ -955,7 +955,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     );
   }
 
-  return (
+  return ReactDOM.createPortal(
     <motion.div
       className={`voice-call-full-view ${isGroup ? 'group-mode' : ''}`}
       initial={{ opacity: 0, scale: 0.97 }}
@@ -1113,7 +1113,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           />
         </React.Suspense>
       )}
-    </motion.div>
+    </motion.div>, document.body
   );
 };
 

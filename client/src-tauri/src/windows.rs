@@ -97,52 +97,37 @@ fn stream_pip_window(
     app: &AppHandle,
     features: tauri::webview::NewWindowFeatures,
 ) -> tauri::Result<WebviewWindow> {
-    // Окно одно: прежние закрываем — но не здесь. Уничтожение окна внутри
-    // обработчика NewWindowRequested вешало и новое окно, и сам Zvon (общий
-    // процесс отрисовки ждал завершения запроса). Закрываем после возврата из
-    // обработчика, сообщением в цикл событий. Метки у окон разные: destroy()
-    // освобождает метку не сразу.
-    let stale: Vec<String> = app
-        .webview_windows()
-        .into_keys()
-        .filter(|label| label.starts_with("stream-pip"))
-        .collect();
-    if !stale.is_empty() {
-        let handle = app.clone();
-        tauri::async_runtime::spawn(async move {
-            for label in stale {
-                if let Some(w) = handle.get_webview_window(&label) {
-                    let _ = w.destroy();
-                }
-            }
-        });
+    // Never create and destroy child WebViews during the same NewWindowRequested
+    // deferral. The renderer clears stale children via IPC before window.open.
+    if app.webview_windows().keys().any(|label| label.starts_with("stream-pip")) {
+        return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Прежнее миниокно трансляции ещё не закрыто").into());
     }
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
     let label = format!("stream-pip-{}", NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
     // Позицию и размер из window.open не берём: WebView2 отдаёт там значения,
     // на которых tao переполняется и роняет процесс (window.rs, «attempt to add
     // with overflow»). Ставим сами — правый нижний угол монитора с Zvon.
-    let (width, height) = (480.0, 270.0);
-    let (x, y) = app
+    let geometry = app
         .get_webview_window("main")
         .and_then(|w| w.current_monitor().ok().flatten())
         .or_else(|| app.primary_monitor().ok().flatten())
         .map(|m| {
-            let scale = m.scale_factor();
             let area = m.work_area();
-            let pos = area.position.to_logical::<f64>(scale);
-            let size = area.size.to_logical::<f64>(scale);
-            (pos.x + size.width - width - 24.0, pos.y + size.height - height - 56.0)
+            crate::pip_geometry::placement(area.position.x, area.position.y, area.size.width, area.size.height, m.scale_factor())
         })
-        .unwrap_or((100.0, 100.0));
-    WebviewWindowBuilder::new(app, label, WebviewUrl::External("about:blank".parse().unwrap()))
+        .unwrap_or_else(|| crate::pip_geometry::placement(0, 0, 1280, 800, 1.0));
+    log::info!("[stream-pip] create {label}: {geometry:?}");
+    let window = WebviewWindowBuilder::new(app, label, WebviewUrl::External("about:blank".parse().unwrap()))
         .window_features(features)
-        .inner_size(width, height)
-        .position(x, y)
+        // Override ALL browser geometry. Create at a safe primary-monitor origin;
+        // move using physical coordinates only after the HWND exists.
+        .inner_size(480.0, 270.0)
+        .position(0.0, 0.0)
+        .visible(false)
+        .focused(false)
         .additional_browser_args(&browser_args())
         .user_agent(USER_AGENT)
         .title("Трансляция — Zvon")
-        .min_inner_size(240.0, 135.0)
         .always_on_top(true)
         // Как в Discord: без системной рамки и кнопок, закрытие — своей
         // кнопкой в окне, клик разворачивает голосовой чат.
@@ -151,7 +136,19 @@ fn stream_pip_window(
         .resizable(true)
         .skip_taskbar(true)
         .background_color(Color(0, 0, 0, 0xff))
-        .build()
+        .build()?;
+    let placed = (|| -> tauri::Result<()> {
+        window.set_size(tauri::PhysicalSize::new(geometry.width, geometry.height))?;
+        window.set_position(tauri::PhysicalPosition::new(geometry.x, geometry.y))?;
+        window.show()
+    })();
+    if let Err(error) = placed {
+        // Do not destroy here while WebView2 is still handling a new-window request.
+        // A later stream-pip:clear call will discard this hidden child safely.
+        log::warn!("[stream-pip] placement failed: {error}");
+        return Err(error);
+    }
+    Ok(window)
 }
 
 /// Закрыть окно трансляции (см. "stream-pip-close" в ipc.rs).

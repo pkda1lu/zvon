@@ -1,0 +1,57 @@
+/* Mobile call layouts must fit the visual viewport, independently of desktop
+   panel widths and the animated navigation layers. */
+@media (max-width: 768px) {
+  .voice-chat-container { min-width: 0; gap: 0; }
+  .voice-chat-container .content-inner-layer { min-width: 0; }
+  .voice-channel-view { border-radius: 0; border: 0; width: 100%; min-height: 0; }
+  .voice-channel-view .voice-hdr { min-width: 0; padding: 0 12px; gap: 8px; }
+  .voice-channel-view .hdr-left { flex: 1; min-width: 0; gap: 8px; }
+  .voice-channel-view .hdr-left h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; }
+  .voice-channel-view .hdr-right { flex-shrink: 0; gap: 6px; }
+  .voice-channel-view .channel-topic-tag { display: none; }
+  .voice-channel-view .voice-canvas { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important; }
+  .voice-channel-view .grid-wrap { min-height: 0; padding: 10px; }
+  .voice-channel-view .v-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: none !important; gap: 10px; max-width: 100%; }
+  .voice-channel-view .v-grid.count-1,
+  .voice-channel-view .v-grid.count-2 { grid-template-columns: minmax(0, 1fr) !important; max-width: 450px; }
+  .voice-channel-view .p-card { min-width: 0; }
+  .voice-channel-view .stage-wrap,
+  .voice-channel-view .strip-wrap { min-width: 0; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
+  .voice-channel-view .stage-primary,
+  .voice-channel-view .strip-primary { flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 9; }
+  .voice-channel-view .stage-aux,
+  .voice-channel-view .strip-aux { flex: 0 0 auto; width: 100%; height: auto; flex-direction: row; overflow-x: auto; padding: 0 0 6px; gap: 8px; }
+  .voice-channel-view .stage-aux .p-card,
+  .voice-channel-view .strip-aux .p-card { flex: 0 0 130px; width: 130px; height: auto; aspect-ratio: 16 / 9; }
+
+  .voice-ctrls-anchor {
+    left: 0 !important; right: 0 !important; width: 100% !important;
+    bottom: env(safe-area-inset-bottom, 0px) !important;
+    height: auto; min-height: 76px; padding: 8px; box-sizing: border-box;
+    z-index: 1000;
+  }
+  .voice-ctrls-anchor .voice-ctrls { max-width: 100%; box-sizing: border-box; padding: 8px 10px; gap: 6px; scale: 1; }
+  .voice-ctrls-anchor .voice-ctrls button.ctrl-btn { width: 40px; height: 40px; min-width: 40px; flex-shrink: 0; border-radius: 12px; }
+  .voice-ctrls-anchor .voice-ctrls button.ctrl-btn.hangup { width: 50px; min-width: 50px; }
+  .voice-ctrls-anchor .ctrl-sep { margin: 0 2px; }
+  .voice-ctrls-anchor .voice-ctrls:hover { transform: none; }
+  body:has(.main-container.is-mobile.view-sidebar) .voice-ctrls-anchor,
+  body:has(.main-container.is-mobile.view-members) .voice-ctrls-anchor,
+  body:has(.voice-call-full-view) .voice-ctrls-anchor { display: none; }
+
+  .voice-call-full-view {
+    width: 100%; max-width: 100%; height: 100dvh; box-sizing: border-box;
+    padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+  }
+  .voice-call-full-view .call-topbar { padding: max(12px, env(safe-area-inset-top, 0px)) 12px 8px; gap: 8px; grid-template-columns: 40px minmax(0, 1fr) 40px; }
+  .voice-call-full-view .call-main { min-width: 0; min-height: 0; padding: 8px 10px; }
+  .voice-call-full-view .video-grid { min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
+  .voice-call-full-view .participant-slot { min-width: 0; }
+  .voice-call-full-view .call-controls-bar { box-sizing: border-box; max-width: calc(100% - 16px); padding: 8px 10px; gap: 6px; margin: 8px 0 max(12px, env(safe-area-inset-bottom, 0px)); }
+  .voice-call-full-view .call-controls-bar button.control-circle { flex-shrink: 0; width: 40px; min-width: 40px; height: 40px; border-radius: 12px; }
+  .voice-call-full-view .call-controls-bar button.end-call-circle { width: 52px; min-width: 52px; }
+  .voice-call-full-view .call-controls-bar button.control-circle svg { width: 22px; height: 22px; }
+  .voice-call-full-view .placeholder-avatar-ring { padding: 6px; }
+  .voice-call-full-view .call-avatar-large { width: 96px; height: 96px; border-radius: 32px; }
+  .voice-call-full-view .placeholder-info h3 { font-size: 22px; overflow-wrap: anywhere; }
+}

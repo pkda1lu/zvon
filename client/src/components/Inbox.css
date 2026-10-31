@@ -263,11 +263,22 @@
         top: 0 !important;
         left: 0 !important;
         width: 100% !important;
-        height: 100vh !important;
-        max-height: 100vh !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        z-index: 13000;
         border-radius: 0 !important;
-        animation: inbox-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        animation: none; /* AnimatePresence owns the slide animation. */
     }
+}
+
+@media (max-width: 768px) {
+    .inbox-overlay.is-mobile .inbox-header { flex-shrink: 0; gap: 8px; padding: 12px; }
+    .inbox-overlay.is-mobile .inbox-header h3 { min-width: 0; font-size: 18px; }
+    .inbox-overlay.is-mobile .inbox-action-btn { padding: 6px 8px; font-size: 10px; }
+    .inbox-overlay.is-mobile .inbox-list { min-height: 0; }
 }
 
 @keyframes inbox-slide-up {

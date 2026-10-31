@@ -10,8 +10,30 @@ require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
 }).outputText, filename);
 const { buildAward } = require('../src/components/awardGeometry.ts');
+const { awardRenderSize } = require('../src/components/awardRenderSize.ts');
 if (previousLoader) require.extensions['.ts'] = previousLoader;
 else delete require.extensions['.ts'];
+
+test('large views and high DPI render at native resolution with a bounded buffer', () => {
+  assert.deepEqual(awardRenderSize(640, 640, 2), { width: 1280, height: 1280 });
+  assert.deepEqual(awardRenderSize(640, 640, 3), { width: 1920, height: 1920 });
+  assert.deepEqual(awardRenderSize(1600, 800, 3), { width: 2048, height: 1024 });
+  assert.deepEqual(awardRenderSize(190, 190, 1), { width: 285, height: 285 });
+});
+
+test('medal uses microstructure maps and sufficiently sampled bevels', () => {
+  const medal = buildAward(THREE, 'medal', '#8b8dff', 'ice', 'polished');
+  let mapped = 0, bevelled = 0;
+  medal.traverse(part => {
+    if (part.material?.normalMap && part.material?.roughnessMap) {
+      mapped++;
+      assert.equal(part.material.normalMap.image.width, 256);
+      assert.ok(part.geometry.getAttribute('uv'));
+    }
+    if (part.geometry?.parameters?.options?.bevelSegments >= 10) bevelled++;
+  });
+  assert.ok(mapped >= 4); assert.ok(bevelled >= 4);
+});
 
 for (const model of ['trophy', 'medal', 'crystal', 'rose', 'star', 'bell']) {
   test(`${model} has finite renderable geometry and fits the shared camera`, () => {

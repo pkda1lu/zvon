@@ -114,6 +114,22 @@ const ICON_CLOSE = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6
  */
 let desktopWin: Window | null = null;
 let desktopClosing = false;
+let desktopAcquisition: Promise<Window | null> | null = null;
+
+async function leaveFullscreenForPip(): Promise<void> {
+    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void | Promise<void> };
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        if (doc.exitFullscreen) await doc.exitFullscreen();
+        else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+        const deadline = Date.now() + 2000;
+        while (doc.fullscreenElement || doc.webkitFullscreenElement) {
+            if (Date.now() >= deadline) throw new Error('не удалось выйти из полноэкранного режима');
+            await new Promise(resolve => window.setTimeout(resolve, 25));
+        }
+    }
+    // DOM fullscreenchange can precede native fullscreen/DPI restoration.
+    if ((window as any).electron?.isTauri) await ipc().invoke('stream-pip:prepare');
+}
 
 const closeDesktopWindows = () => {
     if (desktopWin && !desktopWin.closed) desktopClosing = true;
@@ -121,12 +137,29 @@ const closeDesktopWindows = () => {
 };
 
 async function acquireDesktopWindow(my: number): Promise<Window | null> {
+    // React unmount, explicit PiP and quick channel switches may overlap. Only
+    // one caller may create a WebView2 child; stale sessions never open a window.
+    while (desktopAcquisition) {
+        try { await desktopAcquisition; } catch { /* The current caller may retry. */ }
+    }
+    if (my !== session) return null;
+    const task = createDesktopWindow(my);
+    desktopAcquisition = task;
+    try { return await task; }
+    finally { if (desktopAcquisition === task) desktopAcquisition = null; }
+}
+
+async function createDesktopWindow(my: number): Promise<Window | null> {
+    await leaveFullscreenForPip();
+    if (my !== session) return null;
     if (desktopWin && !desktopWin.closed && !desktopClosing) return desktopWin;
     if (desktopWin && !desktopWin.closed) {
         // Прежнее ещё закрывается — ждём, иначе window.open повиснет.
         for (let i = 0; i < 60 && !desktopWin.closed; i++) await new Promise(r => setTimeout(r, 50));
         if (!desktopWin.closed) throw new Error('прежнее окно трансляции не закрылось');
     }
+    if (my !== session) return null;
+    if ((window as any).electron?.isTauri) await ipc().invoke('stream-pip:clear');
     if (my !== session) return null;
     // Размер и место окна (правый нижний угол монитора) задаёт Tauri.
     const w = window.open(STREAM_PIP_URL, `zvon-stream-pip-${my}`, 'width=480,height=270');
@@ -137,7 +170,8 @@ async function acquireDesktopWindow(my: number): Promise<Window | null> {
     // обход Tauri и тоже вешает Zvon — закрываем только через Tauri.
     try { (w as any).close = closeDesktopWindows; } catch { }
     // Документ окна готов не сразу после window.open.
-    for (let i = 0; i < 50 && !(w.document && w.document.body); i++) await new Promise(r => setTimeout(r, 40));
+    for (let i = 0; i < 50 && !w.closed && !(w.document && w.document.body); i++) await new Promise(r => setTimeout(r, 40));
+    if (w.closed || !w.document?.body) throw new Error('окно трансляции не готово');
     return w;
 }
 
@@ -296,6 +330,12 @@ export async function openStreamPip(key: string, stream: MediaStream, opts: Stre
     let handle: { video: HTMLVideoElement; dispose: () => void } | null | undefined;
     try {
         handle = isDesktop() ? await openDesktopWindow(my, key, stream, opts) : await openWebPip(my, stream, opts);
+    } catch (error) {
+        if (my === session) {
+            reset();
+            if (isDesktop()) closeDesktopWindows();
+        }
+        throw error;
     } finally {
         if (my === session) opening = false;
     }
