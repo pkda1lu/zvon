@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import PinnedMessagesModal from './PinnedMessagesModal';
 import FloatingEmojiPicker, { EmojiAnchor } from './FloatingEmojiPicker';
 import { ChatScrollEngine, ChatScrollEngineHandle } from './ChatScrollEngine';
+import TypingIndicator from './TypingIndicator';
 import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import { Channel, Message, Server, User } from '../types';
@@ -1570,7 +1571,7 @@ const ChannelView: React.FC<ChannelViewProps> = ({
             hasMore={hasMore}
             isLoadingMore={isLoadingMore}
             onLoadMore={onLoadMore}
-            unreadAnchorIndex={unreadAnchorIndex}
+            openAtBottom
             onAtBottomStateChange={handleAtBottomStateChange}
             onRangeChanged={handleRangeChanged}
             header={
@@ -1579,34 +1580,6 @@ const ChannelView: React.FC<ChannelViewProps> = ({
                   <SkeletonList rows={3} avatarSize={36} lines={2} />
                 </div>
               ) : null
-            }
-            footer={
-              (() => {
-                const typingNames = Array.from(typingUsers)
-                  .map(id => memberMap.get(String(id)))
-                  .filter(Boolean)
-                  .map(m => m?.nickname || (m?.user as any)?.displayName || (m?.user as any)?.username)
-                  .filter(Boolean);
-                if (typingNames.length === 0) return <div style={{ height: 32 }} />;
-                return (
-                  <div className="typing-indicator-new" style={{ marginBottom: 16 }}>
-                    <div className="typing-dots">
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                    </div>
-                    <span className="typing-text">
-                      {typingNames.length === 1 ? (
-                        <><strong>{typingNames[0]}</strong> печатает...</>
-                      ) : typingNames.length === 2 ? (
-                        <><strong>{typingNames[0]}</strong> и <strong>{typingNames[1]}</strong> печатают...</>
-                      ) : (
-                        <><strong>Несколько человек</strong> печатают...</>
-                      )}
-                    </span>
-                  </div>
-                );
-              })()
             }
             renderItem={(msg, idx, prev) => {
               const showUnread = idx === unreadAnchorIndex;
@@ -1659,6 +1632,9 @@ const ChannelView: React.FC<ChannelViewProps> = ({
 
       {!(isMobile && showMembersSidebar) && (
       <div className={`message-input-container ${isRecordingMedia ? 'is-recording-media' : ''}`}>
+        <TypingIndicator names={Array.from(typingUsers)
+            .map(id => memberMap.get(String(id)))
+            .map(m => m?.nickname || (m?.user as any)?.displayName || (m?.user as any)?.username)} />
         {editingMessage && (
           <div className="reply-input-preview edit-input-preview">
             <div className="reply-input-content">

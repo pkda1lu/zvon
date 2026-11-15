@@ -1,43 +1,25 @@
 /* Окно создания и правки темы. */
 
-.settings-modal-glass.theme-editor {
-    /* Шире обычного окна настроек: слева поля, справа предпросмотр. */
-    width: min(920px, 94vw);
-    max-width: none;
-    max-height: 88vh;
-    display: flex;
-    flex-direction: column;
+.zv-modal-overlay.theme-editor-overlay {
+    z-index: 14000;
 }
 
-.theme-editor-head {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-}
-
-.theme-editor-head h3 {
-    margin: 0;
-}
-
-.theme-editor-base {
-    font-size: 12px;
-    color: var(--text-dim);
+.zv-modal.theme-editor {
+    max-width: 920px;
+    box-sizing: border-box;
+    max-height: min(88vh, 100% - 24px);
+    max-height: min(88dvh, 100% - 24px);
 }
 
 .theme-editor-body {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
     gap: 20px;
-    min-height: 0;
-    flex: 1;
+    align-items: start;
 }
 
 .theme-editor-form {
-    flex: 1 1 340px;
     min-width: 0;
-    overflow-y: auto;
-    padding-right: 6px;
 }
 
 .theme-editor-form .settings-label {
@@ -59,20 +41,23 @@
 }
 
 .theme-editor-preview {
-    flex: 1 1 420px;
     min-width: 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
     padding: 12px;
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
-    overflow: hidden;
 }
 
-.theme-editor-actions {
-    margin-top: 18px;
+.theme-editor-preview-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.theme-editor .zv-modal__footer {
+    flex-wrap: wrap;
 }
 
 .theme-editor-note {
@@ -85,10 +70,13 @@
 /* На узком экране предпросмотр уходит вниз — две колонки не помещаются. */
 @media (max-width: 860px) {
     .theme-editor-body {
-        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr);
     }
+}
 
-    .theme-editor-preview {
-        flex: none;
+@media (max-width: 480px) {
+    .theme-editor .zv-modal__footer button {
+        flex: 1 1 auto;
+        white-space: normal;
     }
 }

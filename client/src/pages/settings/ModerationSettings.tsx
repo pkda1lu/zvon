@@ -7,14 +7,8 @@ import AwardsModeration from './AwardsModeration';
 import { getFullUrl } from '../../utils/avatar';
 import PostsModeration from '../../components/posts/PostsModeration';
 
-const PROBLEM_CATEGORIES: Record<string, string> = {
-    bug: 'Ошибка / Баг',
-    voice: 'Голос / Звонки',
-    performance: 'Производительность',
-    ui: 'Интерфейс',
-    payment: 'Демонстрация Экрана',
-    other: 'Другое',
-};
+import { PROBLEM_CATEGORIES } from '../../utils/reportLabels';
+import './ModerationSettings.css';
 
 // Рендер «на что пожаловались»: текст/фото сообщения, карточка мини-приложения
 // или профиль. Берёт сохранённый снимок (contentSnapshot), с фолбэком на старое
@@ -264,7 +258,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
     };
 
     return (
-        <div className="settings-content-inner">
+        <div className="settings-content-inner moderation-settings">
             <h2 className="settings-page-title">Модерация</h2>
             <p className="settings-description">Управление жалобами на сообщения, профили пользователей, сервера и витрину.</p>
 
@@ -336,7 +330,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                 <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>Жалоб на мини-приложения нет. 🛡️</div>
                             ) : mpReports.map(report => (
                                 <div key={report._id} className="settings-card" style={{ margin: 0, padding: '20px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                    <div className="moderation-card-heading" style={{ marginBottom: '16px' }}>
                                         <div style={{ fontSize: '14px' }}>
                                             <strong style={{ color: 'var(--text-dim)' }}>От:</strong> {report.reporter?.username}
                                             <div style={{ marginTop: '6px' }}>
@@ -356,7 +350,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                         {report.description && <div style={{ fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: '12px' }}>{report.description}</div>}
                                         <ReportedContent report={report} />
                                     </div>
-                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                    <div className="moderation-card-actions">
                                         <button className="settings-btn secondary" onClick={() => resolveMpReport(report._id, 'dismissed', 'Отклонено модератором')}>Отклонить жалобу</button>
                                         {report.reportedMiniApp?._id && !report.reportedMiniApp?.isBlocked && (
                                             <button className="settings-btn settings-btn-danger" onClick={async () => {
@@ -413,7 +407,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                     {t.blockReason && mpTab === 'blocked' && (
                                         <div style={{ marginBottom: '16px', color: 'var(--danger)', fontSize: '13px' }}>Причина блокировки: {t.blockReason}</div>
                                     )}
-                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                    <div className="moderation-card-actions">
                                         {mpTab === 'pending' && (<>
                                             <button className="settings-btn secondary" onClick={() => rejectItem('theme', t._id)}>Отклонить</button>
                                             <button className="settings-btn success-glass" onClick={() => approveItem('theme', t._id)}>Одобрить</button>
@@ -441,7 +435,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                     </div>
                                     {app.description && <div style={{ marginBottom: '16px', color: 'var(--text-dim)', fontSize: '14px', whiteSpace: 'pre-wrap' }}>{app.description}</div>}
                                     {app.blockReason && mpTab === 'blocked' && <div style={{ marginBottom: '16px', color: 'var(--danger)', fontSize: '13px' }}>Причина блокировки: {app.blockReason}</div>}
-                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                    <div className="moderation-card-actions">
                                         {mpTab === 'pending' && (
                                             <>
                                                 <button className="settings-btn secondary" onClick={() => rejectApp(app._id)}>Отклонить</button>
@@ -488,7 +482,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                             <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '40px 0' }}>{problemFilter === 'pending' ? 'Жалоб на проблемы нет. 🛡️' : 'Список пока пуст.'}</div>
                         ) : problems.map(p => (
                             <div key={p._id} id={`problem-${p._id}`} className={`settings-card ${String(p._id) === focusProblemId ? 'mod-focus-flash' : ''}`} style={{ margin: 0, padding: '20px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                <div className="moderation-card-heading" style={{ marginBottom: '12px' }}>
                                     <div style={{ minWidth: 0 }}>
                                         <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '16px' }}>{p.subject}</div>
                                         <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>
@@ -496,7 +490,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                             {' · '}От: {p.reporter?.username || '—'}
                                         </div>
                                     </div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'right' }}>
                                         <div>{new Date(p.createdAt).toLocaleString('ru-RU')}</div>
                                         {p.status !== 'pending' && <div style={{ color: 'var(--primary-neon)', fontWeight: 600, marginTop: '6px' }}>{p.status === 'resolved' ? 'РЕШЕНО' : 'ОТКЛОНЕНО'}</div>}
                                     </div>
@@ -528,14 +522,14 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                 </div>
 
                                 {p.status !== 'pending' ? (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--glass-border)' }}>
+                                    <div className="moderation-card-actions moderation-card-resolution">
                                         <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
                                             <strong>Обработал ({p.resolvedBy?.username || '—'}):</strong> {p.resolutionNote || 'Без комментария'}
                                         </div>
                                         <button className="settings-btn secondary zv-btn--sm" onClick={() => resolveProblem(p._id, 'pending', '')}>Вернуть в ожидание</button>
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                    <div className="moderation-card-actions">
                                         <button className="settings-btn secondary" onClick={async () => {
                                             const note = await prompt('Комментарий (необязательно):', 'Не является проблемой');
                                             if (note === null) return;
@@ -583,7 +577,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                         ) : (
                             reports.map(report => (
                                 <div key={report._id} id={`report-${report._id}`} className={`settings-card ${String(report._id) === focusReportId ? 'mod-focus-flash' : ''}`} style={{ margin: 0, padding: '20px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                    <div className="moderation-card-heading" style={{ marginBottom: '16px' }}>
                                         <div>
                                             <div style={{ fontSize: '14px', marginBottom: '6px' }}>
                                                 <strong style={{ color: 'var(--text-dim)' }}>От:</strong> {report.reporter?.username}
@@ -613,7 +607,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                     </div>
 
                                     {report.status !== 'pending' && (
-                                        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid var(--glass-border)' }}>
+                                        <div className="moderation-card-actions moderation-card-resolution">
                                             <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
                                                 <strong>Решение модератора ({report.resolvedBy?.username}):</strong> {report.resolutionNote || 'Без комментария'}
                                             </div>
@@ -633,7 +627,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
                                     )}
 
                                     {report.status === 'pending' && (
-                                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+                                        <div className="moderation-card-actions">
                                             <button className="settings-btn secondary" onClick={async () => {
                                                 try {
                                                     await axios.post(`/api/moderation/reports/${report._id}/resolve`, { status: 'dismissed', note: 'Отклонено модератором' });

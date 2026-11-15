@@ -27,6 +27,7 @@ interface ModalProps {
   footerAlign?: 'start' | 'end' | 'between';
   children?: React.ReactNode;
   className?: string;
+  overlayClassName?: string;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -41,6 +42,7 @@ const Modal: React.FC<ModalProps> = ({
   footer,
   footerAlign = 'end',
   children,
+  overlayClassName = '',
   className = '',
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -89,7 +91,7 @@ const Modal: React.FC<ModalProps> = ({
     <AnimatePresence onExitComplete={presence.onExitComplete}>
       {presence.open && (
         <motion.div
-          className="zv-modal-overlay zv-dialog-overlay"
+          className={`zv-modal-overlay zv-dialog-overlay ${overlayClassName}`}
           onMouseDown={onBackdropClick}
           role="dialog"
           aria-modal="true"

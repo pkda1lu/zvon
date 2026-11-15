@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const User = require('../models/User');
 const Report = require('../models/Report');
 const ProblemReport = require('../models/ProblemReport');
+const GlobalAuditLog = require('../models/GlobalAuditLog');
 const Post = require('../models/Post');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 const { body, validationResult } = require('express-validator');
@@ -27,6 +28,69 @@ const isAdmin = async (req, res, next) => {
     res.status(403).json({ message: 'Требуются права администратора' });
   }
 };
+
+// Personal history. The client never supplies the owner of the records.
+router.get('/history', auth, async (req, res) => {
+  const { section = 'notices', page = '1' } = req.query;
+  const pageNumber = Number(page);
+  if (!['notices', 'reports', 'problems'].includes(section) ||
+      typeof page !== 'string' || !/^\d+$/.test(page) ||
+      !Number.isSafeInteger(pageNumber) || pageNumber < 1 || pageNumber > 100000) {
+    return res.status(400).json({ message: 'Некорректные параметры истории' });
+  }
+
+  const userId = req.user._id;
+  const pageSize = 25;
+  const paginate = (query) =>
+    query.sort({ createdAt: -1, _id: -1 }).skip((pageNumber - 1) * pageSize).limit(pageSize + 1).lean();
+
+  try {
+    let rows;
+    if (section === 'notices') {
+      const [warningReportIds, problemIds] = await Promise.all([
+        Report.distinct('_id', { reportedUser: userId }),
+        ProblemReport.distinct('_id', { reporter: userId })
+      ]);
+      const notices = await paginate(GlobalAuditLog.find({
+        $or: [
+          { target: userId, targetModel: 'User', action: { $in: ['MODERATION_NOTIFY', 'MODERATION_BAN'] } },
+          { target: userId, targetModel: 'User', action: 'USER_UPDATE', 'details.changes.isBanned.new': true },
+          { target: { $in: warningReportIds }, targetModel: 'Report', action: 'MODERATION_REPORT_RESOLVE', 'details.status': 'resolved' },
+          { target: { $in: problemIds }, targetModel: 'ProblemReport', action: 'PROBLEM_REPORT_RESOLVE', 'details.status': { $in: ['resolved', 'dismissed'] } }
+        ]
+      }).select('action createdAt details.message details.reason details.expiresAt details.note details.status details.targetName'));
+
+      rows = notices.map(({ _id, action, createdAt, details = {} }) => {
+        let title, message;
+        if (action === 'MODERATION_NOTIFY') {
+          title = 'Сообщение от модерации';
+          message = details.message;
+        } else if (action === 'MODERATION_BAN' || action === 'USER_UPDATE') {
+          title = 'Блокировка аккаунта';
+          message = details.reason || 'Причина не указана';
+        } else if (action === 'MODERATION_REPORT_RESOLVE') {
+          title = 'Предупреждение модерации';
+          message = `На ваш аккаунт поступила жалоба, которую подтвердил модератор. ${details.note || 'Нарушение правил'}`;
+        } else {
+          title = details.status === 'resolved' ? 'Проблема решена' : 'Сообщение о проблеме отклонено';
+          message = [details.targetName, details.note].filter(Boolean).join('\n\n');
+        }
+        return { _id, title, message, createdAt, ...(action === 'MODERATION_BAN' && { expiresAt: details.expiresAt || null }) };
+      });
+    } else {
+      const model = section === 'reports' ? Report : ProblemReport;
+      const fields = section === 'reports' ? 'reason' : 'subject category steps';
+      rows = await paginate(model.find({ reporter: userId })
+        .select(`${fields} description status resolutionNote createdAt`));
+    }
+
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ items: rows.slice(0, pageSize), hasMore: rows.length > pageSize });
+  } catch (err) {
+    console.error('Moderation history error:', err);
+    res.status(500).json({ message: 'Не удалось загрузить историю' });
+  }
+});
 
 // Create a report — target can be a user (incl. bot) or a mini-app.
 router.post('/report', auth, [
@@ -152,7 +216,7 @@ router.post('/reports/:id/resolve', [auth, isModerator], async (req, res) => {
     }, { new: true }).populate('reportedUser').populate('reporter');
 
     if (report) {
-      logGlobalAction({
+      await logGlobalAction({
         executorId: req.user._id,
         action: 'MODERATION_REPORT_RESOLVE',
         targetId: report._id,
@@ -219,7 +283,7 @@ router.post('/ban', [auth, isModerator], async (req, res) => {
     
     await user.save();
 
-    logGlobalAction({
+    await logGlobalAction({
       executorId: req.user._id,
       action: 'MODERATION_BAN',
       targetId: user._id,
@@ -659,7 +723,7 @@ router.post('/problem-reports/:id/resolve', [auth, isModerator], async (req, res
     }, { new: true });
 
     if (report) {
-      logGlobalAction({
+      await logGlobalAction({
         executorId: req.user._id,
         action: 'PROBLEM_REPORT_RESOLVE',
         targetId: report._id,

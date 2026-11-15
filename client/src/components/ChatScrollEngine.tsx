@@ -8,7 +8,7 @@ import React, {
   useMemo,
   useEffect,
 } from 'react';
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import { FlatIndexLocationWithAlign, Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 
 export interface ChatScrollEngineHandle {
   scrollToBottom: (smooth?: boolean) => void;
@@ -31,6 +31,7 @@ export interface ChatScrollEngineProps<T> {
   onLoadMore?: () => void;
   /** Индекс первого непрочитанного: лента откроется на нём. -1 — нет. */
   unreadAnchorIndex?: number;
+  openAtBottom?: boolean;
   interfaceScale?: number;
   className?: string;
   style?: React.CSSProperties;
@@ -86,6 +87,7 @@ function ChatScrollEngineInner<T>(
     isLoadingMore = false,
     onLoadMore,
     unreadAnchorIndex = -1,
+    openAtBottom = false,
     className = '',
     style = {},
     onAtBottomStateChange,
@@ -162,7 +164,7 @@ function ChatScrollEngineInner<T>(
 
       if (items.length > 0 && virtuosoRef.current) {
         virtuosoRef.current.scrollToIndex({
-          index: items.length - 1,
+          index: 'LAST',
           align: 'end',
           behavior: smooth ? 'smooth' : 'auto',
         });
@@ -214,24 +216,25 @@ function ChatScrollEngineInner<T>(
   // Откуда открыть ленту: с первого непрочитанного, иначе там, где человек
   // остановился в прошлый раз, иначе снизу. Считаем один раз на чат —
   // Virtuoso всё равно читает это только при создании.
-  const initialPlacementRef = useRef<{ chatId: string; value: any } | null>(null);
+  const initialPlacementRef = useRef<{ chatId: string; value: FlatIndexLocationWithAlign } | null>(null);
   const anchorAppliedRef = useRef<{ chatId: string; at: number; done: boolean } | null>(null);
   if (items.length > 0 && initialPlacementRef.current?.chatId !== chatId) {
-    let value: any = { index: items.length - 1, align: 'end' as const };
-    if (unreadAnchorIndex >= 0 && unreadAnchorIndex < items.length) {
-      value = { index: unreadAnchorIndex, align: 'start' as const, offset: -48 };
-    } else {
+    let value: FlatIndexLocationWithAlign = { index: 'LAST', align: 'end' };
+    const hasUnreadAnchor = unreadAnchorIndex >= 0 && unreadAnchorIndex < items.length;
+    if (!openAtBottom && hasUnreadAnchor) {
+      value = { index: unreadAnchorIndex, align: 'start', offset: -48 };
+    } else if (!openAtBottom) {
       const saved = savedPositions.get(chatId);
       if (saved && !saved.atBottom && saved.key) {
         const idx = items.findIndex((item, i) => getItemKey(item, i) === saved.key);
-        if (idx !== -1) value = { index: idx, align: 'start' as const };
+        if (idx !== -1) value = { index: idx, align: 'start' };
       }
     }
     initialPlacementRef.current = { chatId, value };
     anchorAppliedRef.current = {
       chatId,
       at: Date.now(),
-      done: unreadAnchorIndex >= 0 && unreadAnchorIndex < items.length,
+      done: openAtBottom || hasUnreadAnchor,
     };
   }
   const initialTopMostItemIndex = initialPlacementRef.current?.value ?? 0;

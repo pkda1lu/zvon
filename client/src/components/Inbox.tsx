@@ -8,14 +8,18 @@ import UserBadges, { resolveServerTag } from './UserBadges';
 import { iosSpring } from '../animations/transitions';
 import './Inbox.css';
 import AwardNotification from './AwardNotification';
+import ProblemReportModal from './ProblemReportModal';
 
 interface InboxProps {
     onClose: () => void;
     onItemClick: (item: InboxItem) => void;
+    onOpenModerationHistory: () => void;
 }
 
-const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
+const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick, onOpenModerationHistory }) => {
     const { items, markAsRead, markAllAsRead, removeItem, clearInbox } = useInbox();
+    const [expandedId, setExpandedId] = React.useState<string | null>(null);
+    const [showReport, setShowReport] = React.useState(false);
     const [activeTab, setActiveTab] = React.useState<'all' | 'mentions' | 'awards'>('all');
     const [isMobile, setIsMobile] = React.useState(() => window.matchMedia('(max-width: 768px)').matches);
     React.useEffect(() => {
@@ -30,6 +34,11 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
         if (activeTab === 'awards') return item.type === 'award';
         return true;
     });
+
+    const toggleMessage = (item: InboxItem) => {
+        setExpandedId(previous => previous === item.id ? null : item.id);
+        markAsRead(item.id);
+    };
 
     const formatDate = (date: Date) => {
         const now = new Date();
@@ -80,6 +89,10 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                             key={item.id}
                             className={`inbox-item ${item.type} ${!item.read ? 'unread' : ''}`}
                             onClick={() => {
+                                if (item.type === 'moderation' && ['moderation_message', 'moderation_violation', 'problem_resolved'].includes(item.target?.kind || '')) {
+                                    toggleMessage(item);
+                                    return;
+                                }
                                 onItemClick(item);
                                 markAsRead(item.id);
                             }}
@@ -89,7 +102,17 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                             </div>
                             <div className="inbox-item-body">
                                 <div className="inbox-item-title">{item.title}</div>
-                                <div className="inbox-item-content">{item.content}</div>
+                                <div className={`inbox-item-content ${expandedId === item.id ? 'is-expanded' : ''}`}>{item.content}</div>
+                                {item.type === 'moderation' && (
+                                    <button type="button" className="inbox-action-btn inbox-expand"
+                                        aria-expanded={expandedId === item.id}
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            toggleMessage(item);
+                                        }}>
+                                        {expandedId === item.id ? 'Свернуть' : 'Читать полностью'}
+                                    </button>
+                                )}
                                 <div className="inbox-item-meta">
                                     <span>{item.author?.username}</span>
                                     {item.author && <UserBadges badges={item.author.badges} serverTag={resolveServerTag(item.author)} size={12} />}
@@ -125,6 +148,11 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick }) => {
                     ))
                 )}
             </div>
+            <div className="inbox-support-actions">
+                <button type="button" className="settings-btn secondary" onClick={onOpenModerationHistory}>Мои обращения</button>
+                <button type="button" className="settings-btn secondary" onClick={() => setShowReport(true)}>Сообщить о проблеме</button>
+            </div>
+            <ProblemReportModal isOpen={showReport} onClose={() => setShowReport(false)} />
         </motion.div>, document.body
     );
 };

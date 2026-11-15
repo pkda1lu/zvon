@@ -1169,20 +1169,24 @@ const Main: React.FC = () => {
     fetchFriends();
   }, [fetchServers, fetchDMs, fetchFriends]);
 
+  const serverRoomsRef = useRef<{ socket: typeof socket; ids: Set<string> } | null>(null);
   useEffect(() => {
     if (!socket) return;
+    const ids = new Set(servers.map(server => server._id));
+    const previous = serverRoomsRef.current;
+    const previousIds = previous?.socket === socket ? previous.ids : new Set<string>();
+    serverRoomsRef.current = { socket, ids };
+
+    if (socket.connected) {
+      for (const id of previousIds) if (!ids.has(id)) socket.emit('leave-server', id);
+      for (const id of ids) if (!previousIds.has(id)) socket.emit('join-server', id);
+    }
+
     const onConnect = () => {
-      if (servers.length > 0) {
-        servers.forEach((server: Server) => socket.emit('join-server', server._id));
-      }
+      for (const id of ids) socket.emit('join-server', id);
     };
     socket.on('connect', onConnect);
-    if (socket.connected && servers.length > 0) {
-      servers.forEach((server: Server) => socket.emit('join-server', server._id));
-    }
-    return () => {
-      socket.off('connect', onConnect);
-    };
+    return () => { socket.off('connect', onConnect); };
   }, [socket, servers]);
 
   const handleServerUpdate = useCallback((updatedServer: Server) => {
@@ -1733,16 +1737,17 @@ const Main: React.FC = () => {
   // перерисовывается на каждое событие присутствия из сокета.
 
   const handleSidebarServerSelect = useCallback((server: Server) => {
+    if (selectedServerRef.current?._id === server._id) return;
     setSelectedServer(server); setShowFriends(false); setShowShowcase(false); setSelectedDM(null);
     const firstTextChannel = server.channels.find(c => c.type === 'text');
     if (firstTextChannel) {
       setMessages([]);
       setSelectedChannel(firstTextChannel);
-      fetchMessages(firstTextChannel._id);
+      if (!socket) fetchMessages(firstTextChannel._id);
     }
     else if (server.channels.length > 0) setSelectedChannel(server.channels[0]);
     // On mobile, selecting a server stays in sidebar mode to show channel list
-  }, [fetchMessages]);
+  }, [fetchMessages, socket]);
 
   const handleServerJoined = useCallback((server: Server) => {
     setServers((prev) => [...prev, server]);
@@ -1793,6 +1798,8 @@ const Main: React.FC = () => {
         handleOpenSettings('moderation', { focus: { kind: 'vlyne', id: target.id } });
       } else if ((target?.kind === 'vlyne_app_reply' || target?.kind === 'vlyne_app_decision')) {
         navigate('/vlyneid/developers/cabinet');
+      } else if (['moderation_message', 'moderation_violation', 'problem_resolved'].includes(target?.kind || '')) {
+        handleOpenSettings('moderation-history');
       }
     }
     setShowInbox(false);
@@ -2654,6 +2661,10 @@ const Main: React.FC = () => {
             <Inbox
               onClose={() => setShowInbox(false)}
               onItemClick={openNotificationTarget}
+              onOpenModerationHistory={() => {
+                setShowInbox(false);
+                handleOpenSettings('moderation-history');
+              }}
             />
             </LazyOverlay>
           </React.Fragment>

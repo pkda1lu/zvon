@@ -165,6 +165,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [editingCategory, setEditingCategory] = useState<Channel | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, User[]>>({});
+  const serverChannelsRef = useRef(server.channels);
+  serverChannelsRef.current = server.channels;
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, user: User, channelId?: string } | null>(null);
 
   /*
@@ -271,21 +273,45 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
   });
 
   useEffect(() => {
-    if (socket) {
-      const join = () => socket.emit('join-server', server._id);
-      join();
-      socket.on('connect', join);
-      socket.on('server-voice-states', (states) => setVoiceStates(states));
-      socket.on('voice-channel-users-update', (data) => {
-        setVoiceStates(prev => ({ ...prev, [data.channelId]: data.users }));
+    setVoiceStates({});
+    if (!socket) return;
+
+    let request = 0;
+    let updatedChannels = new Set<string>();
+    const applySnapshot = (states: Record<string, User[]>) => {
+      const snapshot: Record<string, User[]> = {};
+      for (const { _id } of serverChannelsRef.current) {
+        if (!updatedChannels.has(_id) && states[_id]) snapshot[_id] = states[_id];
+      }
+      setVoiceStates(prev => ({ ...prev, ...snapshot }));
+    };
+    const join = () => {
+      const currentRequest = ++request;
+      updatedChannels = new Set();
+      socket.timeout(15000).emit('join-server', server._id, (error: Error | null, states: Record<string, User[]>) => {
+        if (!error && currentRequest === request) applySnapshot(states);
       });
-      return () => {
-        socket.emit('leave-server', server._id);
-        socket.off('connect', join);
-        socket.off('server-voice-states');
-        socket.off('voice-channel-users-update');
-      };
-    }
+    };
+    // Older servers send the snapshot as an event without a server ID.
+    const onSnapshot = (states: Record<string, User[]>, serverId?: string) => {
+      if (serverId === undefined) applySnapshot(states);
+    };
+    const onUpdate = ({ channelId, users }: { channelId: string; users: User[] }) => {
+      if (!serverChannelsRef.current.some(channel => channel._id === channelId)) return;
+      updatedChannels.add(channelId);
+      setVoiceStates(prev => ({ ...prev, [channelId]: users }));
+    };
+
+    socket.on('connect', join);
+    socket.on('server-voice-states', onSnapshot);
+    socket.on('voice-channel-users-update', onUpdate);
+    if (socket.connected) join();
+    return () => {
+      request += 1;
+      socket.off('connect', join);
+      socket.off('server-voice-states', onSnapshot);
+      socket.off('voice-channel-users-update', onUpdate);
+    };
   }, [socket, server._id]);
 
   const handleChannelCreated = () => {

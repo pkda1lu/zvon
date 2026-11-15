@@ -78,7 +78,8 @@ fn on_main_event(window: &tauri::Window, event: &WindowEvent) {
         }
         WindowEvent::Resized(_) => {
             if window.is_minimized().unwrap_or(false) {
-                if state.settings.lock().minimize_to_tray {
+                // A system gesture must leave the active call restorable from the taskbar.
+                if !state.in_voice() && state.settings.lock().minimize_to_tray {
                     let _ = window.hide();
                 }
                 power::refresh(app);

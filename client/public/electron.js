@@ -29,6 +29,7 @@ let overlayWindow = null;
 let lastOverlayConfig = null;
 let isQuitting = false;
 let currentVoiceState = { isMuted: false, isDeafened: false, isConnected: false };
+let callActive = false;
 const isOpenedHidden = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
 
 let appSettings = {
@@ -443,14 +444,20 @@ if (process.defaultApp) {
 const startupUrl = process.argv.find(arg => arg.startsWith('zvon://'));
 if (startupUrl) pendingDeepLink = startupUrl;
 
+function revealMainWindow() {
+    const window = mainWindow;
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+}
+
 if (!app.requestSingleInstanceLock()) {
     app.quit();
 } else {
     app.on('second-instance', (event, commandLine) => {
-        if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            mainWindow.focus();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            revealMainWindow();
             const url = commandLine.find(arg => arg.startsWith('zvon://'));
             if (url) mainWindow.webContents.send('deep-link', url);
         }
@@ -474,11 +481,11 @@ function createTray() {
     updateTrayMenu();
     tray.setToolTip('Zvon');
     tray.on('click', () => {
-        if (mainWindow) {
-            if (mainWindow.isVisible()) {
-                if (mainWindow.isFocused()) mainWindow.hide();
-                else { mainWindow.show(); mainWindow.focus(); }
-            } else { mainWindow.show(); mainWindow.focus(); }
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMinimized() &&
+            mainWindow.isVisible() && mainWindow.isFocused()) {
+            mainWindow.hide();
+        } else {
+            revealMainWindow();
         }
     });
 }
@@ -486,7 +493,7 @@ function createTray() {
 function updateTrayMenu() {
     if (!tray) return;
     const contextMenu = Menu.buildFromTemplate([
-        { label: 'Открыть Zvon', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+        { label: 'Открыть Zvon', click: revealMainWindow },
         { type: 'separator' },
         {
             label: currentVoiceState.isMuted ? '✓ Микрофон выключен' : 'Выключить микрофон',
@@ -689,9 +696,9 @@ function createWindow() {
     const debouncedSave = () => { clearTimeout(saveTimeout); saveTimeout = setTimeout(saveWindowState, 500); };
     mainWindow.on('resize', debouncedSave);
     mainWindow.on('move', debouncedSave);
-    mainWindow.on('minimize', (event) => {
-        if (appSettings.minimizeToTray) {
-            event.preventDefault();
+    mainWindow.on('minimize', () => {
+        // Keep system gestures reversible from the taskbar while voice is active.
+        if (appSettings.minimizeToTray && !currentVoiceState.isConnected && !callActive) {
             mainWindow.hide();
         }
     });
@@ -853,12 +860,7 @@ ipcMain.on('show-native-notification', (event, { title, body, silent }) => {
             icon: path.join(__dirname, 'icon.png')
         });
         notification.show();
-        notification.on('click', () => {
-            if (mainWindow) {
-                mainWindow.show();
-                mainWindow.focus();
-            }
-        });
+        notification.on('click', revealMainWindow);
     }
 });
 
@@ -1417,7 +1419,13 @@ ipcMain.handle('toggle-fullscreen', async (event, isFullscreen) => {
     return false;
 });
 
-ipcMain.on('window-minimize', () => { if (mainWindow) mainWindow.minimize(); });
+ipcMain.on('call-active', (event, active) => { callActive = active === true; });
+ipcMain.on('focus-main-window', revealMainWindow);
+ipcMain.on('window-minimize', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (appSettings.minimizeToTray) mainWindow.hide();
+    else mainWindow.minimize();
+});
 ipcMain.on('window-maximize', () => { if (mainWindow) { if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize(); } });
 ipcMain.on('window-close', () => { if (mainWindow) mainWindow.close(); });
 

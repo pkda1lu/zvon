@@ -47,6 +47,7 @@ const ConnectedAppsSettings = React.lazy(() => import('./ConnectedAppsSettings')
 const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
 const AppearanceSettings = React.lazy(() => import('./AppearanceSettings'));
 const ChatSettings = React.lazy(() => import('./ChatSettings'));
+const ModerationHistorySettings = React.lazy(() => import('./ModerationHistorySettings'));
 const NotificationsSettings = React.lazy(() => import('./NotificationsSettings'));
 const OptimizationSettings = React.lazy(() => import('./OptimizationSettings'));
 const LanguageSettings = React.lazy(() => import('./LanguageSettings'));
@@ -192,6 +193,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'privacy': return <PrivacySettings />;
             case 'appearance': return <AppearanceSettings />;
             case 'chat': return <ChatSettings />;
+            case 'moderation-history': return <ModerationHistorySettings />;
             case 'notifications': return <NotificationsSettings />;
             case 'optimization': return <OptimizationSettings />;
             case 'language': return <LanguageSettings />;
@@ -377,10 +379,11 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 
                 <Divider />
                 <CategoryHeader>О приложении</CategoryHeader>
+                <NavItem id="moderation-history" label="Мои обращения" icon={DocumentIcon} />
                 <NavItem id="app-version" label="Текущая версия" icon={InfoIcon} />
                 <NavItem id="app-changelog" label="История обновлений" icon={HistoryIcon} />
                 <NavItem id="app-roadmap" label="План разработки" icon={RoadmapIcon} />
-                <button type="button" className="settings-sidebar-item" onClick={() => setShowReport(true)} title="Сообщить о проблеме">
+                <button type="button" className="settings-sidebar-item" onClick={() => setShowReport(true)} aria-label="Сообщить о проблеме" title="Сообщить о проблеме">
                     <div className="sidebar-item-content"><ChatIcon size={18} />{(!isMobile || isSidebarExpanded) && <span>Сообщить о проблеме</span>}</div>
                 </button>
 

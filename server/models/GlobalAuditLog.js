@@ -84,5 +84,6 @@ const globalAuditLogSchema = new mongoose.Schema({
 
 // Index for filtering actions by time
 globalAuditLogSchema.index({ createdAt: -1 });
+globalAuditLogSchema.index({ target: 1, targetModel: 1, action: 1, createdAt: -1 });
 
 module.exports = mongoose.model('GlobalAuditLog', globalAuditLogSchema);

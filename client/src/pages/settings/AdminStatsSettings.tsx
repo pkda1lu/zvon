@@ -549,7 +549,10 @@ const AdminStatsSettings: React.FC = () => {
 
     useEffect(() => {
         setLoading(true);
-        const params: any = { range };
+        const params: { range: string; timeZone: string; after?: string; before?: string } = {
+            range,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        };
         if (range === 'custom') {
             if (after) params.after = after;
             if (before) params.before = before;

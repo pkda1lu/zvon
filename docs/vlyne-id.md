@@ -309,7 +309,7 @@ node server/scripts/vlyneClient.js create \
 # Vlyne VPN — серверная часть, секрет хранить может
 node server/scripts/vlyneClient.js create \
   --name "Vlyne VPN" --type confidential \
-  --redirect "https://bot.vlyne.ru/oauth/callback" \
+  --redirect "https://vlessconf.fun:8444/vlyneid/callback" \
   --scopes openid,profile,telegram \
   --first-party
 ```

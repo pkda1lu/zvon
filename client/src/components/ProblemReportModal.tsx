@@ -5,10 +5,12 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { getFullUrl } from '../utils/avatar';
 import './ReportModal.css';
 import { uploadFiles } from '../utils/transfers';
+import { PROBLEM_CATEGORIES } from '../utils/reportLabels';
 
 interface ProblemReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSubmitted?: () => void;
 }
 
 interface UploadedAttachment {
@@ -20,16 +22,9 @@ interface UploadedAttachment {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 МБ
 
-const CATEGORIES = [
-  { id: 'bug', title: 'Ошибка / Баг' },
-  { id: 'voice', title: 'Голос / Звонки' },
-  { id: 'performance', title: 'Производительность' },
-  { id: 'ui', title: 'Интерфейс' },
-  { id: 'payment', title: 'Демонстрация Экрана' },
-  { id: 'other', title: 'Другое' },
-];
+const CATEGORIES = Object.entries(PROBLEM_CATEGORIES).map(([id, title]) => ({ id, title }));
 
-const ProblemReportModal: React.FC<ProblemReportModalProps> = ({ isOpen, onClose }) => {
+const ProblemReportModal: React.FC<ProblemReportModalProps> = ({ isOpen, onClose, onSubmitted }) => {
   const { addNotification } = useNotifications();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,6 +96,7 @@ const ProblemReportModal: React.FC<ProblemReportModalProps> = ({ isOpen, onClose
       addNotification({ title: 'Жалоба отправлена', content: 'Спасибо! Модераторы рассмотрят вашу проблему.', type: 'success' });
       reset();
       onClose();
+      onSubmitted?.();
     } catch (err: any) {
       addNotification({
         title: 'Не удалось отправить',
@@ -116,6 +112,7 @@ const ProblemReportModal: React.FC<ProblemReportModalProps> = ({ isOpen, onClose
       open={isOpen}
       onClose={handleClose}
       title="Сообщить о проблеме"
+      overlayClassName="problem-report-overlay"
       size="lg"
       footer={
         <>

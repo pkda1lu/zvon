@@ -5,6 +5,7 @@ import GroupSettingsModal from './GroupSettingsModal';
 import { isGroupDM } from '../utils/dm';
 import { createPortal } from 'react-dom';
 import { ChatScrollEngine, ChatScrollEngineHandle } from './ChatScrollEngine';
+import TypingIndicator from './TypingIndicator';
 import { motion } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import { DirectMessage, Message, User } from '../types';
@@ -1501,34 +1502,6 @@ const DMView: React.FC<DMViewProps> = ({
                 </div>
               ) : null
             }
-            footer={
-              (() => {
-                const typingNames = Array.from(typingUsers)
-                  .map(id => dm.participants.find(p => String(p._id) === String(id)))
-                  .filter(Boolean)
-                  .map(p => p?.displayName || p?.username)
-                  .filter(Boolean);
-                if (typingNames.length === 0) return <div style={{ height: 32 }} />;
-                return (
-                  <div className="typing-indicator-new" style={{ marginBottom: 16 }}>
-                    <div className="typing-dots">
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                    </div>
-                    <span className="typing-text">
-                      {typingNames.length === 1 ? (
-                        <><strong>{typingNames[0]}</strong> печатает...</>
-                      ) : typingNames.length === 2 ? (
-                        <><strong>{typingNames[0]}</strong> и <strong>{typingNames[1]}</strong> печатают...</>
-                      ) : (
-                        <><strong>Несколько человек</strong> печатают...</>
-                      )}
-                    </span>
-                  </div>
-                );
-              })()
-            }
             renderItem={(msg, idx, prev) => {
               const showUnread = idx === unreadAnchorIndex;
               return (
@@ -1576,6 +1549,9 @@ const DMView: React.FC<DMViewProps> = ({
       </div>
 
       <div className={`message-input-container ${isRecordingMedia ? 'is-recording-media' : ''}`}>
+        <TypingIndicator names={Array.from(typingUsers)
+            .map(id => dm.participants.find(p => String(p._id) === String(id)))
+            .map(p => p?.displayName || p?.username)} />
         {editingMessage && (
           <div className="reply-input-preview edit-input-preview">
             <div className="reply-input-content">

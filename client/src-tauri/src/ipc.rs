@@ -195,7 +195,17 @@ pub async fn ipc_send(app: AppHandle, channel: String, args: Vec<Value>) {
             }
         }
         "change-icon" => change_icon(&app, arg(&args, 0).as_str().unwrap_or_default()),
-        "window-minimize" => { if let Some(w) = main_window(&app) { let _ = w.minimize(); } }
+        "window-minimize" => {
+            let minimize_to_tray = state.settings.lock().minimize_to_tray;
+            if let Some(w) = main_window(&app) {
+                if minimize_to_tray {
+                    let _ = w.hide();
+                    crate::power::refresh(&app);
+                } else {
+                    let _ = w.minimize();
+                }
+            }
+        }
         "window-maximize" => {
             if let Some(w) = main_window(&app) {
                 if w.is_maximized().unwrap_or(false) { let _ = w.unmaximize(); } else { let _ = w.maximize(); }

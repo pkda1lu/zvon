@@ -1,0 +1,47 @@
+.moderation-history {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.moderation-history-heading,
+.moderation-history-card header,
+.moderation-history-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.moderation-history-heading h2,
+.moderation-history-card h3,
+.moderation-history-card {
+    margin: 0;
+}
+
+.moderation-history-card h3 {
+    font-size: 16px;
+}
+
+.moderation-history-card time,
+.moderation-history-meta {
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+.moderation-history-meta {
+    margin-top: 6px;
+}
+
+.moderation-history-card p {
+    margin: 12px 0 0;
+    white-space: pre-wrap;
+}
+
+.moderation-history .zv-tab,
+.moderation-history .settings-btn {
+    max-width: 100%;
+    white-space: normal;
+}

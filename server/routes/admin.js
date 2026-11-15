@@ -12,6 +12,7 @@ const Session = require('../models/Session');
 const DailyUserActivity = require('../models/DailyUserActivity');
 const VoiceSession = require('../models/VoiceSession');
 const GlobalAuditLog = require('../models/GlobalAuditLog');
+const { createStatsCalendar } = require('../utils/statsCalendar');
 const { logGlobalAction } = require('../utils/globalAuditLogger');
 
 // Middleware to check if user is moderator or admin
@@ -120,51 +121,41 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     } catch (e) {}
     const totalBots = await User.countDocuments({ isBot: true });
 
-    let startDate, endDate;
-    if (req.query.after || req.query.before) {
-      if (req.query.after) {
-        const parts = String(req.query.after).split('T')[0].split('-').map(Number);
-        startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
-      } else {
-        const d = new Date();
-        d.setDate(d.getDate() - 29);
-        startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-      }
-      if (req.query.before) {
-        const parts = String(req.query.before).split('T')[0].split('-').map(Number);
-        endDate = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
-      } else {
-        endDate = new Date();
-        endDate.setHours(23, 59, 59, 999);
-      }
-    } else {
-      const range = req.query.range || '30d';
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999);
-
-      if (range === 'all') {
-        // Первый день существования платформы (по дате первого пользователя)
-        const earliestUser = await User.findOne().sort({ createdAt: 1 }).select('createdAt').lean();
-        if (earliestUser && earliestUser.createdAt) {
-          const d = new Date(earliestUser.createdAt);
-          startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-        } else {
-          const d = new Date();
-          d.setDate(d.getDate() - 29);
-          startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-        }
-      } else {
-        const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
-        const d = new Date();
-        d.setDate(d.getDate() - (days - 1));
-        startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-      }
+    const { range = '30d', after, before, timeZone = 'UTC' } = req.query;
+    let calendar;
+    try {
+      calendar = createStatsCalendar(timeZone);
+      if (after) calendar.parseDay(after);
+      if (before) calendar.parseDay(before);
+    } catch {
+      return res.status(400).json({ message: 'Некорректная дата или часовой пояс' });
     }
+
+    const today = calendar.dayKey(new Date());
+    let startDayStr = after;
+    const endDayStr = before || today;
+    if (!startDayStr && !before && range === 'all') {
+      const earliestUser = await User.findOne().sort({ createdAt: 1 }).select('createdAt').lean();
+      if (earliestUser?.createdAt) startDayStr = calendar.dayKey(earliestUser.createdAt);
+    }
+    if (!startDayStr) {
+      const days = before || after ? 30 : range === '7d' ? 7 : range === '90d' ? 90 : 30;
+      startDayStr = calendar.addDays(today, 1 - days);
+    }
+    const startDate = calendar.startOfDay(startDayStr);
+    const endDate = new Date(calendar.startOfDay(calendar.addDays(endDayStr, 1)).getTime() - 1);
+    const groupDay = (date) => ({
+      $dateToString: { format: "%Y-%m-%d", date, timezone: calendar.timeZone }
+    });
+    // The timestamp is the first recorded activity in the original storage day.
+    const activityDay = calendar.timeZone === 'UTC'
+      ? { match: { day: { $gte: startDayStr, $lte: endDayStr } }, group: "$day" }
+      : { match: { createdAt: { $gte: startDate, $lte: endDate } }, group: groupDay("$createdAt") };
 
     const dailyNewUsers = await User.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          _id: groupDay("$createdAt"),
           count: { $sum: 1 }
       }},
       { $sort: { _id: 1 } }
@@ -173,7 +164,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     const dailyNewServers = await Server.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          _id: groupDay("$createdAt"),
           count: { $sum: 1 }
       }},
       { $sort: { _id: 1 } }
@@ -182,7 +173,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     const dailyMessages = await Message.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          _id: groupDay("$createdAt"),
           count: { $sum: 1 }
       }},
       { $sort: { _id: 1 } }
@@ -191,23 +182,18 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     // Активность по отправке сообщений (DAU авторов сообщений)
     const activeUsersDaily = await Message.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
-      { $group: { _id: { day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, author: "$author" } } },
+      { $group: { _id: { day: groupDay("$createdAt"), author: "$author" } } },
       { $group: { _id: "$_id.day", count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
-
-    // Формируем строковые границы дат "YYYY-MM-DD" для запроса к DailyUserActivity
-    const { getDayString } = require('../utils/activityTracker');
-    const startDayStr = getDayString(startDate);
-    const endDayStr = getDayString(endDate);
 
     // 1. Уникальные пользователи онлайн по дням (DAU Online)
     let onlineUsersAgg = [];
     try {
       // Сначала читаем из персистентной таблицы ежедневной активности
       const dailyActivityAgg = await DailyUserActivity.aggregate([
-        { $match: { day: { $gte: startDayStr, $lte: endDayStr } } },
-        { $group: { _id: { day: "$day", user: "$user" } } },
+        { $match: activityDay.match },
+        { $group: { _id: { day: activityDay.group, user: "$user" } } },
         { $group: { _id: "$_id.day", count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]);
@@ -244,7 +230,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         {
           $group: {
             _id: {
-              day: { $dateToString: { format: "%Y-%m-%d", date: "$activeDate" } },
+              day: groupDay("$activeDate"),
               user: "$user"
             }
           }
@@ -283,16 +269,17 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     let brandingAgg = [];
     try {
       const dailyBrandingAgg = await DailyUserActivity.aggregate([
-        { $match: { day: { $gte: startDayStr, $lte: endDayStr } } },
+        { $match: activityDay.match },
         {
           $group: {
             _id: {
-              day: "$day",
+              day: activityDay.group,
+              user: "$user",
               brand: { $ifNull: ["$brand", "zvon"] }
-            },
-            count: { $sum: 1 }
+            }
           }
         },
+        { $group: { _id: { day: "$_id.day", brand: "$_id.brand" }, count: { $sum: 1 } } },
         { $sort: { "_id.day": 1 } }
       ]);
 
@@ -328,7 +315,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         {
           $group: {
             _id: {
-              day: { $dateToString: { format: "%Y-%m-%d", date: "$activeDate" } },
+              day: groupDay("$activeDate"),
               user: "$user",
               brand: "$brand"
             }
@@ -399,7 +386,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         { $match: { joinedAt: { $gte: startDate, $lte: endDate } } },
         {
           $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
+            _id: groupDay("$joinedAt"),
             totalSeconds: { $sum: "$durationSeconds" },
             sessionsCount: { $sum: 1 }
           }
@@ -429,7 +416,7 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         {
           $group: {
             _id: {
-              day: { $dateToString: { format: "%Y-%m-%d", date: "$joinedAt" } },
+              day: groupDay("$joinedAt"),
               user: "$user"
             }
           }
@@ -479,21 +466,15 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       console.error('Voice before period aggregate error:', e);
     }
 
-    function buildDailyTimeline(startD, endD, aggList, isCumulative = false, initialValue = 0) {
+    function buildDailyTimeline(aggList, isCumulative = false, initialValue = 0) {
       const map = new Map();
       (aggList || []).forEach(item => map.set(item._id, item.count || 0));
 
       const result = [];
-      const cur = new Date(Date.UTC(startD.getFullYear(), startD.getMonth(), startD.getDate()));
-      const end = new Date(Date.UTC(endD.getFullYear(), endD.getMonth(), endD.getDate()));
 
       let running = initialValue;
 
-      while (cur <= end) {
-        const y = cur.getUTCFullYear();
-        const m = String(cur.getUTCMonth() + 1).padStart(2, '0');
-        const d = String(cur.getUTCDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
+      for (let dateStr = startDayStr; dateStr <= endDayStr; dateStr = calendar.addDays(dateStr, 1)) {
 
         const count = map.get(dateStr) || 0;
         if (isCumulative) {
@@ -503,12 +484,11 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
           result.push({ _id: dateStr, count });
         }
 
-        cur.setUTCDate(cur.getUTCDate() + 1);
       }
       return result;
     }
 
-    function buildBrandingTimeline(startD, endD, aggList) {
+    function buildBrandingTimeline(aggList) {
       const dateBrandMap = new Map();
 
       (aggList || []).forEach(item => {
@@ -525,14 +505,8 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       });
 
       const result = [];
-      const cur = new Date(Date.UTC(startD.getFullYear(), startD.getMonth(), startD.getDate()));
-      const end = new Date(Date.UTC(endD.getFullYear(), endD.getMonth(), endD.getDate()));
 
-      while (cur <= end) {
-        const y = cur.getUTCFullYear();
-        const m = String(cur.getUTCMonth() + 1).padStart(2, '0');
-        const d = String(cur.getUTCDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
+      for (let dateStr = startDayStr; dateStr <= endDayStr; dateStr = calendar.addDays(dateStr, 1)) {
 
         const dayCounts = dateBrandMap.get(dateStr) || {};
         let dayTotal = 0;
@@ -546,7 +520,6 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
         entry.total = dayTotal;
 
         result.push(entry);
-        cur.setUTCDate(cur.getUTCDate() + 1);
       }
       return result;
     }
@@ -555,17 +528,17 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
     const serversBeforePeriod = await Server.countDocuments({ createdAt: { $lt: startDate } });
     const messagesBeforePeriod = await Message.countDocuments({ createdAt: { $lt: startDate } });
 
-    const usersDaily = buildDailyTimeline(startDate, endDate, dailyNewUsers);
-    const usersCumulative = buildDailyTimeline(startDate, endDate, dailyNewUsers, true, usersBeforePeriod);
-    const serversDaily = buildDailyTimeline(startDate, endDate, dailyNewServers);
-    const serversCumulative = buildDailyTimeline(startDate, endDate, dailyNewServers, true, serversBeforePeriod);
-    const messagesDailyChart = buildDailyTimeline(startDate, endDate, dailyMessages);
-    const messagesCumulative = buildDailyTimeline(startDate, endDate, dailyMessages, true, messagesBeforePeriod);
-    const activeUsersDailyChart = buildDailyTimeline(startDate, endDate, activeUsersDaily);
+    const usersDaily = buildDailyTimeline(dailyNewUsers);
+    const usersCumulative = buildDailyTimeline(dailyNewUsers, true, usersBeforePeriod);
+    const serversDaily = buildDailyTimeline(dailyNewServers);
+    const serversCumulative = buildDailyTimeline(dailyNewServers, true, serversBeforePeriod);
+    const messagesDailyChart = buildDailyTimeline(dailyMessages);
+    const messagesCumulative = buildDailyTimeline(dailyMessages, true, messagesBeforePeriod);
+    const activeUsersDailyChart = buildDailyTimeline(activeUsersDaily);
 
     // Новые графики:
-    const onlineUsersDailyChart = buildDailyTimeline(startDate, endDate, onlineUsersAgg);
-    const brandingDailyChart = buildBrandingTimeline(startDate, endDate, brandingAgg);
+    const onlineUsersDailyChart = buildDailyTimeline(onlineUsersAgg);
+    const brandingDailyChart = buildBrandingTimeline(brandingAgg);
 
     const brandTotals = {};
     let totalBrandVisits = 0;
@@ -596,10 +569,10 @@ router.get('/stats', [auth, isModerator], async (req, res) => {
       };
     });
 
-    const voiceHoursDailyChart = buildDailyTimeline(startDate, endDate, voiceHoursAgg);
-    const voiceHoursCumulativeChart = buildDailyTimeline(startDate, endDate, voiceHoursAgg, true, voiceHoursBeforePeriod);
-    const voiceSessionsDailyChart = buildDailyTimeline(startDate, endDate, voiceSessionsAgg);
-    const voiceUsersDailyChart = buildDailyTimeline(startDate, endDate, voiceUsersAgg);
+    const voiceHoursDailyChart = buildDailyTimeline(voiceHoursAgg);
+    const voiceHoursCumulativeChart = buildDailyTimeline(voiceHoursAgg, true, voiceHoursBeforePeriod);
+    const voiceSessionsDailyChart = buildDailyTimeline(voiceSessionsAgg);
+    const voiceUsersDailyChart = buildDailyTimeline(voiceUsersAgg);
 
     // Сумма часов за выбранный период
     const voiceHoursPeriod = Math.round((voiceHoursAgg.reduce((sum, item) => sum + (item.count || 0), 0)) * 10) / 10;

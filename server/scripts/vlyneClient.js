@@ -11,7 +11,7 @@
  *        --redirect vlyne://auth/callback --redirect http://127.0.0.1:7431/callback \
  *        --scopes openid,profile,email,telegram,offline_access --first-party
  *   node server/scripts/vlyneClient.js create --name "Vlyne VPN Bot" --type confidential \
- *        --redirect https://bot.vlyne.ru/oauth/callback --scopes openid,profile,telegram
+ *        --redirect https://vlessconf.fun:8444/vlyneid/callback --scopes openid,profile,telegram
  *   node server/scripts/vlyneClient.js secret <clientId>     # перевыпустить секрет
  *   node server/scripts/vlyneClient.js disable <clientId>
  *   node server/scripts/vlyneClient.js delete  <clientId>

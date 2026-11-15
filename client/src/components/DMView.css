@@ -615,7 +615,6 @@
   padding: 0 calc(30px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
   position: relative;
   z-index: 200;
-  margin-top: calc(-26px * var(--interface-scale, 1));
   pointer-events: none;
 }
 

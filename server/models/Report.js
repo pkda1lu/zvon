@@ -55,4 +55,7 @@ const reportSchema = new mongoose.Schema({
   }
 });
 
+reportSchema.index({ reporter: 1, createdAt: -1, _id: -1 });
+reportSchema.index({ reportedUser: 1 });
+
 module.exports = mongoose.materializedModel ? mongoose.model('Report', reportSchema) : mongoose.model('Report', reportSchema);

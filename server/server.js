@@ -385,7 +385,7 @@ const getVoiceChannelUsers = async (channelId) => {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.userId) {
       const user = await User.findById(socket.userId).select('username displayName avatar status banner badges activity displayedTag').populate('displayedTag.server', 'name icon tag');
-      if (user) {
+      if (user && socket.rooms.has(`voice-channel-${channelId}`)) {
         const userData = user.toObject();
         userData.isMuted = socket.isMuted || false;
         userData.isDeafened = socket.isDeafened || false;
@@ -790,7 +790,7 @@ io.on('connection', (socket) => {
   };
   updateStatusOnConnect();
 
-  socket.on('join-server', async (serverId) => {
+  socket.on('join-server', async (serverId, reply) => {
     socket.join(`server-${serverId}`);
     try {
       const server = await Server.findById(serverId).populate('channels');
@@ -800,7 +800,8 @@ io.on('connection', (socket) => {
         // Только тому, кто открыл сервер: остальные и так получают точечные
         // voice-channel-users-update. Рассылка всем заменяла у каждого клиента
         // всё дерево голосовых каналов при каждом заходе кого-то на сервер.
-        socket.emit('server-voice-states', voiceStates);
+        socket.emit('server-voice-states', voiceStates, String(serverId));
+        if (typeof reply === 'function') reply(voiceStates);
       }
     } catch (err) { }
   });
@@ -1752,8 +1753,6 @@ io.on('connection', (socket) => {
       }
 
       await notifyVoiceChannelUpdate(channelId);
-      const ch = await Channel.findById(channelId);
-      if (ch && ch.server) io.to(`server-${ch.server}`).emit('voice-channel-users-update', { channelId, users: await getVoiceChannelUsers(channelId) });
 
       // If a collaborative mini-app session (e.g. watch-together) is active in
       // this channel, auto-open the app for the joining member so they sync up.

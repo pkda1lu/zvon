@@ -327,3 +327,6 @@
 .problem-attachment-remove:hover {
   background: rgba(211, 47, 47, 0.85);
 }
+.zv-modal-overlay.problem-report-overlay {
+  z-index: 14000;
+}

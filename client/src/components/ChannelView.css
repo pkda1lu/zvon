@@ -639,7 +639,6 @@
   padding: 0 calc(30px * var(--interface-scale, 1)) calc(20px * var(--interface-scale, 1));
   position: relative;
   z-index: 200;
-  margin-top: calc(-26px * var(--interface-scale, 1));
   pointer-events: none;
 }
 
@@ -1224,6 +1223,13 @@
 }
 
 /* --- TYPING INDICATOR NEW --- */
+.chat-typing-slot {
+  min-height: calc(36px * var(--interface-scale, 1));
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
 .typing-indicator-new {
   display: flex;
   align-items: center;
@@ -1232,22 +1238,23 @@
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: calc(6px * var(--interface-scale, 1)) calc(14px * var(--interface-scale, 1));
-  margin: calc(10px * var(--interface-scale, 1)) 0;
+  min-width: 0;
   border-radius: calc(12px * var(--interface-scale, 1));
   width: fit-content;
-  align-self: flex-start;
+  max-width: 100%;
   box-shadow: 0 calc(4px * var(--interface-scale, 1)) calc(15px * var(--interface-scale, 1)) rgba(0, 0, 0, 0.2);
-  animation: slideTypingIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: typingFadeIn 0.2s ease-out;
   border-left: calc(3px * var(--interface-scale, 1)) solid var(--primary-neon);
 }
 
-@keyframes slideTypingIn {
-  from { opacity: 0; transform: translateY(calc(10px * var(--interface-scale, 1))); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes typingFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .typing-dots {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: calc(4px * var(--interface-scale, 1));
 }
@@ -1269,6 +1276,10 @@
 }
 
 .typing-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: calc(13px * var(--interface-scale, 1));
   color: var(--text-secondary);
 }

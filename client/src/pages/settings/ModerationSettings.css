@@ -1,0 +1,42 @@
+.moderation-settings {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.moderation-card-heading,
+.moderation-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    justify-content: space-between;
+}
+
+.moderation-card-actions {
+    justify-content: flex-end;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 16px;
+}
+
+.moderation-card-resolution {
+    align-items: center;
+    justify-content: space-between;
+}
+
+.moderation-settings .settings-btn,
+.moderation-settings .zv-tab {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .moderation-card-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .moderation-settings .settings-btn,
+    .moderation-settings button.zv-tab {
+        min-height: 44px;
+    }
+}
