@@ -86,12 +86,14 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'DirectMessage'
   }],
-  // Заглушённые серверы: не показываем индикатор непрочитанного и не оповещаем
-  // о новых сообщениях. Упоминания при этом доходят — они адресованы лично,
-  // и глушить их вместе с общим потоком значило бы терять обращения к себе.
+  // Личные муты отключают оповещения, включая упоминания.
   mutedServers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Server'
+  }],
+  mutedChannels: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Channel'
   }],
   // С какого момента считать непрочитанное в чатах, где отметки «прочитано»
   // ещё нет (см. models/ReadState). Ставится при первом запросе отметок:

@@ -34,6 +34,7 @@ export interface User {
   mutedDMs?: string[];
   /** Заглушённые серверы. Приходит с /api/auth/me. */
   mutedServers?: string[];
+  mutedChannels?: string[];
   notes?: Record<string, string>;
   isBot?: boolean;
     isPublished?: boolean;

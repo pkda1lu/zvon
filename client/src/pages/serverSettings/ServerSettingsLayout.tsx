@@ -231,7 +231,6 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                 </div>
 
                 <div className="settings-content-wrapper">
-                    <CloseButton className="settings-close-btn" onClick={onClose} />
                     <React.Suspense fallback={<SettingsTabFallback />}>
                         <motion.div
                             key={activeTab}
@@ -244,6 +243,9 @@ const ServerSettingsLayout: React.FC<ServerSettingsLayoutProps> = ({ isOpen, onC
                             {renderContent()}
                         </motion.div>
                     </React.Suspense>
+                </div>
+                <div className="settings-close-rail">
+                    <CloseButton onClick={onClose} />
                 </div>
             </div>
 

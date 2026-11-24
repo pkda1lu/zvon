@@ -287,9 +287,11 @@ export const GridPicker: React.FC<{
 export const SettingsToggle: React.FC<{
     checked: boolean;
     onChange: (val: boolean) => void;
-}> = ({ checked, onChange }) => (
+    disabled?: boolean;
+    label?: string;
+}> = ({ checked, onChange, disabled, label }) => (
     <label className="settings-toggle">
-        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+        <input type="checkbox" checked={checked} disabled={disabled} aria-label={label} onChange={e => onChange(e.target.checked)} />
         <span className="toggle-slider" />
     </label>
 );

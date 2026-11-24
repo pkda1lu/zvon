@@ -1118,17 +1118,20 @@ io.on('connection', (socket) => {
         // одноимённая переменная выше объявлена в другом блоке и сюда не видна.
         // Ходим в базу только если есть кого уведомлять.
         let pushChannelName = '';
+        let mentionChannel = null;
         if (message.mentions && message.mentions.length) {
           try {
-            const ch = await Channel.findById(data.channelId).select('name');
+            const ch = await Channel.findById(data.channelId).select('name server');
             pushChannelName = ch?.name || '';
+            mentionChannel = ch;
           } catch { /* название необязательно — уведомление уйдёт и без него */ }
         }
 
         // Specifically notify mentioned users if they are not in the channel
         message.mentions.forEach(userId => {
           if (String(userId) !== String(socket.userId)) {
-            io.to(`user-${userId}`).emit('mention', fullMessage);
+            io.to(`user-${userId}`).emit('mention', mentionChannel
+              ? { ...fullMessage.toObject(), channel: mentionChannel.toObject() } : fullMessage);
             // Упомянули, а приложение закрыто — доставим системным уведомлением.
             const authorName = fullMessage.author?.displayName || fullMessage.author?.username || 'Кто-то';
             const channelName = pushChannelName;

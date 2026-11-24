@@ -6,6 +6,27 @@ const { Permissions } = require('../utils/permissions');
 const Channel = require('../models/Channel');
 const Server = require('../models/Server');
 const { logAction } = require('../utils/auditLogger');
+const User = require('../models/User');
+const mongoose = require('mongoose');
+
+router.post('/:id/mute', auth, async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id) || typeof req.body?.muted !== 'boolean') {
+    return res.status(400).json({ message: 'Укажите канал и состояние уведомлений' });
+  }
+  try {
+    const channel = await Channel.findById(req.params.id).select('server');
+    if (!channel) return res.status(404).json({ message: 'Канал не найден' });
+    const member = await Server.exists({ _id: channel.server, 'members.user': req.user._id });
+    if (!member) return res.status(403).json({ message: 'Нет доступа к серверу' });
+    await User.updateOne({ _id: req.user._id }, req.body.muted
+      ? { $addToSet: { mutedChannels: channel._id } }
+      : { $pull: { mutedChannels: channel._id } });
+    req.app.get('io')?.to(`user-${req.user._id}`).emit('notification-mutes-changed');
+    res.json({ muted: req.body.muted });
+  } catch (error) {
+    res.status(500).json({ message: 'Не удалось изменить уведомления' });
+  }
+});
 
 router.post('/', auth, checkPermission(Permissions.MANAGE_CHANNELS, 'body.serverId'), async (req, res) => {
   try {

@@ -101,7 +101,7 @@ const Main: React.FC = () => {
   const { activeChannelId, leaveChannel } = useVoice();
   const { addNotification } = useNotifications();
   const { alert: showAlert, confirm: customConfirm } = useDialog();
-  const { unreadCount: inboxUnreadCount } = useInbox();
+  const { unreadCount: inboxUnreadCount, addItem: addInboxItem } = useInbox();
 
   // Достаём текст ошибки старта ЛС (например, ограничение приватности получателя)
   // и показываем его пользователю.
@@ -1415,51 +1415,36 @@ const Main: React.FC = () => {
           // друзей — о личных сообщениях внутри Zvon не сообщалось вовсе.
           if (message.directMessage) {
             const dmId = String(message.directMessage);
-            const prefs = user.settings?.notifications || {};
-            const dmMuted = (user.mutedDMs || []).map(String).includes(dmId);
-            if (!dmMuted && prefs.directMessages !== false) {
-              const dm = dmsRef.current.find(d => d._id === dmId);
-              const author = message.author.displayName || message.author.username;
-              const isGroup = isGroupDM(dm);
-              const groupName = dm?.name || (isGroup
-                ? dm!.participants.filter(p => p._id !== user._id).map(p => p.displayName || p.username).join(', ')
-                : '');
-              const attachments = message.attachments?.length || 0;
-              const text = prefs.showPreview === false
-                ? 'Новое сообщение'
-                : (message.content?.trim() || (attachments ? `📎 Вложение${attachments > 1 ? ` (${attachments})` : ''}` : 'Новое сообщение'));
-              soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
-              addNotification({
-                title: isGroup ? `${author} · ${groupName}` : author,
-                content: text,
-                type: 'message',
-                avatar: message.author.avatar || undefined,
-                onClick: () => {
-                  const target = dmsRef.current.find(d => d._id === dmId);
-                  if (!target) return;
-                  setSelectedDM(target);
-                  setShowFriends(false);
-                  setShowShowcase(false);
-                  setSelectedServer(null);
-                  setMobileView('content');
-                },
-              });
-            }
+            const dm = dmsRef.current.find(d => d._id === dmId);
+            const author = message.author.displayName || message.author.username;
+            const isGroup = isGroupDM(dm);
+            const groupName = dm?.name || (isGroup
+              ? dm!.participants.filter(p => p._id !== user._id).map(p => p.displayName || p.username).join(', ')
+              : '');
+            const attachments = message.attachments?.length || 0;
+            const text = message.content?.trim() || (attachments ? `📎 Вложение (${attachments})` : 'Новое сообщение');
+            addInboxItem({
+              type: 'dm',
+              title: isGroup ? `${author} · ${groupName}` : author,
+              content: text,
+              author: {
+                _id: message.author._id, username: author, avatar: message.author.avatar || null,
+                badges: message.author.badges, displayedTag: message.author.displayedTag,
+              },
+              link: { dmId, messageId: message._id },
+            });
           }
 
           // Only show old toast for channel messages WITHOUT mentions of current user.
           // Mentions are handled by InboxContext (persistent + toast).
           const isMentioned = message.mentions?.some(m => m._id === user._id);
 
-          // Сервер заглушён — не отвлекаем. Упоминания сюда не попадают
-          // (их отсекает isMentioned выше) и доходят по-прежнему: они
-          // адресованы лично, и глушить их вместе с общим потоком значило бы
-          // терять обращения к себе.
+          // Муты сервера и канала отключают оповещения о сообщениях.
           const msgServerMuted = !!message.channel && (user.mutedServers || []).some(
             (sid: string) => servers.some(sv => String(sv._id) === String(sid)
               && sv.channels.some(c => c._id === message.channel)));
 
-          if (!message.directMessage && !isMentioned && !msgServerMuted) {
+          if (!message.directMessage && !isMentioned && !msgServerMuted && !(user.mutedChannels || []).includes(String(message.channel))) {
             soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.5);
             addNotification({
               title: message.author.username, content: message.content, type: 'message', avatar: message.author.avatar || undefined,
@@ -1499,7 +1484,7 @@ const Main: React.FC = () => {
       s.off('new-message', handleGlobalMessage);
       s.off('message-pinned-update', handleMessagePinnedUpdate);
     };
-  }, [socket, user, selectedChannel?._id, selectedDM?._id, servers, addNotification]);
+  }, [socket, user, selectedChannel?._id, selectedDM?._id, servers, addNotification, addInboxItem]);
 
   useEffect(() => {
     if (!selectedChannel || !socket) return;

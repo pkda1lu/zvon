@@ -896,6 +896,7 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
 router.post('/:id/mute', auth, async (req, res) => {
   try {
     const { muted } = req.body || {};
+    if (typeof muted !== 'boolean') return res.status(400).json({ message: 'Укажите состояние уведомлений' });
     const id = req.params.id;
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Неверный идентификатор сервера' });
@@ -905,7 +906,8 @@ router.post('/:id/mute', auth, async (req, res) => {
       { _id: req.user._id },
       muted ? { $addToSet: { mutedServers: id } } : { $pull: { mutedServers: id } }
     );
-    res.json({ muted: !!muted });
+    req.app.get('io')?.to(`user-${req.user._id}`).emit('notification-mutes-changed');
+    res.json({ muted });
   } catch (error) {
     console.error('[servers] заглушение:', error.message);
     res.status(500).json({ message: 'Server error' });

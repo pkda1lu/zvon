@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
+import NotificationSources from '../../components/NotificationSources';
+import '../../components/NotificationSources.css';
 import { SettingsToggle } from './SettingsUI';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -144,6 +146,7 @@ const NotificationsSettings: React.FC = () => {
     return (
         <div className="settings-content-inner">
             <h2 className="settings-page-title">Уведомления</h2>
+            <div className="settings-card"><NotificationSources /></div>
 
             {/* Системный статус и подписка PWA */}
             <div className="settings-card">
@@ -179,7 +182,6 @@ const NotificationsSettings: React.FC = () => {
                 <div className="settings-row">
                     <div className="settings-row-text">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span>💬</span>
                             <h4>Личные сообщения и группы</h4>
                         </div>
                         <p>Сообщения в личных диалогах и групповых беседах.</p>
@@ -193,7 +195,6 @@ const NotificationsSettings: React.FC = () => {
                 <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                     <div className="settings-row-text">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span>📢</span>
                             <h4>Упоминания в каналах серверов</h4>
                         </div>
                         <p>Когда вас персонально упоминают (@никнейм) в текстовом канале.</p>
@@ -207,7 +208,6 @@ const NotificationsSettings: React.FC = () => {
                 <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                     <div className="settings-row-text">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span>📞</span>
                             <h4>Входящие голосовые вызовы</h4>
                         </div>
                         <p>Срочные системные звонки в личных беседах и группах.</p>
@@ -221,7 +221,6 @@ const NotificationsSettings: React.FC = () => {
                 <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                     <div className="settings-row-text">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span>👋</span>
                             <h4>Запросы в друзья</h4>
                         </div>
                         <p>Уведомления о новых входящих запросах и принятых заявках в друзья.</p>
@@ -245,7 +244,6 @@ const NotificationsSettings: React.FC = () => {
                     <div className="settings-row">
                         <div className="settings-row-text">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🚩</span>
                                 <h4>Жалобы на контент</h4>
                             </div>
                             <p>Жалобы пользователей на сообщения, профили, серверы и мини-приложения.</p>
@@ -259,7 +257,6 @@ const NotificationsSettings: React.FC = () => {
                     <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                         <div className="settings-row-text">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🐞</span>
                                 <h4>Обращения о проблемах</h4>
                             </div>
                             <p>Баг-репорты и предложения из кнопки «Репорт».</p>
@@ -273,7 +270,6 @@ const NotificationsSettings: React.FC = () => {
                     <div className="settings-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                         <div className="settings-row-text">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🔑</span>
                                 <h4>Заявки Vlyne ID</h4>
                             </div>
                             <p>Новые заявки на подключение приложений и ответы разработчиков по ним.</p>
@@ -329,7 +325,7 @@ const NotificationsSettings: React.FC = () => {
                                 Обычное
                             </button>
                             <button className="settings-btn" disabled={busy} onClick={() => handleTest(true)} style={{ background: 'rgba(255,255,255,0.1)' }}>
-                                С вложением 📷
+                                С вложением
                             </button>
                         </div>
                     </div>

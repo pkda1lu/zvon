@@ -4,7 +4,7 @@ import { Server, Channel, User } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useCachedAvatar } from '../utils/avatarCache';
 import { useSocket } from '../contexts/SocketContext';
-import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon, EditIcon } from './Icons';
+import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon, EditIcon, BellIcon, BellOffIcon } from './Icons';
 import { useDraftChatIds } from '../utils/drafts';
 import './ChatReliability.css';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +14,7 @@ import './panel-hero.css';
 import './ServerSidebar.css';
 import { useServerMemberMap } from '../utils/serverMembers';
 import UserAvatar from './UserAvatar';
+import ChannelSettingsErrorBoundary from './ChannelSettingsErrorBoundary';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import VoiceControlPanel from './VoiceControlPanel';
 import { ConnectionStates } from '../utils/livekitLazy';
@@ -152,7 +153,8 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
 }) => {
   const { interfaceScale } = useAppearance();
   const { alert } = useDialog();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, refreshUser } = useAuth();
+  const [muteBusy, setMuteBusy] = useState<string | null>(null);
   const { socket } = useSocket();
   const { joinChannel, userStates, activeChannelId, roomConnectionState } = useVoice();
   // Каналы с неотправленным текстом — помечаем карандашом (utils/drafts).
@@ -386,6 +388,24 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             </div>
           )}
           <div className="channel-actions">
+            {(channel.type === 'text' || channel.type === 'room') && (
+              <button type="button" className="channel-settings-icon"
+                aria-label={currentUser?.mutedChannels?.includes(channel._id) ? 'Включить уведомления канала' : 'Заглушить канал'}
+                title={currentUser?.mutedChannels?.includes(channel._id) ? 'Включить уведомления канала' : 'Заглушить канал'}
+                disabled={muteBusy !== null}
+                onClick={async event => {
+                  event.stopPropagation();
+                  setMuteBusy(channel._id);
+                  try {
+                    await axios.post(`/api/channels/${channel._id}/mute`, { muted: !currentUser?.mutedChannels?.includes(channel._id) });
+                    await refreshUser();
+                  } catch { await alert('Не удалось изменить уведомления канала.'); }
+                  finally { setMuteBusy(null); }
+                }}>
+                {currentUser?.mutedChannels?.includes(channel._id) ? <BellOffIcon size={14} /> : <BellIcon size={14} />}
+              </button>
+            )}
+
             {draftIds.has(channel._id) && selectedChannel?._id !== channel._id && (
               <span className="draft-marker" title="Есть неотправленный текст" aria-label="Черновик">
                 <EditIcon size={13} color="currentColor" />
@@ -611,6 +631,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
       )}
 
       {editingChannel && (
+        <ChannelSettingsErrorBoundary key={editingChannel._id} onClose={() => setEditingChannel(null)}>
         <LazyOverlay>
         <ChannelSettingsModal
           isOpen={!!editingChannel}
@@ -623,6 +644,7 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           onChannelDelete={() => { if (onChannelCreated) onChannelCreated(); }}
         />
         </LazyOverlay>
+        </ChannelSettingsErrorBoundary>
       )}
 
       {editingCategory && (

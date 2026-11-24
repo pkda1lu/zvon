@@ -46,10 +46,13 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     onChannelDelete
 }) => {
     const { confirm } = useDialog();
+    const channels = (server.channels || []).filter(Boolean);
+    const roles = (server.roles || []).filter(Boolean);
+    const members = (server.members || []).filter(member => member?.user);
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const isMobile = window.innerWidth <= 768;
     const [mobileViewState, setMobileViewState] = useState<'tabs' | 'content'>('tabs');
-    const [name, setName] = useState(channel.name);
+    const [name, setName] = useState(channel.name || '');
     const [topic, setTopic] = useState(channel.topic || '');
     // Категория — локально: выбор виден сразу, не дожидаясь перезагрузки
     // списка серверов. Раньше поле брало значение из снимка канала на момент
@@ -77,7 +80,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
     const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
 
     useEffect(() => {
-        setName(channel.name);
+        setName(channel.name || '');
         setTopic(channel.topic || '');
         setOverwrites(channel.permissionOverwrites || []);
         const s = (channel as any).slowMode || 0;
@@ -343,7 +346,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                         }}
                                     >
                                         <option value="">Без категории</option>
-                                        {server.channels
+                                        {channels
                                             .filter(c => c.type === 'category')
                                             .map(cat => (
                                                 <option key={cat._id} value={cat._id}>
@@ -502,7 +505,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                         </div>
                                                         <div className="dropdown-list">
                                                             <div className="dropdown-section-title">Роли</div>
-                                                            {server.roles
+                                                            {roles
                                                                 .filter(r =>
                                                                     r.name !== '@everyone' &&
                                                                     !overwrites.find(o => String(o.id) === String(r._id)) &&
@@ -521,7 +524,7 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                                             }
 
                                                             <div className="dropdown-section-title">Участники</div>
-                                                            {server.members
+                                                            {members
                                                                 .filter(m => {
                                                                     if (!m) return false;
                                                                     const mUser = typeof m.user === 'object' ? m.user : null;
@@ -561,8 +564,8 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
                                         <div className="roles-layout">
                                             <div className="roles-list-column">
                                                 {customAccessList.map((ow) => {
-                                                    const role = server.roles.find(r => String(r._id) === String(ow.id));
-                                                    const member = !role ? server.members.find(m => {
+                                                    const role = roles.find(r => String(r._id) === String(ow.id));
+                                                    const member = !role ? members.find(m => {
                                                         if (!m) return false;
                                                         const mId = typeof m.user === 'object' ? m.user?._id : m.user;
                                                         return String(mId) === String(ow.id);
@@ -606,8 +609,8 @@ const ChannelSettingsModal: React.FC<ChannelSettingsModalProps> = ({
 
                                             <div className="roles-detail-column">
                                                 {selectedOverwrite ? (() => {
-                                                    const role = server.roles.find(r => String(r._id) === String(selectedOverwrite.id));
-                                                    const member = !role ? server.members.find(m => {
+                                                    const role = roles.find(r => String(r._id) === String(selectedOverwrite.id));
+                                                    const member = !role ? members.find(m => {
                                                         if (!m) return false;
                                                         const mId = typeof m.user === 'object' ? m.user?._id : m.user;
                                                         return String(mId) === String(selectedOverwrite.id);

@@ -61,8 +61,17 @@ export const useInbox = () => {
 
 export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { socket } = useSocket();
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const { addNotification } = useNotifications();
+    const userRef = useRef(user);
+    userRef.current = user;
+    const refreshUserRef = useRef(refreshUser);
+    refreshUserRef.current = refreshUser;
+    useEffect(() => {
+        const reload = () => { void refreshUserRef.current().catch(() => {}); };
+        socket?.on('notification-mutes-changed', reload);
+        return () => { socket?.off('notification-mutes-changed', reload); };
+    }, [socket]);
     const [items, setItems] = useState<InboxItem[]>(() => {
         const saved = localStorage.getItem('zvon_inbox');
         if (saved) {
@@ -165,11 +174,20 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             read: false
         };
         setItems(prev => [newItem, ...prev].slice(0, 50)); // Keep last 50 items
+        const profile = userRef.current;
+        const prefs = profile?.settings?.notifications;
+        const muted = (item.link?.serverId && profile?.mutedServers?.includes(item.link.serverId))
+            || (item.link?.channelId && profile?.mutedChannels?.includes(item.link.channelId))
+            || (item.link?.dmId && profile?.mutedDMs?.includes(item.link.dmId));
+        if (muted || (item.type === 'mention' && prefs?.channelMentions === false)
+            || (item.type === 'friend_request' && prefs?.friendRequests === false)
+            || (item.type === 'dm' && prefs?.directMessages === false)) return;
         soundManager.play(SOUNDS.MESSAGE_NOTIFY, 0.4);
+        const content = prefs?.showPreview === false ? 'Новое уведомление' : item.content;
 
         addNotification({
             title: item.title,
-            content: item.content,
+            content,
             type: item.type === 'mention' ? 'message' : 'info',
             avatar: item.author?.avatar || undefined,
             onClick: () => openItem(newItem)
@@ -177,7 +195,7 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         sendNativeNotification(
             item.title,
-            item.content,
+            content,
             item.author?.avatar ? getAvatarUrl(item.author.avatar) : null,
             () => openItem(newItem)
         );

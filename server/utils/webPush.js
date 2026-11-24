@@ -143,7 +143,17 @@ async function pushIfOffline(io, userId, payload, category = null) {
     if (isUserOnline(io, userId)) return;
 
     const User = require('../models/User');
-    const user = await User.findById(userId).select('settings');
+    const user = await User.findById(userId).select('settings mutedServers mutedChannels mutedDMs');
+    if (!user) return;
+    const channelId = payload.data?.channelId;
+    const dmId = payload.data?.dmId;
+    if (dmId && user.mutedDMs?.some(id => String(id) === String(dmId))) return;
+    if (channelId) {
+      if (user.mutedChannels?.some(id => String(id) === String(channelId))) return;
+      const Channel = require('../models/Channel');
+      const channel = await Channel.findById(channelId).select('server');
+      if (channel && user.mutedServers?.some(id => String(id) === String(channel.server))) return;
+    }
     const notifSettings = user?.settings?.notifications || {};
 
     // Проверяем категорию (по умолчанию включены)

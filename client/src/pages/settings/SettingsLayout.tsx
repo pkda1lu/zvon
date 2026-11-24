@@ -397,9 +397,6 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             </div>
 
             <div className="settings-content-wrapper">
-                {!isMobile && (
-                    <CloseButton className="settings-close-btn" onClick={handleClose} />
-                )}
                 <ProblemReportModal isOpen={showReport} onClose={() => setShowReport(false)} />
                 <React.Suspense fallback={<SettingsTabFallback />}>
                     <motion.div
@@ -414,6 +411,12 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                     </motion.div>
                 </React.Suspense>
             </div>
+
+            {!isMobile && (
+                <div className="settings-close-rail">
+                    <CloseButton onClick={handleClose} />
+                </div>
+            )}
 
             <AnimatePresence>
             {pendingTab && (

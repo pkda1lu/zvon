@@ -1,0 +1,15 @@
+.notification-sources { min-width: 0; }
+.notification-sources h3 { margin: 0 0 12px; font-size: 16px; }
+.notification-sources p { color: var(--text-dim); line-height: 1.5; }
+.notification-sources select { width: 100%; margin: 8px 0; }
+.notification-source-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block: 12px;
+    border-bottom: 1px solid var(--glass-border);
+}
+.notification-source-row > span { min-width: 0; overflow-wrap: anywhere; }
+.notification-source-row small { display: block; color: var(--text-dim); margin-top: 4px; }
+.notification-source-row .settings-toggle { flex-shrink: 0; }

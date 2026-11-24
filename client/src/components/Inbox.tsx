@@ -9,6 +9,8 @@ import { iosSpring } from '../animations/transitions';
 import './Inbox.css';
 import AwardNotification from './AwardNotification';
 import ProblemReportModal from './ProblemReportModal';
+import NotificationSources from './NotificationSources';
+import { CloseIcon, SettingsIcon } from './Icons';
 
 interface InboxProps {
     onClose: () => void;
@@ -17,10 +19,20 @@ interface InboxProps {
 }
 
 const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick, onOpenModerationHistory }) => {
-    const { items, markAsRead, markAllAsRead, removeItem, clearInbox } = useInbox();
+    const { items, markAsRead, markAllAsRead, removeItem } = useInbox();
     const [expandedId, setExpandedId] = React.useState<string | null>(null);
     const [showReport, setShowReport] = React.useState(false);
-    const [activeTab, setActiveTab] = React.useState<'all' | 'mentions' | 'awards'>('all');
+    const [activeTab, setActiveTab] = React.useState('all');
+    const [query, setQuery] = React.useState('');
+    const [unreadOnly, setUnreadOnly] = React.useState(false);
+    const [showSources, setShowSources] = React.useState(false);
+    const tabs = [
+        { id: 'all', label: 'Все', accepts: (_item: InboxItem) => true },
+        { id: 'mentions', label: 'Упоминания', accepts: (item: InboxItem) => item.type === 'mention' },
+        { id: 'social', label: 'Общение', accepts: (item: InboxItem) => item.type === 'dm' || item.type === 'friend_request' },
+        { id: 'moderation', label: 'Модерация', accepts: (item: InboxItem) => item.type === 'moderation' },
+        { id: 'awards', label: 'Награды', accepts: (item: InboxItem) => item.type === 'award' },
+    ];
     const [isMobile, setIsMobile] = React.useState(() => window.matchMedia('(max-width: 768px)').matches);
     React.useEffect(() => {
         const media = window.matchMedia('(max-width: 768px)');
@@ -29,11 +41,12 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick, onOpenModerationHis
         return () => media.removeEventListener('change', update);
     }, []);
 
-    const filteredItems = items.filter(item => {
-        if (activeTab === 'mentions') return item.type === 'mention';
-        if (activeTab === 'awards') return item.type === 'award';
-        return true;
-    });
+    const selectedTab = tabs.find(tab => tab.id === activeTab)!;
+    const needle = query.trim().toLocaleLowerCase('ru-RU');
+    const filteredItems = items.filter(item => selectedTab.accepts(item)
+        && (!unreadOnly || !item.read)
+        && (!needle || [item.title, item.content, item.author?.username].join(' ').toLocaleLowerCase('ru-RU').includes(needle)));
+    const unreadCount = items.filter(item => !item.read).length;
 
     const toggleMessage = (item: InboxItem) => {
         setExpandedId(previous => previous === item.id ? null : item.id);
@@ -64,24 +77,41 @@ const Inbox: React.FC<InboxProps> = ({ onClose, onItemClick, onOpenModerationHis
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     </button>
                 )}
-                <h3>Входящие</h3>
+                <h3>Уведомления {unreadCount > 0 && <span className="inbox-count">{unreadCount}</span>}</h3>
                 <div className="inbox-actions">
-                    <button className="inbox-action-btn" onClick={markAllAsRead}>Прочитать все</button>
-                    {!isMobile && <button className="inbox-action-btn" onClick={clearInbox}>Очистить</button>}
+                    <button type="button" className="inbox-item-btn" aria-label="Управление уведомлениями" aria-pressed={showSources} onClick={() => setShowSources(value => !value)}><SettingsIcon size={20} /></button>
+                    {!isMobile && <button type="button" className="inbox-item-btn" aria-label="Закрыть уведомления" onClick={onClose}><CloseIcon size={20} /></button>}
                 </div>
             </div>
 
-            <div className="inbox-tabs">
-                <div className={`inbox-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>Все</div>
-                <div className={`inbox-tab ${activeTab === 'mentions' ? 'active' : ''}`} onClick={() => setActiveTab('mentions')}>Упоминания</div>
-                <div className={`inbox-tab ${activeTab === 'awards' ? 'active' : ''}`} onClick={() => setActiveTab('awards')}>Награды</div>
-            </div>
+            {!showSources && (
+                <>
+                    <div className="inbox-tabs" aria-label="Категории уведомлений">
+                        {tabs.map(tab => {
+                            const count = items.filter(item => tab.accepts(item) && !item.read).length;
+                            return <button type="button" key={tab.id} className={`inbox-tab ${activeTab === tab.id ? 'active' : ''}`}
+                                aria-pressed={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>
+                                {tab.label}{count > 0 && <span className="inbox-count">{count}</span>}
+                            </button>;
+                        })}
+                    </div>
+                    <div className="inbox-toolbar">
+                        <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Найти уведомление" aria-label="Поиск уведомлений" />
+                        <label><input type="checkbox" checked={unreadOnly} onChange={event => setUnreadOnly(event.target.checked)} />Непрочитанные</label>
+                    </div>
+                    <div className="inbox-batch-actions">
+                        <button type="button" className="inbox-action-btn" disabled={!unreadCount} onClick={markAllAsRead}>Прочитать все</button>
+                        <button type="button" className="inbox-action-btn" disabled={!items.some(item => item.read)}
+                            onClick={() => items.filter(item => item.read).forEach(item => removeItem(item.id))}>Удалить прочитанные</button>
+                    </div>
+                </>
+            )}
 
             <div className="inbox-list">
-                {filteredItems.length === 0 ? (
+                {showSources ? <NotificationSources /> : filteredItems.length === 0 ? (
                     <div className="inbox-empty">
                         <div className="inbox-empty-icon">📫</div>
-                        <p>{activeTab === 'mentions' ? 'У вас нет новых упоминаний' : 'У вас нет новых уведомлений'}</p>
+                        <p>{query || unreadOnly ? 'По выбранным условиям уведомлений нет' : 'В этой категории пока нет уведомлений'}</p>
                     </div>
                 ) : (
                     filteredItems.map(item => (

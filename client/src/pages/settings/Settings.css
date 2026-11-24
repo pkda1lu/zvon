@@ -124,6 +124,7 @@
 
 .settings-content-wrapper {
     flex: 1;
+    min-width: 0;
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -132,6 +133,22 @@
     overflow-y: auto;
     padding: calc(60px * var(--interface-scale, 1)) calc(80px * var(--interface-scale, 1)) calc(100px * var(--interface-scale, 1)) calc(60px * var(--interface-scale, 1));
     zoom: var(--settings-scale, var(--interface-scale, 1));
+}
+
+.settings-close-rail {
+    zoom: var(--settings-scale, var(--interface-scale, 1));
+    flex: 0 0 90px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    padding-top: 40px;
+}
+
+@media (max-width: 768px) {
+    .settings-close-rail {
+        flex-basis: 58px;
+        padding-top: 16px;
+    }
 }
 
 .settings-content-inner {
