@@ -3,12 +3,13 @@ import { getAvatarUrl } from '../utils/avatar';
 import { useWindowSettings } from './WindowSettingsContext';
 import './Notification.css';
 import TransferToasts from '../components/TransferToasts';
+import { GamepadIcon } from '../components/Icons';
 
 export interface Notification {
     id: string;
     title: string;
     content: string;
-    type: 'info' | 'success' | 'warning' | 'error' | 'message';
+    type: 'info' | 'success' | 'warning' | 'error' | 'message' | 'game';
     avatar?: string;
     onClick?: () => void;
     /** Duration in ms before auto-dismiss. `0` keeps it until the user closes it. Default 5000. */
@@ -44,7 +45,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const id = Math.random().toString(36).substring(2, 9);
         const newNotification = { ...notification, id };
 
-        setNotifications(prev => [...prev, newNotification]);
+        setNotifications(prev => {
+            if (notification.type !== 'game') return [...prev, newNotification];
+            const other = prev.filter(item => item.type !== 'game');
+            const games = prev.filter(item => item.type === 'game').slice(-2);
+            return [...other, ...games, newNotification];
+        });
 
         const ttl = notification.duration ?? 5000;
         if (ttl > 0) {
@@ -52,7 +58,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 removeNotification(id);
             }, ttl);
         }
-    }, [removeNotification]);
+    }, [removeNotification, streamerModeEnabled, disableNotifications]);
 
     const value = useMemo(() => ({ addNotification, removeNotification }), [addNotification, removeNotification]);
 
@@ -69,13 +75,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                             removeNotification(n.id);
                         }}
                     >
-                        {n.type === 'message' && (
+                        {(n.type === 'message' || n.type === 'game') && (
                             <div className="notification-avatar-container">
                                 {n.avatar ? (
-                                    <img src={getAvatarUrl(n.avatar)!} alt="" className="notification-avatar" />
+                                    <img src={getAvatarUrl(n.avatar)!} alt="" className="notification-avatar"
+                                        onError={event => { event.currentTarget.style.display = 'none'; }} />
                                 ) : (
                                     <div className="notification-avatar-placeholder">
-                                        {n.title.charAt(0).toUpperCase()}
+                                        {n.type === 'game' ? <GamepadIcon size={24} /> : n.title.charAt(0).toUpperCase()}
                                     </div>
                                 )}
                             </div>

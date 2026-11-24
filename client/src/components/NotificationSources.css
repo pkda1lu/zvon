@@ -1,15 +1,126 @@
-.notification-sources { min-width: 0; }
-.notification-sources h3 { margin: 0 0 12px; font-size: 16px; }
-.notification-sources p { color: var(--text-dim); line-height: 1.5; }
-.notification-sources select { width: 100%; margin: 8px 0; }
+.notification-sources {
+    min-width: 0;
+    padding: 8px;
+    color: var(--text-main, #fff);
+    overflow-wrap: anywhere;
+}
+
+.notification-sources h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 700;
+}
+
+.notification-sources p {
+    margin: 0 0 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.notification-sources > label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.notification-sources .zv-select {
+    margin-bottom: 16px;
+}
+
 .notification-source-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding-block: 12px;
-    border-bottom: 1px solid var(--glass-border);
+    padding: 14px;
+    margin-top: 8px;
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+    font-size: 14px;
 }
 .notification-source-row > span { min-width: 0; overflow-wrap: anywhere; }
-.notification-source-row small { display: block; color: var(--text-dim); margin-top: 4px; }
-.notification-source-row .settings-toggle { flex-shrink: 0; }
+.notification-source-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notification-source-name > svg {
+    flex-shrink: 0;
+    color: var(--text-dim);
+}
+
+.notification-source-row small {
+    display: block;
+    color: var(--text-dim);
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* The inbox loads independently of the settings stylesheet. */
+.notification-source-row .settings-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex: 0 0 44px;
+}
+
+.notification-source-row .settings-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
+.notification-source-row .toggle-slider {
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.notification-source-row .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    top: 2px;
+    left: 2px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+}
+
+.notification-source-row input:checked + .toggle-slider {
+    background: var(--success, #23a559);
+}
+
+.notification-source-row input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+
+.notification-source-row input:focus-visible + .toggle-slider {
+    outline: 2px solid var(--primary-neon);
+    outline-offset: 3px;
+}
+
+.notification-source-row input:disabled + .toggle-slider {
+    opacity: 0.4;
+    cursor: default;
+}
+
+@media (max-width: 480px) {
+    .notification-sources { padding: 4px; }
+    .notification-source-row { padding: 12px; gap: 12px; }
+}

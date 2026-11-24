@@ -1,3 +1,4 @@
+import { useFriendGameNotifications } from '../utils/useFriendGameNotifications';
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { isGroupDM } from '../utils/dm';
 import { useAuth } from '../contexts/AuthContext';
@@ -1706,6 +1707,8 @@ const Main: React.FC = () => {
       setProfilePosition(null);
     }
   }, [isMobile]);
+
+  useFriendGameNotifications(friends, handleUserClick);
 
   const handleServerProfileClick = useCallback((event?: React.MouseEvent) => {
     setShowServerProfile(true);

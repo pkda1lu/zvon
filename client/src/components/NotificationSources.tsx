@@ -4,6 +4,8 @@ import { Server } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { SettingsToggle } from '../pages/settings/SettingsUI';
 import './NotificationSources.css';
+import ZvSelect from './ZvSelect';
+import { BellOffIcon, HashtagIcon } from './Icons';
 
 export default function NotificationSources() {
     const { user, refreshUser } = useAuth();
@@ -54,16 +56,16 @@ export default function NotificationSources() {
             ) : (
                 <>
                     <label htmlFor="notification-server">Сервер</label>
-                    <select id="notification-server" className="settings-input" value={selected} onChange={event => setSelected(event.target.value)} disabled={busy}>
+                    <ZvSelect id="notification-server" aria-label="Сервер" value={selected} onChange={event => setSelected(event.target.value)} disabled={busy}>
                         {servers.map(item => <option key={item._id} value={item._id}>{item.name}</option>)}
-                    </select>
+                    </ZvSelect>
                     <div className="notification-source-row">
-                        <span>Заглушить сервер</span>
+                        <span className="notification-source-name"><BellOffIcon size={18} /><span>Заглушить сервер</span></span>
                         <SettingsToggle label="Заглушить сервер" checked={serverMuted} disabled={busy} onChange={value => toggle('servers', selected, value)} />
                     </div>
                     {server?.channels.filter(channel => channel.type === 'text' || channel.type === 'room').map(channel => (
                         <div className="notification-source-row" key={channel._id}>
-                            <span>#{channel.name}{serverMuted && <small>Мут сервера действует на этот канал</small>}</span>
+                            <span className="notification-source-name"><HashtagIcon size={18} /><span>{channel.name}{serverMuted && <small>Заглушён вместе с сервером</small>}</span></span>
                             <SettingsToggle label={`Заглушить канал ${channel.name}`} checked={!!user?.mutedChannels?.includes(channel._id)} disabled={busy || serverMuted}
                                 onChange={value => toggle('channels', channel._id, value)} />
                         </div>

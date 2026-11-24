@@ -8,6 +8,29 @@
     flex-direction: column;
     gap: 15px;
     pointer-events: none;
+    max-width: calc(100vw - 32px);
+}
+
+.notification-toast.game {
+    width: min(380px, calc(100vw - 32px));
+    cursor: pointer;
+}
+
+.notification-toast.game .notification-avatar {
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.notification-toast.game .notification-content {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+    .notification-container {
+        top: max(16px, env(safe-area-inset-top));
+        right: 16px;
+    }
 }
 
 .notification-toast {
