@@ -513,7 +513,7 @@ router.post('/password-change/request', auth, async (req, res) => {
     user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     await user.save();
 
-    await sendResetCode(user.email, code, getBrand(req).name);
+    await sendResetCode(user.email, code, getBrand(req).name, 'password-change');
     res.json({ message: 'Код подтверждения отправлен на вашу почту' });
   } catch (error) {
     console.error('Password change request error:', error);

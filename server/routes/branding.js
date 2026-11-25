@@ -100,7 +100,7 @@ const cleanDomain = (d) => {
     .trim();
 };
 
-    const zvon = BRANDS.zvon || { logo: 'zvonlogonew.png', favicon: 'icon.png', supportEmail: 'support@zvonserver.ru' };
+    const zvon = BRANDS.zvon || { logo: 'zvonlogonew.png', favicon: 'icon.png', supportEmail: 'support@mail.zvonserver.ru' };
     const finalBehavior = ['open', 'redirect', 'disabled'].includes(domainBehavior) ? domainBehavior : 'open';
 
     const brand = await Brand.create({
@@ -151,7 +151,7 @@ adminRouter.put('/:id', [auth, isModerator], async (req, res) => {
       return res.status(404).json({ message: 'Бренд не найден' });
     }
 
-    const zvon = BRANDS.zvon || { logo: 'zvonlogonew.png', favicon: 'icon.png', supportEmail: 'support@zvonserver.ru' };
+    const zvon = BRANDS.zvon || { logo: 'zvonlogonew.png', favicon: 'icon.png', supportEmail: 'support@mail.zvonserver.ru' };
 
     // Бренд Zvon всегда доступен
     if (brandId === 'zvon' && (enabled === false || domainBehavior === 'disabled')) {

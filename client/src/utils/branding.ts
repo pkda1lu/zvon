@@ -39,7 +39,7 @@ export const BRANDS: Record<string, BrandConfig> = {
         logo: 'zvonlogonew.png',
         favicon: 'icon.png',
         domain: 'zvonserver.ru',
-        supportEmail: 'support@zvonserver.ru',
+        supportEmail: 'support@mail.zvonserver.ru',
         enabled: true,
         isBuiltin: true,
         banner: {
@@ -64,7 +64,7 @@ export const BRANDS: Record<string, BrandConfig> = {
         logo: 'maxcord/logo.png',
         favicon: 'maxcord/logo.png',
         domain: 'maxcord.fun',
-        supportEmail: 'support@zvonserver.ru',
+        supportEmail: 'support@mail.zvonserver.ru',
         enabled: true,
         isBuiltin: false,
         banner: {
@@ -118,7 +118,7 @@ const withZvonFallback = (b: BrandConfig): BrandConfig => {
         ...b,
         logo: b.logo?.trim() ? b.logo : (zvon?.logo || 'zvonlogonew.png'),
         favicon: b.favicon?.trim() ? b.favicon : (zvon?.favicon || 'icon.png'),
-        supportEmail: b.supportEmail?.trim() ? b.supportEmail : (zvon?.supportEmail || 'support@zvonserver.ru')
+        supportEmail: b.supportEmail?.trim() ? b.supportEmail : (zvon?.supportEmail || 'support@mail.zvonserver.ru')
     };
 };
 

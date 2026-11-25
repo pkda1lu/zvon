@@ -1778,7 +1778,9 @@ const Main: React.FC = () => {
       setProfilePosition(null);
       setShowProfileUserId(target.id);
     } else if (item.type === 'moderation') {
-      if (target?.kind === 'content_report' && target.id) {
+      if (target?.kind === 'support_mail') {
+        handleOpenSettings('moderation-mail');
+      } else if (target?.kind === 'content_report' && target.id) {
         handleOpenSettings('moderation-reports', { focus: { kind: 'report', id: target.id } });
       } else if (target?.kind === 'problem_report' && target.id) {
         handleOpenSettings('moderation-problems', { focus: { kind: 'problem', id: target.id } });

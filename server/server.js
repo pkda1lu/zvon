@@ -2207,5 +2207,6 @@ server.listen(process.env.PORT || 5000, BIND_HOST, () => {
   // Проверяем почту при старте: через неё идут коды входа и 2FA, и неверные
   // настройки означают, что пользователи не смогут войти вообще. Результат
   // только пишется в лог — падать из-за почты сервер не должен.
+  require('./utils/mailNotifications').startMailNotifications(io);
   require('./utils/mail').verifyConnection().catch(() => { });
 });

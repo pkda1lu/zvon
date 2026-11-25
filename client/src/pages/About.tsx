@@ -89,7 +89,7 @@ const About: React.FC = () => {
                             <div style={{ marginTop: '24px', display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
                                 <div>
                                     <span style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>Email</span>
-                                    <a href="mailto:support@zvonserver.ru" style={{ color: 'var(--primary-neon)', textDecoration: 'none', fontWeight: 700 }}>support@zvonserver.ru</a>
+                                    <a href="mailto:support@mail.zvonserver.ru" style={{ color: 'var(--primary-neon)', textDecoration: 'none', fontWeight: 700 }}>support@mail.zvonserver.ru</a>
                                 </div>
                                 <div>
                                     <span style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>Администрация</span>

@@ -322,7 +322,7 @@ const VlyneIdLanding: React.FC = () => {
                     <div className="vidl-footer-links">
                         <a href="https://zvonserver.ru">Zvon</a>
                         <a href="https://zvonserver.ru/policy">Конфиденциальность</a>
-                        <a href="mailto:support@zvonserver.ru">Поддержка</a>
+                        <a href="mailto:support@mail.zvonserver.ru">Поддержка</a>
                         {/* Разработчикам — сюда, чтобы техническая часть не пугала
                             остальных на первом же экране. */}
                         <button className="vidl-footer-btn" onClick={() => navigate(devPath)}>Разработчикам</button>

@@ -70,10 +70,19 @@ function readMessage(uid, validity) {
     const mail = await simpleParser(message.source, { skipImageLinks: true, skipTextToHtml: true });
     return {
       ...summary(message),
+      replyAddress: (mail.replyTo || mail.from)?.value?.[0]?.address || '',
+      messageId: mail.messageId || '',
+      references: [].concat(mail.references || []),
       text: (mail.text || '').slice(0, 200000),
       attachments: mail.attachments.map(({ filename, size }) => ({ filename: filename || 'Вложение', size }))
     };
   });
 }
 
-module.exports = { listInbox, readMessage };
+function inboxHead() {
+  return withInbox(async (_client, mailbox) => ({
+    validity: String(mailbox.uidValidity), nextUid: mailbox.uidNext
+  }));
+}
+
+module.exports = { listInbox, readMessage, inboxHead };

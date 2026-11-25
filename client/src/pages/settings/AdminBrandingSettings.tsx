@@ -545,7 +545,7 @@ server {
         const zvonBrand = brands.find(b => b.id === 'zvon') || BRANDS.zvon;
         const defaultLogo = zvonBrand.logo || 'zvonlogonew.png';
         const defaultFavicon = zvonBrand.favicon || 'icon.png';
-        const defaultSupportEmail = zvonBrand.supportEmail || 'support@zvonserver.ru';
+        const defaultSupportEmail = zvonBrand.supportEmail || 'support@mail.zvonserver.ru';
 
         // Убедимся, что есть одна основная иконка
         let icons = [...editingBrand.appIcons];

@@ -23,3 +23,7 @@
 @container (min-width: 720px) {
     .moderation-mail-layout { grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); }
 }
+
+.moderation-mail > nav { margin-bottom: 16px; }
+.moderation-reply-thread { margin-top: 24px; }
+.moderation-reply-thread textarea { display: block; width: 100%; margin: 8px 0; resize: vertical; }

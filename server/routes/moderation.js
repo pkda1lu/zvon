@@ -50,14 +50,67 @@ router.get('/mail/inbox', auth, isModerator, inboxRoute(req => {
   return require('../utils/incomingMail').listInbox(page);
 }));
 
-router.get('/mail/inbox/:uid', auth, isModerator, inboxRoute(req => {
+router.get('/mail/inbox/:uid', auth, isModerator, inboxRoute(async req => {
   const { uid } = req.params;
   const { validity } = req.query;
   if (!/^[1-9]\d{0,9}$/.test(uid) || Number(uid) > 4294967295 ||
       typeof validity !== 'string' || !/^\d{1,20}$/.test(validity)) {
     throw Object.assign(new Error('Некорректный идентификатор письма'), { status: 400 });
   }
-  return require('../utils/incomingMail').readMessage(uid, validity);
+  const { messageId, references, ...message } = await require('../utils/incomingMail').readMessage(uid, validity);
+  return message;
+}));
+
+const MailHistory = require('../models/MailHistory');
+
+router.get('/mail/automatic', auth, isModerator, inboxRoute(async req => {
+  const page = Number(req.query.page ?? 1);
+  if (!Number.isSafeInteger(page) || page < 1 || page > 100000) {
+    throw Object.assign(new Error('Некорректная страница'), { status: 400 });
+  }
+  const rows = await MailHistory.find({ kind: 'automatic' }).select('purpose to createdAt status')
+    .sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 25).limit(26).lean();
+  return { items: rows.slice(0, 25), hasMore: rows.length > 25 };
+}));
+
+router.get('/mail/inbox/:uid/replies', auth, isModerator, inboxRoute(req =>
+  MailHistory.find({ kind: 'reply', validity: String(req.query.validity || ''), uid: req.params.uid })
+    .select('to text author status createdAt').sort({ createdAt: 1, _id: 1 }).lean()
+));
+
+router.post('/mail/inbox/:uid/replies', auth, isModerator, inboxRoute(async req => {
+  const { uid } = req.params;
+  const { validity, requestId } = req.body || {};
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!/^[1-9]\d{0,9}$/.test(uid) || Number(uid) > 4294967295 ||
+      typeof validity !== 'string' || !/^\d{1,20}$/.test(validity) ||
+      typeof requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(requestId) || !text || text.length > 10000) {
+    throw Object.assign(new Error('Проверьте текст и идентификатор письма'), { status: 400 });
+  }
+  const original = await require('../utils/incomingMail').readMessage(uid, validity);
+  if (!original.replyAddress || !/^[^\s@<>]+@[^\s@<>]+$/.test(original.replyAddress)) {
+    throw Object.assign(new Error('В письме нет подходящего адреса для ответа'), { status: 400 });
+  }
+  const filter = { kind: 'reply', requestId, validity, uid: Number(uid) };
+  let reply;
+  try {
+    reply = await MailHistory.create({
+      ...filter, to: original.replyAddress, text, author: req.user.username, status: 'pending'
+    });
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    const existing = await MailHistory.findOne(filter).select('to text author status createdAt').lean();
+    if (existing) return existing;
+    throw Object.assign(new Error('Этот идентификатор отправки уже использован'), { status: 409 });
+  }
+  try {
+    const result = await require('../utils/mail').sendSupportReply(original, text, reply._id);
+    reply.status = result.accepted?.length ? 'sent' : 'rejected';
+  } catch {
+    reply.status = 'unknown';
+  }
+  await reply.save();
+  return { _id: reply._id, to: reply.to, text, author: reply.author, status: reply.status, createdAt: reply.createdAt };
 }));
 
 // Personal history. The client never supplies the owner of the records.

@@ -100,7 +100,7 @@ const sendVerificationEmail = async (email, token, brandName = 'Zvon') => {
   const baseUrl = process.env.API_URL || process.env.CLIENT_URL || 'http://localhost:5000';
   const url = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
-  await transporter.sendMail({
+  await sendAutomatic('verify', {
     from: fromAddress(brandName),
     to: email,
     subject: `Подтверждение регистрации в ${brandName}`,
@@ -123,7 +123,7 @@ const sendVerificationEmail = async (email, token, brandName = 'Zvon') => {
 const sendLoginCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
   try {
-    await transporter.sendMail({
+    await sendAutomatic('login', {
       from: fromAddress(brandName),
       to: email,
       subject: `Код подтверждения входа ${brandName}`,
@@ -146,9 +146,9 @@ const sendLoginCode = async (email, code, brandName = 'Zvon') => {
   }
 };
 
-const sendResetCode = async (email, code, brandName = 'Zvon') => {
+const sendResetCode = async (email, code, brandName = 'Zvon', purpose = 'reset') => {
   checkConfig();
-  await transporter.sendMail({
+  await sendAutomatic(purpose, {
     from: fromAddress(brandName),
     to: email,
     subject: `Код для сброса пароля ${brandName}`,
@@ -169,7 +169,7 @@ const sendResetCode = async (email, code, brandName = 'Zvon') => {
 
 const sendRegistrationCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
-  await transporter.sendMail({
+  await sendAutomatic('register', {
     from: fromAddress(brandName),
     to: email,
     subject: `Код регистрации в ${brandName}`,
@@ -189,7 +189,7 @@ const sendRegistrationCode = async (email, code, brandName = 'Zvon') => {
 
 const sendEmailChangeCode = async (email, code, brandName = 'Zvon') => {
   checkConfig();
-  await transporter.sendMail({
+  await sendAutomatic('email-change', {
     from: fromAddress(brandName),
     to: email,
     subject: `Код подтверждения смены почты ${brandName}`,
@@ -235,7 +235,7 @@ const sendVlyneAppDecision = async (email, { appName, status, comment, cabinetUr
   const title = titles[status] || 'Обновление по заявке';
   const color = colors[status] || '#5865F2';
 
-  await transporter.sendMail({
+  await sendAutomatic('vlyne', {
     from: fromAddress('Vlyne ID'),
     to: email,
     subject: `${title}: ${appName}`,
@@ -261,7 +261,48 @@ function escapeHtml(text) {
   ));
 }
 
+function supportAddress() {
+  return process.env.MAIL_SUPPORT_FROM || 'support@mail.zvonserver.ru';
+}
+
+async function recordAutomatic(purpose, to, status) {
+  try {
+    await require('../models/MailHistory').create({ kind: 'automatic', purpose, to, status });
+  } catch {
+    console.error('[mail] Не удалось записать метаданные отправки');
+  }
+}
+
+async function sendAutomatic(purpose, options) {
+  let status = 'unknown';
+  try {
+    const info = await transporter.sendMail({ ...options, replyTo: supportAddress() });
+    status = info.accepted?.length ? 'sent' : 'rejected';
+    return info;
+  } finally {
+    await recordAutomatic(purpose, options.to, status);
+  }
+}
+
+async function sendSupportReply(original, text, replyId) {
+  checkConfig();
+  const address = supportAddress();
+  const subject = /^re:/i.test(original.subject) ? original.subject : 'Re: ' + original.subject;
+  const html = '<div style="max-width:600px;margin:auto;font:16px Arial,sans-serif;color:#171923">' +
+    '<div style="background:#191c2a;color:white;padding:22px;border-radius:12px 12px 0 0"><strong>Звон · Поддержка</strong></div>' +
+    '<div style="border:1px solid #e4e6ee;padding:24px"><div style="line-height:1.6;white-space:pre-wrap">' +
+    escapeHtml(text) + '</div><p style="margin-top:24px;color:#495166">Команда поддержки Звона</p></div></div>';
+  return transporter.sendMail({
+    from: { name: 'Звон · Поддержка', address }, replyTo: address,
+    to: { address: original.replyAddress }, subject, text: text + '\n\nКоманда поддержки Звона', html,
+    messageId: '<support-' + replyId + '@mail.zvonserver.ru>',
+    inReplyTo: original.messageId || undefined,
+    references: [...original.references, original.messageId].filter(Boolean)
+  });
+}
+
 module.exports = {
+  sendSupportReply,
   sendVerificationEmail,
   sendVlyneAppDecision,
   sendLoginCode,

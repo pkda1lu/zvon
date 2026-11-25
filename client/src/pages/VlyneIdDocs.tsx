@@ -523,7 +523,7 @@ const VlyneIdDocs: React.FC = () => {
                 <div className="vidoc-footer-links">
                     <a href={accountPath}>Личный кабинет</a>
                     <a href="https://zvonserver.ru">Zvon</a>
-                    <a href="mailto:support@zvonserver.ru">Поддержка</a>
+                    <a href="mailto:support@mail.zvonserver.ru">Поддержка</a>
                     <a href={`${ISSUER}/.well-known/openid-configuration`}>Discovery</a>
                 </div>
             </footer>
