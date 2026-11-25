@@ -271,7 +271,10 @@ export const applyBranding = () => {
     if (typeof document === 'undefined') return;
     if (checkAndPerformDomainRedirect()) return;
     const brand = getBrand();
-    document.title = brand.name;
+    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (window.location.pathname !== '/' || canonical?.href !== 'https://zvonserver.ru/') {
+        document.title = brand.name;
+    }
 
     const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
     if (favicon && brand.favicon) {

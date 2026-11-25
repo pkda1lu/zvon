@@ -334,13 +334,51 @@ app.get(/^(?!\/api).+/, (req, res) => {
       // Поддомен Vlyne ID отдаёт ту же сборку, но это витрина отдельного
       // продукта: во вкладке должны стоять его имя и его значок, а не «Zvon».
       const isVlyneId = /^vlyneid\./.test(host);
-      const title = isVlyneId ? 'Vlyne ID' : brand.name;
+      const isZvonHomepage = req.path === '/' && (host === 'zvonserver.ru' || host === 'www.zvonserver.ru');
+      const title = isZvonHomepage
+        ? 'Звон — мессенджер для общения и сообществ'
+        : isVlyneId ? 'Vlyne ID' : brand.name;
       // Уменьшенная копия, а не оригинал: исходный значок — 1254×1254 и 1,4 МБ,
       // во вкладке от этого ничего не выигрывает, а грузится на каждой странице.
       const favicon = isVlyneId ? 'iconVlyneID-192.png' : brand.favicon;
 
       // Dynamically replace title and favicon for better SEO/Initial load
       html = html.replace(/<title>.*?<\/title>/g, `<title>${title}</title>`);
+      if (isZvonHomepage) {
+        const canonicalUrl = 'https://zvonserver.ru/';
+        const description = 'Общайтесь с друзьями в Звоне, созванивайтесь по голосу и видео, делитесь экраном и создавайте серверы с каналами и мини-приложениями.';
+        html = html.replace(/(<meta\s+name="description"\s+content=")[^"]*(")/i,
+          (_match, start, end) => `${start}${description}${end}`);
+        const homepageMetadata = [
+          `<link rel="canonical" href="${canonicalUrl}">`,
+          `<meta property="og:title" content="${title}">`,
+          `<meta property="og:description" content="${description}">`,
+          '<meta property="og:type" content="website">',
+          `<meta property="og:url" content="${canonicalUrl}">`,
+          `<meta property="og:image" content="${canonicalUrl}icon.png">`,
+          '<meta property="og:image:alt" content="Логотип Звона">',
+          '<meta property="og:site_name" content="Звон">',
+          '<meta property="og:locale" content="ru_RU">',
+        ];
+        html = html.replace('</head>', () => `${homepageMetadata.join('\n')}\n</head>`);
+        html = html.replace(/<noscript>[^<]*<\/noscript>/i, '<noscript>Для входа в веб-клиент Звона включите JavaScript.</noscript>');
+        // React replaces this initial content when the client mounts.
+        html = html.replace(/<div id="root"><\/div>/, `<div id="root">
+  <main style="max-width:48rem;margin:0 auto;padding:2rem">
+    <h1>${title}</h1>
+    <p>${description}</p>
+    <h2>Переписка, звонки и демонстрация экрана</h2>
+    <p>Пишите друзьям в личных сообщениях, включайте видео или показывайте экран во время звонка. В голосовых каналах можно присоединиться к разговору, когда удобно, например во время совместной игры.</p>
+    <h2>Серверы и каналы для сообществ</h2>
+    <p>Создайте сервер для друзей, команды или игрового сообщества. Разделите обсуждения по текстовым каналам, выделите голосовые комнаты и настройте роли и права доступа участников.</p>
+    <h2>Боты и мини-приложения</h2>
+    <p>Подключайте ботов для музыки и модерации, открывайте мини-приложения внутри Звона или создавайте свои интеграции с помощью Bot API.</p>
+    <nav aria-label="Ссылки Звона">
+      <a href="/docs">Документация Звона</a> · <a href="/vlyneid">Как работает Vlyne ID</a> · <a href="/download">Скачать Звон</a> · <a href="/login">Войти</a> · <a href="/register">Создать аккаунт</a>
+    </nav>
+  </main>
+</div>`);
+      }
       // Update favicons and logos
       html = html.replace(/href="\/icon\.png"/g, `href="/${favicon}"`);
       // Update OpenGraph / Meta tags if they exist
