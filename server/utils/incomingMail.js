@@ -4,7 +4,7 @@ const { simpleParser } = require('mailparser');
 const PAGE_SIZE = 25;
 const MAX_MESSAGE_SIZE = 5 * 1024 * 1024;
 
-async function withInbox(read) {
+async function withInbox(read, { readOnly = true } = {}) {
   const { IMAP_HOST, IMAP_USER, IMAP_PASS, IMAP_PORT } = process.env;
   if (!IMAP_HOST || !IMAP_USER || !IMAP_PASS) {
     throw Object.assign(new Error('Входящая почта ещё не настроена'), { status: 503 });
@@ -19,7 +19,7 @@ async function withInbox(read) {
   client.on('error', () => {});
   try {
     await client.connect();
-    const mailbox = await client.mailboxOpen('INBOX', { readOnly: true });
+    const mailbox = await client.mailboxOpen('INBOX', { readOnly });
     return await read(client, mailbox);
   } finally {
     client.close();
@@ -85,4 +85,27 @@ function inboxHead() {
   }));
 }
 
-module.exports = { listInbox, readMessage, inboxHead };
+function moveToTrash(uid, validity) {
+  return withInbox(async (client, mailbox) => {
+    if (String(mailbox.uidValidity) !== validity) {
+      throw Object.assign(new Error('Папка изменилась. Обновите список писем.'), { status: 409 });
+    }
+    if (!client.capabilities.has('MOVE')) {
+      throw Object.assign(new Error('Почтовый сервер не поддерживает перемещение писем'), { status: 503 });
+    }
+    if (!await client.fetchOne(uid, { uid: true }, { uid: true })) {
+      throw Object.assign(new Error('Письмо уже отсутствует во входящих'), { status: 404 });
+    }
+    const mailboxes = await client.list();
+    const trash = mailboxes.find(folder => folder.specialUse === '\\Trash')
+      || mailboxes.find(folder => folder.path === 'Trash');
+    const destination = trash?.path || 'Trash';
+    if (!trash) await client.mailboxCreate(destination);
+    if (!await client.messageMove(uid, destination, { uid: true })) {
+      throw new Error('IMAP MOVE failed');
+    }
+    return { moved: true };
+  }, { readOnly: false });
+}
+
+module.exports = { listInbox, readMessage, inboxHead, moveToTrash };

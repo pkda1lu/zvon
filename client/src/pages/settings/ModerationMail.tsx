@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useDialog } from '../../contexts/DialogContext';
 import './ModerationMail.css';
 
 interface Letter {
@@ -23,6 +24,7 @@ interface Message extends Letter {
 }
 
 function IncomingMail() {
+    const { confirm } = useDialog();
     const [page, setPage] = useState(1);
     const [revision, setRevision] = useState(0);
     const [inbox, setInbox] = useState<Inbox | null>(null);
@@ -30,6 +32,8 @@ function IncomingMail() {
     const [message, setMessage] = useState<Message | null>(null);
     const [error, setError] = useState('');
     const [messageError, setMessageError] = useState('');
+    const [moving, setMoving] = useState(false);
+    const [moveError, setMoveError] = useState('');
 
     useEffect(() => {
         const controller = new AbortController();
@@ -58,25 +62,44 @@ function IncomingMail() {
         setSelection(null);
         setMessage(null);
         setError('');
+        setMoveError('');
         setPage(next);
         setRevision(value => value + 1);
+    }
+
+    async function trashSelection() {
+        if (!selection || !inbox || moving) return;
+        setMoving(true);
+        try {
+            if (!await confirm('Переместить письмо в корзину общего почтового ящика?', 'Удалить письмо')) return;
+            setMoveError('');
+            await axios.delete('/api/moderation/mail/inbox/' + selection.uid, {
+                params: { validity: inbox.validity },
+            });
+            loadPage(inbox.items.length === 1 ? Math.max(1, page - 1) : page);
+        } catch (error) {
+            setMoveError(axios.isAxiosError(error) ? error.response?.data?.message || 'Не удалось удалить письмо' : 'Не удалось удалить письмо');
+        } finally {
+            setMoving(false);
+        }
     }
 
     return (
         <div className="settings-content-inner moderation-mail">
             <header className="moderation-mail-header">
                 <h2 className="settings-page-title">Входящая почта</h2>
-                <button className="settings-btn secondary" onClick={() => loadPage(1)}>Обновить</button>
+                <button className="settings-btn secondary" disabled={moving} onClick={() => loadPage(1)}>Обновить</button>
             </header>
             {error ? <p role="alert">{error}</p> : !inbox ? <p role="status">Загрузка писем…</p> : (
                 <div className="moderation-mail-layout">
                     <section aria-label="Список писем">
                         {inbox.items.length === 0 && <p>На этой странице писем нет.</p>}
                         {inbox.items.map(letter => (
-                            <button type="button" key={letter.uid} className="moderation-letter"
+                            <button type="button" key={letter.uid} className="moderation-letter" disabled={moving}
                                 aria-pressed={selection?.uid === letter.uid} onClick={() => {
                                     setMessage(null);
                                     setMessageError('');
+                                    setMoveError('');
                                     setSelection({ ...letter });
                                 }}>
                                 <strong>{letter.subject}</strong>
@@ -85,13 +108,18 @@ function IncomingMail() {
                             </button>
                         ))}
                         <div className="moderation-mail-pages">
-                            <button className="settings-btn secondary" disabled={page === 1} onClick={() => loadPage(page - 1)}>Назад</button>
-                            <button className="settings-btn secondary" disabled={!inbox.hasMore} onClick={() => loadPage(page + 1)}>Далее</button>
+                            <button className="settings-btn secondary" disabled={moving || page === 1} onClick={() => loadPage(page - 1)}>Назад</button>
+                            <button className="settings-btn secondary" disabled={moving || !inbox.hasMore} onClick={() => loadPage(page + 1)}>Далее</button>
                         </div>
                     </section>
                     {selection && (
                         <article className="settings-card">
-                            <h3>{selection.subject}</h3>
+                            <header className="moderation-mail-header">
+                                <h3>{selection.subject}</h3>
+                                <button type="button" className="settings-btn settings-btn-danger" disabled={moving}
+                                    onClick={trashSelection}>{moving ? 'Удаление…' : 'Удалить письмо'}</button>
+                            </header>
+                            {moveError && <p role="alert">{moveError}</p>}
                             <p>{selection.from}</p>
                             {messageError ? <p role="alert">{messageError}</p> : !message ? <p role="status">Загрузка письма…</p> : (
                                 <>

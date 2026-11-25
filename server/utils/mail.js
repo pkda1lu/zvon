@@ -289,7 +289,9 @@ async function sendSupportReply(original, text, replyId) {
   const address = supportAddress();
   const subject = /^re:/i.test(original.subject) ? original.subject : 'Re: ' + original.subject;
   const html = '<div style="max-width:600px;margin:auto;font:16px Arial,sans-serif;color:#171923">' +
-    '<div style="background:#191c2a;color:white;padding:22px;border-radius:12px 12px 0 0"><strong>Звон · Поддержка</strong></div>' +
+    '<div style="background:#191c2a;color:white;padding:22px;border-radius:12px 12px 0 0">' +
+    '<img src="https://zvonserver.ru/zvonlogonew.png" alt="" width="36" height="36" style="display:inline-block;vertical-align:middle;margin-right:12px;border:0">' +
+    '<strong style="vertical-align:middle">Звон · Поддержка</strong></div>' +
     '<div style="border:1px solid #e4e6ee;padding:24px"><div style="line-height:1.6;white-space:pre-wrap">' +
     escapeHtml(text) + '</div><p style="margin-top:24px;color:#495166">Команда поддержки Звона</p></div></div>';
   return transporter.sendMail({

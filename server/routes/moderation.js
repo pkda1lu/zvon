@@ -61,6 +61,16 @@ router.get('/mail/inbox/:uid', auth, isModerator, inboxRoute(async req => {
   return message;
 }));
 
+router.delete('/mail/inbox/:uid', auth, isModerator, inboxRoute(req => {
+  const { uid } = req.params;
+  const { validity } = req.query;
+  if (!/^[1-9]\d{0,9}$/.test(uid) || Number(uid) > 4294967295 ||
+      typeof validity !== 'string' || !/^\d{1,20}$/.test(validity)) {
+    throw Object.assign(new Error('Некорректный идентификатор письма'), { status: 400 });
+  }
+  return require('../utils/incomingMail').moveToTrash(uid, validity);
+}));
+
 const MailHistory = require('../models/MailHistory');
 
 router.get('/mail/automatic', auth, isModerator, inboxRoute(async req => {
