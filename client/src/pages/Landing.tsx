@@ -241,6 +241,7 @@ const Landing: React.FC = () => {
                     <div className="footer-brand">
                         <h4>{brand.name}</h4>
                         <p>© 2026 {brand.name} Platform. Все права защищены.</p>
+                        <p aria-label="Возрастная маркировка: 16 лет и старше">16+</p>
                         <div className="bot-api-showcase">
                             <h3>Мощный Bot API</h3>
                             <p>Создавайте уникальные интеграции с помощью Webhooks и Socket.io SDK. Музыкальные боты, управление ролями и кастомные команды.</p>
@@ -271,7 +272,8 @@ const Landing: React.FC = () => {
                             <ul>
                                 <li><a href={`mailto:${brand.supportEmail}`}>Поддержка</a></li>
                                 <li><PublicPageLink to="/docs">Для разработчиков</PublicPageLink></li>
-                                <li><PublicPageLink to="/policy">Условия использования</PublicPageLink></li>
+                                <li><PublicPageLink to="/policy">Политика обработки персональных данных</PublicPageLink></li>
+                                <li><a href="/consent">Согласие на обработку персональных данных</a></li>
                             </ul>
                         </div>
                     </div>
