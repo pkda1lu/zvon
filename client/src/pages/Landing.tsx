@@ -1,8 +1,9 @@
 import CloseButton from '../components/CloseButton';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { publicPageLoaders, type PublicPagePath } from '../utils/publicPageLoaders';
 import { getBrand } from '../utils/branding';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Landing3D from '../components/Landing3D';
 import PromoReel from '../components/PromoReel';
@@ -14,6 +15,19 @@ const fadeUp = {
     hidden: { opacity: 0, y: 40 },
     show: (i = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.6, delay: i * 0.08, ease: EASE } }),
 };
+
+function PublicPageLink({ to, children, className }: {
+    to: PublicPagePath;
+    children: React.ReactNode;
+    className?: string;
+}) {
+    const preload = () => { void publicPageLoaders[to]().catch(() => {}); };
+    return (
+        <Link to={to} className={className} onMouseEnter={preload} onFocus={preload} onTouchStart={preload}>
+            {children}
+        </Link>
+    );
+}
 
 const Landing: React.FC = () => {
     const navigate = useNavigate();
@@ -56,8 +70,8 @@ const Landing: React.FC = () => {
                     <span className="nav-link" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Возможности</span>
                     <span className="nav-link" onClick={() => document.getElementById('reel')?.scrollIntoView({ behavior: 'smooth' })}>Видео</span>
                     <span className="nav-link" onClick={() => document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' })}>Демонстрация</span>
-                    <span className="nav-link" onClick={() => navigate('/vlyneid')}>Vlyne ID</span>
-                    <span className="nav-link" onClick={() => navigate('/docs')}>Документация</span>
+                    <PublicPageLink className="nav-link" to="/vlyneid">Vlyne ID</PublicPageLink>
+                    <PublicPageLink className="nav-link" to="/docs">Документация</PublicPageLink>
                 </div>
                 <div className="nav-actions">
                     {!user && (
@@ -230,25 +244,25 @@ const Landing: React.FC = () => {
                         <div className="bot-api-showcase">
                             <h3>Мощный Bot API</h3>
                             <p>Создавайте уникальные интеграции с помощью Webhooks и Socket.io SDK. Музыкальные боты, управление ролями и кастомные команды.</p>
-                            <button className="btn-link" onClick={() => navigate('/docs')}>Читать документацию →</button>
+                            <PublicPageLink className="btn-link" to="/docs">Читать документацию →</PublicPageLink>
                         </div>
                     </div>
                     <div className="footer-links">
                         <div className="footer-column">
                             <h5>Продукт</h5>
                             <ul>
-                                <li><a onClick={() => navigate('/security')}>Безопасность</a></li>
+                                <li><PublicPageLink to="/security">Безопасность</PublicPageLink></li>
                                 <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon/commits/main', '_blank')}>Список изменений</a></li>
-                                <li><a onClick={() => navigate('/servers')}>Серверы</a></li>
-                                <li><a onClick={() => navigate('/vlyneid')}>Vlyne ID</a></li>
-                                <li><a onClick={() => navigate('/docs')}>API для ботов</a></li>
+                                <li><PublicPageLink to="/servers">Серверы</PublicPageLink></li>
+                                <li><PublicPageLink to="/vlyneid">Vlyne ID</PublicPageLink></li>
+                                <li><PublicPageLink to="/docs">API для ботов</PublicPageLink></li>
                             </ul>
                         </div>
                         <div className="footer-column">
                             <h5>Компания</h5>
                             <ul>
-                                <li><a onClick={() => navigate('/about')}>О нас</a></li>
-                                <li><a onClick={() => navigate('/download')}>Загрузить</a></li>
+                                <li><PublicPageLink to="/about">О нас</PublicPageLink></li>
+                                <li><PublicPageLink to="/download">Загрузить</PublicPageLink></li>
                                 <li><a onClick={() => window.open('https://github.com/pkda1lu/zvon', '_blank')}>Github</a></li>
                             </ul>
                         </div>
@@ -256,8 +270,8 @@ const Landing: React.FC = () => {
                             <h5>Ресурсы</h5>
                             <ul>
                                 <li><a href={`mailto:${brand.supportEmail}`}>Поддержка</a></li>
-                                <li><a onClick={() => navigate('/docs')}>Для разработчиков</a></li>
-                                <li><a onClick={() => navigate('/policy')}>Условия использования</a></li>
+                                <li><PublicPageLink to="/docs">Для разработчиков</PublicPageLink></li>
+                                <li><PublicPageLink to="/policy">Условия использования</PublicPageLink></li>
                             </ul>
                         </div>
                     </div>

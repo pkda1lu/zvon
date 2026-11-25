@@ -179,10 +179,12 @@ app.get('/zvon-sdk.js', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=300');
   res.sendFile(path.join(__dirname, 'public/zvon-sdk.js'));
 });
+const embeddedPageCsp = "frame-ancestors 'self' https: http: file: zvon:; object-src 'none'; base-uri 'self';";
+
 app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
   setHeaders: (res) => {
     res.removeHeader('X-Frame-Options');
-    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https: http: file: zvon:;");
+    res.setHeader('Content-Security-Policy', embeddedPageCsp);
   }
 }));
 app.use('/api/moderation', require('./routes/moderation'));
@@ -298,7 +300,7 @@ app.use(express.static(path.join(__dirname, '../client/build'), { index: false }
 app.get(/^(?!\/api).+/, (req, res) => {
   res.removeHeader('X-Frame-Options');
   // Allow framing for miniapps and deep linking
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https: http: file: zvon:;");
+  res.setHeader('Content-Security-Policy', embeddedPageCsp);
   
   const indexPath = path.join(__dirname, '../client/build/index.html');
   if (fs.existsSync(indexPath)) {

@@ -6,18 +6,19 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import InvitePage from './pages/InvitePage';
 import Home from './Home';
+import { publicPageLoaders } from './utils/publicPageLoaders';
 
 // Публичные страницы (маркетинг/контент) — не входная точка приложения, грузятся
 // лениво, чтобы не утяжелять основной чанк.
-const Docs = React.lazy(() => import('./pages/Docs'));
-const Policy = React.lazy(() => import('./pages/Policy'));
+const Docs = React.lazy(publicPageLoaders['/docs']);
+const Policy = React.lazy(publicPageLoaders['/policy']);
 const Consent = React.lazy(() => import('./pages/Consent'));
-const Security = React.lazy(() => import('./pages/Security'));
-const Servers = React.lazy(() => import('./pages/Servers'));
-const About = React.lazy(() => import('./pages/About'));
-const Download = React.lazy(() => import('./pages/Download'));
+const Security = React.lazy(publicPageLoaders['/security']);
+const Servers = React.lazy(publicPageLoaders['/servers']);
+const About = React.lazy(publicPageLoaders['/about']);
+const Download = React.lazy(publicPageLoaders['/download']);
 const VlyneAuthorize = React.lazy(() => import('./pages/VlyneAuthorize'));
-const VlyneIdLanding = React.lazy(() => import('./pages/VlyneIdLanding'));
+const VlyneIdLanding = React.lazy(publicPageLoaders['/vlyneid']);
 const VlyneIdDocs = React.lazy(() => import('./pages/VlyneIdDocs'));
 const VlyneIdAccount = React.lazy(() => import('./pages/VlyneIdAccount'));
 const VlyneIdDevCabinet = React.lazy(() => import('./pages/VlyneIdDevCabinet'));
