@@ -88,15 +88,23 @@ const ReportedContent: React.FC<{ report: any }> = ({ report }) => {
 /** Цель перехода по уведомлению: какую запись открыть и подсветить. */
 export interface ModerationFocus { kind: 'problem' | 'vlyne' | 'report'; id: string }
 
-const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) => {
+export type ModerationSection = 'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid' | 'awards';
+
+const TITLES: Record<ModerationSection, string> = {
+    reports: 'Жалобы на контент', marketplace: 'Модерация витрины', problems: 'Сообщения о проблемах',
+    posts: 'Публикации', vlyneid: 'Заявки Vlyne ID', awards: 'Награды',
+};
+
+const ModerationSettings: React.FC<{ focus?: ModerationFocus; section?: ModerationSection }> = ({ focus, section }) => {
     const { user } = useAuth();
     const { confirm, prompt, alert } = useDialog();
     const [reports, setReports] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState<'pending' | 'resolved' | 'dismissed'>('pending');
-    const [mainTab, setMainTab] = useState<'reports' | 'marketplace' | 'problems' | 'posts' | 'vlyneid' | 'awards'>(
+    const [focusedTab, setMainTab] = useState<ModerationSection>(
         () => focus?.kind === 'problem' ? 'problems' : focus?.kind === 'vlyne' ? 'vlyneid' : 'reports'
     );
+    const mainTab = section ?? focusedTab;
     // Жалоба, к которой перешли из уведомления: прокручиваем к ней и подсвечиваем.
     const [focusProblemId, setFocusProblemId] = useState<string | null>(focus?.kind === 'problem' ? focus.id : null);
     const [focusReportId, setFocusReportId] = useState<string | null>(focus?.kind === 'report' ? focus.id : null);
@@ -107,10 +115,6 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
         else if (focus.kind === 'report') { setMainTab('reports'); setFilter('pending'); setFocusReportId(focus.id); }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focus?.kind, focus?.id]);
-    // Сколько заявок Vlyne ID ждёт решения. Показывается на самой вкладке:
-    // уведомление о новой заявке может не долететь (модератор был офлайн, push
-    // не настроен, заявку подал сам модератор), а очередь молчать не должна.
-    const [vlyneIdOpen, setVlyneIdOpen] = useState(0);
 
     // --- Жалобы на проблемы приложения (кнопка «Репорт» в сайдбаре) ---
     const [problems, setProblems] = useState<any[]>([]);
@@ -152,21 +156,8 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
     };
 
     useEffect(() => {
-        fetchReports(filter);
-    }, [filter]);
-
-    useEffect(() => {
-        let cancelled = false;
-        const load = () => {
-            axios.get('/api/vlyne-id/admin/applications/count')
-                .then((r) => { if (!cancelled) setVlyneIdOpen(r.data?.open || 0); })
-                .catch(() => { /* счётчик — не повод показывать ошибку */ });
-        };
-        load();
-        // Заявка может прийти, пока раздел открыт, а событие — не долететь.
-        const timer = setInterval(load, 60000);
-        return () => { cancelled = true; clearInterval(timer); };
-    }, [mainTab]);
+        if (mainTab === 'reports') fetchReports(filter);
+    }, [mainTab, filter]);
 
     useEffect(() => {
         if (mainTab === 'marketplace') fetchMarketplace(mpTab);
@@ -259,47 +250,7 @@ const ModerationSettings: React.FC<{ focus?: ModerationFocus }> = ({ focus }) =>
 
     return (
         <div className="settings-content-inner moderation-settings">
-            <h2 className="settings-page-title">Модерация</h2>
-            <p className="settings-description">Управление жалобами на сообщения, профили пользователей, сервера и витрину.</p>
-
-            <div className="zv-tabs" style={{ marginBottom: '24px' }}>
-                <button className={`zv-tab ${mainTab === 'awards' ? 'active' : ''}`} onClick={() => setMainTab('awards')}>Награды</button>
-                <button
-                    className={`zv-tab ${mainTab === 'reports' ? 'active' : ''}`}
-                    onClick={() => setMainTab('reports')}
-                >
-                    Жалобы
-                </button>
-                <button
-                    className={`zv-tab ${mainTab === 'marketplace' ? 'active' : ''}`}
-                    onClick={() => setMainTab('marketplace')}
-                >
-                    Витрина
-                </button>
-                <button
-                    className={`zv-tab ${mainTab === 'vlyneid' ? 'active' : ''}`}
-                    onClick={() => setMainTab('vlyneid')}
-                >
-                    Vlyne ID
-                    {vlyneIdOpen > 0 && (
-                        <span className="zv-tab-count accent">
-                            {vlyneIdOpen}
-                        </span>
-                    )}
-                </button>
-                <button
-                    className={`zv-tab ${mainTab === 'problems' ? 'active' : ''}`}
-                    onClick={() => setMainTab('problems')}
-                >
-                    Проблемы
-                </button>
-                <button
-                    className={`zv-tab ${mainTab === 'posts' ? 'active' : ''}`}
-                    onClick={() => setMainTab('posts')}
-                >
-                    Посты
-                </button>
-            </div>
+            <h2 className="settings-page-title">{TITLES[mainTab]}</h2>
 
             {mainTab === 'awards' ? <AwardsModeration /> : mainTab === 'posts' ? (
                 <PostsModeration />

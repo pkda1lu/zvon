@@ -1,0 +1,25 @@
+.moderation-mail { overflow-wrap: anywhere; container-type: inline-size; }
+.moderation-mail-header, .moderation-mail-pages { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.moderation-mail-header { justify-content: space-between; margin-bottom: 20px; }
+.moderation-mail-header h2 { margin: 0; }
+.moderation-mail-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.moderation-letter {
+    display: grid;
+    gap: 5px;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 12px;
+    text-align: left;
+    font: inherit;
+    color: var(--text-main);
+    background: rgba(255,255,255,.035);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    cursor: pointer;
+}
+.moderation-letter:hover, .moderation-letter[aria-pressed="true"] { background: rgba(255,255,255,.1); }
+.moderation-letter span, .moderation-letter small { color: var(--text-dim); }
+.moderation-letter-text { white-space: pre-wrap; }
+@container (min-width: 720px) {
+    .moderation-mail-layout { grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); }
+}

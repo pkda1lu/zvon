@@ -64,6 +64,7 @@ const WindowsSettings = React.lazy(() => import('./WindowsSettings'));
 const StreamerSettings = React.lazy(() => import('./StreamerSettings'));
 const OverlaySettings = React.lazy(() => import('./OverlaySettings'));
 const AdvancedSettings = React.lazy(() => import('./AdvancedSettings'));
+const ModerationMail = React.lazy(() => import('./ModerationMail'));
 const ModerationSettings = React.lazy(() => import('./ModerationSettings'));
 const AdminUsersSettings = React.lazy(() => import('./AdminUsersSettings'));
 const AdminStatsSettings = React.lazy(() => import('./AdminStatsSettings'));
@@ -210,7 +211,14 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'overlay': return <OverlaySettings />;
             case 'windows-actions': return <WindowsSettings />;
             case 'advanced': return <AdvancedSettings />;
-            case 'moderation': return <ModerationSettings focus={initialData?.focus} />;
+            case 'moderation-reports': return isModerator ? <ModerationSettings section="reports" focus={initialData?.focus} /> : null;
+            case 'moderation-problems': return isModerator ? <ModerationSettings section="problems" focus={initialData?.focus} /> : null;
+            case 'moderation-marketplace': return isModerator ? <ModerationSettings section="marketplace" /> : null;
+            case 'moderation-posts': return isModerator ? <ModerationSettings section="posts" /> : null;
+            case 'moderation-vlyneid': return isModerator ? <ModerationSettings section="vlyneid" focus={initialData?.focus} /> : null;
+            case 'moderation-awards': return isModerator ? <ModerationSettings section="awards" /> : null;
+            case 'moderation-mail': return isModerator ? <ModerationMail /> : null;
+            case 'moderation': return isModerator ? <ModerationSettings focus={initialData?.focus} /> : null;
             case 'admin-users': return <AdminUsersSettings />;
             case 'admin-stats': return <AdminStatsSettings />;
             case 'admin-infra': return <AdminInfraSettings />;
@@ -367,8 +375,16 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                 {isModerator && (
                     <>
                         <Divider />
-                        <CategoryHeader>Разработчикам</CategoryHeader>
-                        <NavItem id="moderation" label="Модерация" icon={ShieldIcon} />
+                        <CategoryHeader>Модерация</CategoryHeader>
+                        <NavItem id="moderation-reports" label="Жалобы" icon={ShieldIcon} />
+                        <NavItem id="moderation-problems" label="Проблемы" icon={ChatIcon} />
+                        <NavItem id="moderation-marketplace" label="Витрина" icon={LayoutGridIcon} />
+                        <NavItem id="moderation-posts" label="Публикации" icon={DocumentIcon} />
+                        <NavItem id="moderation-vlyneid" label="Заявки Vlyne ID" icon={LinkIcon} />
+                        <NavItem id="moderation-awards" label="Награды" icon={CheckIcon} />
+                        <NavItem id="moderation-mail" label="Входящая почта" icon={BellIcon} />
+                        <Divider />
+                        <CategoryHeader>Администрирование</CategoryHeader>
                         <NavItem id="admin-users" label="Пользователи и сервера" icon={UsersIcon} />
                         <NavItem id="admin-stats" label="Статистика" icon={BarChartIcon} />
                         <NavItem id="admin-actions" label="Журнал действий" icon={DocumentIcon} />

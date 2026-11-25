@@ -29,6 +29,37 @@ const isAdmin = async (req, res, next) => {
   }
 };
 
+function inboxRoute(read) {
+  return async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try {
+      res.json(await read(req));
+    } catch (error) {
+      const status = error.status || 502;
+      if (!error.status) console.error('[incoming-mail]', error.code || error.name);
+      res.status(status).json({ message: error.status ? error.message : 'Не удалось подключиться к почтовому ящику' });
+    }
+  };
+}
+
+router.get('/mail/inbox', auth, isModerator, inboxRoute(req => {
+  const page = Number(req.query.page ?? 1);
+  if (!Number.isSafeInteger(page) || page < 1 || page > 100000) {
+    throw Object.assign(new Error('Некорректная страница'), { status: 400 });
+  }
+  return require('../utils/incomingMail').listInbox(page);
+}));
+
+router.get('/mail/inbox/:uid', auth, isModerator, inboxRoute(req => {
+  const { uid } = req.params;
+  const { validity } = req.query;
+  if (!/^[1-9]\d{0,9}$/.test(uid) || Number(uid) > 4294967295 ||
+      typeof validity !== 'string' || !/^\d{1,20}$/.test(validity)) {
+    throw Object.assign(new Error('Некорректный идентификатор письма'), { status: 400 });
+  }
+  return require('../utils/incomingMail').readMessage(uid, validity);
+}));
+
 // Personal history. The client never supplies the owner of the records.
 router.get('/history', auth, async (req, res) => {
   const { section = 'notices', page = '1' } = req.query;
