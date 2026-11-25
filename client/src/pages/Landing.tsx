@@ -255,7 +255,7 @@ const Landing: React.FC = () => {
                         <div className="footer-column">
                             <h5>Ресурсы</h5>
                             <ul>
-                                <li><a onClick={() => window.open('https://t.me/zvon_support', '_blank')}>Поддержка</a></li>
+                                <li><a href={`mailto:${brand.supportEmail}`}>Поддержка</a></li>
                                 <li><a onClick={() => navigate('/docs')}>Для разработчиков</a></li>
                                 <li><a onClick={() => navigate('/policy')}>Условия использования</a></li>
                             </ul>
