@@ -1,4 +1,15 @@
 .verification-panel { display: grid; gap: 12px; }
+.verification-disclosure > summary {
+    padding: 12px 16px;
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: var(--text-main);
+    background: var(--glass-bg-subtle);
+    font-weight: 700;
+    cursor: pointer;
+}
+.verification-disclosure[open] > summary { margin-bottom: 8px; }
+.verification-disclosure .verification-toolbar { justify-content: flex-end; }
 .verification-panel :is(h3, p) { margin: 0; }
 .verification-toolbar, .verification-actions, .verification-list li {
     display: flex; align-items: center; flex-wrap: wrap; gap: 8px;

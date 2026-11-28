@@ -17,6 +17,13 @@ interface RequestItem {
 
 const endpoint = '/api/verification/requests';
 
+export function VerificationDisclosure({ target }: { target: Target }) {
+    return <details className="verification-disclosure">
+        <summary>Верификация</summary>
+        <VerificationPanel target={target} />
+    </details>;
+}
+
 export default function VerificationPanel({ target, moderation = false }: { target?: Target; moderation?: boolean }) {
     const { user } = useAuth();
     const targetRequest = target && user ? `${target.kind}:${target.id}:${user._id}` : null;
@@ -32,7 +39,6 @@ export default function VerificationPanel({ target, moderation = false }: { targ
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [text, setText] = useState('');
-    const [action, setAction] = useState<Action>('reply');
 
     useEffect(() => {
         const controller = new AbortController();
@@ -58,20 +64,22 @@ export default function VerificationPanel({ target, moderation = false }: { targ
 
     const open = item?.status === 'pending' || item?.status === 'evidence';
     const canStart = Boolean(target && (!item || item.status === 'rejected'));
-    const canDecide = moderation && item?.applicant?._id !== user?._id;
+    const ownRequest = Boolean(user && item?.applicant?._id === user._id);
+    const canDecide = moderation && Boolean(item?.applicant) && !ownRequest;
 
-    async function submit(event: React.FormEvent) {
+    async function submit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (submitting || !text.trim() || !requestId) return;
+        const button = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        const action = canDecide && button?.name === 'action' ? button.value : 'reply';
         setSubmitting(true);
         setError('');
         try {
             const { data } = canStart && target
                 ? await axios.post(endpoint, { kind: target.kind, target: target.id, text })
-                : await axios.post(`${endpoint}/${encodeURIComponent(requestId)}/messages`, { text, action: canDecide ? action : 'reply' });
+                : await axios.post(`${endpoint}/${encodeURIComponent(requestId)}/messages`, { text, action });
             setItem(data);
             setText('');
-            setAction('reply');
             setRevision(value => value + 1);
         } catch (failure) {
             setError(axios.isAxiosError(failure) ? failure.response?.data?.message || 'Не удалось отправить сообщение.' : 'Не удалось отправить сообщение.');
@@ -83,14 +91,13 @@ export default function VerificationPanel({ target, moderation = false }: { targ
     function select(id: string | null) {
         setItem(null);
         setText('');
-        setAction('reply');
         setLoading(true);
         setSelected(id);
     }
 
     return <section className="settings-card verification-panel">
         <div className="verification-toolbar">
-            <h3>{target ? 'Верификация' : requestId ? item?.targetName || 'Заявка' : moderation ? 'Заявки на верификацию' : 'Мои заявки на верификацию'}</h3>
+            {!target && <h3>{requestId ? item?.targetName || 'Заявка' : moderation ? 'Заявки на верификацию' : 'Мои заявки на верификацию'}</h3>}
             <div className="verification-actions">
                 {selected && <button type="button" className="settings-btn secondary" disabled={submitting} onClick={() => select(null)}>К заявкам</button>}
                 <button type="button" className="settings-btn secondary" disabled={loading || submitting} onClick={() => setRevision(value => value + 1)}>Обновить</button>
@@ -114,14 +121,19 @@ export default function VerificationPanel({ target, moderation = false }: { targ
                 </li>)}</ol>
             </>}
             {(open || canStart) && <form className="verification-reply" onSubmit={submit}>
-                {canDecide && <label>Действие<select value={action} onChange={event => setAction(event.target.value as Action)}>
-                    <option value="reply">Ответить</option><option value="evidence">Запросить подтверждение</option><option value="approved">Одобрить</option><option value="rejected">Отклонить</option>
-                </select></label>}
-                <label>{canStart ? 'Кого представляет аккаунт или сообщество? Добавьте ссылки на официальные страницы.' : 'Сообщение'}
+                {moderation && ownRequest && <p>Решение по вашей заявке может принять другой модератор.</p>}
+                <label>{canStart ? 'Кого представляет аккаунт или сообщество? Добавьте ссылки на официальные страницы.' : canDecide ? 'Сообщение или пояснение к решению' : 'Сообщение'}
                     <textarea rows={3} maxLength={4000} required value={text} onChange={event => setText(event.target.value)} />
                 </label>
                 {error && <p role="alert">{error}</p>}
-                <button type="submit" className="settings-btn" disabled={!text.trim() || submitting}>{canStart ? 'Отправить заявку' : 'Отправить'}</button>
+                <div className="verification-actions">
+                    <button type="submit" className="settings-btn" disabled={submitting}>{canStart ? 'Отправить заявку' : 'Ответить'}</button>
+                    {canDecide && <>
+                        <button type="submit" name="action" value="evidence" className="settings-btn secondary" disabled={submitting}>Запросить подтверждение</button>
+                        <button type="submit" name="action" value="approved" className="settings-btn" disabled={submitting}>Одобрить</button>
+                        <button type="submit" name="action" value="rejected" className="settings-btn settings-btn-danger" disabled={submitting}>Отказать</button>
+                    </>}
+                </div>
             </form>}
         </>}
     </section>;

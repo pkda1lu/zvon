@@ -7,7 +7,7 @@ import { useDialog } from '../../contexts/DialogContext';
 import { PlusIcon, TrashIcon } from '../../components/Icons';
 import { ServerProfileCardBody } from '../../components/ServerProfileCard';
 import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
-import VerificationPanel from '../../components/VerificationPanel';
+import { VerificationDisclosure } from '../../components/VerificationPanel';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Props {
@@ -146,7 +146,6 @@ const ServerProfileSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
         <div className="settings-content-inner with-preview">
             <div className="settings-main-column">
                 <h2 className="settings-page-title">Профиль сервера</h2>
-                {user && ownerId === user._id && <VerificationPanel key={server._id} target={{ kind: 'server', id: server._id }} />}
 
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{ marginTop: 0 }}>Визуал</h3>
@@ -243,6 +242,7 @@ const ServerProfileSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
                         </div>
                     )}
                 </div>
+                {user && ownerId === user._id && <VerificationDisclosure key={server._id} target={{ kind: 'server', id: server._id }} />}
             </div>
 
             <SettingsPreviewContainer baseWidth={340} title="Предпросмотр">
