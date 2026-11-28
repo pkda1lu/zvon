@@ -7,6 +7,8 @@ import { useDialog } from '../../contexts/DialogContext';
 import { PlusIcon, TrashIcon } from '../../components/Icons';
 import { ServerProfileCardBody } from '../../components/ServerProfileCard';
 import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
+import VerificationPanel from '../../components/VerificationPanel';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Props {
     server: Server;
@@ -24,6 +26,8 @@ type FeaturedActivity = { name: string; image?: string | null };
 const BANNER_COLORS = ['#5865f2', '#ed4245', '#3ba55d', '#faa61a', '#eb459e', '#7289da', '#23272a', '#000000'];
 
 const ServerProfileSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
+    const { user } = useAuth();
+    const ownerId = typeof server.owner === 'string' ? server.owner : server.owner?._id;
     const { alert } = useDialog();
     const [name, setName] = useState(server.name);
     const [description, setDescription] = useState(server.description || '');
@@ -142,6 +146,7 @@ const ServerProfileSettings: React.FC<Props> = ({ server, onServerUpdate }) => {
         <div className="settings-content-inner with-preview">
             <div className="settings-main-column">
                 <h2 className="settings-page-title">Профиль сервера</h2>
+                {user && ownerId === user._id && <VerificationPanel key={server._id} target={{ kind: 'server', id: server._id }} />}
 
                 <div className="settings-card">
                     <h3 className="settings-section-title" style={{ marginTop: 0 }}>Визуал</h3>

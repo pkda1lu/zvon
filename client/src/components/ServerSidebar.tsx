@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import axios from 'axios';
 import { Server, Channel, User, SERVER_PARTNERSHIP_LABELS } from '../types';
+import VerificationBadge from './VerificationBadge';
 import { getAvatarUrl } from '../utils/avatar';
 import { useCachedAvatar } from '../utils/avatarCache';
 import { useSocket } from '../contexts/SocketContext';
-import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon, EditIcon, BellIcon, BellOffIcon } from './Icons';
+import { HashtagIcon, SpeakerIcon, CubeIcon, PlusIcon, SettingsIcon, MicMutedIcon, DeafenedIcon, UserPlusIcon, EditIcon, BellIcon, BellOffIcon, VideoIcon, GamepadIcon, ShieldIcon } from './Icons';
 import { useDraftChatIds } from '../utils/drafts';
 import './ChatReliability.css';
 import { useAuth } from '../contexts/AuthContext';
@@ -470,12 +471,20 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
           ) : (
             <div className="server-header-icon-placeholder">{server.name.charAt(0).toUpperCase()}</div>
           )}
-          <h2>{server.name}</h2>
-          {server.partnership && SERVER_PARTNERSHIP_LABELS[server.partnership] && (
-            <span className="server-partnership-badge" role="img" aria-label={`Партнёр Звона — ${SERVER_PARTNERSHIP_LABELS[server.partnership]}`} title={`Партнёр Звона — ${SERVER_PARTNERSHIP_LABELS[server.partnership]}`}>
-              {SERVER_PARTNERSHIP_LABELS[server.partnership]}
-            </span>
-          )}
+          <div className="server-header-identity">
+            <div className="verification-identity">
+              <h2>{server.name}</h2>
+              <VerificationBadge kind="server" id={server._id} />
+            </div>
+            {server.partnership && SERVER_PARTNERSHIP_LABELS[server.partnership] && (
+              <span className="server-partnership-badge" data-partnership={server.partnership} title={`Партнёр Звона — ${SERVER_PARTNERSHIP_LABELS[server.partnership]}`}>
+                <span aria-hidden="true">
+                  {React.createElement({ streamer: VideoIcon, game: GamepadIcon, project: CubeIcon, company: ShieldIcon }[server.partnership], { size: 12, color: 'currentColor' })}
+                </span>
+                <span>Партнёр · {SERVER_PARTNERSHIP_LABELS[server.partnership]}</span>
+              </span>
+            )}
+          </div>
         </div>
         <div className="server-header-actions">
           {canManageChannels && (

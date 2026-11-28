@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfilePreview from '../../components/ProfilePreview';
+import VerificationPanel from '../../components/VerificationPanel';
 import SettingsPreviewContainer from '../../components/SettingsPreviewContainer';
 import { ChoiceGroup, CustomSelect, GridPicker } from './SettingsUI';
 import ImageCropper from '../../components/ImageCropper';
@@ -202,6 +203,7 @@ const ProfileSettings: React.FC = () => {
         <div className="settings-content-inner with-preview">
             <div className="settings-main-column">
                 <h2 className="settings-page-title">Общий профиль</h2>
+                {user && !user.isBot && <VerificationPanel key={user._id} target={{ kind: 'profile', id: user._id }} />}
                 
                 {/* 1. Визуал профиля (ОБЪЕДИНЕНО) */}
                 <div className="settings-card">

@@ -67,6 +67,7 @@ const AdvancedSettings = React.lazy(() => import('./AdvancedSettings'));
 const ModerationMail = React.lazy(() => import('./ModerationMail'));
 const ModerationSettings = React.lazy(() => import('./ModerationSettings'));
 const AdminUsersSettings = React.lazy(() => import('./AdminUsersSettings'));
+const VerificationPanel = React.lazy(() => import('../../components/VerificationPanel'));
 const AdminStatsSettings = React.lazy(() => import('./AdminStatsSettings'));
 const AdminInfraSettings = React.lazy(() => import('./AdminInfraSettings'));
 const AdminActionsSettings = React.lazy(() => import('./AdminActionsSettings'));
@@ -213,6 +214,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
             case 'advanced': return <AdvancedSettings />;
             case 'moderation-reports': return isModerator ? <ModerationSettings section="reports" focus={initialData?.focus} /> : null;
             case 'moderation-problems': return isModerator ? <ModerationSettings section="problems" focus={initialData?.focus} /> : null;
+            case 'moderation-verification': return isModerator ? <div className="settings-content-inner"><VerificationPanel moderation /></div> : null;
             case 'moderation-marketplace': return isModerator ? <ModerationSettings section="marketplace" /> : null;
             case 'moderation-posts': return isModerator ? <ModerationSettings section="posts" /> : null;
             case 'moderation-vlyneid': return isModerator ? <ModerationSettings section="vlyneid" focus={initialData?.focus} /> : null;
@@ -378,6 +380,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ isOpen, onClose, initia
                         <CategoryHeader>Модерация</CategoryHeader>
                         <NavItem id="moderation-reports" label="Жалобы" icon={ShieldIcon} />
                         <NavItem id="moderation-problems" label="Проблемы" icon={ChatIcon} />
+                        <NavItem id="moderation-verification" label="Верификация" icon={ShieldIcon} />
                         <NavItem id="moderation-marketplace" label="Витрина" icon={LayoutGridIcon} />
                         <NavItem id="moderation-posts" label="Публикации" icon={DocumentIcon} />
                         <NavItem id="moderation-vlyneid" label="Заявки Vlyne ID" icon={LinkIcon} />

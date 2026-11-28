@@ -8,6 +8,7 @@ import axios from 'axios';
 import { User } from '../types';
 import { getAvatarUrl, getFullUrl } from '../utils/avatar';
 import UserAvatar from './UserAvatar';
+import VerificationBadge from './VerificationBadge';
 import UserBadges, { resolveServerTag } from './UserBadges';
 import { MonitorIcon, } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -309,6 +310,7 @@ const ProfilePreview: React.FC<ProfilePreviewProps> = ({
                 <div className="profile-names">
                     <div className="profile-names-top">
                         <span className="profile-nickname" style={{ fontSize: '20px' }}>{displayName}</span>
+                        {!user.isBot && <VerificationBadge kind="profile" id={user._id} />}
                         {user.isBot && <span className="bot-badge-mini">BOT</span>}
                         <UserBadges badges={user.badges} serverTag={resolveServerTag(user, (user as any).servers)} size={18} className="profile-badges" />
                     </div>

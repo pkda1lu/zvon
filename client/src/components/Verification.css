@@ -1,0 +1,27 @@
+.verification-panel { display: grid; gap: 12px; }
+.verification-panel :is(h3, p) { margin: 0; }
+.verification-toolbar, .verification-actions, .verification-list li {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+}
+.verification-toolbar { justify-content: space-between; }
+.verification-list, .verification-thread { display: grid; gap: 8px; list-style: none; padding: 0; margin: 0; }
+.verification-list li { justify-content: space-between; }
+.verification-thread { max-height: 24rem; overflow: auto; }
+.verification-thread li { padding: 10px; border: 1px solid var(--glass-border); border-radius: 8px; }
+.verification-thread p { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
+.verification-thread time { color: var(--text-muted); font-size: 12px; }
+.verification-reply, .verification-reply label { display: grid; gap: 8px; min-width: 0; }
+.verification-reply :is(textarea, select) {
+    font: inherit; color: var(--text-main); background: var(--glass-bg-subtle);
+    border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px;
+}
+.verification-reply textarea { resize: vertical; }
+.verification-reply button { justify-self: start; }
+.verification-identity { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
+.verification-rosette {
+    display: inline-grid; place-items: center; vertical-align: middle; flex: 0 0 auto;
+    width: 17px; height: 17px; font: 700 12px/1 system-ui, sans-serif;
+    color: #10253a; background: #83caff;
+    clip-path: polygon(50% 0%, 62% 13%, 80% 10%, 86% 28%, 100% 38%, 94% 54%, 98% 72%, 80% 79%, 68% 96%, 50% 90%, 32% 96%, 20% 79%, 2% 72%, 6% 54%, 0% 38%, 14% 28%, 20% 10%, 38% 13%);
+}
+.verification-rosette-server { color: #102e28; background: #69e0c9; }

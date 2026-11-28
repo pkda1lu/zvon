@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import ProblemReportModal from '../../components/ProblemReportModal';
+import VerificationPanel from '../../components/VerificationPanel';
 import { PROBLEM_CATEGORIES, REPORT_REASONS } from '../../utils/reportLabels';
 import './ModerationHistorySettings.css';
 
@@ -8,6 +9,7 @@ const SECTIONS = [
     { id: 'notices', label: 'Сообщения модерации', empty: 'Сообщений от модерации пока нет.' },
     { id: 'reports', label: 'Жалобы', empty: 'Вы ещё не отправляли жалоб.' },
     { id: 'problems', label: 'Проблемы', empty: 'Вы ещё не сообщали о проблемах.' },
+    { id: 'verification', label: 'Верификация', empty: '' },
 ] as const;
 
 const STATUS_LABELS = {
@@ -45,6 +47,7 @@ export default function ModerationHistorySettings() {
     const [showReport, setShowReport] = useState(false);
 
     useEffect(() => {
+        if (section === 'verification') return;
         const controller = new AbortController();
         setResult(null);
         setFailed(false);
@@ -75,7 +78,7 @@ export default function ModerationHistorySettings() {
                     </button>
                 ))}
             </div>
-            {failed ? (
+            {section === 'verification' ? <VerificationPanel /> : failed ? (
                 <div role="alert">
                     <p>Не удалось загрузить историю.</p>
                     <button type="button" className="settings-btn secondary" onClick={() => setRevision(value => value + 1)}>

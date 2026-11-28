@@ -188,6 +188,7 @@ app.use('/miniapps', express.static(path.join(__dirname, 'public/miniapps'), {
   }
 }));
 app.use('/api/moderation', require('./routes/moderation'));
+app.use('/api/verification', require('./routes/verification'));
 app.use('/api/awards', require('./routes/awards'));
 app.use('/api/admin', require('./routes/admin'));
 const brandingRoutes = require('./routes/branding');
