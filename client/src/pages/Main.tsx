@@ -1311,7 +1311,12 @@ const Main: React.FC = () => {
 
     socket.on('call-offer', handleCallOffer);
     socket.on('server-member-updated', handleServerMemberUpdate);
+    const handlePartnershipUpdate = ({ serverId, partnership }: { serverId: string; partnership: Server['partnership'] }) => {
+      setServers(previous => previous.map(server => server._id === serverId ? { ...server, partnership } : server));
+      setSelectedServer(previous => previous?._id === serverId ? { ...previous, partnership } : previous);
+    };
     socket.on('server-updated', handleServerUpdate);
+    socket.on('server-partnership-updated', handlePartnershipUpdate);
     /*
      * Дружба разорвана — сейчас это происходит при блокировке (см.
      * routes/users.js). Убираем человека из списка сразу: иначе он остаётся
@@ -1355,6 +1360,7 @@ const Main: React.FC = () => {
       socket.off('call-offer', handleCallOffer);
       socket.off('server-member-updated', handleServerMemberUpdate);
       socket.off('server-updated', handleServerUpdate);
+      socket.off('server-partnership-updated', handlePartnershipUpdate);
       socket.off('friend-removed', handleFriendRemoved);
       socket.off('user-updated', handleUserUpdate);
       socket.off('server-member-joined', handleServerMemberJoined);

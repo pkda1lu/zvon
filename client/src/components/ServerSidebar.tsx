@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import axios from 'axios';
-import { Server, Channel, User } from '../types';
+import { Server, Channel, User, SERVER_PARTNERSHIP_LABELS } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { useCachedAvatar } from '../utils/avatarCache';
 import { useSocket } from '../contexts/SocketContext';
@@ -471,6 +471,11 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({
             <div className="server-header-icon-placeholder">{server.name.charAt(0).toUpperCase()}</div>
           )}
           <h2>{server.name}</h2>
+          {server.partnership && SERVER_PARTNERSHIP_LABELS[server.partnership] && (
+            <span className="server-partnership-badge" role="img" aria-label={`Партнёр Звона — ${SERVER_PARTNERSHIP_LABELS[server.partnership]}`} title={`Партнёр Звона — ${SERVER_PARTNERSHIP_LABELS[server.partnership]}`}>
+              {SERVER_PARTNERSHIP_LABELS[server.partnership]}
+            </span>
+          )}
         </div>
         <div className="server-header-actions">
           {canManageChannels && (

@@ -824,6 +824,23 @@ router.get('/servers', [auth, isModerator], async (req, res) => {
   }
 });
 
+router.patch('/servers/:id/partnership', [auth, isModerator], async (req, res) => {
+  const { id } = req.params;
+  const { partnership } = req.body || {};
+  if (!/^[a-f0-9]{24}$/i.test(id) || !Server.schema.path('partnership').enumValues.includes(partnership)) {
+    return res.status(400).json({ message: 'Некорректный сервер или партнёрский статус' });
+  }
+  try {
+    const server = await Server.findByIdAndUpdate(id, { $set: { partnership } }, { new: true, runValidators: true }).select('partnership');
+    if (!server) return res.status(404).json({ message: 'Сервер не найден' });
+    req.app.get('io')?.to(`server-${id}`).emit('server-partnership-updated', { serverId: id, partnership: server.partnership });
+    await logGlobalAction({ req, executorId: req.user._id, action: 'SERVER_UPDATE', targetId: server._id, targetModel: 'Server', details: { partnership } });
+    res.json({ partnership: server.partnership });
+  } catch (err) {
+    res.status(500).json({ message: 'Не удалось сохранить партнёрский статус' });
+  }
+});
+
 router.delete('/servers/:id', [auth, isModerator], async (req, res) => {
   try {
     const server = await Server.findById(req.params.id);

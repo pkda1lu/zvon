@@ -70,6 +70,18 @@
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
+.server-partnership-badge {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid #b4a2ff66;
+  border-radius: 5px;
+  background: #7964d32e;
+  color: #ddd4ff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .server-header-icon,
 .server-header-icon-placeholder {
   width: calc(36px * var(--interface-scale, 1));

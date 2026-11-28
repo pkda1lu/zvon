@@ -166,10 +166,18 @@ export interface ServerBan {
   bannedBy?: User | string | null;
 }
 
+export const SERVER_PARTNERSHIP_LABELS = {
+  streamer: 'Стример',
+  game: 'Видеоигра',
+  project: 'Проект',
+  company: 'Компания',
+} as const;
+
 export interface Server {
   _id: string;
   name: string;
   description?: string;
+  partnership?: keyof typeof SERVER_PARTNERSHIP_LABELS | null;
   icon?: string;
   banner?: string;
   bannerColor?: string;

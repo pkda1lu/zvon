@@ -29,6 +29,11 @@ const roleSchema = new mongoose.Schema({
 });
 
 const serverSchema = new mongoose.Schema({
+  partnership: {
+    type: String,
+    enum: ['streamer', 'game', 'project', 'company', null],
+    default: null
+  },
   name: {
     type: String,
     required: true,

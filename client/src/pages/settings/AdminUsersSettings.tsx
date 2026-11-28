@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import UserAvatar from '../../components/UserAvatar';
 import { getFullUrl } from '../../utils/avatar';
+import { Server, SERVER_PARTNERSHIP_LABELS } from '../../types';
 import { UsersIcon, LayoutGridIcon, ShieldIcon, PlusIcon } from '../../components/Icons';
 
 const AdminUsersSettings: React.FC = () => {
@@ -15,6 +16,19 @@ const AdminUsersSettings: React.FC = () => {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [savingPartnership, setSavingPartnership] = useState<string | null>(null);
+
+    const updatePartnership = async (id: string, partnership: Server['partnership']) => {
+        setSavingPartnership(id);
+        try {
+            const { data } = await axios.patch(`/api/admin/servers/${id}/partnership`, { partnership });
+            setData(previous => previous.map(item => item._id === id ? { ...item, partnership: data.partnership } : item));
+        } catch {
+            await alert('Не удалось сохранить партнёрский статус.');
+        } finally {
+            setSavingPartnership(null);
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -155,6 +169,18 @@ const AdminUsersSettings: React.FC = () => {
                                     <>
                                         <div className="settings-list-row-title">{item.name}</div>
                                         <div className="settings-list-row-meta">Владелец: {item.owner?.username || 'System'} • {item.members?.length || 0} уч.</div>
+                                        <select
+                                            className={`admin-server-partnership${item.partnership ? ' has-partnership' : ''}`}
+                                            aria-label={`Партнёрский статус сервера ${item.name}`}
+                                            value={item.partnership || ''}
+                                            disabled={savingPartnership !== null}
+                                            onChange={event => updatePartnership(item._id, (event.target.value || null) as Server['partnership'])}
+                                        >
+                                            <option value="">Без партнёрского статуса</option>
+                                            {Object.entries(SERVER_PARTNERSHIP_LABELS).map(([value, label]) => (
+                                                <option key={value} value={value}>{label}</option>
+                                            ))}
+                                        </select>
                                     </>
                                 )}
                             </div>

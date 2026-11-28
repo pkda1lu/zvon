@@ -2915,6 +2915,39 @@ input[type=range]:disabled::-webkit-slider-thumb {
     gap: 2px;
 }
 
+.admin-users-settings .admin-server-partnership {
+    align-self: flex-start;
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    margin-top: 3px;
+    padding: 4px 8px;
+    border: 1px solid var(--glass-border);
+    border-radius: 7px;
+    background-color: rgba(255, 255, 255, 0.04);
+    color: var(--text-dim);
+    color-scheme: dark;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.admin-users-settings .admin-server-partnership.has-partnership,
+.admin-users-settings .admin-server-partnership:hover {
+    color: var(--text-main);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.admin-users-settings .admin-server-partnership:focus-visible {
+    outline: 2px solid var(--primary-neon);
+    outline-offset: 2px;
+}
+
+.admin-users-settings .admin-server-partnership:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 .settings-list-row-actions {
     display: flex;
     align-items: center;
