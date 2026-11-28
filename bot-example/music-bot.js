@@ -451,10 +451,58 @@ socket.on("new-message", async (msg) => {
                         if (owner && kind) {
                             try { res = await yandexClient.playlists.getPlaylistById(owner, kind); } catch (e) { }
                         }
-                        if (!res?.result?.tracks?.length) {
-                            const sRes = await yandexClient.search.search(kind, 0, 'playlist');
-                            const disc = sRes.result.playlists?.results?.find(p => p.playlistUuid === kind || p.kind.toString() === kind);
-                            if (disc) res = await yandexClient.playlists.getPlaylistById(disc.owner.uid || disc.owner.login, disc.kind);
+                        if (!owner && kind) {
+                            // Shared playlists use a public ID (including its prefix) rather than owner/kind.
+                            const id = encodeURIComponent(kind);
+                            const requests = [
+                                { url: `/playlist/${id}` },
+                                { url: `/playlist?playlistId=${id}` },
+                                { method: 'post', url: '/playlists/list', data: `playlistIds=${id}` },
+                            ];
+                            for (const request of requests) {
+                                try {
+                                    const { data } = await axios.request({
+                                        ...request,
+                                        baseURL: 'https://api.music.yandex.net',
+                                        headers: {
+                                            Authorization: `OAuth ${YANDEX_TOKEN}`,
+                                            'X-Yandex-Music-Client': 'Android/14562',
+                                            'Content-Type': 'application/x-www-form-urlencoded',
+                                        },
+                                        timeout: 8000
+                                    });
+                                    const playlist = Array.isArray(data.result) ? data.result[0] : data.result;
+                                    if (!playlist?.tracks?.length) continue;
+                                    const tracks = playlist.tracks.filter(Boolean);
+                                    const trackId = entry => String(entry.track?.id ?? entry.id ?? entry.trackId ?? '').split(':')[0];
+                                    const missing = tracks.filter(entry => !(entry.track || entry).title);
+                                    const ids = [...new Set(missing.map(trackId).filter(Boolean))];
+                                    if (ids.length) {
+                                        const response = await yandexClient.tracks.getTracks({ 'track-ids': ids });
+                                        const byId = new Map((response.result || []).map(track => [trackId(track), track]));
+                                        for (const [index, entry] of tracks.entries()) {
+                                            if (!(entry.track || entry).title) tracks[index] = byId.get(trackId(entry));
+                                        }
+                                    }
+                                    const playable = tracks.filter(entry => (entry?.track?.id && entry.track.title) || (entry?.id && entry.title));
+                                    if (playable.length) {
+                                        res = { result: { ...playlist, tracks: playable } };
+                                        break;
+                                    }
+                                } catch (error) {
+                                    console.warn('[Yandex] Shared playlist request failed:', error.response?.status || error.code || error.name);
+                                }
+                            }
+                        }
+                        if (!res?.result?.tracks?.length && kind) {
+                            try {
+                                const sRes = await yandexClient.search.search(kind, 0, 'playlist');
+                                const disc = sRes.result?.playlists?.results?.find(p => p.playlistUuid === kind || String(p.kind) === kind);
+                                const foundOwner = disc?.owner?.uid || disc?.owner?.login;
+                                if (foundOwner) res = await yandexClient.playlists.getPlaylistById(foundOwner, disc.kind);
+                            } catch (error) {
+                                console.warn('[Yandex] Playlist search failed:', error.response?.status || error.code || error.name);
+                            }
                         }
 
                         // 3. SCRAPER FALLBACK (only for playlists)
